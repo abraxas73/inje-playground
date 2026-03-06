@@ -73,6 +73,24 @@ function saveFilters(filters: SavedFilters) {
   } catch {}
 }
 
+// Logarithmic scale: slider 0-100 → radius 100m-20km
+// More precision at short distances, less at long distances
+const RADIUS_MIN = 100;
+const RADIUS_MAX = 20000;
+
+function sliderToRadius(value: number): number {
+  const ratio = value / 100;
+  const radius = RADIUS_MIN * Math.pow(RADIUS_MAX / RADIUS_MIN, ratio);
+  // Round to nice steps: <1km → 50m, <5km → 100m, else 500m
+  if (radius < 1000) return Math.round(radius / 50) * 50;
+  if (radius < 5000) return Math.round(radius / 100) * 100;
+  return Math.round(radius / 500) * 500;
+}
+
+function radiusToSlider(radius: number): number {
+  return Math.round(100 * Math.log(radius / RADIUS_MIN) / Math.log(RADIUS_MAX / RADIUS_MIN));
+}
+
 interface SearchCondition {
   category: CategoryCode;
   subCategory: string;
@@ -467,22 +485,24 @@ export default function FoodPage() {
                 </div>
               </div>
 
-              {/* Radius */}
+              {/* Radius (logarithmic scale) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">거리</span>
                   <Badge variant="secondary">{radius >= 1000 ? `${(radius / 1000).toFixed(1)}km` : `${radius}m`}</Badge>
                 </div>
                 <Slider
-                  value={[radius]}
-                  onValueChange={(v) => setRadius(v[0])}
-                  min={100}
-                  max={20000}
-                  step={100}
+                  value={[radiusToSlider(radius)]}
+                  onValueChange={(v) => setRadius(sliderToRadius(v[0]))}
+                  min={0}
+                  max={100}
+                  step={1}
                   className="w-full"
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>100m</span>
+                  <span>500m</span>
+                  <span>2km</span>
                   <span>20km</span>
                 </div>
               </div>
