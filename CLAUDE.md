@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Coneplus Workshop** — a team workshop utility app (Korean UI) built with Next.js. Features ladder games (사다리 게임) and team divider (팀 나누기) with Dooray API integration for importing project members.
+**NHN Injeinc Workshop** — NHN 인재아이엔씨 구성원을 위한 팀 워크샵 유틸리티 앱 (Korean UI) built with Next.js + shadcn/ui. Features ladder games (사다리 게임) and team divider (팀 나누기) with Dooray API integration for importing project members. Supabase DB for persistent data storage.
 
 ## Commands
 

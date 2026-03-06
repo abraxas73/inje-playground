@@ -7,10 +7,12 @@ import type { DoorayMember } from "@/types/dooray";
 
 interface DoorayImportButtonProps {
   onImport: (names: string[]) => void;
+  projectId?: string;
 }
 
 export default function DoorayImportButton({
   onImport,
+  projectId: overrideProjectId,
 }: DoorayImportButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,21 +22,27 @@ export default function DoorayImportButton({
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("dooray-token");
-      const projectId = localStorage.getItem("dooray-project-id");
+      const settingsRes = await fetch("/api/settings");
+      if (!settingsRes.ok) {
+        throw new Error("설정을 불러올 수 없습니다.");
+      }
+      const settings = await settingsRes.json();
+      const token = settings.dooray_token;
+      const projectId = overrideProjectId?.trim() || settings.dooray_project_id;
 
-      if (!token || !projectId) {
-        setError("설정 페이지에서 Dooray 토큰과 프로젝트 ID를 입력해주세요.");
+      if (!token) {
+        setError("설정 페이지에서 Dooray 토큰을 입력해주세요.");
+        return;
+      }
+      if (!projectId) {
+        setError("프로젝트 ID를 입력하거나 설정 페이지에서 지정해주세요.");
         return;
       }
 
-      const parsedToken = JSON.parse(token);
-      const parsedProjectId = JSON.parse(projectId);
-
       const res = await fetch(
-        `/api/dooray/members?projectId=${encodeURIComponent(parsedProjectId)}`,
+        `/api/dooray/members?projectId=${encodeURIComponent(projectId)}`,
         {
-          headers: { "x-dooray-token": parsedToken },
+          headers: { "x-dooray-token": token },
         }
       );
 

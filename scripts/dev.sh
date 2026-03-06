@@ -11,5 +11,10 @@ if [ -n "$PID" ]; then
   sleep 1
 fi
 
+cd "$(dirname "$0")/.."
+
+# Clear stale Turbopack cache
+rm -rf .next
+
 echo "Starting dev server on port $PORT..."
-cd "$(dirname "$0")/.." && npm run dev -- -p $PORT
+npm run dev -- -p $PORT

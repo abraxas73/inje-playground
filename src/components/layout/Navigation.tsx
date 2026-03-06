@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Dice5, Users, Settings, Home, Sparkles } from "lucide-react";
+import { Dice5, Users, Settings, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/", label: "홈", icon: Home },
   { href: "/ladder", label: "사다리 게임", icon: Dice5 },
-  { href: "/team", label: "팀 나누기", icon: Users },
+  { href: "/team", label: "팀 구성", icon: Users },
   { href: "/settings", label: "설정", icon: Settings },
 ];
 
@@ -21,12 +21,15 @@ export default function Navigation() {
         <div className="flex items-center h-16 gap-1">
           <Link
             href="/"
-            className="flex items-center gap-2 font-bold text-lg tracking-tight mr-8 group"
+            className="flex items-center gap-2.5 font-bold text-lg tracking-tight mr-8 group"
           >
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Sparkles className="h-4 w-4 text-primary-foreground" />
+              <span className="text-primary-foreground text-xs font-black tracking-tighter">N</span>
             </div>
-            <span className="gradient-text font-extrabold">Coneplus</span>
+            <div className="flex flex-col leading-none">
+              <span className="text-[10px] font-semibold text-muted-foreground tracking-widest">NHN INJEINC</span>
+              <span className="text-sm font-bold gradient-text">Workshop</span>
+            </div>
           </Link>
           <div className="flex items-center gap-0.5 bg-muted/50 rounded-xl p-1">
             {NAV_ITEMS.map((item) => {

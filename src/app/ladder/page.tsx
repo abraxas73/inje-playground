@@ -9,10 +9,11 @@ import ParticipantList from "@/components/shared/ParticipantList";
 import DoorayImportButton from "@/components/shared/DoorayImportButton";
 import LadderCanvas from "@/components/ladder/LadderCanvas";
 import LadderConfig from "@/components/ladder/LadderConfig";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Dice5, Music, Users, Settings2 } from "lucide-react";
 import type { PresetName } from "@/lib/bgm-presets";
@@ -30,6 +31,7 @@ export default function LadderPage() {
 
   const [results, setResults] = useState<string[]>([]);
   const [bridgeDensity, setBridgeDensity] = useState(0.4);
+  const [projectId, setProjectId] = useState("");
 
   const bgm = useBgm();
   const tts = useTts();
@@ -49,8 +51,8 @@ export default function LadderPage() {
   return (
     <div className="animate-fade-up">
       <div className="flex items-center gap-3 mb-8">
-        <div className="h-10 w-10 rounded-xl bg-violet-100 flex items-center justify-center">
-          <Dice5 className="h-5 w-5 text-violet-600" />
+        <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
+          <Dice5 className="h-5 w-5 text-blue-600" />
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">사다리 게임</h1>
@@ -67,11 +69,20 @@ export default function LadderPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex gap-2 items-center mb-2">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">프로젝트 ID</Label>
+              <Input
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                placeholder="비워두면 설정값 사용"
+                className="h-8 text-xs max-w-60"
+              />
+            </div>
             <div className="flex gap-2 items-start">
               <div className="flex-1">
                 <ParticipantInput onAdd={addParticipants} />
               </div>
-              <DoorayImportButton onImport={setAll} />
+              <DoorayImportButton onImport={setAll} projectId={projectId} />
             </div>
             <ParticipantList
               participants={participants}

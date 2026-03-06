@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const DOORAY_API_BASE = "https://api.dooray.com";
+
 export async function GET(request: NextRequest) {
-  const projectId = request.nextUrl.searchParams.get("projectId");
   const token = request.headers.get("x-dooray-token");
+  const projectId = request.nextUrl.searchParams.get("projectId");
 
   if (!projectId || !token) {
     return NextResponse.json(
@@ -11,33 +13,66 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // 1. Get member IDs
+  const headers = {
+    Authorization: `dooray-api ${token}`,
+    "Content-Type": "application/json",
+  };
+
+  // 1. Project members (raw response, 2 items)
   const membersRes = await fetch(
-    `https://api.dooray.com/project/v1/projects/${projectId}/members?page=0&size=2`,
-    {
-      headers: {
-        Authorization: `dooray-api ${token}`,
-        "Content-Type": "application/json",
-      },
-    }
+    `${DOORAY_API_BASE}/project/v1/projects/${projectId}/members?page=0&size=2`,
+    { headers }
   );
   const membersData = await membersRes.json();
   const firstMemberId = membersData.result?.[0]?.organizationMemberId;
 
-  // 2. Try to get member detail
+  // 2. Member detail (full)
   let memberDetail = null;
   if (firstMemberId) {
     const detailRes = await fetch(
-      `https://api.dooray.com/common/v1/members/${firstMemberId}`,
-      {
-        headers: {
-          Authorization: `dooray-api ${token}`,
-          "Content-Type": "application/json",
-        },
-      }
+      `${DOORAY_API_BASE}/common/v1/members/${firstMemberId}`,
+      { headers }
     );
     memberDetail = await detailRes.json();
   }
 
-  return NextResponse.json({ membersData, memberDetail });
+  // 3. Organization departments (teams)
+  let departments = null;
+  try {
+    const deptRes = await fetch(
+      `${DOORAY_API_BASE}/common/v1/organizations/-/departments?page=0&size=100`,
+      { headers }
+    );
+    departments = await deptRes.json();
+  } catch {}
+
+  // 4. Member with department info
+  let memberDeptDetail = null;
+  if (firstMemberId) {
+    try {
+      const res = await fetch(
+        `${DOORAY_API_BASE}/common/v1/members/${firstMemberId}/departments`,
+        { headers }
+      );
+      memberDeptDetail = await res.json();
+    } catch {}
+  }
+
+  // 5. Project member groups
+  let memberGroups = null;
+  try {
+    const res = await fetch(
+      `${DOORAY_API_BASE}/project/v1/projects/${projectId}/member-groups?page=0&size=100`,
+      { headers }
+    );
+    memberGroups = await res.json();
+  } catch {}
+
+  return NextResponse.json({
+    projectMembers: membersData,
+    memberDetail,
+    memberDepartments: memberDeptDetail,
+    organizationDepartments: departments,
+    projectMemberGroups: memberGroups,
+  });
 }

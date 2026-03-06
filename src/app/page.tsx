@@ -9,19 +9,19 @@ const FEATURES = [
     description:
       "참여자와 결과를 매칭하는 사다리 게임. 애니메이션과 함께 결과를 확인하세요.",
     icon: Dice5,
-    gradient: "from-violet-500 to-indigo-600",
-    bgAccent: "bg-violet-50",
-    iconColor: "text-violet-600",
+    gradient: "from-blue-600 to-indigo-700",
+    bgAccent: "bg-blue-50",
+    iconColor: "text-blue-600",
     delay: "delay-100",
   },
   {
     href: "/team",
-    title: "팀 나누기",
-    description: "참여자를 원하는 조건에 맞게 랜덤으로 팀을 구성합니다.",
+    title: "팀 구성",
+    description: "참여자를 원하는 조건에 맞게 랜덤으로 팀을 구성하고 이력을 관리합니다.",
     icon: Users,
-    gradient: "from-emerald-500 to-teal-600",
-    bgAccent: "bg-emerald-50",
-    iconColor: "text-emerald-600",
+    gradient: "from-sky-500 to-blue-600",
+    bgAccent: "bg-sky-50",
+    iconColor: "text-sky-600",
     delay: "delay-200",
   },
   {
@@ -29,9 +29,9 @@ const FEATURES = [
     title: "설정",
     description: "Dooray 연동 설정으로 프로젝트 멤버를 자동으로 불러옵니다.",
     icon: Settings,
-    gradient: "from-amber-500 to-orange-600",
-    bgAccent: "bg-amber-50",
-    iconColor: "text-amber-600",
+    gradient: "from-slate-500 to-slate-700",
+    bgAccent: "bg-slate-100",
+    iconColor: "text-slate-600",
     delay: "delay-300",
   },
 ];
@@ -45,11 +45,11 @@ export default function HomePage() {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
           </span>
-          Workshop Toolkit
+          NHN Injeinc Workshop
         </div>
         <h1 className="text-5xl font-extrabold tracking-tight mb-4">
-          <span className="gradient-text">Coneplus</span>{" "}
-          <span className="text-foreground">Workshop</span>
+          <span className="gradient-text">인재아이엔씨</span>{" "}
+          <span className="text-foreground">워크샵</span>
         </h1>
         <p className="text-muted-foreground text-lg max-w-md mx-auto">
           팀 워크샵을 위한 게임 & 유틸리티
