@@ -16,7 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shuffle, RefreshCw, AlertCircle, Users, Settings2, Save, Loader2, History } from "lucide-react";
+import { Shuffle, RefreshCw, AlertCircle, Users, Settings2, Save, Loader2, History, Send, Check } from "lucide-react";
 import type { Team } from "@/types/team";
 import { logAction } from "@/lib/action-log";
 
@@ -42,6 +42,8 @@ export default function TeamPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
 
   useEffect(() => {
     try {
@@ -96,6 +98,7 @@ export default function TeamPage() {
 
     setResult(namedTeams);
     setSaved(false);
+    setSent(false);
     logAction("팀 구성", "team", { participantCount: participants.length, teamCount });
   };
 
@@ -124,10 +127,28 @@ export default function TeamPage() {
     }
   };
 
+  const handleSendDooray = async () => {
+    if (!result) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/team-notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teams: result }),
+      });
+      const data = await res.json();
+      setSent(data.webhook_sent);
+      logAction("팀 구성 두레이 전송", "team", { teamCount: result.length });
+    } catch {} finally {
+      setSending(false);
+    }
+  };
+
   const handleReset = () => {
     setResult(null);
     setError(null);
     setSaved(false);
+    setSent(false);
   };
 
   return (
@@ -234,6 +255,22 @@ export default function TeamPage() {
                   <Save className="h-4 w-4 mr-2" />
                 )}
                 {saved ? "저장됨" : "저장"}
+              </Button>
+              <Button
+                onClick={handleSendDooray}
+                variant="outline"
+                size="lg"
+                className="rounded-xl"
+                disabled={sending || sent}
+              >
+                {sending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : sent ? (
+                  <Check className="h-4 w-4 mr-2" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                {sent ? "전송됨" : "두레이 전송"}
               </Button>
             </>
           )}
