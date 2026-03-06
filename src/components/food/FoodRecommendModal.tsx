@@ -88,6 +88,7 @@ export default function FoodRecommendModal({
   // Member selection
   const [members, setMembers] = useState<DoorayMember[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
+  const [memberSearch, setMemberSearch] = useState("");
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [sending, setSending] = useState(false);
   const [sentResult, setSentResult] = useState<{
@@ -224,8 +225,13 @@ export default function FoodRecommendModal({
   const handleDecide = () => {
     setStep("members");
     setSelectedMembers(new Set());
+    setMemberSearch("");
     setSentResult(null);
   };
+
+  const filteredMembers = memberSearch.trim()
+    ? members.filter((m) => m.name.toLowerCase().includes(memberSearch.trim().toLowerCase()))
+    : members;
 
   const toggleMember = (id: string) => {
     setSelectedMembers((prev) => {
@@ -498,6 +504,16 @@ export default function FoodRecommendModal({
               </p>
             ) : (
               <>
+                <div className="relative mb-2">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={memberSearch}
+                    onChange={(e) => setMemberSearch(e.target.value)}
+                    placeholder="구성원 검색..."
+                    className="w-full pl-8 pr-3 py-1.5 text-sm border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs text-muted-foreground">
                     <Users className="h-3 w-3 inline mr-1" />
@@ -508,7 +524,7 @@ export default function FoodRecommendModal({
                   </Button>
                 </div>
                 <div className="flex-1 overflow-y-auto space-y-1 min-h-0 max-h-[40vh]">
-                  {members.map((member) => (
+                  {filteredMembers.map((member) => (
                     <label
                       key={member.id}
                       className="flex items-center gap-3 p-2.5 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"

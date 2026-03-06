@@ -84,26 +84,39 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 2. Send personal messages to each member via Dooray API
+  // 2. Send personal messages to each member via Dooray Messenger API
   if (settings.dooray_token && member_ids?.length) {
     const token = settings.dooray_token;
+    const headers = {
+      Authorization: `dooray-api ${token}`,
+      "Content-Type": "application/json",
+    };
     let sent = 0;
 
     for (const memberId of member_ids as string[]) {
       try {
-        // Create a direct message conversation or send to existing one
-        const dmRes = await fetch(`${DOORAY_API_BASE}/messenger/v1/channels/direct-send`, {
+        // Step 1: Create or get DM channel
+        const channelRes = await fetch(`${DOORAY_API_BASE}/messenger/v1/channels`, {
           method: "POST",
-          headers: {
-            Authorization: `dooray-api ${token}`,
-            "Content-Type": "application/json",
-          },
+          headers,
           body: JSON.stringify({
+            type: "direct",
             organizationMemberIds: [memberId],
-            text: message,
           }),
         });
-        if (dmRes.ok) sent++;
+
+        if (!channelRes.ok) continue;
+        const channelData = await channelRes.json();
+        const channelId = channelData.result?.id;
+        if (!channelId) continue;
+
+        // Step 2: Send message to the DM channel
+        const msgRes = await fetch(`${DOORAY_API_BASE}/messenger/v1/channels/${channelId}/logs`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ text: message }),
+        });
+        if (msgRes.ok) sent++;
       } catch {
         // Individual DM failed silently
       }
