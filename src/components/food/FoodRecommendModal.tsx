@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Shuffle,
   Star,
+  Search,
   MapPin,
   Loader2,
   ExternalLink,
@@ -22,7 +23,16 @@ import {
 import type { KakaoPlace, FoodFavorite } from "@/types/food";
 import { logAction } from "@/lib/action-log";
 
-type RecommendMode = "favorite" | "random" | null;
+type RecommendMode = "favorite" | "random" | "search" | null;
+
+interface SearchCondition {
+  category: string;
+  subCategory: string;
+  detailCategory: string;
+  radius: number;
+  maxResults: number;
+  keyword: string;
+}
 
 interface FoodRecommendModalProps {
   open: boolean;
@@ -32,6 +42,8 @@ interface FoodRecommendModalProps {
   category: string;
   subCategory: string;
   favorites: FoodFavorite[];
+  searchResults: KakaoPlace[];
+  lastSearch: SearchCondition | null;
 }
 
 export default function FoodRecommendModal({
@@ -42,6 +54,8 @@ export default function FoodRecommendModal({
   category,
   subCategory,
   favorites,
+  searchResults,
+  lastSearch,
 }: FoodRecommendModalProps) {
   const [mode, setMode] = useState<RecommendMode>(null);
   const [result, setResult] = useState<KakaoPlace | FoodFavorite | null>(null);
@@ -143,6 +157,30 @@ export default function FoodRecommendModal({
     }
   };
 
+  const recommendFromSearch = () => {
+    if (searchResults.length === 0) return;
+    setMode("search");
+    setSpinning(true);
+    setResult(null);
+
+    let count = 0;
+    const maxCount = 15;
+    const interval = setInterval(() => {
+      const idx = Math.floor(Math.random() * searchResults.length);
+      setResult(searchResults[idx]);
+      count++;
+      if (count >= maxCount) {
+        clearInterval(interval);
+        const finalIdx = Math.floor(Math.random() * searchResults.length);
+        setResult(searchResults[finalIdx]);
+        setSpinning(false);
+        logAction("검색 조건내 랜덤 추천", "food", {
+          placeName: searchResults[finalIdx].place_name,
+        });
+      }
+    }, 100);
+  };
+
   const handleClose = (open: boolean) => {
     if (!open) {
       setMode(null);
@@ -155,6 +193,7 @@ export default function FoodRecommendModal({
   const retryRecommend = () => {
     if (mode === "favorite") recommendFromFavorites();
     else if (mode === "random") recommendRandom();
+    else if (mode === "search") recommendFromSearch();
   };
 
   const placeName = result
@@ -220,6 +259,22 @@ export default function FoodRecommendModal({
                   {favorites.length > 0
                     ? `${favorites.length}개의 즐겨찾기 중 랜덤 선택`
                     : "즐겨찾기가 없습니다"}
+                </div>
+              </div>
+            </Button>
+            <Button
+              onClick={recommendFromSearch}
+              variant="outline"
+              className="w-full h-14 justify-start gap-3"
+              disabled={searchResults.length === 0}
+            >
+              <Search className="h-5 w-5 text-emerald-500" />
+              <div className="text-left">
+                <div className="font-medium">검색 조건내 랜덤 추천</div>
+                <div className="text-xs text-muted-foreground">
+                  {searchResults.length > 0
+                    ? `검색 결과 ${searchResults.length}곳 중 랜덤 선택`
+                    : "먼저 검색을 실행해주세요"}
                 </div>
               </div>
             </Button>

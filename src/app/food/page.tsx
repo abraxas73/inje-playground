@@ -705,6 +705,8 @@ export default function FoodPage() {
         category={category}
         subCategory={subCategory}
         favorites={favorites}
+        searchResults={places}
+        lastSearch={lastSearch}
       />
     </div>
   );
