@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Dice5, Users, Settings, Home, LogOut, UtensilsCrossed } from "lucide-react";
@@ -50,12 +51,15 @@ export default function Navigation() {
           <div className="flex items-center h-14 md:h-16 gap-1">
             <Link
               href="/"
-              className="flex items-center gap-2.5 font-bold text-lg tracking-tight mr-4 md:mr-8 group"
+              className="flex items-center mr-4 md:mr-8 group shrink-0"
             >
-              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center group-hover:scale-110 transition-transform">
-                <span className="text-primary-foreground text-xs font-black tracking-tighter">N</span>
-              </div>
-              <span className="hidden sm:inline text-sm font-bold gradient-text">NHN InjeInc</span>
+              <Image
+                src="/logo.svg"
+                alt="NHN InjeInc"
+                width={120}
+                height={14}
+                className="group-hover:opacity-80 transition-opacity"
+              />
             </Link>
 
             {/* Desktop nav items */}

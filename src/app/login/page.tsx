@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { createClient } from "@/lib/supabase";
 import { logAction } from "@/lib/action-log";
 import { Button } from "@/components/ui/button";
@@ -21,11 +22,10 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center dot-grid px-4">
       <Card className="w-full max-w-sm animate-fade-up">
         <CardHeader className="text-center">
-          <div className="mx-auto h-12 w-12 rounded-xl bg-primary flex items-center justify-center mb-2">
-            <span className="text-primary-foreground text-lg font-black">N</span>
+          <div className="mx-auto mb-4">
+            <Image src="/logo.svg" alt="NHN InjeInc" width={150} height={18} priority />
           </div>
-          <CardTitle className="text-xl">NHN Injeinc Workshop</CardTitle>
-          <CardDescription>로그인하여 워크샵 도구를 사용하세요</CardDescription>
+          <CardDescription>인재인을 위한 서비스에 로그인하세요</CardDescription>
         </CardHeader>
         <CardContent>
           <Button

@@ -397,7 +397,7 @@ export default function FoodPage() {
               <div className="flex items-center gap-3">
                 <span className="text-sm font-medium shrink-0">검색 수</span>
                 <div className="flex gap-1.5">
-                  {[15, 30, 45].map((n) => (
+                  {[30, 50, 100, 250].map((n) => (
                     <Badge
                       key={n}
                       variant={maxResults === n ? "default" : "outline"}

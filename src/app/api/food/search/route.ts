@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const categoryGroupCode = searchParams.get("category_group_code") || "FD6";
   const subCategory = searchParams.get("sub_category") || "";
   const detailCategory = searchParams.get("detail_category") || "";
-  const maxResults = Math.min(parseInt(searchParams.get("max_results") || "30"), 45);
+  const maxResults = Math.min(parseInt(searchParams.get("max_results") || "30"), 250);
 
   if (!x || !y) {
     return NextResponse.json({ error: "x, y 좌표가 필요합니다" }, { status: 400 });
