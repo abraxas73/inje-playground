@@ -139,9 +139,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Validate API key with a single request first
+  // Validate API key
   const testUrl = new URL("https://dapi.kakao.com/v2/local/search/category.json");
-  testUrl.searchParams.set("category_group_code", categoryGroupCode);
+  testUrl.searchParams.set("category_group_code", "FD6");
   testUrl.searchParams.set("x", x);
   testUrl.searchParams.set("y", y);
   testUrl.searchParams.set("radius", "100");
@@ -159,30 +159,39 @@ export async function GET(request: NextRequest) {
   }
 
   // Determine grid size based on how many results we need
-  // Each cell can return max 45 results
-  // gridSize=1: 1 cell → max 45
-  // gridSize=2: 4 cells → max 180
-  // gridSize=3: 9 cells → max 405
+  // Each cell can return max 45 results per category
+  // gridSize=1: 1 cell → max 45 (or 90 for ALL)
+  // gridSize=2: 4 cells → max 180 (or 360 for ALL)
+  // gridSize=3: 9 cells → max 405 (or 810 for ALL)
+  const isAll = categoryGroupCode === "ALL";
+  const categories = isAll ? ["FD6", "CE7"] : [categoryGroupCode];
+  const effectiveMax = isAll ? Math.ceil(maxResults / 2) : maxResults;
+
   const radiusM = parseInt(radius);
   let gridSize = 1;
-  if (maxResults > 45) gridSize = 2;
-  if (maxResults > 180) gridSize = 3;
+  if (effectiveMax > 45) gridSize = 2;
+  if (effectiveMax > 180) gridSize = 3;
 
   const gridCenters = generateGridCenters(parseFloat(x), parseFloat(y), radiusM, gridSize);
 
-  // Fetch all cells in parallel
-  const cellResults = await Promise.allSettled(
-    gridCenters.map((cell) =>
-      fetchAllPages({
-        kakaoKey,
-        categoryGroupCode,
-        keyword,
-        cx: cell.x,
-        cy: cell.y,
-        radius: cell.r,
-      })
-    )
-  );
+  // Fetch all cells × categories in parallel
+  const fetchPromises: Promise<Record<string, unknown>[]>[] = [];
+  for (const cat of categories) {
+    for (const cell of gridCenters) {
+      fetchPromises.push(
+        fetchAllPages({
+          kakaoKey,
+          categoryGroupCode: cat,
+          keyword,
+          cx: cell.x,
+          cy: cell.y,
+          radius: cell.r,
+        })
+      );
+    }
+  }
+
+  const cellResults = await Promise.allSettled(fetchPromises);
 
   const allDocuments: Record<string, unknown>[] = [];
   for (const result of cellResults) {
@@ -211,41 +220,42 @@ export async function GET(request: NextRequest) {
 
   // Auto-collect sub & detail categories from results into DB
   if (uniqueDocuments.length) {
-    const groupName = categoryGroupCode === "CE7" ? "카페" : "음식점";
-    const subCats = new Set<string>();
-    const detailCats: { sub: string; detail: string }[] = [];
+    const subCatRows: { category_group_code: string; category_group_name: string; sub_category: string }[] = [];
+    const detailCatRows: { category_group_code: string; sub_category: string; detail_category: string }[] = [];
+    const seenSub = new Set<string>();
+    const seenDetail = new Set<string>();
 
     for (const doc of uniqueDocuments) {
       const parts = (doc.category_name as string).split(" > ");
-      if (parts.length >= 2) subCats.add(parts[1]);
-      if (parts.length >= 3) detailCats.push({ sub: parts[1], detail: parts[2] });
+      const code = (doc.category_group_code as string) || categoryGroupCode;
+      const groupName = code === "CE7" ? "카페" : "음식점";
+
+      if (parts.length >= 2) {
+        const key = `${code}::${parts[1]}`;
+        if (!seenSub.has(key)) {
+          seenSub.add(key);
+          subCatRows.push({ category_group_code: code, category_group_name: groupName, sub_category: parts[1] });
+        }
+      }
+      if (parts.length >= 3) {
+        const key = `${code}::${parts[1]}::${parts[2]}`;
+        if (!seenDetail.has(key)) {
+          seenDetail.add(key);
+          detailCatRows.push({ category_group_code: code, sub_category: parts[1], detail_category: parts[2] });
+        }
+      }
     }
 
-    if (subCats.size > 0) {
-      const rows = [...subCats].map((sc) => ({
-        category_group_code: categoryGroupCode,
-        category_group_name: groupName,
-        sub_category: sc,
-      }));
+    if (subCatRows.length > 0) {
       supabase
         .from("food_categories")
-        .upsert(rows, { onConflict: "category_group_code,sub_category" })
+        .upsert(subCatRows, { onConflict: "category_group_code,sub_category" })
         .then(() => {});
     }
-
-    if (detailCats.length > 0) {
-      const uniqueDetails = new Map<string, { sub: string; detail: string }>();
-      for (const d of detailCats) {
-        uniqueDetails.set(`${d.sub}::${d.detail}`, d);
-      }
-      const detailRows = [...uniqueDetails.values()].map((d) => ({
-        category_group_code: categoryGroupCode,
-        sub_category: d.sub,
-        detail_category: d.detail,
-      }));
+    if (detailCatRows.length > 0) {
       supabase
         .from("food_detail_categories")
-        .upsert(detailRows, { onConflict: "category_group_code,sub_category,detail_category" })
+        .upsert(detailCatRows, { onConflict: "category_group_code,sub_category,detail_category" })
         .then(() => {});
     }
   }

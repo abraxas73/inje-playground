@@ -26,7 +26,7 @@ import { logAction } from "@/lib/action-log";
 import FoodRecommendModal from "@/components/food/FoodRecommendModal";
 import AddressSearchModal from "@/components/food/AddressSearchModal";
 
-type CategoryCode = "FD6" | "CE7";
+type CategoryCode = "ALL" | "FD6" | "CE7";
 
 interface LocationState {
   x: number;
@@ -386,9 +386,16 @@ export default function FoodPage() {
                 <span className="text-sm font-medium shrink-0">카테고리</span>
                 <div className="flex gap-2">
                   <Button
+                    variant={category === "ALL" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => { setCategory("ALL"); setSubCategory(""); setDetailCategory(""); }}
+                  >
+                    전체
+                  </Button>
+                  <Button
                     variant={category === "FD6" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => { setCategory("FD6"); setSubCategory(""); }}
+                    onClick={() => { setCategory("FD6"); setSubCategory(""); setDetailCategory(""); }}
                   >
                     <UtensilsCrossed className="h-3.5 w-3.5 mr-1" />
                     음식점
@@ -396,7 +403,7 @@ export default function FoodPage() {
                   <Button
                     variant={category === "CE7" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => { setCategory("CE7"); setSubCategory(""); }}
+                    onClick={() => { setCategory("CE7"); setSubCategory(""); setDetailCategory(""); }}
                   >
                     <Coffee className="h-3.5 w-3.5 mr-1" />
                     카페
@@ -416,8 +423,8 @@ export default function FoodPage() {
                 />
               </div>
 
-              {/* Sub-category filter */}
-              {subCategories.length > 0 && (
+              {/* Sub-category filter (hidden for ALL) */}
+              {category !== "ALL" && subCategories.length > 0 && (
                 <div className="space-y-1.5">
                   <span className="text-sm font-medium">분류</span>
                   <div className="flex flex-wrap gap-1.5">
@@ -442,8 +449,8 @@ export default function FoodPage() {
                 </div>
               )}
 
-              {/* Detail category filter */}
-              {detailCategories.length > 0 && subCategory && (
+              {/* Detail category filter (hidden for ALL) */}
+              {category !== "ALL" && detailCategories.length > 0 && subCategory && (
                 <div className="space-y-1.5">
                   <span className="text-sm font-medium">상세 분류</span>
                   <div className="flex flex-wrap gap-1.5">
@@ -642,7 +649,7 @@ export default function FoodPage() {
               {lastSearch && (
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <Badge variant="secondary" className="text-[10px]">
-                    {lastSearch.category === "FD6" ? "음식점" : "카페"}
+                    {lastSearch.category === "ALL" ? "전체" : lastSearch.category === "FD6" ? "음식점" : "카페"}
                   </Badge>
                   {lastSearch.keyword && (
                     <Badge variant="outline" className="text-[10px] border-blue-200 bg-blue-50 text-blue-800">
