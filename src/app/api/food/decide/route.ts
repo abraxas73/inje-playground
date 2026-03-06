@@ -98,39 +98,21 @@ export async function POST(request: NextRequest) {
 
     for (const memberId of member_ids as string[]) {
       try {
-        // Step 1: Create or get DM channel
-        const channelRes = await fetch(`${DOORAY_API_BASE}/messenger/v1/channels`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            type: "direct",
-            organizationMemberIds: [memberId],
-          }),
-        });
+        // Send direct message to member
+        const dmRes = await fetch(
+          `${DOORAY_API_BASE}/messenger/v1/members/${memberId}/directMessages`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ text: message }),
+          }
+        );
 
-        if (!channelRes.ok) {
-          const errText = await channelRes.text();
-          dmErrors.push(`channel(${memberId}): ${channelRes.status} ${errText}`);
-          continue;
-        }
-        const channelData = await channelRes.json();
-        const channelId = channelData.result?.id;
-        if (!channelId) {
-          dmErrors.push(`channel(${memberId}): no channelId in ${JSON.stringify(channelData)}`);
-          continue;
-        }
-
-        // Step 2: Send message to the DM channel
-        const msgRes = await fetch(`${DOORAY_API_BASE}/messenger/v1/channels/${channelId}/logs`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ text: message }),
-        });
-        if (msgRes.ok) {
+        if (dmRes.ok) {
           sent++;
         } else {
-          const errText = await msgRes.text();
-          dmErrors.push(`msg(${memberId}→${channelId}): ${msgRes.status} ${errText}`);
+          const errText = await dmRes.text();
+          dmErrors.push(`dm(${memberId}): ${dmRes.status} ${errText}`);
         }
       } catch (e) {
         dmErrors.push(`exception(${memberId}): ${e instanceof Error ? e.message : String(e)}`);
