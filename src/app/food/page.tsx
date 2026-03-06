@@ -38,6 +38,8 @@ export default function FoodPage() {
   const [locError, setLocError] = useState<string | null>(null);
   const [radius, setRadius] = useState(500);
   const [category, setCategory] = useState<CategoryCode>("FD6");
+  const [subCategory, setSubCategory] = useState<string>("");
+  const [subCategories, setSubCategories] = useState<string[]>([]);
   const [places, setPlaces] = useState<KakaoPlace[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -56,6 +58,20 @@ export default function FoodPage() {
       })
       .catch(() => {});
   }, []);
+
+  // Fetch subcategories when category changes
+  const fetchSubCategories = useCallback((cat: CategoryCode) => {
+    fetch(`/api/food/categories?category_group_code=${cat}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setSubCategories(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchSubCategories(category);
+  }, [category, fetchSubCategories]);
 
   const getCurrentLocation = useCallback(async () => {
     setLocating(true);
@@ -100,6 +116,9 @@ export default function FoodPage() {
           category_group_code: category,
           page: String(pageNum),
         });
+        if (subCategory) {
+          params.set("sub_category", subCategory);
+        }
         const res = await fetch(`/api/food/search?${params}`);
         const data = await res.json();
 
@@ -114,8 +133,11 @@ export default function FoodPage() {
         }
         setHasMore(!data.meta.is_end);
         setPage(pageNum);
+        // Refresh subcategories (new ones may have been collected)
+        fetchSubCategories(category);
         logAction("음식점 검색", "food", {
           category,
+          subCategory,
           radius,
           resultCount: data.documents.length,
           page: pageNum,
@@ -126,7 +148,7 @@ export default function FoodPage() {
         setSearching(false);
       }
     },
-    [location, radius, category]
+    [location, radius, category, subCategory, fetchSubCategories]
   );
 
   const toggleFavorite = async (place: KakaoPlace) => {
@@ -225,7 +247,7 @@ export default function FoodPage() {
                   <Button
                     variant={category === "FD6" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setCategory("FD6")}
+                    onClick={() => { setCategory("FD6"); setSubCategory(""); }}
                   >
                     <UtensilsCrossed className="h-3.5 w-3.5 mr-1" />
                     음식점
@@ -233,13 +255,39 @@ export default function FoodPage() {
                   <Button
                     variant={category === "CE7" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setCategory("CE7")}
+                    onClick={() => { setCategory("CE7"); setSubCategory(""); }}
                   >
                     <Coffee className="h-3.5 w-3.5 mr-1" />
                     카페
                   </Button>
                 </div>
               </div>
+
+              {/* Sub-category filter */}
+              {subCategories.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-sm font-medium">세부 분류</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge
+                      variant={subCategory === "" ? "default" : "outline"}
+                      className="cursor-pointer text-xs"
+                      onClick={() => setSubCategory("")}
+                    >
+                      전체
+                    </Badge>
+                    {subCategories.map((sc) => (
+                      <Badge
+                        key={sc}
+                        variant={subCategory === sc ? "default" : "outline"}
+                        className="cursor-pointer text-xs"
+                        onClick={() => setSubCategory(subCategory === sc ? "" : sc)}
+                      >
+                        {sc}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Radius */}
               <div className="space-y-2">
@@ -320,11 +368,25 @@ export default function FoodPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-sm truncate">{fav.place_name}</span>
-                        {fav.category_name && (
-                          <Badge variant="outline" className="text-[10px] shrink-0">
-                            {fav.category_name.split(" > ").pop()}
-                          </Badge>
-                        )}
+                        {fav.category_name && (() => {
+                          const parts = fav.category_name.split(" > ");
+                          const sub = parts.length >= 2 ? parts[1] : null;
+                          const detail = parts.length >= 3 ? parts.slice(2).join(" > ") : null;
+                          return (
+                            <>
+                              {sub && (
+                                <Badge variant="outline" className="text-[10px] shrink-0 border-amber-200 bg-amber-50 text-amber-800">
+                                  {sub}
+                                </Badge>
+                              )}
+                              {detail && (
+                                <Badge variant="outline" className="text-[10px] shrink-0">
+                                  {detail}
+                                </Badge>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                       <p className="text-xs text-muted-foreground truncate mt-0.5">
                         {fav.road_address || fav.address}
@@ -398,6 +460,7 @@ export default function FoodPage() {
         location={location}
         radius={radius}
         category={category}
+        subCategory={subCategory}
         favorites={favorites}
       />
     </div>
@@ -418,16 +481,25 @@ function PlaceItem({
       ? `${(parseInt(place.distance) / 1000).toFixed(1)}km`
       : `${place.distance}m`;
 
-  const categoryShort = place.category_name.split(" > ").pop() || place.category_name;
+  const categoryParts = place.category_name.split(" > ");
+  const subCat = categoryParts.length >= 2 ? categoryParts[1] : null;
+  const detailCat = categoryParts.length >= 3 ? categoryParts.slice(2).join(" > ") : null;
 
   return (
     <div className="flex items-start justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm">{place.place_name}</span>
-          <Badge variant="outline" className="text-[10px]">
-            {categoryShort}
-          </Badge>
+          {subCat && (
+            <Badge variant="outline" className="text-[10px] border-amber-200 bg-amber-50 text-amber-800">
+              {subCat}
+            </Badge>
+          )}
+          {detailCat && (
+            <Badge variant="outline" className="text-[10px]">
+              {detailCat}
+            </Badge>
+          )}
           <Badge variant="secondary" className="text-[10px]">
             {distanceStr}
           </Badge>

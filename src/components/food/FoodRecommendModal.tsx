@@ -30,6 +30,7 @@ interface FoodRecommendModalProps {
   location: { x: number; y: number } | null;
   radius: number;
   category: string;
+  subCategory: string;
   favorites: FoodFavorite[];
 }
 
@@ -39,6 +40,7 @@ export default function FoodRecommendModal({
   location,
   radius,
   category,
+  subCategory,
   favorites,
 }: FoodRecommendModalProps) {
   const [mode, setMode] = useState<RecommendMode>(null);
@@ -87,6 +89,7 @@ export default function FoodRecommendModal({
         category_group_code: category,
         page: String(randomPage),
       });
+      if (subCategory) params.set("sub_category", subCategory);
       const res = await fetch(`/api/food/search?${params}`);
       const data = await res.json();
 
@@ -100,6 +103,7 @@ export default function FoodRecommendModal({
             category_group_code: category,
             page: "1",
           });
+          if (subCategory) params2.set("sub_category", subCategory);
           const res2 = await fetch(`/api/food/search?${params2}`);
           const data2 = await res2.json();
           if (data2.documents?.length) {
@@ -187,9 +191,9 @@ export default function FoodRecommendModal({
         : `${(result as KakaoPlace).distance}m`
       : null;
 
-  const categoryShort = categoryName
-    ? categoryName.split(" > ").pop()
-    : null;
+  const categoryParts = categoryName ? categoryName.split(" > ") : [];
+  const subCat = categoryParts.length >= 2 ? categoryParts[1] : null;
+  const detailCat = categoryParts.length >= 3 ? categoryParts.slice(2).join(" > ") : null;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -257,9 +261,14 @@ export default function FoodRecommendModal({
                 <div>
                   <h3 className="text-xl font-bold">{placeName}</h3>
                   <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
-                    {categoryShort && (
+                    {subCat && (
+                      <Badge variant="outline" className="text-xs border-amber-200 bg-amber-50 text-amber-800">
+                        {subCat}
+                      </Badge>
+                    )}
+                    {detailCat && (
                       <Badge variant="outline" className="text-xs">
-                        {categoryShort}
+                        {detailCat}
                       </Badge>
                     )}
                     {distance && (

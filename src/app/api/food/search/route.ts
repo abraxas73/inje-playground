@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
   const radius = searchParams.get("radius") || "1000";
   const categoryGroupCode = searchParams.get("category_group_code") || "FD6";
   const page = searchParams.get("page") || "1";
+  const subCategory = searchParams.get("sub_category") || "";
 
   if (!x || !y) {
     return NextResponse.json({ error: "x, y 좌표가 필요합니다" }, { status: 400 });
@@ -56,5 +57,38 @@ export async function GET(request: NextRequest) {
   }
 
   const data = await res.json();
+
+  // Auto-collect subcategories from results into DB
+  if (data.documents?.length) {
+    const groupName = categoryGroupCode === "CE7" ? "카페" : "음식점";
+    const subCats = new Set<string>();
+    for (const doc of data.documents) {
+      const parts = (doc.category_name as string).split(" > ");
+      if (parts.length >= 2) {
+        subCats.add(parts[1]);
+      }
+    }
+    if (subCats.size > 0) {
+      const rows = [...subCats].map((sc) => ({
+        category_group_code: categoryGroupCode,
+        category_group_name: groupName,
+        sub_category: sc,
+      }));
+      // fire-and-forget upsert
+      supabase
+        .from("food_categories")
+        .upsert(rows, { onConflict: "category_group_code,sub_category" })
+        .then(() => {});
+    }
+
+    // Filter by subcategory if specified
+    if (subCategory) {
+      data.documents = data.documents.filter((doc: { category_name: string }) => {
+        const parts = doc.category_name.split(" > ");
+        return parts.length >= 2 && parts[1] === subCategory;
+      });
+    }
+  }
+
   return NextResponse.json(data);
 }
