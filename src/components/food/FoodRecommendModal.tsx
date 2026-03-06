@@ -99,7 +99,7 @@ export default function FoodRecommendModal({
     dmErrors: string[];
   } | null>(null);
 
-  // Load Dooray members
+  // Load members from DB
   const loadMembers = useCallback(async () => {
     const cached = loadCachedMembers();
     if (cached.length > 0) {
@@ -109,20 +109,7 @@ export default function FoodRecommendModal({
 
     setLoadingMembers(true);
     try {
-      // Get settings for Dooray token and project ID
-      const settingsRes = await fetch("/api/settings");
-      const settings = await settingsRes.json();
-      const token = settings.dooray_token;
-      const projectId = settings.dooray_project_id;
-
-      if (!token || !projectId) {
-        setMembers([]);
-        return;
-      }
-
-      const res = await fetch(`/api/dooray/members?projectId=${projectId}`, {
-        headers: { "x-dooray-token": token },
-      });
+      const res = await fetch("/api/dooray/members/db");
       const data = await res.json();
 
       if (data.members?.length) {

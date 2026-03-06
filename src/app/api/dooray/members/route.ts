@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchProjectMembers } from "@/lib/dooray";
+import { createServerSupabase } from "@/lib/supabase-server";
 
 export async function GET(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get("projectId");
@@ -14,6 +15,20 @@ export async function GET(request: NextRequest) {
 
   try {
     const members = await fetchProjectMembers(token, projectId);
+
+    // Save members to DB
+    const supabase = await createServerSupabase();
+    const rows = members.map((m) => ({
+      id: m.id,
+      name: m.name,
+      updated_at: new Date().toISOString(),
+    }));
+    if (rows.length > 0) {
+      await supabase
+        .from("dooray_members")
+        .upsert(rows, { onConflict: "id" });
+    }
+
     return NextResponse.json({ members });
   } catch (err) {
     const message =
