@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Shuffle,
   Star,
@@ -19,11 +20,17 @@ import {
   Phone,
   RefreshCw,
   Sparkles,
+  PartyPopper,
+  Send,
+  Users,
+  ChevronLeft,
 } from "lucide-react";
 import type { KakaoPlace, FoodFavorite } from "@/types/food";
+import type { DoorayMember } from "@/types/dooray";
 import { logAction } from "@/lib/action-log";
 
 type RecommendMode = "favorite" | "random" | "search" | null;
+type Step = "select-mode" | "result" | "members" | "done";
 
 interface SearchCondition {
   category: string;
@@ -46,6 +53,22 @@ interface FoodRecommendModalProps {
   lastSearch: SearchCondition | null;
 }
 
+const MEMBERS_STORAGE_KEY = "food-dooray-members";
+
+function loadCachedMembers(): DoorayMember[] {
+  try {
+    const saved = localStorage.getItem(MEMBERS_STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return [];
+}
+
+function saveCachedMembers(members: DoorayMember[]) {
+  try {
+    localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(members));
+  } catch {}
+}
+
 export default function FoodRecommendModal({
   open,
   onOpenChange,
@@ -55,104 +78,130 @@ export default function FoodRecommendModal({
   subCategory,
   favorites,
   searchResults,
-  lastSearch,
 }: FoodRecommendModalProps) {
   const [mode, setMode] = useState<RecommendMode>(null);
+  const [step, setStep] = useState<Step>("select-mode");
   const [result, setResult] = useState<KakaoPlace | FoodFavorite | null>(null);
   const [loading, setLoading] = useState(false);
   const [spinning, setSpinning] = useState(false);
 
-  const recommendFromFavorites = () => {
-    if (favorites.length === 0) return;
-    setMode("favorite");
+  // Member selection
+  const [members, setMembers] = useState<DoorayMember[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sentResult, setSentResult] = useState<{
+    webhookSent: boolean;
+    personalSent: number;
+    doorayUrl: string | null;
+  } | null>(null);
+
+  // Load Dooray members
+  const loadMembers = useCallback(async () => {
+    const cached = loadCachedMembers();
+    if (cached.length > 0) {
+      setMembers(cached);
+      return;
+    }
+
+    setLoadingMembers(true);
+    try {
+      // Get settings for Dooray token and project ID
+      const settingsRes = await fetch("/api/settings");
+      const settings = await settingsRes.json();
+      const token = settings.dooray_token;
+      const projectId = settings.dooray_project_id;
+
+      if (!token || !projectId) {
+        setMembers([]);
+        return;
+      }
+
+      const res = await fetch(`/api/dooray/members?projectId=${projectId}`, {
+        headers: { "x-dooray-token": token },
+      });
+      const data = await res.json();
+
+      if (data.members?.length) {
+        setMembers(data.members);
+        saveCachedMembers(data.members);
+      }
+    } catch {
+      // Failed to load members
+    } finally {
+      setLoadingMembers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) loadMembers();
+  }, [open, loadMembers]);
+
+  // Slot machine effect helper
+  const runSlotMachine = (
+    items: (KakaoPlace | FoodFavorite)[],
+    onDone: (pick: KakaoPlace | FoodFavorite) => void
+  ) => {
     setSpinning(true);
     setResult(null);
-
-    // Slot machine effect
     let count = 0;
     const maxCount = 15;
     const interval = setInterval(() => {
-      const idx = Math.floor(Math.random() * favorites.length);
-      setResult(favorites[idx]);
+      const idx = Math.floor(Math.random() * items.length);
+      setResult(items[idx]);
       count++;
       if (count >= maxCount) {
         clearInterval(interval);
-        const finalIdx = Math.floor(Math.random() * favorites.length);
-        setResult(favorites[finalIdx]);
+        const finalIdx = Math.floor(Math.random() * items.length);
+        const pick = items[finalIdx];
+        setResult(pick);
         setSpinning(false);
-        logAction("즐겨찾기 랜덤 추천", "food", {
-          placeName: favorites[finalIdx].place_name,
-        });
+        setStep("result");
+        onDone(pick);
       }
     }, 100);
+  };
+
+  const recommendFromFavorites = () => {
+    if (favorites.length === 0) return;
+    setMode("favorite");
+    setStep("result");
+    runSlotMachine(favorites, (pick) => {
+      logAction("즐겨찾기 랜덤 추천", "food", { placeName: "place_name" in pick ? pick.place_name : "" });
+    });
   };
 
   const recommendRandom = async () => {
     if (!location) return;
     setMode("random");
+    setStep("result");
     setLoading(true);
     setResult(null);
 
     try {
-      // Fetch a random page
-      const randomPage = Math.floor(Math.random() * 3) + 1;
       const params = new URLSearchParams({
         x: String(location.x),
         y: String(location.y),
         radius: String(radius),
         category_group_code: category,
-        page: String(randomPage),
+        max_results: "45",
       });
       if (subCategory) params.set("sub_category", subCategory);
       const res = await fetch(`/api/food/search?${params}`);
       const data = await res.json();
 
       if (!res.ok || !data.documents?.length) {
-        // Try page 1 if random page was empty
-        if (randomPage !== 1) {
-          const params2 = new URLSearchParams({
-            x: String(location.x),
-            y: String(location.y),
-            radius: String(radius),
-            category_group_code: category,
-            page: "1",
-          });
-          if (subCategory) params2.set("sub_category", subCategory);
-          const res2 = await fetch(`/api/food/search?${params2}`);
-          const data2 = await res2.json();
-          if (data2.documents?.length) {
-            const pick = data2.documents[Math.floor(Math.random() * data2.documents.length)];
-            setResult(pick);
-            logAction("완전 랜덤 추천", "food", { placeName: pick.place_name });
-            return;
-          }
-        }
         setResult(null);
+        setLoading(false);
         return;
       }
 
-      // Slot machine effect with results
-      setSpinning(true);
-      const docs = data.documents as KakaoPlace[];
-      let count = 0;
-      const maxCount = 15;
-      const interval = setInterval(() => {
-        const idx = Math.floor(Math.random() * docs.length);
-        setResult(docs[idx]);
-        count++;
-        if (count >= maxCount) {
-          clearInterval(interval);
-          const finalIdx = Math.floor(Math.random() * docs.length);
-          setResult(docs[finalIdx]);
-          setSpinning(false);
-          logAction("완전 랜덤 추천", "food", {
-            placeName: docs[finalIdx].place_name,
-          });
-        }
-      }, 100);
+      setLoading(false);
+      runSlotMachine(data.documents as KakaoPlace[], (pick) => {
+        logAction("완전 랜덤 추천", "food", { placeName: "place_name" in pick ? pick.place_name : "" });
+      });
     } catch {
       setResult(null);
-    } finally {
       setLoading(false);
     }
   };
@@ -160,34 +209,10 @@ export default function FoodRecommendModal({
   const recommendFromSearch = () => {
     if (searchResults.length === 0) return;
     setMode("search");
-    setSpinning(true);
-    setResult(null);
-
-    let count = 0;
-    const maxCount = 15;
-    const interval = setInterval(() => {
-      const idx = Math.floor(Math.random() * searchResults.length);
-      setResult(searchResults[idx]);
-      count++;
-      if (count >= maxCount) {
-        clearInterval(interval);
-        const finalIdx = Math.floor(Math.random() * searchResults.length);
-        setResult(searchResults[finalIdx]);
-        setSpinning(false);
-        logAction("검색 조건내 랜덤 추천", "food", {
-          placeName: searchResults[finalIdx].place_name,
-        });
-      }
-    }, 100);
-  };
-
-  const handleClose = (open: boolean) => {
-    if (!open) {
-      setMode(null);
-      setResult(null);
-      setSpinning(false);
-    }
-    onOpenChange(open);
+    setStep("result");
+    runSlotMachine(searchResults, (pick) => {
+      logAction("검색 조건내 랜덤 추천", "food", { placeName: "place_name" in pick ? pick.place_name : "" });
+    });
   };
 
   const retryRecommend = () => {
@@ -196,21 +221,97 @@ export default function FoodRecommendModal({
     else if (mode === "search") recommendFromSearch();
   };
 
-  const placeName = result
-    ? "place_name" in result
-      ? result.place_name
-      : ""
-    : "";
-  const placeUrl = result
-    ? "place_url" in result
-      ? result.place_url
-      : null
-    : null;
-  const phone = result
-    ? "phone" in result
-      ? result.phone
-      : null
-    : null;
+  const handleDecide = () => {
+    setStep("members");
+    setSelectedMembers(new Set());
+    setSentResult(null);
+  };
+
+  const toggleMember = (id: string) => {
+    setSelectedMembers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedMembers.size === members.length) {
+      setSelectedMembers(new Set());
+    } else {
+      setSelectedMembers(new Set(members.map((m) => m.id)));
+    }
+  };
+
+  const handleGo = async () => {
+    if (!result || selectedMembers.size === 0) return;
+    setSending(true);
+
+    const pName = "place_name" in result ? result.place_name : "";
+    const pUrl = "place_url" in result ? result.place_url : null;
+    const catName = "category_name" in result ? result.category_name : null;
+    const addr =
+      "road_address_name" in result
+        ? (result as KakaoPlace).road_address_name || (result as KakaoPlace).address_name
+        : "road_address" in result
+        ? (result as FoodFavorite).road_address || (result as FoodFavorite).address
+        : null;
+
+    const selectedMemberObjs = members.filter((m) => selectedMembers.has(m.id));
+    const selectedNames = selectedMemberObjs.map((m) => m.name);
+    const selectedIds = selectedMemberObjs.map((m) => m.id);
+
+    try {
+      const res = await fetch("/api/food/decide", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          place_name: pName,
+          place_url: pUrl,
+          category_name: catName,
+          address: addr,
+          members: selectedNames,
+          member_ids: selectedIds,
+        }),
+      });
+      const data = await res.json();
+
+      setSentResult({
+        webhookSent: data.webhook_sent || false,
+        personalSent: data.personal_messages_sent || 0,
+        doorayUrl: data.dooray_messenger_url || null,
+      });
+      setStep("done");
+
+      logAction("점심 결정", "food", {
+        placeName: pName,
+        members: selectedNames,
+        webhookSent: data.webhook_sent,
+        personalSent: data.personal_messages_sent,
+      });
+    } catch {
+      // Failed
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleClose = (isOpen: boolean) => {
+    if (!isOpen) {
+      setMode(null);
+      setStep("select-mode");
+      setResult(null);
+      setSpinning(false);
+      setSentResult(null);
+    }
+    onOpenChange(isOpen);
+  };
+
+  // Extract place info from result
+  const placeName = result ? ("place_name" in result ? result.place_name : "") : "";
+  const placeUrl = result ? ("place_url" in result ? result.place_url : null) : null;
+  const phone = result ? ("phone" in result ? result.phone : null) : null;
   const address = result
     ? "road_address_name" in result
       ? (result as KakaoPlace).road_address_name || (result as KakaoPlace).address_name
@@ -218,11 +319,7 @@ export default function FoodRecommendModal({
       ? (result as FoodFavorite).road_address || (result as FoodFavorite).address
       : null
     : null;
-  const categoryName = result
-    ? "category_name" in result
-      ? result.category_name
-      : null
-    : null;
+  const categoryName = result ? ("category_name" in result ? result.category_name : null) : null;
   const distance =
     result && "distance" in result
       ? parseInt((result as KakaoPlace).distance) >= 1000
@@ -236,15 +333,16 @@ export default function FoodRecommendModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-amber-500" />
-            랜덤 추천
+            {step === "members" ? "구성원 선택" : step === "done" ? "갑시다!" : "랜덤 추천"}
           </DialogTitle>
         </DialogHeader>
 
-        {!mode && (
+        {/* Step 1: Select mode */}
+        {step === "select-mode" && (
           <div className="space-y-3 py-4">
             <Button
               onClick={recommendFromFavorites}
@@ -297,7 +395,8 @@ export default function FoodRecommendModal({
           </div>
         )}
 
-        {mode && (loading || spinning || result) && (
+        {/* Step 2: Result */}
+        {step === "result" && (loading || spinning || result) && (
           <div className="py-6">
             {loading && !result && (
               <div className="flex flex-col items-center gap-3">
@@ -307,9 +406,7 @@ export default function FoodRecommendModal({
             )}
 
             {result && (
-              <div
-                className={`text-center space-y-4 ${spinning ? "animate-pulse" : "animate-fade-up"}`}
-              >
+              <div className={`text-center space-y-4 ${spinning ? "animate-pulse" : "animate-fade-up"}`}>
                 <div className="text-4xl mb-2">
                   {category === "CE7" ? "☕" : "🍽️"}
                 </div>
@@ -322,14 +419,10 @@ export default function FoodRecommendModal({
                       </Badge>
                     )}
                     {detailCat && (
-                      <Badge variant="outline" className="text-xs">
-                        {detailCat}
-                      </Badge>
+                      <Badge variant="outline" className="text-xs">{detailCat}</Badge>
                     )}
                     {distance && (
-                      <Badge variant="secondary" className="text-xs">
-                        {distance}
-                      </Badge>
+                      <Badge variant="secondary" className="text-xs">{distance}</Badge>
                     )}
                   </div>
                 </div>
@@ -338,33 +431,35 @@ export default function FoodRecommendModal({
                   <div className="space-y-1 text-sm text-muted-foreground">
                     {address && (
                       <p className="flex items-center justify-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {address}
+                        <MapPin className="h-3 w-3" />{address}
                       </p>
                     )}
                     {phone && (
                       <p className="flex items-center justify-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {phone}
+                        <Phone className="h-3 w-3" />{phone}
                       </p>
                     )}
                   </div>
                 )}
 
                 {!spinning && (
-                  <div className="flex items-center justify-center gap-2 pt-2">
+                  <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
                     <Button variant="outline" size="sm" onClick={retryRecommend}>
                       <RefreshCw className="h-3.5 w-3.5 mr-1" />
                       다시 추천
                     </Button>
                     {placeUrl && (
-                      <Button size="sm" asChild>
+                      <Button variant="outline" size="sm" asChild>
                         <a href={placeUrl} target="_blank" rel="noopener noreferrer">
                           <ExternalLink className="h-3.5 w-3.5 mr-1" />
                           상세보기
                         </a>
                       </Button>
                     )}
+                    <Button size="sm" onClick={handleDecide} className="bg-amber-500 hover:bg-amber-600 text-white">
+                      <PartyPopper className="h-3.5 w-3.5 mr-1" />
+                      너로 정했어!
+                    </Button>
                   </div>
                 )}
               </div>
@@ -377,6 +472,112 @@ export default function FoodRecommendModal({
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Step 3: Member selection */}
+        {step === "members" && (
+          <div className="flex flex-col min-h-0">
+            <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">
+              <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setStep("result")}>
+                <ChevronLeft className="h-3.5 w-3.5 mr-0.5" />
+                뒤로
+              </Button>
+              <span className="font-medium text-foreground">{placeName}</span>
+            </div>
+
+            {loadingMembers ? (
+              <div className="flex items-center gap-2 py-8 justify-center text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                구성원 불러오는 중...
+              </div>
+            ) : members.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Dooray 프로젝트 구성원을 불러올 수 없습니다.<br />
+                설정에서 Dooray 연동을 확인해주세요.
+              </p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-muted-foreground">
+                    <Users className="h-3 w-3 inline mr-1" />
+                    {selectedMembers.size}명 선택
+                  </span>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={selectAll}>
+                    {selectedMembers.size === members.length ? "전체 해제" : "전체 선택"}
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-1 min-h-0 max-h-[40vh]">
+                  {members.map((member) => (
+                    <label
+                      key={member.id}
+                      className="flex items-center gap-3 p-2.5 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={selectedMembers.has(member.id)}
+                        onCheckedChange={() => toggleMember(member.id)}
+                      />
+                      <span className="text-sm">{member.name}</span>
+                    </label>
+                  ))}
+                </div>
+                <Button
+                  onClick={handleGo}
+                  disabled={selectedMembers.size === 0 || sending}
+                  className="mt-3 bg-amber-500 hover:bg-amber-600 text-white w-full"
+                >
+                  {sending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-1.5" />
+                  )}
+                  갑시다! ({selectedMembers.size}명)
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Step 4: Done */}
+        {step === "done" && (
+          <div className="text-center py-8 space-y-4 animate-fade-up">
+            <div className="text-5xl">🎉</div>
+            <div>
+              <h3 className="text-lg font-bold">{placeName}</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {members.filter((m) => selectedMembers.has(m.id)).map((m) => m.name).join(", ")}
+              </p>
+            </div>
+            {sentResult && (
+              <div className="space-y-1.5 text-sm">
+                {sentResult.webhookSent && (
+                  <p className="text-emerald-600 flex items-center justify-center gap-1">
+                    <Send className="h-3 w-3" /> 채널 메시지 전송 완료
+                  </p>
+                )}
+                {sentResult.personalSent > 0 && (
+                  <p className="text-blue-600 flex items-center justify-center gap-1">
+                    <Users className="h-3 w-3" /> 개인 메시지 {sentResult.personalSent}명 전송
+                  </p>
+                )}
+                {!sentResult.webhookSent && sentResult.personalSent === 0 && (
+                  <p className="text-muted-foreground">저장 완료 (메시지 발송 설정을 확인해주세요)</p>
+                )}
+              </div>
+            )}
+            <div className="flex items-center justify-center gap-2">
+              {sentResult?.doorayUrl && (
+                <Button variant="outline" size="sm" asChild>
+                  <a href={sentResult.doorayUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                    메신저 열기
+                  </a>
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => handleClose(false)}>
+                닫기
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>

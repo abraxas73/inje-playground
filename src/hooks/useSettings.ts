@@ -7,12 +7,16 @@ interface Settings {
   dooray_token: string;
   dooray_project_id: string;
   kakao_rest_api_key: string;
+  dooray_messenger_url: string;
+  dooray_hook_url: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   dooray_token: "",
   dooray_project_id: "",
   kakao_rest_api_key: "",
+  dooray_messenger_url: "",
+  dooray_hook_url: "",
 };
 
 export function useSettings() {
@@ -30,6 +34,8 @@ export function useSettings() {
           dooray_token: data.dooray_token || "",
           dooray_project_id: data.dooray_project_id || "",
           kakao_rest_api_key: data.kakao_rest_api_key || "",
+          dooray_messenger_url: data.dooray_messenger_url || "",
+          dooray_hook_url: data.dooray_hook_url || "",
         };
         setSettings(loaded);
         setSavedSettings(loaded);
@@ -46,7 +52,9 @@ export function useSettings() {
   const hasChanges =
     settings.dooray_token !== savedSettings.dooray_token ||
     settings.dooray_project_id !== savedSettings.dooray_project_id ||
-    settings.kakao_rest_api_key !== savedSettings.kakao_rest_api_key;
+    settings.kakao_rest_api_key !== savedSettings.kakao_rest_api_key ||
+    settings.dooray_messenger_url !== savedSettings.dooray_messenger_url ||
+    settings.dooray_hook_url !== savedSettings.dooray_hook_url;
 
   const save = useCallback(async () => {
     setIsSaving(true);
