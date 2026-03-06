@@ -9,8 +9,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NHN Injeinc Workshop",
-  description: "NHN 인재아이엔씨 팀 워크샵을 위한 게임 & 유틸리티",
+  title: "NHN InjeInc",
+  description: "인재인을 위한 서비스 — 팀 활동, 일상의 고민을 해결하는 우리만의 도구",
 };
 
 export default function RootLayout({

@@ -55,14 +55,14 @@ export default function HomePage() {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
           </span>
-          NHN Injeinc Workshop
+          NHN InjeInc
         </div>
         <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4">
-          <span className="gradient-text">인재아이엔씨</span>{" "}
-          <span className="text-foreground">워크샵</span>
+          <span className="gradient-text">인재인</span>을 위한{" "}
+          <span className="text-foreground">서비스</span>
         </h1>
         <p className="text-muted-foreground text-lg max-w-md mx-auto">
-          팀 워크샵을 위한 게임 & 유틸리티
+          팀 활동, 일상의 고민을 해결하는 우리만의 도구
         </p>
       </div>
 

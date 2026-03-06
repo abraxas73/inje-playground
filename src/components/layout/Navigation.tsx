@@ -55,10 +55,7 @@ export default function Navigation() {
               <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center group-hover:scale-110 transition-transform">
                 <span className="text-primary-foreground text-xs font-black tracking-tighter">N</span>
               </div>
-              <div className="hidden sm:flex flex-col leading-none">
-                <span className="text-[10px] font-semibold text-muted-foreground tracking-widest">NHN INJEINC</span>
-                <span className="text-sm font-bold gradient-text">Workshop</span>
-              </div>
+              <span className="hidden sm:inline text-sm font-bold gradient-text">NHN InjeInc</span>
             </Link>
 
             {/* Desktop nav items */}
