@@ -6,7 +6,25 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const groupCode = searchParams.get("category_group_code") || "FD6";
+  const subCategory = searchParams.get("sub_category") || "";
 
+  // If sub_category is specified, return detail categories
+  if (subCategory) {
+    const { data, error } = await supabase
+      .from("food_detail_categories")
+      .select("detail_category")
+      .eq("category_group_code", groupCode)
+      .eq("sub_category", subCategory)
+      .order("detail_category");
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data.map((d) => d.detail_category));
+  }
+
+  // Otherwise return sub categories
   const { data, error } = await supabase
     .from("food_categories")
     .select("sub_category")

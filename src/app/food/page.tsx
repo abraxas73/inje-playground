@@ -5,7 +5,6 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { Separator } from "@/components/ui/separator";
 import {
   UtensilsCrossed,
   MapPin,
@@ -38,7 +37,9 @@ const FILTERS_STORAGE_KEY = "food-filters";
 interface SavedFilters {
   category: CategoryCode;
   subCategory: string;
+  detailCategory: string;
   radius: number;
+  maxResults: number;
 }
 
 function loadSavedLocation(): LocationState | null {
@@ -72,7 +73,9 @@ function saveFilters(filters: SavedFilters) {
 interface SearchCondition {
   category: CategoryCode;
   subCategory: string;
+  detailCategory: string;
   radius: number;
+  maxResults: number;
 }
 
 export default function FoodPage() {
@@ -84,15 +87,16 @@ export default function FoodPage() {
   const [radius, setRadius] = useState(savedFilters?.radius ?? 500);
   const [category, setCategory] = useState<CategoryCode>(savedFilters?.category ?? "FD6");
   const [subCategory, setSubCategory] = useState<string>(savedFilters?.subCategory ?? "");
+  const [detailCategory, setDetailCategory] = useState<string>(savedFilters?.detailCategory ?? "");
   const [subCategories, setSubCategories] = useState<string[]>([]);
+  const [detailCategories, setDetailCategories] = useState<string[]>([]);
+  const [maxResults, setMaxResults] = useState(savedFilters?.maxResults ?? 30);
   const [places, setPlaces] = useState<KakaoPlace[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<FoodFavorite[]>([]);
   const [showFavorites, setShowFavorites] = useState(false);
   const [recommendOpen, setRecommendOpen] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [page, setPage] = useState(1);
   const [lastSearch, setLastSearch] = useState<SearchCondition | null>(null);
 
   // Load saved location on mount
@@ -103,8 +107,8 @@ export default function FoodPage() {
 
   // Save filters when they change
   useEffect(() => {
-    saveFilters({ category, subCategory, radius });
-  }, [category, subCategory, radius]);
+    saveFilters({ category, subCategory, detailCategory, radius, maxResults });
+  }, [category, subCategory, detailCategory, radius, maxResults]);
 
   // Fetch favorites on mount
   useEffect(() => {
@@ -129,6 +133,24 @@ export default function FoodPage() {
   useEffect(() => {
     fetchSubCategories(category);
   }, [category, fetchSubCategories]);
+
+  // Fetch detail categories when subCategory changes
+  const fetchDetailCategories = useCallback((cat: CategoryCode, sub: string) => {
+    if (!sub) {
+      setDetailCategories([]);
+      return;
+    }
+    fetch(`/api/food/categories?category_group_code=${cat}&sub_category=${encodeURIComponent(sub)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setDetailCategories(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchDetailCategories(category, subCategory);
+  }, [category, subCategory, fetchDetailCategories]);
 
   const getCurrentLocation = useCallback(async () => {
     setLocating(true);
@@ -162,7 +184,7 @@ export default function FoodPage() {
   }, []);
 
   const searchPlaces = useCallback(
-    async (pageNum: number = 1) => {
+    async () => {
       if (!location) return;
       setSearching(true);
       setSearchError(null);
@@ -173,11 +195,11 @@ export default function FoodPage() {
           y: String(location.y),
           radius: String(radius),
           category_group_code: category,
-          page: String(pageNum),
+          max_results: String(maxResults),
         });
-        if (subCategory) {
-          params.set("sub_category", subCategory);
-        }
+        if (subCategory) params.set("sub_category", subCategory);
+        if (detailCategory) params.set("detail_category", detailCategory);
+
         const res = await fetch(`/api/food/search?${params}`);
         const data = await res.json();
 
@@ -185,24 +207,18 @@ export default function FoodPage() {
           throw new Error(data.error || "검색에 실패했습니다.");
         }
 
-        if (pageNum === 1) {
-          setPlaces(data.documents);
-        } else {
-          setPlaces((prev) => [...prev, ...data.documents]);
-        }
-        setHasMore(!data.meta.is_end);
-        setPage(pageNum);
-        if (pageNum === 1) {
-          setLastSearch({ category, subCategory, radius });
-        }
-        // Refresh subcategories (new ones may have been collected)
+        setPlaces(data.documents);
+        setLastSearch({ category, subCategory, detailCategory, radius, maxResults });
+        // Refresh categories (new ones may have been collected)
         fetchSubCategories(category);
+        if (subCategory) fetchDetailCategories(category, subCategory);
         logAction("음식점 검색", "food", {
           category,
           subCategory,
+          detailCategory,
           radius,
+          maxResults,
           resultCount: data.documents.length,
-          page: pageNum,
         });
       } catch (err) {
         setSearchError(err instanceof Error ? err.message : "오류가 발생했습니다.");
@@ -210,7 +226,7 @@ export default function FoodPage() {
         setSearching(false);
       }
     },
-    [location, radius, category, subCategory, fetchSubCategories]
+    [location, radius, category, subCategory, detailCategory, maxResults, fetchSubCategories, fetchDetailCategories]
   );
 
   const toggleFavorite = async (place: KakaoPlace) => {
@@ -328,12 +344,12 @@ export default function FoodPage() {
               {/* Sub-category filter */}
               {subCategories.length > 0 && (
                 <div className="space-y-1.5">
-                  <span className="text-sm font-medium">세부 분류</span>
+                  <span className="text-sm font-medium">분류</span>
                   <div className="flex flex-wrap gap-1.5">
                     <Badge
                       variant={subCategory === "" ? "default" : "outline"}
                       className="cursor-pointer text-xs"
-                      onClick={() => setSubCategory("")}
+                      onClick={() => { setSubCategory(""); setDetailCategory(""); }}
                     >
                       전체
                     </Badge>
@@ -342,7 +358,7 @@ export default function FoodPage() {
                         key={sc}
                         variant={subCategory === sc ? "default" : "outline"}
                         className="cursor-pointer text-xs"
-                        onClick={() => setSubCategory(subCategory === sc ? "" : sc)}
+                        onClick={() => { setSubCategory(subCategory === sc ? "" : sc); setDetailCategory(""); }}
                       >
                         {sc}
                       </Badge>
@@ -350,6 +366,49 @@ export default function FoodPage() {
                   </div>
                 </div>
               )}
+
+              {/* Detail category filter */}
+              {detailCategories.length > 0 && subCategory && (
+                <div className="space-y-1.5">
+                  <span className="text-sm font-medium">상세 분류</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge
+                      variant={detailCategory === "" ? "default" : "outline"}
+                      className="cursor-pointer text-xs"
+                      onClick={() => setDetailCategory("")}
+                    >
+                      전체
+                    </Badge>
+                    {detailCategories.map((dc) => (
+                      <Badge
+                        key={dc}
+                        variant={detailCategory === dc ? "default" : "outline"}
+                        className="cursor-pointer text-xs"
+                        onClick={() => setDetailCategory(detailCategory === dc ? "" : dc)}
+                      >
+                        {dc}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Max results */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium shrink-0">검색 수</span>
+                <div className="flex gap-1.5">
+                  {[15, 30, 45].map((n) => (
+                    <Badge
+                      key={n}
+                      variant={maxResults === n ? "default" : "outline"}
+                      className="cursor-pointer text-xs"
+                      onClick={() => setMaxResults(n)}
+                    >
+                      {n}건
+                    </Badge>
+                  ))}
+                </div>
+              </div>
 
               {/* Radius */}
               <div className="space-y-2">
@@ -373,7 +432,7 @@ export default function FoodPage() {
 
               {/* Actions */}
               <div className="flex gap-2 flex-wrap">
-                <Button onClick={() => searchPlaces(1)} disabled={searching}>
+                <Button onClick={() => searchPlaces()} disabled={searching}>
                   {searching ? (
                     <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
                   ) : (
@@ -497,8 +556,16 @@ export default function FoodPage() {
                       {lastSearch.subCategory}
                     </Badge>
                   )}
+                  {lastSearch.detailCategory && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {lastSearch.detailCategory}
+                    </Badge>
+                  )}
                   <Badge variant="secondary" className="text-[10px]">
                     {lastSearch.radius >= 1000 ? `${(lastSearch.radius / 1000).toFixed(1)}km` : `${lastSearch.radius}m`}
+                  </Badge>
+                  <Badge variant="secondary" className="text-[10px]">
+                    최대 {lastSearch.maxResults}건
                   </Badge>
                 </div>
               )}
@@ -515,19 +582,6 @@ export default function FoodPage() {
                 />
               ))}
             </div>
-            {hasMore && (
-              <div className="mt-4 text-center">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => searchPlaces(page + 1)}
-                  disabled={searching}
-                >
-                  {searching ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                  더 보기
-                </Button>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
