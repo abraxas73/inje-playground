@@ -33,6 +33,13 @@ interface LocationState {
 }
 
 const LOCATION_STORAGE_KEY = "food-location";
+const FILTERS_STORAGE_KEY = "food-filters";
+
+interface SavedFilters {
+  category: CategoryCode;
+  subCategory: string;
+  radius: number;
+}
 
 function loadSavedLocation(): LocationState | null {
   try {
@@ -48,19 +55,35 @@ function saveLocation(loc: LocationState) {
   } catch {}
 }
 
+function loadSavedFilters(): SavedFilters | null {
+  try {
+    const saved = localStorage.getItem(FILTERS_STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return null;
+}
+
+function saveFilters(filters: SavedFilters) {
+  try {
+    localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
+  } catch {}
+}
+
+interface SearchCondition {
+  category: CategoryCode;
+  subCategory: string;
+  radius: number;
+}
+
 export default function FoodPage() {
   const [location, setLocation] = useState<LocationState | null>(null);
   const [locating, setLocating] = useState(false);
   const [locError, setLocError] = useState<string | null>(null);
 
-  // Load saved location on mount
-  useEffect(() => {
-    const saved = loadSavedLocation();
-    if (saved) setLocation(saved);
-  }, []);
-  const [radius, setRadius] = useState(500);
-  const [category, setCategory] = useState<CategoryCode>("FD6");
-  const [subCategory, setSubCategory] = useState<string>("");
+  const savedFilters = typeof window !== "undefined" ? loadSavedFilters() : null;
+  const [radius, setRadius] = useState(savedFilters?.radius ?? 500);
+  const [category, setCategory] = useState<CategoryCode>(savedFilters?.category ?? "FD6");
+  const [subCategory, setSubCategory] = useState<string>(savedFilters?.subCategory ?? "");
   const [subCategories, setSubCategories] = useState<string[]>([]);
   const [places, setPlaces] = useState<KakaoPlace[]>([]);
   const [searching, setSearching] = useState(false);
@@ -70,6 +93,18 @@ export default function FoodPage() {
   const [recommendOpen, setRecommendOpen] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(1);
+  const [lastSearch, setLastSearch] = useState<SearchCondition | null>(null);
+
+  // Load saved location on mount
+  useEffect(() => {
+    const saved = loadSavedLocation();
+    if (saved) setLocation(saved);
+  }, []);
+
+  // Save filters when they change
+  useEffect(() => {
+    saveFilters({ category, subCategory, radius });
+  }, [category, subCategory, radius]);
 
   // Fetch favorites on mount
   useEffect(() => {
@@ -157,6 +192,9 @@ export default function FoodPage() {
         }
         setHasMore(!data.meta.is_end);
         setPage(pageNum);
+        if (pageNum === 1) {
+          setLastSearch({ category, subCategory, radius });
+        }
         // Refresh subcategories (new ones may have been collected)
         fetchSubCategories(category);
         logAction("음식점 검색", "food", {
@@ -445,9 +483,26 @@ export default function FoodPage() {
       {places.length > 0 && (
         <Card className="animate-fade-up">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              검색 결과 ({places.length}곳)
-            </CardTitle>
+            <div className="flex items-center gap-2 flex-wrap">
+              <CardTitle className="text-base">
+                검색 결과 ({places.length}곳)
+              </CardTitle>
+              {lastSearch && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Badge variant="secondary" className="text-[10px]">
+                    {lastSearch.category === "FD6" ? "음식점" : "카페"}
+                  </Badge>
+                  {lastSearch.subCategory && (
+                    <Badge variant="outline" className="text-[10px] border-amber-200 bg-amber-50 text-amber-800">
+                      {lastSearch.subCategory}
+                    </Badge>
+                  )}
+                  <Badge variant="secondary" className="text-[10px]">
+                    {lastSearch.radius >= 1000 ? `${(lastSearch.radius / 1000).toFixed(1)}km` : `${lastSearch.radius}m`}
+                  </Badge>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
