@@ -36,8 +36,13 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Kakao API max size is 15, so we paginate in parallel to collect more
-  const pagesToFetch = Math.ceil(maxResults / 15);
+  // Kakao API: max size=15, max page=45 (675 results total)
+  // When sub/detail category filters are active, we need more raw results
+  // because filtering happens server-side after fetching
+  const hasFilter = !!(subCategory || detailCategory);
+  const pagesToFetch = hasFilter
+    ? 45 // fetch max to maximize filtered results
+    : Math.ceil(maxResults / 15);
 
   const buildUrl = (page: number) => {
     const url = new URL("https://dapi.kakao.com/v2/local/search/category.json");
@@ -68,32 +73,49 @@ export async function GET(request: NextRequest) {
   const allDocuments: Record<string, unknown>[] = [...(firstData.documents || [])];
   let isEnd = firstData.meta?.is_end ?? true;
 
-  // Fetch remaining pages in parallel
+  // Fetch remaining pages in parallel batches
   if (!isEnd && pagesToFetch > 1) {
-    const pages = Array.from({ length: pagesToFetch - 1 }, (_, i) => i + 2);
-    const results = await Promise.allSettled(
-      pages.map((page) =>
-        fetch(buildUrl(page), {
-          headers: { Authorization: `KakaoAK ${kakaoKey}` },
-        }).then((res) => (res.ok ? res.json() : null))
-      )
-    );
+    const BATCH_SIZE = 10;
+    for (let batchStart = 2; batchStart <= pagesToFetch && !isEnd; batchStart += BATCH_SIZE) {
+      const batchEnd = Math.min(batchStart + BATCH_SIZE - 1, pagesToFetch);
+      const pages = Array.from({ length: batchEnd - batchStart + 1 }, (_, i) => batchStart + i);
 
-    for (const result of results) {
-      if (result.status === "fulfilled" && result.value?.documents?.length) {
-        allDocuments.push(...result.value.documents);
-        if (result.value.meta?.is_end) isEnd = true;
+      const results = await Promise.allSettled(
+        pages.map((page) =>
+          fetch(buildUrl(page), {
+            headers: { Authorization: `KakaoAK ${kakaoKey}` },
+          }).then((res) => (res.ok ? res.json() : null))
+        )
+      );
+
+      for (const result of results) {
+        if (result.status === "fulfilled" && result.value?.documents?.length) {
+          allDocuments.push(...result.value.documents);
+          if (result.value.meta?.is_end) isEnd = true;
+        }
       }
+
+      // If no filter, stop when we have enough raw results
+      if (!hasFilter && allDocuments.length >= maxResults) break;
     }
   }
 
+  // Deduplicate by place ID
+  const seen = new Set<string>();
+  const uniqueDocuments = allDocuments.filter((doc) => {
+    const id = doc.id as string;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
   // Auto-collect sub & detail categories from results into DB
-  if (allDocuments.length) {
+  if (uniqueDocuments.length) {
     const groupName = categoryGroupCode === "CE7" ? "카페" : "음식점";
     const subCats = new Set<string>();
     const detailCats: { sub: string; detail: string }[] = [];
 
-    for (const doc of allDocuments) {
+    for (const doc of uniqueDocuments) {
       const parts = (doc.category_name as string).split(" > ");
       if (parts.length >= 2) {
         subCats.add(parts[1]);
@@ -134,7 +156,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Filter by subcategory / detail category
-  let filtered = allDocuments;
+  let filtered = uniqueDocuments;
   if (subCategory) {
     filtered = filtered.filter((doc) => {
       const parts = (doc.category_name as string).split(" > ");
