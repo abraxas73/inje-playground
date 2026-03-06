@@ -18,6 +18,7 @@ import {
   Navigation,
   Coffee,
   Heart,
+  RotateCcw,
 } from "lucide-react";
 import type { KakaoPlace, FoodFavorite } from "@/types/food";
 import { logAction } from "@/lib/action-log";
@@ -293,7 +294,7 @@ export default function FoodPage() {
 
       {/* Location & Search Controls */}
       <Card className="animate-fade-up delay-100 mb-6">
-        <CardContent className="pt-6 space-y-5">
+        <CardContent className="pt-4 space-y-4">
           {/* Location */}
           <div className="space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
@@ -471,6 +472,21 @@ export default function FoodPage() {
 
               {/* Actions */}
               <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCategory("FD6");
+                    setSubCategory("");
+                    setDetailCategory("");
+                    setMaxResults(30);
+                    setRadius(500);
+                  }}
+                  className="text-muted-foreground"
+                >
+                  <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                  초기화
+                </Button>
                 <Button onClick={() => searchPlaces()} disabled={searching}>
                   {searching ? (
                     <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
