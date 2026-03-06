@@ -361,13 +361,13 @@ export default function FoodPage() {
                   value={[radius]}
                   onValueChange={(v) => setRadius(v[0])}
                   min={100}
-                  max={3000}
+                  max={20000}
                   step={100}
                   className="w-full"
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>100m</span>
-                  <span>3km</span>
+                  <span>20km</span>
                 </div>
               </div>
 
