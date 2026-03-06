@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, type KeyboardEvent } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 
 interface ParticipantInputProps {
   onAdd: (names: string[]) => void;
@@ -28,20 +31,16 @@ export default function ParticipantInput({ onAdd }: ParticipantInputProps) {
 
   return (
     <div className="flex gap-2">
-      <input
-        type="text"
+      <Input
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="이름 입력 (쉼표로 여러 명 추가)"
-        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
       />
-      <button
-        onClick={handleAdd}
-        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-      >
+      <Button onClick={handleAdd} size="default">
+        <Plus className="h-4 w-4 mr-1" />
         추가
-      </button>
+      </Button>
     </div>
   );
 }

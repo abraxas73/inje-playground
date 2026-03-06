@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Download, Loader2 } from "lucide-react";
 import type { DoorayMember } from "@/types/dooray";
 
 interface DoorayImportButtonProps {
@@ -53,14 +55,15 @@ export default function DoorayImportButton({
 
   return (
     <div>
-      <button
-        onClick={handleImport}
-        disabled={loading}
-        className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-      >
+      <Button onClick={handleImport} disabled={loading} variant="outline" className="border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+        {loading ? (
+          <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+        ) : (
+          <Download className="h-4 w-4 mr-1.5" />
+        )}
         {loading ? "불러오는 중..." : "Dooray에서 가져오기"}
-      </button>
-      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+      </Button>
+      {error && <p className="text-destructive text-xs mt-1">{error}</p>}
     </div>
   );
 }

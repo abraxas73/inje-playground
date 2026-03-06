@@ -1,6 +1,12 @@
 "use client";
 
 import { useState, type KeyboardEvent } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
+import { Plus, X } from "lucide-react";
 
 interface LadderConfigProps {
   results: string[];
@@ -39,58 +45,55 @@ export default function LadderConfig({
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-2">
-          결과 (상/벌)
-        </label>
+    <div className="space-y-5">
+      <div className="space-y-2">
+        <Label>결과 (상/벌)</Label>
         <div className="flex gap-2">
-          <input
-            type="text"
+          <Input
             value={resultInput}
             onChange={(e) => setResultInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="결과 입력 (쉼표로 여러 개 추가)"
-            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <button
-            onClick={addResult}
-            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          >
+          <Button onClick={addResult}>
+            <Plus className="h-4 w-4 mr-1" />
             추가
-          </button>
+          </Button>
         </div>
         {results.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-2">
             {results.map((result, index) => (
-              <span
+              <Badge
                 key={`${result}-${index}`}
-                className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-sm"
+                variant="outline"
+                className="py-1.5 px-3 border-amber-200 bg-amber-50 text-amber-800"
               >
                 {result}
                 <button
                   onClick={() => removeResult(index)}
-                  className="text-amber-400 hover:text-red-500 transition-colors ml-1"
+                  className="ml-1.5 rounded-full hover:bg-amber-200 p-0.5 transition-colors"
                 >
-                  &times;
+                  <X className="h-3 w-3" />
                 </button>
-              </span>
+              </Badge>
             ))}
           </div>
         )}
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-2">
-          다리 밀도: {Math.round(bridgeDensity * 100)}%
-        </label>
-        <input
-          type="range"
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label>다리 밀도</Label>
+          <span className="text-sm text-muted-foreground font-mono">
+            {Math.round(bridgeDensity * 100)}%
+          </span>
+        </div>
+        <Slider
+          value={[bridgeDensity * 100]}
+          onValueChange={([v]) => onBridgeDensityChange(v / 100)}
           min={10}
           max={70}
-          value={bridgeDensity * 100}
-          onChange={(e) => onBridgeDensityChange(Number(e.target.value) / 100)}
-          className="w-full"
+          step={1}
         />
       </div>
     </div>
