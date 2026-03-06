@@ -100,11 +100,14 @@ export async function POST(request: NextRequest) {
       try {
         // Send direct message to member
         const dmRes = await fetch(
-          `${DOORAY_API_BASE}/messenger/v1/members/${memberId}/directMessages`,
+          `${DOORAY_API_BASE}/messenger/v1/channels/direct-send`,
           {
             method: "POST",
             headers,
-            body: JSON.stringify({ text: message }),
+            body: JSON.stringify({
+              text: message,
+              organizationMemberId: memberId,
+            }),
           }
         );
 
