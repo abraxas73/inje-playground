@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import {
   UtensilsCrossed,
@@ -78,6 +79,7 @@ interface SearchCondition {
   detailCategory: string;
   radius: number;
   maxResults: number;
+  keyword: string;
 }
 
 export default function FoodPage() {
@@ -93,6 +95,7 @@ export default function FoodPage() {
   const [subCategories, setSubCategories] = useState<string[]>([]);
   const [detailCategories, setDetailCategories] = useState<string[]>([]);
   const [maxResults, setMaxResults] = useState(savedFilters?.maxResults ?? 30);
+  const [keyword, setKeyword] = useState("");
   const [places, setPlaces] = useState<KakaoPlace[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -202,6 +205,7 @@ export default function FoodPage() {
         });
         if (subCategory) params.set("sub_category", subCategory);
         if (detailCategory) params.set("detail_category", detailCategory);
+        if (keyword.trim()) params.set("keyword", keyword.trim());
 
         const res = await fetch(`/api/food/search?${params}`);
         const data = await res.json();
@@ -211,7 +215,7 @@ export default function FoodPage() {
         }
 
         setPlaces(data.documents);
-        setLastSearch({ category, subCategory, detailCategory, radius, maxResults });
+        setLastSearch({ category, subCategory, detailCategory, radius, maxResults, keyword: keyword.trim() });
         // Refresh categories (new ones may have been collected)
         fetchSubCategories(category);
         if (subCategory) fetchDetailCategories(category, subCategory);
@@ -219,6 +223,7 @@ export default function FoodPage() {
           category,
           subCategory,
           detailCategory,
+          keyword: keyword.trim(),
           radius,
           maxResults,
           resultCount: data.documents.length,
@@ -229,7 +234,7 @@ export default function FoodPage() {
         setSearching(false);
       }
     },
-    [location, radius, category, subCategory, detailCategory, maxResults, fetchSubCategories, fetchDetailCategories]
+    [location, radius, category, subCategory, detailCategory, maxResults, keyword, fetchSubCategories, fetchDetailCategories]
   );
 
   const toggleFavorite = async (place: KakaoPlace) => {
@@ -381,6 +386,18 @@ export default function FoodPage() {
                 </div>
               </div>
 
+              {/* Keyword search */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium shrink-0">키워드</span>
+                <Input
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && searchPlaces()}
+                  placeholder="음식점/카페 이름으로 검색 (선택)"
+                  className="h-9 text-sm"
+                />
+              </div>
+
               {/* Sub-category filter */}
               {subCategories.length > 0 && (
                 <div className="space-y-1.5">
@@ -481,6 +498,7 @@ export default function FoodPage() {
                     setDetailCategory("");
                     setMaxResults(30);
                     setRadius(500);
+                    setKeyword("");
                   }}
                   className="text-muted-foreground"
                 >
@@ -606,6 +624,11 @@ export default function FoodPage() {
                   <Badge variant="secondary" className="text-[10px]">
                     {lastSearch.category === "FD6" ? "음식점" : "카페"}
                   </Badge>
+                  {lastSearch.keyword && (
+                    <Badge variant="outline" className="text-[10px] border-blue-200 bg-blue-50 text-blue-800">
+                      &quot;{lastSearch.keyword}&quot;
+                    </Badge>
+                  )}
                   {lastSearch.subCategory && (
                     <Badge variant="outline" className="text-[10px] border-amber-200 bg-amber-50 text-amber-800">
                       {lastSearch.subCategory}

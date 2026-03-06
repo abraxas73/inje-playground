@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
   const categoryGroupCode = searchParams.get("category_group_code") || "FD6";
   const subCategory = searchParams.get("sub_category") || "";
   const detailCategory = searchParams.get("detail_category") || "";
+  const keyword = searchParams.get("keyword") || "";
   const maxResults = Math.min(parseInt(searchParams.get("max_results") || "30"), 250);
 
   if (!x || !y) {
@@ -44,7 +45,21 @@ export async function GET(request: NextRequest) {
     ? 45 // fetch max to maximize filtered results
     : Math.ceil(maxResults / 15);
 
+  const isKeywordSearch = !!keyword;
+
   const buildUrl = (page: number) => {
+    if (isKeywordSearch) {
+      const url = new URL("https://dapi.kakao.com/v2/local/search/keyword.json");
+      url.searchParams.set("query", keyword);
+      url.searchParams.set("category_group_code", categoryGroupCode);
+      url.searchParams.set("x", x);
+      url.searchParams.set("y", y);
+      url.searchParams.set("radius", radius);
+      url.searchParams.set("page", String(page));
+      url.searchParams.set("size", "15");
+      url.searchParams.set("sort", "distance");
+      return url.toString();
+    }
     const url = new URL("https://dapi.kakao.com/v2/local/search/category.json");
     url.searchParams.set("category_group_code", categoryGroupCode);
     url.searchParams.set("x", x);
