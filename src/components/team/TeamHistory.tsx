@@ -74,6 +74,8 @@ export default function TeamHistory() {
   const [sessions, setSessions] = useState<TeamSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
+  const [sendingSession, setSendingSession] = useState<string | null>(null);
+  const [sentSessions, setSentSessions] = useState<Set<string>>(new Set());
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -101,6 +103,28 @@ export default function TeamHistory() {
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
       logAction("팀 구성 이력 삭제", "team", { sessionId });
     } catch {}
+  };
+
+  const handleSendDooray = async (session: TeamSession) => {
+    setSendingSession(session.id);
+    try {
+      const teams = session.team_results.map((t) => ({
+        name: t.team_name,
+        members: t.members,
+      }));
+      const res = await fetch("/api/team-notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teams }),
+      });
+      const data = await res.json();
+      if (data.webhook_sent) {
+        setSentSessions((prev) => new Set([...prev, session.id]));
+      }
+      logAction("팀 구성 이력 두레이 전송", "team", { sessionId: session.id });
+    } catch {} finally {
+      setSendingSession(null);
+    }
   };
 
   const handleUpdateTitle = async (sessionId: string, title: string) => {
@@ -204,11 +228,29 @@ export default function TeamHistory() {
               <CardContent className="pt-0">
                 <Separator className="mb-4" />
 
-                <SessionTitleEditor
-                  sessionId={session.id}
-                  currentTitle={session.title || ""}
-                  onSave={handleUpdateTitle}
-                />
+                <div className="flex items-center justify-between">
+                  <SessionTitleEditor
+                    sessionId={session.id}
+                    currentTitle={session.title || ""}
+                    onSave={handleUpdateTitle}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs shrink-0"
+                    disabled={sendingSession === session.id || sentSessions.has(session.id)}
+                    onClick={() => handleSendDooray(session)}
+                  >
+                    {sendingSession === session.id ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : sentSessions.has(session.id) ? (
+                      <Check className="h-3 w-3 mr-1" />
+                    ) : (
+                      <Send className="h-3 w-3 mr-1" />
+                    )}
+                    {sentSessions.has(session.id) ? "전송됨" : "두레이 전송"}
+                  </Button>
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
                   {session.team_results.map((team, index) => (
