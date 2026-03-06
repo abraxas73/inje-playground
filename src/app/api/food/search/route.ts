@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
   // First page to validate API key and check total
   const firstRes = await fetch(buildUrl(1), {
     headers: { Authorization: `KakaoAK ${kakaoKey}` },
+    cache: "no-store",
   });
 
   if (!firstRes.ok) {
@@ -84,6 +85,7 @@ export async function GET(request: NextRequest) {
         pages.map((page) =>
           fetch(buildUrl(page), {
             headers: { Authorization: `KakaoAK ${kakaoKey}` },
+            cache: "no-store",
           }).then((res) => (res.ok ? res.json() : null))
         )
       );
