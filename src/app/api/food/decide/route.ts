@@ -59,11 +59,12 @@ export async function POST(request: NextRequest) {
     settings[row.key] = row.value;
   }
 
-  const results = {
+  const results: Record<string, unknown> = {
     decision: data,
     webhook_sent: false,
     personal_messages_sent: 0,
     dooray_messenger_url: settings.dooray_messenger_url || null,
+    dm_errors: [] as string[],
   };
 
   // 1. Send to channel via incoming webhook (only if requested)
@@ -93,6 +94,8 @@ export async function POST(request: NextRequest) {
     };
     let sent = 0;
 
+    const dmErrors = results.dm_errors as string[];
+
     for (const memberId of member_ids as string[]) {
       try {
         // Step 1: Create or get DM channel
@@ -105,10 +108,17 @@ export async function POST(request: NextRequest) {
           }),
         });
 
-        if (!channelRes.ok) continue;
+        if (!channelRes.ok) {
+          const errText = await channelRes.text();
+          dmErrors.push(`channel(${memberId}): ${channelRes.status} ${errText}`);
+          continue;
+        }
         const channelData = await channelRes.json();
         const channelId = channelData.result?.id;
-        if (!channelId) continue;
+        if (!channelId) {
+          dmErrors.push(`channel(${memberId}): no channelId in ${JSON.stringify(channelData)}`);
+          continue;
+        }
 
         // Step 2: Send message to the DM channel
         const msgRes = await fetch(`${DOORAY_API_BASE}/messenger/v1/channels/${channelId}/logs`, {
@@ -116,9 +126,14 @@ export async function POST(request: NextRequest) {
           headers,
           body: JSON.stringify({ text: message }),
         });
-        if (msgRes.ok) sent++;
-      } catch {
-        // Individual DM failed silently
+        if (msgRes.ok) {
+          sent++;
+        } else {
+          const errText = await msgRes.text();
+          dmErrors.push(`msg(${memberId}→${channelId}): ${msgRes.status} ${errText}`);
+        }
+      } catch (e) {
+        dmErrors.push(`exception(${memberId}): ${e instanceof Error ? e.message : String(e)}`);
       }
     }
     results.personal_messages_sent = sent;

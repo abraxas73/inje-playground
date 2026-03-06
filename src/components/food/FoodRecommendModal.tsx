@@ -96,6 +96,7 @@ export default function FoodRecommendModal({
     webhookSent: boolean;
     personalSent: number;
     doorayUrl: string | null;
+    dmErrors: string[];
   } | null>(null);
 
   // Load Dooray members
@@ -290,6 +291,7 @@ export default function FoodRecommendModal({
         webhookSent: data.webhook_sent || false,
         personalSent: data.personal_messages_sent || 0,
         doorayUrl: data.dooray_messenger_url || null,
+        dmErrors: data.dm_errors || [],
       });
       setStep("done");
 
@@ -589,6 +591,18 @@ export default function FoodRecommendModal({
                 )}
                 {!sentResult.webhookSent && sentResult.personalSent === 0 && (
                   <p className="text-muted-foreground">저장 완료 (메시지 발송 설정을 확인해주세요)</p>
+                )}
+                {sentResult.dmErrors.length > 0 && (
+                  <details className="text-left mt-2">
+                    <summary className="text-xs text-red-500 cursor-pointer">
+                      DM 오류 {sentResult.dmErrors.length}건
+                    </summary>
+                    <div className="mt-1 max-h-32 overflow-y-auto text-xs text-muted-foreground bg-muted rounded p-2 space-y-1">
+                      {sentResult.dmErrors.map((err, i) => (
+                        <p key={i} className="break-all">{err}</p>
+                      ))}
+                    </div>
+                  </details>
                 )}
               </div>
             )}
