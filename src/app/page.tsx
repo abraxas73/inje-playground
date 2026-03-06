@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Dice5, Users, Settings, ArrowRight } from "lucide-react";
+import { Dice5, Users, Settings, ArrowRight, UtensilsCrossed } from "lucide-react";
 
 const FEATURES = [
   {
@@ -25,6 +25,16 @@ const FEATURES = [
     delay: "delay-200",
   },
   {
+    href: "/food",
+    title: "오늘 뭐 먹지?",
+    description: "주변 음식점을 검색하고 랜덤 추천을 받아 점심 메뉴 고민을 해결하세요.",
+    icon: UtensilsCrossed,
+    gradient: "from-amber-500 to-orange-600",
+    bgAccent: "bg-amber-50",
+    iconColor: "text-amber-600",
+    delay: "delay-300",
+  },
+  {
     href: "/settings",
     title: "설정",
     description: "Dooray 연동 설정으로 프로젝트 멤버를 자동으로 불러옵니다.",
@@ -32,7 +42,7 @@ const FEATURES = [
     gradient: "from-slate-500 to-slate-700",
     bgAccent: "bg-slate-100",
     iconColor: "text-slate-600",
-    delay: "delay-300",
+    delay: "delay-[400ms]",
   },
 ];
 
@@ -56,7 +66,7 @@ export default function HomePage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {FEATURES.map((feature) => {
           const Icon = feature.icon;
           return (

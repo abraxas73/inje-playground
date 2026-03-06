@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Shuffle, RefreshCw, AlertCircle, Users, Settings2, Save, Loader2, History } from "lucide-react";
 import type { Team } from "@/types/team";
+import { logAction } from "@/lib/action-log";
 
 const CARD_HOLDERS_KEY = "team-card-holders";
 
@@ -95,6 +96,7 @@ export default function TeamPage() {
 
     setResult(namedTeams);
     setSaved(false);
+    logAction("팀 구성", "team", { participantCount: participants.length, teamCount });
   };
 
   const handleSave = async () => {
@@ -116,6 +118,7 @@ export default function TeamPage() {
       });
       setSaved(true);
       setHistoryKey((k) => k + 1);
+      logAction("팀 구성 저장", "team", { participantCount: participants.length, teamCount });
     } catch {} finally {
       setSaving(false);
     }

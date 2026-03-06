@@ -1,33 +1,36 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import type { LadderData, PathSegment } from "@/types/ladder";
+import type { LadderData, LadderResult, PathSegment } from "@/types/ladder";
 import { generateLadder, tracePath } from "@/lib/ladder";
 import { Button } from "@/components/ui/button";
 import { Play, Eye } from "lucide-react";
 
 interface LadderCanvasProps {
   participants: string[];
-  results: string[];
+  results: LadderResult[];
   bridgeDensity: number;
   onAnimationStart?: () => void;
-  onAllRevealed?: (mappings: { participant: string; result: string }[]) => void;
+  onAllRevealed?: (mappings: { participant: string; result: LadderResult }[]) => void;
+  onSingleRevealed?: (participant: string, result: LadderResult) => void;
+  onPathTraceStart?: () => void;
+  onLadderGenerated?: (ladder: LadderData) => void;
+  initialLadder?: LadderData | null;
+  showControls?: boolean;
 }
 
 const PADDING_X = 60;
 const PADDING_Y = 60;
 const PATH_COLORS = [
-  "#ef4444",
-  "#3b82f6",
-  "#10b981",
-  "#f59e0b",
-  "#8b5cf6",
-  "#ec4899",
-  "#06b6d4",
-  "#f97316",
-  "#14b8a6",
-  "#6366f1",
+  "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6",
+  "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#6366f1",
 ];
+
+const RESULT_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
+  reward: { bg: "#dcfce7", text: "#166534" },
+  punishment: { bg: "#fce7f3", text: "#9f1239" },
+  normal: { bg: "#f1f5f9", text: "#334155" },
+};
 
 export default function LadderCanvas({
   participants,
@@ -35,10 +38,15 @@ export default function LadderCanvas({
   bridgeDensity,
   onAnimationStart,
   onAllRevealed,
+  onSingleRevealed,
+  onPathTraceStart,
+  onLadderGenerated,
+  initialLadder = null,
+  showControls = true,
 }: LadderCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [ladder, setLadder] = useState<LadderData | null>(null);
+  const [ladder, setLadder] = useState<LadderData | null>(initialLadder);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 500 });
   const [animatingPath, setAnimatingPath] = useState<{
     segments: PathSegment[];
@@ -53,6 +61,16 @@ export default function LadderCanvas({
   const animFrameRef = useRef<number>(0);
   const hasCalledAnimStartRef = useRef(false);
 
+  // If initialLadder changes (history view), update
+  useEffect(() => {
+    if (initialLadder) {
+      setLadder(initialLadder);
+      setRevealedPaths([]);
+      setAnimatingPath(null);
+      setIsRevealed(false);
+    }
+  }, [initialLadder]);
+
   const handleGenerate = useCallback(() => {
     if (participants.length < 2 || results.length < 2) return;
     const newLadder = generateLadder(participants, results, bridgeDensity);
@@ -61,7 +79,8 @@ export default function LadderCanvas({
     setAnimatingPath(null);
     setIsRevealed(false);
     hasCalledAnimStartRef.current = false;
-  }, [participants, results, bridgeDensity]);
+    onLadderGenerated?.(newLadder);
+  }, [participants, results, bridgeDensity, onLadderGenerated]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -81,7 +100,7 @@ export default function LadderCanvas({
       if (!ladder) return [];
       return paths.map((p) => ({
         participant: ladder.participants[p.startCol] || "",
-        result: ladder.results[p.resultIndex] || "",
+        result: ladder.results[p.resultIndex] || { text: "", type: "normal" as const },
       }));
     },
     [ladder]
@@ -114,6 +133,7 @@ export default function LadderCanvas({
       const colSpacing = usableWidth / (columns - 1 || 1);
       const rowSpacing = usableHeight / (rows + 1);
 
+      // Vertical lines
       ctx.strokeStyle = "#e2e8f0";
       ctx.lineWidth = 2;
       for (let c = 0; c < columns; c++) {
@@ -124,6 +144,7 @@ export default function LadderCanvas({
         ctx.stroke();
       }
 
+      // Bridges
       ctx.strokeStyle = "#94a3b8";
       ctx.lineWidth = 2;
       for (let r = 0; r < rows; r++) {
@@ -140,6 +161,7 @@ export default function LadderCanvas({
         }
       }
 
+      // Participant names (top)
       ctx.fillStyle = "#0f172a";
       ctx.font = "bold 13px sans-serif";
       ctx.textAlign = "center";
@@ -148,28 +170,45 @@ export default function LadderCanvas({
         ctx.fillText(ladder.participants[c] || "", x, PADDING_Y - 15);
       }
 
+      // Results (bottom)
       for (let c = 0; c < columns; c++) {
         const x = PADDING_X + c * colSpacing;
         const revealedPath = revealedPaths.find((p) => p.resultIndex === c);
         const isThisRevealed = !!revealedPath;
+        const result = ladder.results[c];
+        const typeColor = result ? RESULT_TYPE_COLORS[result.type] || RESULT_TYPE_COLORS.normal : RESULT_TYPE_COLORS.normal;
 
         if (isRevealed || isThisRevealed) {
-          ctx.fillStyle = "#0f172a";
-          ctx.font = "bold 13px sans-serif";
-          ctx.fillText(ladder.results[c] || "", x, PADDING_Y + usableHeight + 25);
+          // Result type background pill
+          const text = result?.text || "";
+          const textWidth = ctx.measureText(text).width;
+          const pillW = Math.max(textWidth + 16, 40);
+          const pillH = 22;
+          const pillX = x - pillW / 2;
+          const pillY = PADDING_Y + usableHeight + 12;
 
+          ctx.fillStyle = typeColor.bg;
+          ctx.beginPath();
+          ctx.roundRect(pillX, pillY, pillW, pillH, 6);
+          ctx.fill();
+
+          ctx.fillStyle = typeColor.text;
+          ctx.font = "bold 12px sans-serif";
+          ctx.fillText(text, x, pillY + 15);
+
+          // Show who got this result
           if (revealedPath) {
             const participantName = ladder.participants[revealedPath.startCol] || "";
             ctx.fillStyle = revealedPath.color;
             ctx.font = "11px sans-serif";
-            ctx.fillText(participantName, x, PADDING_Y + usableHeight + 42);
+            ctx.fillText(participantName, x, PADDING_Y + usableHeight + 48);
           } else if (isRevealed) {
             const matchingPath = revealedPaths.find((p) => p.resultIndex === c);
             if (matchingPath) {
               const participantName = ladder.participants[matchingPath.startCol] || "";
               ctx.fillStyle = matchingPath.color;
               ctx.font = "11px sans-serif";
-              ctx.fillText(participantName, x, PADDING_Y + usableHeight + 42);
+              ctx.fillText(participantName, x, PADDING_Y + usableHeight + 48);
             }
           }
         } else {
@@ -179,6 +218,7 @@ export default function LadderCanvas({
         }
       }
 
+      // Revealed paths
       for (const path of revealedPaths) {
         ctx.strokeStyle = path.color;
         ctx.lineWidth = 3;
@@ -191,6 +231,7 @@ export default function LadderCanvas({
         }
       }
 
+      // Animating path
       if (animatingPath) {
         const { segments, currentSegment, progress } = animatingPath;
         const color = PATH_COLORS[animatingPath.columnIndex % PATH_COLORS.length];
@@ -263,6 +304,16 @@ export default function LadderCanvas({
         setTimeout(() => checkAllRevealed(newPaths), 0);
         return newPaths;
       });
+
+      // Notify single result revealed
+      if (ladder) {
+        const result = ladder.results[resultIndex];
+        const participant = ladder.participants[animatingPath.columnIndex];
+        if (result && participant) {
+          onSingleRevealed?.(participant, result);
+        }
+      }
+
       setAnimatingPath(null);
       return;
     }
@@ -296,7 +347,7 @@ export default function LadderCanvas({
 
     animFrameRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animFrameRef.current);
-  }, [animatingPath?.currentSegment, ladder, canvasSize, checkAllRevealed]);
+  }, [animatingPath?.currentSegment, ladder, canvasSize, checkAllRevealed, onSingleRevealed]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!ladder || animatingPath) return;
@@ -321,19 +372,13 @@ export default function LadderCanvas({
           onAnimationStart?.();
         }
 
+        onPathTraceStart?.();
+
         const segments = tracePath(
-          ladder,
-          c,
-          canvasSize.width,
-          canvasSize.height,
-          PADDING_X,
-          PADDING_Y
+          ladder, c, canvasSize.width, canvasSize.height, PADDING_X, PADDING_Y
         );
         setAnimatingPath({
-          segments,
-          currentSegment: 0,
-          progress: 0,
-          columnIndex: c,
+          segments, currentSegment: 0, progress: 0, columnIndex: c,
         });
         break;
       }
@@ -348,12 +393,7 @@ export default function LadderCanvas({
     for (let c = 0; c < ladder.columns; c++) {
       if (revealedPaths.some((p) => p.startCol === c)) continue;
       const segments = tracePath(
-        ladder,
-        c,
-        canvasSize.width,
-        canvasSize.height,
-        PADDING_X,
-        PADDING_Y
+        ladder, c, canvasSize.width, canvasSize.height, PADDING_X, PADDING_Y
       );
       const lastSeg = segments[segments.length - 1];
       const colSpacing =
@@ -379,29 +419,31 @@ export default function LadderCanvas({
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-3">
-        <Button
-          onClick={handleGenerate}
-          disabled={!canStart}
-          className="rounded-xl shadow-md hover:shadow-lg transition-shadow"
-        >
-          <Play className="h-4 w-4 mr-1.5" />
-          {ladder ? "사다리 다시 만들기" : "사다리 만들기"}
-        </Button>
-        {ladder && (
+      {showControls && (
+        <div className="flex gap-3">
           <Button
-            onClick={handleRevealAll}
-            disabled={!!animatingPath}
-            variant="secondary"
-            className="rounded-xl"
+            onClick={handleGenerate}
+            disabled={!canStart}
+            className="rounded-xl shadow-md hover:shadow-lg transition-shadow"
           >
-            <Eye className="h-4 w-4 mr-1.5" />
-            전체 공개
+            <Play className="h-4 w-4 mr-1.5" />
+            {ladder ? "사다리 다시 만들기" : "사다리 만들기"}
           </Button>
-        )}
-      </div>
+          {ladder && (
+            <Button
+              onClick={handleRevealAll}
+              disabled={!!animatingPath}
+              variant="secondary"
+              className="rounded-xl"
+            >
+              <Eye className="h-4 w-4 mr-1.5" />
+              전체 공개
+            </Button>
+          )}
+        </div>
+      )}
 
-      {!canStart && (
+      {showControls && !canStart && (
         <p className="text-sm text-muted-foreground">
           참여자와 결과를 각각 2개 이상 입력해주세요.
         </p>
@@ -409,9 +451,11 @@ export default function LadderCanvas({
 
       {ladder && (
         <div ref={containerRef} className="w-full">
-          <p className="text-xs text-muted-foreground mb-2">
-            상단의 이름을 클릭하면 경로가 표시됩니다.
-          </p>
+          {showControls && (
+            <p className="text-xs text-muted-foreground mb-2">
+              상단의 이름을 클릭하면 경로가 표시됩니다.
+            </p>
+          )}
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}

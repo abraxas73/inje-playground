@@ -1,34 +1,20 @@
 "use client";
 
-import { useSettings } from "@/hooks/useSettings";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Info, Loader2, Cloud, Save, Check } from "lucide-react";
+import { Info } from "lucide-react";
+import type { useSettings } from "@/hooks/useSettings";
 
-export default function DooraySettings() {
-  const { settings, updateLocal, save, isLoaded, isSaving, hasChanges, saveSuccess } = useSettings();
+interface DooraySettingsProps {
+  settingsHook: ReturnType<typeof useSettings>;
+}
 
-  if (!isLoaded) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        설정을 불러오는 중...
-      </div>
-    );
-  }
+export default function DooraySettings({ settingsHook }: DooraySettingsProps) {
+  const { settings, updateLocal } = settingsHook;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className="gap-1">
-          <Cloud className="h-3 w-3" />
-          Supabase DB
-        </Badge>
-      </div>
-
+    <div className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="dooray-token">Dooray API 토큰</Label>
         <Input
@@ -57,34 +43,9 @@ export default function DooraySettings() {
         </p>
       </div>
 
-      <div className="flex items-center gap-3">
-        <Button onClick={save} disabled={isSaving || !hasChanges}>
-          {isSaving ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              저장 중...
-            </>
-          ) : saveSuccess ? (
-            <>
-              <Check className="h-4 w-4 mr-2" />
-              저장 완료
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4 mr-2" />
-              저장
-            </>
-          )}
-        </Button>
-        {hasChanges && (
-          <span className="text-xs text-muted-foreground">변경사항이 있습니다</span>
-        )}
-      </div>
-
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          설정 정보는 Supabase DB에 저장되어 모든 기기에서 공유됩니다.
           사다리 게임이나 팀 구성 페이지에서 &quot;Dooray에서
           가져오기&quot; 버튼을 통해 멤버를 불러올 수 있습니다.
         </AlertDescription>

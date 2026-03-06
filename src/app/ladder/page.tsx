@@ -1,23 +1,27 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useParticipants } from "@/hooks/useParticipants";
 import { useBgm } from "@/hooks/useBgm";
 import { useTts } from "@/hooks/useTts";
+import { useSfx } from "@/hooks/useSfx";
 import ParticipantInput from "@/components/shared/ParticipantInput";
 import ParticipantList from "@/components/shared/ParticipantList";
 import DoorayImportButton from "@/components/shared/DoorayImportButton";
 import LadderCanvas from "@/components/ladder/LadderCanvas";
 import LadderConfig from "@/components/ladder/LadderConfig";
+import LadderHistory from "@/components/ladder/LadderHistory";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Dice5, Music, Users, Settings2 } from "lucide-react";
+import { Dice5, Music, Users, Settings2, Save, Loader2, History } from "lucide-react";
 import type { PresetName } from "@/lib/bgm-presets";
+import type { LadderData, LadderResult } from "@/types/ladder";
 import { cn } from "@/lib/utils";
+import { logAction } from "@/lib/action-log";
 
 const BGM_PRESETS: { key: PresetName; label: string }[] = [
   { key: "tension", label: "긴장감" },
@@ -29,24 +33,90 @@ export default function LadderPage() {
   const { participants, addParticipants, removeParticipant, clearAll, setAll } =
     useParticipants("ladder-participants");
 
-  const [results, setResults] = useState<string[]>([]);
+  const [results, setResults] = useState<LadderResult[]>([]);
   const [bridgeDensity, setBridgeDensity] = useState(0.4);
   const [projectId, setProjectId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [historyKey, setHistoryKey] = useState(0);
+
+  const currentLadderRef = useRef<LadderData | null>(null);
+  const currentMappingsRef = useRef<{ participant: string; result: LadderResult }[]>([]);
+  const [hasResult, setHasResult] = useState(false);
 
   const bgm = useBgm();
   const tts = useTts();
+  const sfx = useSfx();
 
   const handleAnimationStart = useCallback(() => {
-    bgm.play();
+    bgm.stop();
   }, [bgm]);
 
+  const handleSingleRevealed = useCallback(
+    (_participant: string, result: LadderResult) => {
+      sfx.playResult(result.type);
+    },
+    [sfx]
+  );
+
   const handleAllRevealed = useCallback(
-    (mappings: { participant: string; result: string }[]) => {
+    (mappings: { participant: string; result: LadderResult }[]) => {
       bgm.stop();
-      setTimeout(() => tts.speak(mappings), 500);
+      currentMappingsRef.current = mappings;
+      setHasResult(true);
+      setSaved(false);
+      logAction("사다리 전체 공개", "ladder", {
+        mappings: mappings.map((m) => ({ participant: m.participant, result: m.result.text, type: m.result.type })),
+      });
+      const rewardOrPunishment = mappings.filter(
+        (m) => m.result.type === "reward" || m.result.type === "punishment"
+      );
+      if (rewardOrPunishment.length > 0) {
+        setTimeout(() => {
+          tts.speak(rewardOrPunishment.map((m) => ({ participant: m.participant, result: m.result.text })));
+        }, 500);
+      }
     },
     [bgm, tts]
   );
+
+  const handleLadderGenerated = useCallback((ladder: LadderData) => {
+    currentLadderRef.current = ladder;
+    currentMappingsRef.current = [];
+    setHasResult(false);
+    setSaved(false);
+    sfx.resetIndex();
+    logAction("사다리 생성", "ladder", { participantCount: ladder.columns, resultCount: ladder.results.length });
+  }, [sfx]);
+
+  const handleCanvasClick = useCallback(() => {
+    sfx.playTrace();
+  }, [sfx]);
+
+  const handleSave = async () => {
+    const ladder = currentLadderRef.current;
+    if (!ladder || currentMappingsRef.current.length === 0) return;
+
+    setSaving(true);
+    try {
+      await fetch("/api/ladder-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          participants: ladder.participants,
+          results: ladder.results,
+          bridges: ladder.bridges,
+          bridgeDensity,
+          mappings: currentMappingsRef.current,
+        }),
+      });
+      setSaved(true);
+      setHistoryKey((k) => k + 1);
+      logAction("사다리 결과 저장", "ladder", { participantCount: ladder.participants.length });
+    } catch {} finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="animate-fade-up">
@@ -164,9 +234,40 @@ export default function LadderPage() {
               bridgeDensity={bridgeDensity}
               onAnimationStart={handleAnimationStart}
               onAllRevealed={handleAllRevealed}
+              onSingleRevealed={handleSingleRevealed}
+              onLadderGenerated={handleLadderGenerated}
+              onPathTraceStart={handleCanvasClick}
             />
+
+            {hasResult && (
+              <div className="mt-4">
+                <Button
+                  onClick={handleSave}
+                  variant="outline"
+                  className="rounded-xl"
+                  disabled={saving || saved}
+                >
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  {saved ? "저장됨" : "결과 저장"}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        <Separator />
+
+        <section className="animate-fade-up delay-400">
+          <div className="flex items-center gap-2 mb-4">
+            <History className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-lg font-semibold">사다리 게임 이력</h2>
+          </div>
+          <LadderHistory key={historyKey} />
+        </section>
       </div>
     </div>
   );

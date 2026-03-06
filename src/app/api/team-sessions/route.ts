@@ -1,7 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
 
-// 이력 조회
+// 이력 조회 (삭제되지 않은 것만)
 export async function GET() {
   const supabase = await createServerSupabase();
   const { data, error } = await supabase
@@ -13,6 +13,7 @@ export async function GET() {
         team_comments (*)
       )
     `)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -72,4 +73,33 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ id: session.id });
+}
+
+// 제목 수정 / 소프트 삭제
+export async function PATCH(request: NextRequest) {
+  const supabase = await createServerSupabase();
+  const body = await request.json();
+  const { id, title, delete: softDelete } = body;
+
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (softDelete) {
+    updates.deleted_at = new Date().toISOString();
+  } else if (title !== undefined) {
+    updates.title = title || null;
+  }
+
+  const { error } = await supabase
+    .from("team_sessions")
+    .update(updates)
+    .eq("id", id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
 }

@@ -1,10 +1,16 @@
 "use client";
 
 import DooraySettings from "@/components/settings/DooraySettings";
+import KakaoSettings from "@/components/settings/KakaoSettings";
+import { useSettings } from "@/hooks/useSettings";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Settings, Link2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Settings, Link2, MapPin, Loader2, Save, Check } from "lucide-react";
 
 export default function SettingsPage() {
+  const settingsHook = useSettings();
+  const { save, isLoaded, isSaving, hasChanges, saveSuccess } = settingsHook;
+
   return (
     <div className="animate-fade-up">
       <div className="flex items-center gap-3 mb-8">
@@ -17,17 +23,62 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <Card className="animate-fade-up delay-100">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Link2 className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-base">Dooray 연동</CardTitle>
+      {!isLoaded ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          설정을 불러오는 중...
+        </div>
+      ) : (
+        <>
+          <Card className="animate-fade-up delay-100">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Link2 className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-base">Dooray 연동</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <DooraySettings settingsHook={settingsHook} />
+            </CardContent>
+          </Card>
+
+          <Card className="animate-fade-up delay-200 mt-6">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-base">Kakao 로컬 API</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <KakaoSettings settingsHook={settingsHook} />
+            </CardContent>
+          </Card>
+
+          <div className="flex items-center gap-3 mt-6 animate-fade-up delay-300">
+            <Button onClick={save} disabled={isSaving || !hasChanges}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  저장 중...
+                </>
+              ) : saveSuccess ? (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  저장 완료
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  저장
+                </>
+              )}
+            </Button>
+            {hasChanges && (
+              <span className="text-xs text-muted-foreground">변경사항이 있습니다</span>
+            )}
           </div>
-        </CardHeader>
-        <CardContent>
-          <DooraySettings />
-        </CardContent>
-      </Card>
+        </>
+      )}
     </div>
   );
 }

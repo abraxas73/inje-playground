@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
 import type { DoorayMember } from "@/types/dooray";
+import { logAction } from "@/lib/action-log";
 
 interface DoorayImportButtonProps {
   onImport: (names: string[]) => void;
@@ -54,6 +55,7 @@ export default function DoorayImportButton({
       const data: { members: DoorayMember[] } = await res.json();
       const names = data.members.map((m) => m.name);
       onImport(names);
+      logAction("Dooray 멤버 가져오기", "dooray", { memberCount: names.length, projectId });
     } catch (err) {
       setError(err instanceof Error ? err.message : "오류가 발생했습니다.");
     } finally {

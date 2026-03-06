@@ -1,15 +1,18 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { logAction } from "@/lib/action-log";
 
 interface Settings {
   dooray_token: string;
   dooray_project_id: string;
+  kakao_rest_api_key: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   dooray_token: "",
   dooray_project_id: "",
+  kakao_rest_api_key: "",
 };
 
 export function useSettings() {
@@ -26,6 +29,7 @@ export function useSettings() {
         const loaded = {
           dooray_token: data.dooray_token || "",
           dooray_project_id: data.dooray_project_id || "",
+          kakao_rest_api_key: data.kakao_rest_api_key || "",
         };
         setSettings(loaded);
         setSavedSettings(loaded);
@@ -41,7 +45,8 @@ export function useSettings() {
 
   const hasChanges =
     settings.dooray_token !== savedSettings.dooray_token ||
-    settings.dooray_project_id !== savedSettings.dooray_project_id;
+    settings.dooray_project_id !== savedSettings.dooray_project_id ||
+    settings.kakao_rest_api_key !== savedSettings.kakao_rest_api_key;
 
   const save = useCallback(async () => {
     setIsSaving(true);
@@ -57,6 +62,7 @@ export function useSettings() {
       await Promise.all(promises);
       setSavedSettings({ ...settings });
       setSaveSuccess(true);
+      logAction("설정 저장", "settings");
     } catch {
       // save failed
     } finally {

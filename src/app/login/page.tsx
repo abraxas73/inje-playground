@@ -1,11 +1,13 @@
 "use client";
 
 import { createClient } from "@/lib/supabase";
+import { logAction } from "@/lib/action-log";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
 export default function LoginPage() {
   const handleGoogleLogin = async () => {
+    logAction("Google 로그인 시도", "auth");
     const supabase = createClient();
     await supabase.auth.signInWithOAuth({
       provider: "google",

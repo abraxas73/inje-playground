@@ -3,16 +3,18 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Dice5, Users, Settings, Home, LogOut } from "lucide-react";
+import { Dice5, Users, Settings, Home, LogOut, UtensilsCrossed } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import type { User } from "@supabase/supabase-js";
+import { logAction } from "@/lib/action-log";
 
 const NAV_ITEMS = [
   { href: "/", label: "홈", icon: Home },
   { href: "/ladder", label: "사다리 게임", icon: Dice5 },
   { href: "/team", label: "팀 구성", icon: Users },
+  { href: "/food", label: "오늘 뭐 먹지", icon: UtensilsCrossed },
   { href: "/settings", label: "설정", icon: Settings },
 ];
 
@@ -32,6 +34,7 @@ export default function Navigation() {
   }, []);
 
   const handleLogout = async () => {
+    logAction("로그아웃", "auth");
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/login");
@@ -55,25 +58,7 @@ export default function Navigation() {
               <span className="text-sm font-bold gradient-text">Workshop</span>
             </div>
           </Link>
-          {user && (
-            <div className="flex items-center gap-2 mr-4">
-              {user.user_metadata?.avatar_url && (
-                <img
-                  src={user.user_metadata.avatar_url}
-                  alt=""
-                  className="h-7 w-7 rounded-full"
-                />
-              )}
-              <span className="text-xs text-muted-foreground hidden sm:inline">
-                {user.user_metadata?.full_name || user.email}
-              </span>
-              <Button variant="ghost" size="sm" onClick={handleLogout} className="h-8 px-2">
-                <LogOut className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          )}
-
-          <div className="flex items-center gap-0.5 bg-muted/50 rounded-xl p-1 ml-auto">
+          <div className="flex items-center gap-0.5 bg-muted/50 rounded-xl p-1">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive =
@@ -96,6 +81,26 @@ export default function Navigation() {
                 </Link>
               );
             })}
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            {user && (
+              <>
+                <span className="text-xs text-muted-foreground hidden sm:inline">
+                  {user.user_metadata?.full_name || user.email}
+                </span>
+                {user.user_metadata?.avatar_url && (
+                  <img
+                    src={user.user_metadata.avatar_url}
+                    alt=""
+                    className="h-7 w-7 rounded-full"
+                  />
+                )}
+                <Button variant="ghost" size="sm" onClick={handleLogout} className="h-8 px-2">
+                  <LogOut className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
