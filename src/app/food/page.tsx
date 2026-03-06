@@ -22,6 +22,7 @@ import {
 import type { KakaoPlace, FoodFavorite } from "@/types/food";
 import { logAction } from "@/lib/action-log";
 import FoodRecommendModal from "@/components/food/FoodRecommendModal";
+import AddressSearchModal from "@/components/food/AddressSearchModal";
 
 type CategoryCode = "FD6" | "CE7";
 
@@ -97,6 +98,7 @@ export default function FoodPage() {
   const [favorites, setFavorites] = useState<FoodFavorite[]>([]);
   const [showFavorites, setShowFavorites] = useState(false);
   const [recommendOpen, setRecommendOpen] = useState(false);
+  const [addressSearchOpen, setAddressSearchOpen] = useState(false);
   const [lastSearch, setLastSearch] = useState<SearchCondition | null>(null);
 
   // Load saved location on mount
@@ -293,25 +295,62 @@ export default function FoodPage() {
       <Card className="animate-fade-up delay-100 mb-6">
         <CardContent className="pt-6 space-y-5">
           {/* Location */}
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={getCurrentLocation}
-              disabled={locating}
-              variant={location ? "outline" : "default"}
-              className="shrink-0"
-            >
-              {locating ? (
-                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {location ? (
+                <>
+                  <Button
+                    onClick={() => setAddressSearchOpen(true)}
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                  >
+                    <Search className="h-3.5 w-3.5 mr-1.5" />
+                    주소 검색
+                  </Button>
+                  <Button
+                    onClick={getCurrentLocation}
+                    disabled={locating}
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                  >
+                    {locating ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                      <MapPin className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    {locating ? "확인 중..." : "현위치로 재설정"}
+                  </Button>
+                </>
               ) : (
-                <MapPin className="h-4 w-4 mr-1.5" />
+                <>
+                  <Button onClick={getCurrentLocation} disabled={locating}>
+                    {locating ? (
+                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                    ) : (
+                      <MapPin className="h-4 w-4 mr-1.5" />
+                    )}
+                    {locating ? "위치 확인 중..." : "현재 위치 확인"}
+                  </Button>
+                  <Button
+                    onClick={() => setAddressSearchOpen(true)}
+                    variant="outline"
+                  >
+                    <Search className="h-4 w-4 mr-1.5" />
+                    주소로 검색
+                  </Button>
+                </>
               )}
-              {locating ? "위치 확인 중..." : location ? "위치 재설정" : "현재 위치 확인"}
-            </Button>
+            </div>
             {location && (
-              <span className="text-sm text-muted-foreground flex items-center gap-1">
-                <Navigation className="h-3 w-3" />
-                {location.address}
-              </span>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Navigation className="h-3 w-3 shrink-0" />
+                <span className="truncate">{location.address}</span>
+                <Badge variant="secondary" className="text-[10px] shrink-0">
+                  {location.y.toFixed(5)}, {location.x.toFixed(5)}
+                </Badge>
+              </div>
             )}
             {locError && <span className="text-sm text-destructive">{locError}</span>}
           </div>
@@ -585,6 +624,18 @@ export default function FoodPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Address Search Modal */}
+      <AddressSearchModal
+        open={addressSearchOpen}
+        onOpenChange={setAddressSearchOpen}
+        onSelect={(result) => {
+          const loc = { x: result.x, y: result.y, address: result.address };
+          setLocation(loc);
+          saveLocation(loc);
+          logAction("주소 검색으로 위치 설정", "food", { address: result.address, x: result.x, y: result.y });
+        }}
+      />
 
       {/* Random Recommend Modal */}
       <FoodRecommendModal
