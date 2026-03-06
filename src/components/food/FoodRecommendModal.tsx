@@ -89,6 +89,7 @@ export default function FoodRecommendModal({
   const [members, setMembers] = useState<DoorayMember[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
   const [memberSearch, setMemberSearch] = useState("");
+  const [sendToChannel, setSendToChannel] = useState(true);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [sending, setSending] = useState(false);
   const [sentResult, setSentResult] = useState<{
@@ -226,6 +227,7 @@ export default function FoodRecommendModal({
     setStep("members");
     setSelectedMembers(new Set());
     setMemberSearch("");
+    setSendToChannel(true);
     setSentResult(null);
   };
 
@@ -279,6 +281,7 @@ export default function FoodRecommendModal({
           address: addr,
           members: selectedNames,
           member_ids: selectedIds,
+          send_to_channel: sendToChannel,
         }),
       });
       const data = await res.json();
@@ -537,10 +540,18 @@ export default function FoodRecommendModal({
                     </label>
                   ))}
                 </div>
+                <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                  <Checkbox
+                    checked={sendToChannel}
+                    onCheckedChange={(v) => setSendToChannel(!!v)}
+                  />
+                  <span className="text-sm">채널 전송</span>
+                  <span className="text-xs text-muted-foreground">(웹훅으로 채널에 메시지 전송)</span>
+                </label>
                 <Button
                   onClick={handleGo}
                   disabled={selectedMembers.size === 0 || sending}
-                  className="mt-3 bg-amber-500 hover:bg-amber-600 text-white w-full"
+                  className="mt-2 bg-amber-500 hover:bg-amber-600 text-white w-full"
                 >
                   {sending ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-1.5" />

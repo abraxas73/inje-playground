@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { place_name, place_url, category_name, address, members, member_ids } = body;
+  const { place_name, place_url, category_name, address, members, member_ids, send_to_channel } = body;
 
   if (!place_name || !members?.length) {
     return NextResponse.json({ error: "장소와 구성원이 필요합니다" }, { status: 400 });
@@ -66,8 +66,8 @@ export async function POST(request: NextRequest) {
     dooray_messenger_url: settings.dooray_messenger_url || null,
   };
 
-  // 1. Send to channel via incoming webhook
-  if (settings.dooray_hook_url) {
+  // 1. Send to channel via incoming webhook (only if requested)
+  if (send_to_channel !== false && settings.dooray_hook_url) {
     try {
       const hookRes = await fetch(settings.dooray_hook_url, {
         method: "POST",
