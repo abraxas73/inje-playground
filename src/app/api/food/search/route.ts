@@ -36,12 +36,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Kakao API max size is 15, so we paginate to collect more
-  const allDocuments: Record<string, unknown>[] = [];
-  let isEnd = false;
+  // Kakao API max size is 15, so we paginate in parallel to collect more
   const pagesToFetch = Math.ceil(maxResults / 15);
 
-  for (let page = 1; page <= pagesToFetch && !isEnd; page++) {
+  const buildUrl = (page: number) => {
     const url = new URL("https://dapi.kakao.com/v2/local/search/category.json");
     url.searchParams.set("category_group_code", categoryGroupCode);
     url.searchParams.set("x", x);
@@ -50,27 +48,43 @@ export async function GET(request: NextRequest) {
     url.searchParams.set("page", String(page));
     url.searchParams.set("size", "15");
     url.searchParams.set("sort", "distance");
+    return url.toString();
+  };
 
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `KakaoAK ${kakaoKey}` },
-    });
+  // First page to validate API key and check total
+  const firstRes = await fetch(buildUrl(1), {
+    headers: { Authorization: `KakaoAK ${kakaoKey}` },
+  });
 
-    if (!res.ok) {
-      if (page === 1) {
-        const text = await res.text();
-        return NextResponse.json(
-          { error: `Kakao API 오류: ${res.status} ${text}` },
-          { status: res.status }
-        );
+  if (!firstRes.ok) {
+    const text = await firstRes.text();
+    return NextResponse.json(
+      { error: `Kakao API 오류: ${firstRes.status} ${text}` },
+      { status: firstRes.status }
+    );
+  }
+
+  const firstData = await firstRes.json();
+  const allDocuments: Record<string, unknown>[] = [...(firstData.documents || [])];
+  let isEnd = firstData.meta?.is_end ?? true;
+
+  // Fetch remaining pages in parallel
+  if (!isEnd && pagesToFetch > 1) {
+    const pages = Array.from({ length: pagesToFetch - 1 }, (_, i) => i + 2);
+    const results = await Promise.allSettled(
+      pages.map((page) =>
+        fetch(buildUrl(page), {
+          headers: { Authorization: `KakaoAK ${kakaoKey}` },
+        }).then((res) => (res.ok ? res.json() : null))
+      )
+    );
+
+    for (const result of results) {
+      if (result.status === "fulfilled" && result.value?.documents?.length) {
+        allDocuments.push(...result.value.documents);
+        if (result.value.meta?.is_end) isEnd = true;
       }
-      break;
     }
-
-    const pageData = await res.json();
-    if (pageData.documents?.length) {
-      allDocuments.push(...pageData.documents);
-    }
-    isEnd = pageData.meta?.is_end ?? true;
   }
 
   // Auto-collect sub & detail categories from results into DB
