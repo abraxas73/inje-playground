@@ -1,6 +1,12 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dice5, Users, Settings, ArrowRight, UtensilsCrossed } from "lucide-react";
+import { createClient } from "@/lib/supabase";
+
+const SUPER_USER = "abraxas73@gmail.com";
 
 const FEATURES = [
   {
@@ -13,6 +19,7 @@ const FEATURES = [
     bgAccent: "bg-blue-50",
     iconColor: "text-blue-600",
     delay: "delay-100",
+    superOnly: false,
   },
   {
     href: "/team",
@@ -23,6 +30,7 @@ const FEATURES = [
     bgAccent: "bg-sky-50",
     iconColor: "text-sky-600",
     delay: "delay-200",
+    superOnly: false,
   },
   {
     href: "/food",
@@ -33,6 +41,7 @@ const FEATURES = [
     bgAccent: "bg-amber-50",
     iconColor: "text-amber-600",
     delay: "delay-300",
+    superOnly: false,
   },
   {
     href: "/settings",
@@ -43,10 +52,21 @@ const FEATURES = [
     bgAccent: "bg-slate-100",
     iconColor: "text-slate-600",
     delay: "delay-[400ms]",
+    superOnly: true,
   },
 ];
 
 export default function HomePage() {
+  const [isSuperUser, setIsSuperUser] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setIsSuperUser(data.user?.email === SUPER_USER);
+    });
+  }, []);
+
+  const visibleFeatures = FEATURES.filter((f) => !f.superOnly || isSuperUser);
   return (
     <div className="py-8 md:py-16">
       <div className="text-center mb-10 md:mb-16 animate-fade-up">
@@ -66,8 +86,8 @@ export default function HomePage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {FEATURES.map((feature) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {visibleFeatures.map((feature) => {
           const Icon = feature.icon;
           return (
             <Link key={feature.href} href={feature.href} className={`animate-fade-up ${feature.delay}`}>

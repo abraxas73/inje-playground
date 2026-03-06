@@ -11,12 +11,14 @@ import { Button } from "@/components/ui/button";
 import type { User } from "@supabase/supabase-js";
 import { logAction } from "@/lib/action-log";
 
+const SUPER_USER = "abraxas73@gmail.com";
+
 const NAV_ITEMS = [
   { href: "/", label: "홈", icon: Home },
   { href: "/ladder", label: "사다리", icon: Dice5 },
   { href: "/team", label: "팀 구성", icon: Users },
   { href: "/food", label: "뭐 먹지", icon: UtensilsCrossed },
-  { href: "/settings", label: "설정", icon: Settings },
+  { href: "/settings", label: "설정", icon: Settings, superOnly: true },
 ];
 
 export default function Navigation() {
@@ -43,6 +45,9 @@ export default function Navigation() {
 
   if (pathname === "/login") return null;
 
+  const isSuperUser = user?.email === SUPER_USER;
+  const visibleItems = NAV_ITEMS.filter((item) => !item.superOnly || isSuperUser);
+
   return (
     <>
       {/* Desktop top nav */}
@@ -64,7 +69,7 @@ export default function Navigation() {
 
             {/* Desktop nav items */}
             <div className="hidden md:flex items-center gap-0.5 bg-muted/50 rounded-xl p-1">
-              {NAV_ITEMS.map((item) => {
+              {visibleItems.map((item) => {
                 const Icon = item.icon;
                 const isActive =
                   item.href === "/"
@@ -114,7 +119,7 @@ export default function Navigation() {
       {/* Mobile bottom tab bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl safe-area-bottom">
         <div className="flex items-center justify-around h-14 px-1">
-          {NAV_ITEMS.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon;
             const isActive =
               item.href === "/"

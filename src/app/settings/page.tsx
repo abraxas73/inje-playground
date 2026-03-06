@@ -1,15 +1,51 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import DooraySettings from "@/components/settings/DooraySettings";
 import KakaoSettings from "@/components/settings/KakaoSettings";
 import { useSettings } from "@/hooks/useSettings";
+import { createClient } from "@/lib/supabase";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Settings, Link2, MapPin, Loader2, Save, Check } from "lucide-react";
+import { Settings, Link2, MapPin, Loader2, Save, Check, ShieldAlert } from "lucide-react";
+
+const SUPER_USER = "abraxas73@gmail.com";
 
 export default function SettingsPage() {
+  const router = useRouter();
   const settingsHook = useSettings();
   const { save, isLoaded, isSaving, hasChanges, saveSuccess } = settingsHook;
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      const isSuper = data.user?.email === SUPER_USER;
+      setAuthorized(isSuper);
+      if (!isSuper) {
+        router.replace("/");
+      }
+    });
+  }, [router]);
+
+  if (authorized === null) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground py-8">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        권한 확인 중...
+      </div>
+    );
+  }
+
+  if (!authorized) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
+        <ShieldAlert className="h-8 w-8" />
+        <p className="text-sm">접근 권한이 없습니다.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-up">
