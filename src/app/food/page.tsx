@@ -107,7 +107,7 @@ export default function FoodPage() {
 
   const savedFilters = typeof window !== "undefined" ? loadSavedFilters() : null;
   const [radius, setRadius] = useState(savedFilters?.radius ?? 500);
-  const [category, setCategory] = useState<CategoryCode>(savedFilters?.category ?? "FD6");
+  const [category, setCategory] = useState<CategoryCode>(savedFilters?.category ?? "ALL");
   const [subCategory, setSubCategory] = useState<string>(savedFilters?.subCategory ?? "");
   const [detailCategory, setDetailCategory] = useState<string>(savedFilters?.detailCategory ?? "");
   const [subCategories, setSubCategories] = useState<string[]>([]);
@@ -395,7 +395,7 @@ export default function FoodPage() {
                   <Button
                     variant={category === "FD6" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => { setCategory("FD6"); setSubCategory(""); setDetailCategory(""); }}
+                    onClick={() => { setCategory("ALL"); setSubCategory(""); setDetailCategory(""); }}
                   >
                     <UtensilsCrossed className="h-3.5 w-3.5 mr-1" />
                     음식점
@@ -520,7 +520,7 @@ export default function FoodPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    setCategory("FD6");
+                    setCategory("ALL");
                     setSubCategory("");
                     setDetailCategory("");
                     setMaxResults(30);
