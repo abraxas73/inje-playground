@@ -1,15 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
+import { createServerSupabase } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
-
 export async function POST(request: NextRequest) {
-  const supabase = getSupabase();
+  const supabase = await createServerSupabase();
   const { teamResultId, author, content } = await request.json();
 
   if (!teamResultId || !content) {

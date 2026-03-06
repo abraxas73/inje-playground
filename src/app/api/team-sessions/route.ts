@@ -1,16 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
+import { createServerSupabase } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
 
 // 이력 조회
 export async function GET() {
-  const supabase = getSupabase();
+  const supabase = await createServerSupabase();
   const { data, error } = await supabase
     .from("team_sessions")
     .select(`
@@ -42,7 +35,7 @@ export async function GET() {
 
 // 팀 구성 저장
 export async function POST(request: NextRequest) {
-  const supabase = getSupabase();
+  const supabase = await createServerSupabase();
   const body = await request.json();
   const { title, participants, teamCount, cardHolderDistribution, teams } = body;
 

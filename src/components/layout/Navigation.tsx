@@ -1,9 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Dice5, Users, Settings, Home } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { Dice5, Users, Settings, Home, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import type { User } from "@supabase/supabase-js";
 
 const NAV_ITEMS = [
   { href: "/", label: "홈", icon: Home },
@@ -14,6 +18,26 @@ const NAV_ITEMS = [
 
 export default function Navigation() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => setUser(session?.user ?? null)
+    );
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
+
+  if (pathname === "/login") return null;
 
   return (
     <nav className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-xl">
@@ -31,7 +55,25 @@ export default function Navigation() {
               <span className="text-sm font-bold gradient-text">Workshop</span>
             </div>
           </Link>
-          <div className="flex items-center gap-0.5 bg-muted/50 rounded-xl p-1">
+          {user && (
+            <div className="flex items-center gap-2 mr-4">
+              {user.user_metadata?.avatar_url && (
+                <img
+                  src={user.user_metadata.avatar_url}
+                  alt=""
+                  className="h-7 w-7 rounded-full"
+                />
+              )}
+              <span className="text-xs text-muted-foreground hidden sm:inline">
+                {user.user_metadata?.full_name || user.email}
+              </span>
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="h-8 px-2">
+                <LogOut className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-0.5 bg-muted/50 rounded-xl p-1 ml-auto">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive =

@@ -1,15 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
+import { createServerSupabase } from "@/lib/supabase-server";
 import { NextResponse } from "next/server";
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
-
 export async function GET() {
-  const supabase = getSupabase();
+  const supabase = await createServerSupabase();
   const { data, error } = await supabase
     .from("settings")
     .select("key, value");
@@ -27,7 +20,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const supabase = getSupabase();
+  const supabase = await createServerSupabase();
   const body = await request.json();
   const { key, value } = body;
 

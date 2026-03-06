@@ -14,37 +14,55 @@ const DEFAULT_SETTINGS: Settings = {
 
 export function useSettings() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [savedSettings, setSavedSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings")
       .then((res) => res.json())
       .then((data) => {
-        setSettings({
+        const loaded = {
           dooray_token: data.dooray_token || "",
           dooray_project_id: data.dooray_project_id || "",
-        });
+        };
+        setSettings(loaded);
+        setSavedSettings(loaded);
       })
       .catch(() => {})
       .finally(() => setIsLoaded(true));
   }, []);
 
-  const updateSetting = useCallback(async (key: keyof Settings, value: string) => {
+  const updateLocal = useCallback((key: keyof Settings, value: string) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
+    setSaveSuccess(false);
+  }, []);
+
+  const hasChanges =
+    settings.dooray_token !== savedSettings.dooray_token ||
+    settings.dooray_project_id !== savedSettings.dooray_project_id;
+
+  const save = useCallback(async () => {
     setIsSaving(true);
+    setSaveSuccess(false);
     try {
-      await fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, value }),
-      });
+      const promises = Object.entries(settings).map(([key, value]) =>
+        fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key, value }),
+        })
+      );
+      await Promise.all(promises);
+      setSavedSettings({ ...settings });
+      setSaveSuccess(true);
     } catch {
-      // silently fail
+      // save failed
     } finally {
       setIsSaving(false);
     }
-  }, []);
+  }, [settings]);
 
-  return { settings, updateSetting, isLoaded, isSaving };
+  return { settings, updateLocal, save, isLoaded, isSaving, hasChanges, saveSuccess };
 }
