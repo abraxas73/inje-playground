@@ -32,10 +32,32 @@ interface LocationState {
   address: string;
 }
 
+const LOCATION_STORAGE_KEY = "food-location";
+
+function loadSavedLocation(): LocationState | null {
+  try {
+    const saved = localStorage.getItem(LOCATION_STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return null;
+}
+
+function saveLocation(loc: LocationState) {
+  try {
+    localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(loc));
+  } catch {}
+}
+
 export default function FoodPage() {
   const [location, setLocation] = useState<LocationState | null>(null);
   const [locating, setLocating] = useState(false);
   const [locError, setLocError] = useState<string | null>(null);
+
+  // Load saved location on mount
+  useEffect(() => {
+    const saved = loadSavedLocation();
+    if (saved) setLocation(saved);
+  }, []);
   const [radius, setRadius] = useState(500);
   const [category, setCategory] = useState<CategoryCode>("FD6");
   const [subCategory, setSubCategory] = useState<string>("");
@@ -86,7 +108,9 @@ export default function FoodPage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { longitude, latitude } = position.coords;
-        setLocation({ x: longitude, y: latitude, address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` });
+        const loc = { x: longitude, y: latitude, address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` };
+        setLocation(loc);
+        saveLocation(loc);
         setLocating(false);
         logAction("위치 확인", "food", { lat: latitude, lng: longitude });
       },

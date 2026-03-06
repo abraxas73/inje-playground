@@ -48,8 +48,8 @@ const FEATURES = [
 
 export default function HomePage() {
   return (
-    <div className="py-16">
-      <div className="text-center mb-16 animate-fade-up">
+    <div className="py-8 md:py-16">
+      <div className="text-center mb-10 md:mb-16 animate-fade-up">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
@@ -57,7 +57,7 @@ export default function HomePage() {
           </span>
           NHN Injeinc Workshop
         </div>
-        <h1 className="text-5xl font-extrabold tracking-tight mb-4">
+        <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4">
           <span className="gradient-text">인재아이엔씨</span>{" "}
           <span className="text-foreground">워크샵</span>
         </h1>

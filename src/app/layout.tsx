@@ -21,6 +21,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <link
           rel="stylesheet"
           as="style"
@@ -31,7 +32,7 @@ export default function RootLayout({
       <body className={`${geistMono.variable} antialiased`}>
         <div className="min-h-screen dot-grid">
           <Navigation />
-          <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>
+          <main className="max-w-5xl mx-auto px-4 py-6 md:py-8 pb-20 md:pb-8">{children}</main>
         </div>
       </body>
     </html>

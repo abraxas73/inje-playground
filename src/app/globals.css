@@ -198,3 +198,7 @@ body {
   box-shadow: 0 8px 30px oklch(0.35 0.12 260 / 10%), 0 2px 8px oklch(0 0 0 / 5%);
   transform: translateY(-2px);
 }
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
