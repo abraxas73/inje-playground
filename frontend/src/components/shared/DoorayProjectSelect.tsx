@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { FolderOpen, Loader2, X } from "lucide-react";
+import { fetchProjects as fetchDoorayProjects } from "@/lib/dooray-client";
 
 interface DoorayProject {
   id: string;
@@ -34,7 +35,7 @@ export default function DoorayProjectSelect({
   const [error, setError] = useState<string | null>(null);
   const [selectedName, setSelectedName] = useState<string | null>(null);
 
-  // Load token from user/system settings
+  // Load token from user/system settings (개인 설정 우선)
   useEffect(() => {
     (async () => {
       try {
@@ -59,13 +60,10 @@ export default function DoorayProjectSelect({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/dooray/projects", {
-        headers: { "x-dooray-token": token },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setProjects(data.projects ?? []);
-      if (!data.projects?.length) {
+      // 브라우저에서 Dooray API 직접 호출 (Chrome 확장이 CORS 처리)
+      const result = await fetchDoorayProjects(token);
+      setProjects(result);
+      if (!result.length) {
         setError("접근 가능한 프로젝트가 없습니다.");
       }
     } catch (err) {
@@ -82,7 +80,6 @@ export default function DoorayProjectSelect({
     setSelectedName(null);
   };
 
-  // If we have a value but no name yet, try to find it in loaded projects
   useEffect(() => {
     if (value && projects.length > 0 && !selectedName) {
       const p = projects.find((proj) => proj.id === value);
