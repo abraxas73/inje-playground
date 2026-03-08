@@ -6,12 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   Settings,
   Loader2,
@@ -19,13 +25,23 @@ import {
   Eye,
   EyeOff,
   FolderOpen,
+  ChevronsUpDown,
+  UserCheck,
+  Users,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { fetchProjects as fetchDoorayProjects, fetchProjectMembers } from "@/lib/dooray-client";
 
 interface DoorayProject {
   id: string;
   code: string;
   name: string;
   description: string;
+}
+
+interface DoorayMember {
+  id: string;
+  name: string;
 }
 
 export default function UserSettingsPage() {
@@ -38,10 +54,24 @@ export default function UserSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Project combobox
   const [projects, setProjects] = useState<DoorayProject[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [projectError, setProjectError] = useState<string | null>(null);
   const [selectedProjectName, setSelectedProjectName] = useState<string | null>(null);
+  const [projectOpen, setProjectOpen] = useState(false);
+
+  // 본인 인증
+  const [members, setMembers] = useState<DoorayMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [memberError, setMemberError] = useState<string | null>(null);
+  const [memberOpen, setMemberOpen] = useState(false);
+  const [savedMemberId, setSavedMemberId] = useState("");
+  const [savedMemberName, setSavedMemberName] = useState("");
+  const [selectedMemberId, setSelectedMemberId] = useState("");
+  const [selectedMemberName, setSelectedMemberName] = useState("");
+  const [savingMember, setSavingMember] = useState(false);
+  const [saveMemberSuccess, setSaveMemberSuccess] = useState(false);
 
   // Load user settings
   useEffect(() => {
@@ -51,11 +81,17 @@ export default function UserSettingsPage() {
         const t = data.dooray_token ?? "";
         const p = data.dooray_project_id ?? "";
         const pName = data.dooray_project_name ?? "";
+        const mId = data.dooray_member_id ?? "";
+        const mName = data.dooray_member_name ?? "";
         setToken(t);
         setProjectId(p);
         setSavedToken(t);
         setSavedProjectId(p);
         if (pName) setSelectedProjectName(pName);
+        setSavedMemberId(mId);
+        setSavedMemberName(mName);
+        setSelectedMemberId(mId);
+        setSelectedMemberName(mName);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -79,7 +115,6 @@ export default function UserSettingsPage() {
           body: JSON.stringify({ key: "dooray_project_id", value: projectId }),
         }),
       ];
-      // Save project name for display
       const project = projects.find((p) => p.id === projectId);
       if (project) {
         saves.push(
@@ -107,7 +142,7 @@ export default function UserSettingsPage() {
     }
   };
 
-  const fetchProjects = useCallback(async () => {
+  const fetchProjectList = useCallback(async () => {
     const t = token.trim();
     if (!t) {
       setProjectError("토큰을 먼저 입력해주세요.");
@@ -116,13 +151,9 @@ export default function UserSettingsPage() {
     setLoadingProjects(true);
     setProjectError(null);
     try {
-      const res = await fetch("/api/dooray/projects", {
-        headers: { "x-dooray-token": t },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setProjects(data.projects ?? []);
-      if (data.projects?.length === 0) {
+      const result = await fetchDoorayProjects(t);
+      setProjects(result);
+      if (result.length === 0) {
         setProjectError("접근 가능한 프로젝트가 없습니다.");
       }
     } catch (err) {
@@ -134,6 +165,59 @@ export default function UserSettingsPage() {
     }
   }, [token]);
 
+  const fetchMemberList = useCallback(async () => {
+    const t = token.trim();
+    const p = projectId.trim();
+    if (!t || !p) {
+      setMemberError("토큰과 프로젝트를 먼저 설정해주세요.");
+      return;
+    }
+    setLoadingMembers(true);
+    setMemberError(null);
+    try {
+      const result = await fetchProjectMembers(t, p);
+      setMembers(result);
+      if (result.length === 0) {
+        setMemberError("구성원을 찾을 수 없습니다.");
+      }
+    } catch (err) {
+      setMemberError(
+        err instanceof Error ? err.message : "구성원 조회에 실패했습니다."
+      );
+    } finally {
+      setLoadingMembers(false);
+    }
+  }, [token, projectId]);
+
+  const handleSaveMember = async () => {
+    setSavingMember(true);
+    setSaveMemberSuccess(false);
+    try {
+      await Promise.all([
+        fetch("/api/users/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: "dooray_member_id", value: selectedMemberId }),
+        }),
+        fetch("/api/users/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: "dooray_member_name", value: selectedMemberName }),
+        }),
+      ]);
+      setSavedMemberId(selectedMemberId);
+      setSavedMemberName(selectedMemberName);
+      setSaveMemberSuccess(true);
+      setTimeout(() => setSaveMemberSuccess(false), 2000);
+    } catch {
+      alert("저장에 실패했습니다.");
+    } finally {
+      setSavingMember(false);
+    }
+  };
+
+  const hasMemberChanges = selectedMemberId !== savedMemberId;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -142,13 +226,19 @@ export default function UserSettingsPage() {
     );
   }
 
+  const selectedProject = projects.find((p) => p.id === projectId);
+  const projectLabel = selectedProject
+    ? selectedProject.code || selectedProject.name
+    : selectedProjectName || null;
+
   return (
-    <div className="max-w-lg mx-auto py-8 px-4">
+    <div className="max-w-lg mx-auto py-8 px-4 space-y-4">
       <div className="flex items-center gap-2.5 mb-6">
         <Settings className="h-5 w-5 text-muted-foreground" />
         <h1 className="text-xl font-bold">설정</h1>
       </div>
 
+      {/* Dooray 연동 */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Dooray 연동</CardTitle>
@@ -190,14 +280,14 @@ export default function UserSettingsPage() {
             </p>
           </div>
 
-          {/* Project selection */}
+          {/* Project selection - combobox */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">프로젝트</label>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={fetchProjects}
+                onClick={fetchProjectList}
                 disabled={loadingProjects || !token.trim()}
                 className="h-7 text-xs"
               >
@@ -211,33 +301,59 @@ export default function UserSettingsPage() {
             </div>
 
             {projects.length > 0 ? (
-              <Select
-                value={projectId}
-                onValueChange={(val) => {
-                  setProjectId(val);
-                  setSaveSuccess(false);
-                  const p = projects.find((proj) => proj.id === val);
-                  if (p) setSelectedProjectName(p.code || p.name);
-                }}
-              >
-                <SelectTrigger className="text-sm">
-                  <SelectValue placeholder="프로젝트를 선택하세요" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-medium">{p.code || p.name}</span>
-                        {p.description && (
-                          <span className="text-xs text-muted-foreground line-clamp-1">
-                            {p.description}
-                          </span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={projectOpen} onOpenChange={setProjectOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={projectOpen}
+                    className="w-full justify-between text-sm font-normal"
+                  >
+                    <span className="truncate">
+                      {projectLabel || "프로젝트를 선택하세요"}
+                    </span>
+                    <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="프로젝트 검색..." className="h-8 text-xs" />
+                    <CommandList>
+                      <CommandEmpty>검색 결과 없음</CommandEmpty>
+                      <CommandGroup>
+                        {projects.map((p) => (
+                          <CommandItem
+                            key={p.id}
+                            value={`${p.code} ${p.name} ${p.description}`}
+                            onSelect={() => {
+                              setProjectId(p.id);
+                              setSelectedProjectName(p.code || p.name);
+                              setSaveSuccess(false);
+                              setProjectOpen(false);
+                            }}
+                            className="text-xs"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-1.5 h-3 w-3 shrink-0",
+                                projectId === p.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                              <span className="font-medium truncate">{p.code || p.name}</span>
+                              {p.description && (
+                                <span className="text-muted-foreground line-clamp-1">
+                                  {p.description}
+                                </span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             ) : (
               <div className="flex items-center gap-2">
                 <Input
@@ -250,12 +366,6 @@ export default function UserSettingsPage() {
                   className="text-sm"
                 />
               </div>
-            )}
-
-            {projectId && selectedProjectName && (
-              <Badge variant="secondary" className="text-xs">
-                {selectedProjectName}
-              </Badge>
             )}
 
             {projectError && (
@@ -283,6 +393,123 @@ export default function UserSettingsPage() {
               </span>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 본인 인증 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <UserCheck className="h-4 w-4" />
+            본인 인증
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Dooray 구성원 중 본인을 선택하면 알림(1:1 메시지)을 받을 수 있습니다.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {savedMemberName && (
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-xs gap-1.5">
+                <UserCheck className="h-3 w-3" />
+                {savedMemberName}
+              </Badge>
+              <span className="text-[11px] text-muted-foreground">인증됨</span>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchMemberList}
+                disabled={loadingMembers || !token.trim() || !projectId.trim()}
+                className="text-xs"
+              >
+                {loadingMembers ? (
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                ) : (
+                  <Users className="h-3 w-3 mr-1" />
+                )}
+                구성원 불러오기
+              </Button>
+              {(!token.trim() || !projectId.trim()) && (
+                <span className="text-[11px] text-muted-foreground">
+                  토큰과 프로젝트를 먼저 설정하세요
+                </span>
+              )}
+            </div>
+
+            {members.length > 0 && (
+              <Popover open={memberOpen} onOpenChange={setMemberOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={memberOpen}
+                    className="w-full justify-between text-sm font-normal"
+                  >
+                    <span className="truncate">
+                      {selectedMemberName || "본인을 선택하세요"}
+                    </span>
+                    <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="이름 검색..." className="h-8 text-xs" />
+                    <CommandList>
+                      <CommandEmpty>검색 결과 없음</CommandEmpty>
+                      <CommandGroup>
+                        {members.map((m) => (
+                          <CommandItem
+                            key={m.id}
+                            value={m.name}
+                            onSelect={() => {
+                              setSelectedMemberId(m.id);
+                              setSelectedMemberName(m.name);
+                              setMemberOpen(false);
+                            }}
+                            className="text-xs"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-1.5 h-3 w-3 shrink-0",
+                                selectedMemberId === m.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {m.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {memberError && (
+              <p className="text-xs text-destructive">{memberError}</p>
+            )}
+          </div>
+
+          {members.length > 0 && (
+            <div className="flex items-center gap-2 pt-1">
+              <Button
+                onClick={handleSaveMember}
+                disabled={savingMember || !hasMemberChanges || !selectedMemberId}
+                size="sm"
+              >
+                {savingMember ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : saveMemberSuccess ? (
+                  <Check className="h-3.5 w-3.5 mr-1.5" />
+                ) : null}
+                {saveMemberSuccess ? "저장됨" : "본인 인증 저장"}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
