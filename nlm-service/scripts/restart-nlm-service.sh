@@ -16,12 +16,16 @@ fi
 
 cd "$(dirname "$0")/.."
 
-# venv 활성화 (있으면)
-if [ -f .venv/bin/activate ]; then
-  source .venv/bin/activate
+# venv 생성 (없으면)
+if [ ! -d .venv ]; then
+  echo "📦 가상환경 생성 중..."
+  python3 -m venv .venv
 fi
 
-# 의존성 확인
+# venv 활성화
+source .venv/bin/activate
+
+# 의존성 설치
 pip install -q -r requirements.txt
 
 echo "🚀 NLM Service 시작 (port: $PORT)..."
