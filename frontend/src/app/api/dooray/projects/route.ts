@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   };
 
   try {
-    const projects: { id: string; code: string; name: string; state: string }[] = [];
+    const projects: { id: string; code: string; name: string; description: string; state: string }[] = [];
     let page = 0;
     let hasMore = true;
 
@@ -41,10 +41,15 @@ export async function GET(request: NextRequest) {
       const result = data.result ?? [];
 
       for (const p of result) {
+        // Strip HTML tags and truncate description
+        const rawDesc = (p.description ?? "").replace(/<[^>]*>/g, "").trim();
+        const description = rawDesc.length > 100 ? rawDesc.slice(0, 100) + "…" : rawDesc;
+
         projects.push({
           id: p.id,
           code: p.code ?? "",
-          name: p.description ?? p.code ?? p.id,
+          name: p.code ?? p.id,
+          description,
           state: p.state ?? "",
         });
       }

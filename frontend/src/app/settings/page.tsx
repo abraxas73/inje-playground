@@ -25,6 +25,7 @@ interface DoorayProject {
   id: string;
   code: string;
   name: string;
+  description: string;
 }
 
 export default function UserSettingsPage() {
@@ -225,12 +226,14 @@ export default function UserSettingsPage() {
                 <SelectContent>
                   {projects.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      <span className="flex items-center gap-2">
-                        {p.code && (
-                          <span className="text-muted-foreground">{p.code}</span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-medium">{p.code || p.name}</span>
+                        {p.description && (
+                          <span className="text-xs text-muted-foreground line-clamp-1">
+                            {p.description}
+                          </span>
                         )}
-                        {p.name !== p.code && <span>{p.name}</span>}
-                      </span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>

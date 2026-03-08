@@ -364,23 +364,35 @@ export default function FoodPage() {
       ) : (
         <div className="space-y-3 mb-4">
           {/* Location bar */}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Navigation className="h-3 w-3 shrink-0" />
-            <span className="truncate">{location.address}</span>
-            <div className="flex gap-1 ml-auto shrink-0">
-              <button
+          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/50 border">
+            <MapPin className="h-4 w-4 text-primary shrink-0" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-auto py-1 px-2 text-sm font-medium truncate justify-start"
+              onClick={() => setAddressSearchOpen(true)}
+            >
+              {location.address}
+            </Button>
+            <div className="flex gap-1.5 ml-auto shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
                 onClick={() => setAddressSearchOpen(true)}
-                className="text-[10px] px-1.5 py-0.5 rounded border hover:bg-muted transition-colors"
               >
                 주소 변경
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
                 onClick={getCurrentLocation}
                 disabled={locating}
-                className="text-[10px] px-1.5 py-0.5 rounded border hover:bg-muted transition-colors"
               >
+                {locating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Navigation className="h-3 w-3 mr-1" />}
                 {locating ? "..." : "현위치"}
-              </button>
+              </Button>
             </div>
           </div>
 

@@ -5,6 +5,7 @@ import { useParticipants } from "@/hooks/useParticipants";
 import ParticipantInput from "@/components/shared/ParticipantInput";
 import ParticipantList from "@/components/shared/ParticipantList";
 import DoorayImportButton from "@/components/shared/DoorayImportButton";
+import DoorayProjectSelect from "@/components/shared/DoorayProjectSelect";
 import TeamConfig from "@/components/team/TeamConfig";
 import TeamResults from "@/components/team/TeamResults";
 import TeamHistory from "@/components/team/TeamHistory";
@@ -14,11 +15,11 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Shuffle, RefreshCw, AlertCircle, Users, Settings2, Save, Loader2, History, Send, Check } from "lucide-react";
+
+import { Shuffle, RefreshCw, AlertCircle, Users, Settings2, Save, Loader2, History, Send, Check, UserCheck } from "lucide-react";
 import type { Team } from "@/types/team";
 import { logAction } from "@/lib/action-log";
+import { useUserMembers } from "@/hooks/useUserMembers";
 
 const CARD_HOLDERS_KEY = "team-card-holders";
 
@@ -31,6 +32,7 @@ export default function TeamPage() {
     setAll,
   } = useParticipants("team-participants");
 
+  const userMembers = useUserMembers();
   const [cardHolders, setCardHolders] = useState<Set<string>>(new Set());
   const [teamCount, setTeamCount] = useState(2);
   const [minPerTeam, setMinPerTeam] = useState(1);
@@ -67,6 +69,8 @@ export default function TeamPage() {
       next.add(name);
     }
     saveCardHolders(next);
+    // Sync to DB
+    userMembers.toggleCardHolder(name);
   };
 
   const handleDivide = () => {
@@ -172,26 +176,36 @@ export default function TeamPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex gap-2 items-center mb-2">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">프로젝트 ID</Label>
-              <Input
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                placeholder="비워두면 설정값 사용"
-                className="h-8 text-xs max-w-60"
-              />
-            </div>
+            <DoorayProjectSelect value={projectId} onChange={setProjectId} />
             <div className="flex gap-2 items-start">
               <div className="flex-1">
                 <ParticipantInput onAdd={addParticipants} />
               </div>
-              <DoorayImportButton
-                projectId={projectId}
-                onImport={(names) => {
-                  setAll(names);
-                  handleReset();
-                }}
-              />
+              <div className="flex gap-1.5 shrink-0">
+                {userMembers.names.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50 h-10"
+                    onClick={() => {
+                      setAll(userMembers.names);
+                      saveCardHolders(userMembers.cardHolders);
+                      handleReset();
+                    }}
+                  >
+                    <UserCheck className="h-4 w-4 mr-1.5" />
+                    내 구성원 ({userMembers.names.length})
+                  </Button>
+                )}
+                <DoorayImportButton
+                  projectId={projectId || undefined}
+                  onImport={(names) => {
+                    setAll(names);
+                    handleReset();
+                  }}
+                  onImportedMembers={userMembers.saveImported}
+                />
+              </div>
             </div>
             <ParticipantList
               participants={participants}

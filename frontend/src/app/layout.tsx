@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
-import { Geist_Mono } from "next/font/google";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import Navigation from "@/components/layout/Navigation";
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const geistMono = GeistMono;
 
 export const metadata: Metadata = {
   title: "NHN InjeInc",

@@ -9,11 +9,14 @@ import { logAction } from "@/lib/action-log";
 interface DoorayImportButtonProps {
   onImport: (names: string[]) => void;
   projectId?: string;
+  /** 가져온 멤버를 user_members DB에도 저장 */
+  onImportedMembers?: (members: { name: string; dooray_member_id?: string }[]) => void;
 }
 
 export default function DoorayImportButton({
   onImport,
   projectId: overrideProjectId,
+  onImportedMembers,
 }: DoorayImportButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +88,17 @@ export default function DoorayImportButton({
       const data: { members: DoorayMember[] } = await res.json();
       const names = data.members.map((m) => m.name);
       onImport(names);
+
+      // Save to user's member list (preserves card holder status)
+      if (onImportedMembers) {
+        onImportedMembers(
+          data.members.map((m) => ({
+            name: m.name,
+            dooray_member_id: m.id,
+          }))
+        );
+      }
+
       logAction("Dooray 멤버 가져오기", "dooray", { memberCount: names.length, projectId });
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "오류가 발생했습니다.";

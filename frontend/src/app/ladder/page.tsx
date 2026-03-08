@@ -2,12 +2,14 @@
 
 import { useState, useCallback, useRef } from "react";
 import { useParticipants } from "@/hooks/useParticipants";
+import { useUserMembers } from "@/hooks/useUserMembers";
 import { useBgm } from "@/hooks/useBgm";
 import { useTts } from "@/hooks/useTts";
 import { useSfx } from "@/hooks/useSfx";
 import ParticipantInput from "@/components/shared/ParticipantInput";
 import ParticipantList from "@/components/shared/ParticipantList";
 import DoorayImportButton from "@/components/shared/DoorayImportButton";
+import DoorayProjectSelect from "@/components/shared/DoorayProjectSelect";
 import LadderCanvas from "@/components/ladder/LadderCanvas";
 import LadderConfig from "@/components/ladder/LadderConfig";
 import LadderHistory from "@/components/ladder/LadderHistory";
@@ -15,9 +17,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+
 import { Separator } from "@/components/ui/separator";
-import { Dice5, Music, Users, Settings2, Save, Loader2, History } from "lucide-react";
+import { Dice5, Music, Users, Settings2, Save, Loader2, History, UserCheck } from "lucide-react";
 import type { PresetName } from "@/lib/bgm-presets";
 import type { LadderData, LadderResult } from "@/types/ladder";
 import { cn } from "@/lib/utils";
@@ -33,9 +35,10 @@ export default function LadderPage() {
   const { participants, addParticipants, removeParticipant, clearAll, setAll } =
     useParticipants("ladder-participants");
 
+  const userMembers = useUserMembers();
+  const [overrideProjectId, setOverrideProjectId] = useState("");
   const [results, setResults] = useState<LadderResult[]>([]);
   const [bridgeDensity, setBridgeDensity] = useState(0.4);
-  const [projectId, setProjectId] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
@@ -139,20 +142,31 @@ export default function LadderPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex gap-2 items-center mb-2">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">프로젝트 ID</Label>
-              <Input
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                placeholder="비워두면 설정값 사용"
-                className="h-8 text-xs max-w-60"
-              />
-            </div>
+            <DoorayProjectSelect value={overrideProjectId} onChange={setOverrideProjectId} />
             <div className="flex gap-2 items-start">
               <div className="flex-1">
                 <ParticipantInput onAdd={addParticipants} />
               </div>
-              <DoorayImportButton onImport={setAll} projectId={projectId} />
+              <div className="flex gap-1.5 shrink-0">
+                {userMembers.names.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50 h-10"
+                    onClick={() => {
+                      setAll(userMembers.names);
+                    }}
+                  >
+                    <UserCheck className="h-4 w-4 mr-1.5" />
+                    내 구성원 ({userMembers.names.length})
+                  </Button>
+                )}
+                <DoorayImportButton
+                  projectId={overrideProjectId || undefined}
+                  onImport={setAll}
+                  onImportedMembers={userMembers.saveImported}
+                />
+              </div>
             </div>
             <ParticipantList
               participants={participants}
