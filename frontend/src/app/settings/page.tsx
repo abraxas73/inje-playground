@@ -28,6 +28,7 @@ import {
   ChevronsUpDown,
   UserCheck,
   Users,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchProjects as fetchDoorayProjects, fetchProjectMembers } from "@/lib/dooray-client";
@@ -512,6 +513,15 @@ export default function UserSettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Manual link */}
+      <a
+        href="/manual"
+        className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-4"
+      >
+        <BookOpen className="h-4 w-4" />
+        사용자 매뉴얼 보기
+      </a>
     </div>
   );
 }
