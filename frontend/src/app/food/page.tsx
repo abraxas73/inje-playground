@@ -192,11 +192,23 @@ export default function FoodPage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { longitude, latitude } = position.coords;
-        const loc = { x: longitude, y: latitude, address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` };
+        const coordLabel = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+        const loc = { x: longitude, y: latitude, address: coordLabel };
         setLocation(loc);
         saveLocation(loc);
         setLocating(false);
         logAction("위치 확인", "food", { lat: latitude, lng: longitude });
+
+        // Reverse geocode to get human-readable address
+        try {
+          const res = await fetch(`/api/food/reverse-geocode?x=${longitude}&y=${latitude}`);
+          const data = await res.json();
+          if (data.address) {
+            const updated = { x: longitude, y: latitude, address: data.address };
+            setLocation(updated);
+            saveLocation(updated);
+          }
+        } catch {}
       },
       (err) => {
         setLocError(
@@ -372,7 +384,16 @@ export default function FoodPage() {
             </div>
           </div>
 
-          {/* Search bar — keyword + search button integrated */}
+          {/* Random recommend — hero CTA */}
+          <Button
+            onClick={() => setRecommendOpen(true)}
+            className="w-full h-11 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md hover:shadow-lg transition-all"
+          >
+            <Shuffle className="h-4.5 w-4.5 mr-2" />
+            랜덤 추천
+          </Button>
+
+          {/* Search bar — keyword + search button */}
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
@@ -380,19 +401,12 @@ export default function FoodPage() {
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && searchPlaces()}
-                placeholder="음식점/카페 이름 검색"
+                placeholder="음식점/카페 이름으로 검색"
                 className="pl-9 h-10 text-sm"
               />
             </div>
             <Button onClick={() => searchPlaces()} disabled={searching} className="h-10 px-4 shrink-0">
               {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setRecommendOpen(true)}
-              className="h-10 px-3 shrink-0 border-amber-300 text-amber-700 hover:bg-amber-50"
-            >
-              <Shuffle className="h-4 w-4" />
             </Button>
           </div>
 
@@ -406,7 +420,12 @@ export default function FoodPage() {
               ]).map(({ code, label, icon: Icon }) => (
                 <button
                   key={code}
-                  onClick={() => { setCategory(code); setSubCategory(""); setDetailCategory(""); }}
+                  onClick={() => {
+                    setCategory(code);
+                    setSubCategory("");
+                    setDetailCategory("");
+                    if (code !== "ALL") setFiltersOpen(true);
+                  }}
                   className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     category === code
                       ? "bg-background text-foreground shadow-sm"
