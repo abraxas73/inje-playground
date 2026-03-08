@@ -42,13 +42,20 @@ export default function DoorayImportButton({
     setLoading(true);
 
     try {
-      const settingsRes = await fetch("/api/settings");
-      if (!settingsRes.ok) {
-        throw new Error("설정을 불러올 수 없습니다.");
-      }
-      const settings = await settingsRes.json();
-      const token = settings.dooray_token;
-      const projectId = overrideProjectId?.trim() || settings.dooray_project_id;
+      // Fetch user settings and system settings in parallel
+      const [userSettingsRes, settingsRes] = await Promise.all([
+        fetch("/api/users/settings"),
+        fetch("/api/settings"),
+      ]);
+      const userSettings = userSettingsRes.ok ? await userSettingsRes.json() : {};
+      const settings = settingsRes.ok ? await settingsRes.json() : {};
+
+      // User settings override system settings
+      const token = userSettings.dooray_token || settings.dooray_token;
+      const projectId =
+        overrideProjectId?.trim() ||
+        userSettings.dooray_project_id ||
+        settings.dooray_project_id;
 
       if (!token || !projectId) {
         const ok = await fallbackFromDB("토큰 또는 프로젝트 ID가 설정되지 않았습니다.");

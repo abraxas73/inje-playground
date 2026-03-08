@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     place_url ? `🔗 ${place_url}` : null,
   ].filter(Boolean).join("\n");
 
-  // Get settings
+  // Get system settings + user settings (user overrides system)
   const settingsKeys = ["dooray_hook_url", "dooray_token", "dooray_messenger_url"];
   const { data: settingsRows } = await supabase
     .from("settings")
@@ -57,6 +57,16 @@ export async function POST(request: NextRequest) {
   const settings: Record<string, string> = {};
   for (const row of settingsRows || []) {
     settings[row.key] = row.value;
+  }
+
+  // User-level overrides
+  const { data: userSettingsRows } = await supabase
+    .from("user_settings")
+    .select("key, value")
+    .eq("user_id", user.id)
+    .in("key", ["dooray_token"]);
+  for (const row of userSettingsRows || []) {
+    if (row.value) settings[row.key] = row.value;
   }
 
   const results: Record<string, unknown> = {
