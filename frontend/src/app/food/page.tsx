@@ -20,6 +20,8 @@ import {
   Coffee,
   Heart,
   RotateCcw,
+  SlidersHorizontal,
+  ChevronDown,
 } from "lucide-react";
 import type { KakaoPlace, FoodFavorite } from "@/types/food";
 import { logAction } from "@/lib/action-log";
@@ -122,6 +124,7 @@ export default function FoodPage() {
   const [recommendOpen, setRecommendOpen] = useState(false);
   const [addressSearchOpen, setAddressSearchOpen] = useState(false);
   const [lastSearch, setLastSearch] = useState<SearchCondition | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Load saved location on mount
   useEffect(() => {
@@ -301,265 +304,258 @@ export default function FoodPage() {
 
   const isFavorite = (placeId: string) => favorites.some((f) => f.place_id === placeId);
 
+  const radiusLabel = radius >= 1000 ? `${(radius / 1000).toFixed(1)}km` : `${radius}m`;
+  const hasActiveFilters = category !== "ALL" || subCategory || detailCategory || maxResults !== 30 || radius !== 500;
+
   return (
     <div className="animate-fade-up">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center">
-          <UtensilsCrossed className="h-5 w-5 text-amber-600" />
+      {/* Header — compact */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="h-9 w-9 rounded-lg bg-amber-50 flex items-center justify-center">
+            <UtensilsCrossed className="h-4.5 w-4.5 text-amber-600" />
+          </div>
+          <h1 className="text-xl font-bold tracking-tight">오늘 뭐 먹지?</h1>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">오늘 뭐 먹지?</h1>
-          <p className="text-sm text-muted-foreground">
-            주변 음식점을 검색하고 랜덤 추천을 받아보세요
-          </p>
-        </div>
+        {favorites.length > 0 && (
+          <Button
+            variant={showFavorites ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setShowFavorites(!showFavorites)}
+            className="shrink-0"
+          >
+            <Heart className={`h-3.5 w-3.5 mr-1 ${showFavorites ? "fill-current" : ""}`} />
+            {favorites.length}
+          </Button>
+        )}
       </div>
 
-      {/* Location & Search Controls */}
-      <Card className="animate-fade-up delay-100 mb-6">
-        <CardContent className="pt-4 space-y-4">
-          {/* Location */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              {location ? (
-                <>
-                  <Button
-                    onClick={() => setAddressSearchOpen(true)}
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                  >
-                    <Search className="h-3.5 w-3.5 mr-1.5" />
-                    주소 검색
-                  </Button>
-                  <Button
-                    onClick={getCurrentLocation}
-                    disabled={locating}
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                  >
-                    {locating ? (
-                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                    ) : (
-                      <MapPin className="h-3.5 w-3.5 mr-1.5" />
-                    )}
-                    {locating ? "확인 중..." : "현위치로 재설정"}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button onClick={getCurrentLocation} disabled={locating}>
-                    {locating ? (
-                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                    ) : (
-                      <MapPin className="h-4 w-4 mr-1.5" />
-                    )}
-                    {locating ? "위치 확인 중..." : "현재 위치 확인"}
-                  </Button>
-                  <Button
-                    onClick={() => setAddressSearchOpen(true)}
-                    variant="outline"
-                  >
-                    <Search className="h-4 w-4 mr-1.5" />
-                    주소로 검색
-                  </Button>
-                </>
-              )}
+      {/* Location — minimal when set */}
+      {!location ? (
+        <Card className="mb-4">
+          <CardContent className="py-8 flex flex-col items-center gap-3">
+            <MapPin className="h-8 w-8 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground">주변 검색을 위해 위치를 설정해주세요</p>
+            <div className="flex gap-2">
+              <Button onClick={getCurrentLocation} disabled={locating} size="sm">
+                {locating ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5 mr-1.5" />}
+                {locating ? "확인 중..." : "현재 위치"}
+              </Button>
+              <Button onClick={() => setAddressSearchOpen(true)} variant="outline" size="sm">
+                <Search className="h-3.5 w-3.5 mr-1.5" />
+                주소 검색
+              </Button>
             </div>
-            {location && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Navigation className="h-3 w-3 shrink-0" />
-                <span className="truncate">{location.address}</span>
-                <Badge variant="secondary" className="text-[10px] shrink-0">
-                  {location.y.toFixed(5)}, {location.x.toFixed(5)}
-                </Badge>
-              </div>
-            )}
-            {locError && <span className="text-sm text-destructive">{locError}</span>}
+            {locError && <p className="text-xs text-destructive">{locError}</p>}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3 mb-4">
+          {/* Location bar */}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Navigation className="h-3 w-3 shrink-0" />
+            <span className="truncate">{location.address}</span>
+            <div className="flex gap-1 ml-auto shrink-0">
+              <button
+                onClick={() => setAddressSearchOpen(true)}
+                className="text-[10px] px-1.5 py-0.5 rounded border hover:bg-muted transition-colors"
+              >
+                주소 변경
+              </button>
+              <button
+                onClick={getCurrentLocation}
+                disabled={locating}
+                className="text-[10px] px-1.5 py-0.5 rounded border hover:bg-muted transition-colors"
+              >
+                {locating ? "..." : "현위치"}
+              </button>
+            </div>
           </div>
 
-          {location && (
-            <>
-              {/* Category */}
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium shrink-0">카테고리</span>
-                <div className="flex gap-2">
-                  <Button
-                    variant={category === "ALL" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => { setCategory("ALL"); setSubCategory(""); setDetailCategory(""); }}
-                  >
-                    전체
-                  </Button>
-                  <Button
-                    variant={category === "FD6" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => { setCategory("FD6"); setSubCategory(""); setDetailCategory(""); }}
-                  >
-                    <UtensilsCrossed className="h-3.5 w-3.5 mr-1" />
-                    음식점
-                  </Button>
-                  <Button
-                    variant={category === "CE7" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => { setCategory("CE7"); setSubCategory(""); setDetailCategory(""); }}
-                  >
-                    <Coffee className="h-3.5 w-3.5 mr-1" />
-                    카페
-                  </Button>
-                </div>
-              </div>
+          {/* Search bar — keyword + search button integrated */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+              <Input
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && searchPlaces()}
+                placeholder="음식점/카페 이름 검색"
+                className="pl-9 h-10 text-sm"
+              />
+            </div>
+            <Button onClick={() => searchPlaces()} disabled={searching} className="h-10 px-4 shrink-0">
+              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setRecommendOpen(true)}
+              className="h-10 px-3 shrink-0 border-amber-300 text-amber-700 hover:bg-amber-50"
+            >
+              <Shuffle className="h-4 w-4" />
+            </Button>
+          </div>
 
-              {/* Keyword search */}
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium shrink-0">키워드</span>
-                <Input
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && searchPlaces()}
-                  placeholder="음식점/카페 이름으로 검색 (선택)"
-                  className="h-9 text-sm"
-                />
-              </div>
+          {/* Category tabs + filter toggle — single row */}
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1 bg-muted/60 rounded-lg p-0.5">
+              {([
+                { code: "ALL" as CategoryCode, label: "전체", icon: null },
+                { code: "FD6" as CategoryCode, label: "음식점", icon: UtensilsCrossed },
+                { code: "CE7" as CategoryCode, label: "카페", icon: Coffee },
+              ]).map(({ code, label, icon: Icon }) => (
+                <button
+                  key={code}
+                  onClick={() => { setCategory(code); setSubCategory(""); setDetailCategory(""); }}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    category === code
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {Icon && <Icon className="h-3 w-3" />}
+                  {label}
+                </button>
+              ))}
+            </div>
 
-              {/* Sub-category filter (hidden for ALL) */}
-              {category !== "ALL" && subCategories.length > 0 && (
-                <div className="space-y-1.5">
-                  <span className="text-sm font-medium">분류</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Badge
-                      variant={subCategory === "" ? "default" : "outline"}
-                      className="cursor-pointer text-xs"
-                      onClick={() => { setSubCategory(""); setDetailCategory(""); }}
-                    >
-                      전체
-                    </Badge>
-                    {subCategories.map((sc) => (
+            <div className="flex items-center gap-1.5 ml-auto">
+              <Badge variant="secondary" className="text-[10px] font-normal">
+                {radiusLabel}
+              </Badge>
+              <button
+                onClick={() => setFiltersOpen(!filtersOpen)}
+                className={`flex items-center gap-1 px-2 py-1.5 rounded-md text-xs transition-colors ${
+                  filtersOpen || hasActiveFilters
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                <SlidersHorizontal className="h-3 w-3" />
+                필터
+                {hasActiveFilters && !filtersOpen && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                )}
+                <ChevronDown className={`h-3 w-3 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Expandable filters */}
+          {filtersOpen && (
+            <Card className="animate-fade-up">
+              <CardContent className="pt-4 pb-3 space-y-3">
+                {/* Sub-categories */}
+                {category !== "ALL" && subCategories.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">분류</span>
+                    <div className="flex flex-wrap gap-1">
                       <Badge
-                        key={sc}
-                        variant={subCategory === sc ? "default" : "outline"}
-                        className="cursor-pointer text-xs"
-                        onClick={() => { setSubCategory(subCategory === sc ? "" : sc); setDetailCategory(""); }}
+                        variant={subCategory === "" ? "default" : "outline"}
+                        className="cursor-pointer text-[11px] py-0.5"
+                        onClick={() => { setSubCategory(""); setDetailCategory(""); }}
                       >
-                        {sc}
+                        전체
                       </Badge>
-                    ))}
+                      {subCategories.map((sc) => (
+                        <Badge
+                          key={sc}
+                          variant={subCategory === sc ? "default" : "outline"}
+                          className="cursor-pointer text-[11px] py-0.5"
+                          onClick={() => { setSubCategory(subCategory === sc ? "" : sc); setDetailCategory(""); }}
+                        >
+                          {sc}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Detail categories */}
+                {category !== "ALL" && detailCategories.length > 0 && subCategory && (
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">상세 분류</span>
+                    <div className="flex flex-wrap gap-1">
+                      <Badge
+                        variant={detailCategory === "" ? "default" : "outline"}
+                        className="cursor-pointer text-[11px] py-0.5"
+                        onClick={() => setDetailCategory("")}
+                      >
+                        전체
+                      </Badge>
+                      {detailCategories.map((dc) => (
+                        <Badge
+                          key={dc}
+                          variant={detailCategory === dc ? "default" : "outline"}
+                          className="cursor-pointer text-[11px] py-0.5"
+                          onClick={() => setDetailCategory(detailCategory === dc ? "" : dc)}
+                        >
+                          {dc}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Distance + Max results — side by side */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">거리</span>
+                      <span className="text-xs font-semibold">{radiusLabel}</span>
+                    </div>
+                    <Slider
+                      value={[radiusToSlider(radius)]}
+                      onValueChange={(v) => setRadius(sliderToRadius(v[0]))}
+                      min={0}
+                      max={100}
+                      step={1}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground/60">
+                      <span>100m</span><span>500m</span><span>2km</span><span>20km</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">검색 수</span>
+                    <div className="flex gap-1">
+                      {[30, 50, 100, 250].map((n) => (
+                        <Badge
+                          key={n}
+                          variant={maxResults === n ? "default" : "outline"}
+                          className="cursor-pointer text-[11px] py-0.5 flex-1 justify-center"
+                          onClick={() => setMaxResults(n)}
+                        >
+                          {n}건
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              )}
 
-              {/* Detail category filter (hidden for ALL) */}
-              {category !== "ALL" && detailCategories.length > 0 && subCategory && (
-                <div className="space-y-1.5">
-                  <span className="text-sm font-medium">상세 분류</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Badge
-                      variant={detailCategory === "" ? "default" : "outline"}
-                      className="cursor-pointer text-xs"
-                      onClick={() => setDetailCategory("")}
-                    >
-                      전체
-                    </Badge>
-                    {detailCategories.map((dc) => (
-                      <Badge
-                        key={dc}
-                        variant={detailCategory === dc ? "default" : "outline"}
-                        className="cursor-pointer text-xs"
-                        onClick={() => setDetailCategory(detailCategory === dc ? "" : dc)}
-                      >
-                        {dc}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Max results */}
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium shrink-0">검색 수</span>
-                <div className="flex gap-1.5">
-                  {[30, 50, 100, 250].map((n) => (
-                    <Badge
-                      key={n}
-                      variant={maxResults === n ? "default" : "outline"}
-                      className="cursor-pointer text-xs"
-                      onClick={() => setMaxResults(n)}
-                    >
-                      {n}건
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              {/* Radius (logarithmic scale) */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">거리</span>
-                  <Badge variant="secondary">{radius >= 1000 ? `${(radius / 1000).toFixed(1)}km` : `${radius}m`}</Badge>
-                </div>
-                <Slider
-                  value={[radiusToSlider(radius)]}
-                  onValueChange={(v) => setRadius(sliderToRadius(v[0]))}
-                  min={0}
-                  max={100}
-                  step={1}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>100m</span>
-                  <span>500m</span>
-                  <span>2km</span>
-                  <span>20km</span>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setCategory("ALL");
-                    setSubCategory("");
-                    setDetailCategory("");
-                    setMaxResults(30);
-                    setRadius(500);
-                    setKeyword("");
-                  }}
-                  className="text-muted-foreground"
-                >
-                  <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                  초기화
-                </Button>
-                <Button onClick={() => searchPlaces()} disabled={searching}>
-                  {searching ? (
-                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                  ) : (
-                    <Search className="h-4 w-4 mr-1.5" />
-                  )}
-                  검색
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setRecommendOpen(true)}
-                  className="border-amber-300 text-amber-700 hover:bg-amber-50"
-                >
-                  <Shuffle className="h-4 w-4 mr-1.5" />
-                  랜덤 추천
-                </Button>
-                <Button
-                  variant={showFavorites ? "secondary" : "outline"}
-                  onClick={() => setShowFavorites(!showFavorites)}
-                >
-                  <Heart className="h-4 w-4 mr-1.5" />
-                  즐겨찾기 ({favorites.length})
-                </Button>
-              </div>
-            </>
+                {/* Reset */}
+                {hasActiveFilters && (
+                  <button
+                    onClick={() => {
+                      setCategory("ALL");
+                      setSubCategory("");
+                      setDetailCategory("");
+                      setMaxResults(30);
+                      setRadius(500);
+                      setKeyword("");
+                    }}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    필터 초기화
+                  </button>
+                )}
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
       {searchError && (
         <p className="text-destructive text-sm mb-4">{searchError}</p>
