@@ -32,7 +32,7 @@ export default function RootLayout({
       <body className={`${geistMono.variable} antialiased`}>
         <div className="min-h-screen dot-grid">
           <Navigation />
-          <main className="max-w-5xl mx-auto px-4 py-6 md:py-8 pb-20 md:pb-8">{children}</main>
+          <main className="max-w-7xl mx-auto px-4 md:px-8 py-6 md:py-8 pb-20 md:pb-8">{children}</main>
         </div>
       </body>
     </html>
