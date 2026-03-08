@@ -35,7 +35,29 @@ export async function GET(
       `/notebook/${notebook.nlm_notebook_id}/sources`
     );
 
-    return NextResponse.json({ sources: result.sources });
+    // Merge storage_path from Supabase for download support
+    const { data: dbSources } = await supabase
+      .from("nlm_sources")
+      .select("nlm_source_id, storage_path, original_filename")
+      .eq("notebook_id", id);
+
+    const storageMap: Record<string, { storage_path: string; original_filename: string }> = {};
+    for (const row of dbSources || []) {
+      if (row.storage_path) {
+        storageMap[row.nlm_source_id] = {
+          storage_path: row.storage_path,
+          original_filename: row.original_filename || "",
+        };
+      }
+    }
+
+    const sources = (result.sources || []).map((s: Record<string, unknown>) => ({
+      ...s,
+      has_file: !!storageMap[s.id as string],
+      original_filename: storageMap[s.id as string]?.original_filename || null,
+    }));
+
+    return NextResponse.json({ sources });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "소스 목록 조회에 실패했습니다.";
@@ -50,7 +72,7 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { type, title, content, url, fileName } = body;
+    const { type, title, content, url, fileName, storagePath } = body;
 
     if (!type || !["text", "url", "file"].includes(type)) {
       return NextResponse.json(
@@ -103,6 +125,8 @@ export async function POST(
       nlm_source_id: source.id,
       title: source.title,
       source_type: type,
+      ...(storagePath && { storage_path: storagePath }),
+      ...(fileName && { original_filename: fileName }),
     });
 
     if (insertError) {

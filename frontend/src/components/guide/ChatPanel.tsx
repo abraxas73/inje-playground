@@ -282,6 +282,26 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 function CitationsSection({ citations }: { citations: Citation[] }) {
   const [expanded, setExpanded] = useState(false);
 
+  // Filter out empty/meaningless citations and deduplicate
+  const filtered = citations.filter((cite) => {
+    const text = (cite.cited_text ?? "").trim();
+    if (!text || text.length < 5) return false;
+    // Skip entries that are just "출처 N" or just a number
+    if (/^(출처\s*\d*|\d+)$/.test(text)) return false;
+    return true;
+  });
+
+  // Deduplicate by cited_text
+  const seen = new Set<string>();
+  const unique = filtered.filter((cite) => {
+    const key = cite.cited_text.trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  if (unique.length === 0) return null;
+
   return (
     <div className="mt-2 pt-2 border-t border-border/40">
       <button
@@ -289,7 +309,7 @@ function CitationsSection({ citations }: { citations: Citation[] }) {
         className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
         <BookOpen className="h-3 w-3" />
-        <span>참고 자료 ({citations.length})</span>
+        <span>참고 자료 ({unique.length})</span>
         {expanded ? (
           <ChevronUp className="h-3 w-3" />
         ) : (
@@ -299,7 +319,7 @@ function CitationsSection({ citations }: { citations: Citation[] }) {
 
       {expanded && (
         <div className="mt-2 space-y-2">
-          {citations.map((cite, idx) => (
+          {unique.map((cite, idx) => (
             <div
               key={`${cite.source_id}-${idx}`}
               className="text-xs bg-background/60 rounded-lg p-2 space-y-1"
@@ -308,7 +328,7 @@ function CitationsSection({ citations }: { citations: Citation[] }) {
                 variant="outline"
                 className="text-[10px] font-mono"
               >
-                출처 {cite.citation_number}
+                출처 {idx + 1}
               </Badge>
               <p className="text-muted-foreground leading-relaxed">
                 {cite.cited_text}

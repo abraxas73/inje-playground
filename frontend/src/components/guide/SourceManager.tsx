@@ -40,6 +40,7 @@ import {
   Type,
   Database,
   Upload,
+  Download,
 } from "lucide-react";
 import type { NlmNotebook } from "@/types/guide";
 
@@ -48,6 +49,8 @@ interface SourceItem {
   title: string;
   source_type: "file" | "url" | "text";
   is_ready?: boolean;
+  has_file?: boolean;
+  original_filename?: string;
 }
 
 interface SourceManagerProps {
@@ -176,7 +179,7 @@ export default function SourceManager({ notebook, noDelete }: SourceManagerProps
 
       // 2. NLM 서비스에 각 파일을 소스로 추가
       for (let i = 0; i < uploaded.length; i++) {
-        const { url, fileName } = uploaded[i];
+        const { url, fileName, filePath } = uploaded[i];
         setUploadProgress(
           `NotebookLM에 소스 추가 중... (${i + 1}/${uploaded.length})`
         );
@@ -188,6 +191,7 @@ export default function SourceManager({ notebook, noDelete }: SourceManagerProps
             title: fileName,
             url,
             fileName,
+            storagePath: filePath,
           }),
         });
         if (!res.ok) {
@@ -204,6 +208,22 @@ export default function SourceManager({ notebook, noDelete }: SourceManagerProps
     } finally {
       setAddingFile(false);
       setUploadProgress("");
+    }
+  }
+
+  async function handleDownload(sourceId: string) {
+    try {
+      const res = await fetch(
+        `/api/guide/notebooks/${notebook.id}/sources/download?sourceId=${sourceId}`
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "다운로드에 실패했습니다.");
+      }
+      const { url } = await res.json();
+      window.open(url, "_blank");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "다운로드에 실패했습니다.");
     }
   }
 
@@ -461,6 +481,19 @@ export default function SourceManager({ notebook, noDelete }: SourceManagerProps
                     </div>
                   </div>
 
+                  <div className="flex items-center gap-1 shrink-0">
+                    {source.has_file && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-muted-foreground hover:text-blue-500"
+                        onClick={() => handleDownload(source.id)}
+                        title={source.original_filename || "다운로드"}
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+
                   {!noDelete && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -491,6 +524,7 @@ export default function SourceManager({ notebook, noDelete }: SourceManagerProps
                       </AlertDialogContent>
                     </AlertDialog>
                   )}
+                  </div>
                 </div>
               );
             })}
