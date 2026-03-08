@@ -807,13 +807,14 @@ export default function FoodPage() {
       {paycoPlaces.length > 0 && (
         <Card className="animate-fade-up">
           <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <CardTitle className="text-base">
                 <span className="text-red-600 font-bold">PAYCO</span> 식권 가맹점 ({paycoPlaces.length}곳)
               </CardTitle>
               <Badge variant="secondary" className="text-[10px]">
                 {radius >= 1000 ? `${(radius / 1000).toFixed(1)}km` : `${radius}m`}
               </Badge>
+              <span className="text-[10px] text-amber-600">⚠️ 공식 API가 아니므로 결과가 부정확할 수 있습니다. 참고만 하세요.</span>
             </div>
           </CardHeader>
           <CardContent>
