@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
 import type { DoorayMember } from "@/types/dooray";
+import { fetchProjectMembers } from "@/lib/dooray-client";
 import { logAction } from "@/lib/action-log";
 
 interface DoorayImportButtonProps {
@@ -38,6 +39,19 @@ export default function DoorayImportButton({
     return false;
   };
 
+  /** 가져온 멤버를 dooray_members 테이블에 캐시 저장 */
+  const saveMembersToCache = async (members: DoorayMember[]) => {
+    try {
+      await fetch("/api/dooray/members/cache", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ members }),
+      });
+    } catch {
+      // 캐시 저장 실패는 무시
+    }
+  };
+
   const handleImport = async () => {
     setError(null);
     setInfo(null);
@@ -45,7 +59,7 @@ export default function DoorayImportButton({
     setLoading(true);
 
     try {
-      // Fetch user settings and system settings in parallel
+      // 설정에서 토큰/프로젝트ID 가져오기
       const [userSettingsRes, settingsRes] = await Promise.all([
         fetch("/api/users/settings"),
         fetch("/api/settings"),
@@ -53,7 +67,6 @@ export default function DoorayImportButton({
       const userSettings = userSettingsRes.ok ? await userSettingsRes.json() : {};
       const settings = settingsRes.ok ? await settingsRes.json() : {};
 
-      // User settings override system settings
       const token = userSettings.dooray_token || settings.dooray_token;
       const projectId =
         overrideProjectId?.trim() ||
@@ -68,31 +81,18 @@ export default function DoorayImportButton({
         return;
       }
 
-      const res = await fetch(
-        `/api/dooray/members?projectId=${encodeURIComponent(projectId)}`,
-        {
-          headers: { "x-dooray-token": token },
-        }
-      );
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        const errMsg = errData.error || `API 오류 (${res.status})`;
-        const ok = await fallbackFromDB(errMsg);
-        if (!ok) {
-          throw new Error(errMsg);
-        }
-        return;
-      }
-
-      const data: { members: DoorayMember[] } = await res.json();
-      const names = data.members.map((m) => m.name);
+      // 브라우저에서 Dooray API 직접 호출 (사내망 필요)
+      const members = await fetchProjectMembers(token, projectId);
+      const names = members.map((m) => m.name);
       onImport(names);
 
-      // Save to user's member list (preserves card holder status)
+      // DB에 캐시 저장
+      saveMembersToCache(members);
+
+      // user_members DB에 저장
       if (onImportedMembers) {
         onImportedMembers(
-          data.members.map((m) => ({
+          members.map((m) => ({
             name: m.name,
             dooray_member_id: m.id,
           }))

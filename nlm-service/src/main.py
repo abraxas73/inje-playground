@@ -492,6 +492,7 @@ def _dooray_headers(token: str) -> dict:
     return {
         "Authorization": f"dooray-api {token}",
         "Content-Type": "application/json",
+        "User-Agent": "",
     }
 
 
@@ -520,6 +521,7 @@ async def dooray_members(
 ):
     """Dooray 프로젝트 구성원 목록 조회 (fly.io 프록시)"""
     token = x_dooray_token
+    logger.info("Dooray members request: projectId=%s, token=%s...", projectId, token[:8] if token else "EMPTY")
 
     try:
         async with httpx.AsyncClient() as client:

@@ -1,42 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
-import { nlmFetch } from "@/lib/nlm-service";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { NextResponse } from "next/server";
 
-export async function GET(request: NextRequest) {
-  const projectId = request.nextUrl.searchParams.get("projectId");
-  const token = request.headers.get("x-dooray-token");
-
-  if (!projectId || !token) {
-    return NextResponse.json(
-      { error: "projectId와 토큰이 필요합니다." },
-      { status: 400 }
-    );
-  }
-
-  try {
-    // nlm-service(fly.io) 경유로 Dooray API 호출 — Vercel IP 제한 우회
-    const data = await nlmFetch(`/dooray/members?projectId=${projectId}`, {
-      headers: { "x-dooray-token": token },
-    });
-    const members = data.members || [];
-
-    // Save members to DB
-    const supabase = await createServerSupabase();
-    const rows = members.map((m: { id: string; name: string }) => ({
-      id: m.id,
-      name: m.name,
-      updated_at: new Date().toISOString(),
-    }));
-    if (rows.length > 0) {
-      await supabase
-        .from("dooray_members")
-        .upsert(rows, { onConflict: "id" });
-    }
-
-    return NextResponse.json({ members });
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "멤버 조회에 실패했습니다.";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+/**
+ * GET /api/dooray/members
+ * Dooray API는 사내 네트워크에서만 접근 가능하므로 브라우저에서 직접 호출합니다.
+ * 이 라우트는 더 이상 사용되지 않습니다. → dooray-client.ts (클라이언트 사이드)
+ * DB 캐시 저장은 POST /api/dooray/members/cache 사용
+ */
+export async function GET() {
+  return NextResponse.json(
+    { error: "이 엔드포인트는 더 이상 사용되지 않습니다. 브라우저에서 직접 Dooray API를 호출하세요." },
+    { status: 410 }
+  );
 }
