@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { FolderOpen, Loader2, X } from "lucide-react";
-import { fetchProjects as fetchDoorayProjects } from "@/lib/dooray-client";
 
 interface DoorayProject {
   id: string;
@@ -60,10 +59,13 @@ export default function DoorayProjectSelect({
     setLoading(true);
     setError(null);
     try {
-      // 브라우저에서 Dooray API 직접 호출
-      const result = await fetchDoorayProjects(token);
-      setProjects(result);
-      if (!result.length) {
+      const res = await fetch("/api/dooray/projects", {
+        headers: { "x-dooray-token": token },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setProjects(data.projects ?? []);
+      if (!data.projects?.length) {
         setError("접근 가능한 프로젝트가 없습니다.");
       }
     } catch (err) {
