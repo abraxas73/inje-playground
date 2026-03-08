@@ -189,37 +189,46 @@ export default function FoodPage() {
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { longitude, latitude } = position.coords;
-        const coordLabel = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-        const loc = { x: longitude, y: latitude, address: coordLabel };
-        setLocation(loc);
-        saveLocation(loc);
-        setLocating(false);
-        logAction("위치 확인", "food", { lat: latitude, lng: longitude });
+    try {
+      const position = await new Promise<GeolocationPosition>(
+        (resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+          })
+      );
 
-        // Reverse geocode to get human-readable address
-        try {
-          const res = await fetch(`/api/food/reverse-geocode?x=${longitude}&y=${latitude}`);
-          const data = await res.json();
-          if (data.address) {
-            const updated = { x: longitude, y: latitude, address: data.address };
-            setLocation(updated);
-            saveLocation(updated);
-          }
-        } catch {}
-      },
-      (err) => {
-        setLocError(
-          err.code === 1
-            ? "위치 권한이 거부되었습니다. 브라우저 설정에서 허용해주세요."
-            : "위치를 가져올 수 없습니다."
+      const { longitude, latitude } = position.coords;
+      const coordLabel = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      const loc = { x: longitude, y: latitude, address: coordLabel };
+      setLocation(loc);
+      saveLocation(loc);
+      logAction("위치 확인", "food", { lat: latitude, lng: longitude });
+
+      // Reverse geocode — 실패해도 좌표는 유지
+      try {
+        const res = await fetch(
+          `/api/food/reverse-geocode?x=${longitude}&y=${latitude}`
         );
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+        const data = await res.json();
+        if (data.address) {
+          const updated = { x: longitude, y: latitude, address: data.address };
+          setLocation(updated);
+          saveLocation(updated);
+        }
+      } catch {
+        // 좌표만 표시 (이미 설정됨)
+      }
+    } catch (err) {
+      const geoErr = err as GeolocationPositionError;
+      setLocError(
+        geoErr?.code === 1
+          ? "위치 권한이 거부되었습니다. 브라우저 설정에서 허용해주세요."
+          : `위치를 가져올 수 없습니다. (${geoErr?.message || "알 수 없는 오류"})`
+      );
+    } finally {
+      setLocating(false);
+    }
   }, []);
 
   const searchPlaces = useCallback(
@@ -395,6 +404,9 @@ export default function FoodPage() {
               </Button>
             </div>
           </div>
+          {locError && (
+            <p className="text-xs text-destructive -mt-1 px-1">{locError}</p>
+          )}
 
           {/* Random recommend — hero CTA */}
           <Button
