@@ -2,15 +2,22 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { FolderOpen, Loader2, X } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Check, ChevronsUpDown, FolderOpen, Loader2, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { fetchProjects as fetchDoorayProjects } from "@/lib/dooray-client";
 
 interface DoorayProject {
@@ -33,7 +40,7 @@ export default function DoorayProjectSelect({
   const [projects, setProjects] = useState<DoorayProject[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
 
   // Load token from user/system settings (개인 설정 우선)
   useEffect(() => {
@@ -60,7 +67,6 @@ export default function DoorayProjectSelect({
     setLoading(true);
     setError(null);
     try {
-      // 브라우저에서 Dooray API 직접 호출 (Chrome 확장이 CORS 처리)
       const result = await fetchDoorayProjects(token);
       setProjects(result);
       if (!result.length) {
@@ -77,15 +83,12 @@ export default function DoorayProjectSelect({
 
   const handleClear = () => {
     onChange("");
-    setSelectedName(null);
   };
 
-  useEffect(() => {
-    if (value && projects.length > 0 && !selectedName) {
-      const p = projects.find((proj) => proj.id === value);
-      if (p) setSelectedName(p.code || p.name);
-    }
-  }, [value, projects, selectedName]);
+  const selectedProject = projects.find((p) => p.id === value);
+  const selectedLabel = selectedProject
+    ? selectedProject.code || selectedProject.name
+    : null;
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -94,32 +97,57 @@ export default function DoorayProjectSelect({
       </span>
 
       {projects.length > 0 ? (
-        <Select
-          value={value || undefined}
-          onValueChange={(val) => {
-            onChange(val);
-            const p = projects.find((proj) => proj.id === val);
-            if (p) setSelectedName(p.code || p.name);
-          }}
-        >
-          <SelectTrigger className="h-8 text-xs w-auto min-w-[180px] max-w-[300px]">
-            <SelectValue placeholder="프로젝트 선택" />
-          </SelectTrigger>
-          <SelectContent>
-            {projects.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">{p.code || p.name}</span>
-                  {p.description && (
-                    <span className="text-xs text-muted-foreground line-clamp-1">
-                      {p.description}
-                    </span>
-                  )}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={open}
+              className="h-8 text-xs w-auto min-w-[180px] max-w-[300px] justify-between font-normal"
+            >
+              <span className="truncate">
+                {selectedLabel || "프로젝트 선택"}
+              </span>
+              <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[300px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="프로젝트 검색..." className="h-8 text-xs" />
+              <CommandList>
+                <CommandEmpty>검색 결과 없음</CommandEmpty>
+                <CommandGroup>
+                  {projects.map((p) => (
+                    <CommandItem
+                      key={p.id}
+                      value={`${p.code} ${p.name} ${p.description}`}
+                      onSelect={() => {
+                        onChange(p.id);
+                        setOpen(false);
+                      }}
+                      className="text-xs"
+                    >
+                      <Check
+                        className={cn(
+                          "mr-1.5 h-3 w-3 shrink-0",
+                          value === p.id ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className="font-medium truncate">{p.code || p.name}</span>
+                        {p.description && (
+                          <span className="text-muted-foreground line-clamp-1">
+                            {p.description}
+                          </span>
+                        )}
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       ) : (
         <Button
           variant="ghost"
@@ -137,9 +165,9 @@ export default function DoorayProjectSelect({
         </Button>
       )}
 
-      {value && selectedName && (
+      {value && selectedLabel && (
         <Badge variant="secondary" className="text-xs gap-1">
-          {selectedName}
+          {selectedLabel}
           <button onClick={handleClear} className="hover:text-destructive">
             <X className="h-3 w-3" />
           </button>

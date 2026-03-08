@@ -1,17 +1,43 @@
 /**
- * 브라우저에서 직접 Dooray API를 호출하는 클라이언트
- * Chrome 확장 프로그램(Inje Chrome Extension)이 CORS 헤더를 추가해줌
- * 확장 미설치 또는 사외망일 경우 DB fallback으로 동작
+ * 브라우저에서 Dooray API를 호출하는 클라이언트
+ * Chrome 확장(Inje Extension)의 background worker가 프록시하여 CORS 우회
+ * 확장 미설치 시 에러 → fallback (DB 캐시) 사용
  */
 import type { DoorayMember } from "@/types/dooray";
 
 const DOORAY_API_BASE = "https://api.dooray.com";
 
-function doorayHeaders(token: string) {
-  return {
-    Authorization: `dooray-api ${token}`,
-    "Content-Type": "application/json",
-  };
+/** Chrome 확장 브릿지를 통한 fetch */
+function doorayFetch(url: string, token: string): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const id = crypto.randomUUID();
+    const timeout = setTimeout(() => {
+      window.removeEventListener("message", handler);
+      reject(new Error("Chrome 확장 프로그램이 응답하지 않습니다. 확장을 확인해주세요."));
+    }, 30000);
+
+    function handler(event: MessageEvent) {
+      if (event.data?.type !== "DOORAY_API_RESPONSE" || event.data.id !== id) return;
+      window.removeEventListener("message", handler);
+      clearTimeout(timeout);
+      if (event.data.error) {
+        reject(new Error(event.data.error));
+      } else {
+        resolve(event.data.data);
+      }
+    }
+
+    window.addEventListener("message", handler);
+    window.postMessage({
+      type: "DOORAY_API_REQUEST",
+      id,
+      url,
+      headers: {
+        Authorization: `dooray-api ${token}`,
+        "Content-Type": "application/json",
+      },
+    }, "*");
+  });
 }
 
 async function fetchMemberDetail(
@@ -19,12 +45,10 @@ async function fetchMemberDetail(
   memberId: string
 ): Promise<{ id: string; name: string }> {
   try {
-    const res = await fetch(
+    const data = await doorayFetch(
       `${DOORAY_API_BASE}/common/v1/members/${memberId}`,
-      { headers: doorayHeaders(token) }
-    );
-    if (!res.ok) return { id: memberId, name: "이름 없음" };
-    const data = await res.json();
+      token
+    ) as { result?: { id?: string; name?: string } };
     const result = data.result || {};
     return {
       id: result.id || memberId,
@@ -35,7 +59,7 @@ async function fetchMemberDetail(
   }
 }
 
-/** 프로젝트 구성원 목록 조회 (브라우저에서 직접 호출) */
+/** 프로젝트 구성원 목록 조회 */
 export async function fetchProjectMembers(
   token: string,
   projectId: string
@@ -45,15 +69,10 @@ export async function fetchProjectMembers(
   let hasMore = true;
 
   while (hasMore) {
-    const res = await fetch(
+    const data = await doorayFetch(
       `${DOORAY_API_BASE}/project/v1/projects/${projectId}/members?page=${page}&size=100`,
-      { headers: doorayHeaders(token) }
-    );
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Dooray API 오류 (${res.status}): ${text}`);
-    }
-    const data = await res.json();
+      token
+    ) as { result?: { organizationMemberId: string }[] };
     const result = data.result || [];
     for (const m of result) {
       memberIds.push(m.organizationMemberId);
@@ -75,7 +94,7 @@ export async function fetchProjectMembers(
   return members.filter((m) => m.name !== "이름 없음");
 }
 
-/** 프로젝트 목록 조회 (브라우저에서 직접 호출) */
+/** 프로젝트 목록 조회 */
 export async function fetchProjects(
   token: string
 ): Promise<{ id: string; code: string; name: string; description: string }[]> {
@@ -84,15 +103,10 @@ export async function fetchProjects(
   let hasMore = true;
 
   while (hasMore) {
-    const res = await fetch(
+    const data = await doorayFetch(
       `${DOORAY_API_BASE}/project/v1/projects?page=${page}&size=100`,
-      { headers: doorayHeaders(token) }
-    );
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Dooray API 오류 (${res.status}): ${text}`);
-    }
-    const data = await res.json();
+      token
+    ) as { result?: { id: string; code?: string; description?: string; state?: string }[] };
     const result = data.result ?? [];
     for (const p of result) {
       const rawDesc = (p.description ?? "").replace(/<[^>]*>/g, "").trim();
