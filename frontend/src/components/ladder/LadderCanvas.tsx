@@ -21,7 +21,7 @@ interface LadderCanvasProps {
 
 const PADDING_X = 60;
 const PADDING_Y = 60;
-const MIN_COL_SPACING = 80;
+const MIN_COL_SPACING = 50;
 const PATH_COLORS = [
   "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6",
   "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#6366f1",
