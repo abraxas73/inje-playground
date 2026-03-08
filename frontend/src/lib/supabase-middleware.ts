@@ -1,6 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+/** Routes that require specific minimum roles */
+const PROTECTED_ROUTES: { prefix: string; minRole: string }[] = [
+  { prefix: "/admin", minRole: "admin" },
+  { prefix: "/guide", minRole: "user" },
+];
+
+const ROLE_PRIORITY: Record<string, number> = { guest: 0, user: 1, admin: 2 };
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -30,21 +38,44 @@ export async function updateSession(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
+    const pathname = request.nextUrl.pathname;
+
     // 로그인 안 된 경우 /login으로 리다이렉트 (API와 login 페이지 제외)
     if (
       !user &&
-      !request.nextUrl.pathname.startsWith("/login") &&
-      !request.nextUrl.pathname.startsWith("/auth") &&
-      !request.nextUrl.pathname.startsWith("/api")
+      !pathname.startsWith("/login") &&
+      !pathname.startsWith("/auth") &&
+      !pathname.startsWith("/api")
     ) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       return NextResponse.redirect(url);
     }
 
+    // Role-based route protection
+    if (user) {
+      const route = PROTECTED_ROUTES.find((r) => pathname.startsWith(r.prefix));
+      if (route) {
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .single();
+
+        const userRole = roleData?.role ?? "user";
+        const required = ROLE_PRIORITY[route.minRole] ?? 0;
+        const actual = ROLE_PRIORITY[userRole] ?? 0;
+
+        if (actual < required) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/";
+          return NextResponse.redirect(url);
+        }
+      }
+    }
+
     return supabaseResponse;
   } catch {
-    // Middleware 실패 시 요청을 그대로 통과시킴
     return NextResponse.next({ request });
   }
 }

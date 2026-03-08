@@ -4,28 +4,50 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Dice5, Users, Settings, LogOut, UtensilsCrossed, HelpCircle, Coffee } from "lucide-react";
+import { Dice5, LogOut, UtensilsCrossed, HelpCircle, Coffee, Shield, User as UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { User } from "@supabase/supabase-js";
 import { logAction } from "@/lib/action-log";
+import { useUserRole } from "@/hooks/useUserRole";
+import type { UserRole } from "@/lib/roles";
+import { canAccess } from "@/lib/roles";
 
-const SUPER_USER = "abraxas73@gmail.com";
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  minRole?: UserRole; // minimum role required (default: all)
+}
 
-const NAV_ITEMS = [
+const NAV_ITEMS: NavItem[] = [
   { href: "/food", label: "뭐 먹지", icon: UtensilsCrossed },
-  { href: "/guide", label: "가이드", icon: HelpCircle },
+  { href: "/guide", label: "가이드", icon: HelpCircle, minRole: "user" },
   { href: "/ladder", label: "사다리", icon: Dice5 },
   { href: "/team", label: "커피 타임", icon: Coffee },
-  { href: "/guide/admin", label: "가이드 관리", icon: HelpCircle, superOnly: true },
-  { href: "/settings", label: "설정", icon: Settings, superOnly: true },
+  { href: "/admin", label: "어드민", icon: Shield, minRole: "admin" },
 ];
+
+const ROLE_PRIORITY: Record<UserRole, number> = { guest: 0, user: 1, admin: 2 };
+
+function hasMinRole(userRole: UserRole, minRole?: UserRole): boolean {
+  if (!minRole) return true;
+  return ROLE_PRIORITY[userRole] >= ROLE_PRIORITY[minRole];
+}
 
 export default function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const { role } = useUserRole();
 
   useEffect(() => {
     const supabase = createClient();
@@ -46,10 +68,8 @@ export default function Navigation() {
 
   if (pathname === "/login") return null;
 
-  const isSuperUser = user?.email === SUPER_USER;
-  const visibleItems = NAV_ITEMS.filter((item) => !item.superOnly || isSuperUser);
-  // Mobile: hide superOnly items to save space
-  const mobileItems = NAV_ITEMS.filter((item) => !item.superOnly);
+  const visibleItems = NAV_ITEMS.filter((item) => hasMinRole(role, item.minRole));
+  const mobileItems = visibleItems.filter((item) => item.minRole !== "admin");
 
   return (
     <>
@@ -93,23 +113,39 @@ export default function Navigation() {
               })}
             </div>
 
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center">
               {user && (
-                <>
-                  <span className="text-xs text-muted-foreground hidden sm:inline">
-                    {user.user_metadata?.full_name || user.email}
-                  </span>
-                  {user.user_metadata?.avatar_url && (
-                    <img
-                      src={user.user_metadata.avatar_url}
-                      alt=""
-                      className="h-7 w-7 rounded-full"
-                    />
-                  )}
-                  <Button variant="ghost" size="sm" onClick={handleLogout} className="h-8 px-2">
-                    <LogOut className="h-3.5 w-3.5" />
-                  </Button>
-                </>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/60 transition-colors cursor-pointer outline-none">
+                      <span className="text-xs text-muted-foreground hidden sm:inline truncate max-w-[120px]">
+                        {user.user_metadata?.full_name || user.email}
+                      </span>
+                      {user.user_metadata?.avatar_url ? (
+                        <img
+                          src={user.user_metadata.avatar_url}
+                          alt=""
+                          className="h-7 w-7 rounded-full"
+                        />
+                      ) : (
+                        <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center">
+                          <UserIcon className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem onClick={() => router.push("/profile")}>
+                      <UserIcon className="h-4 w-4 mr-2" />
+                      프로필
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout}>
+                      <LogOut className="h-4 w-4 mr-2" />
+                      로그아웃
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
           </div>
@@ -118,7 +154,10 @@ export default function Navigation() {
 
       {/* Mobile bottom tab bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl safe-area-bottom">
-        <div className="grid grid-cols-4 h-14 px-1">
+        <div className={cn(
+          "grid h-14 px-1",
+          mobileItems.length <= 3 ? "grid-cols-3" : "grid-cols-4"
+        )}>
           {mobileItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname.startsWith(item.href);

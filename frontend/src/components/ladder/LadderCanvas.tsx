@@ -21,6 +21,7 @@ interface LadderCanvasProps {
 
 const PADDING_X = 60;
 const PADDING_Y = 60;
+const MIN_COL_SPACING = 80;
 const PATH_COLORS = [
   "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6",
   "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#6366f1",
@@ -86,14 +87,20 @@ export default function LadderCanvas({
     const container = containerRef.current;
     if (!container) return;
 
+    const columns = ladder?.columns ?? participants.length;
     const observer = new ResizeObserver((entries) => {
-      const { width } = entries[0].contentRect;
+      const containerWidth = entries[0].contentRect.width;
+      // Ensure minimum spacing between columns so names don't overlap
+      const minWidth = columns > 1
+        ? MIN_COL_SPACING * (columns - 1) + PADDING_X * 2
+        : containerWidth;
+      const width = Math.max(containerWidth, minWidth);
       const height = Math.max(400, Math.min(600, width * 0.65));
       setCanvasSize({ width, height });
     });
     observer.observe(container);
     return () => observer.disconnect();
-  }, []);
+  }, [ladder?.columns, participants.length]);
 
   const buildMappings = useCallback(
     (paths: typeof revealedPaths) => {
@@ -450,7 +457,7 @@ export default function LadderCanvas({
       )}
 
       {ladder && (
-        <div ref={containerRef} className="w-full">
+        <div ref={containerRef} className="w-full overflow-x-auto">
           {showControls && (
             <p className="text-xs text-muted-foreground mb-2">
               상단의 이름을 클릭하면 경로가 표시됩니다.
@@ -459,9 +466,10 @@ export default function LadderCanvas({
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}
-            className="w-full rounded-xl bg-card border cursor-pointer"
+            className="rounded-xl bg-card border cursor-pointer"
             style={{
               width: canvasSize.width,
+              minWidth: canvasSize.width,
               height: canvasSize.height,
             }}
           />

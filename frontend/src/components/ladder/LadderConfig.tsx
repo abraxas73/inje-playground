@@ -180,10 +180,11 @@ function LoadResultsDialog({ onSelect }: { onSelect: (results: LadderResult[]) =
     setOpen(false);
   };
 
-  // Deduplicate results per session (remove position-based duplicates)
+  // Extract unique reward/punishment results only (exclude normal)
   const getUniqueResults = (results: LadderResult[]) => {
     const seen = new Set<string>();
     return results.filter((r) => {
+      if (r.type === "normal") return false;
       const key = `${r.type}:${r.text}`;
       if (seen.has(key)) return false;
       seen.add(key);

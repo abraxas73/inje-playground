@@ -3,11 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-/** Redirect old /settings to /admin/settings */
-export default function SettingsRedirect() {
+export default function AdminPage() {
   const router = useRouter();
   useEffect(() => {
-    router.replace("/admin/settings");
+    router.replace("/admin/users");
   }, [router]);
   return null;
 }
