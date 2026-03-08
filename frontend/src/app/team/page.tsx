@@ -231,7 +231,7 @@ export default function TeamPage() {
           </CardContent>
         </Card>
 
-        <div className="flex gap-3 animate-fade-up delay-300">
+        <div className="flex gap-3 flex-wrap animate-fade-up delay-300">
           <Button onClick={handleDivide} size="lg" className="rounded-xl shadow-md hover:shadow-lg transition-shadow">
             <Shuffle className="h-4 w-4 mr-2" />
             팀 구성하기

@@ -52,6 +52,7 @@ interface SourceItem {
 
 interface SourceManagerProps {
   notebook: NlmNotebook;
+  noDelete?: boolean;
 }
 
 const SOURCE_TYPE_CONFIG = {
@@ -60,7 +61,7 @@ const SOURCE_TYPE_CONFIG = {
   text: { icon: Type, label: "텍스트", color: "text-amber-500" },
 } as const;
 
-export default function SourceManager({ notebook }: SourceManagerProps) {
+export default function SourceManager({ notebook, noDelete }: SourceManagerProps) {
   const [sources, setSources] = useState<SourceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +80,7 @@ export default function SourceManager({ notebook }: SourceManagerProps) {
 
   // File source dialog
   const [fileOpen, setFileOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [addingFile, setAddingFile] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
 
@@ -153,13 +154,15 @@ export default function SourceManager({ notebook }: SourceManagerProps) {
   }
 
   async function handleAddFile() {
-    if (!selectedFile) return;
+    if (selectedFiles.length === 0) return;
     setAddingFile(true);
     try {
       // 1. Supabase Storage에 업로드
-      setUploadProgress("파일 업로드 중...");
+      setUploadProgress(`파일 업로드 중... (0/${selectedFiles.length})`);
       const formData = new FormData();
-      formData.append("file", selectedFile);
+      for (const file of selectedFiles) {
+        formData.append("file", file);
+      }
 
       const uploadRes = await fetch(
         `/api/guide/notebooks/${notebook.id}/sources/upload`,
@@ -169,23 +172,30 @@ export default function SourceManager({ notebook }: SourceManagerProps) {
         const err = await uploadRes.json().catch(() => ({}));
         throw new Error(err.error || "파일 업로드에 실패했습니다.");
       }
-      const { url, fileName } = await uploadRes.json();
+      const { files: uploaded } = await uploadRes.json();
 
-      // 2. NLM 서비스에 소스 추가
-      setUploadProgress("NotebookLM에 소스 추가 중...");
-      const res = await fetch(`/api/guide/notebooks/${notebook.id}/sources`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "file",
-          title: fileName,
-          url,
-          fileName,
-        }),
-      });
-      if (!res.ok) throw new Error("파일 소스 추가에 실패했습니다.");
+      // 2. NLM 서비스에 각 파일을 소스로 추가
+      for (let i = 0; i < uploaded.length; i++) {
+        const { url, fileName } = uploaded[i];
+        setUploadProgress(
+          `NotebookLM에 소스 추가 중... (${i + 1}/${uploaded.length})`
+        );
+        const res = await fetch(`/api/guide/notebooks/${notebook.id}/sources`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "file",
+            title: fileName,
+            url,
+            fileName,
+          }),
+        });
+        if (!res.ok) {
+          throw new Error(`소스 추가 실패: ${fileName}`);
+        }
+      }
 
-      setSelectedFile(null);
+      setSelectedFiles([]);
       setUploadProgress("");
       setFileOpen(false);
       await fetchSources();
@@ -341,21 +351,29 @@ export default function SourceManager({ notebook }: SourceManagerProps) {
                         id="src-file-input"
                         type="file"
                         className="hidden"
+                        multiple
                         accept=".pdf,.txt,.md,.docx,.xlsx"
                         onChange={(e) => {
-                          const file = e.target.files?.[0] ?? null;
-                          setSelectedFile(file);
+                          const files = Array.from(e.target.files ?? []);
+                          setSelectedFiles(files);
                         }}
                       />
-                      {selectedFile ? (
-                        <div className="flex items-center gap-2 text-sm">
-                          <FileText className="h-5 w-5 text-violet-500" />
-                          <div>
-                            <p className="font-medium">{selectedFile.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {(selectedFile.size / 1024 / 1024).toFixed(1)} MB
-                            </p>
+                      {selectedFiles.length > 0 ? (
+                        <div className="w-full space-y-1">
+                          <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                            {selectedFiles.map((file, idx) => (
+                              <div key={idx} className="flex items-center gap-2 text-sm">
+                                <FileText className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                                <span className="truncate text-xs">{file.name}</span>
+                                <span className="text-xs text-muted-foreground shrink-0">
+                                  {(file.size / 1024 / 1024).toFixed(1)}MB
+                                </span>
+                              </div>
+                            ))}
                           </div>
+                          <p className="text-xs text-muted-foreground text-center">
+                            {selectedFiles.length}개 파일 선택됨 · 클릭하여 변경
+                          </p>
                         </div>
                       ) : (
                         <>
@@ -372,7 +390,7 @@ export default function SourceManager({ notebook }: SourceManagerProps) {
                   </div>
                   <Button
                     onClick={handleAddFile}
-                    disabled={addingFile || !selectedFile}
+                    disabled={addingFile || selectedFiles.length === 0}
                     className="w-full"
                   >
                     {addingFile ? (
@@ -412,7 +430,8 @@ export default function SourceManager({ notebook }: SourceManagerProps) {
         ) : (
           <div className="space-y-2">
             {sources.map((source) => {
-              const config = SOURCE_TYPE_CONFIG[source.source_type];
+              const key = (source.source_type?.toLowerCase() ?? "text") as keyof typeof SOURCE_TYPE_CONFIG;
+              const config = SOURCE_TYPE_CONFIG[key] ?? SOURCE_TYPE_CONFIG.text;
               const Icon = config.icon;
 
               return (
@@ -442,34 +461,36 @@ export default function SourceManager({ notebook }: SourceManagerProps) {
                     </div>
                   </div>
 
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>소스 삭제</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          &quot;{source.title}&quot; 소스를 삭제하시겠습니까?
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>취소</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDelete(source.id)}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  {!noDelete && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
                         >
-                          삭제
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>소스 삭제</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            &quot;{source.title}&quot; 소스를 삭제하시겠습니까?
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>취소</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDelete(source.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            삭제
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
                 </div>
               );
             })}

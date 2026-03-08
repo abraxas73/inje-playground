@@ -395,7 +395,7 @@ export default function FoodPage() {
                   <Button
                     variant={category === "FD6" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => { setCategory("ALL"); setSubCategory(""); setDetailCategory(""); }}
+                    onClick={() => { setCategory("FD6"); setSubCategory(""); setDetailCategory(""); }}
                   >
                     <UtensilsCrossed className="h-3.5 w-3.5 mr-1" />
                     음식점
@@ -766,21 +766,21 @@ function PlaceItem({
           </p>
         )}
       </div>
-      <div className="flex items-center gap-1 shrink-0 ml-2">
+      <div className="flex items-center shrink-0 ml-2">
         {place.place_url && (
-          <Button variant="ghost" size="sm" className="h-8 px-2" asChild>
+          <Button variant="ghost" size="icon" className="h-10 w-10" asChild>
             <a href={place.place_url} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-3.5 w-3.5" />
+              <ExternalLink className="h-4 w-4" />
             </a>
           </Button>
         )}
         <Button
           variant="ghost"
-          size="sm"
-          className={`h-8 px-2 ${isFav ? "text-amber-500" : "text-muted-foreground hover:text-amber-500"}`}
+          size="icon"
+          className={`h-10 w-10 ${isFav ? "text-amber-500" : "text-muted-foreground hover:text-amber-500"}`}
           onClick={onToggleFavorite}
         >
-          {isFav ? <Star className="h-3.5 w-3.5 fill-current" /> : <Star className="h-3.5 w-3.5" />}
+          {isFav ? <Star className="h-4 w-4 fill-current" /> : <Star className="h-4 w-4" />}
         </Button>
       </div>
     </div>

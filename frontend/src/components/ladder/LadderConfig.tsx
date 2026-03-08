@@ -124,7 +124,7 @@ export default function LadderConfig({
                 {result.text}
                 <button
                   onClick={() => removeResult(index)}
-                  className="ml-1.5 rounded-full hover:bg-black/10 p-0.5 transition-colors"
+                  className="ml-1.5 rounded-full hover:bg-black/10 p-1.5 -mr-1 transition-colors"
                 >
                   <X className="h-3 w-3" />
                 </button>

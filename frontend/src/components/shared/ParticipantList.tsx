@@ -76,7 +76,7 @@ export default function ParticipantList({
                   e.stopPropagation();
                   onRemove(index);
                 }}
-                className="ml-0.5 rounded-full hover:bg-black/10 p-0.5 transition-colors"
+                className="ml-1 rounded-full hover:bg-black/10 p-1.5 -mr-1 transition-colors"
                 aria-label={`${name} 삭제`}
               >
                 <X className="h-3 w-3" />

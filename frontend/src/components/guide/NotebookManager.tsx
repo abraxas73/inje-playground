@@ -39,6 +39,7 @@ import {
   BookOpen,
   Eye,
   EyeOff,
+  ExternalLink,
 } from "lucide-react";
 import type { NlmNotebook } from "@/types/guide";
 
@@ -274,6 +275,21 @@ export default function NotebookManager({
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
+                    <a
+                      href={`https://notebooklm.google.com/notebook/${nb.nlm_notebook_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      title="NotebookLM에서 열기"
+                    >
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-muted-foreground hover:text-violet-600"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Button>
+                    </a>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button

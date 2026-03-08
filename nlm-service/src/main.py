@@ -208,18 +208,19 @@ async def chat(req: ChatRequest):
 
         reset_client()
 
+        refs = getattr(result, "references", None) or getattr(result, "citations", None) or []
         return {
             "answer": result.answer,
-            "conversation_id": result.conversation_id,
-            "turn_number": result.turn_number,
+            "conversation_id": getattr(result, "conversation_id", None),
+            "turn_number": getattr(result, "turn_number", None),
             "references": [
                 {
-                    "source_id": ref.source_id,
-                    "citation_number": ref.citation_number,
-                    "cited_text": ref.cited_text,
+                    "source_id": getattr(ref, "source_id", ""),
+                    "citation_number": getattr(ref, "citation_number", 0),
+                    "cited_text": getattr(ref, "cited_text", ""),
                 }
-                for ref in result.references
-            ] if result.references else [],
+                for ref in refs
+            ] if refs else [],
         }
 
     except HTTPException:

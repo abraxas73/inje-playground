@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Dice5, Users, Settings, Home, LogOut, UtensilsCrossed, HelpCircle } from "lucide-react";
+import { Dice5, Users, Settings, LogOut, UtensilsCrossed, HelpCircle, Coffee } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,10 @@ import { logAction } from "@/lib/action-log";
 const SUPER_USER = "abraxas73@gmail.com";
 
 const NAV_ITEMS = [
-  { href: "/", label: "홈", icon: Home },
-  { href: "/ladder", label: "사다리", icon: Dice5 },
-  { href: "/team", label: "팀 구성", icon: Users },
   { href: "/food", label: "뭐 먹지", icon: UtensilsCrossed },
   { href: "/guide", label: "가이드", icon: HelpCircle },
+  { href: "/ladder", label: "사다리", icon: Dice5 },
+  { href: "/team", label: "커피 타임", icon: Coffee },
   { href: "/guide/admin", label: "가이드 관리", icon: HelpCircle, superOnly: true },
   { href: "/settings", label: "설정", icon: Settings, superOnly: true },
 ];
@@ -49,6 +48,8 @@ export default function Navigation() {
 
   const isSuperUser = user?.email === SUPER_USER;
   const visibleItems = NAV_ITEMS.filter((item) => !item.superOnly || isSuperUser);
+  // Mobile: hide superOnly items to save space
+  const mobileItems = NAV_ITEMS.filter((item) => !item.superOnly);
 
   return (
     <>
@@ -73,10 +74,7 @@ export default function Navigation() {
             <div className="hidden md:flex items-center gap-0.5 bg-muted/50 rounded-xl p-1">
               {visibleItems.map((item) => {
                 const Icon = item.icon;
-                const isActive =
-                  item.href === "/"
-                    ? pathname === "/"
-                    : pathname.startsWith(item.href);
+                const isActive = pathname.startsWith(item.href);
                 return (
                   <Link
                     key={item.href}
@@ -120,26 +118,23 @@ export default function Navigation() {
 
       {/* Mobile bottom tab bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl safe-area-bottom">
-        <div className="flex items-center justify-around h-14 px-1">
-          {visibleItems.map((item) => {
+        <div className="grid grid-cols-4 h-14 px-1">
+          {mobileItems.map((item) => {
             const Icon = item.icon;
-            const isActive =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(item.href);
+            const isActive = pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg text-[10px] font-medium transition-colors min-w-0",
+                  "flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors",
                   isActive
                     ? "text-primary"
                     : "text-muted-foreground"
                 )}
               >
                 <Icon className={cn("h-5 w-5", isActive && "text-primary")} />
-                <span className="truncate">{item.label}</span>
+                <span>{item.label}</span>
               </Link>
             );
           })}

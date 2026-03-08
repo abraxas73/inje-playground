@@ -174,7 +174,7 @@ export default function TeamHistory() {
               <div className="flex items-center justify-between">
                 <button
                   onClick={() => setExpandedSession(isExpanded ? null : session.id)}
-                  className="flex items-center gap-3 text-left flex-1 min-w-0"
+                  className="flex items-center gap-2 md:gap-3 text-left flex-1 min-w-0 flex-wrap"
                 >
                   <CardTitle className="text-base truncate">
                     {session.title || dateStr}
@@ -228,7 +228,7 @@ export default function TeamHistory() {
               <CardContent className="pt-0">
                 <Separator className="mb-4" />
 
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                   <SessionTitleEditor
                     sessionId={session.id}
                     currentTitle={session.title || ""}
@@ -412,7 +412,7 @@ function TeamResultCard({
             <li key={mIndex} className="text-sm flex items-center gap-1.5">
               <button
                 onClick={() => handleToggleAttendance(member.name)}
-                className={`text-[10px] px-1.5 py-0 rounded-full border cursor-pointer transition-colors ${
+                className={`text-[10px] px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
                   attended
                     ? "border-emerald-400 bg-emerald-100 text-emerald-800"
                     : "border-gray-300 bg-gray-50 text-gray-400"
@@ -566,18 +566,18 @@ function CommentItem({
             })}
           </span>
         </div>
-        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => setEditing(true)}
-            className="p-0.5 text-muted-foreground hover:text-foreground"
+            className="p-1.5 text-muted-foreground hover:text-foreground"
           >
-            <Pencil className="h-2.5 w-2.5" />
+            <Pencil className="h-3 w-3" />
           </button>
           <button
             onClick={handleDelete}
-            className="p-0.5 text-muted-foreground hover:text-destructive"
+            className="p-1.5 text-muted-foreground hover:text-destructive"
           >
-            <Trash2 className="h-2.5 w-2.5" />
+            <Trash2 className="h-3 w-3" />
           </button>
         </div>
       </div>

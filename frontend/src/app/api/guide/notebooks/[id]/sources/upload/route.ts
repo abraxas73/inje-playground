@@ -22,47 +22,55 @@ export async function POST(
     }
 
     const formData = await request.formData();
-    const file = formData.get("file") as File | null;
-    if (!file) {
+    const files = formData.getAll("file") as File[];
+    if (files.length === 0) {
       return NextResponse.json(
         { error: "파일이 필요합니다." },
         { status: 400 }
       );
     }
 
-    // Supabase Storage에 업로드
-    const filePath = `${id}/${Date.now()}-${file.name}`;
-    const { error: uploadError } = await supabase.storage
-      .from("nlm-files")
-      .upload(filePath, file, {
-        contentType: file.type,
-        upsert: false,
+    const results = [];
+
+    for (const file of files) {
+      // 파일명에서 특수문자 제거 — Supabase Storage 키 호환
+      const ext = file.name.split(".").pop() || "";
+      const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const filePath = `${id}/${safeName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("nlm-files")
+        .upload(filePath, file, {
+          contentType: file.type,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        return NextResponse.json(
+          { error: `파일 업로드 실패 (${file.name}): ${uploadError.message}` },
+          { status: 500 }
+        );
+      }
+
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from("nlm-files")
+        .createSignedUrl(filePath, 3600);
+
+      if (signedError || !signedData?.signedUrl) {
+        return NextResponse.json(
+          { error: `Signed URL 생성 실패 (${file.name})` },
+          { status: 500 }
+        );
+      }
+
+      results.push({
+        url: signedData.signedUrl,
+        fileName: file.name,
+        filePath,
       });
-
-    if (uploadError) {
-      return NextResponse.json(
-        { error: `파일 업로드 실패: ${uploadError.message}` },
-        { status: 500 }
-      );
     }
 
-    // Signed URL 생성 (1시간 — NLM 서비스가 다운로드할 시간)
-    const { data: signedData, error: signedError } = await supabase.storage
-      .from("nlm-files")
-      .createSignedUrl(filePath, 3600);
-
-    if (signedError || !signedData?.signedUrl) {
-      return NextResponse.json(
-        { error: "Signed URL 생성 실패" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      url: signedData.signedUrl,
-      fileName: file.name,
-      filePath,
-    });
+    return NextResponse.json({ files: results });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "파일 업로드에 실패했습니다.";

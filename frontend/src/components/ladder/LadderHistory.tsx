@@ -120,7 +120,7 @@ export default function LadderHistory() {
               <div className="flex items-center justify-between">
                 <button
                   onClick={() => setExpandedSession(isExpanded ? null : session.id)}
-                  className="flex items-center gap-3 text-left flex-1 min-w-0"
+                  className="flex items-center gap-2 md:gap-3 text-left flex-1 min-w-0 flex-wrap"
                 >
                   <CardTitle className="text-base truncate">
                     {session.title || dateStr}
