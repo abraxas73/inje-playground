@@ -143,8 +143,8 @@ export default function LadderPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <DoorayProjectSelect value={overrideProjectId} onChange={setOverrideProjectId} />
-            <div className="flex gap-2 items-start">
-              <div className="flex-1">
+            <div className="flex flex-wrap gap-2 items-start">
+              <div className="flex-1 min-w-0">
                 <ParticipantInput onAdd={addParticipants} />
               </div>
               <div className="flex gap-1.5 shrink-0">
@@ -157,8 +157,8 @@ export default function LadderPage() {
                       setAll(userMembers.names);
                     }}
                   >
-                    <UserCheck className="h-4 w-4 mr-1.5" />
-                    내 구성원 ({userMembers.names.length})
+                    <UserCheck className="h-4 w-4 sm:mr-1.5" />
+                    <span className="hidden sm:inline">내 구성원</span> ({userMembers.names.length})
                   </Button>
                 )}
                 <DoorayImportButton

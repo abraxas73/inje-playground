@@ -422,7 +422,7 @@ export default function LadderCanvas({
     onAllRevealed?.(buildMappings(combined));
   };
 
-  const canStart = participants.length >= 2 && results.length >= 2;
+  const canStart = participants.length >= 2 && results.length >= 1;
 
   return (
     <div className="space-y-4">
@@ -452,7 +452,7 @@ export default function LadderCanvas({
 
       {showControls && !canStart && (
         <p className="text-sm text-muted-foreground">
-          참여자와 결과를 각각 2개 이상 입력해주세요.
+          참여자 2명 이상, 결과 1개 이상 입력해주세요.
         </p>
       )}
 

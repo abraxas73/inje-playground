@@ -115,11 +115,11 @@ export default function DoorayImportButton({
     <div>
       <Button onClick={handleImport} disabled={loading} variant="outline" className="border-emerald-300 text-emerald-700 hover:bg-emerald-50">
         {loading ? (
-          <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+          <Loader2 className="h-4 w-4 sm:mr-1.5 animate-spin" />
         ) : (
-          <Download className="h-4 w-4 mr-1.5" />
+          <Download className="h-4 w-4 sm:mr-1.5" />
         )}
-        {loading ? "불러오는 중..." : "Dooray에서 가져오기"}
+        <span className="hidden sm:inline">{loading ? "불러오는 중..." : "Dooray에서 가져오기"}</span>
       </Button>
       {error && <p className="text-destructive text-xs mt-1">{error}</p>}
       {info && (
