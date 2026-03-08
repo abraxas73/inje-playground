@@ -1,12 +1,45 @@
-# 사내 가이드 Q&A Implementation Plan
+# 사내 가이드 Q&A — "이럴때는 어떻게 하지?"
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Status:** ✅ 구현 완료 (2026-03-08) — `feat/guide-qa` 브랜치
 
 **Goal:** Google NotebookLM 기반 사내 규정/가이드 Q&A 시스템 구축 — 어드민이 노트북/소스 관리, 사용자가 탭별 Q&A
 
 **Architecture:** 독립 FastAPI nlm-service(fly.io) + Next.js API Routes 프록시 + Supabase DB. nlm-service는 notebooklm-py로 NotebookLM 연동, Next.js가 프록시하며 Supabase에 메타/이력 저장.
 
-**Tech Stack:** FastAPI, notebooklm-py, fly.io, Next.js 16 App Router, Supabase, shadcn/ui, Tailwind CSS 4
+**Tech Stack:** FastAPI, notebooklm-py (Python 3.9+), fly.io, Next.js 16 App Router, Supabase, shadcn/ui, Tailwind CSS 4
+
+## 구현 결과 요약
+
+### 디렉토리 구조 (monorepo)
+```
+inje-playground/
+├── frontend/                  # Next.js 프론트엔드
+│   ├── src/app/guide/         # 사용자 Q&A 페이지
+│   ├── src/app/guide/admin/   # 어드민 관리 페이지
+│   ├── src/app/api/guide/     # API Routes (NLM 프록시 + Supabase)
+│   ├── src/components/guide/  # ChatPanel, NotebookTabs, NotebookManager, SourceManager
+│   ├── src/lib/nlm-service.ts # NLM 서비스 HTTP 헬퍼
+│   └── src/types/guide.ts     # TypeScript 타입 정의
+├── nlm-service/               # FastAPI 백엔드 (14 엔드포인트)
+│   ├── src/main.py            # FastAPI 앱
+│   ├── src/auth.py            # 쿠키 기반 인증 관리
+│   └── scripts/               # restart-nlm-service.sh, nlm-login.sh
+└── docs/plans/                # 이 문서
+```
+
+### Supabase 테이블
+- `nlm_notebooks` — 노트북 메타 (is_visible, sort_order)
+- `nlm_chat_messages` — 사용자별 대화 이력 (citations JSONB)
+- `nlm_sources` — 소스 메타 캐시
+
+### 배포 필요 사항
+1. `fly launch` + `fly volumes create nlm_data` + `fly deploy` (nlm-service)
+2. `./nlm-service/scripts/nlm-login.sh` (NotebookLM 인증)
+3. Vercel에 `NLM_SERVICE_URL=https://inje-nlm-service.fly.dev` 환경 변수 추가
+
+---
+
+## Implementation Plan (아래는 구현 시 사용한 태스크 목록)
 
 ---
 

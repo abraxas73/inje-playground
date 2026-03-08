@@ -10,42 +10,48 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```
 inje-playground/
-├── frontend/          # Next.js 16 App Router (React 19)
-│   ├── src/           # App source code
-│   ├── public/        # Static assets
-│   ├── scripts/       # deploy.sh, dev.sh
-│   ├── package.json   # Node dependencies
-│   └── ...            # Next.js config files
-├── nlm-service/       # FastAPI backend for NotebookLM Q&A
-│   ├── src/           # Python source (main.py, auth.py)
-│   ├── scripts/       # nlm-login.sh
-│   ├── Dockerfile     # Docker build
-│   ├── fly.toml       # fly.io deployment config
+├── frontend/              # Next.js 16 App Router (React 19)
+│   ├── src/               # App source code
+│   ├── public/            # Static assets
+│   ├── scripts/
+│   │   ├── restart-frontend.sh   # 프론트엔드 재시작 (포트 인자 지원)
+│   │   └── deploy-frontend.sh    # Vercel 배포 (preview/prod)
+│   ├── package.json       # Node dependencies
+│   └── ...                # Next.js config files
+├── nlm-service/           # FastAPI backend for NotebookLM Q&A
+│   ├── src/               # Python source (main.py, auth.py)
+│   ├── scripts/
+│   │   ├── restart-nlm-service.sh  # NLM 서비스 재시작 (venv 자동 관리)
+│   │   └── nlm-login.sh            # NotebookLM Playwright 브라우저 로그인
+│   ├── Dockerfile         # Docker build
+│   ├── fly.toml           # fly.io deployment config
 │   └── requirements.txt
-├── docs/              # Design docs and plans
-├── CLAUDE.md          # This file
-└── .mcp.json          # MCP server config
+├── docs/plans/            # Design docs and implementation plans
+├── CLAUDE.md              # This file
+└── .mcp.json              # MCP server config (Supabase)
 ```
 
 ## Commands
 
-### Frontend (from `frontend/` directory)
+### Frontend
 
 ```bash
+./frontend/scripts/restart-frontend.sh        # 재시작 (기본 포트 3003)
+./frontend/scripts/restart-frontend.sh 3000   # 포트 지정
+./frontend/scripts/deploy-frontend.sh         # Vercel Preview 배포
+./frontend/scripts/deploy-frontend.sh prod    # Vercel Production 배포
+
 cd frontend
-npm run dev      # Start dev server (http://localhost:3000)
 npm run build    # Production build
 npm run lint     # ESLint (flat config, ESLint 9)
-npm start        # Start production server
 ```
 
-### nlm-service (from `nlm-service/` directory)
+### nlm-service
 
 ```bash
-cd nlm-service
-pip install -r requirements.txt
-python -m uvicorn src.main:app --host 0.0.0.0 --port 8090 --reload  # Dev server
-./scripts/nlm-login.sh  # NotebookLM authentication
+./nlm-service/scripts/restart-nlm-service.sh       # 재시작 (기본 포트 8090, venv 자동 생성)
+./nlm-service/scripts/restart-nlm-service.sh 9090   # 포트 지정
+./nlm-service/scripts/nlm-login.sh                  # NotebookLM 브라우저 로그인 → storage_state.json 저장
 ```
 
 No test framework is configured.
@@ -59,9 +65,9 @@ No test framework is configured.
 - **shadcn/ui** components
 
 ### Backend (nlm-service)
-- **FastAPI** with uvicorn
+- **FastAPI** with uvicorn (Python 3.9+)
 - **notebooklm-py** for Google NotebookLM API
-- **fly.io** deployment with persistent volume
+- **fly.io** deployment with persistent volume for auth cookies
 
 ## Architecture
 
@@ -70,16 +76,23 @@ No test framework is configured.
 - `/ladder` — Ladder game: participants + results matched via animated canvas ladder
 - `/team` — Team divider: random team assignment with card holder distribution and min/max constraints
 - `/food` — Restaurant/cafe finder with Kakao Maps integration
-- `/guide` — Guide Q&A: AI-powered Q&A on company guidelines via NotebookLM
-- `/guide/admin` — Admin: notebook/source management (superOnly)
+- `/guide` — Guide Q&A: AI-powered Q&A on company guidelines via NotebookLM. Visible notebooks displayed as tabs.
+- `/guide/admin` — Admin: notebook/source management, visibility toggle, sort order (superOnly)
 - `/settings` — Dooray API token and project ID configuration (stored in localStorage)
 
 ### API Routes (`frontend/src/app/api/`)
 - `GET /api/dooray/members?projectId=X` — Proxies Dooray API to fetch project members
-- `/api/guide/notebooks` — Notebook CRUD (Supabase + NLM service proxy)
-- `/api/guide/notebooks/[id]/sources` — Source management per notebook
-- `/api/guide/chat` — Q&A chat (NLM proxy + Supabase history)
-- `/api/guide/auth/status` — NLM authentication status
+- `/api/guide/notebooks` — Notebook CRUD (GET list / POST create). Supabase meta + NLM service proxy
+- `/api/guide/notebooks/[id]` — Notebook update (PATCH) / delete (DELETE)
+- `/api/guide/notebooks/[id]/sources` — Source CRUD (GET list / POST add / DELETE remove)
+- `/api/guide/chat` — POST question → NLM answer + Supabase history save
+- `/api/guide/chat/history` — GET per-user chat history from Supabase
+- `/api/guide/auth/status` — GET NLM authentication status proxy
+
+### Supabase Tables (guide feature)
+- `nlm_notebooks` — Notebook metadata with `is_visible`, `sort_order`
+- `nlm_chat_messages` — Per-user chat history with `citations` JSONB
+- `nlm_sources` — Source metadata cache per notebook
 
 ### Key Patterns
 
@@ -87,15 +100,13 @@ No test framework is configured.
 
 **Shared participant flow**: `useParticipants` hook provides add/remove/clear/setAll. Shared components reused across ladder and team pages.
 
-**Guide Q&A**: Frontend proxies to FastAPI nlm-service via `nlmFetch()` helper (`frontend/src/lib/nlm-service.ts`). Notebook metadata and chat history stored in Supabase. NLM service handles NotebookLM API calls.
+**Guide Q&A**: Frontend proxies to FastAPI nlm-service via `nlmFetch()` helper (`frontend/src/lib/nlm-service.ts`). Notebook metadata and chat history stored in Supabase. NLM service handles NotebookLM API calls. Admin manages notebooks/sources, controls visibility for user page.
+
+**Environment Variables**:
+- `NLM_SERVICE_URL` — NLM service endpoint (default: `http://localhost:8090`, prod: `https://inje-nlm-service.fly.dev`)
 
 ### Directory Layout (frontend/src/)
 - `components/` — Organized by feature: `ladder/`, `team/`, `food/`, `guide/`, `settings/`, `shared/`, `layout/`
 - `hooks/` — `useLocalStorage`, `useParticipants`, `useBgm`, `useTts`
 - `lib/` — Pure logic: `ladder.ts`, `team-divider.ts`, `dooray.ts`, `nlm-service.ts`
 - `types/` — TypeScript interfaces: `ladder.ts`, `team.ts`, `dooray.ts`, `guide.ts`
-
-# currentDate
-Today's date is 2026-03-08.
-
-      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.
