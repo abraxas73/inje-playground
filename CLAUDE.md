@@ -75,10 +75,11 @@ No test framework is configured.
 - `/` — Home with feature cards linking to sub-pages
 - `/ladder` — Ladder game: participants + results matched via animated canvas ladder
 - `/team` — Team divider: random team assignment with card holder distribution and min/max constraints
-- `/food` — Restaurant/cafe finder with Kakao Maps integration
+- `/food` — Restaurant/cafe finder with Kakao Maps integration + PAYCO 식권 가맹점 검색
 - `/guide` — Guide Q&A: AI-powered Q&A on company guidelines via NotebookLM. Visible notebooks displayed as tabs.
 - `/guide/admin` — Admin: notebook/source management, visibility toggle, sort order (superOnly)
 - `/settings` — Dooray API token and project ID configuration (stored in localStorage)
+- `/manual` — User manual with Playwright-captured screenshots (8 sections)
 
 ### API Routes (`frontend/src/app/api/`)
 - `GET /api/dooray/members?projectId=X` — Proxies Dooray API to fetch project members
@@ -88,11 +89,13 @@ No test framework is configured.
 - `/api/guide/chat` — POST question → NLM answer + Supabase history save
 - `/api/guide/chat/history` — GET per-user chat history from Supabase
 - `/api/guide/auth/status` — GET NLM authentication status proxy
+- `/api/guide/notebooks/[id]/sources/download` — GET signed URL for source file download
+- `POST /api/food/payco` — Proxies bizplus.payco.com for PAYCO 식권 merchant search
 
 ### Supabase Tables (guide feature)
 - `nlm_notebooks` — Notebook metadata with `is_visible`, `sort_order`
 - `nlm_chat_messages` — Per-user chat history with `citations` JSONB
-- `nlm_sources` — Source metadata cache per notebook
+- `nlm_sources` — Source metadata cache per notebook (includes `storage_path`, `original_filename`)
 
 ### Key Patterns
 
