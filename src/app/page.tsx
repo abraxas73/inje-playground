@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Dice5, Users, Settings, ArrowRight, UtensilsCrossed } from "lucide-react";
+import { Dice5, Users, Settings, ArrowRight, UtensilsCrossed, HelpCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 
 const SUPER_USER = "abraxas73@gmail.com";
@@ -44,6 +44,17 @@ const FEATURES = [
     superOnly: false,
   },
   {
+    href: "/guide",
+    title: "이럴때는 어떻게 하지?",
+    description: "사내 규정, 가이드에 대해 AI에게 질문하고 답변을 받아보세요.",
+    icon: HelpCircle,
+    gradient: "from-violet-500 to-purple-600",
+    bgAccent: "bg-violet-50",
+    iconColor: "text-violet-600",
+    delay: "delay-[400ms]",
+    superOnly: false,
+  },
+  {
     href: "/settings",
     title: "설정",
     description: "Dooray 연동 설정으로 프로젝트 멤버를 자동으로 불러옵니다.",
@@ -51,7 +62,7 @@ const FEATURES = [
     gradient: "from-slate-500 to-slate-700",
     bgAccent: "bg-slate-100",
     iconColor: "text-slate-600",
-    delay: "delay-[400ms]",
+    delay: "delay-[500ms]",
     superOnly: true,
   },
 ];

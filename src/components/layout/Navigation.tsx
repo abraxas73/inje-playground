@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Dice5, Users, Settings, Home, LogOut, UtensilsCrossed } from "lucide-react";
+import { Dice5, Users, Settings, Home, LogOut, UtensilsCrossed, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ const NAV_ITEMS = [
   { href: "/ladder", label: "사다리", icon: Dice5 },
   { href: "/team", label: "팀 구성", icon: Users },
   { href: "/food", label: "뭐 먹지", icon: UtensilsCrossed },
+  { href: "/guide", label: "가이드", icon: HelpCircle },
+  { href: "/guide/admin", label: "가이드 관리", icon: HelpCircle, superOnly: true },
   { href: "/settings", label: "설정", icon: Settings, superOnly: true },
 ];
 
