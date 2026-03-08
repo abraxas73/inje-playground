@@ -5,6 +5,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
+from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
@@ -38,14 +39,14 @@ class FileSource(BaseModel):
 class NotebookCreateRequest(BaseModel):
     title: str
     sources: list = []
-    file_sources: list[FileSource] = []
+    file_sources: List[FileSource] = []
     is_public: bool = False
 
 
 class ChatRequest(BaseModel):
     notebook_id: str
     question: str
-    conversation_id: str | None = None
+    conversation_id: Optional[str] = None
 
 
 class AddTextSourceRequest(BaseModel):
