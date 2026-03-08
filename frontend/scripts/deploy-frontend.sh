@@ -1,8 +1,8 @@
 #!/bin/bash
-# Vercel 배포 스크립트
+# 프론트엔드 Vercel 배포
 # Usage:
-#   ./scripts/deploy.sh          # Preview 배포
-#   ./scripts/deploy.sh prod     # Production 배포
+#   ./frontend/scripts/deploy-frontend.sh          # Preview 배포
+#   ./frontend/scripts/deploy-frontend.sh prod     # Production 배포
 
 set -e
 
