@@ -39,6 +39,7 @@ import {
   Link,
   Type,
   Database,
+  Upload,
 } from "lucide-react";
 import type { NlmNotebook } from "@/types/guide";
 
@@ -78,9 +79,9 @@ export default function SourceManager({ notebook }: SourceManagerProps) {
 
   // File source dialog
   const [fileOpen, setFileOpen] = useState(false);
-  const [fileUrl, setFileUrl] = useState("");
-  const [fileName, setFileName] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [addingFile, setAddingFile] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
 
   const fetchSources = useCallback(async () => {
     try {
@@ -152,28 +153,47 @@ export default function SourceManager({ notebook }: SourceManagerProps) {
   }
 
   async function handleAddFile() {
-    if (!fileUrl.trim() || !fileName.trim()) return;
+    if (!selectedFile) return;
     setAddingFile(true);
     try {
+      // 1. Supabase Storage에 업로드
+      setUploadProgress("파일 업로드 중...");
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const uploadRes = await fetch(
+        `/api/guide/notebooks/${notebook.id}/sources/upload`,
+        { method: "POST", body: formData }
+      );
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        throw new Error(err.error || "파일 업로드에 실패했습니다.");
+      }
+      const { url, fileName } = await uploadRes.json();
+
+      // 2. NLM 서비스에 소스 추가
+      setUploadProgress("NotebookLM에 소스 추가 중...");
       const res = await fetch(`/api/guide/notebooks/${notebook.id}/sources`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: "file",
-          title: fileName.trim(),
-          url: fileUrl.trim(),
-          fileName: fileName.trim(),
+          title: fileName,
+          url,
+          fileName,
         }),
       });
       if (!res.ok) throw new Error("파일 소스 추가에 실패했습니다.");
-      setFileUrl("");
-      setFileName("");
+
+      setSelectedFile(null);
+      setUploadProgress("");
       setFileOpen(false);
       await fetchSources();
     } catch (err) {
       alert(err instanceof Error ? err.message : "오류가 발생했습니다.");
     } finally {
       setAddingFile(false);
+      setUploadProgress("");
     }
   }
 
@@ -310,39 +330,58 @@ export default function SourceManager({ notebook }: SourceManagerProps) {
                 </DialogHeader>
                 <div className="space-y-4 pt-2">
                   <div className="space-y-2">
-                    <Label htmlFor="src-file-name">파일명</Label>
-                    <Input
-                      id="src-file-name"
-                      value={fileName}
-                      onChange={(e) => setFileName(e.target.value)}
-                      placeholder="document.pdf"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="src-file-url">파일 URL</Label>
-                    <Input
-                      id="src-file-url"
-                      type="url"
-                      value={fileUrl}
-                      onChange={(e) => setFileUrl(e.target.value)}
-                      placeholder="https://storage.example.com/file.pdf"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      접근 가능한 파일 URL을 입력하세요.
-                    </p>
+                    <Label htmlFor="src-file-input">파일 선택</Label>
+                    <div
+                      className="relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 p-6 hover:border-muted-foreground/50 transition-colors cursor-pointer"
+                      onClick={() =>
+                        document.getElementById("src-file-input")?.click()
+                      }
+                    >
+                      <input
+                        id="src-file-input"
+                        type="file"
+                        className="hidden"
+                        accept=".pdf,.txt,.md,.docx,.xlsx"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null;
+                          setSelectedFile(file);
+                        }}
+                      />
+                      {selectedFile ? (
+                        <div className="flex items-center gap-2 text-sm">
+                          <FileText className="h-5 w-5 text-violet-500" />
+                          <div>
+                            <p className="font-medium">{selectedFile.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {(selectedFile.size / 1024 / 1024).toFixed(1)} MB
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                          <p className="text-sm text-muted-foreground">
+                            클릭하여 파일을 선택하세요
+                          </p>
+                          <p className="text-xs text-muted-foreground/75 mt-1">
+                            PDF, TXT, MD, DOCX, XLSX (최대 50MB)
+                          </p>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <Button
                     onClick={handleAddFile}
-                    disabled={addingFile || !fileUrl.trim() || !fileName.trim()}
+                    disabled={addingFile || !selectedFile}
                     className="w-full"
                   >
                     {addingFile ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        추가 중...
+                        {uploadProgress || "처리 중..."}
                       </>
                     ) : (
-                      "추가"
+                      "업로드 및 추가"
                     )}
                   </Button>
                 </div>
