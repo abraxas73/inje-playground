@@ -125,6 +125,9 @@ export default function FoodPage() {
   const [addressSearchOpen, setAddressSearchOpen] = useState(false);
   const [lastSearch, setLastSearch] = useState<SearchCondition | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [paycoPlaces, setPaycoPlaces] = useState<KakaoPlace[]>([]);
+  const [paycoSearching, setPaycoSearching] = useState(false);
+  const [paycoError, setPaycoError] = useState<string | null>(null);
 
   // Load saved location on mount
   useEffect(() => {
@@ -257,6 +260,7 @@ export default function FoodPage() {
         }
 
         setPlaces(data.documents);
+        setPaycoPlaces([]);
         setLastSearch({ category, subCategory, detailCategory, radius, maxResults, keyword: keyword.trim() });
         // Refresh categories (new ones may have been collected)
         fetchSubCategories(category);
@@ -278,6 +282,44 @@ export default function FoodPage() {
     },
     [location, radius, category, subCategory, detailCategory, maxResults, keyword, fetchSubCategories, fetchDetailCategories]
   );
+
+  const searchPayco = useCallback(async () => {
+    if (!location) return;
+    setPaycoSearching(true);
+    setPaycoError(null);
+    try {
+      const res = await fetch("/api/food/payco", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: location.address, distance: radius }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const merchants = data.result || [];
+      // Convert to KakaoPlace format for unified display
+      const converted: KakaoPlace[] = merchants.map((m: { mrcCd: string; name: string; categoryName: string; address: string; telNo: string; distance: number; latitude: string; longitude: string }) => ({
+        id: `payco_${m.mrcCd}`,
+        place_name: m.name,
+        category_name: m.categoryName || "",
+        category_group_code: "",
+        category_group_name: "PAYCO 식권",
+        phone: m.telNo || "",
+        address_name: m.address || "",
+        road_address_name: m.address || "",
+        x: m.longitude || "",
+        y: m.latitude || "",
+        place_url: "",
+        distance: String(m.distance || ""),
+      }));
+      setPaycoPlaces(converted);
+      setPlaces([]);
+      logAction("PAYCO 식권 가맹점 검색", "food", { address: location.address, radius, count: converted.length });
+    } catch (err) {
+      setPaycoError(err instanceof Error ? err.message : "PAYCO 가맹점 조회 실패");
+    } finally {
+      setPaycoSearching(false);
+    }
+  }, [location, radius]);
 
   const toggleFavorite = async (place: KakaoPlace) => {
     const isFav = favorites.some((f) => f.place_id === place.id);
@@ -409,14 +451,24 @@ export default function FoodPage() {
             <p className="text-xs text-destructive -mt-1 px-1">{locError}</p>
           )}
 
-          {/* Random recommend — hero CTA */}
-          <Button
-            onClick={() => setRecommendOpen(true)}
-            className="w-full h-11 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md hover:shadow-lg transition-all"
-          >
-            <Shuffle className="h-4.5 w-4.5 mr-2" />
-            랜덤 추천
-          </Button>
+          {/* Random recommend + PAYCO — 8:2 ratio */}
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setRecommendOpen(true)}
+              className="flex-[4] h-11 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md hover:shadow-lg transition-all"
+            >
+              <Shuffle className="h-4.5 w-4.5 mr-2" />
+              랜덤 추천
+            </Button>
+            <Button
+              onClick={searchPayco}
+              disabled={paycoSearching}
+              variant="outline"
+              className="flex-1 h-11 border-red-300 text-red-600 hover:bg-red-50 font-bold text-xs"
+            >
+              {paycoSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "PAYCO"}
+            </Button>
+          </div>
 
           {/* Search bar — keyword + search button */}
           <div className="flex gap-2">
@@ -729,6 +781,55 @@ export default function FoodPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* PAYCO Results */}
+      {paycoPlaces.length > 0 && (
+        <Card className="animate-fade-up">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base">
+                <span className="text-red-600 font-bold">PAYCO</span> 식권 가맹점 ({paycoPlaces.length}곳)
+              </CardTitle>
+              <Badge variant="secondary" className="text-[10px]">
+                {radius >= 1000 ? `${(radius / 1000).toFixed(1)}km` : `${radius}m`}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {paycoPlaces.map((place, idx) => (
+                <div
+                  key={`${place.id}-${idx}`}
+                  className="flex items-start justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm">{place.place_name}</span>
+                      <Badge variant="outline" className="text-[10px] border-red-200 bg-red-50 text-red-700">
+                        {place.category_name || "식권"}
+                      </Badge>
+                      {place.distance && (
+                        <span className="text-[10px] text-muted-foreground">{place.distance}m</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                      {place.address_name}
+                    </p>
+                    {place.phone && (
+                      <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                        <Phone className="h-3 w-3" />{place.phone}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {paycoError && (
+        <p className="text-sm text-destructive text-center">{paycoError}</p>
       )}
 
       {/* Address Search Modal */}
