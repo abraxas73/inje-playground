@@ -1,13 +1,16 @@
 """
 NLM (NotebookLM) Microservice
 """
+import asyncio
 import logging
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+import httpx
+from fastapi import FastAPI, Header, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 
 from .auth import (
@@ -476,4 +479,140 @@ async def get_chat_history(notebook_id: str):
     except Exception as e:
         logger.error("Failed to get history: %s", e, exc_info=True)
         reset_client()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Dooray Proxy Endpoints ---
+# Vercel에서 Dooray API 호출 시 IP 제한/타임아웃 이슈 → fly.io에서 프록시
+
+DOORAY_API_BASE = "https://api.dooray.com"
+
+
+def _dooray_headers(token: str) -> dict:
+    return {
+        "Authorization": f"dooray-api {token}",
+        "Content-Type": "application/json",
+    }
+
+
+async def _fetch_member_detail(
+    client: httpx.AsyncClient, token: str, member_id: str
+) -> dict:
+    """개별 멤버 상세 조회"""
+    try:
+        resp = await client.get(
+            f"{DOORAY_API_BASE}/common/v1/members/{member_id}",
+            headers=_dooray_headers(token),
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            result = resp.json().get("result", {})
+            return {"id": result.get("id", member_id), "name": result.get("name", "이름 없음")}
+    except Exception:
+        pass
+    return {"id": member_id, "name": "이름 없음"}
+
+
+@app.get("/dooray/members")
+async def dooray_members(
+    projectId: str,
+    x_dooray_token: str = Header(..., alias="x-dooray-token"),
+):
+    """Dooray 프로젝트 구성원 목록 조회 (fly.io 프록시)"""
+    token = x_dooray_token
+
+    try:
+        async with httpx.AsyncClient() as client:
+            # 1) 프로젝트 멤버 ID 수집 (페이징)
+            member_ids: list[str] = []
+            page = 0
+            while True:
+                resp = await client.get(
+                    f"{DOORAY_API_BASE}/project/v1/projects/{projectId}/members",
+                    params={"page": page, "size": 100},
+                    headers=_dooray_headers(token),
+                    timeout=30,
+                )
+                if resp.status_code != 200:
+                    raise HTTPException(
+                        status_code=resp.status_code,
+                        detail=f"Dooray API 오류: {resp.text}",
+                    )
+                result = resp.json().get("result", [])
+                for m in result:
+                    member_ids.append(m["organizationMemberId"])
+                if len(result) < 100:
+                    break
+                page += 1
+
+            # 2) 멤버 상세 조회 (10개씩 배치)
+            members = []
+            batch_size = 10
+            for i in range(0, len(member_ids), batch_size):
+                batch = member_ids[i : i + batch_size]
+                details = await asyncio.gather(
+                    *[_fetch_member_detail(client, token, mid) for mid in batch]
+                )
+                members.extend(details)
+
+            # 3) 이름 없는 멤버 필터
+            members = [m for m in members if m["name"] != "이름 없음"]
+
+        logger.info("Dooray members fetched: %d members for project %s", len(members), projectId)
+        return {"members": members}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Dooray members failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/dooray/projects")
+async def dooray_projects(
+    x_dooray_token: str = Header(..., alias="x-dooray-token"),
+):
+    """Dooray 프로젝트 목록 조회 (fly.io 프록시)"""
+    token = x_dooray_token
+
+    try:
+        projects = []
+        page = 0
+
+        async with httpx.AsyncClient() as client:
+            while True:
+                resp = await client.get(
+                    f"{DOORAY_API_BASE}/project/v1/projects",
+                    params={"page": page, "size": 100},
+                    headers=_dooray_headers(token),
+                    timeout=30,
+                )
+                if resp.status_code != 200:
+                    raise HTTPException(
+                        status_code=resp.status_code,
+                        detail=f"Dooray API 오류: {resp.text}",
+                    )
+                result = resp.json().get("result", [])
+                for p in result:
+                    raw_desc = re.sub(r"<[^>]*>", "", p.get("description", "")).strip()
+                    desc = (raw_desc[:100] + "…") if len(raw_desc) > 100 else raw_desc
+                    projects.append({
+                        "id": p["id"],
+                        "code": p.get("code", ""),
+                        "name": p.get("code", p["id"]),
+                        "description": desc,
+                        "state": p.get("state", ""),
+                    })
+                if len(result) < 100:
+                    break
+                page += 1
+
+        active = [p for p in projects if p["state"] in ("active", "")]
+        logger.info("Dooray projects fetched: %d active projects", len(active))
+        return {"projects": active}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Dooray projects failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchProjectMembers } from "@/lib/dooray";
+import { nlmFetch } from "@/lib/nlm-service";
 import { createServerSupabase } from "@/lib/supabase-server";
 
 export async function GET(request: NextRequest) {
@@ -14,11 +14,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const members = await fetchProjectMembers(token, projectId);
+    // nlm-service(fly.io) 경유로 Dooray API 호출 — Vercel IP 제한 우회
+    const data = await nlmFetch(`/dooray/members?projectId=${projectId}`, {
+      headers: { "x-dooray-token": token },
+    });
+    const members = data.members || [];
 
     // Save members to DB
     const supabase = await createServerSupabase();
-    const rows = members.map((m) => ({
+    const rows = members.map((m: { id: string; name: string }) => ({
       id: m.id,
       name: m.name,
       updated_at: new Date().toISOString(),

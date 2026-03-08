@@ -60,3 +60,26 @@ with sync_playwright() as p:
 
 print(f'✅ 인증 정보 저장 완료: {storage_path}')
 "
+
+# fly.io 볼륨에 업로드
+echo ""
+echo "📤 fly.io에 업로드 중..."
+if command -v fly &>/dev/null; then
+  echo "put $STORAGE_PATH /data/nlm-cookies/storage_state.json" | fly ssh sftp shell
+  echo "✅ fly.io 업로드 완료"
+
+  # 인증 상태 확인
+  echo ""
+  echo "🔍 인증 상태 확인..."
+  curl -s https://inje-nlm-service.fly.dev/auth/status | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if data.get('authenticated'):
+    print('✅ fly.io 인증 확인됨')
+else:
+    print('⚠️  fly.io 인증 실패 — 수동 확인 필요')
+"
+else
+  echo "⚠️  flyctl 미설치 — 수동 업로드 필요:"
+  echo "  echo 'put $STORAGE_PATH /data/nlm-cookies/storage_state.json' | fly ssh sftp shell"
+fi
