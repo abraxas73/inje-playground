@@ -60,6 +60,8 @@ const sections = [
     images: [{ src: "/manual/05-settings.png", alt: "설정 화면" }],
     usage:
       "API 토큰은 Dooray 구성원 가져오기에 사용됩니다. 본인 인증을 완료하면 가이드 Q&A 답변 시 Dooray 1:1 메시지로 알림을 받을 수 있습니다. 시스템 토큰이 설정되어 있으면 개인 토큰 없이도 일부 기능을 사용할 수 있으나, 개인 토큰을 설정하면 우선 적용됩니다.",
+    warning:
+      "'프로젝트 불러오기'와 '구성원 불러오기'는 사내 VPN이 연결된 상태에서, Inje Chrome Extension이 설치된 브라우저에서만 동작합니다.",
   },
   {
     id: "food",
@@ -80,6 +82,8 @@ const sections = [
       { src: "/manual/08-food-main.png", alt: "위치 설정 후 메인" },
       { src: "/manual/09-food-results.png", alt: "검색 결과" },
     ],
+    usage:
+      "'너로 정했어' 이후 Dooray 메시지 전송 기능은 일반 인터넷 환경에서도 사용 가능합니다. 단, 사전에 'Dooray에서 가져오기'로 구성원을 한 번 이상 불러온 적이 있어야 합니다.",
   },
   {
     id: "guide",
@@ -110,6 +114,8 @@ const sections = [
       "하단의 '사다리 게임 이력'에서 이전 게임 결과를 확인할 수 있습니다.",
     ],
     images: [{ src: "/manual/11-ladder.png", alt: "사다리 게임 화면" }],
+    warning:
+      "'Dooray에서 가져오기'는 사내 VPN이 연결된 상태에서, Inje Chrome Extension이 설치된 브라우저에서만 동작합니다. 직접 이름을 입력하거나 '내 구성원'을 사용하면 VPN 없이도 이용 가능합니다.",
   },
   {
     id: "team",
@@ -124,6 +130,8 @@ const sections = [
       "결과는 Dooray 메신저로 공유할 수 있으며, 하단에서 이전 팀 구성 이력을 확인할 수 있습니다.",
     ],
     images: [{ src: "/manual/12-team.png", alt: "커피 타임 화면" }],
+    warning:
+      "'Dooray에서 가져오기'는 사내 VPN이 연결된 상태에서, Inje Chrome Extension이 설치된 브라우저에서만 동작합니다. 직접 이름을 입력하거나 '내 구성원'을 사용하면 VPN 없이도 이용 가능합니다.",
   },
 ];
 
@@ -185,11 +193,21 @@ export default function ManualPage() {
                 </ol>
               </div>
 
+              {/* Warning */}
+              {section.warning && (
+                <div className="mb-6 p-4 rounded-lg bg-amber-50 border border-amber-300 dark:bg-amber-950/30 dark:border-amber-700">
+                  <p className="text-sm text-amber-800 dark:text-amber-200">
+                    <span className="font-semibold">⚠️ 주의:</span>{" "}
+                    {section.warning}
+                  </p>
+                </div>
+              )}
+
               {/* Usage info */}
               {section.usage && (
                 <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
                   <p className="text-sm text-blue-800 dark:text-blue-200">
-                    <span className="font-semibold">활용:</span>{" "}
+                    <span className="font-semibold">💡 활용:</span>{" "}
                     {section.usage}
                   </p>
                 </div>
