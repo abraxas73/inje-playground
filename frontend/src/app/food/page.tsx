@@ -378,10 +378,11 @@ export default function FoodPage() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-auto py-1 px-2 text-sm font-medium truncate justify-start"
+              className="h-auto py-1 px-2 text-sm font-medium truncate justify-start flex-1 min-w-0"
               onClick={() => setAddressSearchOpen(true)}
+              title={location.address}
             >
-              {location.address}
+              <span className="truncate">{location.address}</span>
             </Button>
             <div className="flex gap-1.5 ml-auto shrink-0">
               <Button
