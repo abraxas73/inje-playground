@@ -8,6 +8,8 @@ set -e
 
 cd "$(dirname "$0")/.."
 
+START_TIME=$(date +%s)
+
 echo "🔨 빌드 확인 중..."
 npm run build
 
@@ -19,4 +21,9 @@ else
   vercel
 fi
 
-echo "✅ 배포 완료"
+END_TIME=$(date +%s)
+ELAPSED=$((END_TIME - START_TIME))
+MINUTES=$((ELAPSED / 60))
+SECONDS=$((ELAPSED % 60))
+
+echo "✅ 배포 완료 — $(date '+%Y-%m-%d %H:%M:%S') (소요시간: ${MINUTES}분 ${SECONDS}초)"
