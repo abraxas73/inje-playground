@@ -285,8 +285,17 @@ export default function FoodPage() {
 
   const searchPayco = useCallback(async () => {
     if (!location) return;
+
+    // 좌표만 있는 경우 (reverse geocode 실패 시) PAYCO 검색 불가
+    const isCoordOnly = /^\d+\.\d+\s*,\s*\d+\.\d+$/.test(location.address.trim());
+    if (isCoordOnly) {
+      setPaycoError("PAYCO 검색은 주소가 필요합니다. '주소 변경'으로 주소를 설정해주세요.");
+      return;
+    }
+
     setPaycoSearching(true);
     setPaycoError(null);
+    setPaycoPlaces([]);
     try {
       const res = await fetch("/api/food/payco", {
         method: "POST",
@@ -296,6 +305,10 @@ export default function FoodPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       const merchants = data.result || [];
+      if (merchants.length === 0) {
+        setPaycoError("주변에 PAYCO 식권 가맹점이 없습니다. 반경을 넓혀보세요.");
+        return;
+      }
       // Convert to KakaoPlace format for unified display
       const converted: KakaoPlace[] = merchants.map((m: { mrcCd: string; name: string; categoryName: string; address: string; telNo: string; distance: number; latitude: string; longitude: string }) => ({
         id: `payco_${m.mrcCd}`,
