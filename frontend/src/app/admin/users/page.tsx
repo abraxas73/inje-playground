@@ -11,8 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Users, Shield, User, UserX } from "lucide-react";
+import { Loader2, Users, Shield, User, UserX, KeyRound, FolderOpen, UserCheck } from "lucide-react";
 import type { UserRoleInfo, UserRole } from "@/lib/roles";
+
+interface UserWithSettings extends UserRoleInfo {
+  settings: Record<string, string>;
+}
 
 const ROLE_CONFIG: Record<UserRole, { label: string; icon: typeof Shield; color: string }> = {
   admin: { label: "관리자", icon: Shield, color: "bg-red-100 text-red-700 border-red-200" },
@@ -21,7 +25,7 @@ const ROLE_CONFIG: Record<UserRole, { label: string; icon: typeof Shield; color:
 };
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<UserRoleInfo[]>([]);
+  const [users, setUsers] = useState<UserWithSettings[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -136,7 +140,7 @@ export default function AdminUsersPage() {
                           <User className="h-4 w-4 text-muted-foreground" />
                         </div>
                       )}
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">
                           {u.display_name || u.email}
                         </p>
@@ -148,6 +152,29 @@ export default function AdminUsersPage() {
                             ? `최근 로그인: ${new Date(u.last_login_at).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
                             : "로그인 기록 없음"}
                         </p>
+                        {/* Dooray Settings */}
+                        {u.settings && Object.keys(u.settings).length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {u.settings.dooray_token && (
+                              <Badge variant="outline" className="text-[10px] h-5 gap-1 font-normal">
+                                <KeyRound className="h-2.5 w-2.5" />
+                                토큰: {u.settings.dooray_token}
+                              </Badge>
+                            )}
+                            {u.settings.dooray_member_name && (
+                              <Badge variant="outline" className="text-[10px] h-5 gap-1 font-normal text-green-700 border-green-200 bg-green-50">
+                                <UserCheck className="h-2.5 w-2.5" />
+                                본인인증: {u.settings.dooray_member_name}
+                              </Badge>
+                            )}
+                            {u.settings.dooray_project_name && (
+                              <Badge variant="outline" className="text-[10px] h-5 gap-1 font-normal text-blue-700 border-blue-200 bg-blue-50">
+                                <FolderOpen className="h-2.5 w-2.5" />
+                                프로젝트: {u.settings.dooray_project_name}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
