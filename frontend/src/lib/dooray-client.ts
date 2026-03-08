@@ -8,18 +8,37 @@ import type { DoorayMember } from "@/types/dooray";
 const DOORAY_API_BASE = "https://api.dooray.com";
 
 /** Chrome 확장 브릿지를 통한 fetch */
-function doorayFetch(url: string, token: string): Promise<unknown> {
+function doorayFetch(url: string, token: string, signal?: AbortSignal): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const id = crypto.randomUUID();
+
+    // 이미 취소된 경우
+    if (signal?.aborted) {
+      reject(new DOMException("취소되었습니다.", "AbortError"));
+      return;
+    }
+
     const timeout = setTimeout(() => {
-      window.removeEventListener("message", handler);
+      cleanup();
       reject(new Error("Chrome 확장 프로그램이 응답하지 않습니다. 확장을 확인해주세요."));
-    }, 30000);
+    }, 10000);
+
+    function cleanup() {
+      window.removeEventListener("message", handler);
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", onAbort);
+    }
+
+    function onAbort() {
+      cleanup();
+      reject(new DOMException("취소되었습니다.", "AbortError"));
+    }
+
+    signal?.addEventListener("abort", onAbort);
 
     function handler(event: MessageEvent) {
       if (event.data?.type !== "DOORAY_API_RESPONSE" || event.data.id !== id) return;
-      window.removeEventListener("message", handler);
-      clearTimeout(timeout);
+      cleanup();
       if (event.data.error) {
         reject(new Error(event.data.error));
       } else {
@@ -42,12 +61,14 @@ function doorayFetch(url: string, token: string): Promise<unknown> {
 
 async function fetchMemberDetail(
   token: string,
-  memberId: string
+  memberId: string,
+  signal?: AbortSignal
 ): Promise<{ id: string; name: string }> {
   try {
     const data = await doorayFetch(
       `${DOORAY_API_BASE}/common/v1/members/${memberId}`,
-      token
+      token,
+      signal
     ) as { result?: { id?: string; name?: string } };
     const result = data.result || {};
     return {
@@ -62,16 +83,19 @@ async function fetchMemberDetail(
 /** 프로젝트 구성원 목록 조회 */
 export async function fetchProjectMembers(
   token: string,
-  projectId: string
+  projectId: string,
+  signal?: AbortSignal
 ): Promise<DoorayMember[]> {
   const memberIds: string[] = [];
   let page = 0;
   let hasMore = true;
 
   while (hasMore) {
+    signal?.throwIfAborted();
     const data = await doorayFetch(
       `${DOORAY_API_BASE}/project/v1/projects/${projectId}/members?page=${page}&size=100`,
-      token
+      token,
+      signal
     ) as { result?: { organizationMemberId: string }[] };
     const result = data.result || [];
     for (const m of result) {
@@ -84,9 +108,10 @@ export async function fetchProjectMembers(
   const members: DoorayMember[] = [];
   const batchSize = 10;
   for (let i = 0; i < memberIds.length; i += batchSize) {
+    signal?.throwIfAborted();
     const batch = memberIds.slice(i, i + batchSize);
     const details = await Promise.all(
-      batch.map((id) => fetchMemberDetail(token, id))
+      batch.map((id) => fetchMemberDetail(token, id, signal))
     );
     members.push(...details);
   }
@@ -96,16 +121,19 @@ export async function fetchProjectMembers(
 
 /** 프로젝트 목록 조회 */
 export async function fetchProjects(
-  token: string
+  token: string,
+  signal?: AbortSignal
 ): Promise<{ id: string; code: string; name: string; description: string }[]> {
   const projects: { id: string; code: string; name: string; description: string; state: string }[] = [];
   let page = 0;
   let hasMore = true;
 
   while (hasMore) {
+    signal?.throwIfAborted();
     const data = await doorayFetch(
       `${DOORAY_API_BASE}/project/v1/projects?page=${page}&size=100`,
-      token
+      token,
+      signal
     ) as { result?: { id: string; code?: string; description?: string; state?: string }[] };
     const result = data.result ?? [];
     for (const p of result) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,7 +16,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Check, ChevronsUpDown, FolderOpen, Loader2, X } from "lucide-react";
+import { Check, ChevronsUpDown, FolderOpen, Loader2, X, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchProjects as fetchDoorayProjects } from "@/lib/dooray-client";
 
@@ -41,6 +41,7 @@ export default function DoorayProjectSelect({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Load token from user/system settings (개인 설정 우선)
   useEffect(() => {
@@ -66,20 +67,31 @@ export default function DoorayProjectSelect({
     }
     setLoading(true);
     setError(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      const result = await fetchDoorayProjects(token);
+      const result = await fetchDoorayProjects(token, controller.signal);
       setProjects(result);
       if (!result.length) {
         setError("접근 가능한 프로젝트가 없습니다.");
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
       setError(
         err instanceof Error ? err.message : "프로젝트 조회 실패"
       );
     } finally {
+      abortRef.current = null;
       setLoading(false);
     }
   }, [token]);
+
+  const handleCancel = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  };
 
   const handleClear = () => {
     onChange("");
@@ -149,20 +161,31 @@ export default function DoorayProjectSelect({
           </PopoverContent>
         </Popover>
       ) : (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={fetchProjects}
-          disabled={loading || !token}
-          className="h-7 text-xs"
-        >
-          {loading ? (
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-          ) : (
-            <FolderOpen className="h-3 w-3 mr-1" />
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={fetchProjects}
+            disabled={loading || !token}
+            className="h-7 text-xs"
+          >
+            {loading ? (
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+            ) : (
+              <FolderOpen className="h-3 w-3 mr-1" />
+            )}
+            프로젝트 불러오기
+          </Button>
+          {loading && (
+            <button
+              onClick={handleCancel}
+              className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:text-destructive rounded"
+              title="취소"
+            >
+              <Ban className="h-3 w-3" />
+            </button>
           )}
-          프로젝트 불러오기
-        </Button>
+        </div>
       )}
 
       {value && selectedLabel && (

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, X } from "lucide-react";
 import type { DoorayMember } from "@/types/dooray";
 import { fetchProjectMembers } from "@/lib/dooray-client";
 import { logAction } from "@/lib/action-log";
@@ -23,6 +23,12 @@ export default function DoorayImportButton({
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [originalError, setOriginalError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const handleCancel = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  };
 
   const fallbackFromDB = async (errorMsg?: string) => {
     const dbRes = await fetch("/api/dooray/members/db");
@@ -58,11 +64,14 @@ export default function DoorayImportButton({
     setOriginalError(null);
     setLoading(true);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       // 설정에서 토큰/프로젝트ID 가져오기 (개인 설정 우선)
       const [userSettingsRes, settingsRes] = await Promise.all([
-        fetch("/api/users/settings"),
-        fetch("/api/settings"),
+        fetch("/api/users/settings", { signal: controller.signal }),
+        fetch("/api/settings", { signal: controller.signal }),
       ]);
       const userSettings = userSettingsRes.ok ? await userSettingsRes.json() : {};
       const settings = settingsRes.ok ? await settingsRes.json() : {};
@@ -82,7 +91,7 @@ export default function DoorayImportButton({
       }
 
       // 브라우저에서 Dooray API 직접 호출 (Chrome 확장이 CORS 처리)
-      const members = await fetchProjectMembers(token, projectId);
+      const members = await fetchProjectMembers(token, projectId, controller.signal);
       const names = members.map((m) => m.name);
       onImport(names);
 
@@ -101,26 +110,44 @@ export default function DoorayImportButton({
 
       logAction("Dooray 멤버 가져오기", "dooray", { memberCount: names.length, projectId });
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setInfo("취소되었습니다.");
+        return;
+      }
       const errMsg = err instanceof Error ? err.message : "오류가 발생했습니다.";
       const ok = await fallbackFromDB(errMsg);
       if (!ok) {
         setError(err instanceof Error ? err.message : "오류가 발생했습니다.");
       }
     } finally {
+      abortRef.current = null;
       setLoading(false);
     }
   };
 
   return (
     <div>
-      <Button onClick={handleImport} disabled={loading} variant="outline" className="border-emerald-300 text-emerald-700 hover:bg-emerald-50">
-        {loading ? (
-          <Loader2 className="h-4 w-4 sm:mr-1.5 animate-spin" />
-        ) : (
-          <Download className="h-4 w-4 sm:mr-1.5" />
+      <div className="flex gap-1">
+        <Button onClick={handleImport} disabled={loading} variant="outline" className="border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+          {loading ? (
+            <Loader2 className="h-4 w-4 sm:mr-1.5 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4 sm:mr-1.5" />
+          )}
+          <span className="hidden sm:inline">{loading ? "불러오는 중..." : "Dooray에서 가져오기"}</span>
+        </Button>
+        {loading && (
+          <Button
+            onClick={handleCancel}
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 text-muted-foreground hover:text-destructive"
+            title="취소"
+          >
+            <X className="h-4 w-4" />
+          </Button>
         )}
-        <span className="hidden sm:inline">{loading ? "불러오는 중..." : "Dooray에서 가져오기"}</span>
-      </Button>
+      </div>
       {error && <p className="text-destructive text-xs mt-1">{error}</p>}
       {info && (
         <p className="text-amber-600 text-xs mt-1 cursor-help" title={originalError || undefined}>
