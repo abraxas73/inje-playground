@@ -293,6 +293,13 @@ export default function FoodPage() {
       return;
     }
 
+    // "건물명 (도로명주소)" 형태에서 괄호 안 주소만 추출
+    let paycoAddress = location.address;
+    const parenMatch = paycoAddress.match(/\(([^)]+)\)\s*$/);
+    if (parenMatch) {
+      paycoAddress = parenMatch[1].trim();
+    }
+
     setPaycoSearching(true);
     setPaycoError(null);
     setPaycoPlaces([]);
@@ -300,7 +307,7 @@ export default function FoodPage() {
       const res = await fetch("/api/food/payco", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: location.address, distance: radius }),
+        body: JSON.stringify({ address: paycoAddress, distance: radius }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
