@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Dice5, LogOut, UtensilsCrossed, HelpCircle, Coffee, Shield, User as UserIcon, Settings } from "lucide-react";
+import { Dice5, LogOut, UtensilsCrossed, HelpCircle, Coffee, Shield, User as UserIcon, Settings, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -142,6 +142,10 @@ export default function Navigation() {
                     <DropdownMenuItem onClick={() => router.push("/settings")}>
                       <Settings className="h-4 w-4 mr-2" />
                       설정
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => router.push("/manual")}>
+                      <BookOpen className="h-4 w-4 mr-2" />
+                      사용자 매뉴얼
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleLogout}>
