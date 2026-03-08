@@ -26,8 +26,25 @@ export async function GET(request: Request) {
       }
     );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
+    const { error, data } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && data.user) {
+      // Record login history & update last_login_at
+      const ua = request.headers.get("user-agent") ?? null;
+      const forwarded = request.headers.get("x-forwarded-for");
+      const ip = forwarded?.split(",")[0]?.trim() ?? null;
+
+      await Promise.all([
+        supabase.from("login_history").insert({
+          user_id: data.user.id,
+          ip_address: ip,
+          user_agent: ua,
+        }),
+        supabase
+          .from("user_profiles")
+          .update({ last_login_at: new Date().toISOString() })
+          .eq("user_id", data.user.id),
+      ]);
+
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

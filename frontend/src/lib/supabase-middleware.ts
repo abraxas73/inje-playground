@@ -57,7 +57,7 @@ export async function updateSession(request: NextRequest) {
       const route = PROTECTED_ROUTES.find((r) => pathname.startsWith(r.prefix));
       if (route) {
         const { data: roleData } = await supabase
-          .from("user_roles")
+          .from("user_profiles")
           .select("role")
           .eq("user_id", user.id)
           .single();

@@ -12,7 +12,7 @@ export async function GET() {
   }
 
   const { data } = await supabase
-    .from("user_roles")
+    .from("user_profiles")
     .select("display_name, role")
     .eq("user_id", user.id)
     .single();
@@ -46,7 +46,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const { error } = await supabase
-    .from("user_roles")
+    .from("user_profiles")
     .update({ display_name: displayName })
     .eq("user_id", user.id);
 

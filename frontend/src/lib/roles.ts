@@ -7,6 +7,7 @@ export interface UserRoleInfo {
   role: UserRole;
   display_name: string | null;
   avatar_url: string | null;
+  last_login_at: string | null;
   created_at: string;
   updated_at: string;
 }

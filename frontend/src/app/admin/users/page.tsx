@@ -140,11 +140,14 @@ export default function AdminUsersPage() {
                         <p className="text-sm font-medium truncate">
                           {u.display_name || u.email}
                         </p>
-                        {u.display_name && (
-                          <p className="text-xs text-muted-foreground truncate">
-                            {u.email}
-                          </p>
-                        )}
+                        <p className="text-xs text-muted-foreground truncate">
+                          {u.email}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground/70">
+                          {u.last_login_at
+                            ? `최근 로그인: ${new Date(u.last_login_at).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
+                            : "로그인 기록 없음"}
+                        </p>
                       </div>
                     </div>
 

@@ -11,7 +11,7 @@ export async function GET() {
 
   // Check admin
   const { data: caller } = await supabase
-    .from("user_roles")
+    .from("user_profiles")
     .select("role")
     .eq("user_id", user.id)
     .single();
@@ -21,7 +21,7 @@ export async function GET() {
   }
 
   const { data, error } = await supabase
-    .from("user_roles")
+    .from("user_profiles")
     .select("*")
     .order("created_at", { ascending: true });
 
@@ -41,7 +41,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const { data: caller } = await supabase
-    .from("user_roles")
+    .from("user_profiles")
     .select("role")
     .eq("user_id", user.id)
     .single();
@@ -63,7 +63,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const { error } = await supabase
-    .from("user_roles")
+    .from("user_profiles")
     .update({ role, updated_at: new Date().toISOString() })
     .eq("user_id", userId);
 
