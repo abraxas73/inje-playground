@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Send, ChevronDown, ChevronUp, BookOpen } from "lucide-react";
+import { Loader2, Send, BookOpen } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import type { NlmNotebook, ChatMessage, Citation } from "@/types/guide";
+import CitationsSection from "@/components/guide/CitationsSection";
+import type { NlmNotebook, ChatMessage } from "@/types/guide";
 
 interface ChatPanelProps {
   notebook: NlmNotebook;
@@ -279,64 +279,3 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   );
 }
 
-function CitationsSection({ citations }: { citations: Citation[] }) {
-  const [expanded, setExpanded] = useState(false);
-
-  // Filter out empty/meaningless citations and deduplicate
-  const filtered = citations.filter((cite) => {
-    const text = (cite.cited_text ?? "").trim();
-    if (!text || text.length < 5) return false;
-    // Skip entries that are just "출처 N" or just a number
-    if (/^(출처\s*\d*|\d+)$/.test(text)) return false;
-    return true;
-  });
-
-  // Deduplicate by cited_text
-  const seen = new Set<string>();
-  const unique = filtered.filter((cite) => {
-    const key = cite.cited_text.trim();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  if (unique.length === 0) return null;
-
-  return (
-    <div className="mt-2 pt-2 border-t border-border/40">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <BookOpen className="h-3 w-3" />
-        <span>참고 자료 ({unique.length})</span>
-        {expanded ? (
-          <ChevronUp className="h-3 w-3" />
-        ) : (
-          <ChevronDown className="h-3 w-3" />
-        )}
-      </button>
-
-      {expanded && (
-        <div className="mt-2 space-y-2">
-          {unique.map((cite, idx) => (
-            <div
-              key={`${cite.source_id}-${idx}`}
-              className="text-xs bg-background/60 rounded-lg p-2 space-y-1"
-            >
-              <Badge
-                variant="outline"
-                className="text-[10px] font-mono"
-              >
-                출처 {idx + 1}
-              </Badge>
-              <p className="text-muted-foreground leading-relaxed">
-                {cite.cited_text}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
