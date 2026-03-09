@@ -24,6 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import CitationsSection from "@/components/guide/CitationsSection";
 import type { ChatMessage } from "@/types/guide";
 
@@ -314,9 +315,9 @@ export default function AdminChatHistoryPage() {
                           <p className="text-xs font-medium text-muted-foreground mb-1.5">
                             AI 응답
                           </p>
-                          <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                            {answer.content}
-                          </p>
+                          <div className="text-sm break-words leading-relaxed prose prose-sm prose-neutral dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2 prose-strong:text-foreground">
+                            <ReactMarkdown>{answer.content}</ReactMarkdown>
+                          </div>
                           {answer.citations && answer.citations.length > 0 && (
                             <CitationsSection citations={answer.citations} />
                           )}
