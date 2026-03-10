@@ -86,6 +86,7 @@ export default function SourceManager({ notebook, noDelete }: SourceManagerProps
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [addingFile, setAddingFile] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
+  const [shutdownStatus, setShutdownStatus] = useState<string | null>(null);
 
   const fetchSources = useCallback(async () => {
     try {
@@ -106,6 +107,24 @@ export default function SourceManager({ notebook, noDelete }: SourceManagerProps
     fetchSources();
   }, [fetchSources]);
 
+  /** 소스 추가 완료 후 NLM 서비스 머신 자동 중지 */
+  async function shutdownNlmService() {
+    try {
+      setShutdownStatus("NLM 서비스 종료 중...");
+      const res = await fetch("/api/guide/nlm/shutdown", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setShutdownStatus(`NLM 서비스 종료 완료: ${data.message}`);
+      } else {
+        setShutdownStatus(`종료 실패: ${data.error}`);
+      }
+    } catch {
+      setShutdownStatus("NLM 서비스 종료 요청 실패");
+    }
+    // 5초 후 상태 메시지 제거
+    setTimeout(() => setShutdownStatus(null), 5000);
+  }
+
   async function handleAddText() {
     if (!textTitle.trim() || !textContent.trim()) return;
     setAddingText(true);
@@ -124,6 +143,7 @@ export default function SourceManager({ notebook, noDelete }: SourceManagerProps
       setTextContent("");
       setTextOpen(false);
       await fetchSources();
+      shutdownNlmService();
     } catch (err) {
       alert(err instanceof Error ? err.message : "오류가 발생했습니다.");
     } finally {
@@ -149,6 +169,7 @@ export default function SourceManager({ notebook, noDelete }: SourceManagerProps
       setUrlTitle("");
       setUrlOpen(false);
       await fetchSources();
+      shutdownNlmService();
     } catch (err) {
       alert(err instanceof Error ? err.message : "오류가 발생했습니다.");
     } finally {
@@ -203,6 +224,7 @@ export default function SourceManager({ notebook, noDelete }: SourceManagerProps
       setUploadProgress("");
       setFileOpen(false);
       await fetchSources();
+      shutdownNlmService();
     } catch (err) {
       alert(err instanceof Error ? err.message : "오류가 발생했습니다.");
     } finally {
@@ -432,6 +454,11 @@ export default function SourceManager({ notebook, noDelete }: SourceManagerProps
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {shutdownStatus && (
+          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+            {shutdownStatus}
+          </div>
+        )}
         {error && (
           <p className="text-sm text-destructive mb-4">{error}</p>
         )}
