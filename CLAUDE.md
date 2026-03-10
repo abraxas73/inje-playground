@@ -78,6 +78,7 @@ No test framework is configured.
 - `/food` — Restaurant/cafe finder with Kakao Maps integration + PAYCO 식권 가맹점 검색
 - `/guide` — Guide Q&A: AI-powered Q&A on company guidelines via NotebookLM. Visible notebooks displayed as tabs.
 - `/guide/admin` — Admin: notebook/source management, visibility toggle, sort order (superOnly)
+- `/admin/chat-history` — Admin: all users' guide Q&A history viewer with filters
 - `/settings` — Dooray API token and project ID configuration (stored in localStorage)
 - `/manual` — User manual with Playwright-captured screenshots (8 sections)
 
@@ -90,6 +91,8 @@ No test framework is configured.
 - `/api/guide/chat/history` — GET per-user chat history from Supabase
 - `/api/guide/auth/status` — GET NLM authentication status proxy
 - `/api/guide/notebooks/[id]/sources/download` — GET signed URL for source file download
+- `/api/guide/nlm/shutdown` — POST stop NLM fly.io machine via Machines API (admin only)
+- `/api/admin/chat-history` — GET all users' chat history with filters/pagination (admin only)
 - `POST /api/food/payco` — Proxies bizplus.payco.com for PAYCO 식권 merchant search
 
 ### Supabase Tables (guide feature)
@@ -105,8 +108,12 @@ No test framework is configured.
 
 **Guide Q&A**: Frontend proxies to FastAPI nlm-service via `nlmFetch()` helper (`frontend/src/lib/nlm-service.ts`). Notebook metadata and chat history stored in Supabase. NLM service handles NotebookLM API calls. Admin manages notebooks/sources, controls visibility for user page.
 
+**NLM auto-shutdown**: Source upload triggers automatic fly.io machine stop via Machines API. `auto_stop_machines = 'stop'` in fly.toml as safety net. `auto_start_machines = true` restarts on next request.
+
 **Environment Variables**:
 - `NLM_SERVICE_URL` — NLM service endpoint (default: `http://localhost:8090`, prod: `https://inje-nlm-service.fly.dev`)
+- `FLY_API_TOKEN` — Fly.io API token for machine stop/start (Vercel env)
+- `FLY_APP_NAME` — Fly app name (default: `inje-nlm-service`)
 
 ### Directory Layout (frontend/src/)
 - `components/` — Organized by feature: `ladder/`, `team/`, `food/`, `guide/`, `settings/`, `shared/`, `layout/`
