@@ -66,7 +66,7 @@ export default function Navigation() {
     router.push("/login");
   };
 
-  if (pathname === "/login") return null;
+  if (pathname === "/login" || pathname === "/privacy") return null;
 
   const visibleItems = NAV_ITEMS.filter((item) => hasMinRole(role, item.minRole));
   const mobileItems = visibleItems.filter((item) => item.minRole !== "admin");

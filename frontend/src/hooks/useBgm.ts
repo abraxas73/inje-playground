@@ -13,6 +13,7 @@ export function useBgm() {
   const gainRef = useRef<GainNode | null>(null);
   const stopRef = useRef<(() => void) | null>(null);
   const loopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isPlayingRef = useRef(false);
 
   const getAudioContext = useCallback(() => {
     if (!ctxRef.current) {
@@ -67,8 +68,6 @@ export function useBgm() {
     setIsPlaying(true);
     scheduleLoop();
   }, [getAudioContext, preset, volume]);
-
-  const isPlayingRef = useRef(false);
 
   const stop = useCallback(() => {
     isPlayingRef.current = false;

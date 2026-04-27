@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
       created_at: q.created_at,
     }));
 
-    let answers: Record<string, typeof questions> = {};
+    const answers: Record<string, typeof questions> = {};
 
     if (questions && questions.length > 0) {
       // Get assistant messages that follow each user message
@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
     const notebookIds = [
       ...new Set((questions || []).map((q) => q.notebook_id)),
     ];
-    let notebooks: Record<string, string> = {};
+    const notebooks: Record<string, string> = {};
     if (notebookIds.length > 0) {
       const { data: nbData } = await supabase
         .from("nlm_notebooks")

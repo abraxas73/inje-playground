@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import LadderCanvas from "./LadderCanvas";
 import { rebuildLadder } from "@/lib/ladder";
-import type { LadderData, LadderResult, LadderMapping } from "@/types/ladder";
+import type { LadderResult, LadderMapping } from "@/types/ladder";
 import { logAction } from "@/lib/action-log";
 
 interface LadderSession {
@@ -280,23 +280,15 @@ function SessionTitleEditor({
 }
 
 function HistoryLadderView({ session }: { session: LadderSession }) {
-  const [ladder, setLadder] = useState<LadderData | null>(null);
-  const [key, setKey] = useState(0);
+  const [redrawKey, setRedrawKey] = useState(0);
 
-  // Auto-build ladder from saved data on mount
-  useEffect(() => {
-    const built = rebuildLadder(session.participants, session.results, session.bridges);
-    setLadder(built);
-  }, [session]);
+  const ladder = useMemo(
+    () => rebuildLadder(session.participants, session.results, session.bridges),
+    [session]
+  );
 
   const handleRedraw = () => {
-    // Re-generate with same participants/results but new bridges
-    setLadder(null);
-    setKey((k) => k + 1);
-    setTimeout(() => {
-      const built = rebuildLadder(session.participants, session.results, session.bridges);
-      setLadder(built);
-    }, 50);
+    setRedrawKey((k) => k + 1);
   };
 
   return (
@@ -307,16 +299,14 @@ function HistoryLadderView({ session }: { session: LadderSession }) {
           다시 그리기
         </Button>
       </div>
-      {ladder && (
-        <LadderCanvas
-          key={key}
-          participants={session.participants}
-          results={session.results}
-          bridgeDensity={session.bridge_density}
-          initialLadder={ladder}
-          showControls={false}
-        />
-      )}
+      <LadderCanvas
+        key={redrawKey}
+        participants={session.participants}
+        results={session.results}
+        bridgeDensity={session.bridge_density}
+        initialLadder={ladder}
+        showControls={false}
+      />
     </div>
   );
 }

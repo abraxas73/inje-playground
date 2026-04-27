@@ -1,36 +1,55 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
+
+function safeRead(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function parse<T>(raw: string | null, fallback: T): T {
+  if (raw === null) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
 
 export function useLocalStorage<T>(key: string, initialValue: T) {
-  const [storedValue, setStoredValue] = useState<T>(initialValue);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const subscribe = useCallback(
+    (callback: () => void) => {
+      const handler = (event: StorageEvent) => {
+        if (event.key === key || event.key === null) callback();
+      };
+      window.addEventListener("storage", handler);
+      return () => window.removeEventListener("storage", handler);
+    },
+    [key]
+  );
 
-  useEffect(() => {
-    try {
-      const item = window.localStorage.getItem(key);
-      if (item) {
-        setStoredValue(JSON.parse(item));
-      }
-    } catch {
-      // localStorage not available
-    }
-    setIsLoaded(true);
-  }, [key]);
+  const getSnapshot = useCallback(() => safeRead(key), [key]);
+  const getServerSnapshot = () => null;
+
+  const raw = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const storedValue = parse(raw, initialValue);
+  const isLoaded = raw !== null || (typeof window !== "undefined" && raw === null);
 
   const setValue = useCallback(
     (value: T | ((val: T) => T)) => {
-      setStoredValue((prev) => {
-        const newValue = value instanceof Function ? value(prev) : value;
-        try {
-          window.localStorage.setItem(key, JSON.stringify(newValue));
-        } catch {
-          // localStorage not available
-        }
-        return newValue;
-      });
+      const prev = parse(safeRead(key), initialValue);
+      const newValue = value instanceof Function ? value(prev) : value;
+      try {
+        window.localStorage.setItem(key, JSON.stringify(newValue));
+        window.dispatchEvent(new StorageEvent("storage", { key }));
+      } catch {
+        // localStorage not available
+      }
     },
-    [key]
+    [key, initialValue]
   );
 
   return [storedValue, setValue, isLoaded] as const;

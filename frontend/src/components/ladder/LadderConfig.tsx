@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type KeyboardEvent } from "react";
+import { useState, useRef, type KeyboardEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -164,16 +164,23 @@ function LoadResultsDialog({ onSelect }: { onSelect: (results: LadderResult[]) =
   const [open, setOpen] = useState(false);
   const [sessions, setSessions] = useState<HistorySession[]>([]);
   const [loading, setLoading] = useState(false);
+  const fetchTokenRef = useRef(0);
 
-  useEffect(() => {
-    if (!open) return;
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) return;
+    const token = ++fetchTokenRef.current;
     setLoading(true);
     fetch("/api/ladder-sessions")
       .then((res) => res.json())
-      .then((data) => setSessions(data))
+      .then((data) => {
+        if (token === fetchTokenRef.current) setSessions(data);
+      })
       .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [open]);
+      .finally(() => {
+        if (token === fetchTokenRef.current) setLoading(false);
+      });
+  };
 
   const handleSelect = (results: LadderResult[]) => {
     onSelect(results);
@@ -198,7 +205,7 @@ function LoadResultsDialog({ onSelect }: { onSelect: (results: LadderResult[]) =
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="text-xs gap-1">
           <FolderOpen className="h-3 w-3" />

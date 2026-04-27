@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { logAction } from "@/lib/action-log";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center dot-grid px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center dot-grid px-4">
       <Card className="w-full max-w-sm animate-fade-up">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4">
@@ -55,6 +56,11 @@ export default function LoginPage() {
           </Button>
         </CardContent>
       </Card>
+      <p className="mt-6 text-xs text-muted-foreground">
+        <Link href="/privacy" className="hover:text-foreground hover:underline">
+          개인정보처리방침
+        </Link>
+      </p>
     </div>
   );
 }
