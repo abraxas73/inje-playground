@@ -52,12 +52,13 @@ export async function POST(
       if (msg.includes("survey_not_open")) {
         return NextResponse.json({ error: "현재 응답할 수 없는 설문입니다." }, { status: 409 });
       }
-      return NextResponse.json({ error: msg || "제출에 실패했습니다." }, { status: 500 });
+      console.error("[survey/responses] RPC error:", msg);
+      return NextResponse.json({ error: "제출에 실패했습니다." }, { status: 500 });
     }
 
     return NextResponse.json({ response_id: responseId as string });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "제출에 실패했습니다.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[survey/responses] Unexpected error:", err);
+    return NextResponse.json({ error: "제출에 실패했습니다." }, { status: 500 });
   }
 }
