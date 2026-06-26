@@ -51,6 +51,9 @@ export default function QuestionRenderer({
             disabled={disabled}
           />
         );
+      default:
+        value satisfies never;
+        return null;
     }
   }
 
