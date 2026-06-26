@@ -18,7 +18,8 @@ export async function POST(
       .maybeSingle<Pick<Survey, "id" | "access_mode" | "status">>();
 
     if (sError) {
-      return NextResponse.json({ error: sError.message }, { status: 500 });
+      console.error("[survey/responses] survey lookup error:", sError);
+      return NextResponse.json({ error: "제출에 실패했습니다." }, { status: 500 });
     }
     if (!survey) {
       return NextResponse.json({ error: "설문을 찾을 수 없습니다." }, { status: 410 });
