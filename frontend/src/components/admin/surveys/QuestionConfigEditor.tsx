@@ -29,8 +29,61 @@ export default function QuestionConfigEditor({
   const options: QuestionOption[] = config.options ?? [];
   const setOptions = (next: QuestionOption[]) => onChange({ ...config, options: next });
 
-  const numOrUndef = (raw: string): number | undefined =>
-    raw === "" ? undefined : Number(raw);
+  const numOrUndef = (raw: string): number | undefined => {
+    const t = raw.trim();
+    return t === "" ? undefined : Number(t);
+  };
+
+  const midpoints: Record<string, number> = config.option_midpoints ?? {};
+
+  // option_midpoints는 입력된 옵션 value만 키로 보유. 비면 키 생략(undefined).
+  const commitMidpoints = (next: Record<string, number>, options?: QuestionOption[]) => {
+    const cleaned = Object.keys(next).length > 0 ? next : undefined;
+    onChange({
+      ...config,
+      ...(options ? { options } : {}),
+      option_midpoints: cleaned,
+    });
+  };
+
+  // 옵션 value 변경 시 해당 midpoint 키도 함께 이전(orphan 방지).
+  const setOptionValue = (idx: number, newValue: string) => {
+    const oldValue = options[idx].value;
+    const next = [...options];
+    next[idx] = { ...next[idx], value: newValue };
+    if (oldValue !== newValue && midpoints[oldValue] !== undefined) {
+      const nextMid = { ...midpoints };
+      nextMid[newValue] = nextMid[oldValue];
+      delete nextMid[oldValue];
+      commitMidpoints(nextMid, next);
+    } else {
+      setOptions(next);
+    }
+  };
+
+  const setOptionMidpoint = (optValue: string, raw: string) => {
+    const t = raw.trim();
+    const mid = t === "" ? undefined : Number(t);
+    const nextMid = { ...midpoints };
+    if (mid === undefined || Number.isNaN(mid)) {
+      delete nextMid[optValue];
+    } else {
+      nextMid[optValue] = mid;
+    }
+    commitMidpoints(nextMid);
+  };
+
+  const removeOption = (idx: number) => {
+    const removed = options[idx].value;
+    const next = options.filter((_, i) => i !== idx);
+    if (midpoints[removed] !== undefined) {
+      const nextMid = { ...midpoints };
+      delete nextMid[removed];
+      commitMidpoints(nextMid, next);
+    } else {
+      setOptions(next);
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -42,13 +95,9 @@ export default function QuestionConfigEditor({
             <div key={idx} className="flex items-center gap-2">
               <Input
                 value={opt.value}
-                onChange={(e) => {
-                  const next = [...options];
-                  next[idx] = { ...next[idx], value: e.target.value };
-                  setOptions(next);
-                }}
+                onChange={(e) => setOptionValue(idx, e.target.value)}
                 placeholder="value"
-                className="h-8 w-28 font-mono text-xs"
+                className="h-8 w-24 font-mono text-xs"
               />
               <Input
                 value={opt.label}
@@ -60,12 +109,20 @@ export default function QuestionConfigEditor({
                 placeholder="표시 라벨"
                 className="h-8 flex-1 text-sm"
               />
+              <Input
+                type="number"
+                value={midpoints[opt.value] ?? ""}
+                onChange={(e) => setOptionMidpoint(opt.value, e.target.value)}
+                placeholder="중앙값"
+                title="순서형 가중 분석용 중앙값 (선택)"
+                className="h-8 w-20 text-sm"
+              />
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 className="h-8 w-8 p-0"
-                onClick={() => setOptions(options.filter((_, i) => i !== idx))}
+                onClick={() => removeOption(idx)}
               >
                 <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
               </Button>
