@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase-server";
 import type { SurveyAccessMode } from "@/types/survey";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
+const VALID_ACCESS_MODES: SurveyAccessMode[] = ["public", "authenticated"];
 
 /** GET /api/admin/surveys — 설문 목록 + 응답 카운트 (admin only) */
 export async function GET(request: NextRequest) {
@@ -98,8 +99,7 @@ export async function POST(request: NextRequest) {
     const slug = String(body.slug ?? "").trim();
     const title = String(body.title ?? "").trim();
     const description: string | null = body.description ? String(body.description) : null;
-    const accessMode: SurveyAccessMode =
-      body.access_mode === "public" ? "public" : "authenticated";
+    const accessMode: SurveyAccessMode = body.access_mode ?? "authenticated";
     const isAnonymous: boolean = body.is_anonymous === true;
 
     if (!slug || !SLUG_RE.test(slug)) {
@@ -110,6 +110,12 @@ export async function POST(request: NextRequest) {
     }
     if (!title) {
       return NextResponse.json({ error: "title은 필수입니다." }, { status: 400 });
+    }
+    if (!VALID_ACCESS_MODES.includes(accessMode)) {
+      return NextResponse.json(
+        { error: "access_mode은 'public' 또는 'authenticated'만 허용됩니다." },
+        { status: 400 }
+      );
     }
 
     const { data: existing } = await supabase
