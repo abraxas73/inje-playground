@@ -14,9 +14,9 @@ export interface UserRoleInfo {
 
 /** Pages accessible by each role */
 const ROLE_ACCESS: Record<UserRole, string[]> = {
-  guest: ["/food", "/ladder", "/team"],
-  user: ["/food", "/ladder", "/team", "/guide"],
-  admin: ["/food", "/ladder", "/team", "/guide", "/admin"],
+  guest: ["/food", "/ladder", "/team", "/survey"],
+  user: ["/food", "/ladder", "/team", "/guide", "/survey"],
+  admin: ["/food", "/ladder", "/team", "/guide", "/survey", "/admin"],
 };
 
 export function canAccess(role: UserRole, pathname: string): boolean {

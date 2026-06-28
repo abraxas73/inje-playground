@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Dice5, Users, ArrowRight, UtensilsCrossed, HelpCircle, Shield, Coffee } from "lucide-react";
+import { Dice5, Users, ArrowRight, UtensilsCrossed, HelpCircle, Shield, Coffee, ClipboardList } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { canAccess } from "@/lib/roles";
 
@@ -46,6 +46,16 @@ const FEATURES = [
     bgAccent: "bg-sky-50",
     iconColor: "text-sky-600",
     delay: "delay-[400ms]",
+  },
+  {
+    href: "/survey",
+    title: "설문 참여",
+    description: "진행 중인 사내 설문에 참여하고 의견을 들려주세요.",
+    icon: ClipboardList,
+    gradient: "from-emerald-500 to-teal-600",
+    bgAccent: "bg-emerald-50",
+    iconColor: "text-emerald-600",
+    delay: "delay-[450ms]",
   },
   {
     href: "/admin",

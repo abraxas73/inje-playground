@@ -40,13 +40,14 @@ export async function updateSession(request: NextRequest) {
 
     const pathname = request.nextUrl.pathname;
 
-    // 로그인 안 된 경우 /login으로 리다이렉트 (API, login, privacy 등 공개 페이지 제외)
+    // 로그인 안 된 경우 /login으로 리다이렉트 (API, login, privacy, survey 등 공개 페이지 제외)
     if (
       !user &&
       !pathname.startsWith("/login") &&
       !pathname.startsWith("/auth") &&
       !pathname.startsWith("/api") &&
-      !pathname.startsWith("/privacy")
+      !pathname.startsWith("/privacy") &&
+      !pathname.startsWith("/survey")
     ) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
