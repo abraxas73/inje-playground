@@ -105,10 +105,20 @@ export async function POST(
       orderIndex = last ? Number(last.order_index) + 1 : 0;
     }
 
-    const config =
-      body.config && typeof body.config === "object"
-        ? body.config
-        : default_config_for(type);
+    const rawConfig =
+      body.config && typeof body.config === "object" && !Array.isArray(body.config)
+        ? (body.config as Record<string, unknown>)
+        : {};
+    // 최상위 키 snake_case 강제 — camelCase/대문자 포함 키 거부(분석 무결성)
+    const badKeys = Object.keys(rawConfig).filter((k) => /[A-Z]/.test(k));
+    if (badKeys.length > 0) {
+      return NextResponse.json(
+        { error: `config 키는 snake_case만 허용됩니다: ${badKeys.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    // default 위에 client config를 머지 → 누락 키 방지 + default 보장
+    const config = { ...default_config_for(type), ...rawConfig };
 
     const { data, error } = await supabase
       .from("survey_questions")
