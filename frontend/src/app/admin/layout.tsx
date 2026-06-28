@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Shield, Users, Settings, HelpCircle, MessageSquare, Loader2, ShieldAlert } from "lucide-react";
+import { Shield, Users, Settings, HelpCircle, MessageSquare, Loader2, ShieldAlert, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -12,6 +12,7 @@ const ADMIN_NAV = [
   { href: "/admin/settings", label: "시스템 설정", icon: Settings },
   { href: "/admin/guide", label: "가이드 관리", icon: HelpCircle },
   { href: "/admin/chat-history", label: "질의/응답 관리", icon: MessageSquare },
+  { href: "/admin/surveys", label: "설문 관리", icon: ClipboardList },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
