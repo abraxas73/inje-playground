@@ -113,7 +113,7 @@ export default function SurveyBuilder({
         )}
       </div>
 
-      <div className="rounded-lg border bg-muted/20 p-3">
+      <div className="rounded-lg border bg-muted/20 p-3" data-testid="question-add-area">
         <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Plus className="h-3.5 w-3.5" />
           문항 추가
