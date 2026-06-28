@@ -123,7 +123,10 @@ export default function SurveyForm({ survey, isAuthenticated, onSubmitted }: Sur
   if (duplicate) {
     return (
       <Card>
-        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+        <CardContent
+          className="flex flex-col items-center gap-3 py-12 text-center"
+          data-testid="survey-duplicate"
+        >
           <CheckCircle2 className="h-10 w-10 text-emerald-500" />
           <p className="text-sm font-medium">이미 제출한 설문입니다.</p>
           <p className="text-xs text-muted-foreground">소중한 응답에 감사드립니다.</p>
@@ -135,7 +138,10 @@ export default function SurveyForm({ survey, isAuthenticated, onSubmitted }: Sur
   if (done) {
     return (
       <Card>
-        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+        <CardContent
+          className="flex flex-col items-center gap-3 py-12 text-center"
+          data-testid="survey-complete"
+        >
           <CheckCircle2 className="h-10 w-10 text-emerald-500" />
           <p className="text-sm font-medium">응답이 제출되었습니다.</p>
           <p className="text-xs text-muted-foreground">참여해 주셔서 감사합니다.</p>

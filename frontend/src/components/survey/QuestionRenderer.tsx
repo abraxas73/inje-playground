@@ -58,7 +58,7 @@ export default function QuestionRenderer({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2" data-testid="question-container">
       <div>
         <p className="text-sm font-medium">
           {question.title}
@@ -69,7 +69,11 @@ export default function QuestionRenderer({
         )}
       </div>
       {body()}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && (
+        <p className="text-xs text-destructive" data-testid="field-error">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

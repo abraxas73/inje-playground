@@ -5,6 +5,9 @@ const STORAGE = process.env.SURVEY_E2E_STORAGE_STATE;
 const SLUG = process.env.SURVEY_E2E_SLUG ?? "claude-code-productivity";
 const hasAuth = !!STORAGE && fs.existsSync(STORAGE);
 
+// 제출-보정 루프 상한: 25문항 설문에서 문항별 1회 보정 + 여유분.
+const MAX_CORRECTION_ATTEMPTS = 40;
+
 test.describe("설문 응답 플로우", () => {
   test.skip(!hasAuth, "SURVEY_E2E_STORAGE_STATE(로그인 storageState)가 필요합니다.");
   test.use({ storageState: hasAuth ? STORAGE : undefined });
@@ -20,25 +23,36 @@ test.describe("설문 응답 플로우", () => {
       await numberInputs.nth(i).fill("3");
     }
 
-    // 제출 시도 → 표시된 첫 검증 에러(p.text-xs.text-destructive) 문항의
+    const complete = page.getByTestId("survey-complete");
+    const duplicate = page.getByTestId("survey-duplicate");
+    const fieldError = page.getByTestId("field-error");
+
+    // 제출 시도 → 표시된 첫 검증 에러(field-error) 문항의
     // 첫·마지막 선택 버튼을 클릭해 결정적으로 보정하는 단일 루프.
     // (pre_post는 first=before행 첫 버튼, last=after행 마지막 버튼으로 양쪽 충족)
-    for (let attempt = 0; attempt < 40; attempt++) {
-      const completed = await page.getByText("응답이 제출되었습니다.").isVisible().catch(() => false);
-      const duplicated = await page.getByText("이미 제출한 설문입니다.").isVisible().catch(() => false);
-      if (completed || duplicated) break;
+    for (let attempt = 0; attempt < MAX_CORRECTION_ATTEMPTS; attempt++) {
+      if (await complete.isVisible()) break;
+      if (await duplicate.isVisible()) break;
 
       await page.getByTestId("survey-submit").click();
-      await page.waitForTimeout(250);
+      // 하드코딩 sleep 대신 web-first assertion: 완료/중복/검증에러 중
+      // 하나가 보일 때까지 Playwright가 auto-retry.
+      await expect(
+        page
+          .locator(
+            "[data-testid='field-error'], [data-testid='survey-complete'], [data-testid='survey-duplicate']",
+          )
+          .first(),
+      ).toBeVisible({ timeout: 5_000 });
 
-      const completedNow = await page.getByText("응답이 제출되었습니다.").isVisible().catch(() => false);
-      const duplicatedNow = await page.getByText("이미 제출한 설문입니다.").isVisible().catch(() => false);
-      if (completedNow || duplicatedNow) break;
+      if (await complete.isVisible()) break;
+      if (await duplicate.isVisible()) break;
 
-      const firstError = page.locator("p.text-xs.text-destructive").first();
-      if (!(await firstError.isVisible().catch(() => false))) continue;
+      const firstError = fieldError.first();
+      if (!(await firstError.isVisible())) continue;
 
-      const container = firstError.locator("xpath=..");
+      // 첫 에러를 포함한 질문 컨테이너 = DOM 순서상 첫 에러 보유 컨테이너.
+      const container = page.getByTestId("question-container").filter({ has: fieldError }).first();
       const optButtons = container.locator("button");
       const count = await optButtons.count();
       if (count > 0) {
@@ -47,16 +61,24 @@ test.describe("설문 응답 플로우", () => {
       }
     }
 
-    const completed = await page.getByText("응답이 제출되었습니다.").isVisible().catch(() => false);
-    const duplicated = await page.getByText("이미 제출한 설문입니다.").isVisible().catch(() => false);
-    expect(completed || duplicated).toBeTruthy();
+    // first-submission 완료 경로를 강제 검증한다.
+    // 기존 응답이 있으면(테스트 user가 이미 제출) 중복 화면만 검증한다.
+    if (await duplicate.isVisible()) {
+      test.info().annotations.push({
+        type: "note",
+        description: "이미 제출됨 — 재진입 차단만 검증",
+      });
+    } else {
+      await expect(complete).toBeVisible();
+    }
 
     // 재진입 → 제출 → 중복 차단
     await page.goto(`/survey/${SLUG}`);
     const submitBtn = page.getByTestId("survey-submit");
-    if (await submitBtn.isVisible().catch(() => false)) {
+    if (await submitBtn.isVisible()) {
       await submitBtn.click();
     }
-    await expect(page.getByText("이미 제출한 설문입니다.")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("survey-duplicate")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("이미 제출한 설문입니다.")).toBeVisible();
   });
 });
