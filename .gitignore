@@ -26,3 +26,8 @@ nlm-service/__pycache__/
 nlm-service/*.pyc
 nlm-service/storage_state.json
 nlm-service/.venv/
+
+# Playwright auth state
+frontend/e2e/.auth/*.json
+frontend/test-results/
+frontend/playwright-report/
