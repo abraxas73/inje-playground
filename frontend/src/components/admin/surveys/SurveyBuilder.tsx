@@ -70,6 +70,7 @@ export default function SurveyBuilder({
               key={q.id}
               draggable
               onDragStart={() => setDragId(q.id)}
+              onDragEnd={() => setDragId(null)}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => handleDrop(q.id)}
               className={`flex items-stretch gap-1 ${dragId === q.id ? "opacity-50" : ""}`}
