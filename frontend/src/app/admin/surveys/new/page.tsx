@@ -75,6 +75,7 @@ export default function NewSurveyPage() {
             <Label htmlFor="title">제목</Label>
             <Input
               id="title"
+              required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="예: Claude Code 생산성 설문"
@@ -85,13 +86,15 @@ export default function NewSurveyPage() {
             <Label htmlFor="slug">slug (URL 경로)</Label>
             <Input
               id="slug"
+              required
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
               placeholder="claude-code-productivity"
               className="font-mono"
             />
             <p className="text-xs text-muted-foreground">
-              영소문자·숫자·하이픈만. 응답 URL은 /survey/{slug || "<slug>"} 입니다.
+              영소문자·숫자·하이픈만. 첫 글자는 영소문자 또는 숫자여야 합니다. 응답
+              URL은 /survey/{slug || "<slug>"} 입니다.
             </p>
           </div>
 
@@ -137,11 +140,13 @@ export default function NewSurveyPage() {
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <div className="flex justify-end gap-2 pt-2">
-            <Link href="/admin/surveys">
-              <Button variant="outline" disabled={saving}>
-                취소
-              </Button>
-            </Link>
+            <Button
+              variant="outline"
+              disabled={saving}
+              onClick={() => !saving && router.push("/admin/surveys")}
+            >
+              취소
+            </Button>
             <Button
               onClick={handleCreate}
               disabled={saving || !slug.trim() || !title.trim()}
