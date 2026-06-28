@@ -111,8 +111,15 @@ export async function PATCH(
     if (body.title !== undefined) updates.title = String(body.title);
     if (body.description !== undefined)
       updates.description = body.description ? String(body.description) : null;
-    if (body.access_mode !== undefined)
-      updates.access_mode = body.access_mode === "public" ? "public" : "authenticated";
+    if (body.access_mode !== undefined) {
+      if (body.access_mode !== "public" && body.access_mode !== "authenticated") {
+        return NextResponse.json(
+          { error: "access_mode은 'public' 또는 'authenticated'만 허용됩니다." },
+          { status: 400 }
+        );
+      }
+      updates.access_mode = body.access_mode;
+    }
     if (body.is_anonymous !== undefined) updates.is_anonymous = body.is_anonymous === true;
     if (body.opens_at !== undefined) updates.opens_at = body.opens_at || null;
     if (body.closes_at !== undefined) updates.closes_at = body.closes_at || null;
@@ -184,10 +191,17 @@ export async function DELETE(
     const gate = await requireAdmin(supabase);
     if (!gate.ok) return gate.response;
 
-    const { error } = await supabase.from("surveys").delete().eq("id", id);
+    const { data: deleted, error } = await supabase
+      .from("surveys")
+      .delete()
+      .eq("id", id)
+      .select("id");
     if (error) {
       console.error("[DELETE /api/admin/surveys/[id]] delete error:", error);
       return NextResponse.json({ error: "설문 삭제에 실패했습니다." }, { status: 500 });
+    }
+    if (!deleted || deleted.length === 0) {
+      return NextResponse.json({ error: "설문을 찾을 수 없습니다." }, { status: 404 });
     }
 
     return NextResponse.json({ ok: true });
