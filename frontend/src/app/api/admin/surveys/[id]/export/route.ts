@@ -53,6 +53,13 @@ export async function GET(
       );
     }
 
+    if (!["raw", "aggregate", "all"].includes(scope)) {
+      return NextResponse.json(
+        { error: "scope는 raw, aggregate, all 중 하나여야 합니다." },
+        { status: 400 }
+      );
+    }
+
     const { data: survey, error: sErr } = await supabase
       .from("surveys")
       .select("slug, title")
@@ -76,15 +83,24 @@ export async function GET(
     let aggCsv: string | null = null;
 
     if (scope === "raw" || scope === "all") {
+      // 식별정보(PII)는 includeIdentity=true일 때만 DB에서 가져온다.
+      const responseSelect = includeIdentity
+        ? "id, submitted_at, is_complete, respondent_user_id, respondent_hash"
+        : "id, submitted_at, is_complete";
       const { data: responses } = await supabase
         .from("survey_responses")
-        .select(
-          "id, submitted_at, is_complete, respondent_user_id, respondent_hash"
-        )
+        .select(responseSelect)
         .eq("survey_id", id)
         .eq("is_complete", true)
         .order("submitted_at", { ascending: true });
-      const respRows = responses ?? [];
+      // 동적 select 문자열이라 PostgREST 타입 추론이 ParserError를 내므로 명시 타입으로 단언한다.
+      const respRows = (responses ?? []) as unknown as Array<{
+        id: string;
+        submitted_at: string | null;
+        is_complete: boolean;
+        respondent_user_id?: string | null;
+        respondent_hash?: string | null;
+      }>;
       const respIds = respRows.map((r) => r.id);
 
       const answersByResp: Record<string, RawExportResponse["answers"]> = {};
@@ -106,8 +122,12 @@ export async function GET(
         id: r.id,
         submitted_at: r.submitted_at,
         is_complete: r.is_complete,
-        respondent_user_id: r.respondent_user_id,
-        respondent_hash: r.respondent_hash,
+        ...(includeIdentity
+          ? {
+              respondent_user_id: r.respondent_user_id ?? null,
+              respondent_hash: r.respondent_hash ?? null,
+            }
+          : {}),
         answers: answersByResp[r.id] ?? {},
       }));
 
