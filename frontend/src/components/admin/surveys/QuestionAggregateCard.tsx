@@ -15,7 +15,7 @@ export interface QuestionAggregateCardProps {
 
 export default function QuestionAggregateCard({ aggregate, populationLabel }: QuestionAggregateCardProps) {
   return (
-    <Card>
+    <Card data-testid="aggregate-card">
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-sm font-semibold leading-snug">{aggregate.title}</CardTitle>
