@@ -36,15 +36,22 @@ export async function GET(
     let segments: SegmentFilter[] = [];
     const raw = request.nextUrl.searchParams.get("segments");
     if (raw) {
+      let parsed: unknown;
       try {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) segments = parsed as SegmentFilter[];
+        parsed = JSON.parse(raw);
       } catch {
         return NextResponse.json(
           { error: "segments 파라미터 형식이 올바르지 않습니다." },
           { status: 400 }
         );
       }
+      if (!Array.isArray(parsed)) {
+        return NextResponse.json(
+          { error: "segments 파라미터 형식이 올바르지 않습니다." },
+          { status: 400 }
+        );
+      }
+      segments = parsed as SegmentFilter[];
     }
 
     const { data, error } = await supabase.rpc("get_survey_aggregate", {
@@ -62,6 +69,13 @@ export async function GET(
       return NextResponse.json(
         { error: "집계 조회에 실패했습니다." },
         { status: 500 }
+      );
+    }
+
+    if (data === null) {
+      return NextResponse.json(
+        { error: "설문을 찾을 수 없습니다." },
+        { status: 404 }
       );
     }
 
