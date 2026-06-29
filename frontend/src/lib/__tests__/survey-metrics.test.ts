@@ -38,6 +38,12 @@ describe("npsFromScores", () => {
     expect(r.n).toBe(0);
     expect(r.score).toBeNull();
   });
+  it("전원 추천 → NPS 100", () => {
+    expect(npsFromScores([9, 10, 9]).score).toBe(100);
+  });
+  it("전원 비추천 → NPS -100", () => {
+    expect(npsFromScores([3, 5, 6]).score).toBe(-100);
+  });
 });
 
 describe("prePostDelta", () => {
@@ -54,6 +60,11 @@ describe("prePostDelta", () => {
     expect(r.n_pairwise).toBe(0);
     expect(r.delta_mean).toBeNull();
     expect(r.improvement_pct).toBeNull();
+  });
+  it("before_mean=0이면 improvement_pct null", () => {
+    const r = prePostDelta([{ before: 0, after: 3 }]);
+    expect(r.improvement_pct).toBeNull();
+    expect(r.delta_mean).toBe(3);
   });
 });
 
@@ -79,6 +90,12 @@ describe("weightedMean", () => {
     const r = weightedMean([{ value: "a", n: 2 }, { value: "b", n: 2 }], { a: 0, b: 10 });
     expect(r.n).toBe(4);
     expect(r.mean).toBe(5);
+  });
+  it("빈 counts → mean null", () => {
+    expect(weightedMean([], { a: 5 }).mean).toBeNull();
+  });
+  it("counts에 없는 midpoints key → mean null", () => {
+    expect(weightedMean([{ value: "x", n: 3 }], { a: 5 }).mean).toBeNull();
   });
 });
 

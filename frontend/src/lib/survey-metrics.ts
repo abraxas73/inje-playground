@@ -1,3 +1,5 @@
+import type { NpsStats } from "@/types/survey";
+
 // Phase 1 범위: is_user 단일 정의만 제공한다.
 // KPI 레지스트리/순수 산식(npsFromScores 등)은 분석 대시보드 Phase에서 이 파일에 append한다.
 // 아래 isUserResponse는 단일 출처이며(중복 정의 금지) value-key 기준으로만 판정한다.
@@ -16,8 +18,6 @@ export function isUserResponse(args: {
 // Phase 3 Task 2: 순수 KPI 산식 (RPC 반환 DTO로부터 표시값 후처리)
 // isUserResponse는 위에서 이미 정의됨 — 이 섹션은 append only.
 // =====================================================================
-
-import type { NpsStats } from "@/types/survey";
 
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 
@@ -117,7 +117,7 @@ export function computeRoi(input: RoiInput): RoiResult {
 
 export type TrafficLight = "green" | "amber" | "red" | "unset";
 export function trafficLight(value: number | null, target?: number): TrafficLight {
-  if (value === null || target === undefined || target === null || target <= 0) return "unset";
+  if (value === null || target === undefined || target <= 0) return "unset";
   const ratio = value / target;
   if (ratio >= 1) return "green";
   if (ratio >= 0.8) return "amber";
