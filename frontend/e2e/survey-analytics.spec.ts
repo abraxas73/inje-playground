@@ -58,15 +58,14 @@ test.describe("분석 대시보드", () => {
     // ── 1. 대시보드 로드 ──────────────────────────────────────────────────────
     await page.goto(`/admin/surveys/${seeded.surveyId}/analytics`);
 
-    // 로딩 스피너 사라질 때까지 대기 (집계 API 응답 완료)
-    await expect(page.locator('[class*="animate-spin"]')).toHaveCount(0, { timeout: 20_000 });
-
     // ── 2. 집계 카드 렌더 확인 ────────────────────────────────────────────────
+    // 별도 spinner-wait 없이 aggregate-card toBeVisible 의 web-first auto-retry 가
+    // 로딩 완료(집계 API 응답)를 흡수한다.
     // data-testid="aggregate-card" (QuestionAggregateCard) 기준으로 확인
     // (segment filter 버튼도 "직무" 텍스트를 가지므로 testid로 구분)
     await expect(
       page.getByTestId("aggregate-card").filter({ hasText: "직무" }).first()
-    ).toBeVisible({ timeout: 15_000 });
+    ).toBeVisible({ timeout: 20_000 });
     await expect(
       page.getByTestId("aggregate-card").filter({ hasText: "생산성" }).first()
     ).toBeVisible();
@@ -74,24 +73,25 @@ test.describe("분석 대시보드", () => {
     // PrePostBars 렌더: "도입 전" 레이블 + Δ+2 배지
     // before=2, after=4 → delta_mean=2, improvement_pct=100
     await expect(page.getByText("도입 전").first()).toBeVisible();
-    // "Δ +2 (100%↑)" — regex matches substring
-    await expect(page.getByText(/Δ \+2/).first()).toBeVisible();
+    // "Δ +2 (100%↑)" — \b 경계로 +20 등 오매칭 방지
+    await expect(page.getByText(/Δ \+2\b/).first()).toBeVisible();
 
     // ── 3. 경영 요약 탭 전환 ─────────────────────────────────────────────────
     await page.getByRole("tab", { name: /경영 요약/ }).click();
 
     // KPI 카드: pre_post_overall label + display
     await expect(page.getByText("도입 전후 개선 Δ")).toBeVisible({ timeout: 10_000 });
-    // display = "+2 (100%↑)"
-    await expect(page.getByText(/\+2/).first()).toBeVisible();
+    // display = "+2 (100%↑)" — \b 경계로 +20 등 오매칭 방지
+    await expect(page.getByText(/\+2\b/).first()).toBeVisible();
 
     // ── 4. 집계 대시보드 탭 복귀 + 세그먼트 필터 (직무 = 개발) ───────────────
     await page.getByRole("tab", { name: /집계 대시보드/ }).click();
 
     // SegmentFilterBar: role="button" name="직무" (CardTitle은 button 아님)
     await page.getByRole("button", { name: "직무" }).click();
-    // Popover 내 "개발" 체크박스 레이블 클릭
-    await page.getByText("개발", { exact: true }).click();
+    // Popover 내 "개발" 체크박스 — role=checkbox 로 scope(차트 라벨 텍스트와 충돌 방지).
+    // shadcn Checkbox(role=checkbox)를 감싼 <label>이 접근성 이름 "개발"을 제공.
+    await page.getByRole("checkbox", { name: "개발" }).click();
     // Popover 닫기
     await page.keyboard.press("Escape");
 

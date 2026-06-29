@@ -39,7 +39,7 @@ export async function seedAnalyticsSurvey(): Promise<SeededSurvey> {
     .single();
   if (sErr) throw sErr;
 
-  const { data: q1 } = await admin
+  const { data: q1, error: q1Err } = await admin
     .from("survey_questions")
     .insert({
       survey_id: survey.id,
@@ -59,8 +59,9 @@ export async function seedAnalyticsSurvey(): Promise<SeededSurvey> {
     })
     .select("id")
     .single();
+  if (q1Err) throw q1Err;
 
-  const { data: q2 } = await admin
+  const { data: q2, error: q2Err } = await admin
     .from("survey_questions")
     .insert({
       survey_id: survey.id,
@@ -78,10 +79,11 @@ export async function seedAnalyticsSurvey(): Promise<SeededSurvey> {
     })
     .select("id")
     .single();
+  if (q2Err) throw q2Err;
 
   // 6건 응답 삽입: dev 4건 + pm 2건, 각각 before=2 / after=4
   for (let i = 0; i < 6; i++) {
-    const { data: resp } = await admin
+    const { data: resp, error: respErr } = await admin
       .from("survey_responses")
       .insert({
         survey_id: survey.id,
@@ -91,18 +93,24 @@ export async function seedAnalyticsSurvey(): Promise<SeededSurvey> {
       })
       .select("id")
       .single();
+    if (respErr) throw respErr;
 
-    await admin.from("survey_answers").insert([
-      { response_id: resp!.id, question_id: q1!.id, value_text: i < 4 ? "dev" : "pm" },
-      { response_id: resp!.id, question_id: q2!.id, value_json: { before: 2, after: 4 } },
+    const { error: ansErr } = await admin.from("survey_answers").insert([
+      { response_id: resp.id, question_id: q1.id, value_text: i < 4 ? "dev" : "pm" },
+      { response_id: resp.id, question_id: q2.id, value_json: { before: 2, after: 4 } },
     ]);
+    if (ansErr) throw ansErr;
   }
 
-  return { surveyId: survey.id, slug, roleQuestionId: q1!.id };
+  return { surveyId: survey.id, slug, roleQuestionId: q1.id };
 }
 
 /** 시드 데이터 전체 삭제 (cascade 삭제 의존) */
 export async function cleanupSurvey(surveyId: string): Promise<void> {
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
-  await admin.from("surveys").delete().eq("id", surveyId);
+  const { error } = await admin.from("surveys").delete().eq("id", surveyId);
+  if (error) {
+    // afterAll 정리 실패는 테스트를 깨뜨리지 않되, 잔존 데이터 추적용으로 로깅.
+    console.error(`[seed] cleanupSurvey(${surveyId}) 실패:`, error.message);
+  }
 }
