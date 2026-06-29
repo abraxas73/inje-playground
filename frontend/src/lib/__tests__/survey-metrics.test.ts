@@ -54,6 +54,54 @@ function summaryFixture(): SurveyResultSummary {
   };
 }
 
+// value_ratio + license_support 의 실제 compute 경로(단순 unset 분기 아님) 검증용 fixture
+function valueAndSupportFixture(): SurveyResultSummary {
+  return {
+    survey_id: "s2",
+    total_responses: 30,
+    complete_rate: 100,
+    avg_duration_sec: 380,
+    segments_applied: [],
+    questions: [
+      // value_ratio (S2Q3) — single_choice + top_box
+      {
+        question_id: "q1", section: "S2", order_index: 0, type: "single_choice",
+        title: "비용 대비 가치", n: 30, masked: false,
+        options: [
+          { value: "plenty", label: "충분히 그 이상", n: 6, pct: 20 },
+          { value: "enough", label: "비용만큼", n: 12, pct: 40 },
+          { value: "less", label: "비용 미만", n: 12, pct: 40 },
+        ],
+        // @ts-expect-error runtime KPI meta from RPC
+        analysis_metric: "value_ratio", target: 50, top_box: ["enough", "plenty"],
+      },
+      // license_support (S4Q2) — scale + top_box_pct
+      {
+        question_id: "q2", section: "S4", order_index: 1, type: "scale",
+        title: "라이선스 유지 지지", n: 30, masked: false,
+        stats: {
+          n: 30, mean: 4.2, median: 4, sd: 0.8, min: 1, max: 5,
+          distribution: [], top_box_pct: 70,
+        },
+        // @ts-expect-error runtime KPI meta from RPC
+        analysis_metric: "license_support", target: 60,
+      },
+      // s4q3_discontinue_impact (S4Q3) — 보조 메트릭, single_choice + top_box
+      {
+        question_id: "q3", section: "S4", order_index: 2, type: "single_choice",
+        title: "중단 시 영향", n: 30, masked: false,
+        options: [
+          { value: "severe", label: "매우 큼", n: 6, pct: 20 },
+          { value: "a_lot", label: "상당함", n: 9, pct: 30 },
+          { value: "some", label: "약간", n: 15, pct: 50 },
+        ],
+        // @ts-expect-error runtime KPI meta from RPC
+        analysis_metric: "s4q3_discontinue_impact", top_box: ["a_lot", "severe"],
+      },
+    ] as unknown as SurveyResultSummary["questions"],
+  };
+}
+
 describe("isUserResponse (value-key 기준)", () => {
   it("S0Q3 '사용한 적 없음'(never) → 비사용자", () => {
     expect(isUserResponse({ s0q3_value: "never", s0q4_value: "w3_4" })).toBe(false);
@@ -194,5 +242,30 @@ describe("buildKpiCards", () => {
     expect(byId.nps.value).toBe(40);
     expect(byId.value_ratio.unset).toBe(true);     // 미태깅
     expect(byId.license_support.unset).toBe(true); // 미태깅
+  });
+
+  it("value_ratio(single_choice top-box) · license_support(scale top-2-box + S4Q3 secondary) 실제 compute", () => {
+    const cards = buildKpiCards(valueAndSupportFixture(), {});
+    const byId = Object.fromEntries(cards.map((c) => [c.id, c]));
+    expect(cards).toHaveLength(5);
+
+    // value_ratio: topBoxRatio(["enough","plenty"]) = (12+6)/30 = 60%, target 50 → green
+    expect(byId.value_ratio.unset).toBe(false);
+    expect(byId.value_ratio.value).toBe(60);
+    expect(byId.value_ratio.display).toBe("60%");
+    expect(byId.value_ratio.secondary).toBe("유효 n=30");
+    expect(byId.value_ratio.traffic).toBe("green");
+
+    // license_support: stats.top_box_pct=70, scale 타입, S4Q3 중단영향 topBox(["a_lot","severe"]) = (9+6)/30 = 50%
+    expect(byId.license_support.unset).toBe(false);
+    expect(byId.license_support.value).toBe(70);
+    expect(byId.license_support.display).toBe("70%");
+    expect(byId.license_support.secondary).toContain("top-2-box · 평균 4.2");
+    expect(byId.license_support.secondary).toContain("중단영향(상당+매우) 50%");
+
+    // 이 fixture는 위 2종만 태깅 → 나머지 3종 unset
+    expect(byId.pre_post_overall.unset).toBe(true);
+    expect(byId.weekly_hours_saved.unset).toBe(true);
+    expect(byId.nps.unset).toBe(true);
   });
 });

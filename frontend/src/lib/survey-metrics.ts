@@ -219,7 +219,7 @@ export const KPI_REGISTRY: Record<KpiId, KpiDefinition> = {
         display: d === null ? "—" : `${d >= 0 ? "+" : ""}${d}${imp !== null ? ` (${imp}%↑)` : ""}`,
         secondary: `pairwise n=${a.stats.n_pairwise}`,
         population_label: POP_LABEL.users,
-        traffic: trafficLight(d, (a as KpiSourceAggregate).target ?? undefined),
+        traffic: trafficLight(d, a.target ?? undefined),
         note: "자기보고 회고형 — 상향편향 가능",
         unset: false,
       };
@@ -268,7 +268,7 @@ export const KPI_REGISTRY: Record<KpiId, KpiDefinition> = {
       if (!a || a.masked || a.type !== "single_choice") return unsetCard(KPI_REGISTRY.value_ratio);
       const tb = topBoxRatio(
         a.options.map((o) => ({ value: o.value, n: o.n })),
-        (a as KpiSourceAggregate).top_box ?? [],
+        a.top_box ?? [],
       );
       return {
         id: "value_ratio",
@@ -277,7 +277,7 @@ export const KPI_REGISTRY: Record<KpiId, KpiDefinition> = {
         display: tb.pct === null ? "—" : `${tb.pct}%`,
         secondary: `유효 n=${tb.n_valid}`,
         population_label: POP_LABEL.users,
-        traffic: trafficLight(tb.pct, (a as KpiSourceAggregate).target ?? undefined),
+        traffic: trafficLight(tb.pct, a.target ?? undefined),
         note: "'비용 모름' 응답은 별도 검토 필요",
         unset: false,
       };
@@ -299,7 +299,7 @@ export const KPI_REGISTRY: Record<KpiId, KpiDefinition> = {
         display: a.stats.score === null ? "—" : `${a.stats.score}`,
         secondary: `추천 ${a.stats.promoters_pct}% / 비추천 ${a.stats.detractors_pct}%`,
         population_label: POP_LABEL.users,
-        traffic: trafficLight(a.stats.score, (a as KpiSourceAggregate).target ?? undefined),
+        traffic: trafficLight(a.stats.score, a.target ?? undefined),
         unset: false,
       };
     },
@@ -320,7 +320,7 @@ export const KPI_REGISTRY: Record<KpiId, KpiDefinition> = {
       if (impact && !impact.masked && impact.type === "single_choice") {
         const tb = topBoxRatio(
           impact.options.map((o) => ({ value: o.value, n: o.n })),
-          (impact as KpiSourceAggregate).top_box ?? [],
+          impact.top_box ?? [],
         );
         if (tb.pct !== null) impactStr = ` · 중단영향(상당+매우) ${tb.pct}%`;
       }
@@ -331,7 +331,7 @@ export const KPI_REGISTRY: Record<KpiId, KpiDefinition> = {
         display: pct === null ? `평균 ${a.stats.mean}` : `${pct}%`,
         secondary: `top-2-box · 평균 ${a.stats.mean}${impactStr}`,
         population_label: POP_LABEL.users,
-        traffic: trafficLight(pct, (a as KpiSourceAggregate).target ?? undefined),
+        traffic: trafficLight(pct, a.target ?? undefined),
         note: "관리자·예산권자 별도 표기로 호의편향 점검",
         unset: false,
       };
