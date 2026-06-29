@@ -17,12 +17,13 @@ export async function GET(
 
     const { data: survey, error } = await supabase
       .from("surveys")
-      .select("*")
+      .select("id, slug, title, description, access_mode, status")
       .eq("slug", slug)
-      .maybeSingle<Survey>();
+      .maybeSingle<Pick<Survey, "id" | "slug" | "title" | "description" | "access_mode" | "status">>();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("[survey GET] 설문 조회 오류:", error);
+      return NextResponse.json({ error: "설문 조회에 실패했습니다." }, { status: 500 });
     }
     if (!survey) {
       return NextResponse.json({ error: "설문을 찾을 수 없습니다." }, { status: 404 });
@@ -45,12 +46,13 @@ export async function GET(
       .returns<SurveyQuestion[]>();
 
     if (qError) {
-      return NextResponse.json({ error: qError.message }, { status: 500 });
+      console.error("[survey GET] 문항 조회 오류:", qError);
+      return NextResponse.json({ error: "설문 조회에 실패했습니다." }, { status: 500 });
     }
 
     return NextResponse.json({ ...survey, questions: questions ?? [] });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "설문 조회에 실패했습니다.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[survey GET] 예외:", err);
+    return NextResponse.json({ error: "설문 조회에 실패했습니다." }, { status: 500 });
   }
 }

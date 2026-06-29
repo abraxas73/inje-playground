@@ -80,18 +80,24 @@ function Body({ aggregate }: { aggregate: QuestionAggregate }) {
         </div>
       );
 
-    case "number":
+    case "number": {
+      const s = aggregate.stats;
+      const unit = s.unit ? ` ${s.unit}` : "";
       return (
-        <Histogram
-          bins={[
-            { label: "min", n: aggregate.stats.min ?? 0 },
-            { label: "mean", n: Math.round(aggregate.stats.mean ?? 0) },
-            { label: "max", n: aggregate.stats.max ?? 0 },
-          ]}
-          meanLine={aggregate.stats.mean ?? undefined}
-          unit={aggregate.stats.unit ?? undefined}
-        />
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+          <dt className="text-muted-foreground">평균</dt>
+          <dd className="font-medium">{s.mean !== null ? `${s.mean}${unit}` : "—"}</dd>
+          <dt className="text-muted-foreground">중앙값</dt>
+          <dd className="font-medium">{s.median !== null ? `${s.median}${unit}` : "—"}</dd>
+          <dt className="text-muted-foreground">0시간 응답 비율</dt>
+          <dd className="font-medium">{s.zero_pct !== null ? `${s.zero_pct}%` : "—"}</dd>
+          <dt className="text-muted-foreground">범위</dt>
+          <dd className="font-medium">{s.min !== null && s.max !== null ? `${s.min}${unit} ~ ${s.max}${unit}` : "—"}</dd>
+          <dt className="text-muted-foreground">응답 수</dt>
+          <dd className="font-medium">{s.n}</dd>
+        </dl>
       );
+    }
 
     case "pre_post_scale":
       return (

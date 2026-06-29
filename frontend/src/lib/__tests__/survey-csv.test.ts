@@ -116,6 +116,38 @@ describe("buildAggregateCsv", () => {
     expect(csv).toContain("4.2");
     expect(csv).toContain("70");
   });
+
+  it("masked=true(n<5) 문항 → '표본 부족' 메시지 / 통계값 미노출", () => {
+    const maskedSummary: SurveyResultSummary = {
+      survey_id: "s", total_responses: 3, complete_rate: 100, avg_duration_sec: null,
+      segments_applied: [],
+      questions: [{
+        question_id: "qm", section: "S1", order_index: 0, type: "scale", title: "마스킹테스트",
+        n: 3, masked: true,
+        stats: { n: 3, mean: 4.9, median: 5, sd: 0.1, min: 4, max: 5, distribution: [], top_box_pct: 100 },
+      }] as unknown as SurveyResultSummary["questions"],
+    };
+    const csv = buildAggregateCsv(maskedSummary);
+    expect(csv).toContain("표본 부족");
+    // 실제 통계값(평균 4.9 등)은 노출되지 않아야 한다
+    expect(csv).not.toContain("4.9");
+    expect(csv).not.toContain("top-box");
+  });
+
+  it("number 문항 → zero_pct 포함", () => {
+    const numberSummary: SurveyResultSummary = {
+      survey_id: "s", total_responses: 10, complete_rate: 100, avg_duration_sec: 200,
+      segments_applied: [],
+      questions: [{
+        question_id: "qn", section: "S2", order_index: 0, type: "number", title: "절감시간",
+        n: 10, masked: false,
+        stats: { n: 10, mean: 3.5, median: 3, sum: 35, min: 0, max: 10, mean_trimmed: 3.2, zero_pct: 20, unit: "시간/주" },
+      }] as unknown as SurveyResultSummary["questions"],
+    };
+    const csv = buildAggregateCsv(numberSummary);
+    expect(csv).toContain("zero_pct");
+    expect(csv).toContain("20%");
+  });
 });
 
 describe("combineCsvSections", () => {

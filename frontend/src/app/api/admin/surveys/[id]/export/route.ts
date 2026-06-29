@@ -62,13 +62,21 @@ export async function GET(
 
     const { data: survey, error: sErr } = await supabase
       .from("surveys")
-      .select("slug, title")
+      .select("slug, title, is_anonymous")
       .eq("id", id)
       .single();
     if (sErr || !survey) {
       return NextResponse.json(
         { error: "설문을 찾을 수 없습니다." },
         { status: 404 }
+      );
+    }
+
+    // 익명 설문에서 식별자 내보내기 요청 차단
+    if (survey.is_anonymous && includeIdentity) {
+      return NextResponse.json(
+        { error: "익명 설문은 식별자를 내보낼 수 없습니다." },
+        { status: 403 }
       );
     }
 
@@ -83,8 +91,9 @@ export async function GET(
     let aggCsv: string | null = null;
 
     if (scope === "raw" || scope === "all") {
-      // 식별정보(PII)는 includeIdentity=true일 때만 DB에서 가져온다.
-      const responseSelect = includeIdentity
+      // 식별정보(PII)는 includeIdentity=true이고 익명 설문이 아닐 때만 DB에서 가져온다(다중 방어).
+      const effectiveIdentity = !survey.is_anonymous && includeIdentity;
+      const responseSelect = effectiveIdentity
         ? "id, submitted_at, is_complete, respondent_user_id, respondent_hash"
         : "id, submitted_at, is_complete";
       const { data: responses } = await supabase
@@ -122,7 +131,7 @@ export async function GET(
         id: r.id,
         submitted_at: r.submitted_at,
         is_complete: r.is_complete,
-        ...(includeIdentity
+        ...(effectiveIdentity
           ? {
               respondent_user_id: r.respondent_user_id ?? null,
               respondent_hash: r.respondent_hash ?? null,
@@ -134,7 +143,7 @@ export async function GET(
       rawCsv = buildRawCsv({
         questions: qs,
         responses: exportResponses,
-        includeIdentity,
+        includeIdentity: effectiveIdentity,
       });
     }
 

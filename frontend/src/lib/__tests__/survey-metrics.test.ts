@@ -227,6 +227,72 @@ describe("KPI_REGISTRY", () => {
   });
 });
 
+describe("buildKpiCards — masked(n<5) 경로", () => {
+  it("masked=true 집계가 있는 KPI는 unset으로 반환(수치 조작 방지)", () => {
+    const maskedSummary: SurveyResultSummary = {
+      survey_id: "s-masked",
+      total_responses: 3,
+      complete_rate: 100,
+      avg_duration_sec: null,
+      segments_applied: [],
+      questions: [
+        // weekly_hours_saved 문항 — masked
+        {
+          question_id: "qm1", section: "S2", order_index: 0, type: "number",
+          title: "절감시간", n: 3, masked: true,
+          stats: { n: 3, mean: 8, median: 8, sum: 24, min: 5, max: 12, mean_trimmed: 8, zero_pct: 0, unit: "시간/주" },
+          // @ts-expect-error runtime KPI meta
+          analysis_metric: "weekly_hours_saved",
+        },
+        // pre_post_overall 문항 — masked
+        {
+          question_id: "qm2", section: "S1", order_index: 1, type: "pre_post_scale",
+          title: "생산성", n: 3, masked: true,
+          stats: { n_pairwise: 3, before_mean: 2, after_mean: 5, delta_mean: 3, improvement_pct: 150, before_distribution: [], after_distribution: [] },
+          // @ts-expect-error runtime KPI meta
+          analysis_metric: "pre_post_overall", target: 1,
+        },
+      ] as unknown as SurveyResultSummary["questions"],
+    };
+
+    const cards = buildKpiCards(maskedSummary, { hourly_cost: 30000 });
+    const byId = Object.fromEntries(cards.map((c) => [c.id, c]));
+
+    // masked 문항 → KPI는 unset이어야 한다(수치 노출 금지)
+    expect(byId.weekly_hours_saved.unset).toBe(true);
+    expect(byId.weekly_hours_saved.value).toBeNull();
+    expect(byId.weekly_hours_saved.display).toBe("미설정");
+
+    expect(byId.pre_post_overall.unset).toBe(true);
+    expect(byId.pre_post_overall.value).toBeNull();
+  });
+
+  it("masked=true 집계의 KPI에서 fabricated value(0이 아닌 실수)가 누출되지 않음", () => {
+    // zero_pct=0인 masked number → weekly_hours_saved should not compute ROI
+    const maskedSummary: SurveyResultSummary = {
+      survey_id: "s-masked2",
+      total_responses: 4,
+      complete_rate: 100,
+      avg_duration_sec: null,
+      segments_applied: [],
+      questions: [
+        {
+          question_id: "qm3", section: "S2", order_index: 0, type: "number",
+          title: "절감시간", n: 4, masked: true,
+          stats: { n: 4, mean: 10, median: 10, sum: 40, min: 5, max: 15, mean_trimmed: 10, zero_pct: 0, unit: "시간/주" },
+          // @ts-expect-error runtime KPI meta
+          analysis_metric: "weekly_hours_saved",
+        },
+      ] as unknown as SurveyResultSummary["questions"],
+    };
+    const cards = buildKpiCards(maskedSummary, { user_count: 100, hourly_cost: 30000 });
+    const roi = cards.find((c) => c.id === "weekly_hours_saved")!;
+    // 마스킹된 문항으로부터 ROI가 계산되면 안 된다
+    expect(roi.unset).toBe(true);
+    expect(roi.value).toBeNull();
+  });
+});
+
 describe("buildKpiCards", () => {
   it("태깅된 KPI는 값 산출, 미태깅은 unset, ROI는 ctx.user_count 미지정 시 문항 n 사용", () => {
     const cards = buildKpiCards(summaryFixture(), {

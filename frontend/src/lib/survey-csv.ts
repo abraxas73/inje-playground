@@ -144,7 +144,7 @@ function aggregateRow(q: QuestionAggregate): (string | number | null)[] {
         `top-box ${q.stats.top_box_pct ?? "-"}%`];
     case "number":
       return [...base, q.stats.mean, q.stats.median, "",
-        `sum ${q.stats.sum} ${q.stats.unit ?? ""} / trimmed ${q.stats.mean_trimmed}`];
+        `sum ${q.stats.sum} ${q.stats.unit ?? ""} / trimmed ${q.stats.mean_trimmed} / zero_pct ${q.stats.zero_pct ?? "-"}%`];
     case "nps":
       return [...base, "", "", "",
         `NPS ${q.stats.score} (P${q.stats.promoters_pct}/D${q.stats.detractors_pct})`];
