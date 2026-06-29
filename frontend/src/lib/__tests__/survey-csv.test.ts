@@ -70,9 +70,41 @@ describe("buildRawCsv", () => {
     expect(row).toContain("2");      // before
     expect(row).toContain("4");      // after
   });
+  it("multi_choice 선택 라벨 ;결합 표시 컬럼", () => {
+    const csv = buildRawCsv({
+      ...rawInput,
+      responses: [{
+        id: "r2", submitted_at: null, is_complete: false,
+        respondent_user_id: null, respondent_hash: null,
+        answers: {
+          q2: { value_text: null, value_number: null, value_json: ["a", "b"] },
+        },
+      }],
+    });
+    const header = csv.replace(CSV_BOM, "").split("\r\n")[0];
+    expect(header).toContain("도구(선택)");
+    const row = csv.replace(CSV_BOM, "").split("\r\n")[1];
+    expect(row).toContain("A;B"); // 선택 라벨 ;결합
+  });
   it("includeIdentity=true면 식별 컬럼 포함", () => {
     const csv = buildRawCsv({ ...rawInput, includeIdentity: true });
     expect(csv).toContain("respondent_user_id");
+  });
+  it("따옴표 포함 라벨이 buildRawCsv 경로로 이스케이프됨", () => {
+    const q: SurveyQuestion[] = [
+      baseQ({ id: "qx", order_index: 0, type: "single_choice", title: "평가",
+        config: { options: [{ value: "v", label: 'she said "yes"' }] } }),
+    ];
+    const csv = buildRawCsv({
+      questions: q,
+      responses: [{
+        id: "rx", submitted_at: null, is_complete: true,
+        respondent_user_id: null, respondent_hash: null,
+        answers: { qx: { value_text: "v", value_number: null, value_json: null } },
+      }],
+      includeIdentity: false,
+    });
+    expect(csv).toContain('"she said ""yes"""');
   });
 });
 

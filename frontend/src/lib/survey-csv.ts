@@ -54,8 +54,9 @@ function columnsForQuestion(q: SurveyQuestion): ColumnSpec[] {
           return opts.find((o) => o.value === c.value_text)?.label ?? c.value_text;
         },
       }];
-    case "multi_choice":
-      return opts.map((o) => ({
+    case "multi_choice": {
+      // 옵션별 0/1 더미 컬럼(분석용)
+      const dummyCols: ColumnSpec[] = opts.map((o) => ({
         header: `${q.title}::${o.label}`,
         get: (c) => {
           if (!c || c.value_json == null) return "";
@@ -63,6 +64,18 @@ function columnsForQuestion(q: SurveyQuestion): ColumnSpec[] {
           return arr.includes(o.value) ? 1 : 0;
         },
       }));
+      // 표시용: 선택 라벨을 ;로 결합한 컬럼 1개(미응답이면 빈 셀)
+      const displayCol: ColumnSpec = {
+        header: `${q.title}(선택)`,
+        get: (c) => {
+          if (!c || c.value_json == null) return "";
+          const arr = Array.isArray(c.value_json) ? (c.value_json as string[]) : [];
+          if (arr.length === 0) return "";
+          return arr.map((v) => opts.find((o) => o.value === v)?.label ?? v).join(";");
+        },
+      };
+      return [...dummyCols, displayCol];
+    }
     case "pre_post_scale":
       return [
         { header: `${q.title}_before`, get: (c) => readPrePost(c, "before") },
@@ -89,7 +102,10 @@ export function buildRawCsv(input: RawExportInput): string {
   const ordered = [...input.questions].sort(
     (a, b) => (a.section ?? "").localeCompare(b.section ?? "") || a.order_index - b.order_index,
   );
-  const cols = ordered.flatMap(columnsForQuestion);
+  // 컬럼을 한 번만 계산하고 데이터 루프에서 재사용(문항별 재계산 제거)
+  const cols = ordered.flatMap((q) =>
+    columnsForQuestion(q).map((c) => ({ ...c, questionId: q.id })),
+  );
   const idCols = input.includeIdentity ? ["respondent_user_id", "respondent_hash"] : [];
   const header = ["response_id", "submitted_at", "is_complete", ...idCols, ...cols.map((c) => c.header)];
   const rows: (string | number | null)[][] = [header];
@@ -102,10 +118,8 @@ export function buildRawCsv(input: RawExportInput): string {
     if (input.includeIdentity) {
       row.push(r.respondent_user_id ?? "", r.respondent_hash ?? "");
     }
-    for (const oq of ordered) {
-      for (const col of columnsForQuestion(oq)) {
-        row.push(col.get(r.answers[oq.id]));
-      }
+    for (const col of cols) {
+      row.push(col.get(r.answers[col.questionId]));
     }
     rows.push(row);
   }
