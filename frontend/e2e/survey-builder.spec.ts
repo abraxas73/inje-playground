@@ -19,9 +19,9 @@ const slug = `e2e-builder-${Date.now()}`;
 
 test.describe("관리자 설문 빌더", () => {
   test.skip(!hasAdminSession, "E2E_ADMIN_STORAGE_STATE 미설정 또는 파일 없음 — admin storageState 필요");
-  test.use({ storageState: hasAdminSession ? ADMIN_STORAGE_STATE! : undefined });
+  test.use({ storageState: ADMIN_STORAGE_STATE });
 
-  test("생성 → 문항 3종 추가 → 순서변경 → open 전환 → 노출", async ({ page, request }) => {
+  test("생성 → 문항 3종 추가 → 순서변경 → open 전환 → 노출", async ({ page }) => {
     // ── 1. 새 설문 생성 ──────────────────────────────────────────────────────
     await page.goto("/admin/surveys/new");
 
@@ -49,19 +49,37 @@ test.describe("관리자 설문 빌더", () => {
     await addArea.getByRole("button", { name: /NPS/i }).click();
     await expect(page.getByTestId("survey-question-row")).toHaveCount(3, { timeout: 10_000 });
 
-    // ── 3. 순서변경 — 마지막(NPS) 문항을 한 칸 위로 이동 ──────────────────
+    // 추가 직후 순서: [single_choice, scale, nps]
     const rows = page.getByTestId("survey-question-row");
+    await expect(rows.nth(0)).toHaveAttribute("data-question-type", "single_choice");
+    await expect(rows.nth(1)).toHaveAttribute("data-question-type", "scale");
+    await expect(rows.nth(2)).toHaveAttribute("data-question-type", "nps");
+
+    // ── 3. 순서변경 — 마지막(NPS) 문항을 한 칸 위로 이동 ──────────────────
     await rows.nth(2).getByRole("button", { name: "위로" }).click();
-    // 이동 후에도 3개 유지
+    // 이동 후에도 3개 유지 + nps가 2번째(index 1)로 올라왔는지 실제 순서 검증.
     await expect(page.getByTestId("survey-question-row")).toHaveCount(3, { timeout: 10_000 });
+    await expect(page.getByTestId("survey-question-row").nth(1)).toHaveAttribute(
+      "data-question-type",
+      "nps",
+      { timeout: 10_000 },
+    );
+    // scale은 3번째(index 2)로 밀려난다.
+    await expect(page.getByTestId("survey-question-row").nth(2)).toHaveAttribute(
+      "data-question-type",
+      "scale",
+    );
 
     // ── 4. draft → open 전환 ─────────────────────────────────────────────────
     await page.getByRole("button", { name: "공개" }).click();
-    await expect(page.getByText("진행중")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("survey-status-badge")).toHaveText(/진행중/, {
+      timeout: 10_000,
+    });
 
     // ── 5. 노출 확인 — 공개 API가 open 설문 + 문항 3개 반환 ─────────────────
-    // request 픽스처는 test.use({ storageState }) 컨텍스트와 쿠키를 공유한다.
-    const res = await request.get(`/api/surveys/${slug}`);
+    // page.request는 브라우저 컨텍스트(storageState 쿠키)를 공유한다 →
+    // authenticated 설문도 admin 세션으로 200 응답.
+    const res = await page.request.get(`/api/surveys/${slug}`);
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.status).toBe("open");

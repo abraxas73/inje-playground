@@ -202,7 +202,11 @@ export default function SurveyEditPage() {
             <div className="min-w-0">
               <CardTitle className="text-base flex items-center gap-2">
                 {survey.title}
-                <Badge variant="outline" className={`text-[10px] h-5 ${badge.className}`}>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] h-5 ${badge.className}`}
+                  data-testid="survey-status-badge"
+                >
                   {badge.label}
                 </Badge>
               </CardTitle>

@@ -75,6 +75,7 @@ export default function SurveyBuilder({
               onDrop={() => handleDrop(q.id)}
               className={`flex items-stretch gap-1 ${dragId === q.id ? "opacity-50" : ""}`}
               data-testid="survey-question-row"
+              data-question-type={q.type}
             >
               <div className="flex flex-col items-center justify-start gap-1 pt-3 text-muted-foreground">
                 <GripVertical className="h-4 w-4 cursor-grab" aria-label="드래그 핸들" />
