@@ -11,8 +11,8 @@ export default function Histogram({ bins, meanLine, unit }: HistogramProps) {
   return (
     <div className="space-y-1">
       <div className="flex items-end gap-1 h-28">
-        {bins.map((b) => (
-          <div key={b.label} className="flex flex-1 flex-col items-center gap-1">
+        {bins.map((b, idx) => (
+          <div key={b.label + "-" + idx} className="flex flex-1 flex-col items-center gap-1">
             <span className="text-[10px] tabular-nums text-muted-foreground">{b.n}</span>
             <div
               className="w-full rounded-t bg-sky-500/70"

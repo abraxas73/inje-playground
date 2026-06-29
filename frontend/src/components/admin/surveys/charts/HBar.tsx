@@ -15,8 +15,8 @@ export default function HBar({ items, showPct = true, note }: HBarProps) {
   const max = Math.max(1, ...items.map((i) => i.pct));
   return (
     <div className="space-y-1.5">
-      {items.map((it) => (
-        <div key={it.label} className="flex items-center gap-2 text-xs">
+      {items.map((it, idx) => (
+        <div key={it.label + "-" + idx} className="flex items-center gap-2 text-xs">
           <span className="w-32 shrink-0 truncate text-muted-foreground" title={it.label}>
             {it.label}
           </span>

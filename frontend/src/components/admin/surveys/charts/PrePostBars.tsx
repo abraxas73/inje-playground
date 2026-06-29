@@ -12,11 +12,12 @@ export interface PrePostBarsProps {
 export default function PrePostBars({
   beforeMean, afterMean, delta, improvementPct, nPairwise, scaleMax,
 }: PrePostBarsProps) {
+  const safeMax = scaleMax || 1;
   const bar = (label: string, v: number, color: string) => (
     <div className="flex items-center gap-2 text-xs">
       <span className="w-12 shrink-0 text-muted-foreground">{label}</span>
       <div className="relative h-6 flex-1 rounded bg-muted/50">
-        <div className={`absolute inset-y-0 left-0 rounded ${color}`} style={{ width: `${(v / scaleMax) * 100}%` }} />
+        <div className={`absolute inset-y-0 left-0 rounded ${color}`} style={{ width: `${(v / safeMax) * 100}%` }} />
       </div>
       <span className="w-10 shrink-0 text-right tabular-nums font-medium">{v}</span>
     </div>
