@@ -44,7 +44,7 @@ function Body({ aggregate }: { aggregate: QuestionAggregate }) {
       return (
         <HBar
           items={aggregate.options.map((o) => ({ label: o.label, value: o.n, pct: o.pct }))}
-          note="복수응답 — 합계 100% 초과 가능"
+          note={`복수응답 — 응답자 ${aggregate.respondent_n}명 기준 (합계 100% 초과 가능)`}
         />
       );
 
