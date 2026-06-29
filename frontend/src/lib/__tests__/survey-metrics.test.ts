@@ -7,7 +7,52 @@ import {
   weightedMean,
   computeRoi,
   trafficLight,
+  KPI_REGISTRY,
+  buildKpiCards,
 } from "@/lib/survey-metrics";
+import type { SurveyResultSummary } from "@/types/survey";
+
+function summaryFixture(): SurveyResultSummary {
+  return {
+    survey_id: "s1",
+    total_responses: 30,
+    complete_rate: 100,
+    avg_duration_sec: 400,
+    segments_applied: [],
+    questions: [
+      // pre_post_overall (S1Q1)
+      {
+        question_id: "q1", section: "S1", order_index: 0, type: "pre_post_scale",
+        title: "생산성", n: 30, masked: false,
+        stats: {
+          n_pairwise: 30, before_mean: 2.5, after_mean: 4.3, delta_mean: 1.8,
+          improvement_pct: 72, before_distribution: [], after_distribution: [],
+        },
+        // @ts-expect-error runtime KPI meta from RPC
+        analysis_metric: "pre_post_overall", target: 1,
+      },
+      // weekly_hours_saved (S2Q1)
+      {
+        question_id: "q2", section: "S2", order_index: 1, type: "number",
+        title: "절감시간", n: 30, masked: false,
+        stats: {
+          n: 30, mean: 5, median: 4, sum: 150, min: 0, max: 40,
+          mean_trimmed: 4.5, zero_pct: 10, unit: "시간/주",
+        },
+        // @ts-expect-error runtime KPI meta
+        analysis_metric: "weekly_hours_saved", target: null,
+      },
+      // nps (S4Q1)
+      {
+        question_id: "q3", section: "S4", order_index: 2, type: "nps",
+        title: "추천의향", n: 30, masked: false,
+        stats: { n: 30, score: 40, promoters_pct: 60, passives_pct: 20, detractors_pct: 20 },
+        // @ts-expect-error runtime KPI meta
+        analysis_metric: "nps", target: 30,
+      },
+    ] as unknown as SurveyResultSummary["questions"],
+  };
+}
 
 describe("isUserResponse (value-key 기준)", () => {
   it("S0Q3 '사용한 적 없음'(never) → 비사용자", () => {
@@ -123,5 +168,31 @@ describe("trafficLight", () => {
     expect(trafficLight(2, 5)).toBe("red");
     expect(trafficLight(3, undefined)).toBe("unset");
     expect(trafficLight(null, 5)).toBe("unset");
+  });
+});
+
+describe("KPI_REGISTRY", () => {
+  it("5종 등록", () => {
+    expect(Object.keys(KPI_REGISTRY).sort()).toEqual(
+      ["license_support", "nps", "pre_post_overall", "value_ratio", "weekly_hours_saved"].sort(),
+    );
+  });
+});
+
+describe("buildKpiCards", () => {
+  it("태깅된 KPI는 값 산출, 미태깅은 unset, ROI는 ctx.user_count 미지정 시 문항 n 사용", () => {
+    const cards = buildKpiCards(summaryFixture(), {
+      hourly_cost: 30000, annual_license_cost: 6_000_000,
+    });
+    const byId = Object.fromEntries(cards.map((c) => [c.id, c]));
+    expect(cards).toHaveLength(5);
+    expect(byId.pre_post_overall.value).toBe(1.8);
+    expect(byId.pre_post_overall.display).toContain("+1.8");
+    expect(byId.pre_post_overall.traffic).toBe("green");
+    // user_count 미지정 → S2Q1 n=30 사용: 4.5(trimmed)*30*48 = 6480
+    expect(byId.weekly_hours_saved.value).toBe(6480);
+    expect(byId.nps.value).toBe(40);
+    expect(byId.value_ratio.unset).toBe(true);     // 미태깅
+    expect(byId.license_support.unset).toBe(true); // 미태깅
   });
 });
