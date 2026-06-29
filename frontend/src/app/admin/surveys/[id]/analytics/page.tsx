@@ -28,19 +28,23 @@ export default function SurveyAnalyticsPage({ params }: { params: Promise<{ id: 
 
   useEffect(() => {
     fetch(`/api/admin/surveys/${id}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("설문 로드 실패");
+        return r.json();
+      })
       .then((d) => setSurvey(d))
-      .catch(() => {});
+      .catch((e) => setError(e instanceof Error ? e.message : "설문 로드 실패"));
   }, [id]);
 
   // ROI 비용 컨텍스트(app_settings) — 실패 시 기본값 폴백(graceful)
   useEffect(() => {
-    const supabase = createClient();
-    supabase
-      .from("app_settings")
-      .select("key, value")
-      .in("key", ["survey_hourly_cost", "survey_annual_license_cost"])
-      .then(({ data }) => {
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("app_settings")
+          .select("key, value")
+          .in("key", ["survey_hourly_cost", "survey_annual_license_cost"]);
         const map = Object.fromEntries(
           (data ?? []).map((r: { key: string; value: unknown }) => [r.key, Number(r.value)])
         );
@@ -50,7 +54,10 @@ export default function SurveyAnalyticsPage({ params }: { params: Promise<{ id: 
             ? map.survey_annual_license_cost
             : undefined,
         });
-      });
+      } catch {
+        // 네트워크 실패 시 기본값 폴백 유지
+      }
+    })();
   }, []);
 
   const fetchSummary = useCallback(async () => {
@@ -76,7 +83,10 @@ export default function SurveyAnalyticsPage({ params }: { params: Promise<{ id: 
   }, [fetchSummary]);
 
   const segmentQuestions = useMemo(
-    () => (survey?.questions ?? []).filter((q) => q.config.segment === true),
+    () =>
+      (survey?.questions ?? []).filter(
+        (q) => q.config.segment === true && (q.type === "single_choice" || q.type === "multi_choice")
+      ),
     [survey]
   );
 
@@ -139,6 +149,9 @@ export default function SurveyAnalyticsPage({ params }: { params: Promise<{ id: 
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6 pt-4">
+            {sections.length === 0 && (
+              <p className="text-sm text-muted-foreground py-8 text-center">집계할 문항이 없습니다.</p>
+            )}
             {sections.map(([section, items]) => (
               <div key={section} className="space-y-3">
                 <h3 className="text-sm font-semibold text-muted-foreground">{section}</h3>
