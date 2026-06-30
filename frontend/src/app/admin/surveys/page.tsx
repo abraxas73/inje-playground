@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, ClipboardList, Pencil } from "lucide-react";
+import { Loader2, Plus, ClipboardList, Pencil, BarChart3 } from "lucide-react";
 import type { Survey, SurveyStatus } from "@/types/survey";
 
 type SurveyListItem = Survey & { response_count: number; complete_count: number };
@@ -94,6 +94,12 @@ export default function AdminSurveysPage() {
                     </p>
                     <p className="text-[10px] text-muted-foreground">완료 / 응답</p>
                   </div>
+                  <Link href={`/admin/surveys/${s.id}/analytics`}>
+                    <Button variant="outline" size="sm" className="h-8 gap-1.5">
+                      <BarChart3 className="h-3.5 w-3.5" />
+                      통계
+                    </Button>
+                  </Link>
                   <Link href={`/admin/surveys/${s.id}/edit`}>
                     <Button variant="outline" size="sm" className="h-8 gap-1.5">
                       <Pencil className="h-3.5 w-3.5" />
