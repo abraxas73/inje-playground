@@ -61,7 +61,7 @@ body {
   --card-foreground: oklch(0.15 0.03 250);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.15 0.03 250);
-  --primary: oklch(0.35 0.12 260);
+  --primary: oklch(0.504 0.279 264);
   --primary-foreground: oklch(0.98 0 0);
   --secondary: oklch(0.94 0.01 250);
   --secondary-foreground: oklch(0.25 0.05 250);
@@ -72,20 +72,20 @@ body {
   --destructive: oklch(0.6 0.22 25);
   --border: oklch(0.9 0.01 250);
   --input: oklch(0.9 0.01 250);
-  --ring: oklch(0.5 0.15 260);
-  --chart-1: oklch(0.5 0.18 260);
+  --ring: oklch(0.55 0.22 264);
+  --chart-1: oklch(0.504 0.279 264);
   --chart-2: oklch(0.65 0.15 200);
   --chart-3: oklch(0.6 0.18 45);
   --chart-4: oklch(0.55 0.15 310);
   --chart-5: oklch(0.7 0.12 160);
   --sidebar: oklch(0.96 0.005 250);
   --sidebar-foreground: oklch(0.15 0.03 250);
-  --sidebar-primary: oklch(0.35 0.12 260);
+  --sidebar-primary: oklch(0.504 0.279 264);
   --sidebar-primary-foreground: oklch(0.98 0 0);
   --sidebar-accent: oklch(0.92 0.02 250);
   --sidebar-accent-foreground: oklch(0.25 0.05 250);
   --sidebar-border: oklch(0.9 0.01 250);
-  --sidebar-ring: oklch(0.5 0.15 260);
+  --sidebar-ring: oklch(0.55 0.22 264);
 }
 
 .dark {
@@ -95,7 +95,7 @@ body {
   --card-foreground: oklch(0.95 0.005 250);
   --popover: oklch(0.18 0.025 250);
   --popover-foreground: oklch(0.95 0.005 250);
-  --primary: oklch(0.65 0.15 260);
+  --primary: oklch(0.62 0.24 264);
   --primary-foreground: oklch(0.13 0.025 250);
   --secondary: oklch(0.24 0.02 250);
   --secondary-foreground: oklch(0.95 0.005 250);
@@ -106,8 +106,8 @@ body {
   --destructive: oklch(0.65 0.2 22);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.65 0.15 260);
-  --chart-1: oklch(0.6 0.18 260);
+  --ring: oklch(0.62 0.24 264);
+  --chart-1: oklch(0.68 0.20 262);
   --chart-2: oklch(0.65 0.15 200);
   --chart-3: oklch(0.7 0.15 80);
   --chart-4: oklch(0.6 0.15 310);
@@ -185,7 +185,7 @@ body {
 
 /* Innogrid gradient text */
 .gradient-text {
-  background: linear-gradient(135deg, oklch(0.35 0.12 260), oklch(0.5 0.18 240));
+  background: linear-gradient(135deg, oklch(0.504 0.279 264), oklch(0.800 0.119 235));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -196,7 +196,7 @@ body {
   transition: box-shadow 0.3s ease, transform 0.3s ease;
 }
 .hover-glow:hover {
-  box-shadow: 0 8px 30px oklch(0.35 0.12 260 / 10%), 0 2px 8px oklch(0 0 0 / 5%);
+  box-shadow: 0 8px 30px oklch(0.504 0.279 264 / 15%), 0 2px 8px oklch(0 0 0 / 5%);
   transform: translateY(-2px);
 }
 
