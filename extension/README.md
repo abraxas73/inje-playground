@@ -29,12 +29,25 @@
 - gw.innogrid.com 도메인의 쿠키만 접근할 수 있도록 제한합니다.
 
 ### Content Script (우리 앱 origin에만 주입)
-- 이 확장의 content script는 manifest에서 명시한 origin(`http://localhost/*`, `https://inje-playground.vercel.app/*`)에만 주입됩니다.
-- 다른 사이트에서는 전혀 동작하지 않으므로, 악의적인 사이트에서 GW 쿠키가 노출될 위험이 없습니다.
+- 이 확장의 content script는 manifest에서 명시한 origin에만 주입됩니다:
+  - **프로덕션**: `https://inje-playground.vercel.app` (정확한 도메인만 매칭)
+  - **개발**: `http://localhost/*` (Chrome match pattern으로 인해 **모든 포트의 localhost** 매칭)
+- CORS 정책을 통해 origin 검증이 추가로 이루어집니다.
 
 ## 보안
 
+### 일반 보안 설계
 - 이 확장은 **GW 쿠키를 읽기만 하고**, 워크샵 앱에만 전달합니다.
 - GW 서버와의 직접적인 통신은 하지 않습니다.
 - 최종 검증은 워크샵 앱의 서버(`/api/auth/gw` 엔드포인트)에서 GW API로 재검증하므로, 위조된 쿠키로는 로그인할 수 없습니다.
 - 확장의 모든 통신은 Content Script를 통한 `window.postMessage` 방식으로 이뤄져 크로스 원점 정책(CORS)을 준수합니다.
+
+### 개발 환경 주의 (localhost)
+- 개발 시 **localhost의 모든 포트**에 content script가 주입됩니다.
+- 같은 Chrome 프로필에서 신뢰할 수 없는 로컬 서버(다른 프로젝트, 악성 로컬 프로세스 등)를 실행 중이면, 그 서버가 우리 확장의 프로토콜을 모방하여 GW 토큰을 탈취할 수 있습니다.
+- **권장사항**: 개발 시 신뢰할 수 있는 로컬 서버만 실행하세요. 알 수 없는 코드를 localhost에서 실행하지 마세요.
+
+### 프로덕션 환경 (vercel.app)
+- `https://inje-playground.vercel.app` (정확한 HTTPS 도메인)에만 content script가 주입됩니다.
+- 다른 사이트(악성 사이트 포함)에서는 확장이 동작하지 않습니다.
+- 프로덕션 환경은 localhost의 모든 포트 문제가 없으므로 안전합니다.

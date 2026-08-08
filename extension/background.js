@@ -8,8 +8,17 @@ function getCookie(name) {
   });
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type !== "GW_SESSION_REQUEST") return;
+
+  // Verify sender origin (defense-in-depth)
+  const senderUrl = (sender && (sender.url || sender.origin)) || "";
+  const isAllowedOrigin = /^https:\/\/inje-playground\.vercel\.app(\/|$)/.test(senderUrl) || /^http:\/\/localhost(:\d+)?(\/|$)/.test(senderUrl);
+  if (!isAllowedOrigin) {
+    sendResponse({ error: "unauthorized origin" });
+    return true;
+  }
+
   (async () => {
     try {
       const [oAuthToken, signKey] = await Promise.all([
@@ -22,7 +31,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ data: { oAuthToken, signKey } });
       }
     } catch (e) {
-      sendResponse({ error: String(e) });
+      sendResponse({ error: "GW 세션 조회 중 오류가 발생했습니다." });
     }
   })();
   return true; // async sendResponse

@@ -1,7 +1,13 @@
 // extension/content.js
 // 우리 앱 페이지에만 주입됨(manifest matches). window.postMessage ↔ chrome.runtime 브리지.
+
+function isAllowedOrigin(o) {
+  return o === "https://inje-playground.vercel.app" || /^http:\/\/localhost(:\d+)?$/.test(o);
+}
+
 window.addEventListener("message", (event) => {
   if (event.source !== window) return;
+  if (!isAllowedOrigin(window.location.origin)) return;
   const msg = event.data;
   if (!msg || msg.source !== "gw-bridge" || msg.type !== "GW_SESSION_REQUEST") return;
   chrome.runtime.sendMessage({ type: "GW_SESSION_REQUEST" }, (resp) => {
