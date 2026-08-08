@@ -205,39 +205,9 @@ Expected: Vercel Production 배포 완료. 운영 URL에서 재확인.
 
 ---
 
-# 파트 B — GW 로그인 연동 (A안)
+# 파트 B — GW 로그인 연동 (C안: 사내 크롬 확장 브리지)
 
-> 파트 B는 리브랜딩 배포 후 착수. **Task B0(전제 검증)를 먼저 통과해야** 나머지를 진행한다.
-
-## Task B0: Phase 0 전제 검증 (게이트)
-
-**Files:** 없음(수동 검증).
-
-- [ ] **Step 1: omni 공유 쿠키 존재·도메인 확인**
-
-gw.innogrid.com에 로그인된 브라우저 탭의 개발자도구 콘솔에서:
-```js
-document.cookie.split(';').map(c=>c.trim().split('=')[0]).filter(n=>n.startsWith('omni:'))
-```
-Expected: `["omni:gw.innogrid.com:oAuthToken", "omni:gw.innogrid.com:signKey", ...]`. 결과가 비면 A안 불가 → 사용자에게 보고하고 B안(사내 IdP SSO)으로 전환.
-
-- [ ] **Step 2: 쿠키 도메인 스코프가 `.innogrid.com`인지 확인**
-
-DevTools → Application → Cookies에서 `omni:*` 쿠키의 Domain 열이 `.innogrid.com`인지 확인. `gw.innogrid.com` 전용이면 서브도메인 공유 불가 → B안 전환.
-
-- [ ] **Step 3: 로컬 서브도메인 + HTTPS 환경 구성**
-
-`omni:*` 쿠키는 `secure` 속성이라 로컬도 HTTPS여야 `document.cookie`로 읽힌다.
-```bash
-# /etc/hosts 에 추가 (sudo 필요 — 사용자가 직접 실행)
-echo "127.0.0.1 playground.innogrid.com" | sudo tee -a /etc/hosts
-```
-Next dev를 HTTPS로 기동:
-```bash
-cd /Users/seunguk.kang/Repos/inje-playground/frontend
-npx next dev --experimental-https -p 3003
-```
-`https://playground.innogrid.com:3003` 접속 후 콘솔에서 Step 1 스크립트를 다시 실행해 **우리 앱에서도 omni 쿠키가 읽히는지** 확인. 읽히면 A안 진행 확정.
+> A안(서브도메인+공유쿠키)은 B0 검증에서 omni 쿠키 부재로 폐기됨. C안 채택: 신규 크롬 확장이 `chrome.cookies`로 gw 쿠키를 읽어 앱에 전달 → 서버가 GW API로 검증 → Supabase 세션. 서버/순수로직(B1~B3)은 확장과 독립이라 먼저 구현하고, 확장(B4)·앱 연결(B5)·통합(B6) 순으로 진행.
 
 ## Task B1: GW 인증 순수 로직 (`gw-auth.ts`)
 
@@ -247,7 +217,6 @@ npx next dev --experimental-https -p 3003
 
 **Interfaces:**
 - Produces:
-  - `parseOmniTokens(cookieString: string): { oAuthToken: string; signKey: string } | null` — 쿠키 문자열에서 `omni:gw.innogrid.com:oAuthToken`/`:signKey`를 추출. 없으면 null.
   - `buildGwSignature(params: { oAuthToken: string; signKey: string; transactionId: string; timestamp: number; pathname: string }): string` — `base64(HmacSHA256(oAuthToken + transactionId + timestamp + pathname, signKey))`.
   - `isInnogridEmail(email: string): boolean` — `@innogrid.com` 도메인(대소문자 무시) 여부.
 
@@ -256,24 +225,14 @@ npx next dev --experimental-https -p 3003
 ```ts
 // frontend/src/lib/__tests__/gw-auth.test.ts
 import { describe, it, expect } from "vitest";
-import { parseOmniTokens, buildGwSignature, isInnogridEmail } from "@/lib/gw-auth";
-
-describe("parseOmniTokens", () => {
-  it("omni 쿠키에서 토큰과 서명키를 추출한다", () => {
-    const c = "foo=bar; omni:gw.innogrid.com:oAuthToken=TOKEN123; omni:gw.innogrid.com:signKey=KEY456";
-    expect(parseOmniTokens(c)).toEqual({ oAuthToken: "TOKEN123", signKey: "KEY456" });
-  });
-  it("쿠키가 없으면 null", () => {
-    expect(parseOmniTokens("foo=bar")).toBeNull();
-  });
-});
+import { buildGwSignature, isInnogridEmail } from "@/lib/gw-auth";
 
 describe("buildGwSignature", () => {
   it("결정적 base64 서명을 만든다", () => {
     const args = { oAuthToken: "tok", signKey: "key", transactionId: "tid", timestamp: 1700000000, pathname: "/gw/gw016A02" };
     const sig = buildGwSignature(args);
-    // base64(HmacSHA256("tok"+"tid"+1700000000+"/gw/gw016A02", "key"))
-    expect(sig).toBe("nZ2rp0k…"); // Step 3에서 실제 계산값으로 확정
+    // base64(HmacSHA256("tok"+"tid"+1700000000+"/gw/gw016A02", "key")) — Step 3에서 실제값 확정
+    expect(sig).toBe("__FILL_ME__");
     expect(buildGwSignature(args)).toBe(sig); // 결정성
   });
 });
@@ -283,15 +242,15 @@ describe("isInnogridEmail", () => {
     expect(isInnogridEmail("a@innogrid.com")).toBe(true);
     expect(isInnogridEmail("a@INNOGRID.COM")).toBe(true);
     expect(isInnogridEmail("a@gmail.com")).toBe(false);
+    expect(isInnogridEmail("  a@innogrid.com  ")).toBe(true);
   });
 });
 ```
-> 쿠키 이름의 콜론(`:`)은 값 구분자 `=`의 첫 등장 기준으로 분리해야 한다. 테스트 값의 키릴 문자 오탈자에 주의(실제 작성 시 ASCII로).
 
 - [ ] **Step 2: 테스트 실패 확인**
 
 ```bash
-cd frontend && npm run test -- gw-auth
+cd /Users/seunguk.kang/Repos/inje-playground/.claude/worktrees/innogrid-rebrand-gw/frontend && npm run test -- gw-auth
 ```
 Expected: FAIL ("gw-auth" 모듈 없음).
 
@@ -300,22 +259,6 @@ Expected: FAIL ("gw-auth" 모듈 없음).
 ```ts
 // frontend/src/lib/gw-auth.ts
 import { createHmac } from "crypto";
-
-const OMNI_PREFIX = "omni:gw.innogrid.com:";
-
-export function parseOmniTokens(cookieString: string) {
-  const map = new Map<string, string>();
-  for (const part of cookieString.split(";")) {
-    const s = part.trim();
-    const eq = s.indexOf("=");
-    if (eq === -1) continue;
-    map.set(s.slice(0, eq), s.slice(eq + 1));
-  }
-  const oAuthToken = map.get(`${OMNI_PREFIX}oAuthToken`);
-  const signKey = map.get(`${OMNI_PREFIX}signKey`);
-  if (!oAuthToken || !signKey) return null;
-  return { oAuthToken, signKey };
-}
 
 export function buildGwSignature(p: {
   oAuthToken: string; signKey: string; transactionId: string; timestamp: number; pathname: string;
@@ -329,25 +272,21 @@ export function isInnogridEmail(email: string): boolean {
 }
 ```
 
-- [ ] **Step 4: 실제 서명값을 계산해 테스트 기대값 확정**
+- [ ] **Step 4: 실제 서명값 계산해 기대값 확정**
 
 ```bash
-cd frontend && node -e "const {createHmac}=require('crypto'); console.log(createHmac('sha256','key').update('tok'+'tid'+1700000000+'/gw/gw016A02').digest('base64'))"
+cd /Users/seunguk.kang/Repos/inje-playground/.claude/worktrees/innogrid-rebrand-gw/frontend
+node -e "const {createHmac}=require('crypto'); console.log(createHmac('sha256','key').update('tok'+'tid'+1700000000+'/gw/gw016A02').digest('base64'))"
 ```
-출력값을 Step 1 테스트의 기대값으로 교체.
+출력값을 Step 1 테스트의 `__FILL_ME__`에 넣는다.
 
-- [ ] **Step 5: 테스트 통과 확인**
-
-```bash
-cd frontend && npm run test -- gw-auth
-```
-Expected: PASS.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: 테스트 통과 확인 + Commit**
 
 ```bash
+cd /Users/seunguk.kang/Repos/inje-playground/.claude/worktrees/innogrid-rebrand-gw/frontend && npm run test -- gw-auth
+cd /Users/seunguk.kang/Repos/inje-playground/.claude/worktrees/innogrid-rebrand-gw
 git add frontend/src/lib/gw-auth.ts frontend/src/lib/__tests__/gw-auth.test.ts
-git commit -m "feat(gw-auth): GW 쿠키 파싱·HMAC 서명·이메일 검증 순수 로직"
+git commit -m "feat(gw-auth): GW HMAC 서명·이메일 검증 순수 로직"
 ```
 
 ## Task B2: Supabase Admin 클라이언트
@@ -356,7 +295,7 @@ git commit -m "feat(gw-auth): GW 쿠키 파싱·HMAC 서명·이메일 검증 �
 - Create: `frontend/src/lib/supabase-admin.ts`
 
 **Interfaces:**
-- Produces: `createAdminClient()` — `SUPABASE_SERVICE_ROLE_KEY`로 만든 서버 전용 Supabase 클라이언트. 클라이언트 번들 포함 금지(서버 라우트에서만 import).
+- Produces: `createAdminClient()` — `SUPABASE_SERVICE_ROLE_KEY`로 만든 서버 전용 클라이언트. 서버 라우트에서만 import.
 
 - [ ] **Step 1: 구현**
 
@@ -376,13 +315,13 @@ export function createAdminClient() {
 
 - [ ] **Step 2: 환경변수 등록**
 
-`.env.local`(로컬) 및 Vercel 프로젝트 환경변수에 `SUPABASE_SERVICE_ROLE_KEY` 추가(Supabase 대시보드 → Project Settings → API → service_role key). `GW_API_BASE`(기본 `https://gw.innogrid.com`)도 추가.
-> service_role 키는 절대 클라이언트에 노출 금지. `NEXT_PUBLIC_` 접두어 사용하지 않는다.
+`.env.local`(로컬) 및 Vercel 프로젝트 환경변수에 `SUPABASE_SERVICE_ROLE_KEY`(Supabase 대시보드 → Settings → API → service_role) 추가. `GW_API_BASE`(기본 `https://gw.innogrid.com`)도 추가. `service_role` 키는 `NEXT_PUBLIC_` 접두어 금지.
 
-- [ ] **Step 3: 빌드 확인 + Commit**
+- [ ] **Step 3: 빌드 + Commit**
 
 ```bash
-cd frontend && npm run build
+cd /Users/seunguk.kang/Repos/inje-playground/.claude/worktrees/innogrid-rebrand-gw/frontend && npm run build
+cd /Users/seunguk.kang/Repos/inje-playground/.claude/worktrees/innogrid-rebrand-gw
 git add frontend/src/lib/supabase-admin.ts
 git commit -m "feat(gw-auth): 서버 전용 Supabase admin 클라이언트"
 ```
@@ -393,22 +332,22 @@ git commit -m "feat(gw-auth): 서버 전용 Supabase admin 클라이언트"
 - Create: `frontend/src/app/api/auth/gw/route.ts`
 
 **Interfaces:**
-- Consumes: `parseOmniTokens`(형식 참고), `buildGwSignature`, `isInnogridEmail` (B1); `createAdminClient` (B2).
-- Produces: `POST /api/auth/gw` — body `{ oAuthToken: string; signKey: string }` → GW API 검증 후 `{ token_hash: string, email: string }` 또는 4xx.
+- Consumes: `buildGwSignature`, `isInnogridEmail` (B1); `createAdminClient` (B2).
+- Produces: `POST /api/auth/gw` — body `{ oAuthToken: string; signKey: string }` → `{ token_hash, email }` 또는 4xx.
 
 - [ ] **Step 1: 라우트 구현**
 
 ```ts
 // frontend/src/app/api/auth/gw/route.ts
 import { NextResponse } from "next/server";
-import { randomUUID, createHmac } from "crypto";
+import { randomUUID } from "crypto";
 import { buildGwSignature, isInnogridEmail } from "@/lib/gw-auth";
 import { createAdminClient } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 
 const GW_BASE = process.env.GW_API_BASE ?? "https://gw.innogrid.com";
-// Task B0에서 실제 세션 응답으로 확정할 세션 조회 엔드포인트 (후보: /gw/gw016A02)
+// B6에서 실제 세션 응답으로 확정할 세션 조회 엔드포인트 (후보: /gw/gw016A02)
 const SESSION_PATH = "/gw/gw016A02";
 
 export async function POST(req: Request) {
@@ -437,7 +376,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "gw auth failed" }, { status: 401 });
   }
   const data = await gwRes.json();
-  // Task B0에서 실제 응답 구조로 경로 확정 (예: data.resultData.sessionInfo)
+  // B6에서 실제 응답 구조로 경로 확정 (예: data.resultData.sessionInfo)
   const info = data?.resultData?.sessionInfo ?? data?.sessionInfo ?? {};
   const email: string | undefined = info.user_email || info.user_default_email;
   const name: string | undefined = info.user_name;
@@ -458,106 +397,233 @@ export async function POST(req: Request) {
   return NextResponse.json({ token_hash: link.properties.hashed_token, email });
 }
 ```
-> `SESSION_PATH`와 응답 필드 경로는 Task B0에서 실제 GW 세션으로 확인해 확정한다. 확정 전에는 이 값이 추정치임을 주석으로 남긴다.
+> `SESSION_PATH`와 응답 필드 경로는 B6에서 실제 GW 세션으로 확인해 확정한다(확정 전 추정치임을 주석으로 명시).
 
-- [ ] **Step 2: 빌드 확인**
-
-```bash
-cd frontend && npm run build
-```
-Expected: 타입/빌드 통과.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: 빌드 확인 + Commit**
 
 ```bash
+cd /Users/seunguk.kang/Repos/inje-playground/.claude/worktrees/innogrid-rebrand-gw/frontend && npm run build
+cd /Users/seunguk.kang/Repos/inje-playground/.claude/worktrees/innogrid-rebrand-gw
 git add frontend/src/app/api/auth/gw/route.ts
 git commit -m "feat(gw-auth): GW 토큰 검증·이메일 획득·매직링크 발급 라우트"
 ```
 
-## Task B4: 로그인 페이지 GW 버튼
+## Task B4: 신규 크롬 확장 (`extension/`)
 
 **Files:**
+- Create: `extension/manifest.json`
+- Create: `extension/background.js`
+- Create: `extension/content.js`
+- Create: `extension/README.md` (로드/사용 방법)
+
+**Interfaces:**
+- Produces: 앱 페이지에서 `window.postMessage({ source:"gw-bridge", type:"GW_SESSION_REQUEST", id })` 수신 시, `window.postMessage({ source:"gw-bridge-ext", type:"GW_SESSION_RESPONSE", id, data:{oAuthToken, signKey} | error })` 응답.
+
+- [ ] **Step 1: manifest.json (MV3)**
+
+```json
+{
+  "manifest_version": 3,
+  "name": "Innogrid GW 로그인 브리지",
+  "version": "1.0.0",
+  "description": "이노그리드 그룹웨어(GW) 세션을 워크샵 앱 로그인에 연동합니다.",
+  "permissions": ["cookies"],
+  "host_permissions": ["https://gw.innogrid.com/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost/*", "https://inje-playground.vercel.app/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
+```
+> `matches`는 host 기반이라 `http://localhost/*`가 모든 포트의 localhost에 매칭된다(포트는 매치 패턴에서 무시). 운영 커스텀 도메인이 생기면 여기에 추가한다.
+
+- [ ] **Step 2: background.js (service worker)**
+
+```js
+// extension/background.js
+// content script로부터 GW 세션 요청을 받아 gw.innogrid.com 쿠키를 읽어 응답.
+const GW_URL = "https://gw.innogrid.com";
+
+function getCookie(name) {
+  return new Promise((resolve) => {
+    chrome.cookies.get({ url: GW_URL, name }, (c) => resolve(c && c.value ? c.value : null));
+  });
+}
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type !== "GW_SESSION_REQUEST") return;
+  (async () => {
+    try {
+      const [oAuthToken, signKey] = await Promise.all([
+        getCookie("oAuthToken"),
+        getCookie("signKey"),
+      ]);
+      if (!oAuthToken || !signKey) {
+        sendResponse({ error: "GW 세션을 찾을 수 없습니다. gw.innogrid.com에 먼저 로그인하세요." });
+      } else {
+        sendResponse({ data: { oAuthToken, signKey } });
+      }
+    } catch (e) {
+      sendResponse({ error: String(e) });
+    }
+  })();
+  return true; // async sendResponse
+});
+```
+
+- [ ] **Step 3: content.js (page ↔ extension 브리지)**
+
+```js
+// extension/content.js
+// 우리 앱 페이지에만 주입됨(manifest matches). window.postMessage ↔ chrome.runtime 브리지.
+window.addEventListener("message", (event) => {
+  if (event.source !== window) return;
+  const msg = event.data;
+  if (!msg || msg.source !== "gw-bridge" || msg.type !== "GW_SESSION_REQUEST") return;
+  chrome.runtime.sendMessage({ type: "GW_SESSION_REQUEST" }, (resp) => {
+    window.postMessage(
+      { source: "gw-bridge-ext", type: "GW_SESSION_RESPONSE", id: msg.id, data: resp?.data, error: resp?.error || (chrome.runtime.lastError && chrome.runtime.lastError.message) },
+      window.location.origin
+    );
+  });
+});
+```
+
+- [ ] **Step 4: README.md (개발자 모드 설치 방법)**
+
+`extension/README.md`에 다음을 기록: chrome://extensions → 개발자 모드 ON → "압축해제된 확장 프로그램을 로드" → `extension/` 폴더 선택. gw.innogrid.com 로그인 상태에서 워크샵 앱의 "GW 계정으로 로그인" 사용. 권한(cookies, gw.innogrid.com host) 설명.
+
+- [ ] **Step 5: 확장 유효성 확인 + Commit**
+
+manifest.json이 유효한 JSON인지 확인(`node -e "JSON.parse(require('fs').readFileSync('extension/manifest.json'))"`). content_scripts matches에 앱 origin이 포함됐는지 확인.
+```bash
+cd /Users/seunguk.kang/Repos/inje-playground/.claude/worktrees/innogrid-rebrand-gw
+node -e "JSON.parse(require('fs').readFileSync('extension/manifest.json','utf8')); console.log('manifest OK')"
+git add extension/
+git commit -m "feat(gw-ext): GW 세션 브리지 크롬 확장 신규 추가"
+```
+
+## Task B5: 앱측 확장 래퍼 + 로그인 버튼
+
+**Files:**
+- Create: `frontend/src/lib/gw-extension.ts`
 - Modify: `frontend/src/app/login/page.tsx`
 
 **Interfaces:**
-- Consumes: `POST /api/auth/gw` (B3); Supabase 클라이언트 `verifyOtp`.
+- Consumes: 확장 프로토콜(B4); `POST /api/auth/gw`(B3); Supabase `verifyOtp`.
+- Produces: `requestGwSession(timeoutMs?: number): Promise<{ oAuthToken: string; signKey: string }>` — 확장에 요청, 응답/타임아웃 처리.
 
-- [ ] **Step 1: GW 로그인 핸들러 + 버튼 추가**
+- [ ] **Step 1: gw-extension.ts (postMessage 래퍼, Dooray 패턴 참고)**
 
-기존 구글 버튼 아래에 "이노그리드 GW 계정으로 로그인" 버튼을 추가한다. 클릭 시:
 ```ts
+// frontend/src/lib/gw-extension.ts
+export function requestGwSession(timeoutMs = 8000): Promise<{ oAuthToken: string; signKey: string }> {
+  return new Promise((resolve, reject) => {
+    const id = crypto.randomUUID();
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("GW 로그인 확장 프로그램이 응답하지 않습니다. 확장 설치를 확인해주세요."));
+    }, timeoutMs);
+
+    function cleanup() {
+      window.removeEventListener("message", handler);
+      clearTimeout(timeout);
+    }
+    function handler(event: MessageEvent) {
+      const d = event.data;
+      if (event.source !== window || !d || d.source !== "gw-bridge-ext" || d.type !== "GW_SESSION_RESPONSE" || d.id !== id) return;
+      cleanup();
+      if (d.error) reject(new Error(d.error));
+      else if (d.data?.oAuthToken && d.data?.signKey) resolve(d.data);
+      else reject(new Error("GW 세션 정보를 받지 못했습니다."));
+    }
+
+    window.addEventListener("message", handler);
+    window.postMessage({ source: "gw-bridge", type: "GW_SESSION_REQUEST", id }, window.location.origin);
+  });
+}
+```
+
+- [ ] **Step 2: 로그인 페이지에 GW 버튼 + 핸들러**
+
+기존 구글 버튼 아래에 버튼과 핸들러를 추가한다.
+```tsx
+// login/page.tsx 핸들러 (컴포넌트 내부)
 const handleGwLogin = async () => {
   logAction("GW 로그인 시도", "auth");
-  // 클라이언트에서 omni 쿠키 두 개를 읽는다 (앱이 *.innogrid.com 서브도메인일 때만 접근 가능)
-  const cookie = document.cookie;
-  const get = (name: string) => {
-    const m = cookie.split(";").map(s => s.trim()).find(s => s.startsWith(name + "="));
-    return m ? m.slice(name.length + 1) : "";
-  };
-  const oAuthToken = get("omni:gw.innogrid.com:oAuthToken");
-  const signKey = get("omni:gw.innogrid.com:signKey");
-  if (!oAuthToken || !signKey) {
-    alert("GW 로그인 세션을 찾을 수 없습니다. 먼저 gw.innogrid.com에 로그인해 주세요.");
-    return;
+  try {
+    const { oAuthToken, signKey } = await requestGwSession();
+    const res = await fetch("/api/auth/gw", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ oAuthToken, signKey }),
+    });
+    if (!res.ok) { alert("GW 로그인에 실패했습니다."); return; }
+    const { token_hash } = await res.json();
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({ type: "email", token_hash });
+    if (error) { alert("세션 생성에 실패했습니다."); return; }
+    window.location.href = "/";
+  } catch (e) {
+    alert(e instanceof Error ? e.message : "GW 로그인 오류");
   }
-  const res = await fetch("/api/auth/gw", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ oAuthToken, signKey }),
-  });
-  if (!res.ok) { alert("GW 로그인에 실패했습니다."); return; }
-  const { token_hash } = await res.json();
-  const supabase = createClient();
-  const { error } = await supabase.auth.verifyOtp({ type: "email", token_hash });
-  if (error) { alert("세션 생성에 실패했습니다."); return; }
-  window.location.href = "/";
 };
 ```
-버튼 JSX(기존 구글 버튼 아래):
+버튼 JSX(구글 버튼 아래):
 ```tsx
 <Button onClick={handleGwLogin} variant="outline" className="w-full h-11 text-sm font-medium mt-2">
   이노그리드 GW 계정으로 로그인
 </Button>
 ```
+`requestGwSession` import 추가. `createClient`, `logAction`은 기존 import 재사용.
 
-- [ ] **Step 2: 빌드 확인 + Commit**
+- [ ] **Step 3: 빌드 + Commit**
 
 ```bash
-cd frontend && npm run build
-git add frontend/src/app/login/page.tsx
-git commit -m "feat(gw-auth): 로그인 페이지에 GW 계정 로그인 버튼 추가"
+cd /Users/seunguk.kang/Repos/inje-playground/.claude/worktrees/innogrid-rebrand-gw/frontend && npm run build
+cd /Users/seunguk.kang/Repos/inje-playground/.claude/worktrees/innogrid-rebrand-gw
+git add frontend/src/lib/gw-extension.ts frontend/src/app/login/page.tsx
+git commit -m "feat(gw-auth): 로그인 페이지 GW 버튼 + 확장 브리지 래퍼"
 ```
 
-## Task B5: 로컬 E2E 검증 (실제 GW 세션)
+## Task B6: 통합 E2E 검증 (확장 로드 + 실제 GW 세션)
 
-**Files:** 없음(수동 검증).
+**Files:** 없음(수동 검증) — 필요 시 B3의 `SESSION_PATH`/필드 경로 수정 커밋.
 
-- [ ] **Step 1: 실제 GW 세션으로 엔드포인트·응답 구조 확정**
+- [ ] **Step 1: 확장 로드 & 앱 기동**
 
-Task B0의 HTTPS 서브도메인 환경에서, 실제 omni 토큰으로 세션 조회를 시도해 `SESSION_PATH`와 응답 필드(`user_name`/`user_email` 위치)를 확정한다. 서버 로그(`console.log(JSON.stringify(data))`)로 실제 구조 확인 후 B3의 추정 경로를 실제값으로 수정하고 재커밋.
+chrome://extensions에서 `extension/`을 언팩 로드. 워크샵 앱을 로컬(`npm run dev`, 포트 임의) 기동. `SUPABASE_SERVICE_ROLE_KEY`/`GW_API_BASE`가 `.env.local`에 있는지 확인.
 
-- [ ] **Step 2: 로그인 플로우 E2E**
+- [ ] **Step 2: 실제 세션으로 엔드포인트·필드 확정**
 
-`https://playground.innogrid.com:3003/login`에서 "이노그리드 GW 계정으로 로그인" 클릭 → Supabase 세션 확립 → 홈 이동 확인. `user_profiles`에 프로필 생성/역할 확인.
+gw.innogrid.com 로그인 상태에서 앱의 "이노그리드 GW 계정으로 로그인" 클릭. 서버 로그(`console.log(JSON.stringify(data))`)로 GW 응답 구조를 확인해 `SESSION_PATH`와 `user_name`/`user_email` 위치를 실제값으로 확정하고 B3 수정·재커밋.
 
-- [ ] **Step 3: 실패 케이스 확인**
+- [ ] **Step 3: 로그인 플로우 + 실패 케이스**
 
-- gw.innogrid.com 로그아웃 상태에서 클릭 → 401/안내.
-- 만료 토큰 → 401.
-- (가능하면) 비-innogrid 이메일 → 403.
+- 성공: Supabase 세션 확립 → 홈 이동, `user_profiles` 프로필 확인.
+- 확장 미설치: 타임아웃 안내.
+- gw 로그아웃 상태: 확장이 "세션 없음" 응답.
+- 만료/무효 토큰: 서버 401.
+- (가능 시) 비-innogrid 이메일: 서버 403.
 
-- [ ] **Step 4: 최종 확정 커밋**
+- [ ] **Step 4: 최종 확정 커밋 (필요 시)**
 
 ```bash
+cd /Users/seunguk.kang/Repos/inje-playground/.claude/worktrees/innogrid-rebrand-gw
 git add -A && git commit -m "fix(gw-auth): 실제 GW 세션 응답 구조로 엔드포인트·필드 확정"
 ```
 
-> **운영 배포**: 커스텀 서브도메인(`<sub>.innogrid.com`)을 Vercel에 연결하고 사내 DNS CNAME을 확보한 뒤 배포한다. DNS 확보 전에는 로컬(`/etc/hosts`) 검증까지만 완료 상태로 둔다.
+> **운영 배포**: 확장을 사내 구성원에게 배포(개발자 모드 언팩 또는 관리형 정책 설치)해야 실제 사용 가능. 앱 자체는 기존 Vercel 배포에 포함.
 
 ---
 
 ## Self-Review
 
-- **스펙 커버리지**: 로고(A1) · 문구(A2) · 테마(A3) · 배포(A4) · 전제검증(B0) · 순수로직(B1) · admin(B2) · 라우트(B3) · UI(B4) · E2E(B5) — 스펙 전 항목 대응.
-- **불확실 지점(정직)**: GW `SESSION_PATH`와 응답 필드는 정적 분석 기반 추정이며 B0/B5의 실제 세션으로 확정. HMAC 서명 알고리즘은 번들에서 추출했으나 실제 정합성은 E2E에서만 검증 가능.
-- **폴백**: B0 실패 시 전체 파트 B는 B안(사내 IdP SAML SSO)으로 전환하며 별도 스펙 필요.
+- **스펙 커버리지**: 로고(A1) · 문구(A2·A2b) · 테마(A3·A5) · 배포(A4) — 완료·배포됨. GW: 순수로직(B1) · admin(B2) · 라우트(B3) · 크롬확장(B4) · 앱연결(B5) · 통합E2E(B6) — 스펙 파트3(C안) 전 항목 대응.
+- **불확실 지점(정직)**: GW `SESSION_PATH`와 응답 필드는 정적 분석 기반 추정이며 B6의 실제 세션으로 확정. HMAC 서명 알고리즘은 번들에서 추출했으나 실제 정합성은 통합 E2E에서만 검증 가능.
+- **방향 전환 기록**: A안(서브도메인+공유쿠키)은 B0에서 omni 쿠키 부재로 폐기 → C안(신규 크롬 확장 브리지) 채택. 서버/순수로직은 A안 설계 그대로 재사용, 토큰 획득만 확장 postMessage로 대체.
+- **최종 목표**: 안정성은 사내 IdP SSO가 우위 — 협조 확보 시 이전 권장(별도 스펙).

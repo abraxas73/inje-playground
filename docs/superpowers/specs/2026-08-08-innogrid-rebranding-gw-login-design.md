@@ -71,94 +71,82 @@ innogrid.com CSS에서 확보한 공식 브랜드 토큰:
 
 ---
 
-## 파트 3 — GW 로그인 연동 (A안: 서브도메인 + 공유 쿠키)
+## 파트 3 — GW 로그인 연동 (C안: 사내 크롬 확장 브리지)
 
-### 조사 결과 (main.0d5e089b.js 정적 분석)
+### GW 인증 구조 (main.0d5e089b.js 정적 분석)
 
 - gw.innogrid.com은 **더존 WEHAGO / Amaranth 10** 기반 SPA.
-- 인증 자격은 쿠키 `oAuthToken`(베어러 토큰) + `signKey`(HMAC 비밀키). jQuery-cookie로 심어 **HttpOnly 아님** → JS 읽기 가능.
+- 인증 자격은 쿠키 `oAuthToken`(베어러 토큰) + `signKey`(HMAC 비밀키). `gw.innogrid.com` 도메인 스코프.
 - GW API는 쿠키 인증을 쓰지 않는다(`xhr.withCredentials = false`). 대신:
   - `Authorization: Bearer <oAuthToken>`
   - `transaction-id: <uuid>`
   - `timestamp: <unix초>`
   - `wehago-sign: base64(HmacSHA256(oAuthToken + transactionId + timestamp + pathname, signKey))`
 - 세션 조회 응답(`/gw/gw016A02` 계열)에 `sessionInfo` → `user_name`, `user_email`, `user_default_email` 존재.
-- **CORS가 모든 오리진에 열려 있음**(`access-control-allow-origin`이 요청 Origin 반사, `allow-credentials: true`). 실측: `POST /gw/gw050A02` → 401(인증만 필요, CORS 통과).
-- 상위 도메인 공유 쿠키를 심는 코드 존재: `omni:gw.innogrid.com:oAuthToken`, `omni:gw.innogrid.com:signKey`를 `domain: erp10CookieDomain`, `SameSite=None`, `secure: true`로 설정.
+- **CORS가 모든 오리진에 열려 있음**(요청 Origin 반사, `allow-credentials: true`). 즉 서버가 토큰만 확보하면 GW API를 server-to-server로 호출할 수 있다.
 
-### 왜 "다른 도메인에서 쿠키 검사"는 불가능한가
+### 왜 A안(서브도메인 공유 쿠키)이 불가능했나
 
-동일 출처 정책상 우리 앱(다른 도메인)의 JS는 gw.innogrid.com의 쿠키를 읽을 수 없다. 예외 없음. 유일한 우회는 **우리 앱을 같은 상위 도메인(`.innogrid.com`)에 두어** 공유 쿠키(omni:*)를 읽는 것 = A안.
+착수 전 검증(B0)에서 gw.innogrid.com 로그인 상태의 콘솔에서 `omni:*` 공유 쿠키가 **존재하지 않음(`[]`)** 을 확인했다. GW는 인증 쿠키를 `.innogrid.com` 상위 도메인으로 복제하지 않으며, `oAuthToken`/`signKey`는 `gw.innogrid.com` 전용 스코프다. 따라서 우리 앱을 `*.innogrid.com` 서브도메인에 두어도 `document.cookie`로 읽을 수 없다. → A안 폐기.
 
-### 아키텍처
+### C안 아키텍처 (신규 크롬 확장)
+
+크롬 확장은 `chrome.cookies` API로 **다른 도메인의 쿠키(HttpOnly 포함)** 를 읽을 수 있다. 이 권한을 이용해 확장이 gw 쿠키를 읽어 우리 앱에 전달한다. 서브도메인·공유 쿠키·`/etc/hosts`·로컬 HTTPS가 모두 불필요하다.
 
 ```
-[브라우저] gw.innogrid.com 로그인
-   └→ .innogrid.com 스코프 omni 쿠키 저장 (secure, SameSite=None)
+[브라우저] gw.innogrid.com 로그인 (oAuthToken/signKey 쿠키 보유)
 
-[우리 앱: <sub>.innogrid.com]
+[우리 앱: 아무 origin (localhost, vercel)]
   1. "이노그리드 GW 계정으로 로그인" 버튼 클릭
-  2. (client) document.cookie 에서
-       omni:gw.innogrid.com:oAuthToken, :signKey 읽기
-  3. (client → server) POST /api/auth/gw  { oAuthToken, signKey }
-  4. (server) GW API 호출 (server-to-server, HMAC 서명 재현)
-       → 토큰 유효성 검증 + user_name / user_email 획득
-  5. (server) Supabase Admin(service_role)
-       → 이메일로 유저 확인/생성 → magiclink token_hash 생성
-  6. (server → client) { token_hash } 반환
-  7. (client) supabase.auth.verifyOtp({ type:'email', token_hash })
-       → Supabase 세션 확립 → 로그인 완료
+  2. (app → 확장) window.postMessage({ type:"GW_SESSION_REQUEST", id })
+  3. (확장 content script → background) chrome.runtime 메시지 전달
+  4. (확장 background) chrome.cookies.get({url:"https://gw.innogrid.com", name:"oAuthToken"/"signKey"})
+  5. (확장 → app) window.postMessage({ type:"GW_SESSION_RESPONSE", id, data:{oAuthToken, signKey} })
+  6. (app → server) POST /api/auth/gw { oAuthToken, signKey }
+  7. (server) GW API 호출(server-to-server, HMAC 서명 재현) → 토큰 검증 + user_name/user_email
+  8. (server) Supabase Admin(service_role) → 이메일로 유저 확인/생성 → magiclink token_hash
+  9. (app) supabase.auth.verifyOtp({ type:'email', token_hash }) → 세션 확립 → 완료
 ```
 
-### 핵심 설계 판단
+### 신규 크롬 확장 (repo 내 `extension/`)
 
-**토큰 검증을 서버에서 수행한다.** 클라이언트에서 이메일만 받아 세션을 발급하면 이메일 위조로 아무나 로그인된다. 서버가 GW 토큰을 GW API로 직접 검증(=진짜 GW 로그인 상태 확인)해야 안전하다. 따라서 신뢰 로직 · `service_role` 키 · HMAC 계산을 전부 서버 라우트(`/api/auth/gw`)에 둔다. 클라이언트는 omni 쿠키 두 개를 읽어 전달하는 역할만 한다.
+- **Manifest V3**. `permissions: ["cookies"]`, `host_permissions: ["https://gw.innogrid.com/*"]`.
+- **content script**: `matches`를 **우리 앱 origin에만** 한정(`http://localhost:*/*`, `https://inje-playground.vercel.app/*`). 아무 사이트나 확장에 토큰을 요청하지 못하게 하는 1차 방어선.
+- **background service worker**: content script로부터 받은 `GW_SESSION_REQUEST`에 대해 `chrome.cookies.get`으로 `oAuthToken`/`signKey`를 읽어 응답.
+- GW 로그인 전용. 기존 Dooray 프록시 확장은 그대로 둔다(별도).
 
-### 신규/변경 컴포넌트
+### 앱/서버 컴포넌트 (A안 설계 재사용)
 
-- `frontend/src/lib/gw-auth.ts` (신규) — 순수 로직. omni 쿠키 파싱, GW `wehago-sign` HMAC 계산, GW API 호출 래퍼. 클라이언트/서버 공용 가능한 순수 함수로 분리해 단위 테스트 가능하게 한다.
-- `frontend/src/app/api/auth/gw/route.ts` (신규) — POST 핸들러. 토큰 검증 → 이메일 획득 → Supabase Admin으로 magiclink 발급.
-- `frontend/src/lib/supabase-admin.ts` (신규 또는 기존 재사용) — `service_role` 클라이언트. 서버 전용, 클라이언트 번들에 포함 금지.
-- `frontend/src/app/login/page.tsx` (수정) — "GW 계정으로 로그인" 버튼 + 클릭 핸들러(쿠키 읽기 → API 호출 → verifyOtp).
+- `frontend/src/lib/gw-auth.ts` (신규) — `buildGwSignature`(wehago-sign HMAC), `isInnogridEmail`. 순수 함수, 단위 테스트.
+- `frontend/src/lib/supabase-admin.ts` (신규) — `service_role` 서버 전용 클라이언트.
+- `frontend/src/app/api/auth/gw/route.ts` (신규) — POST `{oAuthToken, signKey}` → GW API 검증 → 이메일 → magiclink 발급.
+- `frontend/src/app/login/page.tsx` (수정) — "GW 계정으로 로그인" 버튼 + 확장 postMessage 핸들러(요청/응답, 타임아웃) → verifyOtp.
+- `frontend/src/lib/gw-extension.ts` (신규) — 확장과의 postMessage 요청/응답 래퍼(타임아웃·확장 미설치 감지). Dooray의 `doorayFetch` 패턴 참고.
 - 환경변수: `SUPABASE_SERVICE_ROLE_KEY`(서버 전용), `GW_API_BASE`(기본 `https://gw.innogrid.com`).
 
-### Supabase 세션 발급 상세
+### 핵심 설계 판단 — 토큰 검증은 서버에서
 
-`supabase.auth.admin.generateLink({ type: 'magiclink', email })`로 `token_hash`를 얻고, 클라이언트가 `verifyOtp`로 세션을 확립한다. 유저가 없으면 자동 생성되며, 역할(role)은 기존 `user_profiles` 기본값 로직을 따른다. 이메일 도메인이 `@innogrid.com`인지 서버에서 한 번 더 확인해 외부 계정 유입을 차단한다.
+확장이 반환한 토큰/이메일을 앱이 그대로 신뢰하면 위조 위험이 있다. 서버가 GW 토큰으로 GW API를 직접 호출해 유효성과 이메일을 확인한 뒤에만 Supabase 세션을 발급한다. 신뢰 로직·`service_role`·HMAC 계산은 전부 서버 라우트에 둔다. 확장은 쿠키를 읽어 전달하는 역할만 한다. 이메일 도메인이 `@innogrid.com`인지 서버에서 확인해 외부 계정을 차단한다.
 
-### Phase 0 — 착수 전 전제 검증 (2가지)
+### 검증
 
-A안은 아래 두 전제가 성립해야 동작한다. 하나라도 실패하면 A안 불가 → B안(사내 IdP SAML SSO) 폴백.
-
-1. **omni 쿠키 도메인 스코프**: `omni:gw.innogrid.com:oAuthToken` 쿠키가 `.innogrid.com` 상위 도메인 스코프로 저장되는가.
-   - 검증: GW 로그인된 탭 콘솔에서
-     ```js
-     document.cookie.split(';').map(c=>c.trim().split('=')[0]).filter(n=>n.startsWith('omni:'))
-     ```
-   - 결과가 비어 있으면(= omni 쿠키가 심어지지 않거나 gw 서브도메인 전용이면) A안 불가.
-
-2. **서브도메인 배포 가능성**: 우리 앱을 `<sub>.innogrid.com`으로 서빙할 수 있는가.
-   - 로컬 개발은 **`/etc/hosts`에 `127.0.0.1 playground.innogrid.com` 수동 등록**으로 시작한다(사용자 결정).
-   - 쿠키는 IP가 아니라 도메인 기준이므로, `/etc/hosts` 매핑만으로도 브라우저의 `.innogrid.com` 쿠키가 로컬 앱과 공유된다.
-   - **주의**: omni 쿠키가 `secure` 속성이라 **로컬 dev도 HTTPS여야** `document.cookie`로 접근된다. `next dev --experimental-https`(또는 mkcert 로컬 인증서)로 `https://playground.innogrid.com:3003`을 띄운다.
-   - 운영 배포는 Vercel 커스텀 도메인 + 사내 DNS CNAME이 필요(추후 확보).
+- `gw-auth.ts` HMAC·이메일 검증 단위 테스트(vitest).
+- 확장을 개발자 모드(언팩)로 로드한 상태에서, gw.innogrid.com 로그인 후 "GW 계정으로 로그인" → Supabase 세션 확립 E2E.
+- 확장 미설치 → 안내, 만료/무효 토큰 → 401, 비-innogrid 이메일 → 403 확인.
+- 실제 세션 응답으로 `SESSION_PATH`(후보 `/gw/gw016A02`)와 `user_email` 필드 경로를 확정.
 
 ### 리스크 (정직한 평가)
 
 - 비공식 경로다. GW(WEHAGO) 업데이트로 쿠키명·API·서명 방식이 바뀌면 깨진다.
-- 우리 서버가 GW의 HMAC 비밀키(signKey)를 (요청 처리 동안) 다루게 된다. 저장하지 않고 즉시 폐기한다.
-- 안정성은 B안(사내 IdP SSO)이 명백히 우위. A안은 "지금 착수 가능한 유일한 길"로서 채택한 것이며, 사내 IdP 협조가 되면 B안으로 이전하는 것을 권장한다.
-
-### 검증
-
-- `gw-auth.ts` HMAC 계산 단위 테스트(코드에서 추출한 알고리즘과 동일한지).
-- 로컬 HTTPS + `/etc/hosts` 환경에서 GW 로그인 상태로 "GW 계정으로 로그인" → Supabase 세션 확립 E2E.
-- 만료/무효 토큰 → 401 처리, 비-innogrid 이메일 → 거부 처리 확인.
+- 확장이 gw 세션 토큰을 읽어 앱에 전달한다 → content script 주입 범위를 우리 앱 origin으로 엄격히 제한하고, 서버가 최종 검증한다.
+- 우리 서버가 GW의 HMAC 비밀키(signKey)를 요청 처리 동안 다룬다. 저장하지 않고 즉시 폐기.
+- 확장 설치가 전제다. 사내 배포(정책 설치 등)는 별도. 초기에는 개발자 모드 언팩 설치.
+- 안정성은 사내 IdP SSO가 우위. 협조가 되면 그쪽으로 이전 권장.
 
 ---
 
 ## 범위 밖 (YAGNI)
 
-- B안(사내 IdP SAML SSO) 실제 구현 — 협조 확보 후 별도 스펙.
+- 사내 IdP SAML SSO 실제 구현 — 협조 확보 후 별도 스펙(가장 안정적인 최종 목표).
 - GW의 다른 기능(결재/메일 등) 연동.
-- 운영 서브도메인 DNS 설정 자동화.
+- 크롬 확장 사내 정책 배포(관리형 설치) 자동화 — 초기에는 개발자 모드 언팩 설치.
