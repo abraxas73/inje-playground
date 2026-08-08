@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { logAction } from "@/lib/action-log";
+import { requestGwSession } from "@/lib/gw-extension";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
@@ -17,6 +18,26 @@ export default function LoginPage() {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
+  };
+
+  const handleGwLogin = async () => {
+    logAction("GW 로그인 시도", "auth");
+    try {
+      const { oAuthToken, signKey } = await requestGwSession();
+      const res = await fetch("/api/auth/gw", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oAuthToken, signKey }),
+      });
+      if (!res.ok) { alert("GW 로그인에 실패했습니다."); return; }
+      const { token_hash } = await res.json();
+      const supabase = createClient();
+      const { error } = await supabase.auth.verifyOtp({ type: "email", token_hash });
+      if (error) { alert("세션 생성에 실패했습니다."); return; }
+      window.location.href = "/";
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "GW 로그인 오류");
+    }
   };
 
   return (
@@ -53,6 +74,13 @@ export default function LoginPage() {
               />
             </svg>
             Google로 로그인
+          </Button>
+          <Button
+            onClick={handleGwLogin}
+            variant="outline"
+            className="w-full h-11 text-sm font-medium mt-2"
+          >
+            이노그리드 GW 계정으로 로그인
           </Button>
         </CardContent>
       </Card>
