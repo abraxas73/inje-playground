@@ -1,6 +1,6 @@
 /**
  * 브라우저에서 Dooray API를 호출하는 클라이언트
- * Chrome 확장(Inje Extension)의 background worker가 프록시하여 CORS 우회
+ * Chrome 확장(Innogrid Extension)의 background worker가 프록시하여 CORS 우회
  * 확장 미설치 시 에러 → fallback (DB 캐시) 사용
  */
 import type { DoorayMember } from "@/types/dooray";

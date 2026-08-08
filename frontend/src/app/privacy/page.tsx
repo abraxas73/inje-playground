@@ -124,7 +124,7 @@ const sections: Section[] = [
             <strong>Vercel / Fly.io</strong> — 애플리케이션 호스팅 및 배포
           </li>
           <li>
-            <strong>Inje Chrome Extension</strong> — 사내 구성원 편의를 위한
+            <strong>Innogrid Chrome Extension</strong> — 사내 구성원 편의를 위한
             브라우저 확장 프로그램. 본 서비스의 인증 세션과 연동되어 일부 기능을
             보조하며, 수집·처리하는 정보의 범위는 본 처리방침을 따릅니다.
           </li>
