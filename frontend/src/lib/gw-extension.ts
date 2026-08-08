@@ -1,4 +1,4 @@
-export function requestGwSession(timeoutMs = 8000): Promise<{ oAuthToken: string; signKey: string }> {
+export function requestGwSession(timeoutMs = 8000): Promise<{ oAuthToken: string; signKey: string; email: string }> {
   return new Promise((resolve, reject) => {
     const id = crypto.randomUUID();
     const timeout = setTimeout(() => {
@@ -15,7 +15,7 @@ export function requestGwSession(timeoutMs = 8000): Promise<{ oAuthToken: string
       if (event.source !== window || !d || d.source !== "gw-bridge-ext" || d.type !== "GW_SESSION_RESPONSE" || d.id !== id) return;
       cleanup();
       if (d.error) reject(new Error(d.error));
-      else if (d.data?.oAuthToken && d.data?.signKey) resolve(d.data);
+      else if (d.data?.oAuthToken && d.data?.signKey && d.data?.email) resolve(d.data);
       else reject(new Error("GW 세션 정보를 받지 못했습니다."));
     }
 

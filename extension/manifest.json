@@ -3,7 +3,7 @@
   "name": "Innogrid GW 로그인 브리지",
   "version": "1.0.0",
   "description": "이노그리드 그룹웨어(GW) 세션을 워크샵 앱 로그인에 연동합니다.",
-  "permissions": ["cookies"],
+  "permissions": ["cookies", "scripting"],
   "host_permissions": ["https://gw.innogrid.com/*"],
   "background": { "service_worker": "background.js" },
   "content_scripts": [

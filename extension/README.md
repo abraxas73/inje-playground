@@ -2,7 +2,9 @@
 
 ## 목적
 
-이 크롬 확장은 이노그리드 그룹웨어(GW)의 세션 쿠키를 읽어 워크샵 앱의 로그인에 자동으로 연동합니다. GW에 이미 로그인된 사용자가 워크샵 앱에서 "이노그리드 GW 계정으로 로그인" 버튼을 클릭하면, 자동으로 GW 세션 정보가 앱에 전달됩니다.
+이 크롬 확장은 이노그리드 그룹웨어(GW)의 세션 쿠키와 로그인 사용자의 이메일을 읽어 워크샵 앱의 로그인에 자동으로 연동합니다. GW에 이미 로그인된 사용자가 워크샵 앱에서 "이노그리드 GW 계정으로 로그인" 버튼을 클릭하면, 자동으로 GW 세션 정보(쿠키)와 이메일이 앱에 전달됩니다.
+
+확장은 (1) `gw.innogrid.com` 쿠키(`oAuthToken`/`signKey`)와 (2) **열려 있는 `gw.innogrid.com` 탭의 `localStorage`에서 읽은 이메일**(`DUZON_BIZCUBEX_SSO_PARAMS`의 `companyInfo.emailAddr`+`companyInfo.emailDomain` 조합)을 함께 전달합니다. GW의 세션 사용자정보 조회 API를 특정하지 못해 `sessionStorage`/세션 API 대신 이 방식을 사용합니다. 따라서 **`gw.innogrid.com` 탭이 열려 있고 로그인된 상태**여야 이메일을 확보할 수 있습니다(탭이 없거나 로그인되어 있지 않으면 로그인이 실패합니다).
 
 ## 설치 방법
 
@@ -13,11 +15,11 @@
 
 ## 사용 방법
 
-1. `gw.innogrid.com`에 먼저 로그인되어 있어야 합니다.
+1. `gw.innogrid.com`에 먼저 로그인되어 있어야 하며, **해당 탭이 열려 있어야 합니다** (이메일을 그 탭의 localStorage에서 읽기 때문).
 2. 워크샵 앱(http://localhost 또는 https://inje-playground.vercel.app)에 접속합니다.
 3. 로그인 페이지에서 "이노그리드 GW 계정으로 로그인" 버튼을 클릭합니다.
-4. 확장이 GW 세션을 감지하고 자동으로 앱에 전달합니다.
-5. 세션 정보는 앱의 서버에서 GW API로 재검증한 후 로그인을 완료합니다.
+4. 확장이 GW 세션 쿠키와 이메일을 감지하고 자동으로 앱에 전달합니다.
+5. 앱 서버는 전달받은 토큰이 유효한 GW 세션인지 GW API로 재검증한 후, 그 이메일로 로그인을 완료합니다.
 
 ## 권한 설명
 
@@ -25,8 +27,13 @@
 - gw.innogrid.com의 `oAuthToken`과 `signKey` 쿠키를 읽기 위해 필요합니다.
 - 다른 사이트의 쿠키는 읽지 않습니다.
 
+### `scripting` 권한
+- 열려 있는 `gw.innogrid.com` 탭에 `chrome.scripting.executeScript`를 실행해 그 탭의 `localStorage`에서 이메일(`DUZON_BIZCUBEX_SSO_PARAMS`)을 읽기 위해 필요합니다.
+- `host_permissions`가 `https://gw.innogrid.com/*`로 제한되어 있어 다른 사이트에는 스크립트를 주입할 수 없습니다.
+- 별도의 `tabs` 권한은 필요하지 않습니다 — gw host_permission 덕분에 `chrome.tabs.query({ url: "https://gw.innogrid.com/*" })`가 URL 정보를 포함한 gw 탭을 반환합니다.
+
 ### `host_permissions: https://gw.innogrid.com/*`
-- gw.innogrid.com 도메인의 쿠키만 접근할 수 있도록 제한합니다.
+- gw.innogrid.com 도메인의 쿠키/탭 접근만 가능하도록 제한합니다.
 
 ### Content Script (우리 앱 origin에만 주입)
 - 이 확장의 content script는 manifest에서 명시한 origin에만 주입됩니다:
@@ -37,10 +44,11 @@
 ## 보안
 
 ### 일반 보안 설계
-- 이 확장은 **GW 쿠키를 읽기만 하고**, 워크샵 앱에만 전달합니다.
+- 이 확장은 **GW 쿠키와 gw 탭의 localStorage 이메일을 읽기만 하고**, 워크샵 앱에만 전달합니다.
 - GW 서버와의 직접적인 통신은 하지 않습니다.
-- 최종 검증은 워크샵 앱의 서버(`/api/auth/gw` 엔드포인트)에서 GW API로 재검증하므로, 위조된 쿠키로는 로그인할 수 없습니다.
+- 최종 검증은 워크샵 앱의 서버(`/api/auth/gw` 엔드포인트)에서 GW API로 토큰의 세션 유효성(200 && resultCode 0)을 재검증하므로, 위조된 쿠키로는 로그인할 수 없습니다.
 - 확장의 모든 통신은 Content Script를 통한 `window.postMessage` 방식으로 이뤄져 크로스 원점 정책(CORS)을 준수합니다.
+- **알려진 한계**: GW의 토큰↔이메일 서버 검증 API를 찾지 못해, 서버는 "토큰이 유효한 GW 세션"인지만 확인하고 이메일 자체는 클라이언트(확장)가 전달한 값을 신뢰합니다. 따라서 유효한 GW 세션을 보유한 사용자가 자신의 브라우저에서 `localStorage`를 조작해 다른 `@innogrid.com` 이메일로 사칭할 이론적 위험이 있습니다. 이 위험은 현재 수용된 상태입니다.
 
 ### 개발 환경 주의 (localhost)
 - 개발 시 **localhost의 모든 포트**에 content script가 주입됩니다.

@@ -23,11 +23,11 @@ export default function LoginPage() {
   const handleGwLogin = async () => {
     logAction("GW 로그인 시도", "auth");
     try {
-      const { oAuthToken, signKey } = await requestGwSession();
+      const { oAuthToken, signKey, email } = await requestGwSession();
       const res = await fetch("/api/auth/gw", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ oAuthToken, signKey }),
+        body: JSON.stringify({ oAuthToken, signKey, email }),
       });
       if (!res.ok) { alert("GW 로그인에 실패했습니다."); return; }
       const { token_hash } = await res.json();
