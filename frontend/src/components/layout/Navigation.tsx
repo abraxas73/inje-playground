@@ -84,8 +84,8 @@ export default function Navigation() {
             >
               <Image
                 src="/logo.svg"
-                alt="NHN InjeInc"
-                width={120}
+                alt="이노그리드"
+                width={101}
                 height={14}
                 className="group-hover:opacity-80 transition-opacity"
               />

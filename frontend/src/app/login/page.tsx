@@ -24,9 +24,9 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm animate-fade-up">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4">
-            <Image src="/logo.svg" alt="NHN InjeInc" width={150} height={18} priority />
+            <Image src="/logo.svg" alt="이노그리드" width={130} height={18} priority />
           </div>
-          <CardDescription>인재인을 위한 서비스에 로그인하세요</CardDescription>
+          <CardDescription>이노그리더를 위한 서비스에 로그인하세요</CardDescription>
         </CardHeader>
         <CardContent>
           <Button

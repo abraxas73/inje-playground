@@ -6,8 +6,8 @@ import Navigation from "@/components/layout/Navigation";
 const geistMono = GeistMono;
 
 export const metadata: Metadata = {
-  title: "NHN InjeInc",
-  description: "인재인을 위한 서비스 — 팀 활동, 일상의 고민을 해결하는 우리만의 도구",
+  title: "이노그리드",
+  description: "이노그리더를 위한 서비스 — 팀 활동, 일상의 고민을 해결하는 우리만의 도구",
 };
 
 export default function RootLayout({

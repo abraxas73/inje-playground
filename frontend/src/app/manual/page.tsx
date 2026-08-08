@@ -7,7 +7,7 @@ const sections = [
     id: "login",
     title: "1. 로그인",
     description:
-      "Google 계정으로 로그인합니다. NHN 인재아이엔씨 구성원이라면 누구나 사용할 수 있습니다.",
+      "Google 계정으로 로그인합니다. 이노그리드 구성원이라면 누구나 사용할 수 있습니다.",
     steps: [
       "앱에 접속하면 로그인 화면이 표시됩니다.",
       '"Google로 로그인" 버튼을 클릭합니다.',
@@ -142,10 +142,10 @@ export default function ManualPage() {
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-3xl font-bold tracking-tight">
-            NHN InjeInc 사용자 매뉴얼
+            이노그리드 사용자 매뉴얼
           </h1>
           <p className="text-muted-foreground mt-2">
-            인재인을 위한 서비스 사용 가이드
+            이노그리더를 위한 서비스 사용 가이드
           </p>
         </div>
 
@@ -239,7 +239,7 @@ export default function ManualPage() {
 
         {/* Footer */}
         <div className="mt-16 pt-8 border-t text-center text-xs text-muted-foreground">
-          <p>NHN InjeInc Workshop &copy; 2026</p>
+          <p>Innogrid Workshop &copy; 2026</p>
         </div>
       </div>
     </div>

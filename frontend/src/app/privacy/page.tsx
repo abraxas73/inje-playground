@@ -3,9 +3,9 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "개인정보처리방침 | NHN InjeInc Workshop",
+  title: "개인정보처리방침 | Innogrid Workshop",
   description:
-    "NHN 인재아이엔씨 워크샵 서비스의 개인정보 수집 및 이용에 관한 안내",
+    "이노그리드 워크샵 서비스의 개인정보 수집 및 이용에 관한 안내",
 };
 
 const EFFECTIVE_DATE = "2026-04-27";
@@ -23,7 +23,7 @@ const sections: Section[] = [
     content: (
       <>
         <p>
-          NHN 인재아이엔씨 워크샵 서비스(이하 &quot;서비스&quot;)는 NHN 인재아이엔씨
+          이노그리드 워크샵 서비스(이하 &quot;서비스&quot;)는 이노그리드
           구성원의 팀 활동과 일상 업무를 돕기 위한 사내 유틸리티 도구입니다.
           수집한 개인정보는 다음의 목적을 위해서만 처리되며, 목적 외의 용도로는
           이용되지 않습니다.
@@ -205,7 +205,7 @@ const sections: Section[] = [
         </p>
         <ul>
           <li>
-            <strong>운영 주체</strong>: NHN 인재아이엔씨
+            <strong>운영 주체</strong>: 이노그리드
           </li>
           <li>
             <strong>문의</strong>: 사내 가이드 채널 또는 워크샵 운영 담당자
@@ -235,7 +235,7 @@ export default function PrivacyPage() {
       <main className="max-w-3xl mx-auto px-4 md:px-8 py-10 md:py-14">
         <header className="mb-10 text-center">
           <Link href="/" className="inline-flex items-center justify-center mb-6">
-            <Image src="/logo.svg" alt="NHN InjeInc" width={140} height={16} priority />
+            <Image src="/logo.svg" alt="이노그리드" width={115} height={16} priority />
           </Link>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
             개인정보처리방침
@@ -275,7 +275,7 @@ export default function PrivacyPage() {
         </article>
 
         <footer className="mt-16 pt-8 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
-          <p>NHN InjeInc Workshop &copy; 2026</p>
+          <p>Innogrid Workshop &copy; 2026</p>
           <Link href="/login" className="hover:text-foreground hover:underline">
             로그인 페이지로 돌아가기
           </Link>

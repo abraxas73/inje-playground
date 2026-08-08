@@ -54,7 +54,7 @@ body {
 
 :root {
   --radius: 0.75rem;
-  /* NHN Injeinc Navy Blue Theme */
+  /* Innogrid CI Blue Theme */
   --background: oklch(0.97 0.005 250);
   --foreground: oklch(0.15 0.03 250);
   --card: oklch(1 0 0);
@@ -183,7 +183,7 @@ body {
 .delay-400 { animation-delay: 400ms; }
 .delay-500 { animation-delay: 500ms; }
 
-/* NHN Injeinc gradient text */
+/* Innogrid gradient text */
 .gradient-text {
   background: linear-gradient(135deg, oklch(0.35 0.12 260), oklch(0.5 0.18 240));
   -webkit-background-clip: text;
