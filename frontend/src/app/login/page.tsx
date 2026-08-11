@@ -29,7 +29,17 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ oAuthToken, signKey, email }),
       });
-      if (!res.ok) { alert("GW 로그인에 실패했습니다."); return; }
+      if (!res.ok) {
+        let msg = "GW 로그인에 실패했습니다.";
+        try {
+          const err = await res.json();
+          if (res.status === 403 && err?.error === "admin_gw_forbidden") {
+            msg = "관리자 계정은 보안을 위해 Google 로그인을 이용해 주세요.";
+          }
+        } catch {}
+        alert(msg);
+        return;
+      }
       const { token_hash } = await res.json();
       const supabase = createClient();
       const { error } = await supabase.auth.verifyOtp({ type: "email", token_hash });

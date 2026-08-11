@@ -49,9 +49,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "gw session invalid" }, { status: 401 });
   }
 
-  // 유효 세션 확인됨 → 이메일로 Supabase 세션 발급. 이름은 이메일 로컬파트.
-  const name = email.split("@")[0];
+  // 유효 세션 확인됨. 완화책: GW 로그인으로는 admin 권한을 부여하지 않는다.
+  // GW가 토큰 기반 사용자정보 조회 API를 제공하지 않아 서버가 이메일을 독립 검증할 수 없으므로,
+  // 이메일 사칭에 의한 관리자 탈취를 구조적으로 차단한다(admin은 Google 로그인 전용).
   const admin = createAdminClient();
+  const { data: existingProfile } = await admin
+    .from("user_profiles")
+    .select("role")
+    .eq("email", email)
+    .maybeSingle();
+  if (existingProfile?.role === "admin") {
+    return NextResponse.json({ error: "admin_gw_forbidden" }, { status: 403 });
+  }
+
+  // 이메일로 Supabase 세션 발급. 이름은 이메일 로컬파트.
+  const name = email.split("@")[0];
   const { data: link, error } = await admin.auth.admin.generateLink({
     type: "magiclink",
     email,
