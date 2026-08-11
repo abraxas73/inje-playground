@@ -16,9 +16,10 @@ interface GwAuthRequestBody {
 }
 
 export async function POST(req: Request) {
-  const { oAuthToken, signKey, email } = (await req
+  const { oAuthToken, signKey, email: rawEmail } = (await req
     .json()
     .catch(() => ({}))) as GwAuthRequestBody;
+  const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
   if (!oAuthToken || !signKey || !email) {
     return NextResponse.json({ error: "missing fields" }, { status: 400 });
   }
@@ -53,11 +54,14 @@ export async function POST(req: Request) {
   // GW가 토큰 기반 사용자정보 조회 API를 제공하지 않아 서버가 이메일을 독립 검증할 수 없으므로,
   // 이메일 사칭에 의한 관리자 탈취를 구조적으로 차단한다(admin은 Google 로그인 전용).
   const admin = createAdminClient();
-  const { data: existingProfile } = await admin
+  const { data: existingProfile, error: profileError } = await admin
     .from("user_profiles")
     .select("role")
-    .eq("email", email)
+    .ilike("email", email)
     .maybeSingle();
+  if (profileError) {
+    return NextResponse.json({ error: "role check failed" }, { status: 500 });
+  }
   if (existingProfile?.role === "admin") {
     return NextResponse.json({ error: "admin_gw_forbidden" }, { status: 403 });
   }
