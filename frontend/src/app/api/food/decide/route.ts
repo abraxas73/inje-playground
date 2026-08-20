@@ -1,7 +1,9 @@
 import { createServerSupabase } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
-
-const DOORAY_API_BASE = "https://api.dooray.com";
+import { createNotifier, NOTIFIER_SETTING_KEYS } from "@/lib/notify";
+import { buildFoodDecisionMessage } from "@/lib/notify/messages";
+import { parseRecipients } from "@/lib/notify/recipients";
+import { loadSettings, loadUserSettings } from "@/lib/settings-server";
 
 export async function POST(request: NextRequest) {
   const supabase = await createServerSupabase();
@@ -11,7 +13,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { place_name, place_url, category_name, address, members, member_ids, send_to_channel } = body;
+  const { place_name, place_url, category_name, address, members, send_to_channel } = body;
 
   if (!place_name || !members?.length) {
     return NextResponse.json({ error: "장소와 구성원이 필요합니다" }, { status: 400 });
@@ -35,101 +37,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Build message
-  const memberList = members.join(", ");
-  const message = [
-    `🍽️ 밥 먹으러 갑시다!`,
-    ``,
-    `📍 **${place_name}**`,
-    address ? `📫 ${address}` : null,
-    category_name ? `🏷️ ${category_name}` : null,
-    `👥 ${memberList}`,
-    place_url ? `🔗 ${place_url}` : null,
-  ].filter(Boolean).join("\n");
+  const message = buildFoodDecisionMessage({ place_name, address, category_name, place_url, members });
 
-  // Get system settings + user settings (user overrides system)
-  const settingsKeys = ["dooray_hook_url", "dooray_token", "dooray_messenger_url"];
-  const { data: settingsRows } = await supabase
-    .from("settings")
-    .select("key, value")
-    .in("key", settingsKeys);
+  // 시스템 설정 + 사용자 개인 설정(dooray_token은 개인 값 우선)
+  const settings = await loadSettings(supabase, [...NOTIFIER_SETTING_KEYS, "dooray_messenger_url"]);
+  const userSettings = await loadUserSettings(supabase, user.id, ["dooray_token"]);
+  const dmSettings = { ...settings, ...(userSettings.dooray_token ? { dooray_token: userSettings.dooray_token } : {}) };
 
-  const settings: Record<string, string> = {};
-  for (const row of settingsRows || []) {
-    settings[row.key] = row.value;
-  }
+  const channelNotifier = createNotifier("notify", settings);
+  const dmNotifier = createNotifier("dm", dmSettings);
 
-  // User-level overrides
-  const { data: userSettingsRows } = await supabase
-    .from("user_settings")
-    .select("key, value")
-    .eq("user_id", user.id)
-    .in("key", ["dooray_token"]);
-  for (const row of userSettingsRows || []) {
-    if (row.value) settings[row.key] = row.value;
-  }
-
+  const dmErrors: string[] = [];
   const results: Record<string, unknown> = {
     decision: data,
     webhook_sent: false,
     personal_messages_sent: 0,
     dooray_messenger_url: settings.dooray_messenger_url || null,
-    dm_errors: [] as string[],
+    dm_errors: dmErrors,
   };
 
-  // 1. Send to channel via incoming webhook (only if requested)
-  if (send_to_channel !== false && settings.dooray_hook_url) {
-    try {
-      const hookRes = await fetch(settings.dooray_hook_url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          botName: "점심봇",
-          botIconImage: "https://static.dooray.com/static_images/dooray-bot.png",
-          text: message,
-        }),
-      });
-      results.webhook_sent = hookRes.ok;
-    } catch {
-      // Webhook failed silently
-    }
+  // 1. 채널 발송 (요청 시에만)
+  if (send_to_channel !== false && channelNotifier.channelConfigured) {
+    const sent = await channelNotifier.sendChannel({ title: "점심 결정", botName: "점심봇", text: message });
+    results.webhook_sent = sent.ok;
   }
 
-  // 2. Send personal messages to each member via Dooray Messenger API
-  if (settings.dooray_token && member_ids?.length) {
-    const token = settings.dooray_token;
-    const headers = {
-      Authorization: `dooray-api ${token}`,
-      "Content-Type": "application/json",
-    };
+  // 2. 개인 DM — recipients(신규) 또는 member_ids(기존)
+  const recipients = parseRecipients(body);
+  if (dmNotifier.directConfigured && recipients.length) {
     let sent = 0;
-
-    const dmErrors = results.dm_errors as string[];
-
-    for (const memberId of member_ids as string[]) {
-      try {
-        // Send direct message to member
-        const dmRes = await fetch(
-          `${DOORAY_API_BASE}/messenger/v1/channels/direct-send`,
-          {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              text: message,
-              organizationMemberId: memberId,
-            }),
-          }
-        );
-
-        if (dmRes.ok) {
-          sent++;
-        } else {
-          const errText = await dmRes.text();
-          dmErrors.push(`dm(${memberId}): ${dmRes.status} ${errText}`);
-        }
-      } catch (e) {
-        dmErrors.push(`exception(${memberId}): ${e instanceof Error ? e.message : String(e)}`);
-      }
+    for (const recipient of recipients) {
+      const r = await dmNotifier.sendDirect(recipient, { text: message });
+      if (r.ok) sent++;
+      else if (r.error) dmErrors.push(r.error);
     }
     results.personal_messages_sent = sent;
   }
