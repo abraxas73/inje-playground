@@ -1,41 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { nlmFetch } from "@/lib/nlm-service";
-
-const DOORAY_API_BASE = "https://api.dooray.com";
-
-/** Dooray 1:1 메시지로 가이드 Q&A 결과 전송 */
-async function sendGuideDM(
-  token: string,
-  memberId: string,
-  question: string,
-  answer: string
-) {
-  const text = [
-    `📋 **가이드 Q&A 답변 알림**`,
-    ``,
-    `❓ **질문**: ${question}`,
-    ``,
-    `💡 **답변**:`,
-    answer.length > 500 ? answer.slice(0, 500) + "…" : answer,
-  ].join("\n");
-
-  try {
-    await fetch(`${DOORAY_API_BASE}/messenger/v1/channels/direct-send`, {
-      method: "POST",
-      headers: {
-        Authorization: `dooray-api ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text,
-        organizationMemberId: memberId,
-      }),
-    });
-  } catch {
-    // DM 전송 실패는 무시 (채팅 응답에 영향 없음)
-  }
-}
+import { getNotifier, type DirectRecipient } from "@/lib/notify";
+import { buildGuideDmText } from "@/lib/notify/messages";
+import { loadUserSettings } from "@/lib/settings-server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -105,37 +73,21 @@ export async function POST(request: NextRequest) {
       citations: result.references || null,
     });
 
-    // Dooray 1:1 메시지 전송 (본인 인증된 사용자에게)
-    // 비동기로 처리하여 채팅 응답에 지연 없음
-    const { data: userSettings } = await supabase
-      .from("user_settings")
-      .select("key, value")
-      .eq("user_id", user.id)
-      .in("key", ["dooray_member_id", "dooray_token"]);
+    // 개인 DM(provider: settings.dm_provider). Teams = 로그인 이메일, Dooray = user_settings.dooray_member_id
+    // fire-and-forget: 채팅 응답에 지연 없음
+    const userSettings = await loadUserSettings(supabase, user.id, ["dooray_member_id", "dooray_token"]);
+    const notifier = await getNotifier(supabase, "dm", { dooray_token: userSettings.dooray_token });
+    const recipient: DirectRecipient =
+      notifier.provider === "teams"
+        ? { email: user.email }
+        : { memberId: userSettings.dooray_member_id };
 
-    const settingsMap: Record<string, string> = {};
-    for (const row of userSettings || []) {
-      settingsMap[row.key] = row.value;
-    }
-
-    // 시스템 토큰 fallback
-    if (!settingsMap.dooray_token) {
-      const { data: sysToken } = await supabase
-        .from("settings")
-        .select("value")
-        .eq("key", "dooray_token")
-        .single();
-      if (sysToken?.value) settingsMap.dooray_token = sysToken.value;
-    }
-
-    if (settingsMap.dooray_member_id && settingsMap.dooray_token) {
-      // fire-and-forget: 응답을 기다리지 않음
-      sendGuideDM(
-        settingsMap.dooray_token,
-        settingsMap.dooray_member_id,
-        question,
-        result.answer
-      );
+    if (notifier.directConfigured && (recipient.email || recipient.memberId)) {
+      void notifier
+        .sendDirect(recipient, { text: buildGuideDmText(question, result.answer) })
+        .catch(() => {
+          // DM 전송 실패는 무시 (채팅 응답에 영향 없음)
+        });
     }
 
     return NextResponse.json({
