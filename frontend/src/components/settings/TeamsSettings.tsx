@@ -15,19 +15,19 @@ const FIELDS: { key: SettingKey; label: string; placeholder: string; hint: strin
     key: "teams_notify_webhook_url",
     label: "채널 알림 웹훅 URL",
     placeholder: "https://prod-xx.westus.logic.azure.com:443/workflows/...",
-    hint: "Power Automate \"HTTP 요청을 받은 경우\" → \"채팅 또는 채널에 메시지 게시\" 워크플로의 HTTP POST URL. 본문 {title, text, html}",
+    hint: "Teams 워크플로 템플릿 \"웹후크 요청을 받으면 채널에 게시\"(표준 라이선스)로 만든 웹후크 URL. 앱이 Adaptive Card 봉투({type:message, attachments})를 보냄",
   },
   {
     key: "teams_dm_webhook_url",
     label: "개인 DM 웹훅 URL",
     placeholder: "https://prod-xx.westus.logic.azure.com:443/workflows/...",
-    hint: "수신자 이메일로 1:1 메시지를 보내는 워크플로의 HTTP POST URL. 본문 {recipientEmail, text, html}",
+    hint: "Power Automate: \"Teams 웹후크 요청을 받은 경우\" 트리거 → \"채팅 또는 채널에 적응형 카드 게시\"(Chat with Flow bot) 흐름의 URL. 수신자 이메일은 카드 body[0](숨김 TextBlock)",
   },
   {
     key: "teams_members_webhook_url",
     label: "멤버 목록 웹훅 URL (Graph 관리자 동의 대안)",
     placeholder: "https://prod-xx.westus.logic.azure.com:443/workflows/...",
-    hint: "Power Automate \"HTTP 요청을 받은 경우\" → Office 365 Groups \"그룹 구성원 나열\" → \"응답\" 워크플로의 HTTP POST URL. 설정되면 Graph 대신 이 흐름으로 멤버를 가져오며 아래 테넌트/클라이언트 ID·시크릿은 불필요. 본문 {groupId}",
+    hint: "(Power Automate 프리미엄 필요) \"HTTP 요청을 받은 경우\" → Office 365 Groups \"그룹 구성원 나열\" → \"응답\" 흐름의 URL. 프리미엄이 없으면 멤버 가져오기 provider를 '앱 사용자 명단'으로 선택",
   },
   {
     key: "teams_tenant_id",

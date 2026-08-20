@@ -64,7 +64,7 @@ export interface MemberSource {
 | key | 값 | 용도 |
 |---|---|---|
 | `notify_provider` | `dooray`\|`teams` (기본 `dooray`) | A 채널 알림 provider |
-| `member_source_provider` | `dooray`\|`teams` | B 멤버 소스 provider |
+| `member_source_provider` | `dooray`\|`teams`\|`users` | B 멤버 소스 provider (`users` = 앱 사용자 명단, 2026-08-21 추가) |
 | `dm_provider` | `dooray`\|`teams` | C DM provider |
 | `teams_notify_webhook_url` | URL | A용 워크플로 웹훅 |
 | `teams_dm_webhook_url` | URL | C용 워크플로 웹훅 |
@@ -85,8 +85,8 @@ export interface MemberSource {
 ### 5.1 A. 채널 알림 (Teams = 웹훅)
 - 대상 라우트: `api/team-notify/route.ts`, `api/food/decide/route.ts`(채널 발송부).
 - 변경: 인라인 Dooray Hook POST → `getNotifier("notify").sendChannel({title, text})`.
-- Teams 구현: `teams_notify_webhook_url`로 JSON POST. 기본 계약 `{ "title": string, "text": string }`. 관리자 워크플로가 이를 파싱해 채널에 게시(단순 텍스트 또는 Adaptive Card).
-- 관리자 준비: Power Automate에서 "When an HTTP request is received" → "Post message in a chat or channel"(채널) 워크플로 생성 → URL을 `teams_notify_webhook_url`에 저장.
+- Teams 구현: `teams_notify_webhook_url`로 JSON POST. ~~기본 계약 `{ "title": string, "text": string }`~~ → **(2026-08-21 변경)** Power Automate "HTTP 요청을 받은 경우" 트리거가 프리미엄이라 표준 라이선스용 **Teams 웹후크 트리거**를 쓰며, 이 트리거가 요구하는 **Adaptive Card 봉투** `{type:"message", attachments:[{contentType:"application/vnd.microsoft.card.adaptive", content:{…body:[제목, 본문]}}]}`를 보낸다. 관리자는 Teams 워크플로 템플릿 "웹후크 요청을 받으면 채널에 게시"로 URL을 만든다.
+- 관리자 준비(2026-08-21 변경): Teams에서 채널 `…` → 워크플로 → 템플릿 "웹후크 요청을 받으면 채널에 게시"로 웹후크 URL 생성 → `teams_notify_webhook_url`에 저장(표준 라이선스, 프리미엄 불필요).
 
 ### 5.2 B. 멤버 가져오기 (Teams = Graph app-only)
 - 신규 서버 라우트: `GET /api/teams/members`
@@ -94,7 +94,8 @@ export interface MemberSource {
   - 조회: `GET https://graph.microsoft.com/v1.0/groups/{teams_group_id}/members/microsoft.graph.user?$select=id,displayName,mail,userPrincipalName`. `@odata.nextLink` 페이지네이션 처리. 이메일은 `mail` 없으면 `userPrincipalName` 폴백.
   - 반환: `Member[] = {id, name: displayName, email}`.
   - 권한: Entra 앱에 **`GroupMember.Read.All`(app) + 관리자 동의**. 로그인용 Entra 앱을 재활용하되 app 권한을 추가 동의.
-  - **대안(2026-08-21 추가)**: Graph 앱 권한의 테넌트 동의는 Privileged Role/Global Administrator만 가능해 실무상 막힐 수 있다. `teams_members_webhook_url`(Power Automate: HTTP 트리거 → Office 365 Groups "그룹 구성원 나열" → 응답)을 설정하면 `/api/teams/members`가 Graph 대신 웹훅에 `{groupId}`를 POST 하고, 커넥터 출력 `{value:[…]}`을 그대로 받아 동일한 `Member[]`로 정규화한다(웹훅 우선, 비우면 Graph). 흐름 소유자의 위임 권한으로 동작하므로 앱 등록 동의·시크릿 불필요.
+  - **기본 대안(2026-08-21 추가, 채택)**: `member_source_provider=users` — 앱 사용자 명단(`user_profiles`에서 guest 제외)을 `GET /api/members/users`로 제공. 외부 연동·라이선스·관리자 동의 불필요, 이메일 보유로 Teams DM 가능. 제약: 로그인한 적 있는 구성원만 포함.
+  - **대안(2026-08-21 추가, 프리미엄 필요)**: Graph 앱 권한의 테넌트 동의는 Privileged Role/Global Administrator만 가능해 실무상 막힐 수 있다. `teams_members_webhook_url`(Power Automate: HTTP 트리거 → Office 365 Groups "그룹 구성원 나열" → 응답)을 설정하면 `/api/teams/members`가 Graph 대신 웹훅에 `{groupId}`를 POST 하고, 커넥터 출력 `{value:[…]}`을 그대로 받아 동일한 `Member[]`로 정규화한다(웹훅 우선, 비우면 Graph). 흐름 소유자의 위임 권한으로 동작하므로 앱 등록 동의·시크릿 불필요.
 - UI 변경: `DoorayImportButton`/`DoorayProjectSelect`를 provider-aware로.
   - `member_source_provider === "teams"`: 크롬 확장 브리지 대신 `/api/teams/members` 호출. 그룹은 관리자 설정(`teams_group_id`)에 고정 → **프로젝트 선택 UI 생략**, 바로 import.
   - `=== "dooray"`: 기존 브리지 흐름 유지.
@@ -103,11 +104,11 @@ export interface MemberSource {
 ### 5.3 C. 개인 DM (Teams = 웹훅)
 - 대상 라우트: `api/food/decide/route.ts`(direct-send부), `api/guide/chat/route.ts`(`sendGuideDM`).
 - 변경: 인라인 direct-send → `getNotifier("dm").sendDirect(recipient, {text})`.
-- Teams 구현: `teams_dm_webhook_url`로 `{ "recipientEmail": string, "text": string }` POST → 워크플로가 해당 사용자에게 Flow bot 1:1 발송.
+- Teams 구현: `teams_dm_webhook_url`로 ~~`{ "recipientEmail": string, "text": string }`~~ → **(2026-08-21 변경)** 같은 Adaptive Card 봉투를 보내되 `body[0]`에 숨김 TextBlock(`id:"recipientEmail"`, `isVisible:false`)으로 수신자 이메일을 싣는다. 흐름(Teams 웹후크 트리거 → "적응형 카드 게시", Chat with Flow bot, 받는 사람 = `triggerBody()?['attachments'][0]['content']['body'][0]['text']`)이 1:1 발송.
 - 수신자 식별: **이메일** 기준.
   - 가이드 답변 DM: 로그인 사용자 본인 이메일 → 항상 해석 가능.
   - 점심 DM: 선택된 멤버들의 이메일 필요 → **Teams 멤버 소스일 때 이메일 보유**.
-- 관리자 준비: Power Automate에서 "When an HTTP request is received" → "Post message in a chat or channel"(Recipient=이메일) 워크플로 생성 → URL을 `teams_dm_webhook_url`에 저장.
+- 관리자 준비(2026-08-21 변경): Power Automate에서 "Teams 웹후크 요청을 받은 경우"(표준) → "채팅 또는 채널에 적응형 카드 게시"(Chat with Flow bot, 받는 사람 = `triggerBody()?['attachments'][0]['content']['body'][0]['text']`) 워크플로 생성 → URL을 `teams_dm_webhook_url`에 저장.
 
 ## 6. 관리자 UI (`app/admin/settings/page.tsx`)
 - provider 셀렉트 3개(`notify_provider`, `member_source_provider`, `dm_provider`).
@@ -130,7 +131,7 @@ export interface MemberSource {
 
 ## 10. 사전 조건 · 순서
 1. **선행(사용자 지시)**: 로그인 페이지에서 GW 버튼만 제거 → main 병합 → 정리된 main 위에서 Teams 작업. (GW 백엔드 코드는 잔존, 버튼만 제거)
-2. 관리자 준비물: Power Automate 워크플로 2개(A 채널, C DM), Entra 앱 `GroupMember.Read.All` app 권한+동의, env `TEAMS_GRAPH_CLIENT_SECRET`, settings 값들.
+2. 관리자 준비물(2026-08-21 개정): Teams 워크플로 웹후크 1개(A 채널, 템플릿) + Power Automate 표준 흐름 1개(C DM) + 멤버 소스 `users` 선택. (Graph 방식은 Entra 앱 `GroupMember.Read.All` app 권한+테넌트 관리자 동의, env `TEAMS_GRAPH_CLIENT_SECRET`이 필요하나 현재 조직에서는 불가.)
 
 ## 11. 구현 단계 (Dooray 무회귀 보장하며 점진)
 1. **Phase 1 — 추상화 + 설정**: Notifier/MemberSource 인터페이스·Dooray 구현 추출, provider 설정 키·admin 셀렉트 추가, (선택)settings GET 하드닝. Teams 구현은 stub. Dooray 동작 동일함을 검증.

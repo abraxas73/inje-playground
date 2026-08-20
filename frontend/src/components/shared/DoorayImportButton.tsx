@@ -7,8 +7,16 @@ import type { DoorayMember } from "@/types/dooray";
 import type { Member } from "@/lib/members/types";
 import { createDoorayMemberSource } from "@/lib/members/dooray";
 import { createTeamsMemberSource } from "@/lib/members/teams";
+import { createAppUsersMemberSource } from "@/lib/members/users";
+import type { MemberSourceProvider } from "@/lib/providers";
 import { useProviderSettings } from "@/hooks/useProviderSettings";
 import { logAction } from "@/lib/action-log";
+
+const IMPORT_LABEL: Record<MemberSourceProvider, string> = {
+  dooray: "Dooray에서 가져오기",
+  teams: "Teams에서 가져오기",
+  users: "앱 사용자 가져오기",
+};
 
 interface DoorayImportButtonProps {
   onImport: (names: string[]) => void;
@@ -23,7 +31,8 @@ export default function DoorayImportButton({
   onImportedMembers,
 }: DoorayImportButtonProps) {
   const { memberSource, isLoaded } = useProviderSettings();
-  const isTeams = memberSource === "teams";
+  // Dooray 외 소스(Teams/앱 사용자 명단)는 서버 라우트로 조회 — 설정 조회·DB 폴백·dooray_members 캐시 없음
+  const isExternal = memberSource !== "dooray";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -74,11 +83,16 @@ export default function DoorayImportButton({
     abortRef.current = controller;
 
     try {
-      if (isTeams) {
+      if (isExternal) {
         // Teams: 그룹은 관리자 설정(teams_group_id)에 고정 → 프로젝트 선택 없이 서버 라우트 호출
-        const members: Member[] = await createTeamsMemberSource().listMembers({ signal: controller.signal });
+        const source = memberSource === "users" ? createAppUsersMemberSource() : createTeamsMemberSource();
+        const members: Member[] = await source.listMembers({ signal: controller.signal });
         if (!members.length) {
-          setError("Teams 그룹에 구성원이 없습니다. 관리자 설정(teams_group_id)을 확인해주세요.");
+          setError(
+            memberSource === "users"
+              ? "앱 사용자 명단이 비어 있습니다. 관리자 > 사용자 관리에서 구성원 역할(user)을 확인해주세요."
+              : "Teams 그룹에 구성원이 없습니다. 관리자 설정(teams_group_id)을 확인해주세요."
+          );
           return;
         }
         const names = members.map((m) => m.name);
@@ -86,7 +100,7 @@ export default function DoorayImportButton({
         if (onImportedMembers) {
           onImportedMembers(members.map((m) => ({ name: m.name })));
         }
-        logAction("Teams 멤버 가져오기", "teams", { memberCount: names.length });
+        logAction(memberSource === "users" ? "앱 사용자 가져오기" : "Teams 멤버 가져오기", memberSource, { memberCount: names.length });
         return;
       }
 
@@ -137,7 +151,7 @@ export default function DoorayImportButton({
         return;
       }
       const errMsg = err instanceof Error ? err.message : "오류가 발생했습니다.";
-      const ok = isTeams ? false : await fallbackFromDB(errMsg);
+      const ok = isExternal ? false : await fallbackFromDB(errMsg);
       if (!ok) {
         setError(errMsg);
       }
@@ -157,7 +171,7 @@ export default function DoorayImportButton({
             <Download className="h-4 w-4 sm:mr-1.5" />
           )}
           <span className="hidden sm:inline">
-            {!isLoaded ? "가져오기" : loading ? "불러오는 중..." : isTeams ? "Teams에서 가져오기" : "Dooray에서 가져오기"}
+            {!isLoaded ? "가져오기" : loading ? "불러오는 중..." : IMPORT_LABEL[memberSource]}
           </span>
         </Button>
         {loading && (

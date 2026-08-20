@@ -28,8 +28,9 @@ import {
 import type { KakaoPlace, FoodFavorite } from "@/types/food";
 import type { Member } from "@/lib/members/types";
 import { createTeamsMemberSource } from "@/lib/members/teams";
+import { createAppUsersMemberSource } from "@/lib/members/users";
 import { useProviderSettings } from "@/hooks/useProviderSettings";
-import type { Provider } from "@/lib/providers";
+import type { MemberSourceProvider } from "@/lib/providers";
 import { logAction } from "@/lib/action-log";
 
 type RecommendMode = "favorite" | "random" | "search" | null;
@@ -57,11 +58,11 @@ interface FoodRecommendModalProps {
 }
 
 /** provider별 로컬 캐시 키 (Dooray 기존 키 보존) */
-function membersStorageKey(provider: Provider) {
-  return provider === "teams" ? "food-teams-members" : "food-dooray-members";
+function membersStorageKey(provider: MemberSourceProvider) {
+  return `food-${provider}-members`; // dooray 기존 키(food-dooray-members) 보존
 }
 
-function loadCachedMembers(provider: Provider): Member[] {
+function loadCachedMembers(provider: MemberSourceProvider): Member[] {
   try {
     const saved = localStorage.getItem(membersStorageKey(provider));
     if (saved) return JSON.parse(saved);
@@ -69,7 +70,7 @@ function loadCachedMembers(provider: Provider): Member[] {
   return [];
 }
 
-function saveCachedMembers(provider: Provider, members: Member[]) {
+function saveCachedMembers(provider: MemberSourceProvider, members: Member[]) {
   try {
     localStorage.setItem(membersStorageKey(provider), JSON.stringify(members));
   } catch {}
@@ -118,8 +119,9 @@ export default function FoodRecommendModal({
     setLoadingMembers(true);
     try {
       let loaded: Member[] = [];
-      if (memberSource === "teams") {
-        loaded = await createTeamsMemberSource().listMembers();
+      if (memberSource !== "dooray") {
+        const source = memberSource === "users" ? createAppUsersMemberSource() : createTeamsMemberSource();
+        loaded = await source.listMembers();
       } else {
         const res = await fetch("/api/dooray/members/db");
         const data = await res.json();
@@ -282,7 +284,7 @@ export default function FoodRecommendModal({
           address: addr,
           members: selectedNames,
           // Dooray: 멤버 ID / Teams: 이메일(Notifier가 provider에 맞게 해석)
-          ...(memberSource === "teams"
+          ...(memberSource !== "dooray"
             ? { recipients: selectedMemberObjs.map((m) => ({ email: m.email, name: m.name })) }
             : { member_ids: selectedIds }),
           send_to_channel: sendToChannel,
@@ -507,7 +509,12 @@ export default function FoodRecommendModal({
               </div>
             ) : members.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                {memberSource === "teams" ? (
+                {memberSource === "users" ? (
+                  <>
+                    앱 사용자 명단이 비어 있습니다.<br />
+                    관리자 &gt; 사용자 관리에서 구성원 역할을 확인해주세요.
+                  </>
+                ) : memberSource === "teams" ? (
                   <>
                     Teams 그룹 구성원을 불러올 수 없습니다.<br />
                     관리자 설정에서 Microsoft Teams 연동을 확인해주세요.

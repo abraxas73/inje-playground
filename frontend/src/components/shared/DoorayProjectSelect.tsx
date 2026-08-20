@@ -47,7 +47,7 @@ export default function DoorayProjectSelect({
 
   // Load token from user/system settings (개인 설정 우선)
   useEffect(() => {
-    if (!isLoaded || memberSource === "teams") return;
+    if (!isLoaded || memberSource !== "dooray") return;
     (async () => {
       try {
         const [userRes, sysRes] = await Promise.all([
@@ -105,7 +105,7 @@ export default function DoorayProjectSelect({
     ? selectedProject.code || selectedProject.name
     : null;
 
-  if (!isLoaded || memberSource === "teams") return null; // provider 로드 전/Teams면 렌더 없음
+  if (!isLoaded || memberSource !== "dooray") return null; // provider 로드 전/Teams면 렌더 없음
 
   return (
     <div className="flex items-center gap-2 flex-wrap">

@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { parseProvider, type Provider } from "@/lib/providers";
+import { parseProvider, parseMemberSourceProvider, type Provider, type MemberSourceProvider } from "@/lib/providers";
 
 export interface ProviderSettings {
   notify: Provider;
-  memberSource: Provider;
+  memberSource: MemberSourceProvider;
   dm: Provider;
 }
 
@@ -24,7 +24,7 @@ export function useProviderSettings() {
         if (cancelled) return;
         setProviders({
           notify: parseProvider(data.notify_provider),
-          memberSource: parseProvider(data.member_source_provider),
+          memberSource: parseMemberSourceProvider(data.member_source_provider),
           dm: parseProvider(data.dm_provider),
         });
       })

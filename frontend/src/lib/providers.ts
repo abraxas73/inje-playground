@@ -36,6 +36,14 @@ export function parseProvider(value: string | null | undefined): Provider {
   return value?.trim().toLowerCase() === "teams" ? "teams" : "dooray";
 }
 
+/** 멤버 소스 축은 외부 연동 없이 쓰는 "users"(앱 사용자 명단 = user_profiles)도 허용 */
+export type MemberSourceProvider = Provider | "users";
+
+export function parseMemberSourceProvider(value: string | null | undefined): MemberSourceProvider {
+  const v = value?.trim().toLowerCase();
+  return v === "teams" ? "teams" : v === "users" ? "users" : "dooray";
+}
+
 export function resolveProvider(
   settings: Record<string, string | undefined>,
   axis: ProviderAxis

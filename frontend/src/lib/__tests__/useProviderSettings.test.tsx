@@ -6,14 +6,14 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("useProviderSettings", () => {
   it("settings의 provider 키를 파싱하고 isLoaded를 올린다", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ notify_provider: "teams", dm_provider: "" }) }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ notify_provider: "teams", member_source_provider: "users", dm_provider: "" }) }));
     const { result } = renderHook(() => useProviderSettings());
     expect(result.current.isLoaded).toBe(false);
     expect(result.current.notify).toBe("dooray");
 
     await waitFor(() => expect(result.current.isLoaded).toBe(true));
     expect(result.current.notify).toBe("teams");
-    expect(result.current.memberSource).toBe("dooray");
+    expect(result.current.memberSource).toBe("users");
     expect(result.current.dm).toBe("dooray");
   });
 

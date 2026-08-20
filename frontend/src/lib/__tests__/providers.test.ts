@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseProvider,
+  parseMemberSourceProvider,
   resolveProvider,
   PROVIDER_SETTING_KEYS,
   TEAMS_SETTING_KEYS,
@@ -16,6 +17,17 @@ describe("parseProvider", () => {
     expect(parseProvider(undefined)).toBe("dooray");
     expect(parseProvider(null)).toBe("dooray");
     expect(parseProvider("slack")).toBe("dooray");
+  });
+});
+
+describe("parseMemberSourceProvider", () => {
+  it("teams/users만 인식, 나머지는 dooray 기본값", () => {
+    expect(parseMemberSourceProvider("users")).toBe("users");
+    expect(parseMemberSourceProvider(" Users ")).toBe("users");
+    expect(parseMemberSourceProvider("teams")).toBe("teams");
+    expect(parseMemberSourceProvider("")).toBe("dooray");
+    expect(parseMemberSourceProvider(undefined)).toBe("dooray");
+    expect(parseMemberSourceProvider("slack")).toBe("dooray");
   });
 });
 
