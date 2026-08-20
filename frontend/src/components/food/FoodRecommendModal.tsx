@@ -507,8 +507,17 @@ export default function FoodRecommendModal({
               </div>
             ) : members.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                Dooray 프로젝트 구성원을 불러올 수 없습니다.<br />
-                설정에서 Dooray 연동을 확인해주세요.
+                {memberSource === "teams" ? (
+                  <>
+                    Teams 그룹 구성원을 불러올 수 없습니다.<br />
+                    관리자 설정에서 Microsoft Teams 연동을 확인해주세요.
+                  </>
+                ) : (
+                  <>
+                    Dooray 프로젝트 구성원을 불러올 수 없습니다.<br />
+                    설정에서 Dooray 연동을 확인해주세요.
+                  </>
+                )}
               </p>
             ) : (
               <>
