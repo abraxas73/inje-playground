@@ -19,6 +19,7 @@ describe("buildTeamResultMessage", () => {
 
 describe("buildFoodDecisionMessage", () => {
   it("선택 필드는 있을 때만 줄이 생긴다", () => {
+    // 빈 줄 placeholder는 filter(Boolean)에서 제거되어 운영 라우트와 일치
     expect(
       buildFoodDecisionMessage({
         place_name: "우래옥",
@@ -30,7 +31,6 @@ describe("buildFoodDecisionMessage", () => {
     ).toBe(
       [
         "🍽️ 밥 먹으러 갑시다!",
-        "",
         "📍 **우래옥**",
         "📫 서울 중구",
         "🏷️ 한식",
@@ -41,9 +41,10 @@ describe("buildFoodDecisionMessage", () => {
   });
 
   it("null/빈 선택 필드는 생략", () => {
+    // 빈 줄 placeholder는 filter(Boolean)에서 제거됨
     expect(
       buildFoodDecisionMessage({ place_name: "우래옥", address: null, category_name: "", place_url: undefined, members: ["홍길동"] })
-    ).toBe(["🍽️ 밥 먹으러 갑시다!", "", "📍 **우래옥**", "👥 홍길동"].join("\n"));
+    ).toBe(["🍽️ 밥 먹으러 갑시다!", "📍 **우래옥**", "👥 홍길동"].join("\n"));
   });
 });
 

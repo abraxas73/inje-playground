@@ -27,19 +27,17 @@ export interface FoodDecisionInput {
 }
 
 export function buildFoodDecisionMessage(d: FoodDecisionInput): string {
-  const lines = [
+  return [
+    `🍽️ 밥 먹으러 갑시다!`,
+    ``,
     `📍 **${d.place_name}**`,
     d.address ? `📫 ${d.address}` : null,
     d.category_name ? `🏷️ ${d.category_name}` : null,
     `👥 ${d.members.join(", ")}`,
     d.place_url ? `🔗 ${d.place_url}` : null,
-  ].filter(Boolean);
-
-  return [
-    `🍽️ 밥 먹으러 갑시다!`,
-    ``,
-    ...lines,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export const GUIDE_DM_ANSWER_MAX = 500;
