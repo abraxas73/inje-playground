@@ -2394,8 +2394,12 @@ import { logAction } from "@/lib/action-log";
 ```
 컴포넌트 본문 첫 줄(`const [loading, setLoading] = useState(false);` 위)에 추가:
 ```tsx
-  const { memberSource } = useProviderSettings();
+  const { memberSource, isLoaded } = useProviderSettings();
   const isTeams = memberSource === "teams";
+```
+`handleImport` 첫 줄에 방어 게이트 추가(설정 로드 전 클릭 시 기본값 dooray로 오동작 방지):
+```tsx
+    if (!isLoaded) return;
 ```
 
 - [ ] **Step 2: `handleImport`의 `try { ... }` 블록 교체**
@@ -2487,12 +2491,13 @@ import { logAction } from "@/lib/action-log";
 ```tsx
           <span className="hidden sm:inline">{loading ? "불러오는 중..." : "Dooray에서 가져오기"}</span>
 ```
-교체:
+교체(설정 로드 전에는 중립 라벨 — Dooray→Teams 깜빡임 방지):
 ```tsx
           <span className="hidden sm:inline">
-            {loading ? "불러오는 중..." : isTeams ? "Teams에서 가져오기" : "Dooray에서 가져오기"}
+            {!isLoaded ? "가져오기" : loading ? "불러오는 중..." : isTeams ? "Teams에서 가져오기" : "Dooray에서 가져오기"}
           </span>
 ```
+같은 `<Button>`의 `disabled={loading}`을 `disabled={loading || !isLoaded}`로 변경.
 `fetchProjectMembers` import가 더 이상 쓰이지 않으므로 제거되었는지 확인(`grep -n fetchProjectMembers frontend/src/components/shared/DoorayImportButton.tsx` → 없음). `DoorayMember` 타입은 `fallbackFromDB`/`saveMembersToCache`에서 계속 사용.
 
 - [ ] **Step 5: `DoorayProjectSelect.tsx` — Teams면 렌더 생략**
@@ -2503,11 +2508,12 @@ import { useProviderSettings } from "@/hooks/useProviderSettings";
 ```
 컴포넌트 본문 첫 줄에 추가하고, `return (` 직전에 early return:
 ```tsx
-  const { memberSource } = useProviderSettings();
+  const { memberSource, isLoaded } = useProviderSettings();
   // ... 기존 state/effects 유지 ...
 
-  if (memberSource === "teams") return null; // Teams는 관리자 설정(teams_group_id)에 고정 — 프로젝트 선택 없음
+  if (!isLoaded || memberSource === "teams") return null; // provider 로드 전/Teams(관리자 설정 teams_group_id 고정)면 렌더 없음
 ```
+토큰 로딩 `useEffect`(`/api/users/settings` + `/api/settings` → `setToken`)는 첫 줄에 `if (!isLoaded || memberSource === "teams") return;`를 넣고 의존성 배열을 `[]` → `[isLoaded, memberSource]`로 바꿔 Teams 모드에서 불필요한 조회를 막는다.
 (훅 순서 규칙: `if (...) return null;`은 모든 `useState/useEffect/useCallback` 호출 뒤, JSX `return` 바로 앞에 둔다.)
 
 - [ ] **Step 6: 타입·린트·테스트**
