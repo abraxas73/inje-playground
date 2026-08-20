@@ -4,6 +4,8 @@
 
 NHN Dooray! API를 활용하여 프로젝트 구성원 가져오기, 메신저 DM 전송, 채널 알림(Webhook) 기능을 제공합니다.
 
+> **Provider 선택**: 채널 알림·멤버·DM 각각을 관리자 설정에서 Dooray ↔ Microsoft Teams로 바꿀 수 있다. Teams 측 설정은 `docs/teams-integration.md` 참고. 이 문서는 Dooray provider 동작을 설명한다.
+
 ## 인증
 
 **방식**: API 토큰 (Bearer)

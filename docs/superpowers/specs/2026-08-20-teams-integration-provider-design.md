@@ -1,7 +1,7 @@
 # Teams 연동 (Dooray 대체 선택) 설계
 
 - 작성일: 2026-08-20
-- 상태: 설계 승인 대기 → 구현 계획 전 단계
+- 상태: 구현 완료 (계획: docs/superpowers/plans/2026-08-20-teams-integration-provider.md)
 - 관련: `2026-08-08-innogrid-rebranding-gw-login-design.md` (MS/Entra 로그인 — 본 작업의 Entra 앱을 재활용)
 
 ## 1. 배경 · 목표
