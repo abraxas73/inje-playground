@@ -4,7 +4,10 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2, X } from "lucide-react";
 import type { DoorayMember } from "@/types/dooray";
-import { fetchProjectMembers } from "@/lib/dooray-client";
+import type { Member } from "@/lib/members/types";
+import { createDoorayMemberSource } from "@/lib/members/dooray";
+import { createTeamsMemberSource } from "@/lib/members/teams";
+import { useProviderSettings } from "@/hooks/useProviderSettings";
 import { logAction } from "@/lib/action-log";
 
 interface DoorayImportButtonProps {
@@ -19,6 +22,8 @@ export default function DoorayImportButton({
   projectId: overrideProjectId,
   onImportedMembers,
 }: DoorayImportButtonProps) {
+  const { memberSource } = useProviderSettings();
+  const isTeams = memberSource === "teams";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -68,6 +73,22 @@ export default function DoorayImportButton({
     abortRef.current = controller;
 
     try {
+      if (isTeams) {
+        // Teams: 그룹은 관리자 설정(teams_group_id)에 고정 → 프로젝트 선택 없이 서버 라우트 호출
+        const members: Member[] = await createTeamsMemberSource().listMembers({ signal: controller.signal });
+        if (!members.length) {
+          setError("Teams 그룹에 구성원이 없습니다. 관리자 설정(teams_group_id)을 확인해주세요.");
+          return;
+        }
+        const names = members.map((m) => m.name);
+        onImport(names);
+        if (onImportedMembers) {
+          onImportedMembers(members.map((m) => ({ name: m.name })));
+        }
+        logAction("Teams 멤버 가져오기", "teams", { memberCount: names.length });
+        return;
+      }
+
       // 설정에서 토큰/프로젝트ID 가져오기 (개인 설정 우선)
       const [userSettingsRes, settingsRes] = await Promise.all([
         fetch("/api/users/settings", { signal: controller.signal }),
@@ -91,7 +112,7 @@ export default function DoorayImportButton({
       }
 
       // 브라우저에서 Dooray API 직접 호출 (Chrome 확장이 CORS 처리)
-      const members = await fetchProjectMembers(token, projectId, controller.signal);
+      const members = await createDoorayMemberSource({ token, projectId }).listMembers({ signal: controller.signal });
       const names = members.map((m) => m.name);
       onImport(names);
 
@@ -115,9 +136,9 @@ export default function DoorayImportButton({
         return;
       }
       const errMsg = err instanceof Error ? err.message : "오류가 발생했습니다.";
-      const ok = await fallbackFromDB(errMsg);
+      const ok = isTeams ? false : await fallbackFromDB(errMsg);
       if (!ok) {
-        setError(err instanceof Error ? err.message : "오류가 발생했습니다.");
+        setError(errMsg);
       }
     } finally {
       abortRef.current = null;
@@ -134,7 +155,9 @@ export default function DoorayImportButton({
           ) : (
             <Download className="h-4 w-4 sm:mr-1.5" />
           )}
-          <span className="hidden sm:inline">{loading ? "불러오는 중..." : "Dooray에서 가져오기"}</span>
+          <span className="hidden sm:inline">
+            {loading ? "불러오는 중..." : isTeams ? "Teams에서 가져오기" : "Dooray에서 가져오기"}
+          </span>
         </Button>
         {loading && (
           <Button

@@ -19,6 +19,7 @@ import {
 import { Check, ChevronsUpDown, FolderOpen, Loader2, X, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchProjects as fetchDoorayProjects } from "@/lib/dooray-client";
+import { useProviderSettings } from "@/hooks/useProviderSettings";
 
 interface DoorayProject {
   id: string;
@@ -36,6 +37,7 @@ export default function DoorayProjectSelect({
   value,
   onChange,
 }: DoorayProjectSelectProps) {
+  const { memberSource } = useProviderSettings();
   const [token, setToken] = useState<string | null>(null);
   const [projects, setProjects] = useState<DoorayProject[]>([]);
   const [loading, setLoading] = useState(false);
@@ -101,6 +103,8 @@ export default function DoorayProjectSelect({
   const selectedLabel = selectedProject
     ? selectedProject.code || selectedProject.name
     : null;
+
+  if (memberSource === "teams") return null; // Teams는 관리자 설정(teams_group_id)에 고정 — 프로젝트 선택 없음
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
