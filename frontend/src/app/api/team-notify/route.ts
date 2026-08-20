@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
 
   if (notifier.channelConfigured) {
     const sent = await notifier.sendChannel({ title: "팀 구성 결과", botName: "팀봇", text: message });
+    if (!sent.ok) console.warn("[notify] channel send failed:", sent.error);
     results.webhook_sent = sent.ok;
   }
 

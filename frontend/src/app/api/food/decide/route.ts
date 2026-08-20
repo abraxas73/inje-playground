@@ -52,13 +52,14 @@ export async function POST(request: NextRequest) {
     decision: data,
     webhook_sent: false,
     personal_messages_sent: 0,
-    dooray_messenger_url: settings.dooray_messenger_url || null,
+    dooray_messenger_url: dmNotifier.provider === "dooray" ? settings.dooray_messenger_url || null : null,
     dm_errors: dmErrors,
   };
 
   // 1. 채널 발송 (요청 시에만)
   if (send_to_channel !== false && channelNotifier.channelConfigured) {
     const sent = await channelNotifier.sendChannel({ title: "점심 결정", botName: "점심봇", text: message });
+    if (!sent.ok) console.warn("[notify] channel send failed:", sent.error);
     results.webhook_sent = sent.ok;
   }
 

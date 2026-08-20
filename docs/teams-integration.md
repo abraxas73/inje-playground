@@ -70,7 +70,7 @@ curl -X POST "$TEAMS_NOTIFY_WEBHOOK_URL" -H "Content-Type: application/json" \
    - `POST https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token` (client_credentials, scope `https://graph.microsoft.com/.default`) — 토큰은 서버 메모리 캐시(만료 60초 전 갱신)
    - `GET https://graph.microsoft.com/v1.0/groups/{groupId}/members/microsoft.graph.user?$select=id,displayName,mail,userPrincipalName&$top=999` (+ `@odata.nextLink`)
    - 이메일 = `mail` → 없으면 `userPrincipalName`
-5. 확인: 로그인 상태에서 `GET /api/teams/members` → `{ members: [{id, name, email}] }`. `403 Authorization_RequestDenied`면 관리자 동의 누락.
+5. 확인: 로그인 상태에서 `GET /api/teams/members` → `{ members: [{id, name, email}] }`. `502` 응답 본문에 `Authorization_RequestDenied`(Graph 403)가 보이면 관리자 동의 누락.
 
 ## 4. 코드 구조
 

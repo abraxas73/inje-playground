@@ -116,6 +116,6 @@ No test framework is configured.
 
 ### Directory Layout (frontend/src/)
 - `components/` — Organized by feature: `ladder/`, `team/`, `food/`, `guide/`, `settings/`, `shared/`, `layout/`
-- `hooks/` — `useLocalStorage`, `useParticipants`, `useBgm`, `useTts`
-- `lib/` — Pure logic: `ladder.ts`, `team-divider.ts`, `dooray.ts`, `nlm-service.ts`
+- `hooks/` — `useLocalStorage`, `useParticipants`, `useBgm`, `useTts`, `useSettings`(관리자 전역 설정), `useProviderSettings`(provider 3축)
+- `lib/` — Pure logic: `ladder.ts`, `team-divider.ts`, `dooray.ts`, `nlm-service.ts`, `providers.ts`(provider 상수/파서), `settings-server.ts`(서버 settings 로더), `teams-graph.ts`(Graph app-only), `notify/`(Notifier: dooray/teams/messages/recipients), `members/`(MemberSource: dooray/teams)
 - `types/` — TypeScript interfaces: `ladder.ts`, `team.ts`, `dooray.ts`, `guide.ts`

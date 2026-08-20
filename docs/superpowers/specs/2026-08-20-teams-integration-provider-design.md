@@ -119,7 +119,7 @@ export interface MemberSource {
 - **선택적 하드닝(권장)**: `api/settings` GET에서 민감 키(`*_webhook_url`, `dooray_hook_url`, `dooray_token`, `dooray_messenger_url`)를 응답에서 제외하고, 서버 라우트는 DB에서 직접 읽도록 분리. 이는 기존 Dooray 노출까지 함께 개선. (범위 확정 시 Phase 1에 포함)
 
 ## 8. 제약 · 수용된 트레이드오프
-- **혼합 provider 한계**: `member_source=dooray` + `dm_provider=teams` 조합은 Dooray 멤버에 이메일이 없어 점심 DM 수신자 해석 불가. → 관리자에게 "DM/멤버 provider를 맞추라" 안내. 가이드 답변 DM(로그인 이메일)은 조합과 무관하게 동작.
+- **혼합 provider 한계**: 멤버 소스와 DM provider가 다르면(`member_source=dooray`+`dm_provider=teams`: Dooray 멤버에 이메일 없음 / `member_source=teams`+`dm_provider=dooray`: Teams 멤버에 Dooray 멤버 ID 없음) 점심 DM 수신자 해석 불가. → 관리자에게 "DM/멤버 provider를 맞추라" 안내. 가이드 답변 DM(로그인 이메일)은 조합과 무관하게 동작.
 - **Power Automate 라이선스**: 채널/DM 게시 워크플로가 프리미엄 커넥터를 요구할 수 있음(조직 라이선스 확인 필요).
 - **Graph 관리자 동의**: `GroupMember.Read.All` app 권한에 테넌트 관리자 동의 1회 필요.
 

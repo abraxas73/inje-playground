@@ -30,7 +30,7 @@ export default function ProviderSettings({ settingsHook }: ProviderSettingsProps
 
   const memberSource = parseProvider(settings.member_source_provider);
   const dm = parseProvider(settings.dm_provider);
-  const mismatch = memberSource === "dooray" && dm === "teams";
+  const mismatch = memberSource !== dm;
 
   return (
     <div className="space-y-4">
@@ -59,8 +59,9 @@ export default function ProviderSettings({ settingsHook }: ProviderSettingsProps
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            Teams DM은 이메일 기준이라 Dooray 멤버(이메일 없음)에게는 점심 DM을 보낼 수 없습니다.
-            멤버 가져오기도 Microsoft Teams로 맞춰주세요. (가이드 답변 DM은 로그인 이메일로 정상 동작)
+            점심 DM은 멤버 가져오기와 개인 DM provider가 같아야 합니다. Dooray 멤버에는 이메일이, Teams 멤버에는
+            Dooray 멤버 ID가 없어 서로 다른 조합에서는 점심 DM을 보낼 수 없습니다. (가이드 답변 DM은 로그인
+            이메일로 정상 동작)
           </AlertDescription>
         </Alert>
       )}
