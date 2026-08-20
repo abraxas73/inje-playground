@@ -37,7 +37,7 @@ export default function DoorayProjectSelect({
   value,
   onChange,
 }: DoorayProjectSelectProps) {
-  const { memberSource } = useProviderSettings();
+  const { memberSource, isLoaded } = useProviderSettings();
   const [token, setToken] = useState<string | null>(null);
   const [projects, setProjects] = useState<DoorayProject[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,6 +47,7 @@ export default function DoorayProjectSelect({
 
   // Load token from user/system settings (개인 설정 우선)
   useEffect(() => {
+    if (!isLoaded || memberSource === "teams") return;
     (async () => {
       try {
         const [userRes, sysRes] = await Promise.all([
@@ -60,7 +61,7 @@ export default function DoorayProjectSelect({
         // silent
       }
     })();
-  }, []);
+  }, [isLoaded, memberSource]);
 
   const fetchProjects = useCallback(async () => {
     if (!token) {
@@ -104,7 +105,7 @@ export default function DoorayProjectSelect({
     ? selectedProject.code || selectedProject.name
     : null;
 
-  if (memberSource === "teams") return null; // Teams는 관리자 설정(teams_group_id)에 고정 — 프로젝트 선택 없음
+  if (!isLoaded || memberSource === "teams") return null; // provider 로드 전/Teams면 렌더 없음
 
   return (
     <div className="flex items-center gap-2 flex-wrap">

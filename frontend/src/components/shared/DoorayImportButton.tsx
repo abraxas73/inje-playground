@@ -22,7 +22,7 @@ export default function DoorayImportButton({
   projectId: overrideProjectId,
   onImportedMembers,
 }: DoorayImportButtonProps) {
-  const { memberSource } = useProviderSettings();
+  const { memberSource, isLoaded } = useProviderSettings();
   const isTeams = memberSource === "teams";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +64,7 @@ export default function DoorayImportButton({
   };
 
   const handleImport = async () => {
+    if (!isLoaded) return;
     setError(null);
     setInfo(null);
     setOriginalError(null);
@@ -149,14 +150,14 @@ export default function DoorayImportButton({
   return (
     <div>
       <div className="flex gap-1">
-        <Button onClick={handleImport} disabled={loading} variant="outline" className="border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+        <Button onClick={handleImport} disabled={loading || !isLoaded} variant="outline" className="border-emerald-300 text-emerald-700 hover:bg-emerald-50">
           {loading ? (
             <Loader2 className="h-4 w-4 sm:mr-1.5 animate-spin" />
           ) : (
             <Download className="h-4 w-4 sm:mr-1.5" />
           )}
           <span className="hidden sm:inline">
-            {loading ? "불러오는 중..." : isTeams ? "Teams에서 가져오기" : "Dooray에서 가져오기"}
+            {!isLoaded ? "가져오기" : loading ? "불러오는 중..." : isTeams ? "Teams에서 가져오기" : "Dooray에서 가져오기"}
           </span>
         </Button>
         {loading && (
