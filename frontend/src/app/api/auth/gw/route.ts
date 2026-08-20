@@ -15,7 +15,20 @@ interface GwAuthRequestBody {
   email?: string;
 }
 
+/**
+ * 킬스위치: 환경변수 GW_LOGIN_ENABLED=true 일 때만 활성. 기본은 404.
+ * GW가 토큰 기반 사용자 조회 API를 제공하지 않아 email을 서버가 독립 검증할 수 없으므로,
+ * 로그인 UI가 없는 동안에는 엔드포인트 자체를 닫아 내부자 사칭(비admin 계정 탈취) 표면을 제거한다.
+ */
+function isGwLoginEnabled(): boolean {
+  return process.env.GW_LOGIN_ENABLED === "true";
+}
+
 export async function POST(req: Request) {
+  if (!isGwLoginEnabled()) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+
   const { oAuthToken, signKey, email: rawEmail } = (await req
     .json()
     .catch(() => ({}))) as GwAuthRequestBody;
