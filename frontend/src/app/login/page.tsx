@@ -20,6 +20,18 @@ export default function LoginPage() {
     });
   };
 
+  const handleMsLogin = async () => {
+    logAction("Microsoft 로그인 시도", "auth");
+    const supabase = createClient();
+    await supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        scopes: "email openid profile",
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+  };
+
   const handleGwLogin = async () => {
     logAction("GW 로그인 시도", "auth");
     try {
@@ -84,6 +96,19 @@ export default function LoginPage() {
               />
             </svg>
             Google로 로그인
+          </Button>
+          <Button
+            onClick={handleMsLogin}
+            variant="outline"
+            className="w-full h-11 text-sm font-medium mt-2"
+          >
+            <svg className="h-5 w-5 mr-2" viewBox="0 0 23 23">
+              <path fill="#F25022" d="M1 1h10v10H1z" />
+              <path fill="#7FBA00" d="M12 1h10v10H12z" />
+              <path fill="#00A4EF" d="M1 12h10v10H1z" />
+              <path fill="#FFB900" d="M12 12h10v10H12z" />
+            </svg>
+            Microsoft 계정으로 로그인
           </Button>
           <Button
             onClick={handleGwLogin}
