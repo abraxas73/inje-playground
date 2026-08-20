@@ -26,7 +26,10 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import type { KakaoPlace, FoodFavorite } from "@/types/food";
-import type { DoorayMember } from "@/types/dooray";
+import type { Member } from "@/lib/members/types";
+import { createTeamsMemberSource } from "@/lib/members/teams";
+import { useProviderSettings } from "@/hooks/useProviderSettings";
+import type { Provider } from "@/lib/providers";
 import { logAction } from "@/lib/action-log";
 
 type RecommendMode = "favorite" | "random" | "search" | null;
@@ -53,19 +56,22 @@ interface FoodRecommendModalProps {
   lastSearch: SearchCondition | null;
 }
 
-const MEMBERS_STORAGE_KEY = "food-dooray-members";
+/** provider별 로컬 캐시 키 (Dooray 기존 키 보존) */
+function membersStorageKey(provider: Provider) {
+  return provider === "teams" ? "food-teams-members" : "food-dooray-members";
+}
 
-function loadCachedMembers(): DoorayMember[] {
+function loadCachedMembers(provider: Provider): Member[] {
   try {
-    const saved = localStorage.getItem(MEMBERS_STORAGE_KEY);
+    const saved = localStorage.getItem(membersStorageKey(provider));
     if (saved) return JSON.parse(saved);
   } catch {}
   return [];
 }
 
-function saveCachedMembers(members: DoorayMember[]) {
+function saveCachedMembers(provider: Provider, members: Member[]) {
   try {
-    localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(members));
+    localStorage.setItem(membersStorageKey(provider), JSON.stringify(members));
   } catch {}
 }
 
@@ -85,8 +91,10 @@ export default function FoodRecommendModal({
   const [loading, setLoading] = useState(false);
   const [spinning, setSpinning] = useState(false);
 
+  const { memberSource, isLoaded: providerLoaded } = useProviderSettings();
+
   // Member selection
-  const [members, setMembers] = useState<DoorayMember[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
   const [memberSearch, setMemberSearch] = useState("");
   const [sendToChannel, setSendToChannel] = useState(true);
@@ -99,9 +107,9 @@ export default function FoodRecommendModal({
     dmErrors: string[];
   } | null>(null);
 
-  // Load members from DB
+  // Load members (provider: settings.member_source_provider)
   const loadMembers = useCallback(async () => {
-    const cached = loadCachedMembers();
+    const cached = loadCachedMembers(memberSource);
     if (cached.length > 0) {
       setMembers(cached);
       return;
@@ -109,23 +117,28 @@ export default function FoodRecommendModal({
 
     setLoadingMembers(true);
     try {
-      const res = await fetch("/api/dooray/members/db");
-      const data = await res.json();
-
-      if (data.members?.length) {
-        setMembers(data.members);
-        saveCachedMembers(data.members);
+      let loaded: Member[] = [];
+      if (memberSource === "teams") {
+        loaded = await createTeamsMemberSource().listMembers();
+      } else {
+        const res = await fetch("/api/dooray/members/db");
+        const data = await res.json();
+        loaded = data.members ?? [];
+      }
+      if (loaded.length) {
+        setMembers(loaded);
+        saveCachedMembers(memberSource, loaded);
       }
     } catch {
       // Failed to load members
     } finally {
       setLoadingMembers(false);
     }
-  }, []);
+  }, [memberSource]);
 
   useEffect(() => {
-    if (open) loadMembers();
-  }, [open, loadMembers]);
+    if (open && providerLoaded) loadMembers();
+  }, [open, providerLoaded, loadMembers]);
 
   // Slot machine effect helper
   const runSlotMachine = (
@@ -268,7 +281,10 @@ export default function FoodRecommendModal({
           category_name: catName,
           address: addr,
           members: selectedNames,
-          member_ids: selectedIds,
+          // Dooray: 멤버 ID / Teams: 이메일(Notifier가 provider에 맞게 해석)
+          ...(memberSource === "teams"
+            ? { recipients: selectedMemberObjs.map((m) => ({ email: m.email, name: m.name })) }
+            : { member_ids: selectedIds }),
           send_to_channel: sendToChannel,
         }),
       });
