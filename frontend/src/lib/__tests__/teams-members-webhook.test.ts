@@ -31,6 +31,22 @@ describe("parseWebhookMembers", () => {
     expect(parseWebhookMembers([{ id: "u1", name: "홍길동" }])).toEqual([{ id: "u1", name: "홍길동", email: undefined }]);
   });
 
+  it("@odata.nextLink가 있으면(페이지네이션 미설정으로 잘린 응답) 조용히 받지 않고 throw", () => {
+    expect(() =>
+      parseWebhookMembers({ value: [{ id: "u1", displayName: "A" }], "@odata.nextLink": "https://graph.microsoft.com/v1.0/groups/g/members?$skiptoken=x" })
+    ).toThrow("Teams 멤버 웹훅 응답이 잘렸습니다");
+  });
+
+  it("value/members가 null이면 빈 목록", () => {
+    expect(parseWebhookMembers({ value: null })).toEqual([]);
+    expect(parseWebhookMembers({ members: null })).toEqual([]);
+  });
+
+  it("이메일 키 우선순위는 평탄한 체인(mail → Mail → userPrincipalName → … → Email), 빈 문자열은 건너뜀", () => {
+    expect(parseWebhookMembers([{ id: "u1", displayName: "A", mail: "", Mail: "m@x.com" }])).toEqual([{ id: "u1", name: "A", email: "m@x.com" }]);
+    expect(parseWebhookMembers([{ id: "u1", displayName: "A", mail: "   ", userPrincipalName: "upn@x.com" }])).toEqual([{ id: "u1", name: "A", email: "upn@x.com" }]);
+  });
+
   it("배열이 없는 형식은 설명 오류", () => {
     expect(() => parseWebhookMembers({ foo: 1 })).toThrow("Teams 멤버 웹훅 응답 형식이 올바르지 않습니다");
     expect(() => parseWebhookMembers(null)).toThrow("Teams 멤버 웹훅 응답 형식이 올바르지 않습니다");
@@ -55,6 +71,13 @@ describe("fetchMembersFromWebhook", () => {
     const fetchImpl = vi.fn().mockResolvedValue(res(200, JSON.stringify({ value: [] })));
     await fetchMembersFromWebhook("https://w", undefined, fetchImpl);
     expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({ groupId: "" });
+  });
+
+  it("오류 본문은 500자로 잘라 담는다", async () => {
+    const big = "x".repeat(2000);
+    await expect(fetchMembersFromWebhook("https://w", "g1", vi.fn().mockResolvedValue(res(500, big)))).rejects.toThrow(
+      `Teams 멤버 웹훅 오류 (500): ${"x".repeat(500)}…`
+    );
   });
 
   it("비정상 응답은 status·본문을 담아 throw, JSON 아님도 throw", async () => {

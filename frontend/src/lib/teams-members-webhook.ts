@@ -18,14 +18,27 @@ export function parseWebhookMembers(data: unknown): Member[] {
   if (Array.isArray(data)) {
     list = data;
   } else if (data && typeof data === "object") {
-    const obj = data as { members?: unknown; value?: unknown };
+    const obj = data as { members?: unknown; value?: unknown; "@odata.nextLink"?: unknown };
+    // 커넥터가 다음 페이지 링크를 돌려줬다면 목록이 잘린 것 — 조용히 일부만 쓰지 않고 설정 오류로 알린다.
+    if (obj["@odata.nextLink"]) {
+      throw new Error(
+        "Teams 멤버 웹훅 응답이 잘렸습니다(@odata.nextLink 존재). Power Automate '그룹 구성원 나열' 작업의 Top을 999로 올리고 작업 설정에서 페이지네이션을 켜세요."
+      );
+    }
     if (Array.isArray(obj.members)) list = obj.members;
     else if (Array.isArray(obj.value)) list = obj.value;
+    else if (obj.members === null || obj.value === null) list = [];
   }
   if (!list) {
     throw new Error("Teams 멤버 웹훅 응답 형식이 올바르지 않습니다(value 또는 members 배열 필요).");
   }
   return normalizeGraphUsers(list);
+}
+
+const ERROR_BODY_MAX = 500;
+
+function clip(text: string): string {
+  return text.length > ERROR_BODY_MAX ? text.slice(0, ERROR_BODY_MAX) + "…" : text;
 }
 
 /** 웹훅에 {groupId}를 POST 하고 멤버 목록을 돌려준다. 실패 시 status·본문을 담아 throw. */
@@ -40,7 +53,7 @@ export async function fetchMembersFromWebhook(
     body: JSON.stringify({ groupId: groupId ?? "" }),
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(`Teams 멤버 웹훅 오류 (${res.status}): ${text}`);
+  if (!res.ok) throw new Error(`Teams 멤버 웹훅 오류 (${res.status}): ${clip(text)}`);
 
   let data: unknown;
   try {

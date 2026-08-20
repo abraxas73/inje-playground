@@ -60,27 +60,33 @@ interface GraphPage {
   "@odata.nextLink"?: string;
 }
 
-function str(v: unknown): string | undefined {
-  return typeof v === "string" ? v : undefined;
+/** 주어진 키 순서대로 첫 번째 "비어 있지 않은 문자열" 값을 돌려준다(공백만 있는 값은 건너뜀). */
+function firstString(u: Record<string, unknown>, keys: readonly string[]): string | undefined {
+  for (const k of keys) {
+    const v = u[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return undefined;
 }
+
+const ID_KEYS = ["id", "Id"] as const;
+const NAME_KEYS = ["displayName", "DisplayName", "name", "Name"] as const;
+const EMAIL_KEYS = ["mail", "Mail", "userPrincipalName", "UserPrincipalName", "email", "Email"] as const;
 
 /**
  * Graph/커넥터 사용자 객체 목록 → Member[].
  * 키는 camelCase(displayName/mail/userPrincipalName), PascalCase(DisplayName/Mail/…), 정규화(name/email) 모두 허용.
- * id 또는 이름이 없는 항목은 제외. 이메일 = mail → userPrincipalName → email 순 폴백. 이름순(ko) 정렬.
+ * id 또는 이름이 없는 항목은 제외. 이메일은 EMAIL_KEYS 순서의 평탄한 폴백(빈 문자열·null 건너뜀). 이름순(ko) 정렬.
  */
 export function normalizeGraphUsers(users: unknown[]): Member[] {
   const members: Member[] = [];
   for (const raw of users) {
     if (!raw || typeof raw !== "object") continue;
     const u = raw as Record<string, unknown>;
-    const id = str(u.id ?? u.Id);
-    const name = str(u.displayName ?? u.DisplayName ?? u.name ?? u.Name)?.trim();
+    const id = firstString(u, ID_KEYS);
+    const name = firstString(u, NAME_KEYS);
     if (!id || !name) continue;
-    const email =
-      (str(u.mail ?? u.Mail) || str(u.userPrincipalName ?? u.UserPrincipalName) || str(u.email ?? u.Email) || "").trim() ||
-      undefined;
-    members.push({ id, name, email });
+    members.push({ id, name, email: firstString(u, EMAIL_KEYS) });
   }
   return members.sort((a, b) => a.name.localeCompare(b.name, "ko"));
 }

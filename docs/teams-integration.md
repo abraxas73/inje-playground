@@ -90,6 +90,7 @@ curl -X POST "$TEAMS_NOTIFY_WEBHOOK_URL" -H "Content-Type: application/json" \
 
 - 앱이 보내는 요청: `POST <URL>` 본문 `{"groupId":"<teams_group_id>"}`.
 - 앱이 받는 응답: `{"value":[…]}`(권장) 또는 `{"members":[{"id","name","email"}]}`/배열. 이름 없는 항목 제외, 이메일 = `mail` → `userPrincipalName` 폴백, 이름순 정렬.
+- **잘린 응답 거부**: 응답에 `@odata.nextLink`가 있으면(Top 미설정·페이지네이션 꺼짐으로 일부만 반환) 앱은 목록을 쓰지 않고 `502 "Teams 멤버 웹훅 응답이 잘렸습니다…"`를 돌려준다 → 2단계의 Top=999·페이지네이션을 확인.
 - 테스트:
   ```bash
   curl -s -X POST "$TEAMS_MEMBERS_WEBHOOK_URL" -H "Content-Type: application/json" -d '{"groupId":"<그룹ID>"}' | head -c 600
