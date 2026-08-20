@@ -19,6 +19,7 @@ export const SETTING_KEYS = [
   // Teams (비밀 아님 — Graph secret은 env TEAMS_GRAPH_CLIENT_SECRET)
   "teams_notify_webhook_url",
   "teams_dm_webhook_url",
+  "teams_members_webhook_url",
   "teams_graph_client_id",
   "teams_tenant_id",
   "teams_group_id",

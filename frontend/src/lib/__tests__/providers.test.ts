@@ -36,6 +36,7 @@ describe("resolveProvider", () => {
     expect([...TEAMS_SETTING_KEYS]).toEqual([
       "teams_notify_webhook_url",
       "teams_dm_webhook_url",
+      "teams_members_webhook_url",
       "teams_graph_client_id",
       "teams_tenant_id",
       "teams_group_id",
@@ -48,6 +49,7 @@ describe("ADMIN_ONLY_SETTING_KEYS", () => {
     expect(ADMIN_ONLY_SETTING_KEYS.has("dooray_hook_url")).toBe(true);
     expect(ADMIN_ONLY_SETTING_KEYS.has("teams_notify_webhook_url")).toBe(true);
     expect(ADMIN_ONLY_SETTING_KEYS.has("teams_dm_webhook_url")).toBe(true);
+    expect(ADMIN_ONLY_SETTING_KEYS.has("teams_members_webhook_url")).toBe(true);
     expect(ADMIN_ONLY_SETTING_KEYS.has("dooray_token")).toBe(false);
     expect(ADMIN_ONLY_SETTING_KEYS.has("notify_provider")).toBe(false);
   });

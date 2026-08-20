@@ -68,6 +68,7 @@ export interface MemberSource {
 | `dm_provider` | `dooray`\|`teams` | C DM provider |
 | `teams_notify_webhook_url` | URL | A용 워크플로 웹훅 |
 | `teams_dm_webhook_url` | URL | C용 워크플로 웹훅 |
+| `teams_members_webhook_url` | URL | (2026-08-21 추가) B 대안 — Power Automate 멤버 목록 흐름 웹훅. 설정 시 Graph보다 우선 |
 | `teams_graph_client_id` | GUID | B Graph 앱 client id |
 | `teams_tenant_id` | GUID | B Graph 테넌트 id |
 | `teams_group_id` | GUID | B 멤버를 가져올 대상 팀/그룹(= Dooray project_id 대응) |
@@ -93,6 +94,7 @@ export interface MemberSource {
   - 조회: `GET https://graph.microsoft.com/v1.0/groups/{teams_group_id}/members/microsoft.graph.user?$select=id,displayName,mail,userPrincipalName`. `@odata.nextLink` 페이지네이션 처리. 이메일은 `mail` 없으면 `userPrincipalName` 폴백.
   - 반환: `Member[] = {id, name: displayName, email}`.
   - 권한: Entra 앱에 **`GroupMember.Read.All`(app) + 관리자 동의**. 로그인용 Entra 앱을 재활용하되 app 권한을 추가 동의.
+  - **대안(2026-08-21 추가)**: Graph 앱 권한의 테넌트 동의는 Privileged Role/Global Administrator만 가능해 실무상 막힐 수 있다. `teams_members_webhook_url`(Power Automate: HTTP 트리거 → Office 365 Groups "그룹 구성원 나열" → 응답)을 설정하면 `/api/teams/members`가 Graph 대신 웹훅에 `{groupId}`를 POST 하고, 커넥터 출력 `{value:[…]}`을 그대로 받아 동일한 `Member[]`로 정규화한다(웹훅 우선, 비우면 Graph). 흐름 소유자의 위임 권한으로 동작하므로 앱 등록 동의·시크릿 불필요.
 - UI 변경: `DoorayImportButton`/`DoorayProjectSelect`를 provider-aware로.
   - `member_source_provider === "teams"`: 크롬 확장 브리지 대신 `/api/teams/members` 호출. 그룹은 관리자 설정(`teams_group_id`)에 고정 → **프로젝트 선택 UI 생략**, 바로 import.
   - `=== "dooray"`: 기존 브리지 흐름 유지.

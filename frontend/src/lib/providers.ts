@@ -15,6 +15,7 @@ export const PROVIDER_SETTING_KEYS: Record<ProviderAxis, string> = {
 export const TEAMS_SETTING_KEYS = [
   "teams_notify_webhook_url",
   "teams_dm_webhook_url",
+  "teams_members_webhook_url",
   "teams_graph_client_id",
   "teams_tenant_id",
   "teams_group_id",
@@ -28,6 +29,7 @@ export const ADMIN_ONLY_SETTING_KEYS: ReadonlySet<string> = new Set([
   "dooray_hook_url",
   "teams_notify_webhook_url",
   "teams_dm_webhook_url",
+  "teams_members_webhook_url",
 ]);
 
 export function parseProvider(value: string | null | undefined): Provider {

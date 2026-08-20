@@ -55,16 +55,34 @@ export async function getGraphAppToken(
   return data.access_token;
 }
 
-interface GraphUser {
-  id: string;
-  displayName?: string | null;
-  mail?: string | null;
-  userPrincipalName?: string | null;
+interface GraphPage {
+  value?: unknown[];
+  "@odata.nextLink"?: string;
 }
 
-interface GraphPage {
-  value?: GraphUser[];
-  "@odata.nextLink"?: string;
+function str(v: unknown): string | undefined {
+  return typeof v === "string" ? v : undefined;
+}
+
+/**
+ * Graph/커넥터 사용자 객체 목록 → Member[].
+ * 키는 camelCase(displayName/mail/userPrincipalName), PascalCase(DisplayName/Mail/…), 정규화(name/email) 모두 허용.
+ * id 또는 이름이 없는 항목은 제외. 이메일 = mail → userPrincipalName → email 순 폴백. 이름순(ko) 정렬.
+ */
+export function normalizeGraphUsers(users: unknown[]): Member[] {
+  const members: Member[] = [];
+  for (const raw of users) {
+    if (!raw || typeof raw !== "object") continue;
+    const u = raw as Record<string, unknown>;
+    const id = str(u.id ?? u.Id);
+    const name = str(u.displayName ?? u.DisplayName ?? u.name ?? u.Name)?.trim();
+    if (!id || !name) continue;
+    const email =
+      (str(u.mail ?? u.Mail) || str(u.userPrincipalName ?? u.UserPrincipalName) || str(u.email ?? u.Email) || "").trim() ||
+      undefined;
+    members.push({ id, name, email });
+  }
+  return members.sort((a, b) => a.name.localeCompare(b.name, "ko"));
 }
 
 /** 그룹(팀)의 사용자 멤버 전체 — 페이지네이션, mail→UPN 폴백, 이름순 */
@@ -74,7 +92,7 @@ export async function listGroupMembers(
   fetchImpl: FetchLike = fetch
 ): Promise<Member[]> {
   const token = await getGraphAppToken(cfg, fetchImpl);
-  const members: Member[] = [];
+  const users: unknown[] = [];
 
   let url: string | undefined =
     `${GRAPH_BASE}/groups/${encodeURIComponent(groupId)}/members/microsoft.graph.user` +
@@ -86,14 +104,9 @@ export async function listGroupMembers(
     if (!res.ok) throw new Error(`Graph API 오류 (${res.status}): ${text}`);
 
     const page = JSON.parse(text) as GraphPage;
-    for (const u of page.value ?? []) {
-      const name = u.displayName?.trim();
-      if (!u.id || !name) continue;
-      const email = (u.mail || u.userPrincipalName || "").trim() || undefined;
-      members.push({ id: u.id, name, email });
-    }
+    users.push(...(page.value ?? []));
     url = page["@odata.nextLink"];
   }
 
-  return members.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  return normalizeGraphUsers(users);
 }
