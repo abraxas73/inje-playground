@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { memberKey, preselectKeys, splitCurrent, isValidEmail, mergeManual, toDrafts, userMembersToMembers } from "@/lib/my-team";
+import { memberKey, splitCurrent, isValidEmail, isPersonalEmail, mergeManual, toDrafts, userMembersToMembers } from "@/lib/my-team";
 
 describe("memberKey", () => {
   it("이메일이 있으면 소문자 이메일, 없으면 name: 접두 키", () => {
@@ -9,37 +9,43 @@ describe("memberKey", () => {
   });
 });
 
-describe("preselectKeys", () => {
-  it("현재 내 팀(이메일 우선, 없으면 이름)과 일치하는 소스 항목의 키를 돌려준다", () => {
-    const current = [
-      { name: "강승억", email: "su@innogrid.com" },
-      { name: "이영희", email: null },
-      { name: "없는사람", email: "none@innogrid.com" },
-    ];
-    const source = [
-      { id: "u1", name: "강승억(팀장)", email: "SU@innogrid.com" },
-      { id: "u2", name: "이영희", email: "yh@innogrid.com" },
-      { id: "u3", name: "김철수", email: "cs@innogrid.com" },
-    ];
-    expect([...preselectKeys(current, source)].sort()).toEqual(["su@innogrid.com", "yh@innogrid.com"]);
+describe("splitCurrent", () => {
+  const source = [
+    { id: "u1", name: "강승억", email: "su@gmail.com" },
+    { id: "u2", name: "이영희", email: "yh@innogrid.com" },
+    { id: "u3", name: "김철수", email: "cs@innogrid.com" },
+    { id: "u4", name: "김철수", email: "cs2@innogrid.com" },
+  ];
+
+  it("external_id 우선 매칭 + 덮어쓴 이메일은 overrides로 복원", () => {
+    const r = splitCurrent([{ name: "강승억", email: "su@innogrid.com", external_id: "u1" }], source);
+    expect([...r.preselectedIds]).toEqual(["u1"]);
+    expect(r.overrides).toEqual({ u1: "su@innogrid.com" });
+    expect(r.extras).toEqual([]);
+  });
+
+  it("external_id 없으면 이메일, 그다음 이름(유일할 때만)으로 매칭; 동명이인은 매칭하지 않고 extras", () => {
+    const r = splitCurrent(
+      [
+        { name: "이영희", email: "YH@innogrid.com", external_id: null },
+        { name: "강승억", email: null, external_id: null },
+        { name: "김철수", email: null, external_id: null },
+        { name: "외부인", email: "ext@partner.com", external_id: null },
+      ],
+      source
+    );
+    expect([...r.preselectedIds].sort()).toEqual(["u1", "u2"]);
+    expect(r.overrides).toEqual({});
+    expect(r.extras).toEqual([{ name: "김철수" }, { name: "외부인", email: "ext@partner.com" }]);
   });
 });
 
-describe("splitCurrent", () => {
-  it("소스에 있는 사람은 preselected, 없는 사람은 extras(직접 추가)로 유지", () => {
-    const current = [
-      { name: "강승억", email: "su@innogrid.com", external_id: "u1" },
-      { name: "이영희", email: null, external_id: null },
-      { name: "외부인", email: "ext@partner.com", external_id: null },
-      { name: "수동", email: null, external_id: null },
-    ];
-    const source = [
-      { id: "u1", name: "강승억", email: "su@innogrid.com" },
-      { id: "u2", name: "이영희", email: "yh@innogrid.com" },
-    ];
-    const r = splitCurrent(current, source);
-    expect([...r.preselected].sort()).toEqual(["su@innogrid.com", "yh@innogrid.com"]);
-    expect(r.extras).toEqual([{ name: "외부인", email: "ext@partner.com", external_id: undefined }, { name: "수동" }]);
+describe("isPersonalEmail", () => {
+  it("개인 메일 도메인 감지(Teams DM 불가 경고용)", () => {
+    expect(isPersonalEmail("a@gmail.com")).toBe(true);
+    expect(isPersonalEmail("a@Naver.com")).toBe(true);
+    expect(isPersonalEmail("a@innogrid.com")).toBe(false);
+    expect(isPersonalEmail(undefined)).toBe(false);
   });
 });
 
@@ -77,6 +83,9 @@ describe("toDrafts / userMembersToMembers", () => {
     expect(toDrafts([{ id: "u1", name: "강승억", email: "su@innogrid.com" }, { id: "u2", name: "B" }])).toEqual([
       { name: "강승억", email: "su@innogrid.com", external_id: "u1" },
       { name: "B", email: undefined, external_id: "u2" },
+    ]);
+    expect(toDrafts([{ id: "u1", name: "강승억", email: "su@gmail.com" }], { u1: "su@innogrid.com" })).toEqual([
+      { name: "강승억", email: "su@innogrid.com", external_id: "u1" },
     ]);
     expect(
       userMembersToMembers([

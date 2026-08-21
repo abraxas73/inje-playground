@@ -77,6 +77,7 @@ curl -i -X POST "$TEAMS_DM_WEBHOOK_URL" -H "Content-Type: application/json" -d '
 ### 3.2 내 팀 구성 (개인별 명단, 2026-08-21 추가)
 - 멤버 소스는 "후보 명단"일 뿐이고, **누가 내 팀인지는 각 사용자가 직접 고른다**. 저장소는 기존 `user_members`(사용자별)에 `email`, `external_id` 칼럼을 추가해 사용.
 - 진입점: `/settings` "내 팀 구성원" 카드의 **구성원 선택**, 또는 `/ladder`·`/team`의 **"내 팀 구성원 선택"** 버튼(Dooray 외 소스일 때). 모달에서 검색·체크·"직접 추가(이름+이메일)" 후 저장 → 기존 목록 교체(법카 표시는 이름 기준 보존).
+- **Teams 이메일 수정**: 앱 사용자 명단의 이메일은 *로그인 계정*이라 Google 로그인 사용자는 gmail 등 개인 메일일 수 있다(Teams DM 불가, 모달에 "개인 메일" 경고). 행의 이메일(연필)을 눌러 회사 Teams 이메일로 덮어쓰면 `user_members.email`에 저장되고, 재진입 시 `external_id`로 같은 사람에 매칭되어 덮어쓴 값이 복원된다.
 - 사용처: `/ladder`·`/team`의 "내 구성원" 버튼, `/food` 구성원 선택은 **내 팀이 기본 목록**(전체 명단 보기 토글). 점심 DM 수신자는 `user_members.email`.
 - Dooray 모드는 기존 동작 그대로("Dooray에서 가져오기" = 프로젝트 전체 교체).
 - DB 마이그레이션: `alter table public.user_members add column if not exists email text, add column if not exists external_id text;`

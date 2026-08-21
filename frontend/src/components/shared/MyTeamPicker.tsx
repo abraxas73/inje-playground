@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search, UserPlus, Users } from "lucide-react";
+import { Loader2, Search, UserPlus, Users, Pencil, AlertTriangle } from "lucide-react";
 import type { MemberSourceProvider } from "@/lib/providers";
 import type { Member } from "@/lib/members/types";
 import { createAppUsersMemberSource } from "@/lib/members/users";
@@ -14,6 +14,7 @@ import {
   memberKey,
   splitCurrent,
   isValidEmail,
+  isPersonalEmail,
   mergeManual,
   toDrafts,
   type TeamMemberDraft,
@@ -48,6 +49,11 @@ export default function MyTeamPicker({ open, onOpenChange, provider, current, on
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [extras, setExtras] = useState<TeamMemberDraft[]>([]);
+  /** 소스 id → Teams 이메일 덮어쓰기(로그인 이메일이 개인 메일일 때 회사 메일로) */
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [manualName, setManualName] = useState("");
   const [manualEmail, setManualEmail] = useState("");
@@ -75,11 +81,12 @@ export default function MyTeamPicker({ open, onOpenChange, provider, current, on
             : await (provider === "users" ? createAppUsersMemberSource() : createTeamsMemberSource()).listMembers();
         if (cancelled) return;
         setSource(src);
-        const { preselected, extras: keep } = splitCurrent(current, src);
+        const { preselectedIds, overrides: savedOverrides, extras: keep } = splitCurrent(current, src);
         setExtras(keep);
+        setOverrides(savedOverrides);
+        setEditingId(null);
         // 선택 키: 소스 항목은 고유 id(동명이인 안전), 직접 추가 항목은 "extra:"+memberKey
-        const ids = src.filter((s) => preselected.has(memberKey(s))).map((s) => s.id);
-        setSelected(new Set([...ids, ...keep.map(extraKey)]));
+        setSelected(new Set([...preselectedIds, ...keep.map(extraKey)]));
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "구성원을 불러오지 못했습니다.");
       } finally {
@@ -144,9 +151,34 @@ export default function MyTeamPicker({ open, onOpenChange, provider, current, on
 
   const selectedCount = selected.size;
 
+  const effectiveEmail = (m: Member) => overrides[m.id] ?? m.email;
+
+  const startEdit = (m: Member) => {
+    setEditingId(m.id);
+    setEditValue(effectiveEmail(m) ?? "");
+    setEditError(null);
+  };
+
+  const commitEdit = (m: Member) => {
+    const v = editValue.trim().toLowerCase();
+    if (v && !isValidEmail(v)) {
+      setEditError("이메일 형식이 올바르지 않습니다.");
+      return;
+    }
+    setOverrides((prev) => {
+      const next = { ...prev };
+      if (!v || v === (m.email ?? "").toLowerCase()) delete next[m.id];
+      else next[m.id] = v;
+      return next;
+    });
+    setSelected((prev) => new Set(prev).add(m.id)); // 이메일을 고쳤다면 선택된 것으로 간주
+    setEditingId(null);
+    setEditError(null);
+  };
+
   const handleSave = async () => {
     const drafts: TeamMemberDraft[] = [
-      ...toDrafts(source.filter((m) => selected.has(m.id))),
+      ...toDrafts(source.filter((m) => selected.has(m.id)), overrides),
       ...extras.filter((e) => selected.has(extraKey(e))),
     ];
     if (!drafts.length) return;
@@ -205,16 +237,65 @@ export default function MyTeamPicker({ open, onOpenChange, provider, current, on
             </div>
 
             <div className="max-h-[40vh] overflow-y-auto space-y-1">
-              {filtered.map((m) => (
-                  <label
+              {filtered.map((m) => {
+                const email = effectiveEmail(m);
+                const overridden = overrides[m.id] !== undefined;
+                const personal = isPersonalEmail(email);
+                return (
+                  <div
                     key={m.id}
-                    className="flex items-center gap-3 p-2 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                    className="flex items-center gap-3 p-2 rounded-lg border hover:bg-muted/50 transition-colors"
                   >
-                    <Checkbox checked={selected.has(m.id)} onCheckedChange={() => toggle(m.id)} />
-                    <span className="text-sm">{m.name}</span>
-                    {m.email && <span className="text-xs text-muted-foreground truncate">{m.email}</span>}
-                  </label>
-              ))}
+                    <Checkbox
+                      id={`pick-${m.id}`}
+                      checked={selected.has(m.id)}
+                      onCheckedChange={() => toggle(m.id)}
+                    />
+                    <label htmlFor={`pick-${m.id}`} className="text-sm cursor-pointer shrink-0">
+                      {m.name}
+                    </label>
+                    {editingId === m.id ? (
+                      <div className="flex-1 min-w-0 flex items-center gap-1">
+                        <Input
+                          autoFocus
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              commitEdit(m);
+                            }
+                            if (e.key === "Escape") setEditingId(null);
+                          }}
+                          placeholder="teams 이메일"
+                          className="h-7 text-xs"
+                        />
+                        <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => commitEdit(m)}>
+                          확인
+                        </Button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(m)}
+                        className="flex-1 min-w-0 flex items-center gap-1 text-left text-xs text-muted-foreground hover:text-foreground"
+                        title="Teams 이메일 수정"
+                      >
+                        <span className="truncate">{email ?? "이메일 없음"}</span>
+                        <Pencil className="h-3 w-3 shrink-0" />
+                        {overridden && <span className="text-[10px] text-blue-600 shrink-0">수정됨</span>}
+                        {personal && (
+                          <span className="flex items-center gap-0.5 text-[10px] text-amber-600 shrink-0" title="개인 메일 — Teams DM은 회사 이메일이 필요합니다">
+                            <AlertTriangle className="h-3 w-3" />
+                            개인 메일
+                          </span>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {editError && <p className="text-xs text-destructive">{editError}</p>}
               {!error && filtered.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center py-4">
                   {source.length === 0 ? "불러올 구성원이 없습니다. 아래에서 직접 추가할 수 있습니다." : "검색 결과가 없습니다."}
@@ -242,7 +323,9 @@ export default function MyTeamPicker({ open, onOpenChange, provider, current, on
             </div>
 
             <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground">명단에 없는 사람은 직접 추가 (이메일이 있어야 Teams DM을 받습니다)</p>
+              <p className="text-xs text-muted-foreground">
+                명단에 없는 사람은 직접 추가. 이메일(연필)을 눌러 회사 Teams 이메일로 바꿀 수 있습니다 — Teams DM은 회사 이메일로만 갑니다.
+              </p>
               <div className="flex gap-1.5">
                 <Input value={manualName} onChange={(e) => setManualName(e.target.value)} placeholder="이름" className="h-9" />
                 <Input
