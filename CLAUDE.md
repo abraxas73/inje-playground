@@ -95,6 +95,7 @@ No test framework is configured.
 - `POST /api/food/payco` — Proxies bizplus.payco.com for PAYCO 식권 merchant search
 - `GET /api/teams/members` — Microsoft Graph(app-only) 또는 멤버 목록 웹훅으로 `settings.teams_group_id` 그룹 멤버 조회 (`{id, name, email}`)
 - `GET /api/members/users` — 앱 사용자 명단(user_profiles, guest 제외) → `{id, name, email}` (멤버 소스 provider `users`)
+- `/api/users/members` — 내 팀(user_members: name, email, external_id, dooray_member_id, is_card_holder) GET/POST(교체)/PATCH(법카)/DELETE
 
 ### Supabase Tables (guide feature)
 - `nlm_notebooks` — Notebook metadata with `is_visible`, `sort_order`
@@ -106,6 +107,8 @@ No test framework is configured.
 **Client-side state**: All pages are `"use client"`. State persisted via localStorage through `useLocalStorage` hook. Each feature uses its own storage key.
 
 **Shared participant flow**: `useParticipants` hook provides add/remove/clear/setAll. Shared components reused across ladder and team pages.
+
+**내 팀 구성(개인별)**: 멤버 소스는 후보 명단, 실제 내 팀은 사용자가 `MyTeamPicker`(`lib/my-team.ts` 매칭 로직)로 골라 `user_members`에 저장. `/settings` 카드·`/ladder`·`/team` 버튼에서 진입, `/food`는 내 팀이 기본 목록.
 
 **Guide Q&A**: Frontend proxies to FastAPI nlm-service via `nlmFetch()` helper (`frontend/src/lib/nlm-service.ts`). Notebook metadata and chat history stored in Supabase. NLM service handles NotebookLM API calls. Admin manages notebooks/sources, controls visibility for user page.
 

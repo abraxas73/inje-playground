@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,8 @@ import type { KakaoPlace, FoodFavorite } from "@/types/food";
 import type { Member } from "@/lib/members/types";
 import { createTeamsMemberSource } from "@/lib/members/teams";
 import { createAppUsersMemberSource } from "@/lib/members/users";
+import { useUserMembers } from "@/hooks/useUserMembers";
+import { userMembersToMembers } from "@/lib/my-team";
 import { useProviderSettings } from "@/hooks/useProviderSettings";
 import type { MemberSourceProvider } from "@/lib/providers";
 import { logAction } from "@/lib/action-log";
@@ -94,7 +96,13 @@ export default function FoodRecommendModal({
 
   const { memberSource, isLoaded: providerLoaded } = useProviderSettings();
 
-  // Member selection
+  // 내 팀(user_members) — Dooray 외 소스에서는 기본 목록
+  const userMembers = useUserMembers(memberSource !== "dooray");
+  const teamMembers = useMemo(() => userMembersToMembers(userMembers.members), [userMembers.members]);
+  const [showAll, setShowAll] = useState(false);
+  const teamView = memberSource !== "dooray" && !showAll && teamMembers.length > 0;
+
+  // Member selection (소스 전체 목록)
   const [members, setMembers] = useState<Member[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
   const [memberSearch, setMemberSearch] = useState("");
@@ -139,8 +147,12 @@ export default function FoodRecommendModal({
   }, [memberSource]);
 
   useEffect(() => {
-    if (open && providerLoaded) loadMembers();
-  }, [open, providerLoaded, loadMembers]);
+    // 내 팀 로딩이 끝난 뒤에 판단 — 전체 목록을 먼저 불러왔다가 내 팀으로 바뀌는 깜빡임 방지
+    const waitingTeam = memberSource !== "dooray" && userMembers.loading;
+    if (open && providerLoaded && !teamView && !waitingTeam) loadMembers();
+  }, [open, providerLoaded, teamView, memberSource, userMembers.loading, loadMembers]);
+
+  const displayMembers = teamView ? teamMembers : members;
 
   // Slot machine effect helper
   const runSlotMachine = (
@@ -229,14 +241,15 @@ export default function FoodRecommendModal({
   const handleDecide = () => {
     setStep("members");
     setSelectedMembers(new Set());
+    setShowAll(false);
     setMemberSearch("");
     setSendToChannel(true);
     setSentResult(null);
   };
 
   const filteredMembers = memberSearch.trim()
-    ? members.filter((m) => m.name.toLowerCase().includes(memberSearch.trim().toLowerCase()))
-    : members;
+    ? displayMembers.filter((m) => m.name.toLowerCase().includes(memberSearch.trim().toLowerCase()))
+    : displayMembers;
 
   const toggleMember = (id: string) => {
     setSelectedMembers((prev) => {
@@ -248,10 +261,10 @@ export default function FoodRecommendModal({
   };
 
   const selectAll = () => {
-    if (selectedMembers.size === members.length) {
+    if (selectedMembers.size === displayMembers.length) {
       setSelectedMembers(new Set());
     } else {
-      setSelectedMembers(new Set(members.map((m) => m.id)));
+      setSelectedMembers(new Set(displayMembers.map((m) => m.id)));
     }
   };
 
@@ -269,7 +282,7 @@ export default function FoodRecommendModal({
         ? (result as FoodFavorite).road_address || (result as FoodFavorite).address
         : null;
 
-    const selectedMemberObjs = members.filter((m) => selectedMembers.has(m.id));
+    const selectedMemberObjs = displayMembers.filter((m) => selectedMembers.has(m.id));
     const selectedNames = selectedMemberObjs.map((m) => m.name);
     const selectedIds = selectedMemberObjs.map((m) => m.id);
 
@@ -501,13 +514,21 @@ export default function FoodRecommendModal({
               </Button>
               <span className="font-medium text-foreground">{placeName}</span>
             </div>
+            {memberSource !== "dooray" && teamMembers.length > 0 && (
+              <div className="flex items-center justify-between mb-2 text-xs">
+                <span className="text-muted-foreground">{teamView ? `내 팀 (${teamMembers.length}명)` : "전체 명단"}</span>
+                <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setShowAll((v) => !v); setSelectedMembers(new Set()); }}>
+                  {teamView ? "전체 명단 보기" : "내 팀만 보기"}
+                </Button>
+              </div>
+            )}
 
             {loadingMembers ? (
               <div className="flex items-center gap-2 py-8 justify-center text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 구성원 불러오는 중...
               </div>
-            ) : members.length === 0 ? (
+            ) : displayMembers.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
                 {memberSource === "users" ? (
                   <>
@@ -544,7 +565,7 @@ export default function FoodRecommendModal({
                     {selectedMembers.size}명 선택
                   </span>
                   <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={selectAll}>
-                    {selectedMembers.size === members.length ? "전체 해제" : "전체 선택"}
+                    {selectedMembers.size === displayMembers.length ? "전체 해제" : "전체 선택"}
                   </Button>
                 </div>
                 <div className="flex-1 overflow-y-auto space-y-1 min-h-0 max-h-[40vh]">
@@ -593,7 +614,7 @@ export default function FoodRecommendModal({
             <div>
               <h3 className="text-lg font-bold">{placeName}</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                {members.filter((m) => selectedMembers.has(m.id)).map((m) => m.name).join(", ")}
+                {displayMembers.filter((m) => selectedMembers.has(m.id)).map((m) => m.name).join(", ")}
               </p>
             </div>
             {sentResult && (

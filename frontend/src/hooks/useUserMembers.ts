@@ -6,11 +6,20 @@ export interface UserMember {
   id: string;
   name: string;
   dooray_member_id: string | null;
+  email: string | null;
+  external_id: string | null;
   is_card_holder: boolean;
   sort_order: number;
 }
 
-export function useUserMembers() {
+export interface ImportedMember {
+  name: string;
+  dooray_member_id?: string;
+  email?: string;
+  external_id?: string;
+}
+
+export function useUserMembers(enabled = true) {
   const [members, setMembers] = useState<UserMember[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,20 +36,23 @@ export function useUserMembers() {
   }, []);
 
   useEffect(() => {
-    fetchMembers();
-  }, [fetchMembers]);
+    if (enabled) fetchMembers();
+    else setLoading(false);
+  }, [enabled, fetchMembers]);
 
-  /** Dooray 가져오기 결과를 DB에 저장 */
+  /** 내 팀 명단 저장(가져오기/선택 결과로 기존 목록 교체) */
   const saveImported = useCallback(
-    async (imported: { name: string; dooray_member_id?: string }[]) => {
+    async (imported: ImportedMember[]) => {
       const res = await fetch("/api/users/members", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ members: imported }),
       });
-      if (res.ok) {
-        await fetchMembers();
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || `내 팀 저장 실패 (${res.status})`);
       }
+      await fetchMembers();
     },
     [fetchMembers]
   );
@@ -68,6 +80,16 @@ export function useUserMembers() {
     [members]
   );
 
+  /** 구성원 제외 (행 id 기준 — 동명이인 안전) */
+  const removeMember = useCallback(
+    async (member: Pick<UserMember, "id">) => {
+      setMembers((prev) => prev.filter((m) => m.id !== member.id));
+      await fetch(`/api/users/members?id=${encodeURIComponent(member.id)}`, { method: "DELETE" });
+      await fetchMembers();
+    },
+    [fetchMembers]
+  );
+
   const names = members.map((m) => m.name);
   const cardHolders = new Set(
     members.filter((m) => m.is_card_holder).map((m) => m.name)
@@ -81,5 +103,6 @@ export function useUserMembers() {
     fetchMembers,
     saveImported,
     toggleCardHolder,
+    removeMember,
   };
 }

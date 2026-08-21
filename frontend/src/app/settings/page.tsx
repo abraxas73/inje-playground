@@ -30,6 +30,7 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import MyTeamCard from "@/components/settings/MyTeamCard";
 import { fetchProjects as fetchDoorayProjects, fetchProjectMembers } from "@/lib/dooray-client";
 
 interface DoorayProject {
@@ -237,6 +238,9 @@ export default function UserSettingsPage() {
         <Settings className="h-5 w-5 text-muted-foreground" />
         <h1 className="text-xl font-bold">설정</h1>
       </div>
+
+      {/* 내 팀 구성원 */}
+      <MyTeamCard />
 
       {/* Dooray 연동 */}
       <Card>

@@ -4,32 +4,36 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2, X } from "lucide-react";
 import type { DoorayMember } from "@/types/dooray";
-import type { Member } from "@/lib/members/types";
 import { createDoorayMemberSource } from "@/lib/members/dooray";
-import { createTeamsMemberSource } from "@/lib/members/teams";
-import { createAppUsersMemberSource } from "@/lib/members/users";
 import type { MemberSourceProvider } from "@/lib/providers";
+import MyTeamPicker from "@/components/shared/MyTeamPicker";
+import type { UserMember, ImportedMember } from "@/hooks/useUserMembers";
+import type { TeamMemberDraft } from "@/lib/my-team";
 import { useProviderSettings } from "@/hooks/useProviderSettings";
 import { logAction } from "@/lib/action-log";
 
 const IMPORT_LABEL: Record<MemberSourceProvider, string> = {
   dooray: "Dooray에서 가져오기",
-  teams: "Teams에서 가져오기",
-  users: "앱 사용자 가져오기",
+  teams: "내 팀 구성원 선택",
+  users: "내 팀 구성원 선택",
 };
 
 interface DoorayImportButtonProps {
   onImport: (names: string[]) => void;
   projectId?: string;
-  /** 가져온 멤버를 user_members DB에도 저장 */
-  onImportedMembers?: (members: { name: string; dooray_member_id?: string }[]) => void;
+  /** 가져온/선택한 멤버를 user_members DB에도 저장 */
+  onImportedMembers?: (members: ImportedMember[]) => void | Promise<void>;
+  /** 현재 내 팀(user_members) — 선택 모달에서 미리 체크 */
+  currentMembers?: UserMember[];
 }
 
 export default function DoorayImportButton({
   onImport,
   projectId: overrideProjectId,
   onImportedMembers,
+  currentMembers = [],
 }: DoorayImportButtonProps) {
+  const [pickerOpen, setPickerOpen] = useState(false);
   const { memberSource, isLoaded } = useProviderSettings();
   // Dooray 외 소스(Teams/앱 사용자 명단)는 서버 라우트로 조회 — 설정 조회·DB 폴백·dooray_members 캐시 없음
   const isExternal = memberSource !== "dooray";
@@ -74,6 +78,11 @@ export default function DoorayImportButton({
 
   const handleImport = async () => {
     if (!isLoaded) return;
+    if (isExternal) {
+      // 앱 사용자 명단/Teams: 통째로 가져오지 않고 내 팀을 직접 고른다
+      setPickerOpen(true);
+      return;
+    }
     setError(null);
     setInfo(null);
     setOriginalError(null);
@@ -83,27 +92,6 @@ export default function DoorayImportButton({
     abortRef.current = controller;
 
     try {
-      if (isExternal) {
-        // Teams: 그룹은 관리자 설정(teams_group_id)에 고정 → 프로젝트 선택 없이 서버 라우트 호출
-        const source = memberSource === "users" ? createAppUsersMemberSource() : createTeamsMemberSource();
-        const members: Member[] = await source.listMembers({ signal: controller.signal });
-        if (!members.length) {
-          setError(
-            memberSource === "users"
-              ? "앱 사용자 명단이 비어 있습니다. 관리자 > 사용자 관리에서 구성원 역할(user)을 확인해주세요."
-              : "Teams 그룹에 구성원이 없습니다. 관리자 설정(teams_group_id)을 확인해주세요."
-          );
-          return;
-        }
-        const names = members.map((m) => m.name);
-        onImport(names);
-        if (onImportedMembers) {
-          onImportedMembers(members.map((m) => ({ name: m.name })));
-        }
-        logAction(memberSource === "users" ? "앱 사용자 가져오기" : "Teams 멤버 가져오기", memberSource, { memberCount: names.length });
-        return;
-      }
-
       // 설정에서 토큰/프로젝트ID 가져오기 (개인 설정 우선)
       const [userSettingsRes, settingsRes] = await Promise.all([
         fetch("/api/users/settings", { signal: controller.signal }),
@@ -161,8 +149,21 @@ export default function DoorayImportButton({
     }
   };
 
+  const handlePickerSave = async (drafts: TeamMemberDraft[]) => {
+    await onImportedMembers?.(drafts); // 저장 실패 시 throw → 모달이 오류 표시
+    onImport(drafts.map((d) => d.name));
+    logAction("내 팀 구성원 저장", memberSource, { memberCount: drafts.length });
+  };
+
   return (
     <div>
+      <MyTeamPicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        provider={memberSource}
+        current={currentMembers}
+        onSave={handlePickerSave}
+      />
       <div className="flex gap-1">
         <Button onClick={handleImport} disabled={loading || !isLoaded} variant="outline" className="border-emerald-300 text-emerald-700 hover:bg-emerald-50">
           {loading ? (

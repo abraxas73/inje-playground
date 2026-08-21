@@ -165,6 +165,7 @@ export default function LadderPage() {
                   projectId={overrideProjectId || undefined}
                   onImport={setAll}
                   onImportedMembers={userMembers.saveImported}
+                  currentMembers={userMembers.members}
                 />
               </div>
             </div>

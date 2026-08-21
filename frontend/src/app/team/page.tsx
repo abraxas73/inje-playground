@@ -204,6 +204,7 @@ export default function TeamPage() {
                     handleReset();
                   }}
                   onImportedMembers={userMembers.saveImported}
+                  currentMembers={userMembers.members}
                 />
               </div>
             </div>

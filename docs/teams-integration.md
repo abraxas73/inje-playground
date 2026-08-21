@@ -74,6 +74,13 @@ curl -i -X POST "$TEAMS_DM_WEBHOOK_URL" -H "Content-Type: application/json" -d '
 - 명단 관리: 관리자 > 사용자 관리에서 역할을 `guest`로 바꾸면 제외된다.
 - 외부 연동·라이선스·관리자 동의가 전혀 필요 없다. Dooray 멤버 ID는 없으므로 `dm_provider=dooray`와는 조합 불가(관리자 화면 경고).
 
+### 3.2 내 팀 구성 (개인별 명단, 2026-08-21 추가)
+- 멤버 소스는 "후보 명단"일 뿐이고, **누가 내 팀인지는 각 사용자가 직접 고른다**. 저장소는 기존 `user_members`(사용자별)에 `email`, `external_id` 칼럼을 추가해 사용.
+- 진입점: `/settings` "내 팀 구성원" 카드의 **구성원 선택**, 또는 `/ladder`·`/team`의 **"내 팀 구성원 선택"** 버튼(Dooray 외 소스일 때). 모달에서 검색·체크·"직접 추가(이름+이메일)" 후 저장 → 기존 목록 교체(법카 표시는 이름 기준 보존).
+- 사용처: `/ladder`·`/team`의 "내 구성원" 버튼, `/food` 구성원 선택은 **내 팀이 기본 목록**(전체 명단 보기 토글). 점심 DM 수신자는 `user_members.email`.
+- Dooray 모드는 기존 동작 그대로("Dooray에서 가져오기" = 프로젝트 전체 교체).
+- DB 마이그레이션: `alter table public.user_members add column if not exists email text, add column if not exists external_id text;`
+
 ## 3-A. 멤버 가져오기 — Microsoft Graph (앱 권한, 테넌트 관리자 동의 필요)
 
 > Graph **애플리케이션 권한**의 테넌트 동의는 Privileged Role Administrator/Global Administrator만 할 수 있다(Application Administrator·앱 소유자 불가). 동의를 받을 수 없으면 §3-B 웹훅 방식을 쓴다. `teams_members_webhook_url`이 설정돼 있으면 앱은 항상 웹훅을 우선한다.
@@ -118,6 +125,7 @@ curl -i -X POST "$TEAMS_DM_WEBHOOK_URL" -H "Content-Type: application/json" -d '
 | `frontend/src/lib/notify/` | `Notifier`(채널/DM) — `dooray.ts`, `teams.ts`, 팩토리 `index.ts`, 메시지 `messages.ts` |
 | `frontend/src/lib/members/` | `MemberSource`(클라이언트) — `dooray.ts`(브리지), `teams.ts`(라우트), `users.ts`(앱 사용자 명단) |
 | `frontend/src/app/api/members/users/route.ts` | `GET` 앱 사용자 명단(user_profiles, guest 제외) |
+| `frontend/src/lib/my-team.ts`, `components/shared/MyTeamPicker.tsx`, `components/settings/MyTeamCard.tsx` | 내 팀 구성(개인별 user_members 선택/수동 추가) |
 | `frontend/src/lib/teams-graph.ts` | Graph app-only 토큰·그룹 멤버(서버), `normalizeGraphUsers` |
 | `frontend/src/lib/teams-members-webhook.ts` | Power Automate 멤버 목록 웹훅 호출·응답 정규화(서버) |
 | `frontend/src/app/api/teams/members/route.ts` | `GET` 그룹 멤버 |
