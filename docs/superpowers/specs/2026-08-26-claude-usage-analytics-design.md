@@ -59,78 +59,48 @@
 
 **권장 조합**: Claude Code = OTel(자동·실시간) + 채팅/Cowork = 멤버 활동 CSV 월 1회(조직당 1파일, 7개) + 시트 티어 = 관리자 멤버 CSV(변동 시). 장기 = Enterprise 전환 검토.
 
-## 2. Phase 1 — CSV 수집 + 통합 대시보드 (inje-playground 앱 내)
+## 2. 확정 아키텍처 (2026-08-26 결정: A2 — 앱 내 통합)
 
-### 운영 흐름
-1. 매월(권장: 전월 마감 직후) 7개 조직 각각에서 Analytics > spend report **CSV 다운로드** — 조직당 1분, 월 10분 내외.
-2. 앱 `/admin/claude-usage/import`에서 파일 여러 개를 한 번에 업로드(조직·대상 월 지정, 파일명으로 추정해 프리필).
-3. 대시보드 `/admin/claude-usage`에서 조직 통합 조회.
+두 축을 모두 만든다. **우선순위 1 = Claude Code(OTel 실시간)**, **우선순위 2(필수) = 채팅·Cowork(멤버 활동 CSV)**.
 
-### DB (Supabase, admin 전용 RLS)
-```sql
-create table claude_orgs (
-  id uuid primary key default gen_random_uuid(),
-  name text not null unique,          -- 조직 표시명 (7개)
-  seats_standard int default 0,       -- 수동 관리(시트 수는 CSV에 없음)
-  seats_premium int default 0,
-  sort_order int default 0
-);
-
-create table claude_usage_imports (
-  id uuid primary key default gen_random_uuid(),
-  org_id uuid not null references claude_orgs(id),
-  period_start date not null,         -- 대상 월 1일
-  period_end date not null,
-  filename text,
-  uploaded_by uuid,
-  row_count int,
-  created_at timestamptz default now(),
-  unique (org_id, period_start)       -- 같은 조직+월 재업로드 → 기존 레코드 교체
-);
-
-create table claude_usage_records (
-  id bigint generated always as identity primary key,
-  import_id uuid not null references claude_usage_imports(id) on delete cascade,
-  org_id uuid not null references claude_orgs(id),
-  period_start date not null,
-  user_email text not null,           -- 소문자 정규화
-  account_uuid text,
-  product text not null,              -- chat / claude_code / cowork ...
-  model text,
-  request_count bigint default 0,
-  prompt_tokens bigint default 0,
-  completion_tokens bigint default 0,
-  net_spend_cents numeric default 0,
-  gross_spend_cents numeric default 0
-);
-create index on claude_usage_records (period_start, user_email);
-create index on claude_usage_records (org_id, period_start);
 ```
-- 멱등성: 업로드는 `(org, month)` 단위 교체(delete cascade → insert). 부분 업서트 추정보다 단순·안전.
-- 개인 식별: `user_email` 기준. 같은 사람이 여러 조직에 시트를 가진 경우 이메일로 자동 합산. 실명 표시는 `user_profiles`(앱 로그인 명단)와 이메일 조인 + 수동 별칭 테이블(선택, Phase 1.5).
+[각 직원 PC/IDE/웹 Claude Code] --OTLP http/json (관리형 설정으로 일괄 켬)--> POST /api/otel/v1/{metrics,logs}
+      Bearer CLAUDE_OTEL_INGEST_TOKEN                                  │ parse(lib/claude-usage/otlp.ts)
+                                                                        ▼ rpc claude_code_ingest (delta 합산)
+                                                   Supabase: claude_orgs / claude_code_daily / claude_code_daily_model
+                                                             claude_code_requests(api_request 이벤트) / claude_ingest_log
+[소유자가 월 1회 내려받은 members-analytics-*.csv ×7] --업로드--> POST /api/admin/claude-usage/imports
+                                                                        ▼ parse(lib/claude-usage/members-csv.ts)
+                                                   Supabase: claude_csv_imports / claude_member_activity
+[관리자] GET /admin/claude-usage  ── 탭: Claude Code(실시간) · 채팅/Cowork(CSV) · 조직/설정(관리형 설정 JSON·수집 상태)
+```
 
-### 대시보드 `/admin/claude-usage`
-- **요약 카드**: 기간 총 spend(net/gross), 활성 사용자 수 / 등록 시트 수(조직별 seats 합), 1인당 평균 spend, 전월 대비 증감.
-- **사용자 테이블**(핵심 화면): 이메일(실명)·조직·제품별 spend·요청수·토큰·주력 모델, 정렬/검색/CSV 재수출. 조직 여러 곳에 걸친 사용자는 배지로 표기.
-- **차트**: 월별 추이(조직 스택 막대), 모델 믹스(도넛), 상위 10 사용자(가로 막대), 제품 비중(chat vs Claude Code).
-- **시트 관리 뷰**: spend 0(=CSV 미등장) 시트 추정 — `claude_orgs.seats_*` 수동 입력과 활성 사용자 수의 차이로 "노는 시트"를 조직별 표시. (정확한 시트 배정자 명단은 Team 플랜 API로 못 가져오므로, 필요하면 조직 멤버 이메일을 수동 등록하는 `claude_seats` 테이블을 Phase 1.5에 추가.)
-- 필터: 기간(월 범위), 조직(멀티), 제품, 검색.
-- 접근: `role=admin` 전용(기존 admin 패턴 그대로).
+### 2.1 OTel 수집
+- 관리형 설정(`Admin Settings > Claude Code > Managed settings`, Owner)에 `env` 블록 배포. 프로토콜 `http/json`, temporality 기본 **delta** → 서버는 단순 합산. 엔드포인트 `https://inje-playground.vercel.app/api/otel` (exporter가 `/v1/metrics`, `/v1/logs`를 붙임).
+- 사용자는 첫 실행 시 `OTEL_EXPORTER_OTLP_ENDPOINT` 승인 대화상자를 1회 본다(거부 시 Claude Code 종료). 설정 반영: 다음 실행 또는 1시간 폴링.
+- 메트릭 → 일 단위(KST) 사용자별 합산: sessions, prompts(user_prompt 이벤트 수), cost_usd, 토큰 4종, loc_added/removed, edits_accepted/rejected, commits, pull_requests, active_user/cli_seconds. 모델별 비용·토큰은 별도 테이블.
+- 이벤트 `claude_code.api_request`는 요청 단위 원본 보관(모델·비용·토큰·지연·query_source) — 드릴다운용. 프롬프트 본문은 기본 REDACTED이며 저장하지 않는다.
+- 인증: `Authorization: Bearer <CLAUDE_OTEL_INGEST_TOKEN>` 상수시간 비교. 실패 401. 페이로드 파싱 실패 400. DB 쓰기는 service role(`SUPABASE_SERVICE_ROLE_KEY`).
+- 사용자 식별: 데이터포인트 속성 `user.email` → 리소스 속성 → 없으면 `uuid:<account_uuid>`. 조직: `organization.id`(없으면 `unknown`). 미등록 조직 ID는 `claude_orgs`에 자동 추가(이름 = ID 앞 8자, 관리자가 수정).
 
-### CSV 파서 주의점
-- 헤더 명칭·칼럼 순서는 Anthropic이 예고 없이 바꿀 수 있으므로 **헤더 이름 기반 매핑 + 알 수 없는 칼럼 무시 + 필수 칼럼 누락 시 업로드 거부**(어떤 칼럼이 없는지 명시).
-- 금액 단위(달러/센트)·토큰 칼럼명은 첫 실물 CSV로 확정한다. **구현 첫 단계 = 실제 CSV 1개 확보 후 파서 스펙 고정.**
+### 2.2 CSV 수집
+- 파일: 분석 > 개요 > 멤버 "모두 보기" > CSV 내보내기 → `members-analytics-{orgId}-{from}-to-{to}.csv` (BOM, 19칼럼: Name, Email, Role, Seat Tier, Last Active, Days Active, Chats, Messages, Projects Created, Projects Used, Pull Requests, Code sessions, File Edits, Cowork Sessions, Cowork Messages, Artifacts Created, Claude Code Artifacts, Cowork Artifacts, Estimated Spend (USD)). 조직 전체 멤버 포함(시트 티어 포함) → 관리자 멤버 CSV 불필요.
+- 업로드: 여러 파일 동시, 파일명에서 org/기간 자동 인식(실패 시 폼 입력). 같은 (org, from, to) 재업로드 = 교체. 헤더 이름 기반 매핑, 알 수 없는 칼럼 무시, 필수 칼럼(Email, Seat Tier, Chats, Code sessions, Cowork Sessions) 누락 시 거부.
+- 노는 시트 = Seat Tier가 Premium/Standard인데 Chats+Code sessions+Cowork Sessions = 0.
 
-## 3. Phase 2 — 자동화 옵션 (선택)
+### 2.3 대시보드 `/admin/claude-usage` (admin 전용)
+- **Claude Code 탭**: 기간(7/30/90일·이번 달·지난 달)·조직 필터, KPI(비용·활성 사용자·세션·수락 라인·수락률·커밋/PR), 일별 비용 막대, **사용자 표**(이메일·이름(CSV 조인)·조직·비용·세션·토큰·LoC·수락률·커밋·PR·활성시간, 정렬·검색·CSV 저장), 모델별 비용.
+- **채팅·Cowork 탭**: 업로드 영역, 업로드 이력, 멤버 활동 표(조직·기간 선택, 노는 시트 강조, 정렬·검색).
+- **조직·설정 탭**: 조직 이름/시트 수 편집, 관리형 설정 JSON(엔드포인트 자동 채움) 복사, 수집 상태(최근 수신 시각·24h 건수·오류).
 
-| 옵션 | 내용 | 효과 | 비용/조건 |
-|---|---|---|---|
-| **A. Enterprise 전환** | 7개 Team 조직을 Enterprise 1개(연결 조직)로 통합 → Primary Owner가 Analytics API 키 발급 → 앱이 cron으로 `/v1/organizations/analytics/` pull → 같은 테이블 적재(CSV 업로드 대체) | 사용자별 **일간** chat+Claude Code+Cowork 활동·비용 자동 수집, 조직 통합 관리 | Enterprise 계약(영업 접촉)·가격. 데이터는 2026-01-01 이후분 제공 |
-| **B. OpenTelemetry** | 전 직원 Claude Code에 managed settings로 OTel 내보내기 설정 → 수집기(예: self-host collector 또는 Grafana Cloud) | Claude Code **실시간** 토큰·비용·세션·도구 지표 | 클라이언트 배포 필요, Claude Code 외 사용(chat)은 안 잡힘 |
+### 2.4 보안·운영
+- 모든 신규 테이블 RLS: SELECT는 `user_profiles.role='admin'`만, 쓰기는 service role만(정책 없음).
+- 환경변수: `SUPABASE_SERVICE_ROLE_KEY`(Vercel·.env.local, 신규), `CLAUDE_OTEL_INGEST_TOKEN`(신규).
+- 롤아웃: Innogrid-ax 1개 조직에 먼저 적용 → 수집 상태 확인 → 나머지 6개 조직 동일 JSON 적용.
 
-Phase 1 테이블 설계는 A의 API 적재와 호환되도록 `import` 단위를 소스 불문(`csv`/`api`)으로 잡는다.
+## 3. Phase 2 후보 (선택)
+- Enterprise 전환 시 Analytics API 커넥터(cron)로 CSV 업로드 대체. 테이블은 소스 불문으로 설계.
+- Grafana/OTel Collector 병렬 수신이 필요하면 관리형 설정의 엔드포인트를 collector로 바꾸고 collector가 앱으로 fan-out.
 
-## 4. 결정 필요 사항
-1. 7개 조직이 전부 claude.ai Team 플랜이 맞는지(Claude Console/API 병용 조직이 있으면 그쪽은 ③ API로 자동화 가능).
-2. Phase 1(CSV 업로드) 방식으로 시작해도 되는지 — 시작 전 **실물 spend report CSV 1개** 필요.
-3. Enterprise 전환 검토 의향(장기 자동화의 정석 경로).
+## 4. 결정 기록
+- 2026-08-26 사용자 결정: A(OTel 중심) + CSV(채팅·Cowork) 필수. 수집기는 앱 내 Supabase 통합(A2).
