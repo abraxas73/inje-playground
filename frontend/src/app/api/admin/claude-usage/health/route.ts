@@ -12,13 +12,14 @@ export async function GET() {
   if (!c.ok) return NextResponse.json(empty);
   const admin = c.admin;
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-  const [last, recent, lastErr, orgsRes] = await Promise.all([
+  const [last, count24h, errors24h, lastErr, orgsRes] = await Promise.all([
     admin.from("claude_ingest_log").select("received_at").order("received_at", { ascending: false }).limit(1),
-    admin.from("claude_ingest_log").select("ok").gte("received_at", since),
+    admin.from("claude_ingest_log").select("*", { count: "exact", head: true }).gte("received_at", since),
+    admin.from("claude_ingest_log").select("*", { count: "exact", head: true }).gte("received_at", since).eq("ok", false),
     admin.from("claude_ingest_log").select("error, received_at").eq("ok", false).order("received_at", { ascending: false }).limit(1),
     admin.from("claude_orgs").select("id"),
   ]);
-  const err = last.error ?? recent.error ?? lastErr.error ?? orgsRes.error;
+  const err = last.error ?? count24h.error ?? errors24h.error ?? lastErr.error ?? orgsRes.error;
   if (err) return NextResponse.json({ error: err.message }, { status: 500 });
 
   const orgIds = (orgsRes.data ?? []).map((o) => o.id as string);
@@ -36,8 +37,8 @@ export async function GET() {
   return NextResponse.json({
     ...empty,
     lastReceivedAt: last.data?.[0]?.received_at ?? null,
-    count24h: recent.data?.length ?? 0,
-    errors24h: (recent.data ?? []).filter((r) => !r.ok).length,
+    count24h: count24h.count ?? 0,
+    errors24h: errors24h.count ?? 0,
     lastError: lastErr.data?.[0] ? `${lastErr.data[0].received_at} ${lastErr.data[0].error ?? ""}` : null,
     orgLastDay,
   });

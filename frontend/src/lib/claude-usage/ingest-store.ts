@@ -18,6 +18,7 @@ export async function storeLogs(admin: SupabaseClient, parsed: LogsParsed): Prom
   if (parsed.requests.length > 0) {
     for (let i = 0; i < parsed.requests.length; i += 500) {
       const chunk = parsed.requests.slice(i, i + 500);
+      // TODO(migration 2): switch to upsert onConflict request_id ignoreDuplicates once claude_code_requests_request_id_uidx exists
       const { error } = await admin.from("claude_code_requests").insert(chunk);
       if (error) throw new Error(`claude_code_requests insert: ${error.message}`);
       rows += chunk.length;

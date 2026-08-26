@@ -55,6 +55,9 @@ export async function POST(request: NextRequest) {
       if (missing.length > 0) throw new Error(`필수 칼럼 누락: ${missing.join(", ")}`);
       if (rows.length === 0) throw new Error("데이터 행이 없습니다.");
 
+      const byEmail = new Map(rows.map((r) => [r.email, r])); // 같은 이메일 중복 시 마지막 행
+      const dedupedRows = [...byEmail.values()];
+
       const orgUp = await admin.from("claude_orgs").upsert({ id: meta.orgId, name: meta.orgId.slice(0, 8) }, { onConflict: "id", ignoreDuplicates: true });
       if (orgUp.error) throw new Error(orgUp.error.message);
 
@@ -63,13 +66,12 @@ export async function POST(request: NextRequest) {
 
       const ins = await admin
         .from("claude_csv_imports")
-        .insert({ org_id: meta.orgId, period_start: meta.periodStart, period_end: meta.periodEnd, filename, uploaded_by: uploadedBy, row_count: rows.length })
+        .insert({ org_id: meta.orgId, period_start: meta.periodStart, period_end: meta.periodEnd, filename, uploaded_by: uploadedBy, row_count: dedupedRows.length })
         .select("id")
         .single();
       if (ins.error) throw new Error(ins.error.message);
 
-      const byEmail = new Map(rows.map((r) => [r.email, r])); // 같은 이메일 중복 시 마지막 행
-      const payload = [...byEmail.values()].map((r) => ({ ...r, import_id: ins.data.id, org_id: meta.orgId, period_start: meta.periodStart, period_end: meta.periodEnd }));
+      const payload = dedupedRows.map((r) => ({ ...r, import_id: ins.data.id, org_id: meta.orgId, period_start: meta.periodStart, period_end: meta.periodEnd }));
       for (let i = 0; i < payload.length; i += 500) {
         const chunk = await admin.from("claude_member_activity").insert(payload.slice(i, i + 500));
         if (chunk.error) {

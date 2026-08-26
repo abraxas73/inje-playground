@@ -10,7 +10,7 @@ import { Loader2, Download } from "lucide-react";
 import HBar from "@/components/admin/surveys/charts/HBar";
 import SortableTable, { type Column } from "./SortableTable";
 import DailyBars from "./DailyBars";
-import { acceptRate, dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
+import { acceptRate, dateRangePreset, hasSeat, type RangePreset } from "@/lib/claude-usage/aggregate";
 import { usd, int, hours } from "./format";
 import type { UsageSummary, UserUsageRow } from "@/types/claude-usage";
 
@@ -61,7 +61,7 @@ export default function CodeUsageTab() {
       <div><div className="font-medium">{u.name ?? u.user_email}</div>{u.name && <div className="text-muted-foreground">{u.user_email}</div>}</div>) },
     { key: "orgs", header: "조직", value: (u) => u.orgs.join(","), render: (u) => (
       <div className="flex flex-wrap gap-1">{u.orgs.map((o) => <Badge key={o} variant="outline" className="text-[10px]">{orgName.get(o) ?? o.slice(0, 8)}</Badge>)}</div>) },
-    { key: "seat", header: "시트", value: (u) => u.seat_tier ?? "" },
+    { key: "seat", header: "시트", value: (u) => u.seat_tier ?? "", render: (u) => (hasSeat(u.seat_tier) ? u.seat_tier : "—") },
     { key: "cost", header: "비용", align: "right", value: (u) => u.cost_usd, render: (u) => usd(u.cost_usd) },
     { key: "sessions", header: "세션", align: "right", value: (u) => u.sessions, render: (u) => int(u.sessions) },
     { key: "prompts", header: "프롬프트", align: "right", value: (u) => u.prompts, render: (u) => int(u.prompts) },

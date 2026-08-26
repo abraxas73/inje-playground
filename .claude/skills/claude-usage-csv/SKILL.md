@@ -5,7 +5,7 @@ description: claude.ai Team 조직 7개의 멤버 활동 CSV를 Chrome 확장으
 
 # Claude 사용량 CSV 수집 (반자동)
 
-전제: Chrome에 Claude in Chrome 확장이 연결돼 있고, claude.ai에 7개 조직의 소유자 계정(seunguk.kang@innogrid.com)으로 로그인돼 있다. 연결이 안 되면(`tabs_context_mcp` 오류) 사용자에게 `/mcp` → claude-in-chrome 재연결을 요청하고 중단한다. Cloudflare 확인·로그인 화면이 나오면 사용자가 직접 처리하도록 요청한다(자동 통과 금지).
+전제: Chrome에 Claude in Chrome 확장이 연결돼 있고, claude.ai에 7개 조직의 소유자(Primary Owner) 계정으로 로그인돼 있다. 연결이 안 되면(`tabs_context_mcp` 오류) 사용자에게 `/mcp` → claude-in-chrome 재연결을 요청하고 중단한다. Cloudflare 확인·로그인 화면이 나오면 사용자가 직접 처리하도록 요청한다(자동 통과 금지).
 
 대상 조직(순서대로): Innogrid-ax, Innogrid_AIMS클라우드, Innogrid_AIPaaS, Innogrid_AI반도체Cloud, Innogrid_S1, Innogrid_S2, Innogrid_자율행동체.
 

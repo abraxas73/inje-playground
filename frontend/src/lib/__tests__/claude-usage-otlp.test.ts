@@ -82,7 +82,7 @@ describe("parseMetricsPayload", () => {
             { attributes: [], timeUnixNano: T, asInt: "3" },
           ] } },
           { name: "claude_code.session.count", sum: { aggregationTemporality: 1, dataPoints: [
-            { attributes: [{ key: "user.account_uuid", value: { stringValue: "acc-9" } }, { key: "organization.id", value: { stringValue: "org-b" } }],
+            { attributes: [{ key: "user.account_uuid", value: { stringValue: "acc-9" } }, { key: "organization.id", value: { stringValue: "ORG-A" } }],
               timeUnixNano: T, asInt: 2 },
           ] } },
         ] }],
@@ -93,7 +93,8 @@ describe("parseMetricsPayload", () => {
     const byOrg = Object.fromEntries(r.daily.map((d) => [d.org_id, d]));
     // 데이터포인트에 이메일이 없으면 리소스 속성의 이메일이 우선하고, account_uuid 폴백은 이메일이 아예 없을 때만 쓰인다
     expect(byOrg["unknown"]).toMatchObject({ user_email: "res@example.com", account_uuid: null, sessions: 3 });
-    expect(byOrg["org-b"]).toMatchObject({ user_email: "res@example.com", account_uuid: "acc-9", sessions: 2 });
+    // organization.id는 소문자로 정규화된다 (ORG-A → org-a)
+    expect(byOrg["org-a"]).toMatchObject({ user_email: "res@example.com", account_uuid: "acc-9", sessions: 2 });
   });
 
   it("CUMULATIVE 메트릭은 버리고 dropped를 센다", () => {

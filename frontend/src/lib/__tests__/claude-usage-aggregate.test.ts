@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { summarize, acceptRate, isIdleSeat, dateRangePreset } from "@/lib/claude-usage/aggregate";
+import { summarize, acceptRate, isIdleSeat, hasSeat, dateRangePreset } from "@/lib/claude-usage/aggregate";
 import { emptyDailyMetrics, type DailyRow, type ModelRow } from "@/types/claude-usage";
 
 const row = (p: Partial<DailyRow> & Pick<DailyRow, "day" | "org_id" | "user_email">): DailyRow => ({
@@ -57,6 +57,13 @@ describe("acceptRate / isIdleSeat", () => {
     expect(isIdleSeat({ ...base, seat_tier: "Premium", chats: 0, code_sessions: 0, cowork_sessions: 0 })).toBe(true);
     expect(isIdleSeat({ ...base, seat_tier: "Premium", chats: 0, code_sessions: 1, cowork_sessions: 0 })).toBe(false);
     expect(isIdleSeat({ ...base, seat_tier: "", chats: 0, code_sessions: 0, cowork_sessions: 0 })).toBe(false);
+    expect(isIdleSeat({ ...base, seat_tier: "Unassigned", chats: 0, code_sessions: 0, cowork_sessions: 0 })).toBe(false);
+  });
+
+  it("hasSeat: 미할당 값(공백/대소문자 무관)은 시트 없음", () => {
+    expect(hasSeat("Premium")).toBe(true);
+    expect(hasSeat(" unassigned ")).toBe(false);
+    expect(hasSeat(null)).toBe(false);
   });
 });
 

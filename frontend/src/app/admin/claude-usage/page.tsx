@@ -40,7 +40,7 @@ export default function ClaudeUsagePage() {
           <TabsTrigger value="orgs">조직 · 설정</TabsTrigger>
         </TabsList>
         <TabsContent value="code"><CodeUsageTab /></TabsContent>
-        <TabsContent value="members"><MembersCsvTab orgs={orgs} /></TabsContent>
+        <TabsContent value="members"><MembersCsvTab orgs={orgs} onOrgsChange={loadOrgs} /></TabsContent>
         <TabsContent value="orgs"><OrgSettingsTab orgs={orgs} onOrgsChange={loadOrgs} /></TabsContent>
       </Tabs>
     </div>

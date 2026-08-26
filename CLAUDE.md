@@ -130,7 +130,7 @@ No test framework is configured.
 - `CLAUDE_OTEL_INGEST_TOKEN` — Claude Code OTLP 수신 엔드포인트(`/api/otel/v1/*`) Bearer 인증 토큰(`openssl rand -hex 32`)
 
 ### Directory Layout (frontend/src/)
-- `components/` — Organized by feature: `ladder/`, `team/`, `food/`, `guide/`, `settings/`, `shared/`, `layout/`
+- `components/` — Organized by feature: `ladder/`, `team/`, `food/`, `guide/`, `settings/`, `shared/`, `layout/`, `admin/claude-usage/`(Claude 사용량 대시보드 탭·차트)
 - `hooks/` — `useLocalStorage`, `useParticipants`, `useBgm`, `useTts`, `useSettings`(관리자 전역 설정), `useProviderSettings`(provider 3축)
-- `lib/` — Pure logic: `ladder.ts`, `team-divider.ts`, `dooray.ts`, `nlm-service.ts`, `providers.ts`(provider 상수/파서), `settings-server.ts`(서버 settings 로더), `teams-graph.ts`(Graph app-only), `notify/`(Notifier: dooray/teams/messages/recipients), `members/`(MemberSource: dooray/teams)
-- `types/` — TypeScript interfaces: `ladder.ts`, `team.ts`, `dooray.ts`, `guide.ts`
+- `lib/` — Pure logic: `ladder.ts`, `team-divider.ts`, `dooray.ts`, `nlm-service.ts`, `providers.ts`(provider 상수/파서), `settings-server.ts`(서버 settings 로더), `teams-graph.ts`(Graph app-only), `notify/`(Notifier: dooray/teams/messages/recipients), `members/`(MemberSource: dooray/teams), `claude-usage/`(OTLP 파서·CSV 파서·집계·인증)
+- `types/` — TypeScript interfaces: `ladder.ts`, `team.ts`, `dooray.ts`, `guide.ts`, `claude-usage.ts`

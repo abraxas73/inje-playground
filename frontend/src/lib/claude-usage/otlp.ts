@@ -75,7 +75,7 @@ function identity(point: Attrs, resource: Attrs): Identity {
   const account_uuid = pick("user.account_uuid");
   const email = pick("user.email")?.toLowerCase() ?? null;
   return {
-    org_id: pick("organization.id") ?? "unknown",
+    org_id: pick("organization.id")?.toLowerCase() ?? "unknown",
     user_email: email ?? (account_uuid ? `uuid:${account_uuid}` : "unknown"),
     account_uuid,
     session_id: pick("session.id"),

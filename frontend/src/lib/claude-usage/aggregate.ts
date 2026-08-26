@@ -54,8 +54,15 @@ export function acceptRate(accepted: number, rejected: number): number | null {
   return Math.round((accepted / total) * 100);
 }
 
+const NO_SEAT_TIERS = new Set(["", "unassigned", "none", "할당되지 않음"]);
+
+/** 시트가 실제로 배정됐는지(빈 값/"Unassigned"/"None"/"할당되지 않음"은 시트 없음) */
+export function hasSeat(tier: string | null | undefined): boolean {
+  return !NO_SEAT_TIERS.has((tier ?? "").trim().toLowerCase());
+}
+
 export function isIdleSeat(m: MemberActivityRow): boolean {
-  if (!m.seat_tier.trim()) return false;
+  if (!hasSeat(m.seat_tier)) return false;
   return m.chats + m.code_sessions + m.cowork_sessions === 0;
 }
 

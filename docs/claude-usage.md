@@ -11,6 +11,7 @@
 
 ## 2. Claude Code 수집 켜기 (조직별 1회)
 1. `/admin/claude-usage` → 조직·설정 탭 → "관리형 설정" JSON 복사 → `<CLAUDE_OTEL_INGEST_TOKEN>`을 실제 토큰으로 교체.
+   - JSON에는 메트릭 5분(`OTEL_METRIC_EXPORT_INTERVAL=300000`)·로그 1분(`OTEL_LOGS_EXPORT_INTERVAL=60000`) 전송 간격이 포함돼 있다.
 2. claude.ai(해당 조직 Owner로 로그인) → 관리자 설정 → Claude Code → 관리형 설정 → 관리 → JSON 붙여넣기 → 저장.
    - 기존 관리형 설정이 있으면 `env` 블록만 병합한다(다른 키 유지).
 3. 구성원 안내문(Teams/Dooray 공지): "다음 Claude Code 실행 시 '조직 관리형 설정 승인' 창이 뜹니다. `OTEL_EXPORTER_OTLP_ENDPOINT = https://inje-playground.vercel.app/api/otel` 항목을 확인하고 승인해 주세요. 사용 통계(토큰·비용·세션)만 수집하며 프롬프트/코드 내용은 전송되지 않습니다."
@@ -33,4 +34,16 @@
 | 사용자 승인 창에서 거부 | Claude Code 종료됨 | 재실행 후 승인. 승인은 조직당 1회 기록됨 |
 | 특정 사용자 데이터 없음 | Bedrock/Vertex/`ANTHROPIC_BASE_URL` 사용자는 관리형 설정을 받지 않음 | 해당 사용자는 OTel 대상 아님(문서상 제약) |
 | CSV 업로드 "필수 칼럼 누락" | Anthropic이 헤더를 바꿈 | `frontend/src/lib/claude-usage/members-csv.ts`의 `MEMBERS_CSV_COLUMNS`에 새 헤더 추가 |
+| 503 `store failed` (Retry-After) | 일시적 DB 오류 — OTel 익스포터가 자동 재시도함 | 반복되면 조직·설정 탭 "마지막 오류" 확인, DB 상태 점검 |
 - 데이터 보존: `claude_code_requests`는 요청 단위라 커짐 → 필요 시 `delete from claude_code_requests where ts < now() - interval '180 days'`.
+- 수신 로그 보존: `delete from claude_ingest_log where received_at < now() - interval '30 days'`(수신 건수가 많아 30일 권장).
+- 마이그레이션 2(중복 방지 인덱스): 아직 적용 전이면 Supabase SQL Editor에서 `docs/sql/2026-08-26-claude-usage-2.sql` 실행 — `api_request` 이벤트 재수신 시 중복 삽입을 막는 부분 유니크 인덱스(`claude_code_requests_request_id_uidx`). 인덱스가 존재해야 이후 `storeLogs`를 upsert로 전환할 수 있다.
+
+### 스모크/테스트 데이터 정리
+```sql
+delete from claude_code_daily_model where org_id = 'test-org';
+delete from claude_code_requests   where org_id = 'test-org';
+delete from claude_code_daily      where org_id = 'test-org';
+delete from claude_ingest_log      where 'test-org' = any(org_ids);
+delete from claude_orgs            where id = 'test-org';
+```

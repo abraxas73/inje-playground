@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Upload, Trash2 } from "lucide-react";
 import SortableTable, { type Column } from "./SortableTable";
-import { isIdleSeat } from "@/lib/claude-usage/aggregate";
+import { hasSeat, isIdleSeat } from "@/lib/claude-usage/aggregate";
 import { usd } from "./format";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
 
@@ -16,7 +16,7 @@ type Row = MemberActivityRow & { org_id: string; import_id: string };
 interface MembersResponse { imports: CsvImport[]; rows: Row[] }
 interface UploadResult { filename: string; ok: boolean; org_id?: string; period_start?: string; period_end?: string; row_count?: number; error?: string }
 
-export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
+export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[]; onOrgsChange?: () => void }) {
   const [org, setOrg] = useState("all");
   const [importId, setImportId] = useState("latest");
   const [tick, setTick] = useState(0);
@@ -25,6 +25,9 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [idleOnly, setIdleOnly] = useState(false);
+  const [manualOrgId, setManualOrgId] = useState("");
+  const [manualStart, setManualStart] = useState("");
+  const [manualEnd, setManualEnd] = useState("");
 
   const key = `${org}|${importId}|${tick}`;
   const [result, setResult] = useState<{ key: string; data?: MembersResponse; error?: string } | null>(null);
@@ -57,6 +60,12 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
     setResults(null);
     const fd = new FormData();
     Array.from(files).forEach((f) => fd.append("files", f));
+    const manualComplete = files.length === 1 && manualOrgId.trim() && manualStart.trim() && manualEnd.trim();
+    if (manualComplete) {
+      fd.append("orgId", manualOrgId.trim());
+      fd.append("periodStart", manualStart.trim());
+      fd.append("periodEnd", manualEnd.trim());
+    }
     try {
       const r = await fetch("/api/admin/claude-usage/imports", { method: "POST", body: fd });
       const j = await r.json();
@@ -64,6 +73,12 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
       setResults(j.results as UploadResult[]);
       setImportId("latest");
       setTick((t) => t + 1);
+      if (manualComplete) {
+        setManualOrgId("");
+        setManualStart("");
+        setManualEnd("");
+      }
+      onOrgsChange?.();
     } catch (e) {
       setResults([{ filename: "-", ok: false, error: e instanceof Error ? e.message : String(e) }]);
     } finally {
@@ -94,7 +109,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
     { key: "user", header: "사용자", value: (r) => r.email, render: (r) => (<div><div className="font-medium">{r.name || r.email}</div>{r.name && <div className="text-muted-foreground">{r.email}</div>}</div>) },
     { key: "org", header: "조직", value: (r) => orgName.get(r.org_id) ?? r.org_id, render: (r) => <Badge variant="outline" className="text-[10px]">{orgName.get(r.org_id) ?? r.org_id.slice(0, 8)}</Badge> },
     { key: "role", header: "역할", value: (r) => r.role },
-    { key: "tier", header: "시트", value: (r) => r.seat_tier, render: (r) => r.seat_tier || <span className="text-muted-foreground">미할당</span> },
+    { key: "tier", header: "시트", value: (r) => r.seat_tier, render: (r) => (hasSeat(r.seat_tier) ? r.seat_tier : <span className="text-muted-foreground">미할당</span>) },
     { key: "last", header: "마지막 활동", value: (r) => r.last_active ?? "" },
     { key: "days", header: "활동일", align: "right", value: (r) => r.days_active },
     { key: "chats", header: "채팅", align: "right", value: (r) => r.chats },
@@ -119,6 +134,12 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
             파일 선택(여러 개 가능)
             <input type="file" accept=".csv,text/csv" multiple className="hidden" disabled={uploading} onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
           </label>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Input value={manualOrgId} onChange={(e) => setManualOrgId(e.target.value)} placeholder="조직 ID (예: 4ad6b3e9-…)" className="h-8 w-[220px] text-xs" disabled={uploading} />
+            <Input value={manualStart} onChange={(e) => setManualStart(e.target.value)} placeholder="시작일 (YYYY-MM-DD)" className="h-8 w-[160px] text-xs" disabled={uploading} />
+            <Input value={manualEnd} onChange={(e) => setManualEnd(e.target.value)} placeholder="종료일 (YYYY-MM-DD)" className="h-8 w-[160px] text-xs" disabled={uploading} />
+          </div>
+          <p className="text-muted-foreground">파일명에서 조직/기간을 읽을 수 없을 때 파일 1개만 선택하고 입력하세요</p>
           {results && (
             <ul className="space-y-0.5">
               {results.map((r, i) => (

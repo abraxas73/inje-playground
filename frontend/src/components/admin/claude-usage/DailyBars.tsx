@@ -11,6 +11,7 @@ export default function DailyBars({ data, valueKey, label, format }: {
   const h = 140;
   const pad = 4;
   const bw = data.length ? (w - pad * 2) / data.length : 0;
+  const step = Math.ceil(data.length / 8);
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -26,7 +27,7 @@ export default function DailyBars({ data, valueKey, label, format }: {
               <rect x={pad + i * bw + 1} y={h - bh} width={Math.max(1, bw - 2)} height={bh} className="fill-primary/80">
                 <title>{`${d.day}: ${format(v)}`}</title>
               </rect>
-              {(i === 0 || i === data.length - 1 || data.length <= 14 || i % Math.ceil(data.length / 8) === 0) && (
+              {(i === 0 || i === data.length - 1 || (i % step === 0 && data.length - 1 - i >= step / 2)) && (
                 <text x={pad + i * bw + bw / 2} y={h + 12} textAnchor="middle" className="fill-muted-foreground" fontSize="9">
                   {d.day.slice(5)}
                 </text>
