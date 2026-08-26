@@ -47,3 +47,7 @@ delete from claude_code_daily      where org_id = 'test-org';
 delete from claude_ingest_log      where 'test-org' = any(org_ids);
 delete from claude_orgs            where id = 'test-org';
 ```
+
+## 5. 테스트
+- 단위: `cd frontend && npx vitest run` (parser·CSV·집계·인증·관리형 설정).
+- E2E: `cd frontend && npx playwright test e2e/claude-usage.spec.ts` — OTLP 수신/관리자 API 게이트(401·415·400·200)는 세션 없이 실행된다. 관리자 화면 2개 테스트(3탭 렌더, 합성 CSV 업로드→표→삭제)는 `E2E_ADMIN_STORAGE_STATE`(Google 관리자 로그인 storageState JSON; `npx playwright codegen --save-storage=/tmp/admin-storage.json http://localhost:3003`)와 `SUPABASE_SERVICE_ROLE_KEY`(로컬 `.env.local`)가 있을 때만 실행되고 없으면 SKIP된다.
