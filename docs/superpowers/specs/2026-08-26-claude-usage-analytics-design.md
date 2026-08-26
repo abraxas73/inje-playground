@@ -83,6 +83,14 @@
 - 인증: `Authorization: Bearer <CLAUDE_OTEL_INGEST_TOKEN>` 상수시간 비교. 실패 401. 페이로드 파싱 실패 400. DB 쓰기는 service role(`SUPABASE_SERVICE_ROLE_KEY`).
 - 사용자 식별: 데이터포인트 속성 `user.email` → 리소스 속성 → 없으면 `uuid:<account_uuid>`. 조직: `organization.id`(없으면 `unknown`). 미등록 조직 ID는 `claude_orgs`에 자동 추가(이름 = ID 앞 8자, 관리자가 수정).
 
+### 2.1.1 대상 조직 (2026-08-26 확인, 모두 Team 플랜)
+Innogrid-ax(조직 ID `4ad6b3e9-552f-4b67-bb96-25b51d1852f4`, 97석) · Innogrid_AIMS클라우드 · Innogrid_AIPaaS · Innogrid_AI반도체Cloud · Innogrid_S1 · Innogrid_S2 · Innogrid_자율행동체. 나머지 6개의 조직 ID는 OTel `organization.id` 또는 CSV 파일명에서 자동 등록되며, 관리자 화면 조직·설정 탭에서 이름을 지정한다.
+
+### 2.2.1 CSV 수집 자동화 범위 (2026-08-26 결정)
+- 사용자가 트리거하는 **반자동**: Chrome 확장(claude-in-chrome)으로 7개 조직을 순회하며 CSV 내보내기 → 스크립트로 업로드하는 스킬 `/claude-usage-csv`. 주기는 사용자 선택(매일 가능 — 각 파일은 30일 롤링 스냅샷이므로 날짜별 시리즈가 쌓임).
+- 무인 자동(서버 크론이 claude.ai 내부 API 호출)은 비공식·약관 리스크로 **하지 않음**. 공식 무인 경로는 Enterprise Analytics API.
+- 이를 위해 업로드 API는 관리자 세션 외에 수집 토큰(Bearer `CLAUDE_OTEL_INGEST_TOKEN`) 인증도 허용한다(스크립트용).
+
 ### 2.2 CSV 수집
 - 파일: 분석 > 개요 > 멤버 "모두 보기" > CSV 내보내기 → `members-analytics-{orgId}-{from}-to-{to}.csv` (BOM, 19칼럼: Name, Email, Role, Seat Tier, Last Active, Days Active, Chats, Messages, Projects Created, Projects Used, Pull Requests, Code sessions, File Edits, Cowork Sessions, Cowork Messages, Artifacts Created, Claude Code Artifacts, Cowork Artifacts, Estimated Spend (USD)). 조직 전체 멤버 포함(시트 티어 포함) → 관리자 멤버 CSV 불필요.
 - 업로드: 여러 파일 동시, 파일명에서 org/기간 자동 인식(실패 시 폼 입력). 같은 (org, from, to) 재업로드 = 교체. 헤더 이름 기반 매핑, 알 수 없는 칼럼 무시, 필수 칼럼(Email, Seat Tier, Chats, Code sessions, Cowork Sessions) 누락 시 거부.
