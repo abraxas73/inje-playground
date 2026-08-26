@@ -20,9 +20,9 @@ d=json.load(sys.stdin)
 if "error" in d: print("실패:", d["error"]); sys.exit(1)
 ok=0
 for r in d["results"]:
-    if r["ok"]: ok+=1; print(f"✓ {r[\"filename\"]} → {r[\"org_id\"][:8]} {r[\"period_start\"]}~{r[\"period_end\"]} {r[\"row_count\"]}명")
-    else: print(f"✗ {r[\"filename\"]}: {r[\"error\"]}")
-print(f"{ok}/{len(d[\"results\"])} 성공")
+    if r["ok"]: ok+=1; print(f"✓ {r["filename"]} → {r["org_id"][:8]} {r["period_start"]}~{r["period_end"]} {r["row_count"]}명")
+    else: print(f"✗ {r["filename"]}: {r["error"]}")
+print(f"{ok}/{len(d["results"])} 성공")
 sys.exit(0 if ok==len(d["results"]) else 2)'
 STATUS=$?
 if [ $STATUS -eq 0 ]; then for f in "${FILES[@]}"; do mv "$f" "$DONE_DIR/"; done; echo "업로드 완료 파일을 $DONE_DIR 로 이동"; fi
