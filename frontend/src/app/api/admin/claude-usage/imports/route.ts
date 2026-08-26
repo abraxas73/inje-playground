@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500, isYmd } from "@/lib/claude-usage/require-admin";
 import { parseMembersCsv, parseMembersFilename } from "@/lib/claude-usage/members-csv";
+import { verifyIngestToken } from "@/lib/claude-usage/ingest-auth";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -19,8 +20,13 @@ export async function GET() {
 
 /** POST multipart: files[] (+ orgId/periodStart/periodEnd — 파일 1개일 때 파일명 대체) */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin();
-  if (!auth.ok) return auth.response;
+  // 관리자 세션 또는 수집 토큰(스크립트 업로드용) 중 하나
+  let uploadedBy: string | null = null;
+  if (!verifyIngestToken(request.headers.get("authorization"), process.env.CLAUDE_OTEL_INGEST_TOKEN)) {
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+    uploadedBy = auth.userId;
+  }
   const c = adminClientOr500();
   if (!c.ok) return c.response;
   const admin = c.admin;
@@ -57,7 +63,7 @@ export async function POST(request: NextRequest) {
 
       const ins = await admin
         .from("claude_csv_imports")
-        .insert({ org_id: meta.orgId, period_start: meta.periodStart, period_end: meta.periodEnd, filename, uploaded_by: auth.userId, row_count: rows.length })
+        .insert({ org_id: meta.orgId, period_start: meta.periodStart, period_end: meta.periodEnd, filename, uploaded_by: uploadedBy, row_count: rows.length })
         .select("id")
         .single();
       if (ins.error) throw new Error(ins.error.message);
