@@ -84,7 +84,26 @@ curl -i -X POST "$TEAMS_DM_WEBHOOK_URL" -H "Content-Type: application/json" -d '
 
 ## 3-A. 멤버 가져오기 — Microsoft Graph (앱 권한, 테넌트 관리자 동의 필요)
 
-> Graph **애플리케이션 권한**의 테넌트 동의는 Privileged Role Administrator/Global Administrator만 할 수 있다(Application Administrator·앱 소유자 불가). 동의를 받을 수 없으면 §3-B 웹훅 방식을 쓴다. `teams_members_webhook_url`이 설정돼 있으면 앱은 항상 웹훅을 우선한다.
+> Graph **애플리케이션 권한**의 테넌트 동의는 Privileged Role Administrator/Global Administrator만 할 수 있다(Application Administrator·Cloud Application Administrator·앱 소유자 불가; 관리자 동의 요청 워크플로의 "검토자"로 지정돼도 Graph 앱 권한은 GA만 승인 가능). 동의를 받을 수 없으면 §3-B 웹훅 방식 또는 §3.1 `users`를 쓴다. `teams_members_webhook_url`이 설정돼 있으면 앱은 항상 웹훅을 우선한다.
+
+### 3-A.0 관리자 동의 받는 프로세스 (앱 소유자가 GA에게 1클릭 요청)
+
+역할을 올려 받는 것보다 GA가 한 번 클릭해 주는 것이 정석이다.
+
+1. **사전(앱 소유자)**: Entra 관리 센터 > 앱 등록 > 해당 앱 > 개요에서 테넌트 ID·클라이언트 ID 확인. API 권한에 `GroupMember.Read.All`(애플리케이션)이 추가돼 있고 상태가 "동의 필요"인지 확인.
+2. **관리자(GA/PRA)**: 같은 앱의 API 권한 화면에서 **"<조직>에 대한 관리자 동의 부여"** 클릭 → 상태가 초록 체크로 변경. 또는 관리자 브라우저에서 `https://login.microsoftonline.com/<테넌트ID>/adminconsent?client_id=<클라이언트ID>` 열고 "수락".
+3. **사후(앱 소유자)**: 위 §3-A 2번부터 진행(클라이언트 암호 → env → 설정 → 확인).
+
+관리자에게 보낼 요청문 템플릿:
+
+> 제목: 워크샵 앱 Entra 앱 등록에 Graph 애플리케이션 권한 1건 관리자 동의 요청
+>
+> 앱: *(앱 이름)* / 클라이언트 ID: `<클라이언트ID>` / 소유자: seunguk.kang@innogrid.com
+> 권한: Microsoft Graph → 애플리케이션 권한 → **GroupMember.Read.All** (읽기 전용: 그룹 구성원 목록)
+> 용도: 사내 워크샵 앱(사다리/팀 나누기/점심)의 구성원 목록을 Dooray 대신 지정한 Teams 팀 1개의 구성원(이름·이메일)으로 자동 동기화. 서버에서만 호출하며 쓰기 권한·메일·파일 접근 없음. 시크릿은 Vercel 환경변수에만 저장.
+> 조치: Entra 관리 센터 → 앱 등록 → 해당 앱 → API 권한 → "관리자 동의 부여" 클릭(1분 소요). 또는 `https://login.microsoftonline.com/<테넌트ID>/adminconsent?client_id=<클라이언트ID>` 접속 후 "수락".
+
+- `GroupMember.Read.All`은 테넌트 전체 그룹의 구성원을 읽을 수 있는 권한이라 거부될 수 있다. 최소 권한 대안은 Teams 앱 RSC(`TeamMember.Read.Group`, 특정 팀 1개 한정·팀 소유자 동의)지만 Teams 앱 매니페스트 패키징이 필요해 별도 작업이다. 동의를 못 받는 동안은 §3.1 `users` + 내 팀 구성(이메일 수정)으로 운영한다.
 
 1. Entra 관리 센터 > 앱 등록 > (Supabase Azure 로그인에 쓰는 앱 재사용) > API 권한 > **Microsoft Graph > 애플리케이션 권한 > `GroupMember.Read.All`** 추가 > **관리자 동의 부여**.
 2. 인증서 및 암호 > 새 클라이언트 암호 → 값(한 번만 표시)을 `TEAMS_GRAPH_CLIENT_SECRET`에 저장.
