@@ -35,6 +35,30 @@
 - 화면이 호출하는 내부 엔드포인트(세션 쿠키, 비공식): `/api/organizations/{org}/analytics/activity/users`, `users/rankings`, `activity/timeseries`, `usage/timeseries`, `skills/top`, `mcp/top-connectors`, `outputs/timeseries`. Enterprise Analytics API와 같은 데이터 모델이 뒤에 있음을 확인 — 공식 경로는 Enterprise 전환뿐.
 - **Phase 1 수집 대상 확정(조직당 월 4개 파일)**: ① 멤버 활동 CSV(개요 모두 보기, 30일) ② Claude Code 생산성 내보내기(월별 라인 수) ③ Claude Code 사용량 CSV ④ 관리자 멤버 CSV(역할·티어). ①+④ 조인으로 "시트 있는데 활동 0" 판정, ②로 코딩 강도, ③은 조직 채택 지표.
 
+### 1.2 CSV 없이 자동 수집이 가능한가 — 결론 (2026-08-26 검증)
+
+| 제품 | Team 플랜에서 자동 수집 | 방법 |
+|---|---|---|
+| **Claude Code** (지출의 대부분: 8월 $9,819) | ✅ **공식·중앙 배포·실시간** | **OpenTelemetry**를 claude.ai **관리자 설정 > Claude Code > 관리형 설정(서버 관리형)** 의 `env`로 켠다. 조직 계정으로 로그인한 모든 PC·IDE·데스크톱·클라우드 세션의 Claude Code가 지정 수집기로 지표를 보낸다. 개발자 PC를 건드릴 필요 없고, 관리형 `OTEL_EXPORTER_OTLP_*`는 개발자 설정을 덮어써 끄거나 우회할 수 없다. 사용자 식별 `user.email`·`user.account_uuid`·`organization.id` 자동 첨부(OAuth Team 로그인 포함) |
+| 채팅·Cowork·Design·아티팩트 | ❌ 공식 자동 경로 없음 | (a) 분석 대시보드 멤버 활동 CSV(월 1회, 조직당 1파일) (b) Enterprise 전환 → Analytics API (c) 비공식: 대시보드 내부 API(`/api/organizations/{org}/analytics/activity/users` 등)를 소유자 세션 쿠키로 호출 — 미지원·예고 없이 변경·자동 접근은 약관 위반 소지 → **비권장** |
+| 전 제품 사용자별 일간 + 비용 API | Enterprise만 | 7개 조직을 연결 조직으로 묶는 통합 관리도 Enterprise 기능 |
+
+**OTel로 얻는 지표** (모두 `user.email` 라벨): `claude_code.session.count`, `claude_code.cost.usage`(USD, `model`·`query_source`), `claude_code.token.usage`(input/output/cacheRead/cacheCreation × model), `claude_code.lines_of_code.count`(added/removed), `claude_code.code_edit_tool.decision`(accept/reject × tool × language), `claude_code.active_time.total`; 이벤트 `api_request`(요청별 cost_usd·tokens·duration), `tool_result`, `tool_decision`, `user_prompt`(내용은 기본 `<REDACTED>`). 커밋/PR은 tool_result·이벤트에서 파생.
+
+**관리형 설정 예시**(조직 7개에 동일 적용, `organization.id`로 구분):
+```json
+{ "env": {
+  "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+  "OTEL_METRICS_EXPORTER": "otlp", "OTEL_LOGS_EXPORTER": "otlp",
+  "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+  "OTEL_EXPORTER_OTLP_ENDPOINT": "https://<수집기>/v1",
+  "OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Bearer <토큰>",
+  "OTEL_METRICS_INCLUDE_SESSION_ID": "false" } }
+```
+수집기 후보: ① Grafana Cloud 무료 티어(OTLP 수신·대시보드 내장, 가장 빠름) ② self-host otel-collector → Supabase/ClickHouse ③ 앱 내 OTLP/HTTP 수신 라우트 → Supabase(앱 대시보드에 통합, 구현 비용 최대).
+
+**권장 조합**: Claude Code = OTel(자동·실시간) + 채팅/Cowork = 멤버 활동 CSV 월 1회(조직당 1파일, 7개) + 시트 티어 = 관리자 멤버 CSV(변동 시). 장기 = Enterprise 전환 검토.
+
 ## 2. Phase 1 — CSV 수집 + 통합 대시보드 (inje-playground 앱 내)
 
 ### 운영 흐름
