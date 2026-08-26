@@ -42,6 +42,7 @@
 | `frontend/src/app/admin/claude-usage/page.tsx` | 탭 컨테이너 |
 | `frontend/src/components/admin/claude-usage/{CodeUsageTab,MembersCsvTab,OrgSettingsTab,DailyBars,SortableTable}.tsx` | UI |
 | `frontend/src/app/admin/layout.tsx` | 네비 항목 추가 |
+| `frontend/scripts/claude-usage-upload.sh`, `.claude/skills/claude-usage-csv/SKILL.md` | CSV 반자동 수집(Task 9) |
 | `frontend/src/lib/__tests__/claude-usage-*.test.ts` | 단위 테스트 |
 
 ---
@@ -2725,6 +2726,119 @@ delete from claude_code_daily where org_id = 'test-org'; delete from claude_orgs
 - [ ] **Step 6: 실제 CSV 업로드 검증** — 사용자가 내려받은 `~/Downloads/members-analytics-4ad6b3e9-…-2026-07-27-to-2026-08-25.csv`를 채팅·Cowork 탭에 업로드 → 78명, 노는 시트 개수 표시 확인. 조직·설정 탭에서 `4ad6b3e9…` 이름을 `Innogrid-ax`, 총 시트 97로 저장.
 
 - [ ] **Step 7: 완료 보고** — 사용자에게 (1) 토큰 값, (2) 관리형 설정 적용 절차(런북 §2), (3) 남은 사용자 액션(SUPABASE_SERVICE_ROLE_KEY 미설정 시) 전달. `🕐 현재 시각` 포함.
+
+---
+
+### Task 9: CSV 반자동 수집 — 토큰 인증 업로드 + 업로드 스크립트 + `/claude-usage-csv` 스킬
+
+**Files:**
+- Modify: `frontend/src/app/api/admin/claude-usage/imports/route.ts` (POST 인증 분기)
+- Create: `frontend/scripts/claude-usage-upload.sh`
+- Create: `.claude/skills/claude-usage-csv/SKILL.md`
+- Modify: `docs/claude-usage.md` §3 (스킬·스크립트 절차 추가)
+
+**Interfaces:**
+- Consumes: `verifyIngestToken` (Task 3), `requireAdmin` (Task 6), `POST /api/admin/claude-usage/imports` 계약(Task 6)
+- Produces: `POST /api/admin/claude-usage/imports`가 **관리자 세션 또는 `Authorization: Bearer <CLAUDE_OTEL_INGEST_TOKEN>`** 둘 중 하나로 인증(토큰 인증 시 `uploaded_by = null`). 스크립트 `claude-usage-upload.sh [days=3]`: `~/Downloads/members-analytics-*.csv` 중 최근 N일 파일을 한 요청으로 업로드 후 `~/Downloads/claude-usage-uploaded/`로 이동. 스킬: Chrome 확장으로 7개 조직 순회 → CSV 내보내기 → 스크립트 실행 → 결과 보고.
+- 대상 조직(스펙 §2.1.1): Innogrid-ax, Innogrid_AIMS클라우드, Innogrid_AIPaaS, Innogrid_AI반도체Cloud, Innogrid_S1, Innogrid_S2, Innogrid_자율행동체.
+
+- [ ] **Step 1: imports POST 인증 분기** — `frontend/src/app/api/admin/claude-usage/imports/route.ts`의 POST 첫 부분을 아래로 교체(GET/DELETE는 그대로 세션 전용):
+
+```ts
+import { verifyIngestToken } from "@/lib/claude-usage/ingest-auth";
+// …
+export async function POST(request: NextRequest) {
+  // 관리자 세션 또는 수집 토큰(스크립트 업로드용) 중 하나
+  let uploadedBy: string | null = null;
+  if (!verifyIngestToken(request.headers.get("authorization"), process.env.CLAUDE_OTEL_INGEST_TOKEN)) {
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+    uploadedBy = auth.userId;
+  }
+  const c = adminClientOr500();
+  if (!c.ok) return c.response;
+  const admin = c.admin;
+  // … 이하 동일, insert 시 `uploaded_by: uploadedBy`
+```
+
+- [ ] **Step 2: 업로드 스크립트** (`frontend/scripts/claude-usage-upload.sh`, `chmod +x`)
+
+```bash
+#!/usr/bin/env bash
+# ~/Downloads의 members-analytics-*.csv(최근 N일)를 /api/admin/claude-usage/imports에 한 번에 업로드
+# 사용: ./frontend/scripts/claude-usage-upload.sh [days=3]
+set -euo pipefail
+DAYS="${1:-3}"
+BASE_URL="${INJE_BASE_URL:-https://inje-playground.vercel.app}"
+ENV_FILE="$(cd "$(dirname "$0")/.." && pwd)/.env.local"
+TOKEN="${CLAUDE_OTEL_INGEST_TOKEN:-$(grep -E '^CLAUDE_OTEL_INGEST_TOKEN=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)}"
+if [ -z "$TOKEN" ]; then echo "CLAUDE_OTEL_INGEST_TOKEN이 없습니다(.env.local 또는 환경변수)." >&2; exit 1; fi
+DL="$HOME/Downloads"; DONE_DIR="$DL/claude-usage-uploaded"; mkdir -p "$DONE_DIR"
+FILES=()
+while IFS= read -r f; do FILES+=("$f"); done < <(find "$DL" -maxdepth 1 -name 'members-analytics-*.csv' -mtime -"$DAYS" | sort)
+if [ ${#FILES[@]} -eq 0 ]; then echo "업로드할 CSV가 없습니다(최근 ${DAYS}일)."; exit 0; fi
+ARGS=(); for f in "${FILES[@]}"; do ARGS+=(-F "files=@$f"); done
+echo "업로드 ${#FILES[@]}개 → $BASE_URL"
+RESP=$(curl -sS -X POST "$BASE_URL/api/admin/claude-usage/imports" -H "Authorization: Bearer $TOKEN" "${ARGS[@]}")
+echo "$RESP" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+if "error" in d: print("실패:", d["error"]); sys.exit(1)
+ok=0
+for r in d["results"]:
+    if r["ok"]: ok+=1; print(f"✓ {r[\"filename\"]} → {r[\"org_id\"][:8]} {r[\"period_start\"]}~{r[\"period_end\"]} {r[\"row_count\"]}명")
+    else: print(f"✗ {r[\"filename\"]}: {r[\"error\"]}")
+print(f"{ok}/{len(d[\"results\"])} 성공")
+sys.exit(0 if ok==len(d["results"]) else 2)'
+STATUS=$?
+if [ $STATUS -eq 0 ]; then for f in "${FILES[@]}"; do mv "$f" "$DONE_DIR/"; done; echo "업로드 완료 파일을 $DONE_DIR 로 이동"; fi
+exit $STATUS
+```
+
+- [ ] **Step 3: 스킬** (`.claude/skills/claude-usage-csv/SKILL.md`)
+
+```markdown
+---
+name: claude-usage-csv
+description: claude.ai Team 조직 7개의 멤버 활동 CSV를 Chrome 확장으로 내보내고 /admin/claude-usage에 업로드한다. "CSV 수집해", "클로드 사용량 CSV 갱신" 요청 시 사용.
+---
+
+# Claude 사용량 CSV 수집 (반자동)
+
+전제: Chrome에 Claude in Chrome 확장이 연결돼 있고, claude.ai에 7개 조직의 소유자 계정(seunguk.kang@innogrid.com)으로 로그인돼 있다. 연결이 안 되면(`tabs_context_mcp` 오류) 사용자에게 `/mcp` → claude-in-chrome 재연결을 요청하고 중단한다. Cloudflare 확인·로그인 화면이 나오면 사용자가 직접 처리하도록 요청한다(자동 통과 금지).
+
+대상 조직(순서대로): Innogrid-ax, Innogrid_AIMS클라우드, Innogrid_AIPaaS, Innogrid_AI반도체Cloud, Innogrid_S1, Innogrid_S2, Innogrid_자율행동체.
+
+## 절차
+1. `tabs_context_mcp` → 새 탭 → `https://claude.ai/analytics/overview` 이동. `get_page_text`로 "개요" 아래 조직명을 읽어 현재 조직을 확인한다.
+2. 조직 전환: 좌측 하단 계정/조직 메뉴(현재 조직명이 표시된 버튼)를 `find`로 찾아 클릭 → 조직 목록에서 대상 조직 클릭 → 다시 `https://claude.ai/analytics/overview`로 이동 → 개요의 조직명이 대상과 일치하는지 확인(불일치면 재시도 1회 후 사용자에게 보고).
+3. 멤버 카드의 **"모두 보기"** 클릭(`find` → ref 클릭; 대화상자가 안 열리면 스크린샷 좌표로 클릭) → 대화상자 기간 콤보가 **30일**인지 확인(기본값) → **"CSV 내보내기"** 클릭 → 2초 대기 → `ls -t ~/Downloads/members-analytics-*.csv | head -1`로 새 파일 생성 확인(파일명의 조직 ID가 이전 조직과 다른지 확인). Escape 2회로 대화상자 닫기.
+4. 7개 조직 반복. 실패한 조직은 건너뛰고 마지막에 목록으로 보고한다.
+5. 업로드: `./frontend/scripts/claude-usage-upload.sh 1` 실행 → 출력의 ✓/✗ 줄을 그대로 보고.
+6. 확인: 사용자에게 `/admin/claude-usage` 채팅·Cowork 탭에서 "조직별 최신 업로드"가 오늘 날짜 기간으로 갱신됐는지 안내. 사용한 탭은 `tabs_close_mcp`로 닫는다.
+
+## 주의
+- 다운로드 버튼 클릭은 파일 다운로드이므로 이 스킬을 사용자가 명시적으로 호출한 경우에만 수행한다.
+- 관리자 멤버 CSV(관리자 설정 > 멤버)는 필요 없다(활동 CSV에 Role/Seat Tier 포함).
+- 조직 ID는 파일명에서 자동 인식되므로 조직 이름 매핑은 `/admin/claude-usage` 조직·설정 탭에서 1회만 지정한다.
+```
+
+- [ ] **Step 4: 런북 §3 갱신** — `docs/claude-usage.md` §3 첫머리에 추가: "가장 쉬운 방법: Claude Code에서 `/claude-usage-csv` 실행(Chrome 확장 연결 필요) → 7개 조직 CSV 내보내기 + 업로드가 자동 진행. 수동으로 받았다면 `./frontend/scripts/claude-usage-upload.sh 3`으로 최근 3일 파일을 일괄 업로드."
+
+- [ ] **Step 5: 검증** — `cd frontend && npx tsc --noEmit -p tsconfig.json && npm run lint -- src/app/api/admin/claude-usage/imports` 통과; `bash -n frontend/scripts/claude-usage-upload.sh` 통과; 배포 후 `curl -s -o /dev/null -w "%{http_code}" -X POST $BASE/api/admin/claude-usage/imports -H "Authorization: Bearer wrong"` → `401`(세션도 없으므로 requireAdmin의 401), 올바른 토큰 + 실제 CSV로 스크립트 실행 → ✓ 출력.
+
+- [ ] **Step 6: 커밋·푸시·배포**
+
+```bash
+git add frontend/src/app/api/admin/claude-usage/imports/route.ts frontend/scripts/claude-usage-upload.sh .claude/skills/claude-usage-csv/SKILL.md docs/claude-usage.md
+git commit -m "feat(claude-usage): CSV 반자동 수집 — 토큰 인증 업로드·일괄 업로드 스크립트·/claude-usage-csv 스킬
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+git push origin main
+git stash push frontend/src/app/api/action-history/route.ts -m wip-action-history
+cd frontend && NODE_OPTIONS= vercel --prod --yes --scope seunguk-kangs-projects; cd ..
+git stash pop
+```
 
 ---
 
