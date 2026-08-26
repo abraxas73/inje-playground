@@ -7,8 +7,10 @@ export function parseCsv(text: string): string[][] {
   let row: string[] = [];
   let field = "";
   let inQuotes = false;
+  let rowStarted = false;
   for (let i = 0; i < src.length; i++) {
     const c = src[i];
+    if (c !== "\n" && c !== "\r") rowStarted = true;
     if (inQuotes) {
       if (c === '"') {
         if (src[i + 1] === '"') {
@@ -18,7 +20,7 @@ export function parseCsv(text: string): string[][] {
       } else field += c;
       continue;
     }
-    if (c === '"') inQuotes = true;
+    if (c === '"' && field === "") inQuotes = true;
     else if (c === ",") {
       row.push(field);
       field = "";
@@ -26,12 +28,13 @@ export function parseCsv(text: string): string[][] {
       if (c === "\r" && src[i + 1] === "\n") i++;
       row.push(field);
       field = "";
-      if (row.some((v) => v !== "")) rows.push(row);
+      if (rowStarted) rows.push(row);
       row = [];
+      rowStarted = false;
     } else field += c;
   }
   row.push(field);
-  if (row.some((v) => v !== "")) rows.push(row);
+  if (rowStarted || field !== "") rows.push(row);
   return rows;
 }
 

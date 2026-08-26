@@ -11,6 +11,16 @@ describe("parseCsv", () => {
     const rows = parseCsv('﻿"a","b ""q"" c",d\r\n1,"x,y",\r\n\r\n');
     expect(rows).toEqual([["a", 'b "q" c', "d"], ["1", "x,y", ""]]);
   });
+
+  it("필드 중간의 따옴표는 리터럴이고 필드/행 구분을 깨지 않는다", () => {
+    expect(parseCsv('ab"cd,e\n')).toEqual([['ab"cd', "e"]]);
+    expect(parseCsv('"q",x"y\n')).toEqual([["q", 'x"y']]);
+  });
+
+  it("문자가 없는 줄만 건너뛰고, 빈 필드로만 된 행은 유지한다", () => {
+    expect(parseCsv(",,\na,b\n\n")).toEqual([["", "", ""], ["a", "b"]]);
+    expect(parseCsv("a,b")).toEqual([["a", "b"]]);
+  });
 });
 
 describe("parseMembersCsv", () => {
