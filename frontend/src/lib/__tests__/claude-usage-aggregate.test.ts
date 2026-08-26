@@ -40,6 +40,13 @@ describe("summarize", () => {
     expect(s.orgs).toEqual(orgs);
     expect(s.range).toEqual({ from: "2026-08-23", to: "2026-08-25" });
   });
+
+  it("이메일 조인은 대소문자 구분 없음 (user_email 유지)", () => {
+    const mixedRows = [row({ day: "2026-08-25", org_id: "org-a", user_email: "Dev4@Example.com", sessions: 1, cost_usd: 0.1 })];
+    const mixedMembers = [{ email: "dev4@example.com", name: "개발4", seat_tier: "Standard" }];
+    const s = summarize({ rows: mixedRows, models: [], orgs, members: mixedMembers, from: "2026-08-25", to: "2026-08-25" });
+    expect(s.users[0]).toMatchObject({ user_email: "Dev4@Example.com", name: "개발4", seat_tier: "Standard" });
+  });
 });
 
 describe("acceptRate / isIdleSeat", () => {
@@ -59,7 +66,10 @@ describe("dateRangePreset", () => {
   it("KST 기준 프리셋", () => {
     expect(dateRangePreset("7d", today)).toEqual({ from: "2026-08-20", to: "2026-08-26" });
     expect(dateRangePreset("30d", today)).toEqual({ from: "2026-07-28", to: "2026-08-26" });
+    expect(dateRangePreset("90d", today)).toEqual({ from: "2026-05-29", to: "2026-08-26" });
     expect(dateRangePreset("thisMonth", today)).toEqual({ from: "2026-08-01", to: "2026-08-26" });
     expect(dateRangePreset("lastMonth", today)).toEqual({ from: "2026-07-01", to: "2026-07-31" });
+    // 1월 → 전년 12월 (KST 2026-01-15 10:00 = 2026-01-15T01:00:00Z)
+    expect(dateRangePreset("lastMonth", new Date("2026-01-15T01:00:00Z"))).toEqual({ from: "2025-12-01", to: "2025-12-31" });
   });
 });

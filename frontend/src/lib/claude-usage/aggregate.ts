@@ -81,7 +81,7 @@ export function summarize(input: {
   for (const r of input.rows) {
     let u = users.get(r.user_email);
     if (!u) {
-      const m = memberByEmail.get(r.user_email);
+      const m = memberByEmail.get(r.user_email.toLowerCase());
       u = { ...emptyDailyMetrics(), user_email: r.user_email, orgs: [], active_days: 0, name: m?.name ?? null, seat_tier: m?.seat_tier ?? null, _days: new Set(), _orgs: new Set() };
       users.set(r.user_email, u);
     }
