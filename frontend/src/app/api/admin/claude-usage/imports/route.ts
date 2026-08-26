@@ -66,7 +66,12 @@ export async function POST(request: NextRequest) {
       const payload = [...byEmail.values()].map((r) => ({ ...r, import_id: ins.data.id, org_id: meta.orgId, period_start: meta.periodStart, period_end: meta.periodEnd }));
       for (let i = 0; i < payload.length; i += 500) {
         const chunk = await admin.from("claude_member_activity").insert(payload.slice(i, i + 500));
-        if (chunk.error) throw new Error(chunk.error.message);
+        if (chunk.error) {
+          // 부분 삽입 상태로 남기지 않도록 import 행을 정리(cascade로 이미 들어간 member 행도 제거)한다.
+          const cleanup = await admin.from("claude_csv_imports").delete().eq("id", ins.data.id);
+          const cleanupSuffix = cleanup.error ? ` (정리 실패: ${cleanup.error.message})` : "";
+          throw new Error(`${chunk.error.message}${cleanupSuffix}`);
+        }
       }
       results.push({ filename, ok: true, org_id: meta.orgId, period_start: meta.periodStart, period_end: meta.periodEnd, row_count: payload.length });
     } catch (e) {

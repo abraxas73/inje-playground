@@ -12,22 +12,33 @@ export async function GET() {
   if (!c.ok) return NextResponse.json(empty);
   const admin = c.admin;
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-  const [last, recent, lastErr, lastDays] = await Promise.all([
+  const [last, recent, lastErr, orgsRes] = await Promise.all([
     admin.from("claude_ingest_log").select("received_at").order("received_at", { ascending: false }).limit(1),
     admin.from("claude_ingest_log").select("ok").gte("received_at", since),
     admin.from("claude_ingest_log").select("error, received_at").eq("ok", false).order("received_at", { ascending: false }).limit(1),
-    admin.from("claude_code_daily").select("org_id, day").order("day", { ascending: false }).limit(2000),
+    admin.from("claude_orgs").select("id"),
   ]);
-  const err = last.error ?? recent.error ?? lastErr.error ?? lastDays.error;
+  const err = last.error ?? recent.error ?? lastErr.error ?? orgsRes.error;
   if (err) return NextResponse.json({ error: err.message }, { status: 500 });
-  const orgLastDay = new Map<string, string>();
-  for (const r of lastDays.data ?? []) if (!orgLastDay.has(r.org_id)) orgLastDay.set(r.org_id, r.day);
+
+  const orgIds = (orgsRes.data ?? []).map((o) => o.id as string);
+  const lastDayByOrg = await Promise.all(
+    orgIds.map((id) => admin.from("claude_code_daily").select("day").eq("org_id", id).order("day", { ascending: false }).limit(1))
+  );
+  const lastDayErr = lastDayByOrg.find((r) => r.error)?.error;
+  if (lastDayErr) return NextResponse.json({ error: lastDayErr.message }, { status: 500 });
+  const orgLastDay: { org_id: string; last_day: string }[] = [];
+  orgIds.forEach((id, i) => {
+    const day = lastDayByOrg[i].data?.[0]?.day;
+    if (day) orgLastDay.push({ org_id: id, last_day: day });
+  });
+
   return NextResponse.json({
     ...empty,
     lastReceivedAt: last.data?.[0]?.received_at ?? null,
     count24h: recent.data?.length ?? 0,
     errors24h: (recent.data ?? []).filter((r) => !r.ok).length,
     lastError: lastErr.data?.[0] ? `${lastErr.data[0].received_at} ${lastErr.data[0].error ?? ""}` : null,
-    orgLastDay: [...orgLastDay].map(([org_id, last_day]) => ({ org_id, last_day })),
+    orgLastDay,
   });
 }

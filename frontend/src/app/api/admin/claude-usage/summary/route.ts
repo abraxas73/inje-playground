@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     dailyQ,
     modelQ,
     admin.from("claude_orgs").select("id, name, seats_total, sort_order").order("sort_order").order("name"),
-    admin.from("claude_csv_imports").select("id, org_id, period_end").order("period_end", { ascending: false }),
+    admin.from("claude_csv_imports").select("id, org_id, period_end").order("period_end", { ascending: false }).order("created_at", { ascending: false }),
   ]);
   const err = daily.error ?? models.error ?? orgs.error ?? imports.error;
   if (err) return NextResponse.json({ error: err.message }, { status: 500 });
