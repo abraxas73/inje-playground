@@ -12,20 +12,45 @@ interface Health { tokenConfigured: boolean; serviceKeyConfigured: boolean; last
 
 export default function OrgSettingsTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[]; onOrgsChange: () => void }) {
   const [health, setHealth] = useState<Health | null>(null);
+  const [healthError, setHealthError] = useState<string | null>(null);
   const [edit, setEdit] = useState<Record<string, { name: string; seats: string }>>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const origin = typeof window !== "undefined" ? window.location.origin : "https://inje-playground.vercel.app";
   const json = JSON.stringify(buildManagedSettings(origin), null, 2);
 
-  const loadHealth = () => fetch("/api/admin/claude-usage/health").then((r) => r.json()).then(setHealth).catch(() => setHealth(null));
+  const loadHealth = () => {
+    fetch("/api/admin/claude-usage/health")
+      .then(async (r) => {
+        const j = await r.json();
+        if (!r.ok || j?.error) throw new Error(j?.error ?? `HTTP ${r.status}`);
+        return j as Health;
+      })
+      .then((h) => {
+        setHealthError(null);
+        setHealth(h);
+      })
+      .catch((e) => setHealthError(e instanceof Error ? e.message : String(e)));
+  };
   useEffect(() => { loadHealth(); }, []);
 
   const save = async (o: ClaudeOrg) => {
     const e = edit[o.id];
     if (!e) return;
+    if (e.seats.trim() !== "" && !/^\d+$/.test(e.seats.trim())) {
+      setSaveError("총 시트는 0 이상의 정수여야 합니다.");
+      return;
+    }
     const seats = e.seats.trim() === "" ? null : Number(e.seats);
     const r = await fetch("/api/admin/claude-usage/orgs", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: o.id, name: e.name, seats_total: seats }) });
-    if (r.ok) { setEdit((s) => { const n = { ...s }; delete n[o.id]; return n; }); onOrgsChange(); }
+    const j = await r.json().catch(() => ({}) as { error?: string });
+    if (!r.ok) {
+      setSaveError(j.error ?? `HTTP ${r.status}`);
+      return;
+    }
+    setSaveError(null);
+    setEdit((s) => { const n = { ...s }; delete n[o.id]; return n; });
+    onOrgsChange();
   };
   const copy = async () => { await navigator.clipboard.writeText(json); setCopied(true); setTimeout(() => setCopied(false), 1500); };
   const lastDay = new Map((health?.orgLastDay ?? []).map((x) => [x.org_id, x.last_day]));
@@ -33,9 +58,13 @@ export default function OrgSettingsTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2">수집 상태 <Button size="sm" variant="ghost" onClick={loadHealth}><RefreshCw className="h-3.5 w-3.5" /></Button></CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2">수집 상태 <Button size="sm" variant="ghost" onClick={loadHealth} aria-label="수집 상태 새로고침"><RefreshCw className="h-3.5 w-3.5" /></Button></CardTitle></CardHeader>
         <CardContent className="text-xs space-y-1">
-          {!health ? <p className="text-muted-foreground">불러오는 중...</p> : (
+          {healthError ? (
+            <p className="text-destructive">{healthError}</p>
+          ) : !health ? (
+            <p className="text-muted-foreground">불러오는 중...</p>
+          ) : (
             <>
               <p>서비스 키: {health.serviceKeyConfigured ? "✅ 구성됨" : "❌ SUPABASE_SERVICE_ROLE_KEY 없음"} · 수집 토큰: {health.tokenConfigured ? "✅ 구성됨" : "❌ CLAUDE_OTEL_INGEST_TOKEN 없음"}</p>
               <p>최근 수신: {health.lastReceivedAt ? new Date(health.lastReceivedAt).toLocaleString("ko-KR") : "없음"} · 24시간 수신 {health.count24h}건 · 오류 {health.errors24h}건</p>
@@ -67,6 +96,7 @@ export default function OrgSettingsTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg
               {orgs.length === 0 && <tr><td colSpan={5} className="px-2 py-4 text-center text-muted-foreground">아직 등록된 조직이 없습니다. 관리형 설정을 적용하거나 CSV를 업로드하면 자동 등록됩니다.</td></tr>}
             </tbody>
           </table>
+          {saveError && <p className="mt-2 text-xs text-destructive">{saveError}</p>}
         </CardContent>
       </Card>
 
@@ -80,7 +110,7 @@ export default function OrgSettingsTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg
           </ol>
           <div className="relative">
             <pre className="overflow-x-auto rounded-md bg-muted p-3 text-[11px]">{json}</pre>
-            <Button size="sm" variant="outline" className="absolute right-2 top-2" onClick={copy}>{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}</Button>
+            <Button size="sm" variant="outline" className="absolute right-2 top-2" onClick={copy} aria-label="관리형 설정 JSON 복사">{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}</Button>
           </div>
         </CardContent>
       </Card>

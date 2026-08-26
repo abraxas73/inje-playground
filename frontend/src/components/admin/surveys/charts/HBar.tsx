@@ -9,9 +9,10 @@ export interface HBarProps {
   items: HBarItem[];
   showPct?: boolean;
   note?: string;
+  formatValue?: (v: number) => string;
 }
 
-export default function HBar({ items, showPct = true, note }: HBarProps) {
+export default function HBar({ items, showPct = true, note, formatValue = (v) => String(v) }: HBarProps) {
   const max = Math.max(1, ...items.map((i) => i.pct));
   return (
     <div className="space-y-1.5">
@@ -27,7 +28,7 @@ export default function HBar({ items, showPct = true, note }: HBarProps) {
             />
           </div>
           <span className="w-20 shrink-0 text-right tabular-nums">
-            {it.value}
+            {formatValue(it.value)}
             {showPct ? ` (${it.pct}%)` : ""}
           </span>
         </div>

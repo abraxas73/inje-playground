@@ -12,6 +12,12 @@ export interface Column<T> {
   className?: string;
 }
 
+function defaultCell(v: number | string | null): ReactNode {
+  if (v === null || v === undefined) return "—";
+  if (typeof v === "number") return v.toLocaleString("ko-KR");
+  return v;
+}
+
 export default function SortableTable<T>({ rows, columns, rowKey, defaultSort, emptyText = "데이터가 없습니다.", rowClassName }: {
   rows: T[];
   columns: Column<T>[];
@@ -47,6 +53,14 @@ export default function SortableTable<T>({ rows, columns, rowKey, defaultSort, e
               <th
                 key={c.key}
                 onClick={() => toggle(c.key)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    toggle(c.key);
+                  }
+                }}
                 className={`cursor-pointer select-none whitespace-nowrap px-2 py-2 font-medium ${c.align === "right" ? "text-right" : "text-left"} ${c.className ?? ""}`}
               >
                 <span className="inline-flex items-center gap-0.5">
@@ -67,7 +81,7 @@ export default function SortableTable<T>({ rows, columns, rowKey, defaultSort, e
               <tr key={rowKey(r)} className={`border-t ${rowClassName?.(r) ?? ""}`}>
                 {columns.map((c) => (
                   <td key={c.key} className={`whitespace-nowrap px-2 py-1.5 tabular-nums ${c.align === "right" ? "text-right" : "text-left"} ${c.className ?? ""}`}>
-                    {c.render ? c.render(r) : (c.value(r) ?? "—")}
+                    {c.render ? c.render(r) : defaultCell(c.value(r))}
                   </td>
                 ))}
               </tr>

@@ -10,8 +10,19 @@ import type { ClaudeOrg } from "@/types/claude-usage";
 
 export default function ClaudeUsagePage() {
   const [orgs, setOrgs] = useState<ClaudeOrg[]>([]);
+  const [orgsError, setOrgsError] = useState<string | null>(null);
   const loadOrgs = useCallback(() => {
-    fetch("/api/admin/claude-usage/orgs").then((r) => r.json()).then((j) => setOrgs(j.orgs ?? [])).catch(() => setOrgs([]));
+    fetch("/api/admin/claude-usage/orgs")
+      .then(async (r) => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+        return j;
+      })
+      .then((j) => {
+        setOrgsError(null);
+        setOrgs(j.orgs ?? []);
+      })
+      .catch((e) => setOrgsError(e instanceof Error ? e.message : String(e)));
   }, []);
   useEffect(() => { loadOrgs(); }, [loadOrgs]);
 
@@ -20,6 +31,7 @@ export default function ClaudeUsagePage() {
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold"><BarChart3 className="h-5 w-5" />Claude 사용량</h1>
         <p className="text-sm text-muted-foreground">Team 조직 7개의 사용자별 Claude Code 사용량(실시간, OTel)과 채팅·Cowork 활동(월간 CSV)</p>
+        {orgsError && <p className="text-sm text-destructive">{orgsError}</p>}
       </div>
       <Tabs defaultValue="code">
         <TabsList>

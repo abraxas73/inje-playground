@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,51 +11,44 @@ import HBar from "@/components/admin/surveys/charts/HBar";
 import SortableTable, { type Column } from "./SortableTable";
 import DailyBars from "./DailyBars";
 import { acceptRate, dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
+import { usd, int, hours } from "./format";
 import type { UsageSummary, UserUsageRow } from "@/types/claude-usage";
 
 const PRESETS: { key: RangePreset; label: string }[] = [
   { key: "7d", label: "7일" }, { key: "30d", label: "30일" }, { key: "90d", label: "90일" },
   { key: "thisMonth", label: "이번 달" }, { key: "lastMonth", label: "지난 달" },
 ];
-const usd = (v: number) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const int = (v: number) => Math.round(v).toLocaleString("ko-KR");
-const hours = (sec: number) => `${(sec / 3600).toFixed(1)}h`;
 
 export default function CodeUsageTab() {
   const [preset, setPreset] = useState<RangePreset>("30d");
   const [range, setRange] = useState(() => dateRangePreset("30d"));
   const [org, setOrg] = useState("all");
   const [q, setQ] = useState("");
-  const [data, setData] = useState<UsageSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(() => {
+  const key = `${range.from}|${range.to}|${org}`;
+  const [result, setResult] = useState<{ key: string; data?: UsageSummary; error?: string } | null>(null);
+  const loading = result?.key !== key;
+  const data = result?.key === key ? result.data ?? null : null;
+  const error = result?.key === key ? result.error ?? null : null;
+
+  useEffect(() => {
     let alive = true;
-    // setLoading/setError는 마이크로태스크로 미뤄서 react-hooks/set-state-in-effect(이펙트 본문 내
-    // 동기 setState 호출 금지)를 만족시킨다. 네트워크 요청 대비 지연은 무시할 수준이라 동작은 동일하다.
-    queueMicrotask(() => {
-      if (!alive) return;
-      setLoading(true);
-      setError(null);
-    });
     fetch(`/api/admin/claude-usage/summary?from=${range.from}&to=${range.to}&org=${encodeURIComponent(org)}`)
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
         return j as UsageSummary;
       })
-      .then((j) => alive && setData(j))
-      .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => alive && setLoading(false));
+      .then((j) => {
+        if (alive) setResult({ key, data: j });
+      })
+      .catch((e) => {
+        if (alive) setResult({ key, error: e instanceof Error ? e.message : String(e) });
+      });
     return () => {
       alive = false;
     };
-  }, [range, org]);
-
-  useEffect(() => {
-    return load();
-  }, [load]);
+  }, [key, range.from, range.to, org]);
 
   const orgName = useMemo(() => new Map((data?.orgs ?? []).map((o) => [o.id, o.name])), [data]);
   const users = useMemo(() => {
@@ -135,7 +128,11 @@ export default function CodeUsageTab() {
             <CardContent><DailyBars data={data.daily} valueKey="cost_usd" label="USD / 일" format={usd} /></CardContent></Card>
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm">모델별 비용</CardTitle></CardHeader>
             <CardContent>
-              <HBar showPct={false} items={data.models.slice(0, 8).map((m) => ({ label: m.model, value: Number(m.cost_usd.toFixed(2)), pct: data.totals.cost_usd ? Math.round((m.cost_usd / data.totals.cost_usd) * 100) : 0 }))} />
+              <HBar
+                showPct={false}
+                formatValue={usd}
+                items={data.models.slice(0, 8).map((m) => ({ label: m.model, value: m.cost_usd, pct: data.totals.cost_usd ? Math.round((m.cost_usd / data.totals.cost_usd) * 100) : 0 }))}
+              />
             </CardContent></Card>
         </div>
       )}

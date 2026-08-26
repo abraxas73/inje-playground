@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Upload, Trash2 } from "lucide-react";
 import SortableTable, { type Column } from "./SortableTable";
 import { isIdleSeat } from "@/lib/claude-usage/aggregate";
+import { usd } from "./format";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
 
 type Row = MemberActivityRow & { org_id: string; import_id: string };
@@ -18,24 +19,37 @@ interface UploadResult { filename: string; ok: boolean; org_id?: string; period_
 export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const [org, setOrg] = useState("all");
   const [importId, setImportId] = useState("latest");
-  const [data, setData] = useState<MembersResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [results, setResults] = useState<UploadResult[] | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [idleOnly, setIdleOnly] = useState(false);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    setError(null);
+  const key = `${org}|${importId}|${tick}`;
+  const [result, setResult] = useState<{ key: string; data?: MembersResponse; error?: string } | null>(null);
+  const loading = result?.key !== key;
+  const data = result?.key === key ? result.data ?? null : null;
+  const error = result?.key === key ? result.error ?? null : null;
+
+  useEffect(() => {
+    let alive = true;
     fetch(`/api/admin/claude-usage/members?org=${encodeURIComponent(org)}&importId=${encodeURIComponent(importId)}`)
-      .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`); return j as MembersResponse; })
-      .then(setData)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => setLoading(false));
-  }, [org, importId]);
-  useEffect(() => { load(); }, [load]);
+      .then(async (r) => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+        return j as MembersResponse;
+      })
+      .then((j) => {
+        if (alive) setResult({ key, data: j });
+      })
+      .catch((e) => {
+        if (alive) setResult({ key, error: e instanceof Error ? e.message : String(e) });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [key, org, importId, tick]);
 
   const onFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -49,7 +63,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
       if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
       setResults(j.results as UploadResult[]);
       setImportId("latest");
-      load();
+      setTick((t) => t + 1);
     } catch (e) {
       setResults([{ filename: "-", ok: false, error: e instanceof Error ? e.message : String(e) }]);
     } finally {
@@ -58,8 +72,15 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
   };
 
   const remove = async (id: string) => {
+    setRemoveError(null);
     const r = await fetch(`/api/admin/claude-usage/imports/${id}`, { method: "DELETE" });
-    if (r.ok) { setImportId("latest"); load(); }
+    if (r.ok) {
+      setImportId("latest");
+      setTick((t) => t + 1);
+      return;
+    }
+    const j = await r.json().catch(() => ({}) as { error?: string });
+    setRemoveError(j.error ?? `HTTP ${r.status}`);
   };
 
   const orgName = useMemo(() => new Map(orgs.map((o) => [o.id, o.name])), [orgs]);
@@ -84,7 +105,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
     { key: "cwmsg", header: "Cowork 메시지", align: "right", value: (r) => r.cowork_messages },
     { key: "proj", header: "프로젝트", align: "right", value: (r) => r.projects_used },
     { key: "art", header: "아티팩트", align: "right", value: (r) => r.artifacts_created },
-    { key: "spend", header: "초과 지출", align: "right", value: (r) => r.estimated_spend_usd, render: (r) => `$${r.estimated_spend_usd.toFixed(2)}` },
+    { key: "spend", header: "초과 지출", align: "right", value: (r) => r.estimated_spend_usd, render: (r) => usd(r.estimated_spend_usd) },
   ];
 
   return (
@@ -142,6 +163,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">업로드 이력</CardTitle></CardHeader>
           <CardContent>
+            {removeError && <p className="mb-2 text-xs text-destructive">{removeError}</p>}
             <ul className="space-y-1 text-xs">
               {(data?.imports ?? []).map((i) => (
                 <li key={i.id} className="flex items-center justify-between gap-2 border-b py-1 last:border-0">
