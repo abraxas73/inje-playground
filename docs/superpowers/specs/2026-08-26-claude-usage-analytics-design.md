@@ -7,13 +7,15 @@
 
 | 경로 | 키/권한 | 제공 데이터 | Team 플랜 가용성 |
 |---|---|---|---|
-| **① Analytics 대시보드 + spend report CSV** (claude.ai > Analytics) | Owner/Primary Owner 로그인 | 활동 요약(주간 활성, PR, Cowork 등) + **사용자별 CSV**: user email, account UUID, product, model, request count, prompt/completion tokens, net/gross spend | ✅ **가능(유일한 사용자별 데이터 공식 경로)** |
+| **① Analytics 대시보드 + spend report CSV** (claude.ai > Analytics) | Owner/Primary Owner 로그인(Admin 불가) | 활동 요약(주간 활성, PR, Cowork 등) + 멤버별 활동 테이블 + **사용자별 spend CSV**: user email, account UUID, product, model, request count, prompt/completion tokens, net/gross spend | ✅ 가능 — 단 **spend CSV는 시트 포함량을 초과한 "추가 사용량(extra usage)" 스펜드만 담는다.** 추가 사용량이 꺼진 조직은 스펜드 섹션/내보내기 버튼이 아예 없음. 내보내기 위치: 관리자 설정 > 전체 활동(All activity) > Spend 섹션 > Export Spend Report (또는 분석 대시보드 스펜드 섹션). 데이터는 1일 지연 |
 | ② Claude Enterprise Analytics API (`/v1/organizations/analytics/`) | Analytics API key (claude.ai 조직 설정 > API, Primary Owner) | 사용자별 일간 활동(chat·Claude Code·Cowork), 활성자 요약, 프로젝트/스킬/커넥터, 비용·사용량 | ❌ **Enterprise 전용** — Team에는 조직 설정 > API 메뉴 자체가 없음 |
 | ③ Claude Code Analytics API (`/v1/organizations/usage_report/claude_code`) | Admin API key (Claude Console) | 사용자별 일간 Claude Code 지표(세션, LoC, 커밋, PR, 도구 수락률, 모델별 토큰·비용) | ❌ **Console(API) 조직 전용** — Team 조직은 Admin 키를 만들 수 없음 |
 | ④ OpenTelemetry (Claude Code 클라이언트 설정) | 각 사용자 PC의 managed settings | Claude Code 실시간 지표(세션·토큰·비용·도구), 사용자 식별 포함 | ✅ 플랜 무관 — 단 **Claude Code만**, 전 직원 PC에 설정 배포 필요 |
 | ⑤ claude.ai admin UI 비공식 호출(브라우저 자동화/내부 API) | 세션 쿠키 | 대시보드가 보여주는 것 전부 | ⚠️ 무보증·언제든 깨짐·약관 리스크 → **지양** |
 
-결론: **Team 플랜인 이상 사용자별 데이터의 공식 수집 수단은 ①번 CSV뿐**이다. 따라서 Phase 1은 CSV 업로드 파이프라인으로 만들고, 자동화(API)는 Enterprise 전환(②) 또는 OTel(④, Claude Code 한정)로 열어 둔다.
+결론: **Team 플랜인 이상 사용자별 데이터의 공식 수집 수단은 ①번뿐**이다. 따라서 Phase 1은 CSV/내보내기 업로드 파이프라인으로 만들고, 자동화(API)는 Enterprise 전환(②) 또는 OTel(④, Claude Code 한정)로 열어 둔다.
+
+⚠️ **spend CSV의 한계 (2026-08-26 확인)**: Team 플랜의 spend export는 **초과 사용분 스펜드만** 기록한다(시트에 포함된 기본 사용량은 0원으로 치므로 등장하지 않음; 시트 요금 자체는 인보이스에만 있음). 즉 "누가 얼마나 쓰는가"의 전체 그림은 spend CSV가 아니라 **분석 대시보드의 멤버별 활동 테이블**(채팅 메시지 수, Claude Code 세션 등 제품별 지표)이 쥐고 있다. Phase 1 시작 전에 확인할 것: (a) 각 조직의 추가 사용량(extra usage) 활성 여부, (b) 멤버 테이블 "모두 보기"에 CSV 내보내기가 있는지. 멤버 테이블 내보내기가 없으면 Phase 1의 수집 대상을 재검토한다(초과분 spend CSV + 수동 스크린샷/표 붙여넣기 파서, 또는 ⑤ 비공식 경로 재평가).
 
 ## 2. Phase 1 — CSV 수집 + 통합 대시보드 (inje-playground 앱 내)
 
