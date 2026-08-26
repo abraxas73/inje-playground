@@ -21,3 +21,9 @@ description: claude.ai Team 조직 7개의 멤버 활동 CSV를 Chrome 확장으
 - 다운로드 버튼 클릭은 파일 다운로드이므로 이 스킬을 사용자가 명시적으로 호출한 경우에만 수행한다.
 - 관리자 멤버 CSV(관리자 설정 > 멤버)는 필요 없다(활동 CSV에 Role/Seat Tier 포함).
 - 조직 ID는 파일명에서 자동 인식되므로 조직 이름 매핑은 `/admin/claude-usage` 조직·설정 탭에서 1회만 지정한다.
+
+## 실행 노하우 (2026-08-26 1회차에서 확인)
+- 계정 메뉴 열기·조직 항목 클릭·"모두 보기"는 좌표/ref 클릭이 자주 무시된다 → `javascript_tool`로 `button[aria-label="계정 메뉴"]`에 pointerdown/mousedown/pointerup/mouseup/click을 dispatch하고, `[role="menuitemradio"]` 중 조직명이 포함된 항목에 같은 이벤트를 보내면 확실히 전환된다(전환 시 페이지가 이동해 JS 호출이 "navigated" 오류로 끝나는 것이 정상). "모두 보기"는 `innerText==='모두 보기'`인 첫 버튼을 `.click()`.
+- **CSV 내보내기 버튼은 JS `.click()`으로는 다운로드가 발생하지 않는다** → 대화상자가 열린 뒤 `find`로 `button "CSV 내보내기"` ref를 얻어 `computer left_click(ref)` 또는 스크린샷 기준 좌표로 실제 클릭한다. JS `getBoundingClientRect` 좌표는 스크린샷 좌표와 다르므로(창 폭 ≠ 캡처 폭) 좌표는 반드시 스크린샷에서 읽는다.
+- 대화상자 데이터가 로드될 때까지 2~3초 기다린 뒤 버튼 `disabled` 여부를 확인한다. 최근 30일 활동이 없는 조직(예: Innogrid_S1·S2)은 "활동 중인 멤버 0명"이고 버튼이 비활성 → 건너뛰고 보고한다.
+- 다운로드 확인은 `ls -t ~/Downloads/members-analytics-*.csv | head -1`의 조직 ID가 바뀌었는지로 판단한다(조직당 2~3초).
