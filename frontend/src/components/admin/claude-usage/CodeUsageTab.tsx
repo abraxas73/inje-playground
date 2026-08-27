@@ -68,7 +68,7 @@ export default function CodeUsageTab() {
     { key: "user", header: "사용자", value: (u) => u.user_email, render: (u) => (
       <div><div className="font-medium">{u.name || displayUser(u.user_email)}</div>{u.name && <div className="text-muted-foreground">{u.user_email}</div>}</div>) },
     { key: "orgs", header: "조직", value: (u) => u.orgs.join(","), render: (u) => (
-      <div className="flex flex-wrap gap-1">{u.orgs.map((o) => <Badge key={o} variant="outline" className="text-[10px]">{orgName.get(o) ?? (o === "unknown" ? "조직 미확인" : o.slice(0, 8))}</Badge>)}</div>) },
+      <div className="flex flex-wrap gap-1">{u.orgs.map((o) => <Badge key={o} variant="outline" className="text-[10px]">{o === "unknown" ? "조직 미확인" : orgName.get(o) ?? o.slice(0, 8)}</Badge>)}</div>) },
     { key: "seat", header: "시트", value: (u) => u.seat_tier ?? "", render: (u) => (hasSeat(u.seat_tier) ? u.seat_tier : "—") },
     { key: "cost", header: "비용", align: "right", value: (u) => u.cost_usd, render: (u) => usd(u.cost_usd) },
     { key: "sessions", header: "세션", align: "right", value: (u) => u.sessions, render: (u) => int(u.sessions) },
