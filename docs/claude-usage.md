@@ -15,7 +15,7 @@
 2. claude.ai(해당 조직 Owner로 로그인) → 관리자 설정 → Claude Code → 관리형 설정 → 관리 → JSON 붙여넣기 → 저장.
    - 기존 관리형 설정이 있으면 `env` 블록만 병합한다(다른 키 유지).
 3. 구성원 안내문(Teams/Dooray 공지): "다음 Claude Code 실행 시 '조직 관리형 설정 승인' 창이 뜹니다. `OTEL_EXPORTER_OTLP_ENDPOINT = https://inje-playground.vercel.app/api/otel` 항목을 확인하고 승인해 주세요. 사용 통계(토큰·비용·세션)만 수집하며 프롬프트/코드 내용은 전송되지 않습니다."
-4. 검증: 본인 Claude Code를 재시작해 승인 → 1~2분 후 조직·설정 탭 "24시간 수신"이 1 이상, Claude Code 탭에 본인 이메일 행 등장. 안 되면 §4.
+4. 검증: 본인 Claude Code를 재시작해 승인 → **한 번 더 재시작**(승인한 세션 자체는 내보내지 않음) → 5분 후 조직·설정 탭 "24시간 수신"이 1 이상, Claude Code 탭에 본인 이메일 행 등장. 안 되면 §4.
 5. 나머지 조직 6개에 같은 JSON 적용(조직 ID는 `organization.id`로 자동 구분·자동 등록되므로 조직·설정 탭에서 이름만 지정).
 
 ## 3. 월간 CSV 절차 (매월 1일, 조직당 1분)
@@ -35,8 +35,11 @@
 | 특정 사용자 데이터 없음 | Bedrock/Vertex/`ANTHROPIC_BASE_URL` 사용자는 관리형 설정을 받지 않음 | 해당 사용자는 OTel 대상 아님(문서상 제약) |
 | CSV 업로드 "필수 칼럼 누락" | Anthropic이 헤더를 바꿈 | `frontend/src/lib/claude-usage/members-csv.ts`의 `MEMBERS_CSV_COLUMNS`에 새 헤더 추가 |
 | 503 `store failed` (Retry-After) | 일시적 DB 오류 — OTel 익스포터가 자동 재시도함 | 반복되면 조직·설정 탭 "마지막 오류" 확인, DB 상태 점검 |
+| 승인 창을 통과한 세션인데 데이터가 안 옴 | 승인 직후 세션은 `OTEL_*` env가 아직 미적용(`CLAUDE_CODE_ENABLE_TELEMETRY`만 있음) | 정상 동작 — Claude Code를 한 번 더 재시작하면 그 세션부터 내보냄. 서버 관리형 설정 캐시 `~/.claude/remote-settings.json`, 승인 기록 `~/.claude/remote-settings-consent.json` |
+| metrics는 오는데 프롬프트 수·요청 표가 0 | `claude_ingest_log`에서 `signal='logs'` 행의 `bytes`>0인데 `rows=0` → 이벤트 이름 불일치 | 2026-08-27 수정(89ed70c: `event.name` 접두어 유무 모두 인식). 재발 시 Vercel 함수 로그의 `[claude-usage] logs: … 무시한 이벤트` 경고에서 실제 이벤트 이름 확인 후 `otlp.ts` `eventNames()` 조정 |
 - 데이터 보존: `claude_code_requests`는 요청 단위라 커짐 → 필요 시 `delete from claude_code_requests where ts < now() - interval '180 days'`.
 - 수신 로그 보존: `delete from claude_ingest_log where received_at < now() - interval '30 days'`(수신 건수가 많아 30일 권장).
+- 진단 조회: `claude_ingest_log`·`claude_code_requests`·`claude_code_daily`는 관리자 RLS 읽기 정책이 있어 대시보드에 로그인한 관리자 세션 토큰으로 PostgREST를 직접 조회할 수 있다(service_role 키 불필요). Vercel의 `SUPABASE_SERVICE_ROLE_KEY`는 Sensitive로 저장돼 `vercel env pull`로 받아지지 않는다.
 - 마이그레이션 2(중복 방지 인덱스): 아직 적용 전이면 Supabase SQL Editor에서 `docs/sql/2026-08-26-claude-usage-2.sql` 실행 — `api_request` 이벤트 재수신 시 중복 삽입을 막는 부분 유니크 인덱스(`claude_code_requests_request_id_uidx`). 인덱스가 존재해야 이후 `storeLogs`를 upsert로 전환할 수 있다.
 
 ### 스모크/테스트 데이터 정리
