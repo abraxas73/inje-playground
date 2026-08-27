@@ -19,6 +19,14 @@ const PRESETS: { key: RangePreset; label: string }[] = [
   { key: "thisMonth", label: "이번 달" }, { key: "lastMonth", label: "지난 달" },
 ];
 
+/** 식별 불가 사용자 표기 — API 키(Console) 인증 프로세스는 이메일·조직 속성이 없어 unknown / uuid: / id: 로 들어온다 */
+function displayUser(email: string): string {
+  if (email === "unknown") return "식별 불가 (API 키 인증)";
+  if (email.startsWith("id:")) return `API 키 사용자 ${email.slice(3, 11)}…`;
+  if (email.startsWith("uuid:")) return `계정 ${email.slice(5, 13)}…`;
+  return email;
+}
+
 export default function CodeUsageTab() {
   const [preset, setPreset] = useState<RangePreset>("30d");
   const [range, setRange] = useState(() => dateRangePreset("30d"));
@@ -58,9 +66,9 @@ export default function CodeUsageTab() {
 
   const columns: Column<UserUsageRow>[] = [
     { key: "user", header: "사용자", value: (u) => u.user_email, render: (u) => (
-      <div><div className="font-medium">{u.name ?? u.user_email}</div>{u.name && <div className="text-muted-foreground">{u.user_email}</div>}</div>) },
+      <div><div className="font-medium">{u.name || displayUser(u.user_email)}</div>{u.name && <div className="text-muted-foreground">{u.user_email}</div>}</div>) },
     { key: "orgs", header: "조직", value: (u) => u.orgs.join(","), render: (u) => (
-      <div className="flex flex-wrap gap-1">{u.orgs.map((o) => <Badge key={o} variant="outline" className="text-[10px]">{orgName.get(o) ?? o.slice(0, 8)}</Badge>)}</div>) },
+      <div className="flex flex-wrap gap-1">{u.orgs.map((o) => <Badge key={o} variant="outline" className="text-[10px]">{orgName.get(o) ?? (o === "unknown" ? "조직 미확인" : o.slice(0, 8))}</Badge>)}</div>) },
     { key: "seat", header: "시트", value: (u) => u.seat_tier ?? "", render: (u) => (hasSeat(u.seat_tier) ? u.seat_tier : "—") },
     { key: "cost", header: "비용", align: "right", value: (u) => u.cost_usd, render: (u) => usd(u.cost_usd) },
     { key: "sessions", header: "세션", align: "right", value: (u) => u.sessions, render: (u) => int(u.sessions) },

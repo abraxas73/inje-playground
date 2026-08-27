@@ -47,6 +47,12 @@ describe("summarize", () => {
     const s = summarize({ rows: mixedRows, models: [], orgs, members: mixedMembers, from: "2026-08-25", to: "2026-08-25" });
     expect(s.users[0]).toMatchObject({ user_email: "Dev4@Example.com", name: "개발4", seat_tier: "Standard" });
   });
+
+  it("CSV 이름이 빈 문자열이면 name은 null(UI가 이메일로 표시), 티어는 유지", () => {
+    const rows = [{ ...emptyDailyMetrics(), org_id: "org-a", user_email: "noname@example.com", account_uuid: null, day: "2026-08-25", sessions: 1, cost_usd: 1 }];
+    const s = summarize({ rows, models: [], orgs, members: [{ email: "noname@example.com", name: "  ", seat_tier: "Premium" }], from: "2026-08-25", to: "2026-08-25" });
+    expect(s.users[0]).toMatchObject({ user_email: "noname@example.com", name: null, seat_tier: "Premium" });
+  });
 });
 
 describe("acceptRate / isIdleSeat", () => {

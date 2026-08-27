@@ -97,6 +97,19 @@ describe("parseMetricsPayload", () => {
     expect(byOrg["org-a"]).toMatchObject({ user_email: "res@example.com", account_uuid: "acc-9", sessions: 2 });
   });
 
+  it("이메일·account_uuid가 없으면 user.id로(id:…), 그것도 없으면 unknown", () => {
+    const body = metricsBody([
+      sum("claude_code.session.count", [
+        { attributes: [{ key: "user.id", value: { stringValue: "u-77" } }], timeUnixNano: T, asInt: 1 },
+        { attributes: [{ key: "terminal.type", value: { stringValue: "iTerm" } }], timeUnixNano: T, asInt: 1 },
+      ]),
+    ]);
+    const r = parseMetricsPayload(body);
+    const emails = r.daily.map((d) => d.user_email).sort();
+    expect(emails).toEqual(["id:u-77", "unknown"]);
+    expect(r.daily.every((d) => d.org_id === "unknown")).toBe(true);
+  });
+
   it("CUMULATIVE 메트릭은 버리고 dropped를 센다", () => {
     const r = parseMetricsPayload(metricsBody([
       sum("claude_code.session.count", [point(1)], 2),

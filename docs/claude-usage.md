@@ -36,6 +36,8 @@
 | CSV 업로드 "필수 칼럼 누락" | Anthropic이 헤더를 바꿈 | `frontend/src/lib/claude-usage/members-csv.ts`의 `MEMBERS_CSV_COLUMNS`에 새 헤더 추가 |
 | 503 `store failed` (Retry-After) | 일시적 DB 오류 — OTel 익스포터가 자동 재시도함 | 반복되면 조직·설정 탭 "마지막 오류" 확인, DB 상태 점검 |
 | 승인 창을 통과한 세션인데 데이터가 안 옴 | 승인 직후 세션은 `OTEL_*` env가 아직 미적용(`CLAUDE_CODE_ENABLE_TELEMETRY`만 있음) | 정상 동작 — Claude Code를 한 번 더 재시작하면 그 세션부터 내보냄. 서버 관리형 설정 캐시 `~/.claude/remote-settings.json`, 승인 기록 `~/.claude/remote-settings-consent.json` |
+| 사용자 `식별 불가 (API 키 인증)` / `API 키 사용자 id:…` / 조직 `조직 미확인` 행 | `claude_code_requests`에서 해당 행의 `query_source`가 `sdk`, `account_uuid`·`org_id` 없음 | Agent SDK 등이 claude.ai 로그인 대신 **API 키(Console) 인증**으로 실행된 것 — Team 시트 사용량이 아니라 Console 과금분이며 개인 귀속 불가. `user.id`가 있으면 `id:…`로 사용자별 구분만 된다. 필요하면 해당 머신의 관리형 설정 캐시(`~/.claude/remote-settings.json`)와 `ANTHROPIC_API_KEY` 사용 여부 확인 |
+| 사용자 칸이 비어 있음 | CSV `Name`이 빈 문자열인 멤버(claude.ai 표시 이름 미설정) | 2026-08-27 수정(빈 이름은 null로 정규화 → 이메일 표시). 이름을 보고 싶으면 본인이 claude.ai 프로필에 표시 이름 설정 |
 | metrics는 오는데 프롬프트 수·요청 표가 0 | `claude_ingest_log`에서 `signal='logs'` 행의 `bytes`>0인데 `rows=0` → 이벤트 이름 불일치 | 2026-08-27 수정(89ed70c: `event.name` 접두어 유무 모두 인식). 재발 시 Vercel 함수 로그의 `[claude-usage] logs: … 무시한 이벤트` 경고에서 실제 이벤트 이름 확인 후 `otlp.ts` `eventNames()` 조정 |
 - 데이터 보존: `claude_code_requests`는 요청 단위라 커짐 → 필요 시 `delete from claude_code_requests where ts < now() - interval '180 days'`.
 - 수신 로그 보존: `delete from claude_ingest_log where received_at < now() - interval '30 days'`(수신 건수가 많아 30일 권장).

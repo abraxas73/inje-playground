@@ -89,7 +89,7 @@ export function summarize(input: {
     let u = users.get(r.user_email);
     if (!u) {
       const m = memberByEmail.get(r.user_email.toLowerCase());
-      u = { ...emptyDailyMetrics(), user_email: r.user_email, orgs: [], active_days: 0, name: m?.name ?? null, seat_tier: m?.seat_tier ?? null, _days: new Set(), _orgs: new Set() };
+      u = { ...emptyDailyMetrics(), user_email: r.user_email, orgs: [], active_days: 0, name: m?.name?.trim() || null, seat_tier: m?.seat_tier ?? null, _days: new Set(), _orgs: new Set() };
       users.set(r.user_email, u);
     }
     u._orgs.add(r.org_id);

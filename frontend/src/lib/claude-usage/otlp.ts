@@ -74,9 +74,11 @@ function identity(point: Attrs, resource: Attrs): Identity {
   const pick = (k: string) => str(point, k) ?? str(resource, k);
   const account_uuid = pick("user.account_uuid");
   const email = pick("user.email")?.toLowerCase() ?? null;
+  // API 키(Console) 인증 프로세스(Agent SDK 등)는 email/account_uuid/organization.id가 없다 — user.id로라도 구분한다
+  const user_id = pick("user.id");
   return {
     org_id: pick("organization.id")?.toLowerCase() ?? "unknown",
-    user_email: email ?? (account_uuid ? `uuid:${account_uuid}` : "unknown"),
+    user_email: email ?? (account_uuid ? `uuid:${account_uuid}` : user_id ? `id:${user_id}` : "unknown"),
     account_uuid,
     session_id: pick("session.id"),
   };
