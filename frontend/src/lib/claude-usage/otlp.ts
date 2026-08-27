@@ -224,12 +224,29 @@ export function parseMetricsPayload(body: unknown): { daily: DailyRow[]; model: 
   return { daily: daily.rows(), model: model.rows(), dropped };
 }
 
-export function parseLogsPayload(body: unknown): { requests: ApiRequestEvent[]; promptDaily: DailyRow[]; dropped: number } {
+/**
+ * 로그 레코드의 이벤트 이름 후보를 접두어 없는 형태로 정규화한다.
+ * Claude Code는 `event.name` 속성에 "claude_code.api_request" 또는 접두어 없는 "api_request"를 넣고,
+ * body(stringValue)에도 이름을 넣을 수 있다 — 어느 쪽이든 인식하도록 둘 다 본다.
+ */
+function eventNames(...raw: (string | null | undefined)[]): Set<string> {
+  const out = new Set<string>();
+  for (const r of raw) {
+    if (typeof r !== "string") continue;
+    const s = r.trim().replace(/^claude_code\./, "");
+    if (s && s.length <= 64 && !/\s/.test(s)) out.add(s);
+  }
+  return out;
+}
+
+export function parseLogsPayload(body: unknown): { requests: ApiRequestEvent[]; promptDaily: DailyRow[]; dropped: number; ignored: Record<string, number> } {
   const requests: ApiRequestEvent[] = [];
   const prompts = new DailyAcc();
   let dropped = 0;
+  /** 저장하지 않는 이벤트 이름별 개수(tool_result 등) — 수신은 되는데 저장 0인 상황을 진단하기 위해 돌려준다 */
+  const ignored: Record<string, number> = {};
   const rls = (body as { resourceLogs?: unknown })?.resourceLogs;
-  if (!Array.isArray(rls)) return { requests: [], promptDaily: [], dropped: 0 };
+  if (!Array.isArray(rls)) return { requests: [], promptDaily: [], dropped: 0, ignored: {} };
 
   for (const rl of rls as { resource?: { attributes?: unknown }; scopeLogs?: unknown }[]) {
     const resource = attrsToRecord(rl?.resource?.attributes);
@@ -238,14 +255,14 @@ export function parseLogsPayload(body: unknown): { requests: ApiRequestEvent[]; 
       if (!Array.isArray(sl?.logRecords)) continue;
       for (const rec of sl.logRecords as { timeUnixNano?: string | number; observedTimeUnixNano?: string | number; body?: AnyValue; attributes?: unknown }[]) {
         const a = attrsToRecord(rec.attributes);
-        const name = str(a, "event.name") ?? (typeof rec.body?.stringValue === "string" ? rec.body.stringValue.trim() : null);
+        const names = eventNames(str(a, "event.name"), rec.body?.stringValue);
         const ms = nanoToMs(rec.timeUnixNano) ?? nanoToMs(rec.observedTimeUnixNano);
-        if (!name || ms === null) {
+        if (names.size === 0 || ms === null) {
           dropped++;
           continue;
         }
         const id = identity(a, resource);
-        if (name === "claude_code.api_request") {
+        if (names.has("api_request")) {
           requests.push({
             ts: new Date(ms).toISOString(),
             org_id: id.org_id,
@@ -262,12 +279,15 @@ export function parseLogsPayload(body: unknown): { requests: ApiRequestEvent[]; 
             query_source: str(a, "query_source"),
             request_id: str(a, "request_id"),
           });
-        } else if (name === "claude_code.user_prompt") {
+        } else if (names.has("user_prompt")) {
           prompts.add(kstDay(ms), id, "prompts", 1);
+        } else {
+          // 그 외 이벤트(tool_result, tool_decision, assistant_response, api_error)는 저장하지 않고 이름만 센다
+          const label = [...names][0];
+          ignored[label] = (ignored[label] ?? 0) + 1;
         }
-        // 그 외 이벤트(tool_result, tool_decision, assistant_response, api_error)는 저장하지 않음
       }
     }
   }
-  return { requests, promptDaily: prompts.rows(), dropped };
+  return { requests, promptDaily: prompts.rows(), dropped, ignored };
 }
