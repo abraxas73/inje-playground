@@ -16,6 +16,13 @@ type Row = MemberActivityRow & { org_id: string; import_id: string };
 interface MembersResponse { imports: CsvImport[]; rows: Row[] }
 interface UploadResult { filename: string; ok: boolean; org_id?: string; period_start?: string; period_end?: string; row_count?: number; error?: string }
 
+/** ISO → "2026-08-27 15:44" (KST, 브라우저 로캘) */
+function fmtDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).replace(/\. /g, "-").replace(/\.$/, "").replace(/-(\d{2}:\d{2})/, " $1");
+}
+
 export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[]; onOrgsChange?: () => void }) {
   const [org, setOrg] = useState("all");
   const [importId, setImportId] = useState("latest");
@@ -99,6 +106,16 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
   };
 
   const orgName = useMemo(() => new Map(orgs.map((o) => [o.id, o.name])), [orgs]);
+  /** 조직별 최신 import 중 가장 최근 업로드 시각 — "마지막 CSV 수집" 표시용 */
+  const lastCollected = useMemo(() => {
+    const latest = new Map<string, string>();
+    for (const i of data?.imports ?? []) {
+      const prev = latest.get(i.org_id);
+      if (!prev || i.created_at > prev) latest.set(i.org_id, i.created_at);
+    }
+    if (latest.size === 0) return null;
+    return { at: [...latest.values()].sort().at(-1)!, orgs: latest.size };
+  }, [data]);
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
     return (data?.rows ?? []).filter((r) => (!s || r.email.includes(s) || r.name.toLowerCase().includes(s)) && (!idleOnly || isIdleSeat(r)));
@@ -182,13 +199,16 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
 
       {(data?.imports.length ?? 0) > 0 && (
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">업로드 이력</CardTitle></CardHeader>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">업로드 이력</CardTitle>
+            {lastCollected && <p className="text-xs text-muted-foreground">마지막 CSV 수집: {fmtDateTime(lastCollected.at)} · {lastCollected.orgs}개 조직(조직별 최신 기준)</p>}
+          </CardHeader>
           <CardContent>
             {removeError && <p className="mb-2 text-xs text-destructive">{removeError}</p>}
             <ul className="space-y-1 text-xs">
               {(data?.imports ?? []).map((i) => (
                 <li key={i.id} className="flex items-center justify-between gap-2 border-b py-1 last:border-0">
-                  <span>{orgName.get(i.org_id) ?? i.org_id.slice(0, 8)} · {i.period_start} ~ {i.period_end} · {i.row_count}명 · <span className="text-muted-foreground">{i.filename}</span></span>
+                  <span>{orgName.get(i.org_id) ?? i.org_id.slice(0, 8)} · {i.period_start} ~ {i.period_end} · {i.row_count}명 · 수집 {fmtDateTime(i.created_at)} · <span className="text-muted-foreground">{i.filename}</span></span>
                   <Button size="sm" variant="ghost" onClick={() => remove(i.id)} aria-label="삭제"><Trash2 className="h-3.5 w-3.5" /></Button>
                 </li>
               ))}
