@@ -1,5 +1,7 @@
 # Claude 사용량 대시보드 운영 런북
 
+> 구조·데이터 흐름·보안 모델 설명은 [아키텍처 문서 `docs/claude-usage-architecture.md`](./claude-usage-architecture.md). 이 문서는 운영 절차와 장애 대응만 다룬다.
+
 설계: `docs/superpowers/specs/2026-08-26-claude-usage-analytics-design.md` · 화면: `/admin/claude-usage`
 
 ## 1. 최초 설정

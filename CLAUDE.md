@@ -120,7 +120,7 @@ No test framework is configured.
 
 **Provider 선택(Dooray/Teams)**: 채널 알림·멤버 소스·개인 DM을 관리자 설정(`notify_provider`/`member_source_provider`/`dm_provider`)으로 축별 선택. 멤버 소스는 `dooray`/`users`(앱 사용자 명단 = `user_profiles`, 권장)/`teams`. Teams 알림·DM은 표준 라이선스용 Teams 웹후크 트리거 규격(Adaptive Card 봉투)으로 보낸다. 서버는 `lib/notify`(Notifier), 클라이언트는 `lib/members`(MemberSource)를 통해서만 provider를 다룬다. 런북: `docs/teams-integration.md`.
 
-**Claude 사용량 대시보드**: `lib/claude-usage/`가 OTLP 페이로드 파싱(`otlp.ts`)·수집 인증(`ingest-auth.ts`)·저장(`ingest-handler.ts`/`ingest-store.ts`)·CSV 파싱(`members-csv.ts`)·집계(`aggregate.ts`)·관리자 권한 체크(`require-admin.ts`)·관리형 설정 JSON 생성(`managed-settings.ts`)을 담당. 런북: `docs/claude-usage.md`.
+**Claude 사용량 대시보드**: `lib/claude-usage/`가 OTLP 페이로드 파싱(`otlp.ts`)·수집 인증(`ingest-auth.ts`)·저장(`ingest-handler.ts`/`ingest-store.ts`)·CSV 파싱(`members-csv.ts`)·집계(`aggregate.ts`)·관리자 권한 체크(`require-admin.ts`)·관리형 설정 JSON 생성(`managed-settings.ts`)을 담당. 런북: `docs/claude-usage.md`, 아키텍처: `docs/claude-usage-architecture.md`.
 
 **Environment Variables**:
 - `NLM_SERVICE_URL` — NLM service endpoint (default: `http://localhost:8090`, prod: `https://inje-nlm-service.fly.dev`)
