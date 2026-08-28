@@ -108,13 +108,14 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
   const orgName = useMemo(() => new Map(orgs.map((o) => [o.id, o.name])), [orgs]);
   /** 조직별 최신 import 중 가장 최근 업로드 시각 — "마지막 CSV 수집" 표시용 */
   const lastCollected = useMemo(() => {
-    const latest = new Map<string, string>();
+    const latest = new Map<string, { created_at: string; period_end: string }>();
     for (const i of data?.imports ?? []) {
       const prev = latest.get(i.org_id);
-      if (!prev || i.created_at > prev) latest.set(i.org_id, i.created_at);
+      if (!prev || i.created_at > prev.created_at) latest.set(i.org_id, { created_at: i.created_at, period_end: i.period_end });
     }
     if (latest.size === 0) return null;
-    return { at: [...latest.values()].sort().at(-1)!, orgs: latest.size };
+    const vals = [...latest.values()];
+    return { at: vals.map((v) => v.created_at).sort().at(-1)!, orgs: latest.size, periodEnd: vals.map((v) => v.period_end).sort().at(-1)! };
   }, [data]);
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -143,7 +144,16 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">멤버 활동 CSV 업로드</CardTitle></CardHeader>
+        <CardHeader className="pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="text-sm">멤버 활동 CSV 업로드</CardTitle>
+            <p className="text-sm">
+              {lastCollected
+                ? <>마지막 CSV 수집: <b>{fmtDateTime(lastCollected.at)}</b> <span className="text-muted-foreground">· {lastCollected.orgs}개 조직 · 데이터 기간 ~{lastCollected.periodEnd}</span></>
+                : <span className="text-muted-foreground">마지막 CSV 수집: 없음</span>}
+            </p>
+          </div>
+        </CardHeader>
         <CardContent className="space-y-2 text-xs">
           <p className="text-muted-foreground">claude.ai → 분석 → 개요 → 멤버 <b>모두 보기</b> → 기간 30일 → <b>CSV 내보내기</b>. 파일명 <code>members-analytics-&lt;조직ID&gt;-&lt;시작&gt;-to-&lt;끝&gt;.csv</code>를 그대로 올리면 조직·기간을 자동 인식합니다. 여러 조직 파일을 한 번에 선택할 수 있고, 같은 조직·기간은 교체됩니다.</p>
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 hover:bg-muted">
@@ -191,7 +201,7 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">멤버 활동 ({rows.length}명) — 노는 시트는 붉게 표시</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-sm">멤버 활동 ({rows.length}명) — 노는 시트는 붉게 표시{lastCollected && <span className="ml-2 font-normal text-muted-foreground">· 데이터 ~{lastCollected.periodEnd}, 수집 {fmtDateTime(lastCollected.at)}</span>}</CardTitle></CardHeader>
         <CardContent>
           <SortableTable rows={rows} columns={columns} rowKey={(r) => `${r.import_id}:${r.email}`} defaultSort={{ key: "chats", dir: "desc" }} rowClassName={(r) => (isIdleSeat(r) ? "bg-destructive/5" : "")} emptyText={loading ? "불러오는 중..." : "업로드된 CSV가 없습니다."} />
         </CardContent>
