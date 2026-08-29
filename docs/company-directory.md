@@ -21,6 +21,10 @@ BASE_URL=http://localhost:3003 ./frontend/scripts/company-directory-sync.py   # 
   ```
 - 확인: `/admin/directory` 상단 "마지막 동기화" 시각·인원, 비활성 처리 인원. Claude 사용량 탭의 "소속" 컬럼은 다음 조회부터 반영.
 
+## 2.1 대시보드에서의 표시
+- Claude 사용량 두 탭(Claude Code·채팅/Cowork) 표: **"사용자 (Claude)"**(CSV/OTel의 이름·이메일) 옆 **"이름"**(이 명부의 실명), **"Claude 조직"**(Team 플랜 조직), **"조직 / 팀"**(팀 + 본부/부문). 필터 바에 **조직/팀 필터**(본부·부문 / 팀·센터 / 명부 없음) — Claude 조직 필터와 독립적으로 동작.
+- `/admin/users` 사용자 상세 레이어의 "사내 소속 (조직도)" 섹션도 이 명부를 이메일로 조회한다.
+
 ## 3. 데이터 모델
 | 컬럼 | 뜻 | 예 |
 |---|---|---|
