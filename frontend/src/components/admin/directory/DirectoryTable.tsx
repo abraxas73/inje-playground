@@ -101,7 +101,9 @@ export default function DirectoryTable() {
             <p className="text-sm">
               {sync
                 ? <>마지막 동기화: <b>{fmtDateTime(sync.synced_at)}</b> <span className="text-muted-foreground">· {sync.total}명 · 비활성 처리 {sync.deactivated}명 · 출처 {sync.source}{sync.query ? `(${sync.query})` : ""}</span></>
-                : <span className="text-muted-foreground">아직 동기화된 명부가 없습니다.</span>}
+                : loading && !data
+                  ? <span className="text-muted-foreground">불러오는 중...</span>
+                  : <span className="text-muted-foreground">아직 동기화된 명부가 없습니다.</span>}
             </p>
           </div>
         </CardHeader>
