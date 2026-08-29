@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import UnitFilter, { matchUnit } from "@/components/admin/claude-usage/UnitFilter";
 import { Loader2, Upload, Trash2 } from "lucide-react";
 import SortableTable, { type Column } from "./SortableTable";
 import { hasSeat, isIdleSeat } from "@/lib/claude-usage/aggregate";
 import { usd } from "./format";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
 
-type Row = MemberActivityRow & { org_id: string; import_id: string; team?: string | null; headquarters?: string | null; division?: string | null };
+type Row = MemberActivityRow & { org_id: string; import_id: string; employee_name?: string | null; team?: string | null; headquarters?: string | null; division?: string | null };
 interface MembersResponse { imports: CsvImport[]; rows: Row[] }
 interface UploadResult { filename: string; ok: boolean; org_id?: string; period_start?: string; period_end?: string; row_count?: number; error?: string }
 
@@ -31,6 +32,7 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
   const [results, setResults] = useState<UploadResult[] | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [unit, setUnit] = useState("all");
   const [idleOnly, setIdleOnly] = useState(false);
   const [manualOrgId, setManualOrgId] = useState("");
   const [manualStart, setManualStart] = useState("");
@@ -119,13 +121,14 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
   }, [data]);
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return (data?.rows ?? []).filter((r) => (!s || r.email.includes(s) || r.name.toLowerCase().includes(s) || (r.team ?? "").toLowerCase().includes(s)) && (!idleOnly || isIdleSeat(r)));
-  }, [data, q, idleOnly]);
+    return (data?.rows ?? []).filter((r) => matchUnit(r, unit) && (!s || r.email.includes(s) || r.name.toLowerCase().includes(s) || (r.employee_name ?? "").toLowerCase().includes(s) || (r.team ?? "").toLowerCase().includes(s)) && (!idleOnly || isIdleSeat(r)));
+  }, [data, q, unit, idleOnly]);
   const idleCount = useMemo(() => (data?.rows ?? []).filter(isIdleSeat).length, [data]);
 
   const columns: Column<Row>[] = [
-    { key: "user", header: "사용자", value: (r) => r.email, render: (r) => (<div><div className="font-medium">{r.name || r.email}</div>{r.name && <div className="text-muted-foreground">{r.email}</div>}</div>) },
-    { key: "org", header: "조직", value: (r) => orgName.get(r.org_id) ?? r.org_id, render: (r) => <Badge variant="outline" className="text-[10px]">{orgName.get(r.org_id) ?? r.org_id.slice(0, 8)}</Badge> },
+    { key: "user", header: "사용자 (Claude)", value: (r) => r.email, render: (r) => (<div><div className="font-medium">{r.name || r.email}</div>{r.name && <div className="text-muted-foreground">{r.email}</div>}</div>) },
+    { key: "employee", header: "이름", value: (r) => r.employee_name ?? "", render: (r) => (r.employee_name ? <span title="사내 조직도(아마란스) 이름">{r.employee_name}</span> : <span className="text-muted-foreground">—</span>) },
+    { key: "org", header: "Claude 조직", value: (r) => orgName.get(r.org_id) ?? r.org_id, render: (r) => <Badge variant="outline" className="text-[10px]">{orgName.get(r.org_id) ?? r.org_id.slice(0, 8)}</Badge> },
     { key: "team", header: "조직 / 팀", value: (r) => `${r.headquarters ?? r.division ?? ""} ${r.team ?? ""}`.trim(), render: (r) => (r.team
       ? <div title={[r.division, r.headquarters, r.team].filter(Boolean).join(" > ")}><div>{r.team}</div>{(r.headquarters ?? r.division) && (r.headquarters ?? r.division) !== r.team && <div className="text-muted-foreground">{r.headquarters ?? r.division}</div>}</div>
       : <span className="text-muted-foreground">—</span>) },
@@ -184,9 +187,9 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
 
       <div className="flex flex-wrap items-center gap-2">
         <Select value={org} onValueChange={(v) => { setOrg(v); setImportId("latest"); }}>
-          <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="조직" /></SelectTrigger>
+          <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="Claude 조직" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">전체 조직(최신 기간)</SelectItem>
+            <SelectItem value="all">전체 Claude 조직(최신 기간)</SelectItem>
             {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
           </SelectContent>
         </Select>
@@ -197,6 +200,7 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
             {(data?.imports ?? []).map((i) => <SelectItem key={i.id} value={i.id}>{orgName.get(i.org_id) ?? i.org_id.slice(0, 8)} · {i.period_start}~{i.period_end} ({i.row_count}명)</SelectItem>)}
           </SelectContent>
         </Select>
+        <UnitFilter value={unit} onChange={setUnit} rows={data?.rows ?? []} />
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="이메일/이름 검색" className="h-8 w-[200px] text-xs" />
         <Button size="sm" variant={idleOnly ? "default" : "outline"} onClick={() => setIdleOnly((v) => !v)}>노는 시트만 ({idleCount})</Button>
         {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
