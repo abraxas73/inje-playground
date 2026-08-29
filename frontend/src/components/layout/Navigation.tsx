@@ -30,7 +30,8 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/food", label: "뭐 먹지", icon: UtensilsCrossed },
-  { href: "/guide", label: "가이드", icon: HelpCircle, minRole: "user" },
+  // 가이드(/guide)는 2026-08-29 사용자 요청으로 메뉴에서 숨김 — 경로·어드민 "가이드 관리"는 유지. 다시 보이려면 아래 줄 복원 + HelpCircle import.
+  // { href: "/guide", label: "가이드", icon: HelpCircle, minRole: "user" },
   { href: "/ladder", label: "사다리", icon: Dice5 },
   { href: "/team", label: "커피 타임", icon: Coffee },
   { href: "/survey", label: "설문", icon: ClipboardList },

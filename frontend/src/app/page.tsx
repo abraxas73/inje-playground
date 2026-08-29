@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Dice5, Users, ArrowRight, UtensilsCrossed, HelpCircle, Shield, Coffee, ClipboardList } from "lucide-react";
+import { Dice5, Users, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { canAccess } from "@/lib/roles";
 
@@ -17,16 +17,7 @@ const FEATURES = [
     iconColor: "text-amber-600",
     delay: "delay-100",
   },
-  {
-    href: "/guide",
-    title: "이럴때는 어떻게 하지?",
-    description: "사내 규정, 가이드에 대해 AI에게 질문하고 답변을 받아보세요.",
-    icon: HelpCircle,
-    gradient: "from-violet-500 to-purple-600",
-    bgAccent: "bg-violet-50",
-    iconColor: "text-violet-600",
-    delay: "delay-200",
-  },
+  // 가이드 카드(/guide)는 2026-08-29 사용자 요청으로 홈에서 숨김 — 경로는 유지
   {
     href: "/ladder",
     title: "사다리 게임",
