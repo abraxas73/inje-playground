@@ -12,7 +12,7 @@ import { hasSeat, isIdleSeat } from "@/lib/claude-usage/aggregate";
 import { usd } from "./format";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
 
-type Row = MemberActivityRow & { org_id: string; import_id: string };
+type Row = MemberActivityRow & { org_id: string; import_id: string; team?: string | null; division?: string | null };
 interface MembersResponse { imports: CsvImport[]; rows: Row[] }
 interface UploadResult { filename: string; ok: boolean; org_id?: string; period_start?: string; period_end?: string; row_count?: number; error?: string }
 
@@ -119,13 +119,14 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
   }, [data]);
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return (data?.rows ?? []).filter((r) => (!s || r.email.includes(s) || r.name.toLowerCase().includes(s)) && (!idleOnly || isIdleSeat(r)));
+    return (data?.rows ?? []).filter((r) => (!s || r.email.includes(s) || r.name.toLowerCase().includes(s) || (r.team ?? "").toLowerCase().includes(s)) && (!idleOnly || isIdleSeat(r)));
   }, [data, q, idleOnly]);
   const idleCount = useMemo(() => (data?.rows ?? []).filter(isIdleSeat).length, [data]);
 
   const columns: Column<Row>[] = [
     { key: "user", header: "사용자", value: (r) => r.email, render: (r) => (<div><div className="font-medium">{r.name || r.email}</div>{r.name && <div className="text-muted-foreground">{r.email}</div>}</div>) },
     { key: "org", header: "조직", value: (r) => orgName.get(r.org_id) ?? r.org_id, render: (r) => <Badge variant="outline" className="text-[10px]">{orgName.get(r.org_id) ?? r.org_id.slice(0, 8)}</Badge> },
+    { key: "team", header: "소속", value: (r) => r.team ?? "", render: (r) => (r.team ? <span title={r.division ?? undefined}>{r.team}</span> : <span className="text-muted-foreground">—</span>) },
     { key: "role", header: "역할", value: (r) => r.role },
     { key: "tier", header: "시트", value: (r) => r.seat_tier, render: (r) => (hasSeat(r.seat_tier) ? r.seat_tier : <span className="text-muted-foreground">미할당</span>) },
     { key: "last", header: "마지막 활동", value: (r) => r.last_active ?? "" },

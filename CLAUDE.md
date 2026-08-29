@@ -82,6 +82,7 @@ No test framework is configured.
 - `/settings` — Dooray API token and project ID configuration (stored in localStorage)
 - `/manual` — User manual with Playwright-captured screenshots (8 sections)
 - `/admin/claude-usage` — Claude Code 사용량 대시보드(admin): Claude Code 실시간·멤버 활동 CSV·조직/관리형 설정 탭
+- `/admin/directory` — 사내 조직도 명부(admin): 그룹웨어 아마란스(inno-creed MCP) 기준 부문·본부·센터/팀·직책. Claude 조직과 별개, Claude 사용량 표 "소속" 컬럼의 출처
 
 ### API Routes (`frontend/src/app/api/`)
 - `GET /api/dooray/members?projectId=X` — Proxies Dooray API to fetch project members
@@ -99,6 +100,7 @@ No test framework is configured.
 - `/api/users/members` — 내 팀(user_members: name, email, external_id, dooray_member_id, is_card_holder) GET/POST(교체)/PATCH(법카)/DELETE
 - `POST /api/otel/v1/metrics`, `POST /api/otel/v1/logs` — Claude Code OTLP/HTTP JSON 수신(Bearer `CLAUDE_OTEL_INGEST_TOKEN`), RPC `claude_code_ingest`로 일 단위 합산
 - `/api/admin/claude-usage/{summary,members,imports,imports/[id],orgs,health}` — Claude 사용량 대시보드(admin). 런북 `docs/claude-usage.md`
+- `GET /api/admin/directory`, `POST /api/admin/directory/sync` — 사내 조직도 명부 조회/동기화(동기화는 관리자 세션 또는 수집 토큰; 로컬 `frontend/scripts/company-directory-sync.py`가 inno-creed MCP `find_person` 전사 명부를 밀어 넣음). 런북 `docs/company-directory.md`
 
 ### Supabase Tables (guide feature)
 - `nlm_notebooks` — Notebook metadata with `is_visible`, `sort_order`
@@ -107,6 +109,9 @@ No test framework is configured.
 
 ### Supabase Tables (Claude usage feature)
 - `claude_orgs, claude_code_daily, claude_code_daily_model, claude_code_requests, claude_ingest_log, claude_csv_imports, claude_member_activity` — Claude Code 사용량 대시보드 데이터(OTLP 수신 + 월간 CSV 업로드). 런북 `docs/claude-usage.md`
+
+### Supabase Tables (company directory)
+- `company_directory`(email PK, units[], division/headquarters/team, duty, position, active, synced_at), `company_directory_sync` — 사내 조직도 명부(아마란스). SQL `docs/sql/2026-08-29-company-directory.sql`
 
 ### Key Patterns
 
@@ -120,6 +125,8 @@ No test framework is configured.
 
 **Provider 선택(Dooray/Teams)**: 채널 알림·멤버 소스·개인 DM을 관리자 설정(`notify_provider`/`member_source_provider`/`dm_provider`)으로 축별 선택. 멤버 소스는 `dooray`/`users`(앱 사용자 명단 = `user_profiles`, 권장)/`teams`. Teams 알림·DM은 표준 라이선스용 Teams 웹후크 트리거 규격(Adaptive Card 봉투)으로 보낸다. 서버는 `lib/notify`(Notifier), 클라이언트는 `lib/members`(MemberSource)를 통해서만 provider를 다룬다. 런북: `docs/teams-integration.md`.
 
+**사내 조직도 명부**: `lib/directory/parse.ts`가 아마란스 `deptPath`(회사>회사>부문>본부>센터>팀)를 `units[]`·division/headquarters/team으로 분해. 동기화는 서버가 아니라 **로컬 스크립트**가 inno-creed MCP(stdio, 그룹웨어 로그인 필요)를 호출해 API로 밀어 넣는 푸시형. Claude 사용량 `summary`/`members` API가 이메일로 조인해 `team`/`division`을 붙인다.
+
 **Claude 사용량 대시보드**: `lib/claude-usage/`가 OTLP 페이로드 파싱(`otlp.ts`)·수집 인증(`ingest-auth.ts`)·저장(`ingest-handler.ts`/`ingest-store.ts`)·CSV 파싱(`members-csv.ts`)·집계(`aggregate.ts`)·관리자 권한 체크(`require-admin.ts`)·관리형 설정 JSON 생성(`managed-settings.ts`)을 담당. 런북: `docs/claude-usage.md`, 아키텍처: `docs/claude-usage-architecture.md`.
 
 **Environment Variables**:
@@ -130,7 +137,7 @@ No test framework is configured.
 - `CLAUDE_OTEL_INGEST_TOKEN` — Claude Code OTLP 수신 엔드포인트(`/api/otel/v1/*`) Bearer 인증 토큰(`openssl rand -hex 32`)
 
 ### Directory Layout (frontend/src/)
-- `components/` — Organized by feature: `ladder/`, `team/`, `food/`, `guide/`, `settings/`, `shared/`, `layout/`, `admin/claude-usage/`(Claude 사용량 대시보드 탭·차트)
+- `components/` — Organized by feature: `ladder/`, `team/`, `food/`, `guide/`, `settings/`, `shared/`, `layout/`, `admin/claude-usage/`(Claude 사용량 대시보드 탭·차트), `admin/directory/`(사내 조직도 표)
 - `hooks/` — `useLocalStorage`, `useParticipants`, `useBgm`, `useTts`, `useSettings`(관리자 전역 설정), `useProviderSettings`(provider 3축)
 - `lib/` — Pure logic: `ladder.ts`, `team-divider.ts`, `dooray.ts`, `nlm-service.ts`, `providers.ts`(provider 상수/파서), `settings-server.ts`(서버 settings 로더), `teams-graph.ts`(Graph app-only), `notify/`(Notifier: dooray/teams/messages/recipients), `members/`(MemberSource: dooray/teams), `claude-usage/`(OTLP 파서·CSV 파서·집계·인증)
 - `types/` — TypeScript interfaces: `ladder.ts`, `team.ts`, `dooray.ts`, `guide.ts`, `claude-usage.ts`

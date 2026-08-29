@@ -61,7 +61,7 @@ export default function CodeUsageTab() {
   const orgName = useMemo(() => new Map((data?.orgs ?? []).map((o) => [o.id, o.name])), [data]);
   const users = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return (data?.users ?? []).filter((u) => !s || u.user_email.includes(s) || (u.name ?? "").toLowerCase().includes(s));
+    return (data?.users ?? []).filter((u) => !s || u.user_email.includes(s) || (u.name ?? "").toLowerCase().includes(s) || (u.team ?? "").toLowerCase().includes(s));
   }, [data, q]);
 
   const columns: Column<UserUsageRow>[] = [
@@ -69,6 +69,7 @@ export default function CodeUsageTab() {
       <div><div className="font-medium">{u.name || displayUser(u.user_email)}</div>{u.name && <div className="text-muted-foreground">{u.user_email}</div>}</div>) },
     { key: "orgs", header: "조직", value: (u) => u.orgs.join(","), render: (u) => (
       <div className="flex flex-wrap gap-1">{u.orgs.map((o) => <Badge key={o} variant="outline" className="text-[10px]">{o === "unknown" ? "조직 미확인" : orgName.get(o) ?? o.slice(0, 8)}</Badge>)}</div>) },
+    { key: "team", header: "소속", value: (u) => u.team ?? "", render: (u) => (u.team ? <span title={u.division ?? undefined}>{u.team}</span> : <span className="text-muted-foreground">—</span>) },
     { key: "seat", header: "시트", value: (u) => u.seat_tier ?? "", render: (u) => (hasSeat(u.seat_tier) ? u.seat_tier : "—") },
     { key: "cost", header: "비용", align: "right", value: (u) => u.cost_usd, render: (u) => usd(u.cost_usd) },
     { key: "sessions", header: "세션", align: "right", value: (u) => u.sessions, render: (u) => int(u.sessions) },
@@ -86,8 +87,8 @@ export default function CodeUsageTab() {
 
   const exportCsv = () => {
     if (!data) return;
-    const head = ["email", "name", "orgs", "seat_tier", "cost_usd", "sessions", "prompts", "active_days", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens", "loc_added", "loc_removed", "edits_accepted", "edits_rejected", "commits", "pull_requests", "active_user_seconds"];
-    const lines = users.map((u) => [u.user_email, u.name ?? "", u.orgs.map((o) => orgName.get(o) ?? o).join("|"), u.seat_tier ?? "", u.cost_usd.toFixed(4), u.sessions, u.prompts, u.active_days, u.input_tokens, u.output_tokens, u.cache_read_tokens, u.cache_creation_tokens, u.loc_added, u.loc_removed, u.edits_accepted, u.edits_rejected, u.commits, u.pull_requests, Math.round(u.active_user_seconds)]
+    const head = ["email", "name", "orgs", "team", "division", "seat_tier", "cost_usd", "sessions", "prompts", "active_days", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens", "loc_added", "loc_removed", "edits_accepted", "edits_rejected", "commits", "pull_requests", "active_user_seconds"];
+    const lines = users.map((u) => [u.user_email, u.name ?? "", u.orgs.map((o) => orgName.get(o) ?? o).join("|"), u.team ?? "", u.division ?? "", u.seat_tier ?? "", u.cost_usd.toFixed(4), u.sessions, u.prompts, u.active_days, u.input_tokens, u.output_tokens, u.cache_read_tokens, u.cache_creation_tokens, u.loc_added, u.loc_removed, u.edits_accepted, u.edits_rejected, u.commits, u.pull_requests, Math.round(u.active_user_seconds)]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
     const blob = new Blob(["﻿" + [head.join(","), ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");

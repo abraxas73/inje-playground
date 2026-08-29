@@ -35,5 +35,13 @@ export async function GET(request: NextRequest) {
     : { data: [] as Record<string, unknown>[], error: null };
   if (rows.error) return NextResponse.json({ error: rows.error.message }, { status: 500 });
 
-  return NextResponse.json({ imports: imports.data ?? [], rows: (rows.data ?? []).map((r) => numify(r as Record<string, unknown>)) });
+  // 사내 조직도 명부(재직자)로 소속(team/division) 조인 — 실패해도 표는 내려준다
+  const directory = await admin.from("company_directory").select("email, team, division").eq("active", true).limit(1000);
+  const dirByEmail = new Map(((directory.error ? [] : directory.data ?? []) as { email: string; team: string | null; division: string | null }[]).map((d) => [d.email.toLowerCase(), d]));
+  const withTeam = (rows.data ?? []).map((r) => {
+    const rec = numify(r as Record<string, unknown>) as Record<string, unknown>;
+    const d = dirByEmail.get(String(rec.email ?? "").toLowerCase());
+    return { ...rec, team: d?.team ?? null, division: d?.division ?? null };
+  });
+  return NextResponse.json({ imports: imports.data ?? [], rows: withTeam });
 }

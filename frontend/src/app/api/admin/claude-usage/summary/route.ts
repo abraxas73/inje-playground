@@ -64,12 +64,15 @@ export async function GET(request: NextRequest) {
       ? await admin.from("claude_member_activity").select("email, name, seat_tier").in("import_id", importIds)
       : { data: [] as { email: string; name: string; seat_tier: string }[], error: null };
     if (members.error) return NextResponse.json({ error: members.error.message }, { status: 500 });
+    // 사내 조직도 명부(재직자) — 소속 컬럼용. 테이블이 없거나 실패해도 요약은 내려준다.
+    const directory = await admin.from("company_directory").select("email, team, division").eq("active", true).limit(1000);
 
     const summary = summarize({
       rows: dailyRows.map((r) => numify(r as unknown as Record<string, unknown>)) as unknown as DailyRow[],
       models: modelRows.map((r) => numify(r as unknown as Record<string, unknown>)) as unknown as ModelRow[],
       orgs: (orgs.data ?? []) as ClaudeOrg[],
       members: (members.data ?? []) as { email: string; name: string; seat_tier: string }[],
+      directory: directory.error ? [] : ((directory.data ?? []) as { email: string; team: string | null; division: string | null }[]),
       from,
       to,
     });
