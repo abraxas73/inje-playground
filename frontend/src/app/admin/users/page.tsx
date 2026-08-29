@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Users, Shield, User, UserX, KeyRound, FolderOpen, UserCheck } from "lucide-react";
 import type { UserRoleInfo, UserRole } from "@/lib/roles";
+import UserDetailSheet from "@/components/admin/users/UserDetailSheet";
 
 interface UserWithSettings extends UserRoleInfo {
   settings: Record<string, string>;
@@ -29,6 +30,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     try {
@@ -126,7 +128,11 @@ export default function AdminUsersPage() {
                 return (
                   <div
                     key={u.id}
-                    className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedId(u.user_id)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedId(u.user_id); } }}
+                    className="flex cursor-pointer items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       {u.avatar_url ? (
@@ -178,7 +184,7 @@ export default function AdminUsersPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 ml-3">
+                    <div className="flex items-center gap-2 shrink-0 ml-3" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                       {updatingId === u.user_id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
@@ -204,6 +210,7 @@ export default function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+      <UserDetailSheet userId={selectedId} onClose={() => setSelectedId(null)} onChanged={fetchUsers} />
     </>
   );
 }
