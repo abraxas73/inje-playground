@@ -76,7 +76,7 @@ export function summarize(input: {
   orgs: ClaudeOrg[];
   members: Pick<MemberActivityRow, "email" | "name" | "seat_tier">[];
   /** 사내 조직도 명부(선택) — 이메일로 소속(team/division) 조인 */
-  directory?: { email: string; team: string | null; division: string | null }[];
+  directory?: { email: string; team: string | null; headquarters: string | null; division: string | null }[];
   from: string;
   to: string;
 }): UsageSummary {
@@ -93,7 +93,7 @@ export function summarize(input: {
     if (!u) {
       const m = memberByEmail.get(r.user_email.toLowerCase());
       const d = dirByEmail.get(r.user_email.toLowerCase());
-      u = { ...emptyDailyMetrics(), user_email: r.user_email, orgs: [], active_days: 0, name: m?.name?.trim() || null, seat_tier: m?.seat_tier ?? null, team: d?.team ?? null, division: d?.division ?? null, _days: new Set(), _orgs: new Set() };
+      u = { ...emptyDailyMetrics(), user_email: r.user_email, orgs: [], active_days: 0, name: m?.name?.trim() || null, seat_tier: m?.seat_tier ?? null, team: d?.team ?? null, headquarters: d?.headquarters ?? null, division: d?.division ?? null, _days: new Set(), _orgs: new Set() };
       users.set(r.user_email, u);
     }
     u._orgs.add(r.org_id);

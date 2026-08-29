@@ -109,8 +109,9 @@ export interface UserUsageRow extends DailyMetrics {
   active_days: number;
   name: string | null;
   seat_tier: string | null;
-  /** 사내 조직도(company_directory) 조인 — 센터/팀명, 부문. 명부에 없으면 null */
+  /** 사내 조직도(company_directory) 조인 — 센터/팀명, 본부, 부문. 명부에 없으면 null */
   team: string | null;
+  headquarters: string | null;
   division: string | null;
 }
 
