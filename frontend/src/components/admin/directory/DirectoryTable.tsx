@@ -20,6 +20,9 @@ function fmtDateTime(iso: string | null | undefined): string {
 
 const ALL = "__all__";
 
+/** 조직장 자동 판정(직책) — lib/usage-scope.ts의 LEADER_DUTY_RE와 동일하게 유지 */
+const LEADER_DUTY_RE = /(팀장|센터장|실장|소장|본부장|부문장|그룹장|연구소장|대표)/;
+
 export default function DirectoryTable() {
   // 파생 로딩 패턴: 요청 키와 결과 키를 비교해 loading을 계산한다(effect 본문에서 setState 호출 금지 규칙 준수)
   const [result, setResult] = useState<{ key: string; data?: DirectoryResponse; error?: string } | null>(null);
@@ -28,6 +31,8 @@ export default function DirectoryTable() {
   const [division, setDivision] = useState(ALL);
   const [headquarters, setHeadquarters] = useState(ALL);
   const [reloadKey, setReloadKey] = useState(0);
+  const [leaderOverride, setLeaderOverride] = useState<Record<string, boolean>>({});
+  const [leaderError, setLeaderError] = useState<string | null>(null);
 
   const requestKey = `${includeInactive ? "all" : "true"}|${reloadKey}`;
   useEffect(() => {
@@ -63,6 +68,26 @@ export default function DirectoryTable() {
 
   const teamCount = useMemo(() => new Set(rows.map((r) => r.team ?? "")).size, [rows]);
 
+  /** 실효 조직장 = 지역 오버라이드 → is_leader(명시) → 직책 자동 판정 */
+  const isLeader = (r: DirectoryPerson): boolean =>
+    r.email in leaderOverride ? leaderOverride[r.email] : r.is_leader ?? LEADER_DUTY_RE.test(r.duty ?? "");
+
+  const toggleLeader = async (r: DirectoryPerson) => {
+    const next = !isLeader(r);
+    setLeaderError(null);
+    setLeaderOverride((m) => ({ ...m, [r.email]: next }));
+    const res = await fetch("/api/admin/directory", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: r.email, is_leader: next }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}) as { error?: string });
+      setLeaderError(j.error ?? `HTTP ${res.status}`);
+      setLeaderOverride((m) => { const { [r.email]: _drop, ...rest } = m; return rest; });
+    }
+  };
+
   const columns: Column<DirectoryPerson>[] = [
     { key: "name", header: "이름", value: (r) => r.name, render: (r) => (<div><div className="font-medium">{r.name}</div><div className="text-muted-foreground">{r.email}</div></div>) },
     { key: "division", header: "부문", value: (r) => r.division ?? "", render: (r) => r.division ?? <span className="text-muted-foreground">—</span> },
@@ -70,6 +95,16 @@ export default function DirectoryTable() {
     { key: "team", header: "센터/팀", value: (r) => r.team ?? "", render: (r) => (
       <span title={r.dept_path ?? undefined}>{r.team ?? <span className="text-muted-foreground">—</span>}</span>) },
     { key: "duty", header: "직책", value: (r) => r.duty ?? "" },
+    { key: "leader", header: "조직장", value: (r) => (isLeader(r) ? 1 : 0), render: (r) => (
+      <input
+        type="checkbox"
+        className="h-3.5 w-3.5 cursor-pointer accent-primary"
+        checked={isLeader(r)}
+        onChange={() => toggleLeader(r)}
+        onClick={(e) => e.stopPropagation()}
+        title={r.is_leader == null && !(r.email in leaderOverride) ? "직책으로 자동 판정됨 — 클릭해 직접 지정" : "관리자 지정"}
+        aria-label={`${r.name} 조직장 여부`}
+      />) },
     { key: "position", header: "직급", value: (r) => r.position ?? "" },
     { key: "active", header: "상태", value: (r) => (r.active ? "재직" : "비활성"), render: (r) => (r.active ? <Badge variant="outline" className="text-[10px]">재직</Badge> : <Badge variant="destructive" className="text-[10px]">비활성</Badge>) },
     { key: "synced", header: "동기화", value: (r) => r.synced_at, render: (r) => <span className="text-muted-foreground">{fmtDateTime(r.synced_at)}</span> },
@@ -111,7 +146,9 @@ export default function DirectoryTable() {
           <p>출처: 그룹웨어 <b>아마란스</b>(gw.innogrid.com) 조직도 — inno-creed MCP <code>find_person</code> 전사 명부. Claude 조직(Team 플랜)과는 별개의 회사 소속 정보입니다.</p>
           <p>갱신: 이 PC(inno-creed 로그인 가능)에서 <code>./frontend/scripts/company-directory-sync.py</code> 실행 → 이메일 기준 upsert, 이번 명부에 없는 사람은 <b>비활성</b>으로 표시(삭제하지 않음). 런북: <code>docs/company-directory.md</code></p>
           {data && <p>재직 {data.counts.active}명 · 비활성 {data.counts.inactive}명</p>}
+          <p><b>조직장</b> 체크 = 개인 메뉴(Claude Code·채팅·성과)에서 자기 말단 조직(팀/센터/본부) 구성원까지 조회 가능. 체크 안 하면 본인만. 기본값은 직책(팀장·센터장·본부장 등) 자동 판정이며, 클릭하면 직접 지정으로 바뀝니다.</p>
           {error && <p className="text-destructive">{error}</p>}
+          {leaderError && <p className="text-destructive">조직장 변경 실패: {leaderError}</p>}
         </CardContent>
       </Card>
 

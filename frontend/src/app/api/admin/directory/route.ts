@@ -54,3 +54,33 @@ export async function GET(request: NextRequest) {
   };
   return NextResponse.json(body);
 }
+
+/**
+ * PATCH /api/admin/directory — 조직장 여부 토글 { email, is_leader: true|false|null }
+ * null이면 직책(duty) 자동 판정으로 되돌린다. 개인용 사용량/성과 화면의 조회 범위에 반영.
+ */
+export async function PATCH(request: NextRequest) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const c = adminClientOr500();
+  if (!c.ok) return c.response;
+
+  const body = (await request.json().catch(() => null)) as { email?: unknown; is_leader?: unknown } | null;
+  if (!body || typeof body.email !== "string" || !body.email.includes("@")) {
+    return NextResponse.json({ error: "email이 필요합니다." }, { status: 400 });
+  }
+  if (body.is_leader !== null && typeof body.is_leader !== "boolean") {
+    return NextResponse.json({ error: "is_leader는 true/false/null이어야 합니다." }, { status: 400 });
+  }
+  const { data, error } = await c.admin
+    .from("company_directory")
+    .update({ is_leader: body.is_leader })
+    .eq("email", body.email.toLowerCase())
+    .select("email, is_leader")
+    .single();
+  if (error) {
+    if (/is_leader/.test(error.message)) return NextResponse.json({ error: "is_leader 컬럼이 없습니다 — docs/sql/2026-08-31-usage-scope.sql을 실행하세요." }, { status: 400 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true, row: data });
+}

@@ -32,6 +32,8 @@ export interface DirectoryPerson {
   team: string | null;
   duty: string | null;
   position: string | null;
+  /** 조직장 여부 — null: 직책(duty) 자동 판정, true/false: 관리자가 체크박스로 지정 */
+  is_leader?: boolean | null;
   active: boolean;
   synced_at: string;
 }

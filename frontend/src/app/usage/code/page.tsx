@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,11 +18,20 @@ const PRESETS: { key: RangePreset; label: string }[] = [
 type UserRow = { email: string; name: string | null; team: string | null; active_days: number } & DailyMetrics;
 interface Resp {
   range: { from: string; to: string };
-  scope: { scope: "self" | "team" | "unit"; scopeLabel: string };
+  scope: { scope: "self" | "org"; scopeLabel: string };
   totals: DailyMetrics & { active_days: number };
   users: UserRow[];
   daily: { day: string; cost_usd: number; sessions: number; prompts: number }[];
 }
+interface ToolRow { tool: string; calls: number; errors: number; duration_ms_sum: number; accepts: number; rejects: number; users: number }
+interface HourCell { dow: number; hour: number; requests: number; cost_usd: number }
+
+/** mcp__server__tool → server:tool 축약 */
+function toolLabel(t: string): string {
+  const m = /^mcp__(.+?)__(.+)$/.exec(t);
+  return m ? `${m[1]}:${m[2]}` : t;
+}
+const DOW_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -51,6 +60,24 @@ export default function MyCodeUsagePage() {
   const loading = result?.key !== requestKey;
   const data = result?.data ?? null;
   const error = result?.key === requestKey ? result.error ?? null : null;
+
+  const [tools, setTools] = useState<{ key: string; rows?: ToolRow[]; notReady?: boolean } | null>(null);
+  const [hourly, setHourly] = useState<{ key: string; cells?: HourCell[]; notReady?: boolean } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/usage/tools?from=${range.from}&to=${range.to}`)
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled) setTools({ key: requestKey, rows: j.rows ?? [], notReady: j.notReady }); })
+      .catch(() => { if (!cancelled) setTools({ key: requestKey, rows: [] }); });
+    fetch(`/api/usage/hourly?from=${range.from}&to=${range.to}`)
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled) setHourly({ key: requestKey, cells: j.cells ?? [], notReady: j.notReady }); })
+      .catch(() => { if (!cancelled) setHourly({ key: requestKey, cells: [] }); });
+    return () => { cancelled = true; };
+  }, [range.from, range.to, requestKey]);
+  const toolRows = tools?.key === requestKey ? tools.rows ?? [] : [];
+  const hourCells = hourly?.key === requestKey ? hourly.cells ?? [] : [];
+  const maxCellReq = Math.max(1, ...hourCells.map((c) => c.requests));
 
   const t = data?.totals;
   const accept = t ? acceptRate(t.edits_accepted, t.edits_rejected) : null;
@@ -116,6 +143,66 @@ export default function MyCodeUsagePage() {
           <CardHeader className="pb-2"><CardTitle className="text-sm">구성원별 ({data!.users.length}명)</CardTitle></CardHeader>
           <CardContent>
             <SortableTable rows={data!.users} columns={columns} rowKey={(r) => r.email} defaultSort={{ key: "cost", dir: "desc" }} emptyText="데이터가 없습니다." />
+          </CardContent>
+        </Card>
+      )}
+
+      {toolRows.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">도구 사용 (상위 {Math.min(15, toolRows.length)}개)</CardTitle></CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-2 py-1 text-left">도구</th>
+                    <th className="px-2 py-1 text-right">호출</th>
+                    <th className="px-2 py-1 text-right">실패율</th>
+                    <th className="px-2 py-1 text-right">평균 소요</th>
+                    <th className="px-2 py-1 text-right">수락/거절</th>
+                    {isTeamView && <th className="px-2 py-1 text-right">사용 인원</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {toolRows.slice(0, 15).map((t) => (
+                    <tr key={t.tool} className="border-t">
+                      <td className="px-2 py-1 font-medium">{toolLabel(t.tool)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{int(t.calls)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{t.calls ? `${Math.round((t.errors / t.calls) * 100)}%` : "—"}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{t.calls ? `${(t.duration_ms_sum / t.calls / 1000).toFixed(1)}s` : "—"}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{t.accepts + t.rejects > 0 ? `${int(t.accepts)}/${int(t.rejects)}` : "—"}</td>
+                      {isTeamView && <td className="px-2 py-1 text-right tabular-nums">{int(t.users)}</td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {hourCells.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">시간대 패턴 (KST · 요일×시각 요청 수)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <div className="grid min-w-[560px] grid-cols-[28px_repeat(24,1fr)] gap-[2px] text-[9px] text-muted-foreground">
+                <div />
+                {Array.from({ length: 24 }, (_, hh) => <div key={hh} className="text-center">{hh % 3 === 0 ? hh : ""}</div>)}
+                {DOW_LABELS.map((label, di) => (
+                  <Fragment key={label}>
+                    <div className="flex items-center">{label}</div>
+                    {Array.from({ length: 24 }, (_, hh) => {
+                      const cell = hourCells.find((x) => x.dow === di + 1 && x.hour === hh);
+                      const a = cell ? Math.max(0.12, cell.requests / maxCellReq) : 0;
+                      return <div key={hh} className="aspect-square rounded-[2px]" title={`${label} ${hh}시 · 요청 ${cell?.requests ?? 0}`} style={{ backgroundColor: a ? `rgba(79,70,229,${a})` : "var(--muted)" }} />;
+                    })}
+                  </Fragment>
+                ))}
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
