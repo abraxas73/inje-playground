@@ -17,12 +17,17 @@
 ## 1.2 도구·시간대 집계 (1회)
 - Supabase SQL Editor에서 `docs/sql/2026-08-31-claude-usage-tools.sql` 실행 → `claude_code_tool_daily`(일×조직×사용자×도구: 호출·실패·소요·승인/거절) + RPC `claude_code_tool_ingest`(수집)·`claude_code_tool_summary`(도구 사용 탭)·`claude_code_hourly`(시간대 패턴 탭, KST 요일×시각). 실행 전에는 도구 수집을 조용히 건너뛰며(과거 소급 없음), 두 탭이 안내 문구를 띄운다. **팀별 집계 탭**은 SQL 없이 기존 daily+조직도 조인으로 동작.
 
+## 1.3 프롬프트 내용 수집 (선택, 1회)
+- **재공지 필수**: 기존 안내("프롬프트/코드 내용은 전송되지 않습니다")와 달라지므로, 켜기 전에 구성원에게 "프롬프트 **내용**을 수집한다"를 공지한다(아래 §2 안내문 v2). 응답·코드·파일·도구 결과는 여전히 수집하지 않는다.
+- Supabase SQL Editor에서 `docs/sql/2026-08-31-claude-code-prompts.sql` 실행 → `claude_code_prompts`(ts, 사용자, 세션, 길이, 내용 4000자 컷).
+- 관리형 설정 JSON은 이제 `OTEL_LOG_USER_PROMPTS: "1"`을 포함한다(조직·설정 탭에서 복사) — 7개 조직에 다시 적용하고 구성원이 Claude Code를 재시작하면 그 이후 발화부터 수집. 대시보드 **프롬프트** 탭(기간·조직·이메일·내용 검색, 행 클릭 시 전체 보기)에서 열람. 보존 정책은 SQL 파일 하단 주석(90일 삭제 예시) 참고.
+
 ## 2. Claude Code 수집 켜기 (조직별 1회)
 1. `/admin/claude-usage` → 조직·설정 탭 → "관리형 설정" JSON 복사 → `<CLAUDE_OTEL_INGEST_TOKEN>`을 실제 토큰으로 교체.
    - JSON에는 메트릭 5분(`OTEL_METRIC_EXPORT_INTERVAL=300000`)·로그 1분(`OTEL_LOGS_EXPORT_INTERVAL=60000`) 전송 간격이 포함돼 있다.
 2. claude.ai(해당 조직 Owner로 로그인) → 관리자 설정 → Claude Code → 관리형 설정 → 관리 → JSON 붙여넣기 → 저장.
    - 기존 관리형 설정이 있으면 `env` 블록만 병합한다(다른 키 유지).
-3. 구성원 안내문(Teams/Dooray 공지): "다음 Claude Code 실행 시 '조직 관리형 설정 승인' 창이 뜹니다. `OTEL_EXPORTER_OTLP_ENDPOINT = https://inje-playground.vercel.app/api/otel` 항목을 확인하고 승인해 주세요. 사용 통계(토큰·비용·세션)만 수집하며 프롬프트/코드 내용은 전송되지 않습니다."
+3. 구성원 안내문 v2(Teams/Dooray 공지): "다음 Claude Code 실행 시 '조직 관리형 설정 승인' 창이 뜹니다. `OTEL_EXPORTER_OTLP_ENDPOINT = https://inje-playground.vercel.app/api/otel` 항목을 확인하고 승인해 주세요. 사용 통계(토큰·비용·세션·도구 사용)와 **입력한 프롬프트 내용**이 관리 목적으로 수집됩니다(2026-08-31부터). Claude의 응답·코드·파일 내용은 수집되지 않습니다." — 프롬프트 내용 수집(§1.3)을 켠 경우 반드시 이 문구로 공지한다.
 4. 검증: 본인 Claude Code를 재시작해 승인 → **한 번 더 재시작**(승인한 세션 자체는 내보내지 않음) → 5분 후 조직·설정 탭 "24시간 수신"이 1 이상, Claude Code 탭에 본인 이메일 행 등장. 안 되면 §4.
 5. 나머지 조직 6개에 같은 JSON 적용(조직 ID는 `organization.id`로 자동 구분·자동 등록되므로 조직·설정 탭에서 이름만 지정).
 

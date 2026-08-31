@@ -11,6 +11,7 @@ export function buildManagedSettings(endpointBase: string, token = "<CLAUDE_OTEL
       OTEL_EXPORTER_OTLP_HEADERS: `Authorization=Bearer ${token}`,
       OTEL_METRIC_EXPORT_INTERVAL: "300000",
       OTEL_LOGS_EXPORT_INTERVAL: "60000",
+      OTEL_LOG_USER_PROMPTS: "1",
       OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: "delta",
       OTEL_METRICS_INCLUDE_SESSION_ID: "false",
       OTEL_METRICS_INCLUDE_ACCOUNT_UUID: "true",

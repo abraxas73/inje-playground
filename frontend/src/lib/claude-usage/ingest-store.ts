@@ -35,6 +35,17 @@ export async function storeLogs(admin: SupabaseClient, parsed: LogsParsed): Prom
     if (error) console.warn("[claude-usage] tool ingest skipped:", error.message);
     else rows += parsed.toolDaily.length;
   }
+  if (parsed.promptEvents.length > 0) {
+    // 프롬프트 내용도 best-effort — 마이그레이션(claude_code_prompts) 전이면 건너뛴다
+    for (let i = 0; i < parsed.promptEvents.length; i += 500) {
+      const { error } = await admin.from("claude_code_prompts").insert(parsed.promptEvents.slice(i, i + 500));
+      if (error) {
+        console.warn("[claude-usage] prompt ingest skipped:", error.message);
+        break;
+      }
+      rows += Math.min(500, parsed.promptEvents.length - i);
+    }
+  }
   return { rows };
 }
 

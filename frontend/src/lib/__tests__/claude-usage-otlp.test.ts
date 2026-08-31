@@ -142,7 +142,7 @@ describe("parseLogsPayload", () => {
     const r = parseLogsPayload(logsBody([
       log("claude_code.api_request", { model: "claude-opus-5", cost_usd: 0.12, input_tokens: 10, output_tokens: 5, cache_read_tokens: 1, cache_creation_tokens: 0, duration_ms: 900, query_source: "main", request_id: "req-1" }),
       log("claude_code.api_request", { model: "claude-sonnet-5", cost_usd: "0.01", input_tokens: "3", output_tokens: "2" }, true),
-      log("claude_code.user_prompt", { prompt_length: 20 }),
+      log("claude_code.user_prompt", { prompt_length: 20, prompt: "질문 내용입니다" }),
       log("claude_code.user_prompt", { prompt_length: 5 }),
       log("claude_code.tool_result", { tool_name: "Edit" }),
     ]));
@@ -155,6 +155,10 @@ describe("parseLogsPayload", () => {
     expect(r.requests[1]).toMatchObject({ model: "claude-sonnet-5", cost_usd: 0.01, input_tokens: 3, output_tokens: 2, duration_ms: null, request_id: null });
     expect(r.promptDaily).toEqual([
       expect.objectContaining({ day: "2026-08-26", org_id: "org-a", user_email: "dev1@example.com", prompts: 2, sessions: 0 }),
+    ]);
+    // 내용은 prompt 속성이 있을 때만(OTEL_LOG_USER_PROMPTS=1) 저장된다
+    expect(r.promptEvents).toEqual([
+      expect.objectContaining({ prompt: "질문 내용입니다", prompt_length: 20, user_email: "dev1@example.com", org_id: "org-a", session_id: "s1" }),
     ]);
     expect(r.dropped).toBe(0);
   });
@@ -189,10 +193,10 @@ describe("parseLogsPayload", () => {
 
   it("body가 문장(이벤트 이름 아님)이고 event.name도 없으면 dropped", () => {
     const r = parseLogsPayload(logsBody([{ timeUnixNano: T, body: { stringValue: "some free text message" }, attributes: [...ID] }]));
-    expect(r).toEqual({ requests: [], promptDaily: [], dropped: 1, ignored: {}, toolDaily: [] });
+    expect(r).toEqual({ requests: [], promptDaily: [], dropped: 1, ignored: {}, toolDaily: [], promptEvents: [] });
   });
 
   it("형식이 아니면 빈 결과", () => {
-    expect(parseLogsPayload({})).toEqual({ requests: [], promptDaily: [], dropped: 0, ignored: {}, toolDaily: [] });
+    expect(parseLogsPayload({})).toEqual({ requests: [], promptDaily: [], dropped: 0, ignored: {}, toolDaily: [], promptEvents: [] });
   });
 });

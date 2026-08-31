@@ -254,9 +254,21 @@ export interface ToolDailyRow {
   rejects: number;
 }
 
-export function parseLogsPayload(body: unknown): { requests: ApiRequestEvent[]; promptDaily: DailyRow[]; dropped: number; ignored: Record<string, number>; toolDaily: ToolDailyRow[] } {
+/** claude_code_prompts 한 행 — OTEL_LOG_USER_PROMPTS=1일 때만 내용이 온다 */
+export interface PromptEvent {
+  ts: string;
+  org_id: string;
+  user_email: string;
+  account_uuid: string | null;
+  session_id: string | null;
+  prompt_length: number | null;
+  prompt: string;
+}
+
+export function parseLogsPayload(body: unknown): { requests: ApiRequestEvent[]; promptDaily: DailyRow[]; dropped: number; ignored: Record<string, number>; toolDaily: ToolDailyRow[]; promptEvents: PromptEvent[] } {
   const requests: ApiRequestEvent[] = [];
   const prompts = new DailyAcc();
+  const promptEvents: PromptEvent[] = [];
   const tools = new Map<string, ToolDailyRow>();
   const toolRowFor = (day: string, id: Identity, tool: string): ToolDailyRow => {
     const key = `${day}|${id.org_id}|${id.user_email}|${tool}`;
@@ -271,7 +283,7 @@ export function parseLogsPayload(body: unknown): { requests: ApiRequestEvent[]; 
   /** 저장하지 않는 이벤트 이름별 개수(tool_result 등) — 수신은 되는데 저장 0인 상황을 진단하기 위해 돌려준다 */
   const ignored: Record<string, number> = {};
   const rls = (body as { resourceLogs?: unknown })?.resourceLogs;
-  if (!Array.isArray(rls)) return { requests: [], promptDaily: [], dropped: 0, ignored: {}, toolDaily: [] };
+  if (!Array.isArray(rls)) return { requests: [], promptDaily: [], dropped: 0, ignored: {}, toolDaily: [], promptEvents: [] };
 
   for (const rl of rls as { resource?: { attributes?: unknown }; scopeLogs?: unknown }[]) {
     const resource = attrsToRecord(rl?.resource?.attributes);
@@ -306,6 +318,19 @@ export function parseLogsPayload(body: unknown): { requests: ApiRequestEvent[]; 
           });
         } else if (names.has("user_prompt")) {
           prompts.add(kstDay(ms), id, "prompts", 1);
+          // OTEL_LOG_USER_PROMPTS=1일 때만 prompt 내용이 붙는다 — 있으면 원문 저장(4000자 컷, 대형 붙여넣기 방지)
+          const text = str(a, "prompt");
+          if (text) {
+            promptEvents.push({
+              ts: new Date(ms).toISOString(),
+              org_id: id.org_id,
+              user_email: id.user_email,
+              account_uuid: id.account_uuid,
+              session_id: id.session_id,
+              prompt_length: num(a, "prompt_length") ?? text.length,
+              prompt: text.slice(0, 4000),
+            });
+          }
         } else if (names.has("tool_result")) {
           const t = toolRowFor(kstDay(ms), id, str(a, "tool_name") ?? "unknown");
           t.calls += 1;
@@ -324,5 +349,5 @@ export function parseLogsPayload(body: unknown): { requests: ApiRequestEvent[]; 
       }
     }
   }
-  return { requests, promptDaily: prompts.rows(), dropped, ignored, toolDaily: [...tools.values()] };
+  return { requests, promptDaily: prompts.rows(), dropped, ignored, toolDaily: [...tools.values()], promptEvents };
 }
