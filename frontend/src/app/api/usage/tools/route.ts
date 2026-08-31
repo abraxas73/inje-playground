@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   const res = await admin
     .from("claude_code_tool_daily")
-    .select("user_email, tool, calls, errors, duration_ms_sum, accepts, rejects")
+    .select("user_email, tool_name, calls, errors, duration_ms_sum, accepts, rejects")
     .in("user_email", emails)
     .gte("day", from)
     .lte("day", to)
@@ -31,9 +31,9 @@ export async function GET(request: NextRequest) {
 
   const byTool = new Map<string, { tool: string; calls: number; errors: number; duration_ms_sum: number; accepts: number; rejects: number; users: Set<string> }>();
   for (const raw of res.data ?? []) {
-    const row = numify(raw as unknown as Record<string, unknown>) as { user_email: string; tool: string; calls: number; errors: number; duration_ms_sum: number; accepts: number; rejects: number };
-    let t = byTool.get(row.tool);
-    if (!t) { t = { tool: row.tool, calls: 0, errors: 0, duration_ms_sum: 0, accepts: 0, rejects: 0, users: new Set() }; byTool.set(row.tool, t); }
+    const row = numify(raw as unknown as Record<string, unknown>) as { user_email: string; tool_name: string; calls: number; errors: number; duration_ms_sum: number; accepts: number; rejects: number };
+    let t = byTool.get(row.tool_name);
+    if (!t) { t = { tool: row.tool_name, calls: 0, errors: 0, duration_ms_sum: 0, accepts: 0, rejects: 0, users: new Set() }; byTool.set(row.tool_name, t); }
     t.calls += row.calls; t.errors += row.errors; t.duration_ms_sum += row.duration_ms_sum; t.accepts += row.accepts; t.rejects += row.rejects;
     t.users.add(row.user_email);
   }
