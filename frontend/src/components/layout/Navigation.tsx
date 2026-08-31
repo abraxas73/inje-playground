@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Dice5, LogOut, UtensilsCrossed, Coffee, Shield, User as UserIcon, Settings, BookOpen, ClipboardList, SquareTerminal, MessagesSquare } from "lucide-react";
+import { Dice5, LogOut, UtensilsCrossed, Coffee, Shield, User as UserIcon, Settings, BookOpen, ClipboardList, SquareTerminal, MessagesSquare, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/survey", label: "설문", icon: ClipboardList },
   { href: "/usage/code", label: "Claude Code", icon: SquareTerminal, minRole: "user" },
   { href: "/usage/chat", label: "Claude 채팅", icon: MessagesSquare, minRole: "user" },
+  { href: "/usage/perf", label: "성과", icon: TrendingUp, minRole: "user" },
   { href: "/admin", label: "어드민", icon: Shield, minRole: "admin" },
 ];
 
@@ -168,7 +169,7 @@ export default function Navigation() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl safe-area-bottom">
         <div className={cn(
           "grid h-14 px-1",
-          mobileItems.length <= 3 ? "grid-cols-3" : mobileItems.length === 4 ? "grid-cols-4" : mobileItems.length === 5 ? "grid-cols-5" : "grid-cols-6"
+          mobileItems.length <= 3 ? "grid-cols-3" : mobileItems.length === 4 ? "grid-cols-4" : mobileItems.length === 5 ? "grid-cols-5" : mobileItems.length === 6 ? "grid-cols-6" : "grid-cols-7"
         )}>
           {mobileItems.map((item) => {
             const Icon = item.icon;
