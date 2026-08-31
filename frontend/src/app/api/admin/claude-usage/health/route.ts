@@ -28,7 +28,7 @@ export async function GET() {
     admin.from("claude_ingest_log").select("received_at").order("received_at", { ascending: false }).limit(1),
     admin.from("claude_ingest_log").select("*", { count: "exact", head: true }).gte("received_at", since),
     admin.from("claude_ingest_log").select("*", { count: "exact", head: true }).gte("received_at", since).eq("ok", false),
-    admin.from("claude_ingest_log").select("error, received_at").eq("ok", false).order("received_at", { ascending: false }).limit(1),
+    admin.from("claude_ingest_log").select("error, received_at").eq("ok", false).gte("received_at", since).order("received_at", { ascending: false }).limit(1),
     admin.from("claude_orgs").select("id"),
     admin.from("claude_csv_imports").select("org_id, period_end, created_at").order("created_at", { ascending: false }),
   ]);
@@ -63,7 +63,8 @@ export async function GET() {
     lastReceivedAt: last.data?.[0]?.received_at ?? null,
     count24h: count24h.count ?? 0,
     errors24h: errors24h.count ?? 0,
-    lastError: lastErr.data?.[0] ? `${lastErr.data[0].received_at} ${lastErr.data[0].error ?? ""}` : null,
+    // 24시간 이내 오류만, HTML 에러 페이지 같은 장문은 잘라서
+    lastError: lastErr.data?.[0] ? `${lastErr.data[0].received_at} ${String(lastErr.data[0].error ?? "").replace(/\s+/g, " ").slice(0, 300)}` : null,
     orgLastDay,
   });
 }
