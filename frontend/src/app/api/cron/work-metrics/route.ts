@@ -27,6 +27,33 @@ export async function GET(request: NextRequest) {
 
   const sp = request.nextUrl.searchParams;
   const source = sp.get("source") ?? "all";
+
+  // 진단: ?probe=1 — 각 시스템 인증·가시성 확인(수집 없음)
+  if (sp.get("probe") === "1") {
+    const out: Record<string, unknown> = {};
+    const site = (process.env.ATLASSIAN_SITE ?? "").replace(/\/+$/, "");
+    const basic = `Basic ${Buffer.from(`${process.env.ATLASSIAN_EMAIL}:${process.env.ATLASSIAN_API_TOKEN}`).toString("base64")}`;
+    try {
+      const me = await fetch(`${site}/rest/api/3/myself`, { headers: { Authorization: basic, Accept: "application/json" } });
+      const meJ = me.ok ? ((await me.json()) as { displayName?: string; emailAddress?: string }) : null;
+      const cnt = await fetch(`${site}/rest/api/3/search/approximate-count`, { method: "POST", headers: { Authorization: basic, Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ jql: 'created >= "2026-08-01"' }) });
+      const projects = await fetch(`${site}/rest/api/3/project/search?maxResults=10`, { headers: { Authorization: basic, Accept: "application/json" } });
+      const projJ = projects.ok ? ((await projects.json()) as { total?: number; values?: { key: string }[] }) : null;
+      out.jira = { myself: me.status, who: meJ?.displayName ?? null, approxCount: cnt.ok ? await cnt.json() : `HTTP ${cnt.status}: ${(await cnt.text()).slice(0, 150)}`, projects: projJ ? { total: projJ.total, keys: (projJ.values ?? []).map((p) => p.key) } : `HTTP ${projects.status}` };
+      const wiki = await fetch(`${site}/wiki/rest/api/space?limit=5`, { headers: { Authorization: basic, Accept: "application/json" } });
+      const wikiJ = wiki.ok ? ((await wiki.json()) as { results?: { key: string }[] }) : null;
+      out.confluence = { spaces: wiki.status, keys: (wikiJ?.results ?? []).map((s) => s.key) };
+    } catch (e) {
+      out.atlassian_error = e instanceof Error ? e.message : String(e);
+    }
+    try {
+      const gl = await fetch(`${(process.env.GITLAB_URL ?? "").replace(/\/+$/, "")}/api/v4/version`, { headers: { "PRIVATE-TOKEN": process.env.GITLAB_TOKEN ?? "" }, signal: AbortSignal.timeout(8000) });
+      out.gitlab = { status: gl.status, body: (await gl.text()).slice(0, 150) };
+    } catch (e) {
+      out.gitlab = { error: e instanceof Error ? `${e.name}: ${e.message} ${(e.cause as Error | undefined)?.message ?? ""}` : String(e) };
+    }
+    return NextResponse.json(out);
+  }
   const yday = kstYesterday();
   const from = isYmd(sp.get("from")) ? (sp.get("from") as string) : yday;
   const to = isYmd(sp.get("to")) ? (sp.get("to") as string) : yday;
