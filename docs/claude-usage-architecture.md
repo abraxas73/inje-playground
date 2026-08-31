@@ -7,7 +7,7 @@
 ```mermaid
 flowchart LR
   subgraph Anthropic["claude.ai (Team 조직 7개)"]
-    MS["관리자 설정 › Claude Code › 관리형 설정<br/>(env 11개: OTEL_* + 토큰)"]
+    MS["관리자 설정 › Claude Code › 관리형 설정<br/>(env 12개: OTEL_* + 토큰)"]
   end
   subgraph Dev["구성원 PC"]
     CC["Claude Code 프로세스<br/>(로그인 시 관리형 설정 fetch, 1시간마다 갱신)"]
@@ -61,7 +61,7 @@ flowchart LR
 ### 2.1 송신: Claude Code + 서버 관리형 설정
 
 - **설정 위치**: claude.ai → 관리자 설정 → Claude Code → 관리형 설정(Owner 권한). JSON은 대시보드 조직·설정 탭이 생성한다(`lib/claude-usage/managed-settings.ts` `buildManagedSettings()`).
-- **내용**(env 11개):
+- **내용**(env 12개, `OTEL_LOG_USER_PROMPTS=1` 포함 — 2026-08-31부터):
 
   | 키 | 값 | 의미 |
   |---|---|---|
@@ -131,8 +131,9 @@ logIngest(ok=true, rows, dropped, bytes) → 200 {}
 | 이벤트 | 저장 |
 |---|---|
 | `api_request` | `claude_code_requests` 1행(ts, 식별, model, cost, 토큰 4종, duration_ms, query_source, request_id) |
-| `user_prompt` | `claude_code_daily.prompts += 1` (프롬프트 **내용은 오지 않음** — `OTEL_LOG_USER_PROMPTS` 미설정) |
-| 그 외(`tool_result`, `tool_decision`, `assistant_response`, `api_error`, …) | 저장 안 함, 이름별 개수만 `ignored`로 반환. 저장 대상이 0건이면 라우트가 `console.warn("[claude-usage] logs: …")` |
+| `user_prompt` | `claude_code_daily.prompts += 1`; `OTEL_LOG_USER_PROMPTS=1`이면 내용도 `claude_code_prompts`에 저장(4000자 컷) |
+| `tool_result` / `tool_decision` | `claude_code_tool_daily`에 (일×조직×사용자×도구) 가산 — 호출·실패·소요 / 승인·거절 |
+| 그 외(`assistant_response`, `api_error`, …) | 저장 안 함, 이름별 개수만 `ignored`로 반환 |
 
 ### 2.5 저장: Supabase
 
