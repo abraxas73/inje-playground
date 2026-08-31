@@ -2,14 +2,16 @@
 
 > 구조·데이터 흐름·보안 모델 설명은 [아키텍처 문서 `docs/claude-usage-architecture.md`](./claude-usage-architecture.md). 이 문서는 운영 절차와 장애 대응만 다룬다.
 
-설계: `docs/superpowers/specs/2026-08-26-claude-usage-analytics-design.md` · 화면: `/admin/claude-usage`
+설계: `docs/superpowers/specs/2026-08-26-claude-usage-analytics-design.md`
+
+**화면 위치(2026-08-31 메뉴 분리)**: Claude Code 사용량(OTel — Claude Code·팀별 집계·도구 사용·시간대 패턴·프롬프트 탭)은 `/admin/claude-usage`, 채팅·Cowork(CSV — 채팅·Cowork·팀별 집계 탭)은 `/admin/claude-chat`, **멤버·초대**와 **조직·설정**(관리형 설정 JSON·수집 상태) 탭은 `/admin/directory`(조직/팀 메뉴). 아래에서 "조직·설정 탭"은 `/admin/directory`, "채팅·Cowork 탭"은 `/admin/claude-chat`을 가리킨다.
 
 ## 1. 최초 설정
 1. Supabase SQL Editor에서 `docs/sql/2026-08-26-claude-usage.sql` 실행.
 2. 환경변수(Vercel Production + `frontend/.env.local`):
    - `SUPABASE_SERVICE_ROLE_KEY` — Supabase > Project Settings > API > service_role (서버 전용, 절대 클라이언트 노출 금지)
    - `CLAUDE_OTEL_INGEST_TOKEN` — 임의의 32바이트 이상 랜덤 문자열(`openssl rand -hex 32`)
-3. 배포 후 `/admin/claude-usage` > 조직·설정 탭에서 "수집 상태"가 토큰/서비스키 구성됨으로 표시되는지 확인.
+3. 배포 후 `/admin/directory` > 조직·설정 탭에서 "수집 상태"가 토큰/서비스키 구성됨으로 표시되는지 확인.
 
 ## 1.1 멤버·초대 상태 테이블 (1회)
 - Supabase SQL Editor에서 `docs/sql/2026-08-31-claude-org-members.sql` 실행 → `claude_org_members`(조직×이메일, status active|pending). `/claude-usage-csv` 실행 시 관리자 설정 › 멤버 화면(활성·대기 중 탭)을 스크랩해 조직 단위로 교체 저장하고, 대시보드 **멤버 · 초대** 탭이 사내 조직도(이름·조직/팀)와 조인해 보여준다. "대기 중"(초대 미수락)은 "노는 시트"(활성+30일 사용 0)와 다른 축이다.
@@ -23,7 +25,7 @@
 - 관리형 설정 JSON은 이제 `OTEL_LOG_USER_PROMPTS: "1"`을 포함한다(조직·설정 탭에서 복사) — 7개 조직에 다시 적용하고 구성원이 Claude Code를 재시작하면 그 이후 발화부터 수집. 대시보드 **프롬프트** 탭(기간·조직·이메일·내용 검색, 행 클릭 시 전체 보기)에서 열람. 보존 정책은 SQL 파일 하단 주석(90일 삭제 예시) 참고.
 
 ## 2. Claude Code 수집 켜기 (조직별 1회)
-1. `/admin/claude-usage` → 조직·설정 탭 → "관리형 설정" JSON 복사 → `<CLAUDE_OTEL_INGEST_TOKEN>`을 실제 토큰으로 교체.
+1. `/admin/directory` → 조직·설정 탭 → "관리형 설정" JSON 복사 → `<CLAUDE_OTEL_INGEST_TOKEN>`을 실제 토큰으로 교체.
    - JSON에는 메트릭 5분(`OTEL_METRIC_EXPORT_INTERVAL=300000`)·로그 1분(`OTEL_LOGS_EXPORT_INTERVAL=60000`) 전송 간격이 포함돼 있다.
 2. claude.ai(해당 조직 Owner로 로그인) → 관리자 설정 → Claude Code → 관리형 설정 → 관리 → JSON 붙여넣기 → 저장.
    - 기존 관리형 설정이 있으면 `env` 블록만 병합한다(다른 키 유지).
@@ -34,7 +36,7 @@
 ## 3. 월간 CSV 절차 (매월 1일, 조직당 1분)
 가장 쉬운 방법: Claude Code에서 `/claude-usage-csv` 실행(Chrome 확장 연결 필요) → 7개 조직 CSV 내보내기 + 업로드가 자동 진행. 수동으로 받았다면 `./frontend/scripts/claude-usage-upload.sh 3`으로 최근 3일 파일을 일괄 업로드.
 1. claude.ai에서 조직 전환 → 분석 → 개요 → 멤버 **모두 보기** → 기간 **30일** → **CSV 내보내기**(`members-analytics-<조직ID>-<시작>-to-<끝>.csv`).
-2. 7개 파일을 `/admin/claude-usage` → 채팅·Cowork 탭 → "파일 선택"으로 한 번에 업로드. 결과 줄이 전부 ✓인지 확인.
+2. 7개 파일을 `/admin/claude-chat` → 채팅·Cowork 탭 → "파일 선택"으로 한 번에 업로드. 결과 줄이 전부 ✓인지 확인. **팀별 집계** 탭에서 사내 조직도 기준 팀별 채팅·Cowork 활동을 볼 수 있다.
 3. "노는 시트만" 버튼으로 Premium 시트인데 활동 0인 사용자를 확인 → 시트 회수 검토.
 - 기간 60/90일 CSV도 업로드 가능(다른 기간 키로 별도 저장). 같은 조직·기간 재업로드는 교체.
 - **마지막 수집 시각**: 업로드마다 `claude_csv_imports.created_at`에 기록되며, 채팅·Cowork 탭 "업로드 이력" 상단("마지막 CSV 수집 … · N개 조직")과 조직·설정 탭 "수집 상태"(전체) 및 조직 표 "CSV 최신(수집 시각)"(조직별)에 표시된다. 표시는 조직별 최신 import 기준이라 재업로드로 중복 집계되지 않는다.

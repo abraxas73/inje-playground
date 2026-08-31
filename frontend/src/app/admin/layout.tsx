@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Shield, Users, Settings, HelpCircle, MessageSquare, Loader2, ShieldAlert, ClipboardList, BarChart3, Building2 } from "lucide-react";
+import { Shield, Users, Settings, HelpCircle, MessageSquare, Loader2, ShieldAlert, ClipboardList, BarChart3, Building2, SquareTerminal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -13,7 +13,8 @@ const ADMIN_NAV = [
   { href: "/admin/guide", label: "가이드 관리", icon: HelpCircle },
   { href: "/admin/chat-history", label: "질의/응답 관리", icon: MessageSquare },
   { href: "/admin/surveys", label: "설문 관리", icon: ClipboardList },
-  { href: "/admin/claude-usage", label: "Claude 사용량", icon: BarChart3 },
+  { href: "/admin/claude-usage", label: "Claude Code 사용량", icon: SquareTerminal },
+  { href: "/admin/claude-chat", label: "Claude 사용량 (Chat/Cowork)", icon: BarChart3 },
   { href: "/admin/directory", label: "조직/팀", icon: Building2 },
 ];
 
@@ -54,7 +55,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
 
       {/* Sub-nav tabs */}
-      <div className="flex gap-1 mb-6 bg-muted/50 rounded-xl p-1 w-fit">
+      <div className="flex flex-wrap gap-1 mb-6 bg-muted/50 rounded-xl p-1 w-fit">
         {ADMIN_NAV.map((item) => {
           const Icon = item.icon;
           const isActive = pathname.startsWith(item.href);

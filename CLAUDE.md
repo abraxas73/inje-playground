@@ -81,8 +81,9 @@ No test framework is configured.
 - `/admin/chat-history` — Admin: all users' guide Q&A history viewer with filters
 - `/settings` — Dooray API token and project ID configuration (stored in localStorage)
 - `/manual` — User manual with Playwright-captured screenshots (8 sections)
-- `/admin/claude-usage` — Claude Code 사용량 대시보드(admin): Claude Code 실시간·멤버 활동 CSV·조직/관리형 설정 탭
-- `/admin/directory` — 사내 조직도 명부(admin): 그룹웨어 아마란스(inno-creed MCP) 기준 부문·본부·센터/팀·직책. Claude 조직과 별개, Claude 사용량 표 "소속" 컬럼의 출처
+- `/admin/claude-usage` — Claude Code 사용량(admin, OTel 실시간): Claude Code·팀별 집계·도구 사용·시간대 패턴·프롬프트 탭
+- `/admin/claude-chat` — Claude 사용량 Chat/Cowork(admin, 월간 CSV): 채팅·Cowork 멤버 활동 + 팀별 집계 탭
+- `/admin/directory` — 조직/팀(admin): 사내 조직도(그룹웨어 아마란스, inno-creed MCP — Claude 사용량 표 "소속" 컬럼의 출처)·Claude 멤버·초대·조직·설정(관리형 설정 JSON) 탭
 
 ### API Routes (`frontend/src/app/api/`)
 - `GET /api/dooray/members?projectId=X` — Proxies Dooray API to fetch project members

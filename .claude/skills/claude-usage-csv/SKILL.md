@@ -1,6 +1,6 @@
 ---
 name: claude-usage-csv
-description: claude.ai Team 조직 7개의 멤버 활동 CSV를 Chrome 확장으로 내보내고 /admin/claude-usage에 업로드한다. "CSV 수집해", "클로드 사용량 CSV 갱신" 요청 시 사용.
+description: claude.ai Team 조직 7개의 멤버 활동 CSV를 Chrome 확장으로 내보내고 /admin/claude-chat에 업로드한다. "CSV 수집해", "클로드 사용량 CSV 갱신" 요청 시 사용.
 ---
 
 # Claude 사용량 CSV 수집 (반자동)
@@ -16,12 +16,12 @@ description: claude.ai Team 조직 7개의 멤버 활동 CSV를 Chrome 확장으
 4. 7개 조직 반복. 실패한 조직은 건너뛰고 마지막에 목록으로 보고한다.
 4b. **멤버·초대 상태 스크랩(조직마다, CSV와 같은 순회에서)**: `https://claude.ai/admin-settings/members`로 이동 → 활성 탭 표를 JS로 수집(각 행: 이름|이메일, 역할, 티어; "N개 중 1–M 표시" 페이지네이션이 있으면 다음 버튼으로 끝까지) → "대기 중" 탭(span 텍스트 '대기 중'에 dispatchEvent) 클릭 후 동일 수집(대기 행은 이메일만일 수 있음; "대기 중인 초대가 없습니다."면 0명) → `POST /api/admin/claude-usage/org-members`(Bearer 수집 토큰, body `{org_id, members:[{email,name,role,seat_tier,status:'active'|'pending'}]}`, 조직 단위 교체). 대시보드 "멤버 · 초대" 탭에 반영된다. 상태 구분: **대기 중 = 초대 미수락**(노는 시트=활성+30일 사용 0과 다른 축).
 5. 업로드: `./frontend/scripts/claude-usage-upload.sh 1` 실행 → 출력의 ✓/✗ 줄을 그대로 보고.
-6. 확인: 사용자에게 `/admin/claude-usage` 채팅·Cowork 탭 "업로드 이력"의 **마지막 CSV 수집** 시각이 지금이고 조직 수가 7인지 안내. 새 조직 ID가 등록됐으면 조직·설정 탭에서 이름·시트를 지정(또는 `orgs` PATCH). 사용한 탭은 `tabs_close_mcp`로 닫는다.
+6. 확인: 사용자에게 `/admin/claude-chat` 채팅·Cowork 탭 "업로드 이력"의 **마지막 CSV 수집** 시각이 지금이고 조직 수가 7인지 안내. 새 조직 ID가 등록됐으면 `/admin/directory` 조직·설정 탭에서 이름·시트를 지정(또는 `orgs` PATCH). 사용한 탭은 `tabs_close_mcp`로 닫는다.
 
 ## 주의
 - 다운로드 버튼 클릭은 파일 다운로드이므로 이 스킬을 사용자가 명시적으로 호출한 경우에만 수행한다.
 - 관리자 멤버 CSV(관리자 설정 > 멤버)는 필요 없다(활동 CSV에 Role/Seat Tier 포함).
-- 조직 ID는 파일명에서 자동 인식되므로 조직 이름 매핑은 `/admin/claude-usage` 조직·설정 탭에서 1회만 지정한다.
+- 조직 ID는 파일명에서 자동 인식되므로 조직 이름 매핑은 `/admin/directory` 조직·설정 탭에서 1회만 지정한다(2026-08-31 메뉴 개편: 채팅·Cowork 탭은 `/admin/claude-chat`, 멤버·초대/조직·설정 탭은 `/admin/directory`).
 
 ## 실행 노하우 (2026-08-26 1회차·08-27 2회차·08-28 3회차에서 확인)
 - **5회차(08-31)**: ① Chrome이 연속 다운로드 3번째부터 조용히 차단할 수 있다(주소창의 차단 아이콘에서 사용자가 "허용"해야 함 — `ls`로 파일 미생성 확인되면 즉시 사용자에게 요청) ② "모두 보기" 카드 순서가 조직·시점마다 다르다(스킬 카드가 먼저 오기도) → **버튼 조상 4단계 innerText가 '멤버'로 시작하는 버튼을 찾되, 카드가 늦게 렌더되므로 0.5초 간격 최대 8초 폴링** ③ 창 1580×984(캡처 1394×868)에서 멤버 대화상자 내보내기 아이콘은 (1111,103).
