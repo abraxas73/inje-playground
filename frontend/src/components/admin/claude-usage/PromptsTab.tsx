@@ -120,9 +120,8 @@ export default function PromptsTab({ orgs }: { orgs: ClaudeOrg[] }) {
                 {rows.map((r) => (
                   <tr key={r.id} className="cursor-pointer border-t align-top hover:bg-muted/40" onClick={() => setExpanded(expanded === r.id ? null : r.id)}>
                     <td className="px-2 py-1.5 whitespace-nowrap tabular-nums text-muted-foreground">{fmtTs(r.ts)}</td>
-                    <td className="px-2 py-1.5 whitespace-nowrap">
-                      <div className="font-medium">{r.employee_name ?? r.user_email.split("@")[0]}</div>
-                      <div className="text-muted-foreground">{r.user_email}</div>
+                    <td className="max-w-[110px] px-2 py-1.5">
+                      <div className="truncate font-medium" title={`${r.employee_name ? `${r.employee_name} · ` : ""}${r.user_email}`}>{r.employee_name ?? r.user_email.split("@")[0]}</div>
                     </td>
                     <td className="px-2 py-1.5 whitespace-nowrap">{r.team ?? <span className="text-muted-foreground">—</span>}</td>
                     <td className="px-2 py-1.5 whitespace-nowrap"><Badge variant="outline" className="text-[10px]">{orgName.get(r.org_id) ?? r.org_id.slice(0, 8)}</Badge></td>
