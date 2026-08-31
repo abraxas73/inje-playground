@@ -84,6 +84,7 @@ No test framework is configured.
 - `/admin/claude-usage` — Claude Code 사용량(admin, OTel 실시간): Claude Code·팀별 집계·도구 사용·시간대 패턴·프롬프트 탭
 - `/admin/claude-chat` — Claude 사용량 Chat/Cowork(admin, 월간 CSV): 채팅·Cowork 멤버 활동 + 팀별 집계 탭
 - `/admin/directory` — 조직/팀(admin): 사내 조직도(그룹웨어 아마란스, inno-creed MCP — Claude 사용량 표 "소속" 컬럼의 출처)·Claude 멤버·초대·조직·설정(관리형 설정 JSON) 탭
+- `/usage/code`, `/usage/chat` — 개인용 Claude 사용량(user): 본인 것만, 팀장급은 같은 팀·임원급은 같은 본부까지(`lib/usage-scope.ts`, company_directory duty 기준)
 
 ### API Routes (`frontend/src/app/api/`)
 - `GET /api/dooray/members?projectId=X` — Proxies Dooray API to fetch project members
@@ -103,6 +104,8 @@ No test framework is configured.
 - `/api/admin/claude-usage/{summary,members,imports,imports/[id],orgs,health,org-members,tools,hourly,prompts}` — Claude 사용량 대시보드(admin). 런북 `docs/claude-usage.md`
 - `GET /api/users/[id]`, `DELETE /api/users/[id]` — 관리자용 사용자 상세(프로필·설정·로그인 이력·조직도 소속·활동 요약)/삭제(개인 데이터 → 프로필 → auth.users; 자기 자신·관리자 역할 거부). `/admin/users` 행 클릭 → `components/admin/users/UserDetailSheet`
 - `GET /api/admin/directory`, `POST /api/admin/directory/sync` — 사내 조직도 명부 조회/동기화(동기화는 관리자 세션 또는 수집 토큰; 로컬 `frontend/scripts/company-directory-sync.py`가 inno-creed MCP `find_person` 전사 명부를 밀어 넣음). 런북 `docs/company-directory.md`
+- `GET /api/usage/{scope,code,chat}` — 개인용 사용량(로그인 사용자, guest 제외). 서버가 usage-scope로 허용 이메일 계산(본인/팀/본부)
+- `GET /api/cron/work-metrics?source=all|jira|confluence|gitlab&from&to` — 성과 지표 일 수집(Vercel Cron 07:30 KST, `CRON_SECRET` 또는 관리자 세션). env `ATLASSIAN_*`/`GITLAB_*` 미설정 소스는 스킵. 설계 `docs/superpowers/specs/2026-08-31-claude-roi-integrations-design.md`
 
 ### Supabase Tables (guide feature)
 - `nlm_notebooks` — Notebook metadata with `is_visible`, `sort_order`
@@ -111,6 +114,9 @@ No test framework is configured.
 
 ### Supabase Tables (Claude usage feature)
 - `claude_orgs, claude_code_daily, claude_code_daily_model, claude_code_requests, claude_ingest_log, claude_csv_imports, claude_member_activity, claude_org_members(멤버·초대 상태 active|pending), claude_code_tool_daily(도구별 일 집계), claude_code_prompts(프롬프트 내용, OTEL_LOG_USER_PROMPTS=1)` — Claude Code 사용량 대시보드 데이터(OTLP 수신 + 월간 CSV 업로드). 런북 `docs/claude-usage.md`
+
+### Supabase Tables (work metrics — 성과 측정)
+- `jira_issue_daily, atlassian_account_map, confluence_daily, gitlab_daily, work_metrics_sync` — Jira/Confluence/GitLab 일 집계(성과 분모·사이클타임). SQL `docs/sql/2026-08-31-work-metrics.sql`, 수집 `lib/work-metrics/`
 
 ### Supabase Tables (company directory)
 - `company_directory`(email PK, units[], division/headquarters/team, duty, position, active, synced_at), `company_directory_sync` — 사내 조직도 명부(아마란스). SQL `docs/sql/2026-08-29-company-directory.sql`

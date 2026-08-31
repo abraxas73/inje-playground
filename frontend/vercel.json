@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/cron/work-metrics?source=all", "schedule": "30 22 * * *" }
+  ]
+}

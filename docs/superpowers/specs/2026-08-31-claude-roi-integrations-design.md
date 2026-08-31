@@ -124,9 +124,17 @@ OTel이 세는 커밋/PR은 "Claude Code 세션 안에서 만든 것"뿐이다. 
 | P5 | M365 리포트 수집기 | 1일 | Azure 앱 `Reports.Read.All` 동의, 보고서 익명화 해제 |
 | P6 | (선택) Dooray 태스크, 설문 점수 오버레이 | 0.5일 | — |
 
-## 7. 미결정 질문
+## 7. 확정 사항 (2026-08-31 사용자 회신)
 
-1. **Jira**: 사이트 주소와 서비스 계정용 API 토큰 발급 가능 여부. 스토리포인트를 실제로 쓰는지(안 쓰면 이슈 수·사이클 타임만).
-2. **GitLab**: self-hosted 주소가 사내망 전용인지(→ 로컬 푸시 방식 확정), 그룹 PAT 발급 주체.
-3. **공개 범위**: 성과 탭을 팀 단위 집계만 노출할지, 개인 단위까지 열지(권장: 팀 기본 + 개인은 접기).
-4. **Dooray 태스크**를 분모에 포함할지(Jira 미사용 팀 커버리지).
+1. **엔드포인트**: Jira/Confluence = `https://pms-innogrid.atlassian.net` (Atlassian Cloud), GitLab = `https://rnd-app.innogrid.com` — **공인망에서 접근 가능 확인**(API 401 응답, DNS 210.207.104.150) → Vercel 크론으로 직접 수집, 로컬 푸시 불필요.
+2. **계정 규칙**: 각 시스템 계정은 회사 이메일 또는 이메일 로컬파트(@innogrid.com 생략형) → `normalizeEmail()`로 통일.
+3. **공개 범위(변경)**: 성과·사용량 화면은 **어드민 메뉴가 아니라 일반 사용자 메뉴**. 본인은 본인 것만, 팀장급(팀장·센터장·실장·소장)은 같은 팀, 임원급(본부장·부문장 등)은 같은 본부까지 — `lib/usage-scope.ts`가 company_directory의 `duty`로 판정하고 서버가 허용 이메일을 계산한다. Claude 사용량 2개 화면(`/usage/code`, `/usage/chat`)도 같은 규칙으로 개인 메뉴에 노출(구현됨). 성과 화면 `/usage/perf`는 P1 데이터 적재 후 추가.
+4. **남은 확인**: Jira 스토리포인트 사용 여부(쓰면 `JIRA_STORY_POINTS_FIELD` 지정), GitLab 그룹 경로(`GITLAB_GROUPS`, 미지정 시 토큰이 보는 전체), Dooray 태스크 분모 포함 여부.
+
+## 8. 구현 현황 (P1 골격, 2026-08-31)
+
+- SQL: `docs/sql/2026-08-31-work-metrics.sql` (jira_issue_daily·atlassian_account_map·confluence_daily·gitlab_daily·work_metrics_sync, 관리자 RLS)
+- 수집기: `frontend/src/lib/work-metrics/{common,jira,confluence,gitlab}.ts`
+- 크론: `GET /api/cron/work-metrics?source=all|jira|confluence|gitlab&from&to` — Vercel Cron 매일 07:30 KST(`frontend/vercel.json`), `CRON_SECRET` Bearer 또는 관리자 세션(수동 백필)
+- 필요 env(Vercel): `ATLASSIAN_SITE=https://pms-innogrid.atlassian.net`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN`, `GITLAB_URL=https://rnd-app.innogrid.com`, `GITLAB_TOKEN`(read_api), `CRON_SECRET` + 선택 `JIRA_PROJECTS`, `JIRA_STORY_POINTS_FIELD`, `GITLAB_GROUPS`
+- 미설정 소스는 "미설정"으로 조용히 스킵 — env 등록 전 배포 안전
