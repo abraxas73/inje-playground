@@ -6,6 +6,7 @@ import { BarChart3 } from "lucide-react";
 import CodeUsageTab from "@/components/admin/claude-usage/CodeUsageTab";
 import MembersCsvTab from "@/components/admin/claude-usage/MembersCsvTab";
 import OrgSettingsTab from "@/components/admin/claude-usage/OrgSettingsTab";
+import OrgMembersTab from "@/components/admin/claude-usage/OrgMembersTab";
 import type { ClaudeOrg } from "@/types/claude-usage";
 
 export default function ClaudeUsagePage() {
@@ -37,10 +38,12 @@ export default function ClaudeUsagePage() {
         <TabsList>
           <TabsTrigger value="code">Claude Code</TabsTrigger>
           <TabsTrigger value="members">채팅 · Cowork (CSV)</TabsTrigger>
+          <TabsTrigger value="invites">멤버 · 초대</TabsTrigger>
           <TabsTrigger value="orgs">조직 · 설정</TabsTrigger>
         </TabsList>
         <TabsContent value="code"><CodeUsageTab /></TabsContent>
         <TabsContent value="members"><MembersCsvTab orgs={orgs} onOrgsChange={loadOrgs} /></TabsContent>
+        <TabsContent value="invites"><OrgMembersTab orgs={orgs} /></TabsContent>
         <TabsContent value="orgs"><OrgSettingsTab orgs={orgs} onOrgsChange={loadOrgs} /></TabsContent>
       </Tabs>
     </div>
