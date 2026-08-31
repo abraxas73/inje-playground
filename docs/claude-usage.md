@@ -14,6 +14,9 @@
 ## 1.1 멤버·초대 상태 테이블 (1회)
 - Supabase SQL Editor에서 `docs/sql/2026-08-31-claude-org-members.sql` 실행 → `claude_org_members`(조직×이메일, status active|pending). `/claude-usage-csv` 실행 시 관리자 설정 › 멤버 화면(활성·대기 중 탭)을 스크랩해 조직 단위로 교체 저장하고, 대시보드 **멤버 · 초대** 탭이 사내 조직도(이름·조직/팀)와 조인해 보여준다. "대기 중"(초대 미수락)은 "노는 시트"(활성+30일 사용 0)와 다른 축이다.
 
+## 1.2 도구·시간대 집계 (1회)
+- Supabase SQL Editor에서 `docs/sql/2026-08-31-claude-usage-tools.sql` 실행 → `claude_code_tool_daily`(일×조직×사용자×도구: 호출·실패·소요·승인/거절) + RPC `claude_code_tool_ingest`(수집)·`claude_code_tool_summary`(도구 사용 탭)·`claude_code_hourly`(시간대 패턴 탭, KST 요일×시각). 실행 전에는 도구 수집을 조용히 건너뛰며(과거 소급 없음), 두 탭이 안내 문구를 띄운다. **팀별 집계 탭**은 SQL 없이 기존 daily+조직도 조인으로 동작.
+
 ## 2. Claude Code 수집 켜기 (조직별 1회)
 1. `/admin/claude-usage` → 조직·설정 탭 → "관리형 설정" JSON 복사 → `<CLAUDE_OTEL_INGEST_TOKEN>`을 실제 토큰으로 교체.
    - JSON에는 메트릭 5분(`OTEL_METRIC_EXPORT_INTERVAL=300000`)·로그 1분(`OTEL_LOGS_EXPORT_INTERVAL=60000`) 전송 간격이 포함돼 있다.

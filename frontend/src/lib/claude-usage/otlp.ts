@@ -241,14 +241,37 @@ function eventNames(...raw: (string | null | undefined)[]): Set<string> {
   return out;
 }
 
-export function parseLogsPayload(body: unknown): { requests: ApiRequestEvent[]; promptDaily: DailyRow[]; dropped: number; ignored: Record<string, number> } {
+/** claude_code_tool_daily 한 행 — tool_result/tool_decision 이벤트의 (일, 조직, 사용자, 도구) 집계 */
+export interface ToolDailyRow {
+  day: string;
+  org_id: string;
+  user_email: string;
+  tool_name: string;
+  calls: number;
+  errors: number;
+  duration_ms_sum: number;
+  accepts: number;
+  rejects: number;
+}
+
+export function parseLogsPayload(body: unknown): { requests: ApiRequestEvent[]; promptDaily: DailyRow[]; dropped: number; ignored: Record<string, number>; toolDaily: ToolDailyRow[] } {
   const requests: ApiRequestEvent[] = [];
   const prompts = new DailyAcc();
+  const tools = new Map<string, ToolDailyRow>();
+  const toolRowFor = (day: string, id: Identity, tool: string): ToolDailyRow => {
+    const key = `${day}|${id.org_id}|${id.user_email}|${tool}`;
+    let t = tools.get(key);
+    if (!t) {
+      t = { day, org_id: id.org_id, user_email: id.user_email, tool_name: tool, calls: 0, errors: 0, duration_ms_sum: 0, accepts: 0, rejects: 0 };
+      tools.set(key, t);
+    }
+    return t;
+  };
   let dropped = 0;
   /** 저장하지 않는 이벤트 이름별 개수(tool_result 등) — 수신은 되는데 저장 0인 상황을 진단하기 위해 돌려준다 */
   const ignored: Record<string, number> = {};
   const rls = (body as { resourceLogs?: unknown })?.resourceLogs;
-  if (!Array.isArray(rls)) return { requests: [], promptDaily: [], dropped: 0, ignored: {} };
+  if (!Array.isArray(rls)) return { requests: [], promptDaily: [], dropped: 0, ignored: {}, toolDaily: [] };
 
   for (const rl of rls as { resource?: { attributes?: unknown }; scopeLogs?: unknown }[]) {
     const resource = attrsToRecord(rl?.resource?.attributes);
@@ -283,13 +306,23 @@ export function parseLogsPayload(body: unknown): { requests: ApiRequestEvent[]; 
           });
         } else if (names.has("user_prompt")) {
           prompts.add(kstDay(ms), id, "prompts", 1);
+        } else if (names.has("tool_result")) {
+          const t = toolRowFor(kstDay(ms), id, str(a, "tool_name") ?? "unknown");
+          t.calls += 1;
+          if (String(a["success"]).toLowerCase() === "false") t.errors += 1;
+          t.duration_ms_sum += num(a, "duration_ms") ?? 0;
+        } else if (names.has("tool_decision")) {
+          const t = toolRowFor(kstDay(ms), id, str(a, "tool_name") ?? "unknown");
+          const d = (str(a, "decision") ?? "").toLowerCase();
+          if (d === "accept") t.accepts += 1;
+          else if (d === "reject") t.rejects += 1;
         } else {
-          // 그 외 이벤트(tool_result, tool_decision, assistant_response, api_error)는 저장하지 않고 이름만 센다
+          // 그 외 이벤트(assistant_response, api_error 등)는 저장하지 않고 이름만 센다
           const label = [...names][0];
           ignored[label] = (ignored[label] ?? 0) + 1;
         }
       }
     }
   }
-  return { requests, promptDaily: prompts.rows(), dropped, ignored };
+  return { requests, promptDaily: prompts.rows(), dropped, ignored, toolDaily: [...tools.values()] };
 }

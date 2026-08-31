@@ -47,10 +47,18 @@ export async function GET() {
     }
   }
 
+  // 사내 조직도 조인(관리자 세션은 RLS로 읽기 가능) — 실패해도 목록은 내려준다
+  const { data: dir } = await supabase
+    .from("company_directory")
+    .select("email, division, headquarters, team, duty, position")
+    .eq("active", true);
+  const dirMap = new Map((dir ?? []).map((d) => [String(d.email).toLowerCase(), d]));
+
   // Merge
   const users = (profiles || []).map((p) => ({
     ...p,
     settings: settingsMap[p.user_id] || {},
+    directory: dirMap.get(String(p.email ?? "").toLowerCase()) ?? null,
   }));
 
   return NextResponse.json({ users });

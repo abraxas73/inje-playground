@@ -11,12 +11,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Users, Shield, User, UserX, KeyRound, FolderOpen, UserCheck } from "lucide-react";
+import { Loader2, Users, Shield, User, UserX, KeyRound, FolderOpen, UserCheck, Building2 } from "lucide-react";
 import type { UserRoleInfo, UserRole } from "@/lib/roles";
 import UserDetailSheet from "@/components/admin/users/UserDetailSheet";
 
 interface UserWithSettings extends UserRoleInfo {
   settings: Record<string, string>;
+  /** 사내 조직도(company_directory) 조인 — 없으면 null */
+  directory: { division: string | null; headquarters: string | null; team: string | null; duty: string | null; position: string | null } | null;
 }
 
 const ROLE_CONFIG: Record<UserRole, { label: string; icon: typeof Shield; color: string }> = {
@@ -158,6 +160,13 @@ export default function AdminUsersPage() {
                             ? `최근 로그인: ${new Date(u.last_login_at).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
                             : "로그인 기록 없음"}
                         </p>
+                        {u.directory?.team && (
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">
+                            <Building2 className="mr-1 inline h-3 w-3 align-[-2px]" />
+                            {[u.directory.headquarters ?? u.directory.division, u.directory.team].filter((v, i, a) => v && a.indexOf(v) === i).join(" › ")}
+                            {(u.directory.duty || u.directory.position) && <span className="text-muted-foreground/70"> · {[u.directory.duty, u.directory.position].filter(Boolean).join("/")}</span>}
+                          </p>
+                        )}
                         {/* Dooray Settings */}
                         {u.settings && Object.keys(u.settings).length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mt-1.5">

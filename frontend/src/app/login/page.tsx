@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { logAction } from "@/lib/action-log";
@@ -8,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
 export default function LoginPage() {
+  // 구글 로그인은 기본 숨김(2026-08-31 요청) — 필요 시 /login?google=1 로 표시
+  const [showGoogle] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("google") === "1");
   const handleGoogleLogin = async () => {
     logAction("Google 로그인 시도", "auth");
     const supabase = createClient();
@@ -41,6 +44,7 @@ export default function LoginPage() {
           <CardDescription>이노그리더를 위한 서비스에 로그인하세요</CardDescription>
         </CardHeader>
         <CardContent>
+          {showGoogle && (
           <Button
             onClick={handleGoogleLogin}
             variant="outline"
@@ -66,10 +70,11 @@ export default function LoginPage() {
             </svg>
             Google로 로그인
           </Button>
+          )}
           <Button
             onClick={handleMsLogin}
             variant="outline"
-            className="w-full h-11 text-sm font-medium mt-2"
+            className={`w-full h-11 text-sm font-medium${showGoogle ? " mt-2" : ""}`}
           >
             <svg className="h-5 w-5 mr-2" viewBox="0 0 23 23">
               <path fill="#F25022" d="M1 1h10v10H1z" />

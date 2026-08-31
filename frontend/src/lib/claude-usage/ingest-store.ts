@@ -29,6 +29,12 @@ export async function storeLogs(admin: SupabaseClient, parsed: LogsParsed): Prom
     if (error) throw new Error(`claude_code_ingest(prompts): ${error.message}`);
     rows += parsed.promptDaily.length;
   }
+  if (parsed.toolDaily.length > 0) {
+    // 도구 집계는 best-effort — 마이그레이션(claude_code_tool_ingest) 전이면 건너뛰어 로그 수신 전체를 실패시키지 않는다
+    const { error } = await admin.rpc("claude_code_tool_ingest", { p_rows: parsed.toolDaily });
+    if (error) console.warn("[claude-usage] tool ingest skipped:", error.message);
+    else rows += parsed.toolDaily.length;
+  }
   return { rows };
 }
 

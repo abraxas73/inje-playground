@@ -7,6 +7,9 @@ import CodeUsageTab from "@/components/admin/claude-usage/CodeUsageTab";
 import MembersCsvTab from "@/components/admin/claude-usage/MembersCsvTab";
 import OrgSettingsTab from "@/components/admin/claude-usage/OrgSettingsTab";
 import OrgMembersTab from "@/components/admin/claude-usage/OrgMembersTab";
+import TeamSummaryTab from "@/components/admin/claude-usage/TeamSummaryTab";
+import ToolUsageTab from "@/components/admin/claude-usage/ToolUsageTab";
+import HourlyPatternTab from "@/components/admin/claude-usage/HourlyPatternTab";
 import type { ClaudeOrg } from "@/types/claude-usage";
 
 export default function ClaudeUsagePage() {
@@ -39,11 +42,17 @@ export default function ClaudeUsagePage() {
           <TabsTrigger value="code">Claude Code</TabsTrigger>
           <TabsTrigger value="members">채팅 · Cowork (CSV)</TabsTrigger>
           <TabsTrigger value="invites">멤버 · 초대</TabsTrigger>
+          <TabsTrigger value="teams">팀별 집계</TabsTrigger>
+          <TabsTrigger value="tools">도구 사용</TabsTrigger>
+          <TabsTrigger value="hourly">시간대 패턴</TabsTrigger>
           <TabsTrigger value="orgs">조직 · 설정</TabsTrigger>
         </TabsList>
         <TabsContent value="code"><CodeUsageTab /></TabsContent>
         <TabsContent value="members"><MembersCsvTab orgs={orgs} onOrgsChange={loadOrgs} /></TabsContent>
         <TabsContent value="invites"><OrgMembersTab orgs={orgs} /></TabsContent>
+        <TabsContent value="teams"><TeamSummaryTab orgs={orgs} /></TabsContent>
+        <TabsContent value="tools"><ToolUsageTab orgs={orgs} /></TabsContent>
+        <TabsContent value="hourly"><HourlyPatternTab orgs={orgs} /></TabsContent>
         <TabsContent value="orgs"><OrgSettingsTab orgs={orgs} onOrgsChange={loadOrgs} /></TabsContent>
       </Tabs>
     </div>

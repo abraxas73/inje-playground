@@ -73,7 +73,7 @@ test.describe("OTLP 수신 게이트 (세션 불필요)", () => {
 
 test.describe("관리자 API 게이트 (세션 불필요)", () => {
   test("세션 없이 GET → 401", async ({ request }) => {
-    for (const p of ["summary", "members", "imports", "orgs", "health"]) {
+    for (const p of ["summary", "members", "imports", "orgs", "health", "org-members", "tools", "hourly"]) {
       const r = await request.get(`/api/admin/claude-usage/${p}`);
       expect(r.status(), p).toBe(401);
     }

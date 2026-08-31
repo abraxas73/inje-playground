@@ -179,16 +179,20 @@ describe("parseLogsPayload", () => {
     expect(r.requests).toHaveLength(1);
     expect(r.requests[0]).toMatchObject({ model: "claude-opus-5", cost_usd: 0.5, input_tokens: 4, user_email: "dev1@example.com" });
     expect(r.promptDaily).toEqual([expect.objectContaining({ day: "2026-08-26", prompts: 1 })]);
-    expect(r.ignored).toEqual({ tool_result: 2, tool_decision: 1 });
+    expect(r.ignored).toEqual({});
+    const byTool = Object.fromEntries(r.toolDaily.map((t) => [t.tool_name, t]));
+    expect(byTool["Bash"]).toMatchObject({ calls: 1, errors: 0, accepts: 0, rejects: 0, day: "2026-08-26", user_email: "dev1@example.com" });
+    expect(byTool["Read"]).toMatchObject({ calls: 1 });
+    expect(byTool["unknown"]).toMatchObject({ calls: 0, accepts: 1 });
     expect(r.dropped).toBe(0);
   });
 
   it("body가 문장(이벤트 이름 아님)이고 event.name도 없으면 dropped", () => {
     const r = parseLogsPayload(logsBody([{ timeUnixNano: T, body: { stringValue: "some free text message" }, attributes: [...ID] }]));
-    expect(r).toEqual({ requests: [], promptDaily: [], dropped: 1, ignored: {} });
+    expect(r).toEqual({ requests: [], promptDaily: [], dropped: 1, ignored: {}, toolDaily: [] });
   });
 
   it("형식이 아니면 빈 결과", () => {
-    expect(parseLogsPayload({})).toEqual({ requests: [], promptDaily: [], dropped: 0, ignored: {} });
+    expect(parseLogsPayload({})).toEqual({ requests: [], promptDaily: [], dropped: 0, ignored: {}, toolDaily: [] });
   });
 });

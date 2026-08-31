@@ -99,7 +99,7 @@ No test framework is configured.
 - `GET /api/members/users` — 앱 사용자 명단(user_profiles, guest 제외) → `{id, name, email}` (멤버 소스 provider `users`)
 - `/api/users/members` — 내 팀(user_members: name, email, external_id, dooray_member_id, is_card_holder) GET/POST(교체)/PATCH(법카)/DELETE
 - `POST /api/otel/v1/metrics`, `POST /api/otel/v1/logs` — Claude Code OTLP/HTTP JSON 수신(Bearer `CLAUDE_OTEL_INGEST_TOKEN`), RPC `claude_code_ingest`로 일 단위 합산
-- `/api/admin/claude-usage/{summary,members,imports,imports/[id],orgs,health,org-members}` — Claude 사용량 대시보드(admin). 런북 `docs/claude-usage.md`
+- `/api/admin/claude-usage/{summary,members,imports,imports/[id],orgs,health,org-members,tools,hourly}` — Claude 사용량 대시보드(admin). 런북 `docs/claude-usage.md`
 - `GET /api/users/[id]`, `DELETE /api/users/[id]` — 관리자용 사용자 상세(프로필·설정·로그인 이력·조직도 소속·활동 요약)/삭제(개인 데이터 → 프로필 → auth.users; 자기 자신·관리자 역할 거부). `/admin/users` 행 클릭 → `components/admin/users/UserDetailSheet`
 - `GET /api/admin/directory`, `POST /api/admin/directory/sync` — 사내 조직도 명부 조회/동기화(동기화는 관리자 세션 또는 수집 토큰; 로컬 `frontend/scripts/company-directory-sync.py`가 inno-creed MCP `find_person` 전사 명부를 밀어 넣음). 런북 `docs/company-directory.md`
 
@@ -109,7 +109,7 @@ No test framework is configured.
 - `nlm_sources` — Source metadata cache per notebook (includes `storage_path`, `original_filename`)
 
 ### Supabase Tables (Claude usage feature)
-- `claude_orgs, claude_code_daily, claude_code_daily_model, claude_code_requests, claude_ingest_log, claude_csv_imports, claude_member_activity, claude_org_members(멤버·초대 상태 active|pending)` — Claude Code 사용량 대시보드 데이터(OTLP 수신 + 월간 CSV 업로드). 런북 `docs/claude-usage.md`
+- `claude_orgs, claude_code_daily, claude_code_daily_model, claude_code_requests, claude_ingest_log, claude_csv_imports, claude_member_activity, claude_org_members(멤버·초대 상태 active|pending), claude_code_tool_daily(도구별 일 집계)` — Claude Code 사용량 대시보드 데이터(OTLP 수신 + 월간 CSV 업로드). 런북 `docs/claude-usage.md`
 
 ### Supabase Tables (company directory)
 - `company_directory`(email PK, units[], division/headquarters/team, duty, position, active, synced_at), `company_directory_sync` — 사내 조직도 명부(아마란스). SQL `docs/sql/2026-08-29-company-directory.sql`
