@@ -24,6 +24,8 @@ interface OrgMemberRow {
   team: string | null;
   headquarters: string | null;
   division: string | null;
+  /** 조직도 재직 여부 — false = 퇴사(비활성), null = 조직도에 없는 이메일 */
+  dir_active: boolean | null;
 }
 interface Resp { rows: OrgMemberRow[]; lastByOrg: Record<string, string> }
 
@@ -78,7 +80,9 @@ export default function OrgMembersTab({ orgs }: { orgs: ClaudeOrg[] }) {
 
   const columns: Column<OrgMemberRow>[] = [
     { key: "user", header: "사용자 (Claude)", value: (r) => r.email, render: (r) => (<div><div className="font-medium">{r.name || r.email}</div>{r.name && <div className="text-muted-foreground">{r.email}</div>}</div>) },
-    { key: "employee", header: "이름", value: (r) => r.employee_name ?? "", render: (r) => (r.employee_name ? <span title="사내 조직도(아마란스) 이름">{r.employee_name}</span> : <span className="text-muted-foreground">—</span>) },
+    { key: "employee", header: "이름", value: (r) => r.employee_name ?? "", render: (r) => (r.employee_name
+      ? <span title="사내 조직도(아마란스) 이름">{r.employee_name}{r.dir_active === false && <Badge variant="destructive" className="ml-1 px-1 text-[9px]">퇴사</Badge>}</span>
+      : <span className="text-muted-foreground" title="사내 조직도에 없는 이메일">—</span>) },
     { key: "team", header: "조직 / 팀", value: (r) => `${r.headquarters ?? r.division ?? ""} ${r.team ?? ""}`.trim(), render: (r) => (r.team
       ? <div title={[r.division, r.headquarters, r.team].filter(Boolean).join(" > ")}><div>{r.team}</div>{(r.headquarters ?? r.division) && (r.headquarters ?? r.division) !== r.team && <div className="text-muted-foreground">{r.headquarters ?? r.division}</div>}</div>
       : <span className="text-muted-foreground">—</span>) },

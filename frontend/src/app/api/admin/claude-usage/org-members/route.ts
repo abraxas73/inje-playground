@@ -29,17 +29,18 @@ export async function GET(request: NextRequest) {
 
   const [rowsRes, directory] = await Promise.all([
     q,
-    admin.from("company_directory").select("email, name, team, headquarters, division").eq("active", true).limit(1000),
+    // 비활성(퇴사)도 조인해 이름을 보여준다 — 표에서 "퇴사"로 표시
+    admin.from("company_directory").select("email, name, team, headquarters, division, active").limit(1000),
   ]);
   if (rowsRes.error) return NextResponse.json({ error: rowsRes.error.message }, { status: 500 });
 
   const dirByEmail = new Map(
-    ((directory.error ? [] : directory.data ?? []) as { email: string; name: string | null; team: string | null; headquarters: string | null; division: string | null }[])
+    ((directory.error ? [] : directory.data ?? []) as { email: string; name: string | null; team: string | null; headquarters: string | null; division: string | null; active: boolean }[])
       .map((d) => [d.email.toLowerCase(), d])
   );
   const rows = (rowsRes.data ?? []).map((r) => {
     const d = dirByEmail.get(String(r.email).toLowerCase());
-    return { ...r, employee_name: d?.name ?? null, team: d?.team ?? null, headquarters: d?.headquarters ?? null, division: d?.division ?? null };
+    return { ...r, employee_name: d?.name ?? null, team: d?.team ?? null, headquarters: d?.headquarters ?? null, division: d?.division ?? null, dir_active: d ? d.active : null };
   });
 
   // 조직별 마지막 수집 시각
@@ -55,8 +56,8 @@ export async function GET(request: NextRequest) {
     if (!invitedAll.error) {
       const invited = new Set((invitedAll.data ?? []).map((r) => String(r.email).toLowerCase()));
       for (const [email, d] of dirByEmail) {
-        if (invited.has(email)) continue;
-        rows.push({ org_id: "", email, name: null, role: null, seat_tier: null, status: "none", synced_at: "", employee_name: d.name, team: d.team, headquarters: d.headquarters, division: d.division });
+        if (invited.has(email) || !d.active) continue; // 미초대는 재직자만
+        rows.push({ org_id: "", email, name: null, role: null, seat_tier: null, status: "none", synced_at: "", employee_name: d.name, team: d.team, headquarters: d.headquarters, division: d.division, dir_active: true });
       }
     }
   }
