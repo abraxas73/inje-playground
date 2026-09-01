@@ -6,7 +6,8 @@ export const runtime = "nodejs";
 
 /**
  * Claude 조직별 멤버·초대 상태(claude_org_members).
- * GET  ?org=all|<id>&status=all|active|pending — 관리자 세션. 사내 조직도(company_directory)를 이메일로 조인해 이름/조직/팀을 붙인다.
+ * GET  ?org=all|<id>&status=all|active|pending|none — 관리자 세션. 사내 조직도(company_directory)를 이메일로 조인해 이름/조직/팀을 붙인다.
+ *      org=all이면 조직도 재직자 중 어느 Claude 조직에도 없는 사람을 status="none"(미초대)으로 덧붙인다.
  * POST { org_id, members: [{ email, name?, role?, seat_tier?, status }] } — 수집 토큰 또는 관리자 세션.
  *      해당 조직의 기존 행을 지우고 새로 넣는다(조직 단위 스냅샷 교체). status는 active|pending만 허용.
  */
@@ -47,7 +48,19 @@ export async function GET(request: NextRequest) {
     const cur = lastByOrg[r.org_id as string];
     if (!cur || (r.synced_at as string) > cur) lastByOrg[r.org_id as string] = r.synced_at as string;
   }
-  return NextResponse.json({ rows, lastByOrg });
+
+  // 미초대 = 조직도 재직자 중 어느 Claude 조직에도(활성·대기 모두) 없는 사람 — 전체 조회일 때만 덧붙인다
+  if (org === "all" && (status === "all" || status === "none")) {
+    const invitedAll = await admin.from("claude_org_members").select("email").limit(3000);
+    if (!invitedAll.error) {
+      const invited = new Set((invitedAll.data ?? []).map((r) => String(r.email).toLowerCase()));
+      for (const [email, d] of dirByEmail) {
+        if (invited.has(email)) continue;
+        rows.push({ org_id: "", email, name: null, role: null, seat_tier: null, status: "none", synced_at: "", employee_name: d.name, team: d.team, headquarters: d.headquarters, division: d.division });
+      }
+    }
+  }
+  return NextResponse.json({ rows: status === "none" ? rows.filter((r) => r.status === "none") : rows, lastByOrg });
 }
 
 export async function POST(request: NextRequest) {

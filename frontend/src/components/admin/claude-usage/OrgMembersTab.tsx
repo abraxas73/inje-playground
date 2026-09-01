@@ -11,14 +11,14 @@ import SortableTable, { type Column } from "@/components/admin/claude-usage/Sort
 import UnitFilter, { matchUnit } from "@/components/admin/claude-usage/UnitFilter";
 import type { ClaudeOrg } from "@/types/claude-usage";
 
-/** claude.ai 관리자 설정 > 멤버 화면 스냅샷 한 행 (+ 사내 조직도 조인) */
+/** claude.ai 관리자 설정 > 멤버 화면 스냅샷 한 행 (+ 사내 조직도 조인). status "none" = 미초대(조직도 재직자인데 Claude 조직에 없음) */
 interface OrgMemberRow {
   org_id: string;
   email: string;
   name: string | null;
   role: string | null;
   seat_tier: string | null;
-  status: "active" | "pending";
+  status: "active" | "pending" | "none";
   synced_at: string;
   employee_name: string | null;
   team: string | null;
@@ -69,6 +69,7 @@ export default function OrgMembersTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const counts = useMemo(() => ({
     active: rows.filter((r) => r.status === "active").length,
     pending: rows.filter((r) => r.status === "pending").length,
+    none: rows.filter((r) => r.status === "none").length,
   }), [rows]);
   const lastSynced = useMemo(() => {
     const vals = Object.values(data?.lastByOrg ?? {});
@@ -81,13 +82,15 @@ export default function OrgMembersTab({ orgs }: { orgs: ClaudeOrg[] }) {
     { key: "team", header: "조직 / 팀", value: (r) => `${r.headquarters ?? r.division ?? ""} ${r.team ?? ""}`.trim(), render: (r) => (r.team
       ? <div title={[r.division, r.headquarters, r.team].filter(Boolean).join(" > ")}><div>{r.team}</div>{(r.headquarters ?? r.division) && (r.headquarters ?? r.division) !== r.team && <div className="text-muted-foreground">{r.headquarters ?? r.division}</div>}</div>
       : <span className="text-muted-foreground">—</span>) },
-    { key: "org", header: "Claude 조직", value: (r) => orgName.get(r.org_id) ?? r.org_id, render: (r) => <Badge variant="outline" className="text-[10px]">{orgName.get(r.org_id) ?? r.org_id.slice(0, 8)}</Badge> },
+    { key: "org", header: "Claude 조직", value: (r) => (r.org_id ? orgName.get(r.org_id) ?? r.org_id : ""), render: (r) => (r.org_id ? <Badge variant="outline" className="text-[10px]">{orgName.get(r.org_id) ?? r.org_id.slice(0, 8)}</Badge> : <span className="text-muted-foreground">—</span>) },
     { key: "role", header: "역할", value: (r) => r.role ?? "" },
     { key: "tier", header: "티어", value: (r) => r.seat_tier ?? "", render: (r) => r.seat_tier ?? <span className="text-muted-foreground">—</span> },
     { key: "status", header: "상태", value: (r) => r.status, render: (r) => (r.status === "pending"
       ? <Badge className="border-amber-200 bg-amber-50 text-amber-800" variant="outline">대기 중</Badge>
-      : <Badge className="border-green-200 bg-green-50 text-green-700" variant="outline">활성</Badge>) },
-    { key: "synced", header: "수집", value: (r) => r.synced_at, render: (r) => <span className="text-muted-foreground">{fmtDateTime(r.synced_at)}</span> },
+      : r.status === "none"
+        ? <Badge className="border-slate-200 bg-slate-50 text-slate-500" variant="outline">미초대</Badge>
+        : <Badge className="border-green-200 bg-green-50 text-green-700" variant="outline">활성</Badge>) },
+    { key: "synced", header: "수집", value: (r) => r.synced_at, render: (r) => <span className="text-muted-foreground">{r.synced_at ? fmtDateTime(r.synced_at) : "—"}</span> },
   ];
 
   const exportCsv = () => {
@@ -118,6 +121,7 @@ export default function OrgMembersTab({ orgs }: { orgs: ClaudeOrg[] }) {
             <SelectItem value="all">전체 상태</SelectItem>
             <SelectItem value="pending">대기 중(초대 미수락)</SelectItem>
             <SelectItem value="active">활성</SelectItem>
+            <SelectItem value="none">미초대(조직도 재직자)</SelectItem>
           </SelectContent>
         </Select>
         <UnitFilter value={unit} onChange={setUnit} rows={data?.rows ?? []} />
@@ -132,12 +136,12 @@ export default function OrgMembersTab({ orgs }: { orgs: ClaudeOrg[] }) {
         <CardHeader className="pb-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-sm">
-              멤버 · 초대 상태 ({rows.length}명 — 활성 {counts.active} · <span className="text-amber-700">대기 중 {counts.pending}</span>)
+              멤버 · 초대 상태 ({rows.length}명 — 활성 {counts.active} · <span className="text-amber-700">대기 중 {counts.pending}</span> · <span className="text-slate-500">미초대 {counts.none}</span>)
             </CardTitle>
             <p className="text-xs text-muted-foreground">마지막 수집: {fmtDateTime(lastSynced)}{data && Object.keys(data.lastByOrg).length ? ` · ${Object.keys(data.lastByOrg).length}개 조직` : ""}</p>
           </div>
           <p className="text-xs text-muted-foreground">
-            <b>대기 중</b> = 초대했지만 아직 수락하지 않아 시트를 못 쓰는 사람(claude.ai 관리자 설정 › 멤버 › 대기 중). <b>노는 시트</b>(채팅·Cowork 탭)는 활성인데 30일 사용이 0인 경우로 다른 축입니다. 수집: <code>/claude-usage-csv</code> 실행 시 함께 갱신.
+            <b>대기 중</b> = 초대했지만 아직 수락하지 않아 시트를 못 쓰는 사람(claude.ai 관리자 설정 › 멤버 › 대기 중). <b>미초대</b> = 사내 조직도(아마란스) 재직자인데 어느 Claude 조직에도 초대되지 않은 사람. <b>노는 시트</b>(채팅·Cowork 탭)는 활성인데 30일 사용이 0인 경우로 다른 축입니다. 수집: <code>/claude-usage-csv</code> 실행 시 함께 갱신.
           </p>
         </CardHeader>
         <CardContent>

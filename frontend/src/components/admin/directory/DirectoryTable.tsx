@@ -131,7 +131,7 @@ export default function DirectoryTable() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-sm flex items-center gap-2">
               동기화 상태
-              <Button size="sm" variant="ghost" onClick={() => setReloadKey((k) => k + 1)} aria-label="새로고침"><RefreshCw className="h-3.5 w-3.5" /></Button>
+              <Button size="sm" variant="ghost" onClick={() => setReloadKey((k) => k + 1)} aria-label="표 새로고침" title="표 새로고침(DB 재조회)입니다 — 실제 조직도 동기화는 사내 PC에서 ./frontend/scripts/company-directory-sync.py 실행"><RefreshCw className="h-3.5 w-3.5" /></Button>
             </CardTitle>
             <p className="text-sm">
               {sync
