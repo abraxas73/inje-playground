@@ -28,12 +28,16 @@ KST = dt.timezone(dt.timedelta(hours=9))
 
 
 def env_local(key: str) -> str | None:
-    path = os.path.join(ROOT, ".env.local")
-    if not os.path.exists(path):
-        return None
-    for line in open(path, encoding="utf-8"):
-        if line.startswith(f"{key}="):
-            return line.split("=", 1)[1].strip()
+    # .env.local이 `vercel env pull`로 덮어써질 수 있어 폴백으로 ~/.config/inje-playground/work-metrics.env도 본다
+    candidates = [os.path.join(ROOT, ".env.local"), os.path.expanduser("~/.config/inje-playground/work-metrics.env")]
+    for path in candidates:
+        if not os.path.exists(path):
+            continue
+        for line in open(path, encoding="utf-8"):
+            if line.startswith(f"{key}="):
+                v = line.split("=", 1)[1].strip()
+                if v and not v.startswith("["):  # "[SENSITIVE]" 플레이스홀더 무시
+                    return v
     return None
 
 
