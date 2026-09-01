@@ -78,7 +78,8 @@ function WeekBars({ weeks, series, title }: { weeks: Weekly[]; series: { label: 
       <CardContent>
         <div className="flex h-28 items-end gap-1">
           {weeks.map((w) => (
-            <div key={w.week} className="flex flex-1 items-end justify-center gap-[2px]" title={`${w.week} 주 · ${series.map((s) => `${s.label} ${Math.round(s.value(w) * 10) / 10}`).join(" · ")}`}>
+            // 컬럼 h-full 필수 — 없으면 자식 퍼센트 높이가 0으로 붕괴해 막대가 안 보임
+            <div key={w.week} className="flex h-full flex-1 items-end justify-center gap-[2px]" title={`${w.week} 주 · ${series.map((s) => `${s.label} ${Math.round(s.value(w) * 10) / 10}`).join(" · ")}`}>
               {series.map((s, i) => (
                 <div key={i} className={`rounded-t ${s.cls}`} style={{ width: `${Math.floor(80 / series.length)}%`, height: `${Math.max(2, Math.round((s.value(w) / maxes[i]) * 100))}%` }} />
               ))}
