@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Shield, Users, Settings, HelpCircle, MessageSquare, Loader2, ShieldAlert, ClipboardList, BarChart3, Building2, SquareTerminal } from "lucide-react";
+import { Shield, Users, Settings, HelpCircle, MessageSquare, Loader2, ShieldAlert, ClipboardList, BarChart3, Building2, SquareTerminal, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -15,6 +15,7 @@ const ADMIN_NAV = [
   { href: "/admin/surveys", label: "설문 관리", icon: ClipboardList },
   { href: "/admin/claude-usage", label: "Claude Code 사용량", icon: SquareTerminal },
   { href: "/admin/claude-chat", label: "Claude 사용량 (Chat/Cowork)", icon: BarChart3 },
+  { href: "/admin/perf", label: "성과", icon: TrendingUp },
   { href: "/admin/directory", label: "조직/팀", icon: Building2 },
 ];
 

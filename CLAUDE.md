@@ -83,6 +83,7 @@ No test framework is configured.
 - `/manual` — User manual with Playwright-captured screenshots (8 sections)
 - `/admin/claude-usage` — Claude Code 사용량(admin, OTel 실시간): Claude Code·팀별 집계·도구 사용·시간대 패턴·프롬프트 탭
 - `/admin/claude-chat` — Claude 사용량 Chat/Cowork(admin, 월간 CSV): 채팅·Cowork 멤버 활동 + 팀별 집계 탭
+- `/admin/perf` — 성과 지표 전체 조회(admin): 개인용 `/usage/perf`와 같은 5탭 + 팀 필터. API `GET /api/admin/work-metrics/perf?from&to&team`, 집계는 `lib/work-metrics/perf-report.ts` 공용, UI는 `components/usage/PerfDashboard.tsx` 공용
 - `/admin/directory` — 조직/팀(admin): 사내 조직도(그룹웨어 아마란스, inno-creed MCP — Claude 사용량 표 "소속" 컬럼의 출처)·Claude 멤버·초대·조직·설정(관리형 설정 JSON) 탭
 - `/usage/code`, `/usage/chat`, `/usage/perf` — 개인용 Claude 사용량·성과(user): 본인 것만, 조직장은 자기 말단 조직 전체(units[] 포함 비교 — 팀장→팀, 센터장→센터 산하 전체, 본부장→본부). 조직장 = `company_directory.is_leader`(어드민 조직/팀 탭 체크박스, null이면 duty 자동 판정). `lib/usage-scope.ts`
 
