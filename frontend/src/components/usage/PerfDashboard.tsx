@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import SortableTable, { type Column } from "@/components/admin/claude-usage/SortableTable";
 import { usd, int } from "@/components/admin/claude-usage/format";
@@ -112,18 +113,25 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
   const [preset, setPreset] = useState<RangePreset>("30d");
   const [range, setRange] = useState(() => dateRangePreset("30d"));
   const [team, setTeam] = useState("all");
+  const [qInput, setQInput] = useState("");
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setQ(qInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [qInput]);
   const [result, setResult] = useState<{ key: string; data?: Resp; error?: string } | null>(null);
-  const requestKey = `${range.from}|${range.to}|${team}`;
+  const requestKey = `${range.from}|${range.to}|${team}|${q}`;
 
   useEffect(() => {
     let cancelled = false;
     const teamQs = team !== "all" ? `&team=${encodeURIComponent(team)}` : "";
-    fetch(`${apiPath}?from=${range.from}&to=${range.to}${teamQs}`)
+    const qQs = q ? `&q=${encodeURIComponent(q)}` : "";
+    fetch(`${apiPath}?from=${range.from}&to=${range.to}${teamQs}${qQs}`)
       .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`); return j as Resp; })
       .then((j) => { if (!cancelled) setResult({ key: requestKey, data: j }); })
       .catch((e) => { if (!cancelled) setResult({ key: requestKey, error: e instanceof Error ? e.message : String(e) }); });
     return () => { cancelled = true; };
-  }, [apiPath, range.from, range.to, team, requestKey]);
+  }, [apiPath, range.from, range.to, team, q, requestKey]);
   const loading = result?.key !== requestKey;
   const data = result?.data ?? null;
   const error = result?.key === requestKey ? result.error ?? null : null;
@@ -238,13 +246,21 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
           <Button key={p.key} size="sm" variant={preset === p.key ? "default" : "outline"} onClick={() => { setPreset(p.key); setRange(dateRangePreset(p.key)); }}>{p.label}</Button>
         ))}
         {teams && (
-          <Select value={team} onValueChange={setTeam}>
-            <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue placeholder="팀" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">전체 팀</SelectItem>
-              {teams.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <>
+            <Select value={team} onValueChange={setTeam}>
+              <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue placeholder="팀" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체 팀</SelectItem>
+                {teams.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Input
+              value={qInput}
+              onChange={(e) => setQInput(e.target.value)}
+              placeholder="이름/이메일 검색"
+              className="h-8 w-[180px] text-xs"
+            />
+          </>
         )}
         {data && <Badge variant="secondary">{data.scope.scopeLabel}</Badge>}
         <span className="text-xs text-muted-foreground">{range.from} ~ {range.to}</span>
