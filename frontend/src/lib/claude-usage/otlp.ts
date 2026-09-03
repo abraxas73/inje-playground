@@ -10,6 +10,7 @@ import {
   type DailyRow,
   type ModelRow,
 } from "@/types/claude-usage";
+import { classifyPrompt, type PromptKind } from "./prompt-kind";
 
 type AnyValue = {
   stringValue?: string;
@@ -263,6 +264,8 @@ export interface PromptEvent {
   session_id: string | null;
   prompt_length: number | null;
   prompt: string;
+  /** 사람이 친 프롬프트인지, 플러그인·스크립트 자동화인지(prompt-kind.ts) */
+  kind: PromptKind;
 }
 
 export function parseLogsPayload(body: unknown): { requests: ApiRequestEvent[]; promptDaily: DailyRow[]; dropped: number; ignored: Record<string, number>; toolDaily: ToolDailyRow[]; promptEvents: PromptEvent[] } {
@@ -320,8 +323,12 @@ export function parseLogsPayload(body: unknown): { requests: ApiRequestEvent[]; 
           prompts.add(kstDay(ms), id, "prompts", 1);
           // OTEL_LOG_USER_PROMPTS=1일 때만 prompt 내용이 붙는다 — 있으면 원문 저장(4000자 컷, 대형 붙여넣기 방지)
           const text = str(a, "prompt");
+          // 내용으로 사람/자동화(claude-mem 관찰자 등) 판별 — 자동화면 prompts_auto에도 더해 "프롬프트(사람) = prompts - prompts_auto"
+          const kind = classifyPrompt(text);
+          if (kind === "automation") prompts.add(kstDay(ms), id, "prompts_auto", 1);
           if (text) {
             promptEvents.push({
+              kind,
               ts: new Date(ms).toISOString(),
               org_id: id.org_id,
               user_email: id.user_email,

@@ -59,21 +59,24 @@ export async function GET(request: NextRequest) {
   // parent_unit = 조직도 경로에서 팀 바로 위 단위(센터 등). headquarters는 본부라 센터가 빠진다
   const parentUnit = (d: Dir | undefined): string | null => (d?.units && d.units.length >= 2 ? d.units[d.units.length - 2] : null);
   // Claude Code 프롬프트 수(OTel) — 선택된 CSV 데이터 기간, 조직 무관 이메일 합. 실패해도 표는 내려준다
-  const codePrompts = new Map<string, number>();
+  const codePrompts = new Map<string, { human: number; auto: number }>();
   if (period) {
-    const cp = await selectAll<{ user_email: string; prompts: number | string }>(() =>
-      admin.from("claude_code_daily").select("user_email, prompts", { count: "exact" }).gte("day", period.start).lte("day", period.end).order("day").order("org_id").order("user_email")
+    const cp = await selectAll<{ user_email: string; prompts: number | string; prompts_auto: number | string }>(() =>
+      admin.from("claude_code_daily").select("user_email, prompts, prompts_auto", { count: "exact" }).gte("day", period.start).lte("day", period.end).order("day").order("org_id").order("user_email")
     );
     for (const r of cp.data ?? []) {
       const k = r.user_email.toLowerCase();
-      codePrompts.set(k, (codePrompts.get(k) ?? 0) + Number(r.prompts));
+      const v = codePrompts.get(k) ?? { human: 0, auto: 0 };
+      v.human += Number(r.prompts) - Number(r.prompts_auto);
+      v.auto += Number(r.prompts_auto);
+      codePrompts.set(k, v);
     }
   }
   const withTeam = (rows.data ?? []).map((r) => {
     const rec = numify(r as Record<string, unknown>) as Record<string, unknown>;
     const email = String(rec.email ?? "").toLowerCase();
     const d = dirByEmail.get(email);
-    return { ...rec, employee_name: d?.name ?? null, team: d?.team ?? null, parent_unit: parentUnit(d), headquarters: d?.headquarters ?? null, division: d?.division ?? null, code_prompts: codePrompts.get(email) ?? 0 };
+    return { ...rec, employee_name: d?.name ?? null, team: d?.team ?? null, parent_unit: parentUnit(d), headquarters: d?.headquarters ?? null, division: d?.division ?? null, code_prompts: codePrompts.get(email)?.human ?? 0, code_prompts_auto: codePrompts.get(email)?.auto ?? 0 };
   });
   return NextResponse.json({ imports: all, rows: withTeam, period });
 }

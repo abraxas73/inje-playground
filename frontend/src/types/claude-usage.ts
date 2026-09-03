@@ -3,6 +3,7 @@
 export const DAILY_NUMERIC_FIELDS = [
   "sessions",
   "prompts",
+  "prompts_auto",
   "cost_usd",
   "input_tokens",
   "output_tokens",

@@ -26,6 +26,7 @@ export interface UserPerf {
   claude_sessions: number;
   claude_days: number;
   claude_commits: number;
+  /** 사람이 친 Claude Code 프롬프트(자동화 제외) */
   claude_prompts: number;
   active_hours: number;
   loc_added: number;
@@ -98,7 +99,7 @@ export async function buildPerfReport(
       return b;
     });
   const [code, jira, gitlab, conf] = await Promise.all([
-    q("claude_code_daily", "day, user_email, cost_usd, sessions, prompts, commits, pull_requests, loc_added, loc_removed, active_user_seconds", ["day", "org_id", "user_email"]),
+    q("claude_code_daily", "day, user_email, cost_usd, sessions, prompts, prompts_auto, commits, pull_requests, loc_added, loc_removed, active_user_seconds", ["day", "org_id", "user_email"]),
     q("jira_issue_daily", "day, user_email, project_key, issues_created, issues_resolved, story_points, cycle_hours_sum, cycle_count, lead_hours_sum", ["day", "user_email", "project_key"]),
     q("gitlab_daily", "day, user_email, project_path, commits, claude_commits, mrs_opened, mrs_merged, mr_lead_hours_sum", ["day", "user_email", "project_path"]),
     q("confluence_daily", "day, user_email, space_key, pages_created, pages_updated", ["day", "user_email", "space_key"]),
@@ -142,11 +143,12 @@ export async function buildPerfReport(
   const spaces = dim<{ pages_created: number; pages_updated: number }>();
 
   for (const raw of code.data ?? []) {
-    const row = numify(raw as unknown as Record<string, unknown>) as { day: string; user_email: string; cost_usd: number; sessions: number; prompts: number; commits: number; pull_requests: number; loc_added: number; loc_removed: number; active_user_seconds: number };
+    const row = numify(raw as unknown as Record<string, unknown>) as { day: string; user_email: string; cost_usd: number; sessions: number; prompts: number; prompts_auto: number; commits: number; pull_requests: number; loc_added: number; loc_removed: number; active_user_seconds: number };
+    const humanPrompts = row.prompts - row.prompts_auto; // 사람이 친 프롬프트만(자동화 제외)
     const u = userOf(row.user_email.toLowerCase());
     u.claude_cost += row.cost_usd; u.claude_sessions += row.sessions; u.claude_days += 1; u.claude_commits += row.commits;
-    u.claude_prompts += row.prompts; u.active_hours += row.active_user_seconds / 3600; u.loc_added += row.loc_added; u.loc_removed += row.loc_removed;
-    const w = weekOfDay(row.day); w.claude_sessions += row.sessions; w.claude_cost += row.cost_usd; w.claude_commits += row.commits; w.claude_prompts += row.prompts;
+    u.claude_prompts += humanPrompts; u.active_hours += row.active_user_seconds / 3600; u.loc_added += row.loc_added; u.loc_removed += row.loc_removed;
+    const w = weekOfDay(row.day); w.claude_sessions += row.sessions; w.claude_cost += row.cost_usd; w.claude_commits += row.commits; w.claude_prompts += humanPrompts;
   }
   for (const raw of jira.data ?? []) {
     const row = numify(raw as unknown as Record<string, unknown>) as { day: string; user_email: string; project_key: string; issues_created: number; issues_resolved: number; story_points: number; cycle_hours_sum: number; cycle_count: number; lead_hours_sum: number };

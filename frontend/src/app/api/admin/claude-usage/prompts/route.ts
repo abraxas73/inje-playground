@@ -5,7 +5,8 @@ import { dateRangePreset } from "@/lib/claude-usage/aggregate";
 export const runtime = "nodejs";
 
 /**
- * GET /api/admin/claude-usage/prompts?from&to&org&q&email&limit
+ * GET /api/admin/claude-usage/prompts?from&to&org&q&email&kind&limit
+ * kind = all(기본) | human | automation — 수집 시 내용 패턴으로 붙인 분류(lib/claude-usage/prompt-kind.ts)
  * 수집된 사용자 프롬프트 내용(claude_code_prompts) — 최신순, 기본 200건.
  * q = 내용 부분검색(ilike), email = 사용자 이메일 부분검색. 사내 조직도(이름·팀) 조인.
  * 마이그레이션 전(테이블 없음)이면 notReady로 응답한다.
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
   const org = sp.get("org");
   const q = (sp.get("q") ?? "").trim();
   const email = (sp.get("email") ?? "").trim();
+  const kind = sp.get("kind");
   const limit = Math.min(500, Math.max(1, Number(sp.get("limit")) || 200));
   const fromTs = `${from}T00:00:00+09:00`;
   const toTs = `${to}T23:59:59.999+09:00`;
@@ -36,6 +38,7 @@ export async function GET(request: NextRequest) {
     if (org && org !== "all") query = query.eq("org_id", org);
     if (q) query = query.ilike("prompt", `%${q.replace(/[%_]/g, "\\$&")}%`);
     if (email) query = query.ilike("user_email", `%${email.replace(/[%_]/g, "\\$&")}%`);
+    if (kind === "human" || kind === "automation") query = query.eq("kind", kind);
     return query;
   };
 

@@ -297,7 +297,7 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
               <Stat label="MR" value={`${int(t.merged)} 머지`} sub={`오픈 ${int(t.opened)} · 리드 ${h(t.mrLead, t.merged)}`} />
               <Stat label="문서" value={`${int(t.pc)}+${int(t.pu)}`} sub="생성+수정 (Confluence)" />
               <Stat label="코드 라인(Claude 세션)" value={`+${int(t.locA)}`} sub={`-${int(t.locR)} 삭제`} />
-              <Stat label="Claude 투입" value={usd(t.cost)} sub={`세션 ${int(t.sessions)} · 프롬프트 ${int(t.prompts)}`} />
+              <Stat label="Claude 투입" value={usd(t.cost)} sub={`세션 ${int(t.sessions)} · 프롬프트(사람) ${int(t.prompts)}`} />
               <Stat label="Claude 활동 시간" value={`${int(Math.round(t.hours))}h`} sub="active time 합" />
             </div>
           )}

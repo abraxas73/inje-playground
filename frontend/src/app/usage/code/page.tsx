@@ -90,7 +90,7 @@ export default function MyCodeUsagePage() {
     { key: "cost", header: "비용", align: "right", value: (r) => r.cost_usd, render: (r) => usd(r.cost_usd) , total: (rows) => usd(sumBy(rows, (r) => r.cost_usd)) },
     { key: "days", header: "활동일", align: "right", value: (r) => r.active_days, render: (r) => int(r.active_days) , total: "sum" },
     { key: "sessions", header: "세션", align: "right", value: (r) => r.sessions, render: (r) => int(r.sessions) , total: "sum" },
-    { key: "prompts", header: "프롬프트", align: "right", value: (r) => r.prompts, render: (r) => int(r.prompts) , total: "sum" },
+    { key: "prompts", header: "프롬프트 (사람 / 자동)", align: "right", value: (r) => r.prompts - r.prompts_auto, render: (r) => `${int(r.prompts - r.prompts_auto)} / ${int(r.prompts_auto)}`, total: (rows) => `${int(sumBy(rows, (r) => r.prompts) - sumBy(rows, (r) => r.prompts_auto))} / ${int(sumBy(rows, (r) => r.prompts_auto))}` },
     { key: "commits", header: "커밋", align: "right", value: (r) => r.commits, render: (r) => int(r.commits) , total: "sum" },
     { key: "prs", header: "PR", align: "right", value: (r) => r.pull_requests, render: (r) => int(r.pull_requests) , total: "sum" },
     { key: "accept", header: "수락률", align: "right", value: (r) => acceptRate(r.edits_accepted, r.edits_rejected) ?? -1, render: (r) => { const a = acceptRate(r.edits_accepted, r.edits_rejected); return a === null ? "—" : `${a}%`; } , total: (rows) => { const a = acceptRate(sumBy(rows, (r) => r.edits_accepted), sumBy(rows, (r) => r.edits_rejected)); return a === null ? "—" : `${a}%`; } },
@@ -118,7 +118,7 @@ export default function MyCodeUsagePage() {
       {t && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Stat label="비용" value={usd(t.cost_usd)} />
-          <Stat label="세션" value={int(t.sessions)} sub={`프롬프트 ${int(t.prompts)}`} />
+          <Stat label="세션" value={int(t.sessions)} sub={`프롬프트 ${int(t.prompts - t.prompts_auto)} (자동 ${int(t.prompts_auto)})`} />
           <Stat label="커밋 · PR" value={`${int(t.commits)} · ${int(t.pull_requests)}`} />
           <Stat label="편집 수락률" value={accept === null ? "—" : `${accept}%`} sub={`수락 ${int(t.edits_accepted)} / 거절 ${int(t.edits_rejected)}`} />
         </div>

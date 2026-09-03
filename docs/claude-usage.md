@@ -22,6 +22,7 @@
 ## 1.3 프롬프트 내용 수집 (선택, 1회)
 - **재공지 필수**: 기존 안내("프롬프트/코드 내용은 전송되지 않습니다")와 달라지므로, 켜기 전에 구성원에게 "프롬프트 **내용**을 수집한다"를 공지한다(아래 §2 안내문 v2). 응답·코드·파일·도구 결과는 여전히 수집하지 않는다.
 - Supabase SQL Editor에서 `docs/sql/2026-08-31-claude-code-prompts.sql` 실행 → `claude_code_prompts`(ts, 사용자, 세션, 길이, 내용 4000자 컷).
+- Supabase SQL Editor에서 `docs/sql/2026-09-03-claude-code-prompt-kind.sql` 실행(2026-09-03 적용 완료) → `claude_code_daily.prompts_auto`, `claude_code_prompts.kind`. claude-mem 플러그인 관찰자처럼 도구 호출마다 별도 세션에 프롬프트를 보내는 자동화가 `user_prompt`로 잡혀 사람 명령 수십 배로 부풀던 것을 내용 패턴으로 분류해 **프롬프트 (사람 / 자동)** 으로 나눠 표시한다. 내용 저장은 그대로(구분만 붙임).
 - 관리형 설정 JSON은 이제 `OTEL_LOG_USER_PROMPTS: "1"`을 포함한다(조직·설정 탭에서 복사) — 7개 조직에 다시 적용하고 구성원이 Claude Code를 재시작하면 그 이후 발화부터 수집. 대시보드 **프롬프트** 탭(기간·조직·이메일·내용 검색, 행 클릭 시 전체 보기)에서 열람. 보존 정책은 SQL 파일 하단 주석(90일 삭제 예시) 참고.
 
 ## 2. Claude Code 수집 켜기 (조직별 1회)

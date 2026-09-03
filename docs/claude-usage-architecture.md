@@ -131,7 +131,7 @@ logIngest(ok=true, rows, dropped, bytes) → 200 {}
 | 이벤트 | 저장 |
 |---|---|
 | `api_request` | `claude_code_requests` 1행(ts, 식별, model, cost, 토큰 4종, duration_ms, query_source, request_id) |
-| `user_prompt` | `claude_code_daily.prompts += 1`; `OTEL_LOG_USER_PROMPTS=1`이면 내용도 `claude_code_prompts`에 저장(4000자 컷) |
+| `user_prompt` | `claude_code_daily.prompts += 1`; 내용 패턴이 자동화(claude-mem 관찰자·요약, "reply with: ok" 헬스체크 — `lib/claude-usage/prompt-kind.ts`)면 `prompts_auto += 1`도. `OTEL_LOG_USER_PROMPTS=1`이면 내용도 `claude_code_prompts`에 `kind`(human/automation)와 함께 저장(4000자 컷). 화면의 "프롬프트(사람)" = prompts − prompts_auto(내용 수집이 없는 사용자는 분류 불가 → 전부 사람, 상한). SQL `docs/sql/2026-09-03-claude-code-prompt-kind.sql` |
 | `tool_result` / `tool_decision` | `claude_code_tool_daily`에 (일×조직×사용자×도구) 가산 — 호출·실패·소요 / 승인·거절 |
 | 그 외(`assistant_response`, `api_error`, …) | 저장 안 함, 이름별 개수만 `ignored`로 반환 |
 

@@ -78,7 +78,7 @@ export default function CodeUsageTab() {
     { key: "seat", header: "시트", value: (u) => u.seat_tier ?? "", render: (u) => (hasSeat(u.seat_tier) ? u.seat_tier : "—") },
     { key: "cost", header: "비용", align: "right", value: (u) => u.cost_usd, render: (u) => usd(u.cost_usd) , total: (rows) => usd(sumBy(rows, (u) => u.cost_usd)) },
     { key: "sessions", header: "세션", align: "right", value: (u) => u.sessions, render: (u) => int(u.sessions) , total: "sum" },
-    { key: "prompts", header: "프롬프트", align: "right", value: (u) => u.prompts, render: (u) => int(u.prompts) , total: "sum" },
+    { key: "prompts", header: "프롬프트 (사람 / 자동)", align: "right", value: (u) => u.prompts - u.prompts_auto, render: (u) => <span title="사람이 친 프롬프트 / 플러그인·스크립트 자동화(claude-mem 관찰자 등) 프롬프트. 내용 수집이 없는 사용자는 전부 사람으로 잡힘">{`${int(u.prompts - u.prompts_auto)} / ${int(u.prompts_auto)}`}</span>, total: (rows) => `${int(sumBy(rows, (u) => u.prompts) - sumBy(rows, (u) => u.prompts_auto))} / ${int(sumBy(rows, (u) => u.prompts_auto))}` },
     { key: "days", header: "활성일", align: "right", value: (u) => u.active_days , total: "sum" },
     { key: "in", header: "입력 토큰", align: "right", value: (u) => u.input_tokens, render: (u) => int(u.input_tokens) , total: "sum" },
     { key: "out", header: "출력 토큰", align: "right", value: (u) => u.output_tokens, render: (u) => int(u.output_tokens) , total: "sum" },

@@ -24,6 +24,7 @@ interface TeamRow {
   cost_usd: number;
   sessions: number;
   prompts: number;
+  prompts_auto: number;
   output_tokens: number;
   commits: number;
   pull_requests: number;
@@ -57,7 +58,7 @@ export default function TeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
       const parent = u.team ? (u.headquarters && u.headquarters !== u.team ? u.headquarters : u.division !== u.team ? u.division : null) : null;
       let t = map.get(team);
       if (!t) {
-        t = { team, parent, users: 0, active_users: 0, cost_usd: 0, sessions: 0, prompts: 0, output_tokens: 0, commits: 0, pull_requests: 0, edits_accepted: 0, edits_rejected: 0 };
+        t = { team, parent, users: 0, active_users: 0, cost_usd: 0, sessions: 0, prompts: 0, prompts_auto: 0, output_tokens: 0, commits: 0, pull_requests: 0, edits_accepted: 0, edits_rejected: 0 };
         map.set(team, t);
       }
       t.users += 1;
@@ -65,6 +66,7 @@ export default function TeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
       t.cost_usd += u.cost_usd;
       t.sessions += u.sessions;
       t.prompts += u.prompts;
+      t.prompts_auto += u.prompts_auto;
       t.output_tokens += u.output_tokens;
       t.commits += u.commits;
       t.pull_requests += u.pull_requests;
@@ -86,7 +88,7 @@ export default function TeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
       </div>) , total: (rows) => usd(sumBy(rows, (r) => r.cost_usd)) },
     { key: "costPerUser", header: "비용/인", align: "right", value: (r) => (r.active_users ? r.cost_usd / r.active_users : 0), render: (r) => (r.active_users ? usd(r.cost_usd / r.active_users) : "—") , total: (rows) => { const a = sumBy(rows, (r) => r.active_users); return a ? usd(sumBy(rows, (r) => r.cost_usd) / a) : "—"; } },
     { key: "sessions", header: "세션", align: "right", value: (r) => r.sessions, render: (r) => int(r.sessions) , total: "sum" },
-    { key: "prompts", header: "프롬프트", align: "right", value: (r) => r.prompts, render: (r) => int(r.prompts) , total: "sum" },
+    { key: "prompts", header: "프롬프트 (사람 / 자동)", align: "right", value: (r) => r.prompts - r.prompts_auto, render: (r) => `${int(r.prompts - r.prompts_auto)} / ${int(r.prompts_auto)}`, total: (rows) => `${int(sumBy(rows, (r) => r.prompts) - sumBy(rows, (r) => r.prompts_auto))} / ${int(sumBy(rows, (r) => r.prompts_auto))}` },
     { key: "out", header: "출력 토큰", align: "right", value: (r) => r.output_tokens, render: (r) => int(r.output_tokens) , total: "sum" },
     { key: "accept", header: "수락률", align: "right", value: (r) => acceptRate(r.edits_accepted, r.edits_rejected) ?? -1, render: (r) => { const a = acceptRate(r.edits_accepted, r.edits_rejected); return a === null ? "—" : `${a}%`; } , total: (rows) => { const a = acceptRate(sumBy(rows, (r) => r.edits_accepted), sumBy(rows, (r) => r.edits_rejected)); return a === null ? "—" : `${a}%`; } },
     { key: "commits", header: "커밋", align: "right", value: (r) => r.commits, render: (r) => int(r.commits) , total: "sum" },

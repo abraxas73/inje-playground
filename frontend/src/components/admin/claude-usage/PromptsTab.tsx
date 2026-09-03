@@ -24,6 +24,7 @@ interface PromptRow {
   session_id: string | null;
   prompt_length: number | null;
   prompt: string;
+  kind?: "human" | "automation";
   employee_name: string | null;
   team: string | null;
   headquarters: string | null;
@@ -42,21 +43,23 @@ export default function PromptsTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const [q, setQ] = useState("");
   const [email, setEmail] = useState("");
   const [applied, setApplied] = useState({ q: "", email: "" });
+  const [kind, setKind] = useState("all");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [result, setResult] = useState<{ key: string; data?: Resp; error?: string } | null>(null);
-  const requestKey = `${range.from}|${range.to}|${org}|${applied.q}|${applied.email}`;
+  const requestKey = `${range.from}|${range.to}|${org}|${applied.q}|${applied.email}|${kind}`;
 
   useEffect(() => {
     let cancelled = false;
     const params = new URLSearchParams({ from: range.from, to: range.to, org });
     if (applied.q) params.set("q", applied.q);
     if (applied.email) params.set("email", applied.email);
+    if (kind !== "all") params.set("kind", kind);
     fetch(`/api/admin/claude-usage/prompts?${params.toString()}`)
       .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`); return j as Resp; })
       .then((j) => { if (!cancelled) setResult({ key: requestKey, data: j }); })
       .catch((e) => { if (!cancelled) setResult({ key: requestKey, error: e instanceof Error ? e.message : String(e) }); });
     return () => { cancelled = true; };
-  }, [range.from, range.to, org, applied.q, applied.email, requestKey]);
+  }, [range.from, range.to, org, applied.q, applied.email, kind, requestKey]);
   const loading = result?.key !== requestKey;
   const data = result?.data ?? null;
   const error = result?.key === requestKey ? result.error ?? null : null;
@@ -82,6 +85,14 @@ export default function PromptsTab({ orgs }: { orgs: ClaudeOrg[] }) {
           <SelectContent>
             <SelectItem value="all">전체 Claude 조직</SelectItem>
             {orgs.filter((o) => o.id !== "unknown" && o.id !== "test-org").map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={kind} onValueChange={setKind}>
+          <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="구분" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">사람 + 자동화</SelectItem>
+            <SelectItem value="human">사람 프롬프트만</SelectItem>
+            <SelectItem value="automation">자동화만 (claude-mem 등)</SelectItem>
           </SelectContent>
         </Select>
         <Input value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") setApplied({ q: q.trim(), email: email.trim() }); }} placeholder="이메일 필터" className="h-8 w-[160px] text-xs" />
@@ -112,6 +123,7 @@ export default function PromptsTab({ orgs }: { orgs: ClaudeOrg[] }) {
                   <th className="px-2 py-1 text-left whitespace-nowrap">사용자</th>
                   <th className="px-2 py-1 text-left whitespace-nowrap">팀</th>
                   <th className="px-2 py-1 text-left whitespace-nowrap">조직</th>
+                  <th className="px-2 py-1 text-left whitespace-nowrap">구분</th>
                   <th className="px-2 py-1 text-right whitespace-nowrap">길이</th>
                   <th className="px-2 py-1 text-left w-full">내용</th>
                 </tr>
@@ -125,6 +137,7 @@ export default function PromptsTab({ orgs }: { orgs: ClaudeOrg[] }) {
                     </td>
                     <td className="px-2 py-1.5 whitespace-nowrap">{r.team ?? <span className="text-muted-foreground">—</span>}</td>
                     <td className="px-2 py-1.5 whitespace-nowrap"><Badge variant="outline" className="text-[10px]">{orgName.get(r.org_id) ?? r.org_id.slice(0, 8)}</Badge></td>
+                    <td className="px-2 py-1.5 whitespace-nowrap">{r.kind === "automation" ? <Badge variant="secondary" className="text-[10px]" title="플러그인·스크립트가 보낸 프롬프트(claude-mem 관찰자 등)">자동</Badge> : <span className="text-muted-foreground">사람</span>}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{int(r.prompt_length ?? r.prompt.length)}</td>
                     <td className="px-2 py-1.5">
                       {expanded === r.id
@@ -134,7 +147,7 @@ export default function PromptsTab({ orgs }: { orgs: ClaudeOrg[] }) {
                   </tr>
                 ))}
                 {rows.length === 0 && (
-                  <tr><td colSpan={6} className="px-2 py-6 text-center text-muted-foreground">{loading ? "불러오는 중..." : "수집된 프롬프트가 없습니다. 관리형 설정 적용·재시작 이후 발화부터 수집됩니다."}</td></tr>
+                  <tr><td colSpan={7} className="px-2 py-6 text-center text-muted-foreground">{loading ? "불러오는 중..." : "수집된 프롬프트가 없습니다. 관리형 설정 적용·재시작 이후 발화부터 수집됩니다."}</td></tr>
                 )}
               </tbody>
             </table>
