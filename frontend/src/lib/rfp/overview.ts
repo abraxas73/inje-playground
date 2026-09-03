@@ -99,13 +99,12 @@ export function extractOverview(doc: DocumentModel): Overview {
   return out;
 }
 
-/** 중복 비교용 사업명: NFKC·소문자·괄호(내용 포함)·공백·기호 제거 */
+/** 중복 비교용 사업명: NFKC·소문자·공백·기호 제거(괄호는 문자만 제거하고 안의 내용은 남긴다) */
 export function normalizeName(s: string): string {
   return s
     .normalize("NFKC")
     .toLowerCase()
-    .replace(/\([^)]*\)|（[^）]*）|\[[^\]]*\]|【[^】]*】/g, "")
-    .replace(/[\s·・,./\\\-_—–「」｢｣『』"'“”‘’:;!?~<>〈〉《》]/g, "");
+    .replace(/[\s·・,./\\\-_—–「」｢｣『』"'“”‘’:;!?~<>〈〉《》()（）\[\]【】]/g, "");
 }
 
 const NAME_NOISE = /(재\s*공고|긴급\s*공고|긴급|수정\s*공고|수정|변경\s*공고|변경|정정\s*공고|정정|재\s*입찰|\d+\s*차)/g;
