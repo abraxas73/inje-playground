@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { UnsupportedDocumentError, type DocumentFormat, type DocumentModel } from "./document-model";
 import { detectFormat, parseDocument } from "./parse";
@@ -17,7 +18,6 @@ export async function downloadFile(admin: SupabaseClient, storagePath: string): 
 export interface RegisterInput {
   storagePath: string;
   fileName: string;
-  sha256: string;
   sizeBytes: number;
   force: boolean;
   userId: string;
@@ -58,6 +58,8 @@ export async function registerProject(admin: SupabaseClient, input: RegisterInpu
   } catch (e) {
     return { kind: "error", status: 400, message: e instanceof Error ? e.message : "파일을 내려받을 수 없습니다." };
   }
+  // 서버가 내려받은 바이트로 직접 해시를 계산한다(클라이언트가 보낸 값은 신뢰하지 않는다).
+  const sha256 = createHash("sha256").update(buf).digest("hex");
 
   let doc: DocumentModel;
   let format: DocumentFormat;
@@ -79,7 +81,7 @@ export async function registerProject(admin: SupabaseClient, input: RegisterInpu
   const agencyNorm = overview.agency ? normalizeAgency(overview.agency) : null;
 
   const existing = await loadExisting(admin);
-  const decision = decideDuplicate({ sha256: input.sha256, nameNorm, nameCore: nameCore(name), agencyNorm }, existing);
+  const decision = decideDuplicate({ sha256, nameNorm, nameCore: nameCore(name), agencyNorm }, existing);
   if (decision.kind === "duplicate") {
     await removeUpload(admin, input.storagePath);
     return { kind: "duplicate", projectId: decision.projectId };
@@ -103,19 +105,21 @@ export async function registerProject(admin: SupabaseClient, input: RegisterInpu
       const { data: dup } = await admin.from("rfp_projects").select("id").eq("name_norm", nameNorm).eq("agency_norm", agencyNorm ?? "").maybeSingle();
       await removeUpload(admin, input.storagePath);
       if (dup) return { kind: "duplicate", projectId: dup.id };
+    } else {
+      await removeUpload(admin, input.storagePath);
     }
     return { kind: "error", status: 500, message: error?.message ?? "프로젝트 저장에 실패했습니다." };
   }
 
   const { error: fe } = await admin.from("rfp_files").insert({
     project_id: project.id, storage_path: input.storagePath, original_filename: input.fileName, format,
-    size_bytes: input.sizeBytes, sha256: input.sha256, uploaded_by: input.userId,
+    size_bytes: input.sizeBytes, sha256, uploaded_by: input.userId,
   });
   if (fe) {
     await admin.from("rfp_projects").delete().eq("id", project.id);
     await removeUpload(admin, input.storagePath);
     if (fe.code === "23505") {
-      const dup = existing.find((p) => p.fileHashes.includes(input.sha256));
+      const dup = existing.find((p) => p.fileHashes.includes(sha256));
       if (dup) return { kind: "duplicate", projectId: dup.id };
     }
     return { kind: "error", status: 500, message: fe.message };

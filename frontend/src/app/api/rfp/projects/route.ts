@@ -22,24 +22,24 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/rfp/projects {storagePath, fileName, sha256, sizeBytes, force?}
+ * POST /api/rfp/projects {storagePath, fileName, sizeBytes, force?}
  * 200 {duplicate} | 200 {needsConfirm, candidates, overview} | 201 {created, projectId}. 등록되면 after()로 추출 실행.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
+  // 서버가 파일 바이트로 sha256을 계산하므로 클라이언트 값은 쓰지 않는다(본문에 있어도 무시).
   const body = (await request.json().catch(() => null)) as
-    | { storagePath?: string; fileName?: string; sha256?: string; sizeBytes?: number; force?: boolean }
+    | { storagePath?: string; fileName?: string; sizeBytes?: number; force?: boolean }
     | null;
   const storagePath = body?.storagePath ?? "";
   const fileName = body?.fileName?.trim() ?? "";
-  const sha256 = (body?.sha256 ?? "").toLowerCase();
   const sizeBytes = Number(body?.sizeBytes);
-  if (!storagePath.startsWith("uploads/") || !fileName || !/^[a-f0-9]{64}$/.test(sha256) || !Number.isFinite(sizeBytes)) {
-    return NextResponse.json({ error: "storagePath, fileName, sha256, sizeBytes가 필요합니다." }, { status: 400 });
+  if (!storagePath.startsWith("uploads/") || !fileName || !Number.isFinite(sizeBytes)) {
+    return NextResponse.json({ error: "storagePath, fileName, sizeBytes가 필요합니다." }, { status: 400 });
   }
 
-  const result = await registerProject(auth.admin, { storagePath, fileName, sha256, sizeBytes, force: body?.force === true, userId: auth.userId });
+  const result = await registerProject(auth.admin, { storagePath, fileName, sizeBytes, force: body?.force === true, userId: auth.userId });
   if (result.kind === "error") return NextResponse.json({ error: result.message }, { status: result.status });
   if (result.kind === "duplicate") {
     const res: RegisterResponse = { duplicate: true, projectId: result.projectId };
