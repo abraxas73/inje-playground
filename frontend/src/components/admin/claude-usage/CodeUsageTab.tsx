@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import UnitFilter, { matchUnit } from "@/components/admin/claude-usage/UnitFilter";
 import { Loader2, Download } from "lucide-react";
 import HBar from "@/components/admin/surveys/charts/HBar";
-import SortableTable, { type Column } from "./SortableTable";
+import SortableTable, { sumBy, type Column } from "./SortableTable";
 import DailyBars from "./DailyBars";
 import { acceptRate, dateRangePreset, hasSeat, type RangePreset } from "@/lib/claude-usage/aggregate";
 import { usd, int, hours } from "./format";
@@ -76,18 +76,18 @@ export default function CodeUsageTab() {
       ? <div title={[u.division, u.headquarters, u.team].filter(Boolean).join(" > ")}><div>{u.team}</div>{(u.headquarters ?? u.division) && (u.headquarters ?? u.division) !== u.team && <div className="text-muted-foreground">{u.headquarters ?? u.division}</div>}</div>
       : <span className="text-muted-foreground">—</span>) },
     { key: "seat", header: "시트", value: (u) => u.seat_tier ?? "", render: (u) => (hasSeat(u.seat_tier) ? u.seat_tier : "—") },
-    { key: "cost", header: "비용", align: "right", value: (u) => u.cost_usd, render: (u) => usd(u.cost_usd) },
-    { key: "sessions", header: "세션", align: "right", value: (u) => u.sessions, render: (u) => int(u.sessions) },
-    { key: "prompts", header: "프롬프트", align: "right", value: (u) => u.prompts, render: (u) => int(u.prompts) },
-    { key: "days", header: "활성일", align: "right", value: (u) => u.active_days },
-    { key: "in", header: "입력 토큰", align: "right", value: (u) => u.input_tokens, render: (u) => int(u.input_tokens) },
-    { key: "out", header: "출력 토큰", align: "right", value: (u) => u.output_tokens, render: (u) => int(u.output_tokens) },
-    { key: "cache", header: "캐시 읽기", align: "right", value: (u) => u.cache_read_tokens, render: (u) => int(u.cache_read_tokens) },
-    { key: "loc", header: "라인 +/−", align: "right", value: (u) => u.loc_added, render: (u) => `${int(u.loc_added)} / ${int(u.loc_removed)}` },
-    { key: "accept", header: "수락률", align: "right", value: (u) => acceptRate(u.edits_accepted, u.edits_rejected), render: (u) => { const r = acceptRate(u.edits_accepted, u.edits_rejected); return r === null ? "—" : `${r}%`; } },
-    { key: "commits", header: "커밋", align: "right", value: (u) => u.commits, render: (u) => int(u.commits) },
-    { key: "prs", header: "PR", align: "right", value: (u) => u.pull_requests, render: (u) => int(u.pull_requests) },
-    { key: "active", header: "활성 시간", align: "right", value: (u) => u.active_user_seconds, render: (u) => hours(u.active_user_seconds) },
+    { key: "cost", header: "비용", align: "right", value: (u) => u.cost_usd, render: (u) => usd(u.cost_usd) , total: (rows) => usd(sumBy(rows, (u) => u.cost_usd)) },
+    { key: "sessions", header: "세션", align: "right", value: (u) => u.sessions, render: (u) => int(u.sessions) , total: "sum" },
+    { key: "prompts", header: "프롬프트", align: "right", value: (u) => u.prompts, render: (u) => int(u.prompts) , total: "sum" },
+    { key: "days", header: "활성일", align: "right", value: (u) => u.active_days , total: "sum" },
+    { key: "in", header: "입력 토큰", align: "right", value: (u) => u.input_tokens, render: (u) => int(u.input_tokens) , total: "sum" },
+    { key: "out", header: "출력 토큰", align: "right", value: (u) => u.output_tokens, render: (u) => int(u.output_tokens) , total: "sum" },
+    { key: "cache", header: "캐시 읽기", align: "right", value: (u) => u.cache_read_tokens, render: (u) => int(u.cache_read_tokens) , total: "sum" },
+    { key: "loc", header: "라인 +/−", align: "right", value: (u) => u.loc_added, render: (u) => `${int(u.loc_added)} / ${int(u.loc_removed)}` , total: (rows) => `${int(sumBy(rows, (u) => u.loc_added))} / ${int(sumBy(rows, (u) => u.loc_removed))}` },
+    { key: "accept", header: "수락률", align: "right", value: (u) => acceptRate(u.edits_accepted, u.edits_rejected), render: (u) => { const r = acceptRate(u.edits_accepted, u.edits_rejected); return r === null ? "—" : `${r}%`; } , total: (rows) => { const a = acceptRate(sumBy(rows, (u) => u.edits_accepted), sumBy(rows, (u) => u.edits_rejected)); return a === null ? "—" : `${a}%`; } },
+    { key: "commits", header: "커밋", align: "right", value: (u) => u.commits, render: (u) => int(u.commits) , total: "sum" },
+    { key: "prs", header: "PR", align: "right", value: (u) => u.pull_requests, render: (u) => int(u.pull_requests) , total: "sum" },
+    { key: "active", header: "활성 시간", align: "right", value: (u) => u.active_user_seconds, render: (u) => hours(u.active_user_seconds) , total: (rows) => hours(sumBy(rows, (u) => u.active_user_seconds)) },
   ];
 
   const exportCsv = () => {
@@ -155,7 +155,7 @@ export default function CodeUsageTab() {
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm">사용자별 Claude Code 사용량 ({users.length}명)</CardTitle></CardHeader>
         <CardContent>
-          <SortableTable rows={users} columns={columns} rowKey={(u) => u.user_email} defaultSort={{ key: "cost", dir: "desc" }} emptyText={loading ? "불러오는 중..." : "아직 수집된 데이터가 없습니다. 조직·설정 탭에서 관리형 설정을 적용하세요."} />
+          <SortableTable totalLabel={`총계 (${users.length}명)`} rows={users} columns={columns} rowKey={(u) => u.user_email} defaultSort={{ key: "cost", dir: "desc" }} emptyText={loading ? "불러오는 중..." : "아직 수집된 데이터가 없습니다. 조직·설정 탭에서 관리형 설정을 적용하세요."} />
         </CardContent>
       </Card>
     </div>

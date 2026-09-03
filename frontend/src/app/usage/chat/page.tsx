@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, MessagesSquare } from "lucide-react";
-import SortableTable, { type Column } from "@/components/admin/claude-usage/SortableTable";
+import SortableTable, { sumBy, type Column } from "@/components/admin/claude-usage/SortableTable";
 import { int } from "@/components/admin/claude-usage/format";
 
 interface Row {
@@ -77,12 +77,12 @@ export default function MyChatUsagePage() {
     { key: "user", header: "구성원", value: (r) => r.employee_name ?? r.email, render: (r) => (
       <div><div className="font-medium">{r.employee_name ?? r.email.split("@")[0]}</div><div className="text-muted-foreground">{r.email}</div></div>) },
     { key: "last", header: "마지막 활동", value: (r) => r.last_active ?? "" },
-    { key: "days", header: "활동일", align: "right", value: (r) => r.days_active, render: (r) => int(r.days_active) },
-    { key: "chats", header: "채팅", align: "right", value: (r) => r.chats, render: (r) => int(r.chats) },
-    { key: "msgs", header: "메시지", align: "right", value: (r) => r.messages, render: (r) => int(r.messages) },
-    { key: "code", header: "코드 세션", align: "right", value: (r) => r.code_sessions, render: (r) => int(r.code_sessions) },
-    { key: "cowork", header: "Cowork", align: "right", value: (r) => r.cowork_sessions, render: (r) => int(r.cowork_sessions) },
-    { key: "art", header: "아티팩트", align: "right", value: (r) => r.artifacts_created, render: (r) => int(r.artifacts_created) },
+    { key: "days", header: "활동일", align: "right", value: (r) => r.days_active, render: (r) => int(r.days_active) , total: "sum" },
+    { key: "chats", header: "채팅", align: "right", value: (r) => r.chats, render: (r) => int(r.chats) , total: "sum" },
+    { key: "msgs", header: "메시지", align: "right", value: (r) => r.messages, render: (r) => int(r.messages) , total: "sum" },
+    { key: "code", header: "코드 세션", align: "right", value: (r) => r.code_sessions, render: (r) => int(r.code_sessions) , total: "sum" },
+    { key: "cowork", header: "Cowork", align: "right", value: (r) => r.cowork_sessions, render: (r) => int(r.cowork_sessions) , total: "sum" },
+    { key: "art", header: "아티팩트", align: "right", value: (r) => r.artifacts_created, render: (r) => int(r.artifacts_created) , total: "sum" },
   ];
 
   return (

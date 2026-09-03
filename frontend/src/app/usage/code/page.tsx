@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, SquareTerminal } from "lucide-react";
-import SortableTable, { type Column } from "@/components/admin/claude-usage/SortableTable";
+import SortableTable, { sumBy, type Column } from "@/components/admin/claude-usage/SortableTable";
 import { usd, int } from "@/components/admin/claude-usage/format";
 import { acceptRate, dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
 import type { DailyMetrics } from "@/types/claude-usage";
@@ -87,13 +87,13 @@ export default function MyCodeUsagePage() {
   const columns: Column<UserRow>[] = [
     { key: "user", header: "구성원", value: (r) => r.name ?? r.email, render: (r) => (
       <div><div className="font-medium">{r.name ?? r.email.split("@")[0]}</div><div className="text-muted-foreground">{r.email}</div></div>) },
-    { key: "cost", header: "비용", align: "right", value: (r) => r.cost_usd, render: (r) => usd(r.cost_usd) },
-    { key: "days", header: "활동일", align: "right", value: (r) => r.active_days, render: (r) => int(r.active_days) },
-    { key: "sessions", header: "세션", align: "right", value: (r) => r.sessions, render: (r) => int(r.sessions) },
-    { key: "prompts", header: "프롬프트", align: "right", value: (r) => r.prompts, render: (r) => int(r.prompts) },
-    { key: "commits", header: "커밋", align: "right", value: (r) => r.commits, render: (r) => int(r.commits) },
-    { key: "prs", header: "PR", align: "right", value: (r) => r.pull_requests, render: (r) => int(r.pull_requests) },
-    { key: "accept", header: "수락률", align: "right", value: (r) => acceptRate(r.edits_accepted, r.edits_rejected) ?? -1, render: (r) => { const a = acceptRate(r.edits_accepted, r.edits_rejected); return a === null ? "—" : `${a}%`; } },
+    { key: "cost", header: "비용", align: "right", value: (r) => r.cost_usd, render: (r) => usd(r.cost_usd) , total: (rows) => usd(sumBy(rows, (r) => r.cost_usd)) },
+    { key: "days", header: "활동일", align: "right", value: (r) => r.active_days, render: (r) => int(r.active_days) , total: "sum" },
+    { key: "sessions", header: "세션", align: "right", value: (r) => r.sessions, render: (r) => int(r.sessions) , total: "sum" },
+    { key: "prompts", header: "프롬프트", align: "right", value: (r) => r.prompts, render: (r) => int(r.prompts) , total: "sum" },
+    { key: "commits", header: "커밋", align: "right", value: (r) => r.commits, render: (r) => int(r.commits) , total: "sum" },
+    { key: "prs", header: "PR", align: "right", value: (r) => r.pull_requests, render: (r) => int(r.pull_requests) , total: "sum" },
+    { key: "accept", header: "수락률", align: "right", value: (r) => acceptRate(r.edits_accepted, r.edits_rejected) ?? -1, render: (r) => { const a = acceptRate(r.edits_accepted, r.edits_rejected); return a === null ? "—" : `${a}%`; } , total: (rows) => { const a = acceptRate(sumBy(rows, (r) => r.edits_accepted), sumBy(rows, (r) => r.edits_rejected)); return a === null ? "—" : `${a}%`; } },
   ];
 
   return (

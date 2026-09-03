@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
-import SortableTable, { type Column } from "./SortableTable";
+import SortableTable, { sumBy, type Column } from "./SortableTable";
 import { dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
 import { int } from "./format";
 import type { ClaudeOrg } from "@/types/claude-usage";
@@ -65,11 +65,11 @@ export default function ToolUsageTab({ orgs }: { orgs: ClaudeOrg[] }) {
       <div className="flex items-center justify-end gap-2">
         <div className="h-2 rounded bg-primary/20" style={{ width: `${Math.max(2, Math.round((r.calls / maxCalls) * 110))}px` }} />
         <span>{int(r.calls)}</span>
-      </div>) },
-    { key: "share", header: "비중", align: "right", value: (r) => r.calls, render: (r) => (totals.calls ? `${((r.calls / totals.calls) * 100).toFixed(1)}%` : "—") },
-    { key: "errors", header: "실패", align: "right", value: (r) => (r.calls ? r.errors / r.calls : 0), render: (r) => (r.calls ? `${int(r.errors)} (${((r.errors / r.calls) * 100).toFixed(1)}%)` : "—") },
+      </div>) , total: (rows) => int(sumBy(rows, (r) => r.calls)) },
+    { key: "share", header: "비중", align: "right", value: (r) => r.calls, render: (r) => (totals.calls ? `${((r.calls / totals.calls) * 100).toFixed(1)}%` : "—") , total: (rows) => (totals.calls ? `${((sumBy(rows, (r) => r.calls) / totals.calls) * 100).toFixed(1)}%` : "—") },
+    { key: "errors", header: "실패", align: "right", value: (r) => (r.calls ? r.errors / r.calls : 0), render: (r) => (r.calls ? `${int(r.errors)} (${((r.errors / r.calls) * 100).toFixed(1)}%)` : "—") , total: (rows) => { const c = sumBy(rows, (r) => r.calls), e = sumBy(rows, (r) => r.errors); return c ? `${int(e)} (${((e / c) * 100).toFixed(1)}%)` : "—"; } },
     { key: "avg", header: "평균 소요", align: "right", value: (r) => (r.calls ? r.duration_ms_sum / r.calls : 0), render: (r) => { if (!r.calls || !r.duration_ms_sum) return "—"; const ms = r.duration_ms_sum / r.calls; return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`; } },
-    { key: "decision", header: "승인 / 거절", align: "right", value: (r) => r.rejects, render: (r) => (r.accepts + r.rejects > 0 ? `${int(r.accepts)} / ${int(r.rejects)}` : "—") },
+    { key: "decision", header: "승인 / 거절", align: "right", value: (r) => r.rejects, render: (r) => (r.accepts + r.rejects > 0 ? `${int(r.accepts)} / ${int(r.rejects)}` : "—") , total: (rows) => { const a = sumBy(rows, (r) => r.accepts), j = sumBy(rows, (r) => r.rejects); return a + j > 0 ? `${int(a)} / ${int(j)}` : "—"; } },
     { key: "users", header: "사용자", align: "right", value: (r) => r.users, render: (r) => int(r.users) },
   ];
 
@@ -102,7 +102,7 @@ export default function ToolUsageTab({ orgs }: { orgs: ClaudeOrg[] }) {
           <p className="text-xs text-muted-foreground">Claude Code의 tool_result(호출·실패·소요)와 tool_decision(권한 승인/거절) 이벤트 기준. SQL 실행 이후 수신분부터 쌓이며 과거는 소급되지 않습니다.</p>
         </CardHeader>
         <CardContent>
-          <SortableTable rows={rows} columns={columns} rowKey={(r) => r.tool_name} defaultSort={{ key: "calls", dir: "desc" }} emptyText={loading ? "불러오는 중..." : "아직 집계된 도구 사용이 없습니다."} />
+          <SortableTable totalLabel={`총계 (${rows.length}개 도구)`} rows={rows} columns={columns} rowKey={(r) => r.tool_name} defaultSort={{ key: "calls", dir: "desc" }} emptyText={loading ? "불러오는 중..." : "아직 집계된 도구 사용이 없습니다."} />
         </CardContent>
       </Card>
     </div>

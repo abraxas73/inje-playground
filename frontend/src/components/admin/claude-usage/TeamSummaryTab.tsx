@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Download, Loader2 } from "lucide-react";
-import SortableTable, { type Column } from "./SortableTable";
+import SortableTable, { sumBy, type Column } from "./SortableTable";
 import { acceptRate, dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
 import { usd, int } from "./format";
 import type { ClaudeOrg, UsageSummary } from "@/types/claude-usage";
@@ -78,19 +78,19 @@ export default function TeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const columns: Column<TeamRow>[] = [
     { key: "team", header: "팀 / 센터", value: (r) => r.team, render: (r) => (
       <div><div className="font-medium">{r.team}</div>{r.parent && <div className="text-muted-foreground">{r.parent}</div>}</div>) },
-    { key: "users", header: "사용자", align: "right", value: (r) => r.users, render: (r) => `${r.active_users}/${r.users}` },
+    { key: "users", header: "사용자", align: "right", value: (r) => r.users, render: (r) => `${r.active_users}/${r.users}` , total: (rows) => `${sumBy(rows, (r) => r.active_users)}/${sumBy(rows, (r) => r.users)}` },
     { key: "cost", header: "비용", align: "right", value: (r) => r.cost_usd, render: (r) => (
       <div className="flex items-center justify-end gap-2">
         <div className="h-2 rounded bg-primary/20" style={{ width: `${Math.max(2, Math.round((r.cost_usd / maxCost) * 90))}px` }} />
         <span>{usd(r.cost_usd)}</span>
-      </div>) },
-    { key: "costPerUser", header: "비용/인", align: "right", value: (r) => (r.active_users ? r.cost_usd / r.active_users : 0), render: (r) => (r.active_users ? usd(r.cost_usd / r.active_users) : "—") },
-    { key: "sessions", header: "세션", align: "right", value: (r) => r.sessions, render: (r) => int(r.sessions) },
-    { key: "prompts", header: "프롬프트", align: "right", value: (r) => r.prompts, render: (r) => int(r.prompts) },
-    { key: "out", header: "출력 토큰", align: "right", value: (r) => r.output_tokens, render: (r) => int(r.output_tokens) },
-    { key: "accept", header: "수락률", align: "right", value: (r) => acceptRate(r.edits_accepted, r.edits_rejected) ?? -1, render: (r) => { const a = acceptRate(r.edits_accepted, r.edits_rejected); return a === null ? "—" : `${a}%`; } },
-    { key: "commits", header: "커밋", align: "right", value: (r) => r.commits, render: (r) => int(r.commits) },
-    { key: "prs", header: "PR", align: "right", value: (r) => r.pull_requests, render: (r) => int(r.pull_requests) },
+      </div>) , total: (rows) => usd(sumBy(rows, (r) => r.cost_usd)) },
+    { key: "costPerUser", header: "비용/인", align: "right", value: (r) => (r.active_users ? r.cost_usd / r.active_users : 0), render: (r) => (r.active_users ? usd(r.cost_usd / r.active_users) : "—") , total: (rows) => { const a = sumBy(rows, (r) => r.active_users); return a ? usd(sumBy(rows, (r) => r.cost_usd) / a) : "—"; } },
+    { key: "sessions", header: "세션", align: "right", value: (r) => r.sessions, render: (r) => int(r.sessions) , total: "sum" },
+    { key: "prompts", header: "프롬프트", align: "right", value: (r) => r.prompts, render: (r) => int(r.prompts) , total: "sum" },
+    { key: "out", header: "출력 토큰", align: "right", value: (r) => r.output_tokens, render: (r) => int(r.output_tokens) , total: "sum" },
+    { key: "accept", header: "수락률", align: "right", value: (r) => acceptRate(r.edits_accepted, r.edits_rejected) ?? -1, render: (r) => { const a = acceptRate(r.edits_accepted, r.edits_rejected); return a === null ? "—" : `${a}%`; } , total: (rows) => { const a = acceptRate(sumBy(rows, (r) => r.edits_accepted), sumBy(rows, (r) => r.edits_rejected)); return a === null ? "—" : `${a}%`; } },
+    { key: "commits", header: "커밋", align: "right", value: (r) => r.commits, render: (r) => int(r.commits) , total: "sum" },
+    { key: "prs", header: "PR", align: "right", value: (r) => r.pull_requests, render: (r) => int(r.pull_requests) , total: "sum" },
   ];
 
   const exportCsv = () => {
@@ -130,7 +130,7 @@ export default function TeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
           <p className="text-xs text-muted-foreground">팀 = 조직도 말단 부서(팀·센터). &quot;사용자&quot;는 기간 내 활동자/전체. 명부에 없는 이메일(외부 계정 등)은 &quot;명부 없음&quot;으로 묶입니다.</p>
         </CardHeader>
         <CardContent>
-          <SortableTable rows={rows} columns={columns} rowKey={(r) => r.team} defaultSort={{ key: "cost", dir: "desc" }} emptyText={loading ? "불러오는 중..." : "데이터가 없습니다."} />
+          <SortableTable totalLabel={`총계 (${rows.length}개 팀)`} rows={rows} columns={columns} rowKey={(r) => r.team} defaultSort={{ key: "cost", dir: "desc" }} emptyText={loading ? "불러오는 중..." : "데이터가 없습니다."} />
         </CardContent>
       </Card>
     </div>

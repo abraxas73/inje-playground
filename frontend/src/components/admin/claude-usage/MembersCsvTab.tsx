@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import UnitFilter, { matchUnit } from "@/components/admin/claude-usage/UnitFilter";
 import { Loader2, Trash2 } from "lucide-react";
-import SortableTable, { type Column } from "./SortableTable";
+import SortableTable, { sumBy, type Column } from "./SortableTable";
 import PeriodSelect from "./PeriodSelect";
 import { hasSeat, isIdleSeat } from "@/lib/claude-usage/aggregate";
 import { usd } from "./format";
@@ -102,16 +102,16 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
     { key: "role", header: "역할", value: (r) => r.role },
     { key: "tier", header: "시트", value: (r) => r.seat_tier, render: (r) => (hasSeat(r.seat_tier) ? r.seat_tier : <span className="text-muted-foreground">미할당</span>) },
     { key: "last", header: "마지막 활동", value: (r) => r.last_active ?? "" },
-    { key: "days", header: "활동일", align: "right", value: (r) => r.days_active },
-    { key: "chats", header: "채팅", align: "right", value: (r) => r.chats },
-    { key: "msgs", header: "메시지", align: "right", value: (r) => r.messages },
-    { key: "code", header: "코드 세션", align: "right", value: (r) => r.code_sessions },
-    { key: "prs", header: "PR", align: "right", value: (r) => r.pull_requests },
-    { key: "cowork", header: "Cowork 세션", align: "right", value: (r) => r.cowork_sessions },
-    { key: "cwmsg", header: "Cowork 메시지", align: "right", value: (r) => r.cowork_messages },
-    { key: "proj", header: "프로젝트", align: "right", value: (r) => r.projects_used },
-    { key: "art", header: "아티팩트", align: "right", value: (r) => r.artifacts_created },
-    { key: "spend", header: "초과 지출", align: "right", value: (r) => r.estimated_spend_usd, render: (r) => usd(r.estimated_spend_usd) },
+    { key: "days", header: "활동일", align: "right", value: (r) => r.days_active , total: "sum" },
+    { key: "chats", header: "채팅", align: "right", value: (r) => r.chats , total: "sum" },
+    { key: "msgs", header: "메시지", align: "right", value: (r) => r.messages , total: "sum" },
+    { key: "code", header: "코드 세션", align: "right", value: (r) => r.code_sessions , total: "sum" },
+    { key: "prs", header: "PR", align: "right", value: (r) => r.pull_requests , total: "sum" },
+    { key: "cowork", header: "Cowork 세션", align: "right", value: (r) => r.cowork_sessions , total: "sum" },
+    { key: "cwmsg", header: "Cowork 메시지", align: "right", value: (r) => r.cowork_messages , total: "sum" },
+    { key: "proj", header: "프로젝트", align: "right", value: (r) => r.projects_used , total: "sum" },
+    { key: "art", header: "아티팩트", align: "right", value: (r) => r.artifacts_created , total: "sum" },
+    { key: "spend", header: "초과 지출", align: "right", value: (r) => r.estimated_spend_usd, render: (r) => usd(r.estimated_spend_usd) , total: (rows) => usd(sumBy(rows, (r) => r.estimated_spend_usd)) },
   ];
 
   return (
@@ -143,7 +143,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm">멤버 활동 ({rows.length}명) — 노는 시트는 붉게 표시{data?.period && lastCollected && <span className="ml-2 font-normal text-muted-foreground">· 데이터 {data.period.start} ~ {data.period.end}, 수집 {fmtDateTime(lastCollected.at)}</span>}</CardTitle></CardHeader>
         <CardContent>
-          <SortableTable rows={rows} columns={columns} rowKey={(r) => `${r.import_id}:${r.email}`} defaultSort={{ key: "chats", dir: "desc" }} rowClassName={(r) => (isIdleSeat(r) ? "bg-destructive/5" : "")} emptyText={loading ? "불러오는 중..." : "업로드된 CSV가 없습니다."} />
+          <SortableTable totalLabel={`총계 (${rows.length}명)`} rows={rows} columns={columns} rowKey={(r) => `${r.import_id}:${r.email}`} defaultSort={{ key: "chats", dir: "desc" }} rowClassName={(r) => (isIdleSeat(r) ? "bg-destructive/5" : "")} emptyText={loading ? "불러오는 중..." : "업로드된 CSV가 없습니다."} />
         </CardContent>
       </Card>
 

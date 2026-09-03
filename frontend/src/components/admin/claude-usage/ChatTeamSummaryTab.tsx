@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Download, Loader2 } from "lucide-react";
-import SortableTable, { type Column } from "./SortableTable";
+import SortableTable, { sumBy, type Column } from "./SortableTable";
 import PeriodSelect from "./PeriodSelect";
 import { usd, int } from "./format";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
@@ -43,20 +43,20 @@ export default function ChatTeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const columns: Column<TeamRow>[] = [
     { key: "team", header: "팀 / 센터", value: (r) => r.team, render: (r) => (
       <div><div className="font-medium">{r.team}</div>{r.parent && <div className="text-muted-foreground">{r.parent}</div>}</div>) },
-    { key: "users", header: "활동자/시트", align: "right", value: (r) => r.users, render: (r) => <span title="기간 내 활동일이 있는 인원 / 이 팀에서 Claude 시트를 가진 인원(고유 이메일)">{`${r.active_users}/${r.users}`}</span> },
+    { key: "users", header: "활동자/시트", align: "right", value: (r) => r.users, render: (r) => <span title="기간 내 활동일이 있는 인원 / 이 팀에서 Claude 시트를 가진 인원(고유 이메일)">{`${r.active_users}/${r.users}`}</span> , total: (rows) => `${sumBy(rows, (r) => r.active_users)}/${sumBy(rows, (r) => r.users)}` },
     { key: "msgs", header: "메시지", align: "right", value: (r) => r.messages, render: (r) => (
       <div className="flex items-center justify-end gap-2">
         <div className="h-2 rounded bg-primary/20" style={{ width: `${Math.max(2, Math.round((r.messages / maxMessages) * 90))}px` }} />
         <span>{int(r.messages)}</span>
-      </div>) },
-    { key: "msgsPerUser", header: "메시지/활동자", align: "right", value: (r) => (r.active_users ? r.messages / r.active_users : 0), render: (r) => (r.active_users ? int(Math.round(r.messages / r.active_users)) : "—") },
-    { key: "chats", header: "채팅", align: "right", value: (r) => r.chats, render: (r) => int(r.chats) },
-    { key: "code", header: "코드 세션", align: "right", value: (r) => r.code_sessions, render: (r) => int(r.code_sessions) },
-    { key: "cowork", header: "Cowork 세션", align: "right", value: (r) => r.cowork_sessions, render: (r) => int(r.cowork_sessions) },
-    { key: "cwmsg", header: "Cowork 메시지", align: "right", value: (r) => r.cowork_messages, render: (r) => int(r.cowork_messages) },
-    { key: "proj", header: "프로젝트", align: "right", value: (r) => r.projects_used, render: (r) => int(r.projects_used) },
-    { key: "art", header: "아티팩트", align: "right", value: (r) => r.artifacts_created, render: (r) => int(r.artifacts_created) },
-    { key: "spend", header: "초과 지출", align: "right", value: (r) => r.spend_usd, render: (r) => usd(r.spend_usd) },
+      </div>) , total: (rows) => int(sumBy(rows, (r) => r.messages)) },
+    { key: "msgsPerUser", header: "메시지/활동자", align: "right", value: (r) => (r.active_users ? r.messages / r.active_users : 0), render: (r) => (r.active_users ? int(Math.round(r.messages / r.active_users)) : "—") , total: (rows) => { const a = sumBy(rows, (r) => r.active_users); return a ? int(Math.round(sumBy(rows, (r) => r.messages) / a)) : "—"; } },
+    { key: "chats", header: "채팅", align: "right", value: (r) => r.chats, render: (r) => int(r.chats) , total: "sum" },
+    { key: "code", header: "코드 세션", align: "right", value: (r) => r.code_sessions, render: (r) => int(r.code_sessions) , total: "sum" },
+    { key: "cowork", header: "Cowork 세션", align: "right", value: (r) => r.cowork_sessions, render: (r) => int(r.cowork_sessions) , total: "sum" },
+    { key: "cwmsg", header: "Cowork 메시지", align: "right", value: (r) => r.cowork_messages, render: (r) => int(r.cowork_messages) , total: "sum" },
+    { key: "proj", header: "프로젝트", align: "right", value: (r) => r.projects_used, render: (r) => int(r.projects_used) , total: "sum" },
+    { key: "art", header: "아티팩트", align: "right", value: (r) => r.artifacts_created, render: (r) => int(r.artifacts_created) , total: "sum" },
+    { key: "spend", header: "초과 지출", align: "right", value: (r) => r.spend_usd, render: (r) => usd(r.spend_usd) , total: (rows) => usd(sumBy(rows, (r) => r.spend_usd)) },
   ];
 
   const exportCsv = () => {
@@ -94,7 +94,7 @@ export default function ChatTeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
           <p className="text-xs text-muted-foreground">팀 = 조직도 말단 부서(팀·센터), 아래 줄은 팀 바로 위 조직. &quot;활동자/시트&quot;는 기간 내 활동일이 있는 인원 / 이 팀에서 Claude 시트를 가진 인원(조직도 인원과 다를 수 있음). 여러 Claude 조직에 속한 계정은 활동 수치는 합산하고 인원은 1명으로 셉니다. 명부에 없는 이메일은 &quot;명부 없음&quot;으로 묶입니다.</p>
         </CardHeader>
         <CardContent>
-          <SortableTable rows={rows} columns={columns} rowKey={(r) => r.team} defaultSort={{ key: "msgs", dir: "desc" }} emptyText={loading ? "불러오는 중..." : "업로드된 CSV가 없습니다."} />
+          <SortableTable totalLabel={`총계 (${rows.length}개 팀)`} rows={rows} columns={columns} rowKey={(r) => r.team} defaultSort={{ key: "msgs", dir: "desc" }} emptyText={loading ? "불러오는 중..." : "업로드된 CSV가 없습니다."} />
         </CardContent>
       </Card>
     </div>

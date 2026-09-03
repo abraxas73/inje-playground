@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import SearchableSelect, { type SearchableOption } from "@/components/shared/SearchableSelect";
 
 /** 사내 조직도 소속 필터 — Claude 조직 필터와 별개. 값: all | none | hq:<본부/부문> | team:<팀/센터> */
 export interface UnitLike {
@@ -23,8 +23,9 @@ export function matchUnit(r: UnitLike, sel: string): boolean {
   return true;
 }
 
+/** 검색(전치·부분 일치)되는 조직/팀 콤보박스. 옵션은 현재 표에 있는 소속으로 만든다 */
 export default function UnitFilter({ value, onChange, rows, className }: { value: string; onChange: (v: string) => void; rows: UnitLike[]; className?: string }) {
-  const { hqs, teams, missing } = useMemo(() => {
+  const options = useMemo<SearchableOption[]>(() => {
     const hqs = new Set<string>();
     const teams = new Set<string>();
     let missing = 0;
@@ -34,28 +35,13 @@ export default function UnitFilter({ value, onChange, rows, className }: { value
       if (r.team) teams.add(r.team);
       else missing++;
     }
-    return { hqs: [...hqs].sort(), teams: [...teams].sort(), missing };
+    return [
+      { value: "all", label: "전체 조직/팀 (사내)" },
+      { value: "none", label: "명부 없음", hint: String(missing) },
+      ...[...hqs].sort().map((h) => ({ value: `hq:${h}`, label: h, group: "본부 / 부문" })),
+      ...[...teams].sort().map((t) => ({ value: `team:${t}`, label: t, group: "팀 / 센터" })),
+    ];
   }, [rows]);
 
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className={className ?? "h-8 w-[220px] text-xs"}><SelectValue placeholder="조직/팀" /></SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">전체 조직/팀 (사내)</SelectItem>
-        <SelectItem value="none">명부 없음 ({missing})</SelectItem>
-        {hqs.length > 0 && (
-          <SelectGroup>
-            <SelectLabel>본부 / 부문</SelectLabel>
-            {hqs.map((h) => <SelectItem key={`hq:${h}`} value={`hq:${h}`}>{h}</SelectItem>)}
-          </SelectGroup>
-        )}
-        {teams.length > 0 && (
-          <SelectGroup>
-            <SelectLabel>팀 / 센터</SelectLabel>
-            {teams.map((t) => <SelectItem key={`team:${t}`} value={`team:${t}`}>{t}</SelectItem>)}
-          </SelectGroup>
-        )}
-      </SelectContent>
-    </Select>
-  );
+  return <SearchableSelect value={value} onChange={onChange} options={options} placeholder="조직/팀" searchPlaceholder="조직/팀 검색" className={className ?? "w-[220px]"} />;
 }

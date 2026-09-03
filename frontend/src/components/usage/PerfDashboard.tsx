@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import SearchableSelect from "@/components/shared/SearchableSelect";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
-import SortableTable, { type Column } from "@/components/admin/claude-usage/SortableTable";
+import SortableTable, { sumBy, type Column } from "@/components/admin/claude-usage/SortableTable";
 import { usd, int } from "@/components/admin/claude-usage/format";
 import { dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
 
@@ -201,51 +201,51 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
   const jiraUserCols: Column<UserPerf>[] = [
     userCell,
     ...teamCol,
-    { key: "resolved", header: "해결", align: "right", value: (r) => r.issues_resolved, render: (r) => int(r.issues_resolved) },
-    { key: "created", header: "생성", align: "right", value: (r) => r.issues_created, render: (r) => int(r.issues_created) },
-    { key: "sp", header: "SP", align: "right", value: (r) => r.story_points, render: (r) => int(Math.round(r.story_points)) },
-    { key: "cycle", header: "사이클(평균)", align: "right", value: (r) => (r.cycle_count ? r.cycle_hours_sum / r.cycle_count : -1), render: (r) => h(r.cycle_hours_sum, r.cycle_count) },
-    { key: "lead", header: "리드(평균)", align: "right", value: (r) => (r.issues_resolved ? r.lead_hours_sum / r.issues_resolved : -1), render: (r) => h(r.lead_hours_sum, r.issues_resolved) },
-    { key: "cdays", header: "Claude 활동일", align: "right", value: (r) => r.claude_days, render: (r) => int(r.claude_days) },
+    { key: "resolved", header: "해결", align: "right", value: (r) => r.issues_resolved, render: (r) => int(r.issues_resolved) , total: "sum" },
+    { key: "created", header: "생성", align: "right", value: (r) => r.issues_created, render: (r) => int(r.issues_created) , total: "sum" },
+    { key: "sp", header: "SP", align: "right", value: (r) => r.story_points, render: (r) => int(Math.round(r.story_points)) , total: (rows) => int(Math.round(sumBy(rows, (r) => r.story_points))) },
+    { key: "cycle", header: "사이클(평균)", align: "right", value: (r) => (r.cycle_count ? r.cycle_hours_sum / r.cycle_count : -1), render: (r) => h(r.cycle_hours_sum, r.cycle_count) , total: (rows) => h(sumBy(rows, (r) => r.cycle_hours_sum), sumBy(rows, (r) => r.cycle_count)) },
+    { key: "lead", header: "리드(평균)", align: "right", value: (r) => (r.issues_resolved ? r.lead_hours_sum / r.issues_resolved : -1), render: (r) => h(r.lead_hours_sum, r.issues_resolved) , total: (rows) => h(sumBy(rows, (r) => r.lead_hours_sum), sumBy(rows, (r) => r.issues_resolved)) },
+    { key: "cdays", header: "Claude 활동일", align: "right", value: (r) => r.claude_days, render: (r) => int(r.claude_days) , total: "sum" },
   ];
   const codeUserCols: Column<UserPerf>[] = [
     userCell,
     ...teamCol,
-    { key: "commits", header: "커밋(GitLab)", align: "right", value: (r) => r.commits, render: (r) => int(r.commits) },
-    { key: "glc", header: "Claude 경유", align: "right", value: (r) => r.gitlab_claude_commits, render: (r) => int(r.gitlab_claude_commits) },
-    { key: "share", header: "Claude 비중", align: "right", value: (r) => (r.commits ? r.gitlab_claude_commits / r.commits : -1), render: (r) => (r.commits ? `${Math.round((r.gitlab_claude_commits / r.commits) * 100)}%` : "—") },
-    { key: "cc", header: "Claude Code 커밋", align: "right", value: (r) => r.claude_commits, render: (r) => int(r.claude_commits) },
-    { key: "opened", header: "MR 오픈", align: "right", value: (r) => r.mrs_opened, render: (r) => int(r.mrs_opened) },
-    { key: "merged", header: "MR 머지", align: "right", value: (r) => r.mrs_merged, render: (r) => int(r.mrs_merged) },
-    { key: "mrlead", header: "MR 리드(평균)", align: "right", value: (r) => (r.mrs_merged ? r.mr_lead_hours_sum / r.mrs_merged : -1), render: (r) => h(r.mr_lead_hours_sum, r.mrs_merged) },
-    { key: "loc", header: "LOC(Claude)", align: "right", value: (r) => r.loc_added, render: (r) => `+${int(r.loc_added)}/-${int(r.loc_removed)}` },
+    { key: "commits", header: "커밋(GitLab)", align: "right", value: (r) => r.commits, render: (r) => int(r.commits) , total: "sum" },
+    { key: "glc", header: "Claude 경유", align: "right", value: (r) => r.gitlab_claude_commits, render: (r) => int(r.gitlab_claude_commits) , total: "sum" },
+    { key: "share", header: "Claude 비중", align: "right", value: (r) => (r.commits ? r.gitlab_claude_commits / r.commits : -1), render: (r) => (r.commits ? `${Math.round((r.gitlab_claude_commits / r.commits) * 100)}%` : "—") , total: (rows) => { const c = sumBy(rows, (r) => r.commits); return c ? `${Math.round((sumBy(rows, (r) => r.gitlab_claude_commits) / c) * 100)}%` : "—"; } },
+    { key: "cc", header: "Claude Code 커밋", align: "right", value: (r) => r.claude_commits, render: (r) => int(r.claude_commits) , total: "sum" },
+    { key: "opened", header: "MR 오픈", align: "right", value: (r) => r.mrs_opened, render: (r) => int(r.mrs_opened) , total: "sum" },
+    { key: "merged", header: "MR 머지", align: "right", value: (r) => r.mrs_merged, render: (r) => int(r.mrs_merged) , total: "sum" },
+    { key: "mrlead", header: "MR 리드(평균)", align: "right", value: (r) => (r.mrs_merged ? r.mr_lead_hours_sum / r.mrs_merged : -1), render: (r) => h(r.mr_lead_hours_sum, r.mrs_merged) , total: (rows) => h(sumBy(rows, (r) => r.mr_lead_hours_sum), sumBy(rows, (r) => r.mrs_merged)) },
+    { key: "loc", header: "LOC(Claude)", align: "right", value: (r) => r.loc_added, render: (r) => `+${int(r.loc_added)}/-${int(r.loc_removed)}` , total: (rows) => `+${int(sumBy(rows, (r) => r.loc_added))}/-${int(sumBy(rows, (r) => r.loc_removed))}` },
   ];
   const docUserCols: Column<UserPerf>[] = [
     userCell,
     ...teamCol,
-    { key: "pc", header: "문서 생성", align: "right", value: (r) => r.pages_created, render: (r) => int(r.pages_created) },
-    { key: "pu", header: "문서 수정", align: "right", value: (r) => r.pages_updated, render: (r) => int(r.pages_updated) },
-    { key: "cdays", header: "Claude 활동일", align: "right", value: (r) => r.claude_days, render: (r) => int(r.claude_days) },
+    { key: "pc", header: "문서 생성", align: "right", value: (r) => r.pages_created, render: (r) => int(r.pages_created) , total: "sum" },
+    { key: "pu", header: "문서 수정", align: "right", value: (r) => r.pages_updated, render: (r) => int(r.pages_updated) , total: "sum" },
+    { key: "cdays", header: "Claude 활동일", align: "right", value: (r) => r.claude_days, render: (r) => int(r.claude_days) , total: "sum" },
   ];
   const projCols: Column<JiraProject>[] = [
     { key: "key", header: "프로젝트", value: (r) => r.key, render: (r) => <span className="font-medium">{r.key}</span> },
-    { key: "resolved", header: "해결", align: "right", value: (r) => r.issues_resolved, render: (r) => int(r.issues_resolved) },
-    { key: "created", header: "생성", align: "right", value: (r) => r.issues_created, render: (r) => int(r.issues_created) },
-    { key: "sp", header: "SP", align: "right", value: (r) => r.story_points, render: (r) => int(Math.round(r.story_points)) },
-    { key: "cycle", header: "사이클(평균)", align: "right", value: (r) => (r.cycle_count ? r.cycle_hours_sum / r.cycle_count : -1), render: (r) => h(r.cycle_hours_sum, r.cycle_count) },
+    { key: "resolved", header: "해결", align: "right", value: (r) => r.issues_resolved, render: (r) => int(r.issues_resolved) , total: "sum" },
+    { key: "created", header: "생성", align: "right", value: (r) => r.issues_created, render: (r) => int(r.issues_created) , total: "sum" },
+    { key: "sp", header: "SP", align: "right", value: (r) => r.story_points, render: (r) => int(Math.round(r.story_points)) , total: (rows) => int(Math.round(sumBy(rows, (r) => r.story_points))) },
+    { key: "cycle", header: "사이클(평균)", align: "right", value: (r) => (r.cycle_count ? r.cycle_hours_sum / r.cycle_count : -1), render: (r) => h(r.cycle_hours_sum, r.cycle_count) , total: (rows) => h(sumBy(rows, (r) => r.cycle_hours_sum), sumBy(rows, (r) => r.cycle_count)) },
   ];
   const repoCols: Column<Repo>[] = [
     { key: "key", header: "저장소", value: (r) => r.key, render: (r) => <span className="font-medium">{r.key}</span> },
-    { key: "commits", header: "커밋", align: "right", value: (r) => r.commits, render: (r) => int(r.commits) },
-    { key: "glc", header: "Claude 경유", align: "right", value: (r) => r.gitlab_claude_commits, render: (r) => (r.commits ? `${int(r.gitlab_claude_commits)} (${Math.round((r.gitlab_claude_commits / r.commits) * 100)}%)` : "—") },
-    { key: "opened", header: "MR 오픈", align: "right", value: (r) => r.mrs_opened, render: (r) => int(r.mrs_opened) },
-    { key: "merged", header: "MR 머지", align: "right", value: (r) => r.mrs_merged, render: (r) => int(r.mrs_merged) },
-    { key: "lead", header: "MR 리드(평균)", align: "right", value: (r) => (r.mrs_merged ? r.mr_lead_hours_sum / r.mrs_merged : -1), render: (r) => h(r.mr_lead_hours_sum, r.mrs_merged) },
+    { key: "commits", header: "커밋", align: "right", value: (r) => r.commits, render: (r) => int(r.commits) , total: "sum" },
+    { key: "glc", header: "Claude 경유", align: "right", value: (r) => r.gitlab_claude_commits, render: (r) => (r.commits ? `${int(r.gitlab_claude_commits)} (${Math.round((r.gitlab_claude_commits / r.commits) * 100)}%)` : "—") , total: "sum" },
+    { key: "opened", header: "MR 오픈", align: "right", value: (r) => r.mrs_opened, render: (r) => int(r.mrs_opened) , total: "sum" },
+    { key: "merged", header: "MR 머지", align: "right", value: (r) => r.mrs_merged, render: (r) => int(r.mrs_merged) , total: "sum" },
+    { key: "lead", header: "MR 리드(평균)", align: "right", value: (r) => (r.mrs_merged ? r.mr_lead_hours_sum / r.mrs_merged : -1), render: (r) => h(r.mr_lead_hours_sum, r.mrs_merged) , total: (rows) => h(sumBy(rows, (r) => r.mr_lead_hours_sum), sumBy(rows, (r) => r.mrs_merged)) },
   ];
   const spaceCols: Column<Space>[] = [
     { key: "key", header: "스페이스", value: (r) => r.key, render: (r) => <span className="font-medium">{r.key}</span> },
-    { key: "pc", header: "생성", align: "right", value: (r) => r.pages_created, render: (r) => int(r.pages_created) },
-    { key: "pu", header: "수정", align: "right", value: (r) => r.pages_updated, render: (r) => int(r.pages_updated) },
+    { key: "pc", header: "생성", align: "right", value: (r) => r.pages_created, render: (r) => int(r.pages_created) , total: "sum" },
+    { key: "pu", header: "수정", align: "right", value: (r) => r.pages_updated, render: (r) => int(r.pages_updated) , total: "sum" },
   ];
 
   return (
@@ -256,13 +256,14 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
         ))}
         {teams && (
           <>
-            <Select value={team} onValueChange={setTeam}>
-              <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue placeholder="팀" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체 팀</SelectItem>
-                {teams.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={team}
+              onChange={setTeam}
+              options={[{ value: "all", label: "전체 팀" }, ...teams.map((name) => ({ value: name, label: name }))]}
+              placeholder="팀"
+              searchPlaceholder="팀 검색"
+              className="w-[200px]"
+            />
             <Input
               value={qInput}
               onChange={(e) => setQInput(e.target.value)}
