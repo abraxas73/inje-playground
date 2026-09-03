@@ -18,7 +18,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!project) return NextResponse.json({ error: "프로젝트가 없습니다." }, { status: 404 });
   if (project.status === "extracting") return NextResponse.json({ error: "이미 추출 중입니다." }, { status: 409 });
 
-  const { count } = await auth.admin.from("rfp_requirements").select("id", { count: "exact", head: true }).eq("project_id", id).not("updated_by", "is", null);
+  const { count, error: countError } = await auth.admin
+    .from("rfp_requirements")
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", id)
+    .not("updated_by", "is", null);
+  if (countError) return NextResponse.json({ error: countError.message }, { status: 500 });
   if ((count ?? 0) > 0 && body.confirm !== true) {
     return NextResponse.json({ needsConfirm: true, editedCount: count }, { status: 409 });
   }

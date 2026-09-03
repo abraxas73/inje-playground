@@ -28,14 +28,16 @@ export async function GET(request: NextRequest, { params }: Params) {
     return NextResponse.json(res);
   }
 
-  const [{ data: files }, { data: reqs }, names] = await Promise.all([
+  const [filesRes, reqsRes, names] = await Promise.all([
     auth.admin.from("rfp_files").select("id, original_filename, format, size_bytes, created_at").eq("project_id", id).order("created_at", { ascending: false }),
     auth.admin.from("rfp_requirements").select("*").eq("project_id", id).order("sort_order", { ascending: true }),
     creatorNames(auth.admin, [row.created_by]),
   ]);
+  if (filesRes.error) return NextResponse.json({ error: filesRes.error.message }, { status: 500 });
+  if (reqsRes.error) return NextResponse.json({ error: reqsRes.error.message }, { status: 500 });
   // 요구사항은 프로젝트당 수백 건이라 Supabase 1000행 상한에 걸리지 않는다. 넘길 가능성이 생기면 selectAll(lib/work-metrics/common.ts)로 바꾼다.
-  const requirements = sortRequirements(((reqs ?? []) as RequirementDbRow[]).map(mapRequirement));
-  return NextResponse.json(mapProjectDetail(row, names.get(row.created_by) ?? null, (files ?? []) as FileDbRow[], requirements));
+  const requirements = sortRequirements(((reqsRes.data ?? []) as RequirementDbRow[]).map(mapRequirement));
+  return NextResponse.json(mapProjectDetail(row, names.get(row.created_by) ?? null, (filesRes.data ?? []) as FileDbRow[], requirements));
 }
 
 /** PATCH /api/rfp/projects/[id] {name?, agency?, period?, budget?, bidMethod?} — 개요 편집 */
