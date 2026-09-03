@@ -9,12 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import UnitFilter, { matchUnit } from "@/components/admin/claude-usage/UnitFilter";
 import { Loader2, Upload, Trash2 } from "lucide-react";
 import SortableTable, { type Column } from "./SortableTable";
+import PeriodSelect from "./PeriodSelect";
 import { hasSeat, isIdleSeat } from "@/lib/claude-usage/aggregate";
 import { usd } from "./format";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
 
 type Row = MemberActivityRow & { org_id: string; import_id: string; employee_name?: string | null; team?: string | null; headquarters?: string | null; division?: string | null };
-interface MembersResponse { imports: CsvImport[]; rows: Row[] }
+interface MembersResponse { imports: CsvImport[]; rows: Row[]; period: { start: string; end: string } | null }
 interface UploadResult { filename: string; ok: boolean; org_id?: string; period_start?: string; period_end?: string; row_count?: number; error?: string }
 
 /** ISO → "2026-08-27 15:44" (KST, 브라우저 로캘) */
@@ -26,7 +27,7 @@ function fmtDateTime(iso: string): string {
 
 export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[]; onOrgsChange?: () => void }) {
   const [org, setOrg] = useState("all");
-  const [importId, setImportId] = useState("latest");
+  const [periodEnd, setPeriodEnd] = useState("latest");
   const [tick, setTick] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [results, setResults] = useState<UploadResult[] | null>(null);
@@ -38,7 +39,7 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
   const [manualStart, setManualStart] = useState("");
   const [manualEnd, setManualEnd] = useState("");
 
-  const key = `${org}|${importId}|${tick}`;
+  const key = `${org}|${periodEnd}|${tick}`;
   const [result, setResult] = useState<{ key: string; data?: MembersResponse; error?: string } | null>(null);
   const loading = result?.key !== key;
   const data = result?.key === key ? result.data ?? null : null;
@@ -46,7 +47,7 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
 
   useEffect(() => {
     let alive = true;
-    fetch(`/api/admin/claude-usage/members?org=${encodeURIComponent(org)}&importId=${encodeURIComponent(importId)}`)
+    fetch(`/api/admin/claude-usage/members?org=${encodeURIComponent(org)}&periodEnd=${encodeURIComponent(periodEnd)}`)
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
@@ -61,7 +62,7 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
     return () => {
       alive = false;
     };
-  }, [key, org, importId, tick]);
+  }, [key, org, periodEnd, tick]);
 
   const onFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -80,7 +81,7 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
       setResults(j.results as UploadResult[]);
-      setImportId("latest");
+      setPeriodEnd("latest");
       setTick((t) => t + 1);
       if (manualComplete) {
         setManualOrgId("");
@@ -99,7 +100,7 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
     setRemoveError(null);
     const r = await fetch(`/api/admin/claude-usage/imports/${id}`, { method: "DELETE" });
     if (r.ok) {
-      setImportId("latest");
+      setPeriodEnd("latest");
       setTick((t) => t + 1);
       return;
     }
@@ -110,14 +111,14 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
   const orgName = useMemo(() => new Map(orgs.map((o) => [o.id, o.name])), [orgs]);
   /** 조직별 최신 import 중 가장 최근 업로드 시각 — "마지막 CSV 수집" 표시용 */
   const lastCollected = useMemo(() => {
-    const latest = new Map<string, { created_at: string; period_end: string }>();
+    const latest = new Map<string, { created_at: string; period_start: string; period_end: string }>();
     for (const i of data?.imports ?? []) {
       const prev = latest.get(i.org_id);
-      if (!prev || i.created_at > prev.created_at) latest.set(i.org_id, { created_at: i.created_at, period_end: i.period_end });
+      if (!prev || i.created_at > prev.created_at) latest.set(i.org_id, { created_at: i.created_at, period_start: i.period_start, period_end: i.period_end });
     }
     if (latest.size === 0) return null;
     const vals = [...latest.values()];
-    return { at: vals.map((v) => v.created_at).sort().at(-1)!, orgs: latest.size, periodEnd: vals.map((v) => v.period_end).sort().at(-1)! };
+    return { at: vals.map((v) => v.created_at).sort().at(-1)!, orgs: latest.size, periodStart: vals.map((v) => v.period_start).sort()[0], periodEnd: vals.map((v) => v.period_end).sort().at(-1)! };
   }, [data]);
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -155,7 +156,7 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
             <CardTitle className="text-sm">멤버 활동 CSV 업로드</CardTitle>
             <p className="text-sm">
               {lastCollected
-                ? <>마지막 CSV 수집: <b>{fmtDateTime(lastCollected.at)}</b> <span className="text-muted-foreground">· {lastCollected.orgs}개 조직 · 데이터 기간 ~{lastCollected.periodEnd}</span></>
+                ? <>마지막 CSV 수집: <b>{fmtDateTime(lastCollected.at)}</b> <span className="text-muted-foreground">· {lastCollected.orgs}개 조직 · 데이터 기간 {lastCollected.periodStart} ~ {lastCollected.periodEnd}</span></>
                 : <span className="text-muted-foreground">마지막 CSV 수집: 없음</span>}
             </p>
           </div>
@@ -186,20 +187,15 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
       </Card>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={org} onValueChange={(v) => { setOrg(v); setImportId("latest"); }}>
+        <Select value={org} onValueChange={(v) => { setOrg(v); setPeriodEnd("latest"); }}>
           <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="Claude 조직" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">전체 Claude 조직(최신 기간)</SelectItem>
+            <SelectItem value="all">전체 Claude 조직</SelectItem>
             {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={importId} onValueChange={setImportId}>
-          <SelectTrigger className="h-8 w-[260px] text-xs"><SelectValue placeholder="기간" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="latest">조직별 최신 업로드</SelectItem>
-            {(data?.imports ?? []).map((i) => <SelectItem key={i.id} value={i.id}>{orgName.get(i.org_id) ?? i.org_id.slice(0, 8)} · {i.period_start}~{i.period_end} ({i.row_count}명)</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <PeriodSelect value={periodEnd} onChange={setPeriodEnd} imports={data?.imports ?? []} />
+        {data?.period && <Badge variant="secondary" title="선택한 기간의 CSV 중 조직별 최신 업로드 기준">데이터 기간 {data.period.start} ~ {data.period.end}</Badge>}
         <UnitFilter value={unit} onChange={setUnit} rows={data?.rows ?? []} />
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="이메일/이름 검색" className="h-8 w-[200px] text-xs" />
         <Button size="sm" variant={idleOnly ? "default" : "outline"} onClick={() => setIdleOnly((v) => !v)}>노는 시트만 ({idleCount})</Button>
@@ -208,7 +204,7 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">멤버 활동 ({rows.length}명) — 노는 시트는 붉게 표시{lastCollected && <span className="ml-2 font-normal text-muted-foreground">· 데이터 ~{lastCollected.periodEnd}, 수집 {fmtDateTime(lastCollected.at)}</span>}</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-sm">멤버 활동 ({rows.length}명) — 노는 시트는 붉게 표시{data?.period && lastCollected && <span className="ml-2 font-normal text-muted-foreground">· 데이터 {data.period.start} ~ {data.period.end}, 수집 {fmtDateTime(lastCollected.at)}</span>}</CardTitle></CardHeader>
         <CardContent>
           <SortableTable rows={rows} columns={columns} rowKey={(r) => `${r.import_id}:${r.email}`} defaultSort={{ key: "chats", dir: "desc" }} rowClassName={(r) => (isIdleSeat(r) ? "bg-destructive/5" : "")} emptyText={loading ? "불러오는 중..." : "업로드된 CSV가 없습니다."} />
         </CardContent>

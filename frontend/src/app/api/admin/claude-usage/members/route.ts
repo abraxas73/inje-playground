@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500, numify } from "@/lib/claude-usage/require-admin";
 
-/** GET /api/admin/claude-usage/members?org=all|<id>&importId=latest|<uuid> — CSV 멤버 활동 */
+/**
+ * GET /api/admin/claude-usage/members?org=all|<id>&importId=latest|<uuid>&periodEnd=latest|YYYY-MM-DD — CSV 멤버 활동
+ * - periodEnd(YYYY-MM-DD): 데이터 기간 종료일이 그 날짜인 CSV 중 조직별 최신 업로드를 고른다(화면의 "데이터 기간" 선택).
+ * - importId(uuid): 특정 업로드 하나. 둘 다 없으면 조직별 최신 업로드.
+ * 응답 imports는 선택과 무관하게 org 범위의 전체 업로드 목록(기간 옵션용), period는 선택된 CSV들의 데이터 기간.
+ */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
@@ -12,6 +17,7 @@ export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
   const org = sp.get("org") ?? "all";
   const importId = sp.get("importId") ?? "latest";
+  const periodEnd = /^\d{4}-\d{2}-\d{2}$/.test(sp.get("periodEnd") ?? "") ? (sp.get("periodEnd") as string) : null;
 
   let importsQ = admin
     .from("claude_csv_imports")
@@ -22,14 +28,22 @@ export async function GET(request: NextRequest) {
   const imports = await importsQ;
   if (imports.error) return NextResponse.json({ error: imports.error.message }, { status: 500 });
 
-  let ids: string[];
-  if (importId === "latest") {
-    const seen = new Map<string, string>();
-    for (const i of imports.data ?? []) if (!seen.has(i.org_id)) seen.set(i.org_id, i.id);
-    ids = [...seen.values()];
+  type Imp = { id: string; org_id: string; period_start: string; period_end: string };
+  const all = (imports.data ?? []) as Imp[];
+  let selected: Imp[];
+  if (importId !== "latest") {
+    selected = all.filter((i) => i.id === importId);
   } else {
-    ids = [importId];
+    // period_end desc, created_at desc 정렬이라 조직별 첫 항목이 최신 업로드
+    const pool = periodEnd ? all.filter((i) => i.period_end === periodEnd) : all;
+    const seen = new Map<string, Imp>();
+    for (const i of pool) if (!seen.has(i.org_id)) seen.set(i.org_id, i);
+    selected = [...seen.values()];
   }
+  const ids = selected.map((i) => i.id);
+  const period = selected.length
+    ? { start: selected.map((i) => i.period_start).sort()[0], end: selected.map((i) => i.period_end).sort().at(-1)! }
+    : null;
   const rows = ids.length
     ? await admin.from("claude_member_activity").select("*").in("import_id", ids).order("chats", { ascending: false })
     : { data: [] as Record<string, unknown>[], error: null };
@@ -43,5 +57,5 @@ export async function GET(request: NextRequest) {
     const d = dirByEmail.get(String(rec.email ?? "").toLowerCase());
     return { ...rec, employee_name: d?.name ?? null, team: d?.team ?? null, headquarters: d?.headquarters ?? null, division: d?.division ?? null };
   });
-  return NextResponse.json({ imports: imports.data ?? [], rows: withTeam });
+  return NextResponse.json({ imports: all, rows: withTeam, period });
 }
