@@ -166,7 +166,7 @@ interface Requirement {
 ### 6.3 LLM 폴백 (`extract-llm.ts`)
 
 표준이 아닐 때만 실행한다. `claude-api` 스킬 기준을 따른다.
-- SDK `@anthropic-ai/sdk`, 모델 `claude-opus-5`(env `RFP_LLM_MODEL`로 교체 가능), `thinking: {type:"adaptive"}`, 스트리밍 + `finalMessage()`, `max_tokens 64000`. 서버 측 refusal fallback(`fallbacks: "default"`)을 켠다.
+- SDK `@anthropic-ai/sdk`, 모델 `claude-opus-5`(env `RFP_LLM_MODEL`로 교체 가능), `thinking: {type:"adaptive"}`, 스트리밍 + `finalMessage()`, `max_tokens 64000`. refusal fallback 베타는 쓰지 않고 `stop_reason === "refusal"`은 오류로 처리한다(공개 입찰 문서라 거부 가능성이 낮음 — 구현 시 조정).
 - 문서 모델을 텍스트로 펴서(표는 `| a | b |` 마크다운) **섹션 단위로 나눈다**. 기준은 "요구사항" 제목 문단, 없으면 30,000자 단위. 청크마다 한 요청.
 - 출력은 `output_config.format` JSON 스키마(structured outputs)로 `{ requirements: Requirement[] }`를 받는다. 필드는 6.1과 같고 `categoryCode`는 서버가 `reqId`에서 계산한다. `reqId`가 없는 항목은 구분 코드를 LLM이 준 `categoryName`의 영문 약칭으로 만들고 `{코드}-{연번}`을 부여한다.
 - 청크 결과를 합쳐 `reqId` 중복은 먼저 나온 것을 남긴다.
@@ -191,8 +191,8 @@ create table public.rfp_projects (
   error text,
   warnings jsonb not null default '[]'::jsonb,
   requirement_count int not null default 0,
-  created_by uuid not null references auth.users(id),
-  updated_by uuid references auth.users(id),
+  created_by uuid references auth.users(id) on delete set null,   -- 사용자 삭제(/api/users/[id])가 막히지 않게
+  updated_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -206,7 +206,7 @@ create table public.rfp_files (
   format text not null check (format in ('hwp','hwpx','docx')),
   size_bytes bigint not null,
   sha256 text not null unique,
-  uploaded_by uuid not null references auth.users(id),
+  uploaded_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -224,7 +224,7 @@ create table public.rfp_requirements (
   solution text not null default '',                   -- 당사 솔루션(자유 텍스트, 2단계에서 구조화)
   sort_order int not null,
   source jsonb not null default '{}'::jsonb,
-  updated_by uuid references auth.users(id),
+  updated_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (project_id, req_id)
@@ -232,7 +232,7 @@ create table public.rfp_requirements (
 create index rfp_requirements_project_idx on public.rfp_requirements (project_id, sort_order);
 ```
 
-- RLS는 켜고 정책은 두지 않는다(service role만 접근). 접근 제어는 API 라우트가 한다. 기존 Claude 사용량 테이블과 같은 방식.
+- RLS는 켜고 사용자 정책은 두지 않는다(service role만 쓰기·읽기; 진단용 관리자 세션 읽기 정책만 둔다). 접근 제어는 API 라우트가 한다. 기존 Claude 사용량 테이블과 같은 방식.
 - Storage 버킷 `rfp`(private). 경로 `uploads/{uuid}/{원본 파일명}`. 프로젝트 삭제 시 파일도 지운다.
 - `updated_at`은 기존 테이블처럼 트리거로 갱신한다.
 
@@ -244,19 +244,19 @@ create index rfp_requirements_project_idx on public.rfp_requirements (project_id
 
 | 메서드·경로 | 역할 | 요청 → 응답 |
 |---|---|---|
-| `POST /api/rfp/uploads` | 서명 업로드 URL | `{fileName, size}` → 확장자·크기 검사 → `{storagePath, signedUrl, token}` (`createSignedUploadUrl`, 5분) |
+| `POST /api/rfp/uploads` | 서명 업로드 URL | `{fileName, size}` → 확장자·크기 검사 → `{storagePath, signedUrl, token}` (`createSignedUploadUrl`, Supabase 기본 유효 시간) |
 | `POST /api/rfp/projects` | 등록 | `{storagePath, fileName, sizeBytes, force?}`(sha256은 서버가 파일 바이트로 계산) → 파싱·개요·중복 판단 → `200 {duplicate}` / `200 {needsConfirm, candidates, overview}` / `201 {projectId}`. 파싱 실패 400·415, 이후 `after()`로 추출. `maxDuration = 300` |
 | `GET /api/rfp/projects` | 목록 | `?q=` 사업명·발주기관 검색 → `{projects:[{id,name,agency,status,requirementCount,createdBy:{name},createdAt}]}` |
 | `GET /api/rfp/projects/[id]` | 상세 | `{project, files, requirements}` (폴링에도 사용, `?fields=status`면 상태만) |
 | `PATCH /api/rfp/projects/[id]` | 개요 편집 | `{name?, agency?, period?, budget?, bidMethod?}` → 정규화 갱신, 유니크 위반은 409 |
 | `DELETE /api/rfp/projects/[id]` | 삭제 | 등록자·admin만. 파일·요구사항 함께 삭제 |
-| `POST /api/rfp/projects/[id]/reextract` | 재추출 | 기존 요구사항 삭제 후 `extracting`으로 되돌리고 `after()`로 다시 추출 |
+| `POST /api/rfp/projects/[id]/reextract` | 재추출 | 편집 행이 있으면 409 확인 요청, 아니면 `extracting`으로 되돌리고 `after()`로 다시 추출(새 결과를 만든 뒤 기존 행 교체). 6분 넘게 `extracting`이면 stale lock으로 보고 허용 |
 | `GET /api/rfp/projects/[id]/xlsx` | 다운로드 | exceljs 버퍼, `Content-Disposition` 파일명 `(발주기관) 사업명_요구사항 검토_YYYYMMDD.xlsx` |
 | `POST /api/rfp/projects/[id]/requirements` | 행 추가 | `{categoryCode, categoryName, reqId, …}` → 201. `reqId` 중복 409 |
 | `PATCH /api/rfp/requirements/[requirementId]` | 셀 편집 | 필드 부분 갱신, `updated_by` 기록 → 갱신된 행 |
 | `DELETE /api/rfp/requirements/[requirementId]` | 행 삭제 | 204 |
 
-`after()` 안의 추출 함수는 프로젝트 상태를 반드시 `ready` 또는 `failed`로 끝낸다. 예외를 잡아 `failed` + 메시지를 쓰고, 3분 넘게 `extracting`인 프로젝트는 상세 화면이 "시간 초과, 재추출" 안내를 보인다.
+`after()` 안의 추출 함수는 프로젝트 상태를 반드시 `ready` 또는 `failed`로 끝낸다. 예외를 잡아 `failed` + 메시지를 쓰고, 3분 넘게 `extracting`인 프로젝트는 상세 화면이 시간 초과 안내를 보이고, 6분이 지나면 재추출 버튼이 다시 활성화된다(Vercel 300초 제한으로 `after()`가 죽은 경우 복구 경로).
 
 ## 9. 화면
 
@@ -272,7 +272,7 @@ create index rfp_requirements_project_idx on public.rfp_requirements (project_id
 ## 10. xlsx (`xlsx.ts`)
 
 exceljs로 샘플과 같은 구조를 만든다.
-- `0.개요`: 제목 행(`「사업명」 제안요청서 요구사항 분석`), "1. 사업 개요 (일반사항)" 아래 사업명·사업기간·설계금액·발주기관·입찰 및 계약방법 key-value(B열 라벨, C~H 병합 값). `extra`에 값이 있으면 "2. 추진 배경" 이하로 이어 붙인다.
+- `0.개요`: 제목 행(`「사업명」 제안요청서 요구사항 분석`), "1. 사업 개요 (일반사항)" 아래 사업명·사업기간·설계금액·발주기관·입찰 및 계약방법 key-value(B열 라벨, C~H 병합 값). `extra`에 값이 있으면 "2. 기타" 아래에 이어 붙인다(1단계 개요 추출은 `extra`를 채우지 않으므로 보통 비어 있다).
 - `1.요구사항_목록`: 1행 제목(`요구사항 목록 총괄 (전체 N건)`), 3행 헤더(연번, 요구사항 구분, 요구사항 ID, 요구사항 명칭, 상세 시트 위치, 당사 솔루션), 열 너비 5/22/16/38/55/30.
 - 구분별 시트 `{순번}.{코드}`: 1행 제목(`[코드] 구분명 — 상세 요구사항`), 3행 헤더(연번, 요구사항\nID, 요구사항명, 정의, 세부 내용, 산출정보, 관련요구사항), 열 너비 5/12/24/26/85/20/32, 세부 내용·관련요구사항은 `wrapText`, 상단 정렬.
 - 헤더는 굵게 + 회색 배경 + 얇은 테두리. 폰트 "맑은 고딕" 10.
