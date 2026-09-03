@@ -50,12 +50,15 @@ export async function GET(request: NextRequest) {
   if (rows.error) return NextResponse.json({ error: rows.error.message }, { status: 500 });
 
   // 사내 조직도 명부(재직자)로 소속(team/division) 조인 — 실패해도 표는 내려준다
-  const directory = await admin.from("company_directory").select("email, name, team, headquarters, division").eq("active", true).limit(1000);
-  const dirByEmail = new Map(((directory.error ? [] : directory.data ?? []) as { email: string; name: string | null; team: string | null; headquarters: string | null; division: string | null }[]).map((d) => [d.email.toLowerCase(), d]));
+  const directory = await admin.from("company_directory").select("email, name, team, headquarters, division, units").eq("active", true).limit(1000);
+  type Dir = { email: string; name: string | null; team: string | null; headquarters: string | null; division: string | null; units: string[] | null };
+  const dirByEmail = new Map(((directory.error ? [] : directory.data ?? []) as Dir[]).map((d) => [d.email.toLowerCase(), d]));
+  // parent_unit = 조직도 경로에서 팀 바로 위 단위(센터 등). headquarters는 본부라 센터가 빠진다
+  const parentUnit = (d: Dir | undefined): string | null => (d?.units && d.units.length >= 2 ? d.units[d.units.length - 2] : null);
   const withTeam = (rows.data ?? []).map((r) => {
     const rec = numify(r as Record<string, unknown>) as Record<string, unknown>;
     const d = dirByEmail.get(String(rec.email ?? "").toLowerCase());
-    return { ...rec, employee_name: d?.name ?? null, team: d?.team ?? null, headquarters: d?.headquarters ?? null, division: d?.division ?? null };
+    return { ...rec, employee_name: d?.name ?? null, team: d?.team ?? null, parent_unit: parentUnit(d), headquarters: d?.headquarters ?? null, division: d?.division ?? null };
   });
   return NextResponse.json({ imports: all, rows: withTeam, period });
 }

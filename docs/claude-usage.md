@@ -36,7 +36,7 @@
 ## 3. 월간 CSV 절차 (매월 1일, 조직당 1분)
 가장 쉬운 방법: Claude Code에서 `/claude-usage-csv` 실행(Chrome 확장 연결 필요) → 7개 조직 CSV 내보내기 + 업로드가 자동 진행. 수동으로 받았다면 `./frontend/scripts/claude-usage-upload.sh 3`으로 최근 3일 파일을 일괄 업로드.
 1. claude.ai에서 조직 전환 → 분석 → 개요 → 멤버 **모두 보기** → 기간 **30일** → **CSV 내보내기**(`members-analytics-<조직ID>-<시작>-to-<끝>.csv`).
-2. 7개 파일을 `/admin/claude-chat` → 채팅·Cowork 탭 → "파일 선택"으로 한 번에 업로드. 결과 줄이 전부 ✓인지 확인. **팀별 집계** 탭에서 사내 조직도 기준 팀별 채팅·Cowork 활동을 볼 수 있다.
+2. 7개 파일을 `./frontend/scripts/claude-usage-upload.sh 1`(수집 토큰으로 `POST /api/admin/claude-usage/imports`)로 한 번에 업로드. 결과 줄이 전부 ✓인지 확인. 평소에는 `/claude-usage-csv` 스킬(launchd 매일 09:05)이 내보내기·업로드를 무인으로 처리하며, 웹 화면에는 업로드 UI가 없고(2026-09-03 제거) "마지막 CSV 수집"·수집 이력(삭제)만 있다. **팀별 집계** 탭에서 사내 조직도 기준 팀별 채팅·Cowork 활동을 볼 수 있다(여러 Claude 조직에 속한 계정은 인원 1명으로, 상위 조직은 팀 바로 위 단위 표기).
 3. "노는 시트만" 버튼으로 Premium 시트인데 활동 0인 사용자를 확인 → 시트 회수 검토.
 - 기간 60/90일 CSV도 업로드 가능(다른 기간 키로 별도 저장). 같은 조직·기간 재업로드는 교체.
 - **마지막 수집 시각**: 업로드마다 `claude_csv_imports.created_at`에 기록되며, 채팅·Cowork 탭 "업로드 이력" 상단("마지막 CSV 수집 … · N개 조직")과 조직·설정 탭 "수집 상태"(전체) 및 조직 표 "CSV 최신(수집 시각)"(조직별)에 표시된다. 표시는 조직별 최신 import 기준이라 재업로드로 중복 집계되지 않는다.

@@ -100,12 +100,14 @@ test.describe("관리자 화면 (admin storageState 필요)", () => {
     await expect(page.getByText("수집 상태")).toBeVisible();
     await expect(page.locator("pre")).toContainText("OTEL_EXPORTER_OTLP_ENDPOINT");
     await expect(page.locator("pre")).toContainText("/api/otel");
+    // 채팅·Cowork(CSV)는 2026-08-31 메뉴 분리로 /admin/claude-chat. 업로드 UI는 없고(스킬·스크립트가 API로 올림) 수집 상태만 보인다
+    await page.goto("/admin/claude-chat");
     await page.getByRole("tab", { name: "채팅 · Cowork (CSV)" }).click();
-    await expect(page.getByText("멤버 활동 CSV 업로드")).toBeVisible();
+    await expect(page.getByText(/마지막 CSV 수집/)).toBeVisible();
   });
 
   test.describe("합성 CSV 업로드", () => {
-    test.skip(!SERVICE_KEY || !SUPABASE_URL, "SUPABASE_SERVICE_ROLE_KEY/NEXT_PUBLIC_SUPABASE_URL 미설정");
+    test.skip(!SERVICE_KEY || !SUPABASE_URL || !TOKEN, "SUPABASE_SERVICE_ROLE_KEY/NEXT_PUBLIC_SUPABASE_URL/CLAUDE_OTEL_INGEST_TOKEN 미설정");
 
     test.afterAll(async () => {
       if (!SERVICE_KEY || !SUPABASE_URL) return;
@@ -114,7 +116,7 @@ test.describe("관리자 화면 (admin storageState 필요)", () => {
       await admin.from("claude_orgs").delete().eq("id", E2E_ORG);
     });
 
-    test("파일명 자동 인식 업로드 → 표 반영(미할당 표시) → 이력 삭제", async ({ page }) => {
+    test("파일명 자동 인식 업로드(API) → 표 반영(미할당 표시) → 이력 삭제", async ({ page, request }) => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), "claude-usage-e2e-"));
       const file = path.join(dir, `members-analytics-${E2E_ORG}-2026-01-01-to-2026-01-30.csv`);
       fs.writeFileSync(
@@ -125,11 +127,14 @@ test.describe("관리자 화면 (admin storageState 필요)", () => {
           '"E2E 미할당","dev-e2e-2@example.com","User","Unassigned","","0","0","0","0","0","0","0","0","0","0","0","0","0","0.00"\r\n'
       );
 
-      await page.goto("/admin/claude-usage");
-      await page.getByRole("tab", { name: "채팅 · Cowork (CSV)" }).click();
-      await page.locator('input[type="file"]').setInputFiles(file);
-      await expect(page.getByText(/✓ members-analytics-e2e00000/)).toBeVisible({ timeout: 15_000 });
+      // 업로드는 스킬/스크립트와 같은 경로(수집 토큰 → imports API)
+      const up = await request.post("/api/admin/claude-usage/imports", { headers: auth(TOKEN!), multipart: { files: { name: path.basename(file), mimeType: "text/csv", buffer: fs.readFileSync(file) } } });
+      expect(up.ok()).toBeTruthy();
+      const body = (await up.json()) as { results: { ok: boolean; filename: string }[] };
+      expect(body.results.every((r) => r.ok)).toBeTruthy();
 
+      await page.goto("/admin/claude-chat");
+      await page.getByRole("tab", { name: "채팅 · Cowork (CSV)" }).click();
       // 업로드된 조직만 보기
       await page.getByRole("combobox").first().click();
       await page.getByRole("option", { name: /e2e00000/ }).click();

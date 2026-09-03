@@ -37,7 +37,7 @@ export default function ClaudeChatUsagePage() {
           <TabsTrigger value="members">채팅 · Cowork (CSV)</TabsTrigger>
           <TabsTrigger value="teams">팀별 집계</TabsTrigger>
         </TabsList>
-        <TabsContent value="members"><MembersCsvTab orgs={orgs} onOrgsChange={loadOrgs} /></TabsContent>
+        <TabsContent value="members"><MembersCsvTab orgs={orgs} /></TabsContent>
         <TabsContent value="teams"><ChatTeamSummaryTab orgs={orgs} /></TabsContent>
       </Tabs>
     </div>

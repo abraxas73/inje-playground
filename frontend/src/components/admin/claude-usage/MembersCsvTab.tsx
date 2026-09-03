@@ -7,16 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import UnitFilter, { matchUnit } from "@/components/admin/claude-usage/UnitFilter";
-import { Loader2, Upload, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import SortableTable, { type Column } from "./SortableTable";
 import PeriodSelect from "./PeriodSelect";
 import { hasSeat, isIdleSeat } from "@/lib/claude-usage/aggregate";
 import { usd } from "./format";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
 
-type Row = MemberActivityRow & { org_id: string; import_id: string; employee_name?: string | null; team?: string | null; headquarters?: string | null; division?: string | null };
+type Row = MemberActivityRow & { org_id: string; import_id: string; employee_name?: string | null; team?: string | null; parent_unit?: string | null; headquarters?: string | null; division?: string | null };
 interface MembersResponse { imports: CsvImport[]; rows: Row[]; period: { start: string; end: string } | null }
-interface UploadResult { filename: string; ok: boolean; org_id?: string; period_start?: string; period_end?: string; row_count?: number; error?: string }
 
 /** ISO → "2026-08-27 15:44" (KST, 브라우저 로캘) */
 function fmtDateTime(iso: string): string {
@@ -25,19 +24,18 @@ function fmtDateTime(iso: string): string {
   return d.toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).replace(/\. /g, "-").replace(/\.$/, "").replace(/-(\d{2}:\d{2})/, " $1");
 }
 
-export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[]; onOrgsChange?: () => void }) {
+/**
+ * 채팅·Cowork(CSV) 멤버 활동 표. CSV 수집·업로드는 웹 UI가 아니라 /claude-usage-csv 스킬(launchd 매일 09:05)이
+ * scripts/claude-usage-upload.sh → POST /api/admin/claude-usage/imports 로 처리하므로 여기서는 수집 상태·이력만 보여준다.
+ */
+export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const [org, setOrg] = useState("all");
   const [periodEnd, setPeriodEnd] = useState("latest");
   const [tick, setTick] = useState(0);
-  const [uploading, setUploading] = useState(false);
-  const [results, setResults] = useState<UploadResult[] | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [unit, setUnit] = useState("all");
   const [idleOnly, setIdleOnly] = useState(false);
-  const [manualOrgId, setManualOrgId] = useState("");
-  const [manualStart, setManualStart] = useState("");
-  const [manualEnd, setManualEnd] = useState("");
 
   const key = `${org}|${periodEnd}|${tick}`;
   const [result, setResult] = useState<{ key: string; data?: MembersResponse; error?: string } | null>(null);
@@ -63,38 +61,6 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
       alive = false;
     };
   }, [key, org, periodEnd, tick]);
-
-  const onFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    setUploading(true);
-    setResults(null);
-    const fd = new FormData();
-    Array.from(files).forEach((f) => fd.append("files", f));
-    const manualComplete = files.length === 1 && manualOrgId.trim() && manualStart.trim() && manualEnd.trim();
-    if (manualComplete) {
-      fd.append("orgId", manualOrgId.trim());
-      fd.append("periodStart", manualStart.trim());
-      fd.append("periodEnd", manualEnd.trim());
-    }
-    try {
-      const r = await fetch("/api/admin/claude-usage/imports", { method: "POST", body: fd });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
-      setResults(j.results as UploadResult[]);
-      setPeriodEnd("latest");
-      setTick((t) => t + 1);
-      if (manualComplete) {
-        setManualOrgId("");
-        setManualStart("");
-        setManualEnd("");
-      }
-      onOrgsChange?.();
-    } catch (e) {
-      setResults([{ filename: "-", ok: false, error: e instanceof Error ? e.message : String(e) }]);
-    } finally {
-      setUploading(false);
-    }
-  };
 
   const remove = async (id: string) => {
     setRemoveError(null);
@@ -131,7 +97,7 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
     { key: "employee", header: "이름", value: (r) => r.employee_name ?? "", render: (r) => (r.employee_name ? <span title="사내 조직도(아마란스) 이름">{r.employee_name}</span> : <span className="text-muted-foreground">—</span>) },
     { key: "org", header: "Claude 조직", value: (r) => orgName.get(r.org_id) ?? r.org_id, render: (r) => <Badge variant="outline" className="text-[10px]">{orgName.get(r.org_id) ?? r.org_id.slice(0, 8)}</Badge> },
     { key: "team", header: "조직 / 팀", value: (r) => `${r.headquarters ?? r.division ?? ""} ${r.team ?? ""}`.trim(), render: (r) => (r.team
-      ? <div title={[r.division, r.headquarters, r.team].filter(Boolean).join(" > ")}><div>{r.team}</div>{(r.headquarters ?? r.division) && (r.headquarters ?? r.division) !== r.team && <div className="text-muted-foreground">{r.headquarters ?? r.division}</div>}</div>
+      ? <div title={[r.division, r.headquarters, r.parent_unit, r.team].filter((v, i, arr) => v && arr.indexOf(v) === i).join(" > ")}><div>{r.team}</div>{(() => { const p = r.parent_unit ?? r.headquarters ?? r.division; return p && p !== r.team ? <div className="text-muted-foreground">{p}</div> : null; })()}</div>
       : <span className="text-muted-foreground">—</span>) },
     { key: "role", header: "역할", value: (r) => r.role },
     { key: "tier", header: "시트", value: (r) => r.seat_tier, render: (r) => (hasSeat(r.seat_tier) ? r.seat_tier : <span className="text-muted-foreground">미할당</span>) },
@@ -150,41 +116,12 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-sm">멤버 활동 CSV 업로드</CardTitle>
-            <p className="text-sm">
-              {lastCollected
-                ? <>마지막 CSV 수집: <b>{fmtDateTime(lastCollected.at)}</b> <span className="text-muted-foreground">· {lastCollected.orgs}개 조직 · 데이터 기간 {lastCollected.periodStart} ~ {lastCollected.periodEnd}</span></>
-                : <span className="text-muted-foreground">마지막 CSV 수집: 없음</span>}
-            </p>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-2 text-xs">
-          <p className="text-muted-foreground">claude.ai → 분석 → 개요 → 멤버 <b>모두 보기</b> → 기간 30일 → <b>CSV 내보내기</b>. 파일명 <code>members-analytics-&lt;조직ID&gt;-&lt;시작&gt;-to-&lt;끝&gt;.csv</code>를 그대로 올리면 조직·기간을 자동 인식합니다. 여러 조직 파일을 한 번에 선택할 수 있고, 같은 조직·기간은 교체됩니다.</p>
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 hover:bg-muted">
-            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            파일 선택(여러 개 가능)
-            <input type="file" accept=".csv,text/csv" multiple className="hidden" disabled={uploading} onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
-          </label>
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <Input value={manualOrgId} onChange={(e) => setManualOrgId(e.target.value)} placeholder="조직 ID (예: 4ad6b3e9-…)" className="h-8 w-[220px] text-xs" disabled={uploading} />
-            <Input value={manualStart} onChange={(e) => setManualStart(e.target.value)} placeholder="시작일 (YYYY-MM-DD)" className="h-8 w-[160px] text-xs" disabled={uploading} />
-            <Input value={manualEnd} onChange={(e) => setManualEnd(e.target.value)} placeholder="종료일 (YYYY-MM-DD)" className="h-8 w-[160px] text-xs" disabled={uploading} />
-          </div>
-          <p className="text-muted-foreground">파일명에서 조직/기간을 읽을 수 없을 때 파일 1개만 선택하고 입력하세요</p>
-          {results && (
-            <ul className="space-y-0.5">
-              {results.map((r, i) => (
-                <li key={i} className={r.ok ? "text-emerald-600" : "text-destructive"}>
-                  {r.ok ? `✓ ${r.filename} → ${orgName.get(r.org_id!) ?? r.org_id} ${r.period_start}~${r.period_end}, ${r.row_count}명` : `✗ ${r.filename}: ${r.error}`}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      <p className="text-sm">
+        {lastCollected
+          ? <>마지막 CSV 수집: <b>{fmtDateTime(lastCollected.at)}</b> <span className="text-muted-foreground">· {lastCollected.orgs}개 조직 · 데이터 기간 {lastCollected.periodStart} ~ {lastCollected.periodEnd}</span></>
+          : <span className="text-muted-foreground">마지막 CSV 수집: 없음</span>}
+        <span className="ml-2 text-xs text-muted-foreground">— 수집·업로드는 /claude-usage-csv 스킬(매일 09:05 launchd)이 처리합니다</span>
+      </p>
 
       <div className="flex flex-wrap items-center gap-2">
         <Select value={org} onValueChange={(v) => { setOrg(v); setPeriodEnd("latest"); }}>
@@ -213,7 +150,7 @@ export default function MembersCsvTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[
       {(data?.imports.length ?? 0) > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">업로드 이력</CardTitle>
+            <CardTitle className="text-sm">수집 이력</CardTitle>
             {lastCollected && <p className="text-xs text-muted-foreground">마지막 CSV 수집: {fmtDateTime(lastCollected.at)} · {lastCollected.orgs}개 조직(조직별 최신 기준)</p>}
           </CardHeader>
           <CardContent>
