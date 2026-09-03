@@ -65,9 +65,13 @@ export default function OverviewCard({ project, canDelete, onPatched, onReextrac
         </div>
         <div className="flex flex-wrap gap-2">
           {file && <Button variant="outline" size="sm" disabled={busy === "file"} onClick={openFile}><FileText className="mr-1 h-4 w-4" />{file.originalFilename}</Button>}
-          <Button size="sm" asChild disabled={project.status !== "ready"}>
-            <a href={`/api/rfp/projects/${project.id}/xlsx`}><Download className="mr-1 h-4 w-4" />xlsx 다운로드</a>
-          </Button>
+          {project.status === "ready" ? (
+            <Button size="sm" asChild>
+              <a href={`/api/rfp/projects/${project.id}/xlsx`}><Download className="mr-1 h-4 w-4" />xlsx 다운로드</a>
+            </Button>
+          ) : (
+            <Button size="sm" disabled><Download className="mr-1 h-4 w-4" />xlsx 다운로드</Button>
+          )}
           <Button variant="outline" size="sm" disabled={busy !== null || project.status === "extracting"} onClick={async () => { setBusy("reextract"); try { await onReextract(); } finally { setBusy(null); } }}>
             <RefreshCw className="mr-1 h-4 w-4" />재추출
           </Button>

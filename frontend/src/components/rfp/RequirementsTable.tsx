@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { createColumnHelper, flexRender, getCoreRowModel, getFilteredRowModel, getSortedRowModel, useReactTable, type SortingState } from "@tanstack/react-table";
 import { ArrowUpDown, Plus, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -45,10 +45,10 @@ export default function RequirementsTable({ projectId, requirements, onChange }:
   const [deleting, setDeleting] = useState<RfpRequirement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const save = (row: RfpRequirement, field: EditableField) => async (next: string) => {
+  const save = useCallback((row: RfpRequirement, field: EditableField) => async (next: string) => {
     const updated = await patchRequirement(row.id, { [field]: next });
     onChange(requirements.map((r) => (r.id === row.id ? updated : r)));
-  };
+  }, [requirements, onChange]);
 
   const removeRow = async (row: RfpRequirement) => {
     const res = await fetch(`/api/rfp/requirements/${row.id}`, { method: "DELETE" });
@@ -56,40 +56,45 @@ export default function RequirementsTable({ projectId, requirements, onChange }:
     onChange(requirements.filter((r) => r.id !== row.id));
   };
 
-  const col = createColumnHelper<RfpRequirement>();
-  const editable = (field: EditableField, header: string, opts: { clamp?: number; width?: string } = {}) =>
-    col.accessor(field, {
-      header,
-      cell: (ctx) => <EditableCell value={ctx.getValue()} onSave={save(ctx.row.original, field)} clampLines={opts.clamp ?? 3} />,
-      meta: { width: opts.width },
+  // save·sheetIndex가 바뀔 때마다 컬럼을 다시 만든다(그렇지 않으면 편집 콜백이 마운트 시점의 requirements를 그대로 캡처해 이후 편집이 유실된다).
+  const { allColumns, detailColumns } = useMemo(() => {
+    const col = createColumnHelper<RfpRequirement>();
+    const editable = (field: EditableField, header: string, opts: { clamp?: number; width?: string } = {}) =>
+      col.accessor(field, {
+        header,
+        cell: (ctx) => <EditableCell value={ctx.getValue()} onSave={save(ctx.row.original, field)} clampLines={opts.clamp ?? 3} />,
+        meta: { width: opts.width },
+      });
+    const actions = col.display({
+      id: "actions",
+      header: "",
+      cell: (ctx) => <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" title="행 삭제" onClick={() => setDeleting(ctx.row.original)}><Trash2 className="h-4 w-4" /></Button>,
+      meta: { width: "3rem" },
     });
-  const actions = col.display({
-    id: "actions",
-    header: "",
-    cell: (ctx) => <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" title="행 삭제" onClick={() => setDeleting(ctx.row.original)}><Trash2 className="h-4 w-4" /></Button>,
-    meta: { width: "3rem" },
-  });
-  const seq = col.display({ id: "seq", header: "연번", cell: (ctx) => <span className="tabular-nums text-muted-foreground">{ctx.row.index + 1}</span>, meta: { width: "3.5rem" } });
+    const seq = col.display({ id: "seq", header: "연번", cell: (ctx) => <span className="tabular-nums text-muted-foreground">{ctx.row.index + 1}</span>, meta: { width: "3.5rem" } });
 
-  const allColumns = useMemo(() => [
-    seq,
-    editable("categoryName", "요구사항 구분", { clamp: 0, width: "11rem" }),
-    editable("reqId", "요구사항 ID", { clamp: 0, width: "8rem" }),
-    editable("title", "요구사항 명칭", { clamp: 0, width: "20rem" }),
-    col.display({ id: "sheet", header: "상세 시트 위치", cell: (ctx) => <span className="text-muted-foreground">{sheetNameFor(ctx.row.original.categoryCode, sheetIndex.get(ctx.row.original.categoryCode) ?? 0)}</span>, meta: { width: "8rem" } }),
-    editable("solution", "당사 솔루션", { clamp: 2, width: "14rem" }),
-    actions,
-  ], [sheetIndex]); // eslint-disable-line react-hooks/exhaustive-deps
-  const detailColumns = useMemo(() => [
-    seq,
-    editable("reqId", "요구사항 ID", { clamp: 0, width: "8rem" }),
-    editable("title", "요구사항명", { clamp: 0, width: "14rem" }),
-    editable("definition", "정의", { clamp: 3, width: "14rem" }),
-    editable("details", "세부 내용", { clamp: 3, width: "34rem" }),
-    editable("deliverables", "산출정보", { clamp: 3, width: "10rem" }),
-    editable("related", "관련요구사항", { clamp: 3, width: "14rem" }),
-    actions,
-  ], []); // eslint-disable-line react-hooks/exhaustive-deps
+    return {
+      allColumns: [
+        seq,
+        editable("categoryName", "요구사항 구분", { clamp: 0, width: "11rem" }),
+        editable("reqId", "요구사항 ID", { clamp: 0, width: "8rem" }),
+        editable("title", "요구사항 명칭", { clamp: 0, width: "20rem" }),
+        col.display({ id: "sheet", header: "상세 시트 위치", cell: (ctx) => <span className="text-muted-foreground">{sheetNameFor(ctx.row.original.categoryCode, sheetIndex.get(ctx.row.original.categoryCode) ?? 0)}</span>, meta: { width: "8rem" } }),
+        editable("solution", "당사 솔루션", { clamp: 2, width: "14rem" }),
+        actions,
+      ],
+      detailColumns: [
+        seq,
+        editable("reqId", "요구사항 ID", { clamp: 0, width: "8rem" }),
+        editable("title", "요구사항명", { clamp: 0, width: "14rem" }),
+        editable("definition", "정의", { clamp: 3, width: "14rem" }),
+        editable("details", "세부 내용", { clamp: 3, width: "34rem" }),
+        editable("deliverables", "산출정보", { clamp: 3, width: "10rem" }),
+        editable("related", "관련요구사항", { clamp: 3, width: "14rem" }),
+        actions,
+      ],
+    };
+  }, [save, sheetIndex]);
 
   const data = useMemo(() => (tab === "all" ? requirements : requirements.filter((r) => r.categoryCode === tab)), [requirements, tab]);
   const table = useReactTable({
