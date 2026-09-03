@@ -18,6 +18,27 @@ export interface ScopeMember {
   name: string | null;
   team: string | null;
   duty: string | null;
+  /** 조직도 경로에서 팀 바로 위 단위(센터 등). 개인 화면 "조직 / 팀" 표기용 */
+  parent_unit: string | null;
+  headquarters: string | null;
+  division: string | null;
+}
+
+/** units(회사>부문>본부>센터>팀)에서 말단 바로 위 단위 — 없으면 null */
+export function parentUnitFromUnits(units: string[] | null | undefined): string | null {
+  return units && units.length >= 2 ? units[units.length - 2] : null;
+}
+
+function toMember(email: string, r: DirRow | null, fallbackName: string | null = null): ScopeMember {
+  return {
+    email,
+    name: r?.name ?? fallbackName,
+    team: r?.team ?? null,
+    duty: r?.duty ?? null,
+    parent_unit: parentUnitFromUnits(r?.units),
+    headquarters: r?.headquarters ?? null,
+    division: r?.division ?? null,
+  };
 }
 
 export interface UsageScope {
@@ -56,7 +77,7 @@ export async function resolveUsageScope(): Promise<
     me = await admin.from("company_directory").select(DIR_COLS.replace(", is_leader", "")).eq("active", true).ilike("email", email).maybeSingle();
   }
   const my = (me.data ?? null) as DirRow | null;
-  const self: ScopeMember = { email, name: my?.name ?? profile.display_name ?? null, team: my?.team ?? null, duty: my?.duty ?? null };
+  const self: ScopeMember = toMember(email, my, profile.display_name ?? null);
 
   // 말단 단위 = units 마지막(팀/센터/본부/부문 무엇이든) — 하위 조직은 units에 이 값을 포함한다
   const myUnit = my?.units?.length ? my.units[my.units.length - 1] : my?.team ?? my?.headquarters ?? my?.division ?? null;
@@ -79,7 +100,7 @@ export async function resolveUsageScope(): Promise<
       const seen = new Map<string, ScopeMember>([[email, self]]);
       for (const r of (rows.data ?? []) as unknown as DirRow[]) {
         const e = r.email.toLowerCase();
-        if (!seen.has(e)) seen.set(e, { email: e, name: r.name, team: r.team, duty: r.duty });
+        if (!seen.has(e)) seen.set(e, toMember(e, r));
       }
       members = [...seen.values()];
       scope = "org";

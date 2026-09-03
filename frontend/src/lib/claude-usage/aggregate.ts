@@ -19,7 +19,7 @@ function kstDate(d: Date): { y: number; m: number; d: number } {
 function ymd(y: number, m: number, d: number): string {
   return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
-function addDays(day: string, n: number): string {
+export function addDays(day: string, n: number): string {
   const t = new Date(`${day}T00:00:00Z`);
   t.setUTCDate(t.getUTCDate() + n);
   return t.toISOString().slice(0, 10);

@@ -9,7 +9,7 @@ import type { CsvImport } from "@/types/claude-usage";
  * CSV 데이터 기간 선택 — 업로드된 CSV의 종료일(as-of)별 옵션. value는 "latest" 또는 period_end(YYYY-MM-DD).
  * 어느 기간의 통계인지 화면에 드러나도록 "최신 기간"에도 실제 날짜를 붙인다.
  */
-export default function PeriodSelect({ value, onChange, imports, className }: { value: string; onChange: (v: string) => void; imports: CsvImport[]; className?: string }) {
+export default function PeriodSelect({ value, onChange, imports, className }: { value: string; onChange: (v: string) => void; imports: Pick<CsvImport, "org_id" | "period_start" | "period_end">[]; className?: string }) {
   const options = useMemo(() => buildPeriodOptions(imports), [imports]);
   return (
     <Select value={value} onValueChange={onChange}>

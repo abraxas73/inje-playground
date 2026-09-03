@@ -9,28 +9,15 @@ import SortableTable, { sumBy, type Column } from "./SortableTable";
 import { acceptRate, dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
 import { usd, int } from "./format";
 import type { ClaudeOrg, UsageSummary } from "@/types/claude-usage";
+import { aggregateCodeTeams, type CodeTeamRow } from "@/lib/claude-usage/code-team-summary";
 
 const PRESETS: { key: RangePreset; label: string }[] = [
   { key: "7d", label: "7일" }, { key: "30d", label: "30일" }, { key: "90d", label: "90일" },
   { key: "thisMonth", label: "이번 달" }, { key: "lastMonth", label: "지난 달" },
 ];
 
-/** 조직도 팀(없으면 본부→부문) 단위로 Claude Code 사용량 합계 */
-interface TeamRow {
-  team: string;
-  parent: string | null;
-  users: number;
-  active_users: number;
-  cost_usd: number;
-  sessions: number;
-  prompts: number;
-  prompts_auto: number;
-  output_tokens: number;
-  commits: number;
-  pull_requests: number;
-  edits_accepted: number;
-  edits_rejected: number;
-}
+/** 조직도 팀 단위 합계 — 집계 규칙은 lib/claude-usage/code-team-summary.ts(개인 조직장 화면과 공용) */
+type TeamRow = CodeTeamRow;
 
 export default function TeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const [preset, setPreset] = useState<RangePreset>("30d");
@@ -51,30 +38,7 @@ export default function TeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const data = result?.data ?? null;
   const error = result?.key === requestKey ? result.error ?? null : null;
 
-  const rows = useMemo(() => {
-    const map = new Map<string, TeamRow>();
-    for (const u of data?.users ?? []) {
-      const team = u.team ?? "명부 없음";
-      const parent = u.team ? (u.headquarters && u.headquarters !== u.team ? u.headquarters : u.division !== u.team ? u.division : null) : null;
-      let t = map.get(team);
-      if (!t) {
-        t = { team, parent, users: 0, active_users: 0, cost_usd: 0, sessions: 0, prompts: 0, prompts_auto: 0, output_tokens: 0, commits: 0, pull_requests: 0, edits_accepted: 0, edits_rejected: 0 };
-        map.set(team, t);
-      }
-      t.users += 1;
-      if (u.sessions > 0 || u.cost_usd > 0) t.active_users += 1;
-      t.cost_usd += u.cost_usd;
-      t.sessions += u.sessions;
-      t.prompts += u.prompts;
-      t.prompts_auto += u.prompts_auto;
-      t.output_tokens += u.output_tokens;
-      t.commits += u.commits;
-      t.pull_requests += u.pull_requests;
-      t.edits_accepted += u.edits_accepted;
-      t.edits_rejected += u.edits_rejected;
-    }
-    return [...map.values()];
-  }, [data]);
+  const rows = useMemo(() => aggregateCodeTeams((data?.users ?? []).map((u) => ({ ...u, email: u.user_email }))), [data]);
 
   const maxCost = Math.max(1, ...rows.map((r) => r.cost_usd));
   const columns: Column<TeamRow>[] = [

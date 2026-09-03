@@ -19,9 +19,9 @@ describe("aggregateChatTeams", () => {
 
 describe("parentUnitOf", () => {
   it("팀 바로 위 단위(센터)를 우선, 없으면 본부·부문", () => {
-    expect(parentUnitOf({ ...base, email: "", days_active: 0, team: "UI.UX디자인팀", parent_unit: "디자인센터", headquarters: "R&D본부" })).toBe("디자인센터");
-    expect(parentUnitOf({ ...base, email: "", days_active: 0, team: "팀", parent_unit: null, headquarters: "본부" })).toBe("본부");
-    expect(parentUnitOf({ ...base, email: "", days_active: 0, team: "본부직속", parent_unit: "본부직속", headquarters: "본부직속", division: "부문" })).toBe("부문");
-    expect(parentUnitOf({ ...base, email: "", days_active: 0, team: null })).toBeNull();
+    expect(parentUnitOf({ team: "UI.UX디자인팀", parent_unit: "디자인센터", headquarters: "R&D본부" })).toBe("디자인센터");
+    expect(parentUnitOf({ team: "팀", parent_unit: null, headquarters: "본부" })).toBe("본부");
+    expect(parentUnitOf({ team: "본부직속", parent_unit: "본부직속", headquarters: "본부직속", division: "부문" })).toBe("부문");
+    expect(parentUnitOf({ team: null })).toBeNull();
   });
 });

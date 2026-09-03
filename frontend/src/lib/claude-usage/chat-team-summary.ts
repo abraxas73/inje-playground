@@ -5,7 +5,15 @@
  * - 같은 사람이 여러 Claude 조직에 있으면(소유자 계정 등) 행이 조직마다 오므로 활동 수치는 더하고 인원은 이메일 기준 1명으로 센다.
  */
 
-export interface ChatMemberLike {
+/** 조직도 소속 필드 — parentUnitOf가 보는 최소 형태(Claude Code·채팅 행 공용) */
+export interface OrgUnitLike {
+  team?: string | null;
+  parent_unit?: string | null;
+  headquarters?: string | null;
+  division?: string | null;
+}
+
+export interface ChatMemberLike extends OrgUnitLike {
   email: string;
   days_active: number;
   chats: number;
@@ -16,10 +24,6 @@ export interface ChatMemberLike {
   projects_used: number;
   artifacts_created: number;
   estimated_spend_usd: number;
-  team?: string | null;
-  parent_unit?: string | null;
-  headquarters?: string | null;
-  division?: string | null;
 }
 
 export interface ChatTeamRow {
@@ -41,7 +45,7 @@ export interface ChatTeamRow {
 
 export const NO_DIRECTORY_TEAM = "명부 없음";
 
-export function parentUnitOf(u: ChatMemberLike): string | null {
+export function parentUnitOf(u: OrgUnitLike): string | null {
   if (!u.team) return null;
   if (u.parent_unit && u.parent_unit !== u.team) return u.parent_unit;
   if (u.headquarters && u.headquarters !== u.team) return u.headquarters;

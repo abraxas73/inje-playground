@@ -11,18 +11,11 @@ import { Loader2, Trash2 } from "lucide-react";
 import SortableTable, { sumBy, type Column } from "./SortableTable";
 import PeriodSelect from "./PeriodSelect";
 import { hasSeat, isIdleSeat } from "@/lib/claude-usage/aggregate";
-import { usd, int } from "./format";
+import { usd, int, fmtDateTime } from "./format";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
 
 type Row = MemberActivityRow & { org_id: string; import_id: string; employee_name?: string | null; team?: string | null; parent_unit?: string | null; headquarters?: string | null; division?: string | null; code_prompts?: number; code_prompts_auto?: number };
 interface MembersResponse { imports: CsvImport[]; rows: Row[]; period: { start: string; end: string } | null }
-
-/** ISO → "2026-08-27 15:44" (KST, 브라우저 로캘) */
-function fmtDateTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).replace(/\. /g, "-").replace(/\.$/, "").replace(/-(\d{2}:\d{2})/, " $1");
-}
 
 /**
  * 채팅·Cowork(CSV) 멤버 활동 표. CSV 수집·업로드는 웹 UI가 아니라 /claude-usage-csv 스킬(launchd 매일 09:05)이

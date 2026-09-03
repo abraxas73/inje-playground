@@ -70,6 +70,13 @@ delete from claude_ingest_log      where 'test-org' = any(org_ids);
 delete from claude_orgs            where id = 'test-org';
 ```
 
+## 6. 개인용 화면 (/usage/code · /usage/chat · /usage/perf)
+
+- 일반 사용자(user)는 본인 데이터만, 조직장(`company_directory.is_leader`, null이면 직책으로 판정)은 자기 말단 조직 전체를 본다. 범위는 서버(`lib/usage-scope.ts`)가 계산하고 화면 필터(조직/팀·이름 검색·기간·team·q)는 그 범위 안에서만 좁힌다.
+- 어드민과 같은 지표·표를 제공한다: 모델별 비용, 토큰/프롬프트(입/출), 프롬프트 사람/자동 구분, 팀별 집계(조직장 범위에 팀이 둘 이상일 때), 조직/팀 검색 필터·총계 행, 도구·시간대 패턴, CSV 데이터 기간 선택·수집 시각, 노는 시트 표시, 성과 팀 필터·이름 검색, CSV 내려받기.
+- **프롬프트 내용은 개인용에 없다.** 어드민 "프롬프트" 탭(`claude_code_prompts`)만 내용을 보여주며, 개인용 API는 그 테이블을 읽지 않는다. 수집·분류 규칙은 1.3 참고.
+- 조직장 범위가 커지면(본부장 × 90일) 일 집계 행이 1000행을 넘으므로 개인용 API는 모두 `selectAll`(PostgREST 상한 우회)로 읽는다.
+
 ## 5. 테스트
 - 단위: `cd frontend && npx vitest run` (parser·CSV·집계·인증·관리형 설정).
 - E2E: `cd frontend && npx playwright test e2e/claude-usage.spec.ts` — OTLP 수신/관리자 API 게이트(401·415·400·200)는 세션 없이 실행된다. 관리자 화면 2개 테스트(3탭 렌더, 합성 CSV 업로드→표→삭제)는 `E2E_ADMIN_STORAGE_STATE`(Google 관리자 로그인 storageState JSON; `npx playwright codegen --save-storage=/tmp/admin-storage.json http://localhost:3003`)와 `SUPABASE_SERVICE_ROLE_KEY`(로컬 `.env.local`)가 있을 때만 실행되고 없으면 SKIP된다.
