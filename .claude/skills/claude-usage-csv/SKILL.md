@@ -10,7 +10,7 @@ description: claude.ai Team 조직 7개의 멤버 활동 CSV를 Chrome 확장으
 대상 조직(순서대로): Innogrid-ax, Innogrid_AIMS클라우드, Innogrid_AIPaaS, Innogrid_AI반도체Cloud, Innogrid_S1, Innogrid_S2, Innogrid_자율행동체.
 
 ## 자동 실행(2026-09-03부터)
-매일 **09:05 KST**에 launchd(`~/Library/LaunchAgents/com.innogrid.claude-usage-csv.plist` → `~/.claude/hooks/claude-usage-csv-daily.sh`)가 `claude -p --chrome --permission-mode bypassPermissions "/claude-usage-csv …"`를 main 체크아웃(`~/Repos/inje-playground`)에서 헤드리스로 돌린다. 로그 `~/.claude/logs/claude-usage-csv.log`, 회차별 원본 `~/.claude/logs/claude-usage-csv/YYYY-MM-DD.json`, 완료 요약은 전역 Stop 훅으로 Telegram 전송. 전제: Mac 깨어 있음·Chrome 실행·claude.ai 로그인. 수동 실행 `launchctl kickstart gui/$(id -u)/com.innogrid.claude-usage-csv`, 해제 `launchctl bootout …`. **같은 날 수동으로 이 스킬을 다시 돌리면 중복 수집**(CSV는 교체, org-members는 교체이므로 데이터는 안전하지만 불필요)이니 먼저 로그를 확인한다.
+매일 **09:05 KST**에 launchd(`~/Library/LaunchAgents/com.innogrid.claude-usage-csv.plist` → `~/.claude/hooks/claude-usage-csv-daily.sh`)가 `claude -p --chrome --permission-mode bypassPermissions "/claude-usage-csv …"`를 main 체크아웃(`~/Repos/inje-playground`)에서 헤드리스로 돌린다. 로그 `~/.claude/logs/claude-usage-csv.log`, 회차별 원본 `~/.claude/logs/claude-usage-csv/YYYY-MM-DD.json`, 완료 요약은 전역 Stop 훅으로 Telegram 전송. 전제: Mac 깨어 있음·Chrome 실행·claude.ai 로그인. 수동 실행 `launchctl kickstart gui/$(id -u)/com.innogrid.claude-usage-csv`, 해제 `launchctl bootout …`. 이 Mac의 launchd 작업 전체 현황은 `claude-jobs status`, 런북 `docs/launchd-jobs.md`. **같은 날 수동으로 이 스킬을 다시 돌리면 중복 수집**(CSV는 교체, org-members는 교체이므로 데이터는 안전하지만 불필요)이니 먼저 로그를 확인한다.
 
 ## 절차
 1. `tabs_context_mcp` → 새 탭 → `https://claude.ai/analytics/overview` 이동. `get_page_text`로 "개요" 아래 조직명을 읽어 현재 조직을 확인한다.
