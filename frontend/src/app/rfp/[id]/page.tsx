@@ -92,7 +92,7 @@ export default function RfpProjectPage() {
       <Link href="/rfp" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="mr-1 h-4 w-4" />RFP 분석 목록</Link>
       <OverviewCard
         project={project}
-        canDelete={isAdmin || (!!me && me === project.createdBy.id)}
+        canDelete={isAdmin || (me !== null && me === project.createdBy.id)}
         onPatched={(patch) => setProject((p) => (p ? { ...p, ...patch } : p))}
         onReextract={reextract}
         onDelete={remove}

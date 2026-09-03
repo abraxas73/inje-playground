@@ -43,7 +43,14 @@ async function loadExisting(admin: SupabaseClient): Promise<ExistingProject[]> {
   }));
 }
 
+/**
+ * storagePath가 이미 등록된 프로젝트의 원본이면(= rfp_files에 존재) 절대 지우지 않는다.
+ * 서명 업로드 경로는 등록 전 고아 파일도 uploads/… 아래에 있어 route.ts의 startsWith 검사만으로는
+ * "이미 등록된 파일"과 "아직 등록 안 된 새 업로드"를 구분할 수 없기 때문이다.
+ */
 async function removeUpload(admin: SupabaseClient, storagePath: string) {
+  const { data: registered } = await admin.from("rfp_files").select("id").eq("storage_path", storagePath).limit(1).maybeSingle();
+  if (registered) return;
   await admin.storage.from(RFP_BUCKET).remove([storagePath]).catch(() => undefined);
 }
 
@@ -52,6 +59,17 @@ async function removeUpload(admin: SupabaseClient, storagePath: string) {
  * 추출은 하지 않는다(라우트가 after()로 runExtraction을 호출).
  */
 export async function registerProject(admin: SupabaseClient, input: RegisterInput): Promise<RegisterResult> {
+  // storagePath가 이미 다른 프로젝트에 등록돼 있으면(중복 제출·재시도) 아무것도 지우지 않고 그 프로젝트로 안내한다.
+  // 등록된 파일의 경로도 uploads/… 아래에 있고 서명 다운로드 URL로 노출되므로, route.ts의 startsWith("uploads/") 검사만으로는
+  // "새 업로드"와 "이미 등록된 원본"을 구분할 수 없다 — 여기서 rfp_files를 직접 조회해 구분한다.
+  const { data: existingFile, error: existingFileError } = await admin
+    .from("rfp_files")
+    .select("project_id")
+    .eq("storage_path", input.storagePath)
+    .maybeSingle();
+  if (existingFileError) return { kind: "error", status: 500, message: existingFileError.message };
+  if (existingFile) return { kind: "duplicate", projectId: existingFile.project_id };
+
   let buf: Buffer;
   try {
     buf = await downloadFile(admin, input.storagePath);
@@ -136,13 +154,14 @@ export async function runExtraction(admin: SupabaseClient, projectId: string): P
     await admin.from("rfp_projects").update({ status: "failed", error: message.slice(0, 500) }).eq("id", projectId);
   };
   try {
-    const { data: file } = await admin
+    const { data: file, error: fileError } = await admin
       .from("rfp_files")
       .select("storage_path, original_filename")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (fileError) throw new Error(fileError.message);
     if (!file) return await fail("원본 파일이 없습니다.");
 
     const buf = await downloadFile(admin, file.storage_path);
@@ -174,7 +193,8 @@ export async function runExtraction(admin: SupabaseClient, projectId: string): P
       if (error) throw new Error(error.message);
     }
 
-    const { data: proj } = await admin.from("rfp_projects").select("warnings").eq("id", projectId).single();
+    const { data: proj, error: projError } = await admin.from("rfp_projects").select("warnings").eq("id", projectId).single();
+    if (projError) throw new Error(projError.message);
     const registerWarnings = (Array.isArray(proj?.warnings) ? (proj!.warnings as string[]) : []).filter((w) => w.startsWith("사업명을"));
     await admin
       .from("rfp_projects")

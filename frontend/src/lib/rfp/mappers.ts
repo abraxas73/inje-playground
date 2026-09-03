@@ -18,7 +18,7 @@ export interface ProjectDbRow {
   error: string | null;
   warnings: unknown;
   requirement_count: number;
-  created_by: string;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
 }

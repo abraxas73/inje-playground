@@ -16,8 +16,8 @@ create table if not exists public.rfp_projects (
   error text,
   warnings jsonb not null default '[]'::jsonb,
   requirement_count int not null default 0,
-  created_by uuid not null references auth.users(id),
-  updated_by uuid references auth.users(id),
+  created_by uuid references auth.users(id) on delete set null,
+  updated_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -33,7 +33,7 @@ create table if not exists public.rfp_files (
   format text not null check (format in ('hwp','hwpx','docx')),
   size_bytes bigint not null,
   sha256 text not null unique,
-  uploaded_by uuid not null references auth.users(id),
+  uploaded_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
 create index if not exists rfp_files_project_idx on public.rfp_files (project_id, created_at desc);
@@ -52,7 +52,7 @@ create table if not exists public.rfp_requirements (
   solution text not null default '',
   sort_order int not null,
   source jsonb not null default '{}'::jsonb,
-  updated_by uuid references auth.users(id),
+  updated_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (project_id, req_id)
@@ -88,3 +88,15 @@ end $$;
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('rfp', 'rfp', false, 52428800)
 on conflict (id) do update set public = false, file_size_limit = 52428800;
+
+-- 2026-09-04: 사용자 삭제(/api/users/[id])가 FK에 막히지 않도록 on delete set null (재실행 안전)
+alter table public.rfp_projects alter column created_by drop not null;
+alter table public.rfp_files alter column uploaded_by drop not null;
+alter table public.rfp_projects drop constraint if exists rfp_projects_created_by_fkey;
+alter table public.rfp_projects add constraint rfp_projects_created_by_fkey foreign key (created_by) references auth.users(id) on delete set null;
+alter table public.rfp_projects drop constraint if exists rfp_projects_updated_by_fkey;
+alter table public.rfp_projects add constraint rfp_projects_updated_by_fkey foreign key (updated_by) references auth.users(id) on delete set null;
+alter table public.rfp_files drop constraint if exists rfp_files_uploaded_by_fkey;
+alter table public.rfp_files add constraint rfp_files_uploaded_by_fkey foreign key (uploaded_by) references auth.users(id) on delete set null;
+alter table public.rfp_requirements drop constraint if exists rfp_requirements_updated_by_fkey;
+alter table public.rfp_requirements add constraint rfp_requirements_updated_by_fkey foreign key (updated_by) references auth.users(id) on delete set null;

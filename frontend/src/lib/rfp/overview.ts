@@ -1,4 +1,4 @@
-import { cellAt, paragraphTexts, rightOf, topLevelTables, type DocumentModel } from "./document-model";
+import { cellAt, collapseWhitespace, paragraphTexts, rightOf, topLevelTables, type DocumentModel } from "./document-model";
 
 export interface Overview {
   name: string | null;
@@ -29,10 +29,6 @@ const AGENCY_FALLBACK = /([가-힣A-Za-z0-9·]{2,30}?(?:공사|공단|청|부|�
 /** 표지의 「사업명」·｢사업명｣·“사업명” */
 const QUOTED_TITLE = /[「｢“"]\s*([^」｣”"]{4,80}?)\s*[」｣”"]/;
 
-function clean(s: string): string {
-  return s.replace(/\s*\n\s*/g, " ").replace(/\s+/g, " ").trim();
-}
-
 function matchLabel(raw: string): Key | null {
   const label = raw.replace(BULLET, "").trim();
   return LABELS.find((l) => l.re.test(label))?.key ?? null;
@@ -56,7 +52,7 @@ export function extractOverview(doc: DocumentModel): Overview {
       const next = paras[i + 1]?.replace(BULLET, "").trim() ?? "";
       if (next && !matchLabel(next.split(/[:：]/)[0])) value = next;
     }
-    if (value) out[key] = clean(value);
+    if (value) out[key] = collapseWhitespace(value);
   }
 
   // 2) 라벨 표(왼쪽 셀 라벨 → 오른쪽 셀 값)
@@ -68,7 +64,7 @@ export function extractOverview(doc: DocumentModel): Overview {
       const key = matchLabel(label.text);
       if (!key || out[key]) continue;
       const v = rightOf(t, label);
-      if (v && v.text.trim()) out[key] = clean(v.text);
+      if (v && v.text.trim()) out[key] = collapseWhitespace(v.text);
     }
   }
 
@@ -90,7 +86,7 @@ export function extractOverview(doc: DocumentModel): Overview {
       for (const t of texts) {
         const m = QUOTED_TITLE.exec(t);
         if (m) {
-          out.name = clean(m[1]);
+          out.name = collapseWhitespace(m[1]);
           break outer;
         }
       }

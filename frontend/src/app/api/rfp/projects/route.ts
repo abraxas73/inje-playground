@@ -17,8 +17,13 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const rows = (data ?? []) as ProjectDbRow[];
   const filtered = q ? rows.filter((r) => r.name.toLowerCase().includes(q) || (r.agency ?? "").toLowerCase().includes(q)) : rows;
-  const names = await creatorNames(auth.admin, filtered.map((r) => r.created_by));
-  return NextResponse.json({ projects: filtered.map((r) => mapProjectSummary(r, names.get(r.created_by) ?? null)) });
+  const names = await creatorNames(
+    auth.admin,
+    filtered.map((r) => r.created_by).filter((id): id is string => id !== null),
+  );
+  return NextResponse.json({
+    projects: filtered.map((r) => mapProjectSummary(r, r.created_by ? names.get(r.created_by) ?? null : null)),
+  });
 }
 
 /**

@@ -48,6 +48,11 @@ export function normalizeLabel(s: string): string {
   return s.normalize("NFKC").replace(/\s+/g, "");
 }
 
+/** 값 정리용: 줄바꿈 주변 공백을 한 칸으로, 연속 공백을 한 칸으로 접고 앞뒤를 자른다(overview·extract-standard 공용). */
+export function collapseWhitespace(s: string): string {
+  return s.replace(/\s*\n\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+
 /** (row, col)을 덮는 셀(병합 범위 포함) */
 export function cellAt(table: Table, row: number, col: number): Cell | undefined {
   return table.cells.find(

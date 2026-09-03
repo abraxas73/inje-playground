@@ -8,7 +8,7 @@ export interface RfpProjectSummary {
   status: RfpProjectStatus;
   extractionMethod: RfpExtractionMethod | null;
   requirementCount: number;
-  createdBy: { id: string; name: string | null };
+  createdBy: { id: string | null; name: string | null };
   createdAt: string;
   updatedAt: string;
 }

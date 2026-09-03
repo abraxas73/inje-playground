@@ -1,4 +1,4 @@
-import { cellAt, findLabelCell, flattenCellText, normalizeLabel, rightOf, topLevelTables, type DocumentModel, type Table } from "./document-model";
+import { cellAt, collapseWhitespace, findLabelCell, flattenCellText, normalizeLabel, rightOf, topLevelTables, type DocumentModel, type Table } from "./document-model";
 import { parseReqId, type Requirement } from "./requirements";
 
 export interface ExtractionResult {
@@ -18,10 +18,6 @@ const LABELS = {
 } as const;
 
 const FIRST_CELL = new Set(["요구사항분류", "요구사항구분"]);
-
-function clean(s: string): string {
-  return s.replace(/\s*\n\s*/g, " ").replace(/\s+/g, " ").trim();
-}
 
 function valueOf(t: Table, labels: readonly string[]): string {
   const label = findLabelCell(t, [...labels]);
@@ -95,12 +91,12 @@ export function extractStandard(doc: DocumentModel): ExtractionResult {
     if (b.type !== "table" || !isRequirementTable(b)) return;
     const first = cellAt(b, 0, 0)!;
     const categoryCell = rightOf(b, first);
-    const categoryName = clean(categoryCell ? flattenCellText(categoryCell) : "");
+    const categoryName = collapseWhitespace(categoryCell ? flattenCellText(categoryCell) : "");
 
     const rawId = valueOf(b, LABELS.reqId);
     const parsed = parseReqId(rawId);
     if (!parsed) {
-      warnings.push(`표 #${blockIndex}: 요구사항 ID 형식이 아니어서 건너뜀 ("${clean(rawId).slice(0, 30)}")`);
+      warnings.push(`표 #${blockIndex}: 요구사항 ID 형식이 아니어서 건너뜀 ("${collapseWhitespace(rawId).slice(0, 30)}")`);
       return;
     }
     const reqId = rawId.replace(/\s+/g, "").toUpperCase();
@@ -114,7 +110,7 @@ export function extractStandard(doc: DocumentModel): ExtractionResult {
       categoryCode: parsed.code,
       categoryName: categoryName || parsed.code,
       reqId,
-      title: clean(valueOf(b, LABELS.title)),
+      title: collapseWhitespace(valueOf(b, LABELS.title)),
       definition: valueOf(b, LABELS.definition).trim(),
       details: valueOf(b, LABELS.details).trim(),
       deliverables: valueOf(b, LABELS.deliverables).trim(),
