@@ -6,7 +6,7 @@ export async function GET() {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ role: "guest" });
+    return NextResponse.json({ role: "guest", userId: null });
   }
 
   const { data } = await supabase
@@ -15,5 +15,5 @@ export async function GET() {
     .eq("user_id", user.id)
     .single();
 
-  return NextResponse.json({ role: data?.role ?? "user" });
+  return NextResponse.json({ role: data?.role ?? "user", userId: user.id });
 }
