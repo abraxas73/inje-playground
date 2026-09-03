@@ -117,7 +117,7 @@ No test framework is configured.
 - `claude_orgs, claude_code_daily, claude_code_daily_model, claude_code_requests, claude_ingest_log, claude_csv_imports, claude_member_activity, claude_org_members(멤버·초대 상태 active|pending), claude_code_tool_daily(도구별 일 집계), claude_code_prompts(프롬프트 내용, OTEL_LOG_USER_PROMPTS=1)` — Claude Code 사용량 대시보드 데이터(OTLP 수신 + 월간 CSV 업로드). 런북 `docs/claude-usage.md`
 
 ### Supabase Tables (work metrics — 성과 측정)
-- `jira_issue_daily, atlassian_account_map, confluence_daily, gitlab_daily, work_metrics_sync` — Jira/Confluence/GitLab 일 집계(성과 분모·사이클타임). SQL `docs/sql/2026-08-31-work-metrics.sql`, 수집 `lib/work-metrics/`
+- `jira_issue_daily, atlassian_account_map, confluence_daily, gitlab_daily(commits·claude_commits=Co-Authored-By: Claude 커밋·MR), gitlab_email_map(커미터 이메일 수동 매핑), work_metrics_sync` — Jira/Confluence/GitLab 일 집계(성과 분모·사이클타임). SQL `docs/sql/2026-08-31-work-metrics.sql`, `docs/sql/2026-09-03-gitlab-claude-commits.sql`, 수집 `lib/work-metrics/`. GitLab은 사내망 로컬 스크립트 `frontend/scripts/gitlab-metrics-sync.py`(launchd)가 `/api/admin/work-metrics/sync`로 푸시. Supabase 조회는 1000행 상한이 있어 대량 조회는 `selectAll`(`lib/work-metrics/common.ts`)로 페이지네이션
 
 ### Supabase Tables (company directory)
 - `company_directory`(email PK, units[], division/headquarters/team, duty, position, active, synced_at), `company_directory_sync` — 사내 조직도 명부(아마란스). SQL `docs/sql/2026-08-29-company-directory.sql`

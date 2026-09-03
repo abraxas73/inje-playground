@@ -1,10 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { numify } from "@/lib/claude-usage/require-admin";
+import { selectAll } from "./common";
 
 /**
  * 성과 지표 리포트 집계 — 개인용(/api/usage/perf)과 어드민(/api/admin/work-metrics/perf) 공용.
  * Claude 투입(claude_code_daily)과 산출(Jira·GitLab·Confluence 일 집계)을 이메일로 결합한다.
  * filterEmails가 null이면 무필터(전체) — 조직도 밖 이메일(퇴사자 등)도 데이터에 있으면 포함된다.
+ *
+ * 커밋 지표 두 가지는 모집단이 다르다:
+ *  - claude_commits: OTel claude_code.commit.count — Claude Code가 실행한 git commit 수. 저장소 무관(GitHub·로컬 포함).
+ *  - commits / gitlab_claude_commits: 사내 GitLab 커밋과 그중 Co-Authored-By: Claude 트레일러 커밋. 비중은 이 둘로 계산한다.
  */
 
 export interface PerfMember {
@@ -31,7 +36,10 @@ export interface UserPerf {
   cycle_hours_sum: number;
   cycle_count: number;
   lead_hours_sum: number;
+  /** GitLab 커밋(authored 기준, 리베이스 중복 제거) */
   commits: number;
+  /** GitLab 커밋 중 Co-Authored-By: Claude 트레일러가 있는 커밋 — commits의 부분집합(하한값) */
+  gitlab_claude_commits: number;
   mrs_opened: number;
   mrs_merged: number;
   mr_lead_hours_sum: number;
@@ -51,6 +59,7 @@ export interface Weekly {
   cycle_hours_sum: number;
   cycle_count: number;
   commits: number;
+  gitlab_claude_commits: number;
   mrs_opened: number;
   mrs_merged: number;
   mr_lead_hours_sum: number;
@@ -63,7 +72,7 @@ export interface PerfReport {
   users: UserPerf[];
   weekly: Weekly[];
   jiraProjects: Array<{ key: string; issues_created: number; issues_resolved: number; story_points: number; cycle_hours_sum: number; cycle_count: number }>;
-  repos: Array<{ key: string; commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number }>;
+  repos: Array<{ key: string; commits: number; gitlab_claude_commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number }>;
   spaces: Array<{ key: string; pages_created: number; pages_updated: number }>;
 }
 
@@ -80,16 +89,19 @@ export async function buildPerfReport(
 ): Promise<{ ok: true; report: PerfReport } | { ok: false; error: string }> {
   const { from, to, members, filterEmails } = opts;
 
-  const q = (table: string, cols: string) => {
-    let b = admin.from(table).select(cols).gte("day", from).lte("day", to);
-    if (filterEmails) b = b.in("user_email", filterEmails);
-    return b.limit(20000);
-  };
+  // Supabase 응답 상한(1000행)에 잘리지 않도록 PK 순서로 끝까지 페이지 조회 — 90일 전사 범위는 테이블당 수천 행
+  const q = (table: string, cols: string, orderBy: string[]) =>
+    selectAll<Record<string, unknown>>(() => {
+      let b = admin.from(table).select(cols, { count: "exact" }).gte("day", from).lte("day", to);
+      if (filterEmails) b = b.in("user_email", filterEmails);
+      for (const k of orderBy) b = b.order(k);
+      return b;
+    });
   const [code, jira, gitlab, conf] = await Promise.all([
-    q("claude_code_daily", "day, user_email, cost_usd, sessions, prompts, commits, pull_requests, loc_added, loc_removed, active_user_seconds"),
-    q("jira_issue_daily", "day, user_email, project_key, issues_created, issues_resolved, story_points, cycle_hours_sum, cycle_count, lead_hours_sum"),
-    q("gitlab_daily", "day, user_email, project_path, commits, mrs_opened, mrs_merged, mr_lead_hours_sum"),
-    q("confluence_daily", "day, user_email, space_key, pages_created, pages_updated"),
+    q("claude_code_daily", "day, user_email, cost_usd, sessions, prompts, commits, pull_requests, loc_added, loc_removed, active_user_seconds", ["day", "org_id", "user_email"]),
+    q("jira_issue_daily", "day, user_email, project_key, issues_created, issues_resolved, story_points, cycle_hours_sum, cycle_count, lead_hours_sum", ["day", "user_email", "project_key"]),
+    q("gitlab_daily", "day, user_email, project_path, commits, claude_commits, mrs_opened, mrs_merged, mr_lead_hours_sum", ["day", "user_email", "project_path"]),
+    q("confluence_daily", "day, user_email, space_key, pages_created, pages_updated", ["day", "user_email", "space_key"]),
   ]);
   const missing = [jira, gitlab, conf].some((x) => x.error && /does not exist|schema cache/i.test(x.error.message));
   for (const [name, res] of [["claude", code], ["jira", jira], ["gitlab", gitlab], ["confluence", conf]] as const) {
@@ -108,7 +120,7 @@ export async function buildPerfReport(
         email, name: m?.name ?? null, team: m?.team ?? null,
         claude_cost: 0, claude_sessions: 0, claude_days: 0, claude_commits: 0, claude_prompts: 0, active_hours: 0, loc_added: 0, loc_removed: 0,
         issues_created: 0, issues_resolved: 0, story_points: 0, cycle_hours_sum: 0, cycle_count: 0, lead_hours_sum: 0,
-        commits: 0, mrs_opened: 0, mrs_merged: 0, mr_lead_hours_sum: 0, pages_created: 0, pages_updated: 0,
+        commits: 0, gitlab_claude_commits: 0, mrs_opened: 0, mrs_merged: 0, mr_lead_hours_sum: 0, pages_created: 0, pages_updated: 0,
       };
       byUser.set(email, u);
     }
@@ -119,14 +131,14 @@ export async function buildPerfReport(
     const w = weekOf(day);
     let v = weekly.get(w);
     if (!v) {
-      v = { week: w, claude_sessions: 0, claude_cost: 0, claude_commits: 0, claude_prompts: 0, issues_created: 0, issues_resolved: 0, story_points: 0, cycle_hours_sum: 0, cycle_count: 0, commits: 0, mrs_opened: 0, mrs_merged: 0, mr_lead_hours_sum: 0, pages_created: 0, pages_updated: 0 };
+      v = { week: w, claude_sessions: 0, claude_cost: 0, claude_commits: 0, claude_prompts: 0, issues_created: 0, issues_resolved: 0, story_points: 0, cycle_hours_sum: 0, cycle_count: 0, commits: 0, gitlab_claude_commits: 0, mrs_opened: 0, mrs_merged: 0, mr_lead_hours_sum: 0, pages_created: 0, pages_updated: 0 };
       weekly.set(w, v);
     }
     return v;
   };
   const dim = <T extends Record<string, number>>() => new Map<string, T>();
   const jiraProjects = dim<{ issues_created: number; issues_resolved: number; story_points: number; cycle_hours_sum: number; cycle_count: number }>();
-  const repos = dim<{ commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number }>();
+  const repos = dim<{ commits: number; gitlab_claude_commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number }>();
   const spaces = dim<{ pages_created: number; pages_updated: number }>();
 
   for (const raw of code.data ?? []) {
@@ -147,12 +159,12 @@ export async function buildPerfReport(
     jiraProjects.set(row.project_key, p);
   }
   for (const raw of gitlab.data ?? []) {
-    const row = numify(raw as unknown as Record<string, unknown>) as { day: string; user_email: string; project_path: string; commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number };
+    const row = numify(raw as unknown as Record<string, unknown>) as { day: string; user_email: string; project_path: string; commits: number; claude_commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number };
     const u = userOf(row.user_email.toLowerCase());
-    u.commits += row.commits; u.mrs_opened += row.mrs_opened; u.mrs_merged += row.mrs_merged; u.mr_lead_hours_sum += row.mr_lead_hours_sum;
-    const w = weekOfDay(row.day); w.commits += row.commits; w.mrs_opened += row.mrs_opened; w.mrs_merged += row.mrs_merged; w.mr_lead_hours_sum += row.mr_lead_hours_sum;
-    const p = repos.get(row.project_path) ?? { commits: 0, mrs_opened: 0, mrs_merged: 0, mr_lead_hours_sum: 0 };
-    p.commits += row.commits; p.mrs_opened += row.mrs_opened; p.mrs_merged += row.mrs_merged; p.mr_lead_hours_sum += row.mr_lead_hours_sum;
+    u.commits += row.commits; u.gitlab_claude_commits += row.claude_commits; u.mrs_opened += row.mrs_opened; u.mrs_merged += row.mrs_merged; u.mr_lead_hours_sum += row.mr_lead_hours_sum;
+    const w = weekOfDay(row.day); w.commits += row.commits; w.gitlab_claude_commits += row.claude_commits; w.mrs_opened += row.mrs_opened; w.mrs_merged += row.mrs_merged; w.mr_lead_hours_sum += row.mr_lead_hours_sum;
+    const p = repos.get(row.project_path) ?? { commits: 0, gitlab_claude_commits: 0, mrs_opened: 0, mrs_merged: 0, mr_lead_hours_sum: 0 };
+    p.commits += row.commits; p.gitlab_claude_commits += row.claude_commits; p.mrs_opened += row.mrs_opened; p.mrs_merged += row.mrs_merged; p.mr_lead_hours_sum += row.mr_lead_hours_sum;
     repos.set(row.project_path, p);
   }
   for (const raw of conf.data ?? []) {

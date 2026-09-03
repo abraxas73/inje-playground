@@ -3,7 +3,14 @@
 
 사내 GitLab(https://rnd-app.innogrid.com)이 Vercel IP를 차단하므로(화이트리스트),
 사내망에서 이 스크립트를 돌려 커밋·MR 일 집계를 POST /api/admin/work-metrics/sync 로 밀어 넣는다.
-서버 수집기(frontend/src/lib/work-metrics/gitlab.ts)와 같은 집계 규칙.
+서버 수집기(frontend/src/lib/work-metrics/gitlab.ts)와 같은 집계 규칙 — 규칙을 바꾸면 양쪽을 함께 고칠 것.
+
+집계 규칙:
+  - 커밋 날짜 = authored_date(KST). committed_date는 리베이스 때 재스탬프되어 하루 수천 커밋의 허위 급증을 만든다.
+  - 같은 (author_email, authored_date, title) 커밋은 1건 — 리베이스·체리픽으로 SHA만 바뀐 중복 제거.
+  - claude_commits = 메시지에 "Co-Authored-By: Claude" 트레일러가 있는 커밋(commits의 부분집합, 하한값).
+  - 이메일 정규화(조직도·오타 도메인·gitlab_email_map)와 같은 사람 행 합산은 서버(sync API)가 한다.
+  - 기간의 기존 행을 지우고 다시 넣는다(replace) — 사라진 커밋·이전 규칙 행 정리. 매일 3일 창으로 돌려 자가 복구.
 
 사용:
   python3 frontend/scripts/gitlab-metrics-sync.py                  # 어제(KST) 하루
@@ -18,12 +25,15 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import sys
 import urllib.parse
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # frontend/
 COMPANY_DOMAIN = "innogrid.com"
+# Claude Code가 남기는 공동 저자 트레일러 (lib/work-metrics/gitlab.ts CLAUDE_TRAILER와 동일)
+CLAUDE_TRAILER = re.compile(r"co-authored-by:[^\n]*(claude|anthropic)|noreply@anthropic\.com", re.I)
 KST = dt.timezone(dt.timedelta(hours=9))
 
 
@@ -114,7 +124,7 @@ def main() -> None:
     def bump(day: str, email: str, project: str) -> dict:
         k = (day, email, project)
         if k not in agg:
-            agg[k] = {"day": day, "user_email": email, "project_path": project, "commits": 0, "mrs_opened": 0, "mrs_merged": 0, "mr_lead_hours_sum": 0.0}
+            agg[k] = {"day": day, "user_email": email, "project_path": project, "commits": 0, "claude_commits": 0, "mrs_opened": 0, "mrs_merged": 0, "mr_lead_hours_sum": 0.0}
         return agg[k]
 
     q_from = urllib.parse.quote(from_iso)
@@ -122,12 +132,22 @@ def main() -> None:
     for i, p in enumerate(projects, 1):
         pid, path = p["id"], p["path_with_namespace"]
         try:
+            # since/until은 committed_date 기준 창(git log). 창 밖에서 authored된 리베이스 커밋은 아래 날짜 필터에서 빠진다.
             commits = gl_get_all(gitlab_url, token, f"/projects/{pid}/repository/commits?since={q_from}&until={q_to}&all=true")
+            seen: set = set()
             for cm in commits:
                 email = normalize_email(cm.get("author_email"))
-                when = cm.get("committed_date")
-                if email and when:
-                    bump(kst_day(when), email, path)["commits"] += 1
+                when = cm.get("authored_date") or cm.get("committed_date")
+                if not email or not when:
+                    continue
+                dedupe = (email, when, cm.get("title") or "")
+                if dedupe in seen:  # 리베이스·체리픽으로 SHA만 바뀐 같은 커밋
+                    continue
+                seen.add(dedupe)
+                v = bump(kst_day(when), email, path)
+                v["commits"] += 1
+                if CLAUDE_TRAILER.search(cm.get("message") or ""):
+                    v["claude_commits"] += 1
             mrs = gl_get_all(gitlab_url, token, f"/projects/{pid}/merge_requests?updated_after={q_from}&scope=all")
             for mr in mrs:
                 email = normalize_email((mr.get("author") or {}).get("username"))
@@ -152,11 +172,14 @@ def main() -> None:
             print(" ", r)
         return
 
-    for i in range(0, len(rows), 5000):
-        chunk = rows[i : i + 5000]
+    chunks = [rows[i : i + 5000] for i in range(0, len(rows), 5000)] or [[]]  # 행이 없어도 replace로 기간을 비운다
+    for idx, chunk in enumerate(chunks):
+        body: dict = {"source": "gitlab", "rows": chunk}
+        if idx == 0:
+            body["replace"] = {"from": args.date_from, "to": args.date_to}
         req = urllib.request.Request(
             f"{app_url}/api/admin/work-metrics/sync",
-            data=json.dumps({"source": "gitlab", "rows": chunk}).encode(),
+            data=json.dumps(body).encode(),
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {ingest}"},
             method="POST",
         )

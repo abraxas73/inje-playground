@@ -28,16 +28,16 @@ interface UserPerf {
   active_hours: number; loc_added: number; loc_removed: number;
   issues_created: number; issues_resolved: number; story_points: number;
   cycle_hours_sum: number; cycle_count: number; lead_hours_sum: number;
-  commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number;
+  commits: number; gitlab_claude_commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number;
   pages_created: number; pages_updated: number;
 }
 interface Weekly {
   week: string; claude_sessions: number; claude_cost: number; claude_commits: number; claude_prompts: number;
   issues_created: number; issues_resolved: number; story_points: number; cycle_hours_sum: number; cycle_count: number;
-  commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number; pages_created: number; pages_updated: number;
+  commits: number; gitlab_claude_commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number; pages_created: number; pages_updated: number;
 }
 interface JiraProject { key: string; issues_created: number; issues_resolved: number; story_points: number; cycle_hours_sum: number; cycle_count: number }
-interface Repo { key: string; commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number }
+interface Repo { key: string; commits: number; gitlab_claude_commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number }
 interface Space { key: string; pages_created: number; pages_updated: number }
 interface Resp {
   range: { from: string; to: string };
@@ -64,9 +64,15 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 }
 
 /** 주별 묶음 막대 — 시리즈별 상대 스케일(각자 max 기준) */
-function WeekBars({ weeks, series, title }: { weeks: Weekly[]; series: { label: string; cls: string; value: (w: Weekly) => number }[]; title: string }) {
+/** 시리즈는 기본적으로 각자 최대값으로 정규화한다(단위가 다른 지표 비교용). 같은 scale 키를 준 시리즈는 축을 공유해 높이를 서로 비교할 수 있다. */
+function WeekBars({ weeks, series, title }: { weeks: Weekly[]; series: { label: string; cls: string; value: (w: Weekly) => number; scale?: string }[]; title: string }) {
   if (weeks.length < 2) return null;
-  const maxes = series.map((s) => Math.max(1, ...weeks.map(s.value)));
+  const groupMax = new Map<string, number>();
+  series.forEach((s, i) => {
+    const g = s.scale ?? `#${i}`;
+    groupMax.set(g, Math.max(groupMax.get(g) ?? 1, ...weeks.map(s.value)));
+  });
+  const maxes = series.map((s, i) => groupMax.get(s.scale ?? `#${i}`) ?? 1);
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -142,15 +148,16 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
     (a, u) => ({
       resolved: a.resolved + u.issues_resolved, created: a.created + u.issues_created, sp: a.sp + u.story_points,
       cycleSum: a.cycleSum + u.cycle_hours_sum, cycleN: a.cycleN + u.cycle_count, leadSum: a.leadSum + u.lead_hours_sum,
-      commits: a.commits + u.commits, claudeCommits: a.claudeCommits + u.claude_commits,
+      commits: a.commits + u.commits, glClaude: a.glClaude + u.gitlab_claude_commits, claudeCommits: a.claudeCommits + u.claude_commits,
       opened: a.opened + u.mrs_opened, merged: a.merged + u.mrs_merged, mrLead: a.mrLead + u.mr_lead_hours_sum,
       pc: a.pc + u.pages_created, pu: a.pu + u.pages_updated,
       locA: a.locA + u.loc_added, locR: a.locR + u.loc_removed,
       cost: a.cost + u.claude_cost, sessions: a.sessions + u.claude_sessions, prompts: a.prompts + u.claude_prompts, hours: a.hours + u.active_hours,
     }),
-    { resolved: 0, created: 0, sp: 0, cycleSum: 0, cycleN: 0, leadSum: 0, commits: 0, claudeCommits: 0, opened: 0, merged: 0, mrLead: 0, pc: 0, pu: 0, locA: 0, locR: 0, cost: 0, sessions: 0, prompts: 0, hours: 0 }
+    { resolved: 0, created: 0, sp: 0, cycleSum: 0, cycleN: 0, leadSum: 0, commits: 0, glClaude: 0, claudeCommits: 0, opened: 0, merged: 0, mrLead: 0, pc: 0, pu: 0, locA: 0, locR: 0, cost: 0, sessions: 0, prompts: 0, hours: 0 }
   ), [data]);
-  const claudeShare = t.commits > 0 ? Math.min(100, Math.round((t.claudeCommits / t.commits) * 100)) : null;
+  // Claude 경유 비중 = GitLab 커밋 중 Co-Authored-By: Claude 커밋. 같은 모집단이라 항상 0~100%
+  const claudeShare = t.commits > 0 ? Math.round((t.glClaude / t.commits) * 100) : null;
   const isTeamView = (data?.users.length ?? 0) > 1;
   const weeks = data?.weekly ?? [];
   const manyTeams = useMemo(() => new Set((data?.users ?? []).map((u) => u.team).filter(Boolean)).size > 1, [data]);
@@ -204,9 +211,10 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
   const codeUserCols: Column<UserPerf>[] = [
     userCell,
     ...teamCol,
-    { key: "commits", header: "커밋(전체)", align: "right", value: (r) => r.commits, render: (r) => int(r.commits) },
-    { key: "cc", header: "커밋(Claude)", align: "right", value: (r) => r.claude_commits, render: (r) => int(r.claude_commits) },
-    { key: "share", header: "Claude 비중", align: "right", value: (r) => (r.commits ? r.claude_commits / r.commits : -1), render: (r) => (r.commits ? `${Math.min(100, Math.round((r.claude_commits / r.commits) * 100))}%` : "—") },
+    { key: "commits", header: "커밋(GitLab)", align: "right", value: (r) => r.commits, render: (r) => int(r.commits) },
+    { key: "glc", header: "Claude 경유", align: "right", value: (r) => r.gitlab_claude_commits, render: (r) => int(r.gitlab_claude_commits) },
+    { key: "share", header: "Claude 비중", align: "right", value: (r) => (r.commits ? r.gitlab_claude_commits / r.commits : -1), render: (r) => (r.commits ? `${Math.round((r.gitlab_claude_commits / r.commits) * 100)}%` : "—") },
+    { key: "cc", header: "Claude Code 커밋", align: "right", value: (r) => r.claude_commits, render: (r) => int(r.claude_commits) },
     { key: "opened", header: "MR 오픈", align: "right", value: (r) => r.mrs_opened, render: (r) => int(r.mrs_opened) },
     { key: "merged", header: "MR 머지", align: "right", value: (r) => r.mrs_merged, render: (r) => int(r.mrs_merged) },
     { key: "mrlead", header: "MR 리드(평균)", align: "right", value: (r) => (r.mrs_merged ? r.mr_lead_hours_sum / r.mrs_merged : -1), render: (r) => h(r.mr_lead_hours_sum, r.mrs_merged) },
@@ -229,6 +237,7 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
   const repoCols: Column<Repo>[] = [
     { key: "key", header: "저장소", value: (r) => r.key, render: (r) => <span className="font-medium">{r.key}</span> },
     { key: "commits", header: "커밋", align: "right", value: (r) => r.commits, render: (r) => int(r.commits) },
+    { key: "glc", header: "Claude 경유", align: "right", value: (r) => r.gitlab_claude_commits, render: (r) => (r.commits ? `${int(r.gitlab_claude_commits)} (${Math.round((r.gitlab_claude_commits / r.commits) * 100)}%)` : "—") },
     { key: "opened", header: "MR 오픈", align: "right", value: (r) => r.mrs_opened, render: (r) => int(r.mrs_opened) },
     { key: "merged", header: "MR 머지", align: "right", value: (r) => r.mrs_merged, render: (r) => int(r.mrs_merged) },
     { key: "lead", header: "MR 리드(평균)", align: "right", value: (r) => (r.mrs_merged ? r.mr_lead_hours_sum / r.mrs_merged : -1), render: (r) => h(r.mr_lead_hours_sum, r.mrs_merged) },
@@ -283,7 +292,7 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Stat label="이슈 해결" value={int(t.resolved)} sub={`생성 ${int(t.created)} · SP ${int(Math.round(t.sp))}`} />
               <Stat label="사이클 타임(평균)" value={h(t.cycleSum, t.cycleN)} sub={`리드 ${h(t.leadSum, t.resolved)} (생성→해결)`} />
-              <Stat label="커밋" value={int(t.commits)} sub={claudeShare === null ? "Claude 경유 —" : `Claude 경유 ${claudeShare}%`} />
+              <Stat label="커밋 (GitLab)" value={int(t.commits)} sub={claudeShare === null ? "Claude 경유 —" : `Claude 경유 ${claudeShare}% · Claude Code 커밋 ${int(t.claudeCommits)}`} />
               <Stat label="MR" value={`${int(t.merged)} 머지`} sub={`오픈 ${int(t.opened)} · 리드 ${h(t.mrLead, t.merged)}`} />
               <Stat label="문서" value={`${int(t.pc)}+${int(t.pu)}`} sub="생성+수정 (Confluence)" />
               <Stat label="코드 라인(Claude 세션)" value={`+${int(t.locA)}`} sub={`-${int(t.locR)} 삭제`} />
@@ -299,8 +308,8 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
 
         <TabsContent value="jira" className="space-y-4">
           <WeekBars weeks={weeks} title="주별 이슈" series={[
-            { label: "해결", cls: "bg-primary/70", value: (w) => w.issues_resolved },
-            { label: "생성", cls: "bg-muted-foreground/40", value: (w) => w.issues_created },
+            { label: "해결", cls: "bg-primary/70", value: (w) => w.issues_resolved, scale: "issues" },
+            { label: "생성", cls: "bg-muted-foreground/40", value: (w) => w.issues_created, scale: "issues" },
           ]} />
           <WeekBars weeks={weeks} title="주별 사이클 타임(평균 h)" series={[
             { label: "사이클 h", cls: "bg-amber-500/60", value: (w) => (w.cycle_count ? Math.round((w.cycle_hours_sum / w.cycle_count) * 10) / 10 : 0) },
@@ -321,10 +330,14 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
 
         <TabsContent value="code" className="space-y-4">
           <WeekBars weeks={weeks} title="주별 코드 산출" series={[
-            { label: "커밋(전체)", cls: "bg-primary/70", value: (w) => w.commits },
-            { label: "커밋(Claude)", cls: "bg-emerald-500/60", value: (w) => w.claude_commits },
+            { label: "커밋(GitLab)", cls: "bg-primary/70", value: (w) => w.commits, scale: "commits" },
+            { label: "Claude 경유", cls: "bg-emerald-500/60", value: (w) => w.gitlab_claude_commits, scale: "commits" },
             { label: "MR 머지", cls: "bg-muted-foreground/40", value: (w) => w.mrs_merged },
           ]} />
+          <p className="text-xs text-muted-foreground">
+            커밋(GitLab)은 사내 GitLab 전 브랜치의 커밋(author 날짜 기준, 리베이스 중복 제거)이고, Claude 경유는 그중 <code>Co-Authored-By: Claude</code> 트레일러가 있는 커밋입니다(트레일러를 끈 사용자는 잡히지 않아 하한값).
+            같은 단위인 두 막대는 같은 축, MR 머지는 별도 축입니다. 구성원별 표의 &quot;Claude Code 커밋&quot;은 Claude Code가 실행한 git commit 수(OTel)로 GitHub·로컬 저장소까지 포함하므로 GitLab 커밋과 모집단이 다릅니다.
+          </p>
           {(data?.repos.length ?? 0) > 0 && (
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">저장소별 (상위 {data!.repos.length})</CardTitle></CardHeader>
@@ -341,8 +354,8 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
 
         <TabsContent value="docs" className="space-y-4">
           <WeekBars weeks={weeks} title="주별 문서" series={[
-            { label: "생성", cls: "bg-primary/70", value: (w) => w.pages_created },
-            { label: "수정", cls: "bg-muted-foreground/40", value: (w) => w.pages_updated },
+            { label: "생성", cls: "bg-primary/70", value: (w) => w.pages_created, scale: "pages" },
+            { label: "수정", cls: "bg-muted-foreground/40", value: (w) => w.pages_updated, scale: "pages" },
           ]} />
           {(data?.spaces.length ?? 0) > 0 && (
             <Card>

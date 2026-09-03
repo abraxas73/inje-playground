@@ -75,7 +75,7 @@ OTel이 세는 커밋/PR은 "Claude Code 세션 안에서 만든 것"뿐이다. 
     mr_lead_hours_sum numeric, mr_merged_count int,
     primary key (day, user_email, project_path))
   ```
-- **파생 지표**: `claude_code_daily.commits ÷ gitlab_daily.commits` = Claude 경유 커밋 비중(개인·팀·주 단위).
+- **파생 지표**: `gitlab_daily.claude_commits ÷ gitlab_daily.commits` = Claude 경유 커밋 비중(개인·팀·주 단위). 분자는 GitLab 커밋 메시지의 `Co-Authored-By: Claude` 트레일러로 세므로 같은 모집단이며 항상 0~100%(트레일러를 끈 사용자는 안 잡혀 하한값). OTel의 `claude_code_daily.commits`(Claude Code가 실행한 git commit, GitHub·로컬 저장소 포함)는 모집단이 달라 비중의 분자로 쓰지 않는다(2026-09-03 변경 — 이전 정의로는 팀 필터에서 Claude 커밋 > 전체 커밋이 나왔다).
 
 ### 3.3 Confluence — 3순위
 
@@ -138,4 +138,4 @@ OTel이 세는 커밋/PR은 "Claude Code 세션 안에서 만든 것"뿐이다. 
 - 크론: `GET /api/cron/work-metrics?source=all|jira|confluence|gitlab&from&to` — Vercel Cron 매일 07:30 KST(`frontend/vercel.json`), `CRON_SECRET` Bearer 또는 관리자 세션(수동 백필)
 - 필요 env(Vercel): `ATLASSIAN_SITE=https://pms-innogrid.atlassian.net`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN`, `GITLAB_URL=https://rnd-app.innogrid.com`, `GITLAB_TOKEN`(read_api), `CRON_SECRET` + 선택 `JIRA_PROJECTS`, `JIRA_STORY_POINTS_FIELD`, `GITLAB_GROUPS`
 - 미설정 소스는 "미설정"으로 조용히 스킵 — env 등록 전 배포 안전
-- **GitLab 일일 수집(로컬 launchd, 2026-09-01 등록)**: `~/Library/LaunchAgents/com.innogrid.gitlab-metrics-sync.plist` — 매일 07:45 KST에 `gitlab-metrics-sync.py --from <3일 전> --to <어제>` 실행(잠자기로 놓치면 웨이크 시 1회 실행, 3일 범위라 공백 자가 복구). 로그 `~/Library/Logs/gitlab-metrics-sync.log`. 토큰은 `frontend/.env.local` → 폴백 `~/.config/inje-playground/work-metrics.env`(600, env pull 덮어쓰기 대비). 사내망/VPN에서만 GitLab 접속 가능 — 밖에서는 타임아웃으로 건너뛰어짐. 해제: `launchctl bootout gui/$(id -u)/com.innogrid.gitlab-metrics-sync`
+- **GitLab 일일 수집(로컬 launchd, 2026-09-01 등록)**: `~/Library/LaunchAgents/com.innogrid.gitlab-metrics-sync.plist` — 매일 07:45 KST에 `gitlab-metrics-sync.py --from <3일 전> --to <어제>` 실행(잠자기로 놓치면 웨이크 시 1회 실행, 3일 범위라 공백 자가 복구). 로그 `~/Library/Logs/gitlab-metrics-sync.log`. 토큰은 `frontend/.env.local` → 폴백 `~/.config/inje-playground/work-metrics.env`(600, env pull 덮어쓰기 대비). 사내망/VPN에서만 GitLab 접속 가능 — 밖에서는 타임아웃으로 건너뛰어짐. 해제: `launchctl bootout gui/$(id -u)/com.innogrid.gitlab-metrics-sync` **집계 규칙(2026-09-03)**: 커밋 날짜는 `authored_date`(committed_date는 리베이스 재스탬프로 08-27~28에 하루 4~6천 커밋 허위 급증), 같은 (author_email, authored_date, title)은 1건, `claude_commits`는 Co-Authored-By: Claude 트레일러 수, 커미터 이메일은 서버(sync API)가 `lib/work-metrics/email-resolve.ts` 규칙(조직도·오타/구 도메인 로컬파트 일치·`gitlab_email_map` 수동 매핑)으로 회사 이메일에 맞춘다. 스크립트는 `replace: {from,to}`로 기간 행을 지우고 다시 넣는다(규칙 변경 후에는 전 기간 백필 1회: `--from 2026-05-04 --to <어제>`). SQL `docs/sql/2026-09-03-gitlab-claude-commits.sql`.

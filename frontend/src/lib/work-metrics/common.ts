@@ -44,6 +44,36 @@ export function hoursBetween(fromIso: string, toIso: string): number {
   return ms > 0 ? ms / 3600_000 : 0;
 }
 
+/** PostgREST 페이지 응답(supabase-js range() 결과와 호환) */
+export interface PageResult<T> {
+  data: T[] | null;
+  error: { message: string } | null;
+  count?: number | null;
+}
+
+/**
+ * Supabase 응답 상한(PostgREST max-rows, 기본 1000)에 잘리지 않도록 range()로 끝까지 읽는다.
+ * make()는 호출마다 새 빌더를 만들어야 하며, select(cols, { count: "exact" })로 총 행수를 함께 주면
+ * 서버 상한이 pageSize보다 작아도 정확히 끝난다(없으면 "페이지가 덜 찼으면 끝" 규칙).
+ */
+export async function selectAll<T>(
+  make: () => { range(from: number, to: number): PromiseLike<unknown> },
+  pageSize = 1000
+): Promise<{ data: T[]; error: null } | { data: null; error: { message: string } }> {
+  const out: T[] = [];
+  for (let lo = 0; ; ) {
+    // supabase-js 빌더의 응답 타입은 select 문자열 추론에 묶여 있어 구조적으로 맞춰 쓴다
+    const { data, error, count } = (await make().range(lo, lo + pageSize - 1)) as PageResult<T>;
+    if (error) return { data: null, error };
+    const rows = data ?? [];
+    out.push(...rows);
+    lo += rows.length;
+    if (rows.length === 0) break;
+    if (count != null ? lo >= count : rows.length < pageSize) break;
+  }
+  return { data: out, error: null };
+}
+
 /** 500행씩 나눠 upsert. 실패 시 즉시 throw */
 export async function upsertChunked(admin: SupabaseClient, table: string, rows: Record<string, unknown>[], onConflict: string): Promise<number> {
   for (let i = 0; i < rows.length; i += 500) {
@@ -51,6 +81,12 @@ export async function upsertChunked(admin: SupabaseClient, table: string, rows: 
     if (error) throw new Error(`${table} upsert 실패: ${error.message}`);
   }
   return rows.length;
+}
+
+/** 기간(day 포함 범위)의 행을 지운다 — 재수집 시 사라진 커밋·이전 규칙 행 정리용 */
+export async function deleteDayRange(admin: SupabaseClient, table: string, from: string, to: string): Promise<void> {
+  const { error } = await admin.from(table).delete().gte("day", from).lte("day", to);
+  if (error) throw new Error(`${table} 삭제 실패: ${error.message}`);
 }
 
 /** 수집 이력 기록(실패해도 무시) */
