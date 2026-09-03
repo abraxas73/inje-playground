@@ -1393,12 +1393,16 @@ describe("extractOverview — 샘플 HWP", () => {
 });
 
 describe("정규화", () => {
-  it("normalizeName: 소문자·괄호 제거·공백·기호 제거", () => {
-    expect(normalizeName("생성형 AI 플랫폼 구축 및 AX 개발 사업 (재공고)")).toBe("생성형ai플랫폼구축및ax개발사업");
+  it("normalizeName: 소문자·공백·기호 제거, 괄호 문자만 제거(안 내용 유지)", () => {
+    expect(normalizeName("생성형 AI 플랫폼 구축 및 AX 개발 사업 (재공고)")).toBe("생성형ai플랫폼구축및ax개발사업재공고");
     expect(normalizeName("「차세대 e-Learning」 사업")).toBe("차세대elearning사업");
   });
-  it("nameCore: 재공고·긴급·차수 같은 접미 단어를 뗀다", () => {
+  it("normalizeName: 괄호 안 내용이 다르면 다른 사업으로 남는다(1단계/2단계)", () => {
+    expect(normalizeName("정보시스템 구축 (1단계)")).not.toBe(normalizeName("정보시스템 구축 (2단계)"));
+  });
+  it("nameCore: 재공고·긴급·차수 같은 접미 단어를 뗀다(괄호 안이어도)", () => {
     expect(nameCore("생성형 AI 플랫폼 구축 사업 재공고")).toBe(nameCore("생성형 AI 플랫폼 구축 사업"));
+    expect(nameCore("생성형 AI 플랫폼 구축 사업 (재공고)")).toBe(nameCore("생성형 AI 플랫폼 구축 사업"));
     expect(nameCore("정보시스템 구축 2차 긴급")).toBe("정보시스템구축");
   });
   it("normalizeAgency: 약칭·(이하 …)·법인 표기 제거", () => {
@@ -1520,13 +1524,12 @@ export function extractOverview(doc: DocumentModel): Overview {
   return out;
 }
 
-/** 중복 비교용 사업명: NFKC·소문자·괄호(내용 포함)·공백·기호 제거 */
+/** 중복 비교용 사업명: NFKC·소문자·공백·기호 제거. 괄호 문자만 지우고 안 내용은 남긴다("(1단계)"/"(2단계)" 구분 — 스펙 §4). */
 export function normalizeName(s: string): string {
   return s
     .normalize("NFKC")
     .toLowerCase()
-    .replace(/\([^)]*\)|（[^）]*）|\[[^\]]*\]|【[^】]*】/g, "")
-    .replace(/[\s·・,./\\\-_—–「」｢｣『』"'“”‘’:;!?~<>〈〉《》]/g, "");
+    .replace(/[\s·・,./\\\-_—–「」｢｣『』"'“”‘’:;!?~<>〈〉《》()（）\[\]【】]/g, "");
 }
 
 const NAME_NOISE = /(재\s*공고|긴급\s*공고|긴급|수정\s*공고|수정|변경\s*공고|변경|정정\s*공고|정정|재\s*입찰|\d+\s*차)/g;
