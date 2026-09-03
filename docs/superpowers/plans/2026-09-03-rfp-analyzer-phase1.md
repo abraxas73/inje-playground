@@ -461,7 +461,7 @@ Claude-Session: https://claude.ai/code/session_01HBFSDo2gi4ZcXWhXTHTpWv"
 - Consumes: Task 2의 타입·`UnsupportedDocumentError`
 - Produces: `parseHwp(buf: Buffer): DocumentModel`, `decodeParaText(data: Buffer): string`
 
-배경(스펙 §3): HWP 5.x는 OLE 복합문서. `FileHeader` 스트림 36바이트 오프셋의 uint32 플래그(bit0 압축, bit1 암호화, bit2 배포용). 본문은 `BodyText/Section{n}`(raw deflate). 레코드 헤더 4바이트 = tag(10비트) | level(10비트) | size(12비트, 0xFFF면 다음 4바이트가 size). 표는 `CTRL_HEADER(71)`의 id `"tbl "` → `TABLE(77)`(rows·cols) → `LIST_HEADER(72)`(셀, 표와 같은 level) → 셀 문단(`PARA_TEXT(67)`, 더 깊은 level). **셀 문단 헤더(66)는 셀 헤더와 같은 level**이므로 표 종료는 "레코드 level < 표 level"일 때만이다.
+배경(스펙 §3): HWP 5.x는 OLE 복합문서. `FileHeader` 스트림 36바이트 오프셋의 uint32 플래그(bit0 압축, bit1 암호화, bit2 배포용). 본문은 `BodyText/Section{n}`(raw deflate). 레코드 헤더 4바이트 = tag(10비트) | level(10비트) | size(12비트, 0xFFF면 다음 4바이트가 size). 표는 `CTRL_HEADER(71)`의 id `"tbl "` → `TABLE(77)`(rows·cols) → `LIST_HEADER(72)`(셀, 표와 같은 level; 셀 필드는 공통 헤더 8바이트 뒤 오프셋 8/10/12/14) → 셀 문단(`PARA_TEXT(67)`, 더 깊은 level). **셀 문단 헤더(66)는 셀 헤더와 같은 level**이므로 표 종료는 "레코드 level < 표 level"일 때만이다.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -475,7 +475,9 @@ import { parseHwp, decodeParaText } from "@/lib/rfp/parse-hwp";
 import { cellAt, findLabelCell, rightOf, topLevelTables, paragraphTexts, normalizeLabel } from "@/lib/rfp/document-model";
 import { UnsupportedDocumentError } from "@/lib/rfp/document-model";
 
-const sample = readFileSync(fileURLToPath(new URL("./fixtures/rfp/sample.hwp", import.meta.url)));
+// vitest(Vite)는 `new URL("./x", import.meta.url)` 리터럴을 자산 URL로 바꿔 버리므로 변수로 우회한다
+const here = import.meta.url;
+const sample = readFileSync(fileURLToPath(new URL("./fixtures/rfp/sample.hwp", here)));
 
 describe("decodeParaText", () => {
   it("일반 문자는 그대로, 줄바꿈(10)은 \\n, 문단 끝(13)은 제거, 확장 컨트롤(11)은 16바이트 건너뜀", () => {
@@ -629,12 +631,13 @@ function parseSection(buf: Buffer): Block[] {
       stack.push({ level: r.level, table, cell: null });
       pendingCtrl = null;
     } else if (r.tag === TAG.LIST_HEADER) {
-      if (top && r.level === top.level && r.data.length >= 14) {
+      // 공통 헤더 8바이트(paragraphs 2 + unknown 2 + listflags 4) 뒤에 셀 필드(pyhwp tagid56_list_header 기준)
+      if (top && r.level === top.level && r.data.length >= 16) {
         const cell: Cell = {
-          col: r.data.readUInt16LE(6),
-          row: r.data.readUInt16LE(8),
-          colSpan: Math.max(1, r.data.readUInt16LE(10)),
-          rowSpan: Math.max(1, r.data.readUInt16LE(12)),
+          col: r.data.readUInt16LE(8),
+          row: r.data.readUInt16LE(10),
+          colSpan: Math.max(1, r.data.readUInt16LE(12)),
+          rowSpan: Math.max(1, r.data.readUInt16LE(14)),
           text: "",
           tables: [],
         };
@@ -1191,7 +1194,9 @@ import { zipSync, strToU8 } from "fflate";
 import { detectFormat, parseDocument, extensionOf, ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES } from "@/lib/rfp/parse";
 import { topLevelTables, UnsupportedDocumentError } from "@/lib/rfp/document-model";
 
-const sample = readFileSync(fileURLToPath(new URL("./fixtures/rfp/sample.hwp", import.meta.url)));
+// vitest(Vite)는 `new URL("./x", import.meta.url)` 리터럴을 자산 URL로 바꿔 버리므로 변수로 우회한다
+const here = import.meta.url;
+const sample = readFileSync(fileURLToPath(new URL("./fixtures/rfp/sample.hwp", here)));
 const zip = (files: Record<string, string>) => Buffer.from(zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, strToU8(v)]))));
 
 describe("extensionOf / 상수", () => {
@@ -1375,7 +1380,8 @@ describe("extractOverview — 라벨 표와 표지 인용", () => {
 });
 
 describe("extractOverview — 샘플 HWP", () => {
-  const sample = readFileSync(fileURLToPath(new URL("./fixtures/rfp/sample.hwp", import.meta.url)));
+  const here = import.meta.url; // Vite의 new URL(리터럴, import.meta.url) 특수 처리 우회
+  const sample = readFileSync(fileURLToPath(new URL("./fixtures/rfp/sample.hwp", here)));
   it("샘플에서 개요 5항목이 나온다", () => {
     const o = extractOverview(parseHwp(sample));
     expect(o.name).toBe("생성형 AI 플랫폼 구축 및 AX 개발 사업");
@@ -1947,7 +1953,8 @@ import { parseHwp } from "@/lib/rfp/parse-hwp";
 import { extractStandard, isStandardFormat, isRequirementTable, readSummaryCounts } from "@/lib/rfp/extract-standard";
 import type { DocumentModel, Table } from "@/lib/rfp/document-model";
 
-const sample = parseHwp(readFileSync(fileURLToPath(new URL("./fixtures/rfp/sample.hwp", import.meta.url))));
+const here = import.meta.url; // Vite의 new URL(리터럴, import.meta.url) 특수 처리 우회
+const sample = parseHwp(readFileSync(fileURLToPath(new URL("./fixtures/rfp/sample.hwp", here))));
 
 /** 스펙 §6.2 7행 3열 표준 표 */
 function reqTable(id: string, opts: Partial<{ category: string; title: string; definition: string; details: string; deliverables: string; related: string }> = {}): Table {
