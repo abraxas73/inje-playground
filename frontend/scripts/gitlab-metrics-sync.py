@@ -6,7 +6,10 @@
 서버 수집기(frontend/src/lib/work-metrics/gitlab.ts)와 같은 집계 규칙 — 규칙을 바꾸면 양쪽을 함께 고칠 것.
 
 집계 규칙:
-  - 커밋 날짜 = authored_date(KST). committed_date는 리베이스 때 재스탬프되어 하루 수천 커밋의 허위 급증을 만든다.
+  - 커밋 조회는 페이지네이션 대신 시간 창 이분(gl_commits_windowed). commits API는 all=true일 때 page를 무시하고
+    매 페이지 같은 최신 100건을 돌려준다(2026-09-03 확인) — 옛 코드는 이를 페이지 수만큼 중복 집계해 08-27~28에
+    하루 4~6천 커밋(실제 200~300)의 허위 급증을 만들었고, 긴 창에서는 프로젝트당 최신 100건만 남아 과거가 비었다.
+  - 커밋 날짜 = authored_date(KST). committed_date는 리베이스 때 재스탬프된다.
   - 같은 (author_email, authored_date, title) 커밋은 1건 — 리베이스·체리픽으로 SHA만 바뀐 중복 제거.
   - claude_commits = 메시지에 "Co-Authored-By: Claude" 트레일러가 있는 커밋(commits의 부분집합, 하한값).
   - 이메일 정규화(조직도·오타 도메인·gitlab_email_map)와 같은 사람 행 합산은 서버(sync API)가 한다.
@@ -27,6 +30,8 @@ import json
 import os
 import re
 import sys
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -63,17 +68,49 @@ def cfg():
     return gitlab_url, token, app_url, ingest
 
 
+def gl_get(base: str, token: str, path_with_query: str) -> list:
+    """단일 요청. 5xx·429·네트워크 오류(GOAWAY, 타임아웃)는 3회 재시도, 4xx는 즉시 예외."""
+    last: Exception | None = None
+    for attempt in range(4):
+        if attempt:
+            time.sleep(2 ** (attempt - 1))
+        try:
+            req = urllib.request.Request(f"{base}/api/v4{path_with_query}", headers={"PRIVATE-TOKEN": token})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code < 500 and e.code != 429:
+                raise
+            last = e
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+            last = e
+    raise last  # type: ignore[misc]
+
+
 def gl_get_all(base: str, token: str, path: str, max_pages: int = 50) -> list:
+    """페이지네이션이 정상인 엔드포인트(projects, merge_requests, groups)용. commits?all=true에는 쓰지 말 것."""
     out = []
     for page in range(1, max_pages + 1):
         sep = "&" if "?" in path else "?"
-        req = urllib.request.Request(f"{base}/api/v4{path}{sep}per_page=100&page={page}", headers={"PRIVATE-TOKEN": token})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            batch = json.load(r)
+        batch = gl_get(base, token, f"{path}{sep}per_page=100&page={page}")
         out.extend(batch)
         if len(batch) < 100:
             break
     return out
+
+
+def gl_commits_windowed(base: str, token: str, pid: int, since: dt.datetime, until: dt.datetime, out: dict, min_window: dt.timedelta = dt.timedelta(hours=1)) -> None:
+    """커밋을 시간 창 이분으로 모두 읽는다(lib/work-metrics/gitlab.ts fetchCommitsWindowed와 동일).
+    창의 결과가 100건(한 페이지)이면 반으로 쪼개 재귀, 1시간 미만 창은 그대로 받는다. since/until이 양끝 포함이라 SHA로 중복 제거."""
+    q = f"since={urllib.parse.quote(since.isoformat())}&until={urllib.parse.quote(until.isoformat())}"
+    batch = gl_get(base, token, f"/projects/{pid}/repository/commits?{q}&all=true&per_page=100")
+    if len(batch) >= 100 and (until - since) > min_window:
+        mid = since + (until - since) / 2
+        gl_commits_windowed(base, token, pid, since, mid, out, min_window)
+        gl_commits_windowed(base, token, pid, mid, until, out, min_window)
+        return
+    for c in batch:
+        out[c.get("id") or (c.get("author_email"), c.get("authored_date"), c.get("title"))] = c
 
 
 def normalize_email(raw: str | None) -> str | None:
@@ -133,9 +170,10 @@ def main() -> None:
         pid, path = p["id"], p["path_with_namespace"]
         try:
             # since/until은 committed_date 기준 창(git log). 창 밖에서 authored된 리베이스 커밋은 아래 날짜 필터에서 빠진다.
-            commits = gl_get_all(gitlab_url, token, f"/projects/{pid}/repository/commits?since={q_from}&until={q_to}&all=true")
+            by_sha: dict = {}
+            gl_commits_windowed(gitlab_url, token, pid, dt.datetime.fromisoformat(from_iso), dt.datetime.fromisoformat(to_iso), by_sha)
             seen: set = set()
-            for cm in commits:
+            for cm in by_sha.values():
                 email = normalize_email(cm.get("author_email"))
                 when = cm.get("authored_date") or cm.get("committed_date")
                 if not email or not when:

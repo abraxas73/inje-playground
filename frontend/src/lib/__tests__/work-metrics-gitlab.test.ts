@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isClaudeCommit, summarizeCommits } from "@/lib/work-metrics/gitlab";
+import { fetchCommitsWindowed, isClaudeCommit, summarizeCommits } from "@/lib/work-metrics/gitlab";
 
 describe("isClaudeCommit", () => {
   it("Claude Code 공동 저자 트레일러를 인식한다", () => {
@@ -38,5 +38,31 @@ describe("summarizeCommits", () => {
   });
   it("이메일·날짜 없는 커밋은 건너뛴다", () => {
     expect(summarizeCommits([{ id: "x", title: "no meta" }, { id: "y", author_email: "a b", authored_date: "2026-09-01T00:00:00Z" }, { id: "z", author_email: "kim", title: "no date" }])).toEqual([]);
+  });
+});
+
+describe("fetchCommitsWindowed", () => {
+  // all=true는 page를 무시하므로 한 창에서 최대 100건만 온다고 가정한 가짜 API
+  const mk = (id: number, t: number) => ({ id: `sha${id}`, author_email: "kim@innogrid.com", authored_date: new Date(t).toISOString(), title: `c${id}` });
+  const start = Date.parse("2026-08-01T00:00:00Z");
+  const all = Array.from({ length: 450 }, (_, i) => mk(i, start + i * 3600_000)); // 1시간 간격 450건(≈19일)
+  const calls: string[] = [];
+  const fakeFetch = async (s: string, u: string) => {
+    calls.push(`${s}~${u}`);
+    const a = Date.parse(s), b = Date.parse(u);
+    return all.filter((c) => { const t = Date.parse(c.authored_date); return t >= a && t <= b; }).slice(-100); // 최신 100건만
+  };
+  it("100건이 꽉 찬 창은 반으로 쪼개 전부 읽고 SHA 중복을 제거한다", async () => {
+    calls.length = 0;
+    const out = await fetchCommitsWindowed(fakeFetch, "2026-08-01T00:00:00Z", "2026-09-01T00:00:00Z");
+    expect(new Set(out.map((c) => c.id)).size).toBe(450);
+    expect(out).toHaveLength(450);
+    expect(calls.length).toBeGreaterThan(5); // 한 번에 다 못 읽어 쪼갬
+  });
+  it("100건 미만이면 한 번만 요청한다", async () => {
+    calls.length = 0;
+    const out = await fetchCommitsWindowed(fakeFetch, "2026-08-01T00:00:00Z", "2026-08-02T00:00:00Z");
+    expect(out).toHaveLength(25);
+    expect(calls).toHaveLength(1);
   });
 });
