@@ -56,6 +56,12 @@ npm run lint     # ESLint (flat config, ESLint 9)
 
 No test framework is configured.
 
+### 로컬 launchd 자동화 (운영자 Mac)
+
+```bash
+claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사용량 CSV 09:05 — 일정·마지막 종료 코드·로그 (런북 docs/launchd-jobs.md)
+```
+
 ## Tech Stack
 
 ### Frontend
