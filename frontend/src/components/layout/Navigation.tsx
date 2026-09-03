@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Dice5, LogOut, UtensilsCrossed, Coffee, Shield, User as UserIcon, Settings, BookOpen, ClipboardList, SquareTerminal, MessagesSquare, TrendingUp } from "lucide-react";
+import { Dice5, LogOut, UtensilsCrossed, Coffee, Shield, User as UserIcon, Settings, BookOpen, ClipboardList, SquareTerminal, MessagesSquare, TrendingUp, FileSearch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/usage/code", label: "Claude Code", icon: SquareTerminal, minRole: "user" },
   { href: "/usage/chat", label: "Claude 채팅", icon: MessagesSquare, minRole: "user" },
   { href: "/usage/perf", label: "성과", icon: TrendingUp, minRole: "user" },
+  { href: "/rfp", label: "RFP 분석", icon: FileSearch, minRole: "user" },
   { href: "/admin", label: "어드민", icon: Shield, minRole: "admin" },
 ];
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Dice5, Users, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList } from "lucide-react";
+import { Dice5, Users, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { canAccess } from "@/lib/roles";
 
@@ -47,6 +47,16 @@ const FEATURES = [
     bgAccent: "bg-emerald-50",
     iconColor: "text-emerald-600",
     delay: "delay-[450ms]",
+  },
+  {
+    href: "/rfp",
+    title: "RFP 분석",
+    description: "제안요청서(hwp·hwpx·docx)를 올리면 사업 개요와 요구사항 표를 만들어 드립니다. 편집하고 엑셀로 내려받으세요.",
+    icon: FileSearch,
+    gradient: "from-violet-500 to-purple-600",
+    bgAccent: "bg-violet-50",
+    iconColor: "text-violet-600",
+    delay: "delay-[475ms]",
   },
   {
     href: "/admin",
