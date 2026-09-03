@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500, numify } from "@/lib/claude-usage/require-admin";
+import { selectAll } from "@/lib/work-metrics/common";
 
 /**
  * GET /api/admin/claude-usage/members?org=all|<id>&importId=latest|<uuid>&periodEnd=latest|YYYY-MM-DD — CSV 멤버 활동
  * - periodEnd(YYYY-MM-DD): 데이터 기간 종료일이 그 날짜인 CSV 중 조직별 최신 업로드를 고른다(화면의 "데이터 기간" 선택).
  * - importId(uuid): 특정 업로드 하나. 둘 다 없으면 조직별 최신 업로드.
  * 응답 imports는 선택과 무관하게 org 범위의 전체 업로드 목록(기간 옵션용), period는 선택된 CSV들의 데이터 기간.
+ * 각 행에 code_prompts(같은 데이터 기간의 Claude Code 프롬프트 수, OTel claude_code_daily, Claude 조직 무관 이메일 합)를 붙인다 —
+ * 채팅은 0이어도 Claude Code를 쓰는 시트를 구분하기 위함.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin();
@@ -55,10 +58,22 @@ export async function GET(request: NextRequest) {
   const dirByEmail = new Map(((directory.error ? [] : directory.data ?? []) as Dir[]).map((d) => [d.email.toLowerCase(), d]));
   // parent_unit = 조직도 경로에서 팀 바로 위 단위(센터 등). headquarters는 본부라 센터가 빠진다
   const parentUnit = (d: Dir | undefined): string | null => (d?.units && d.units.length >= 2 ? d.units[d.units.length - 2] : null);
+  // Claude Code 프롬프트 수(OTel) — 선택된 CSV 데이터 기간, 조직 무관 이메일 합. 실패해도 표는 내려준다
+  const codePrompts = new Map<string, number>();
+  if (period) {
+    const cp = await selectAll<{ user_email: string; prompts: number | string }>(() =>
+      admin.from("claude_code_daily").select("user_email, prompts", { count: "exact" }).gte("day", period.start).lte("day", period.end).order("day").order("org_id").order("user_email")
+    );
+    for (const r of cp.data ?? []) {
+      const k = r.user_email.toLowerCase();
+      codePrompts.set(k, (codePrompts.get(k) ?? 0) + Number(r.prompts));
+    }
+  }
   const withTeam = (rows.data ?? []).map((r) => {
     const rec = numify(r as Record<string, unknown>) as Record<string, unknown>;
-    const d = dirByEmail.get(String(rec.email ?? "").toLowerCase());
-    return { ...rec, employee_name: d?.name ?? null, team: d?.team ?? null, parent_unit: parentUnit(d), headquarters: d?.headquarters ?? null, division: d?.division ?? null };
+    const email = String(rec.email ?? "").toLowerCase();
+    const d = dirByEmail.get(email);
+    return { ...rec, employee_name: d?.name ?? null, team: d?.team ?? null, parent_unit: parentUnit(d), headquarters: d?.headquarters ?? null, division: d?.division ?? null, code_prompts: codePrompts.get(email) ?? 0 };
   });
   return NextResponse.json({ imports: all, rows: withTeam, period });
 }
