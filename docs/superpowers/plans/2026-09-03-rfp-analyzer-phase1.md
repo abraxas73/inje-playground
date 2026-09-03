@@ -55,7 +55,7 @@
 | `frontend/src/app/api/rfp/projects/[id]/file/route.ts` | GET 원본 파일 서명 다운로드 URL |
 | `frontend/src/app/api/rfp/projects/[id]/requirements/route.ts` | POST 행 추가 |
 | `frontend/src/app/api/rfp/requirements/[requirementId]/route.ts` | PATCH 셀 편집, DELETE 행 삭제 |
-| `frontend/src/lib/rfp/client-upload.ts` | 브라우저: sha256 → 서명 URL → 업로드 → 등록 요청 |
+| `frontend/src/lib/rfp/client-upload.ts` | 브라우저: 서명 URL → 업로드 → 등록 요청(sha256은 서버 계산) |
 | `frontend/src/components/rfp/UploadDropzone.tsx` | 드롭존 + 진행 상태 |
 | `frontend/src/components/rfp/ConfirmDuplicateDialog.tsx` | 유사 프로젝트 확인창 |
 | `frontend/src/components/rfp/ProjectList.tsx` | 프로젝트 표 |
@@ -2940,6 +2940,7 @@ export function mapProjectDetail(row: ProjectDbRow, creatorName: string | null, 
 `frontend/src/lib/rfp/pipeline.ts`:
 
 ```ts
+import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { UnsupportedDocumentError, type DocumentFormat, type DocumentModel } from "./document-model";
 import { detectFormat, parseDocument } from "./parse";
@@ -2959,7 +2960,6 @@ export async function downloadFile(admin: SupabaseClient, storagePath: string): 
 export interface RegisterInput {
   storagePath: string;
   fileName: string;
-  sha256: string;
   sizeBytes: number;
   force: boolean;
   userId: string;
@@ -3000,6 +3000,8 @@ export async function registerProject(admin: SupabaseClient, input: RegisterInpu
   } catch (e) {
     return { kind: "error", status: 400, message: e instanceof Error ? e.message : "파일을 내려받을 수 없습니다." };
   }
+  // 중복 판단·저장용 해시는 서버가 내려받은 바이트로 계산한다(클라이언트 값은 신뢰하지 않음)
+  const sha256 = createHash("sha256").update(buf).digest("hex");
 
   let doc: DocumentModel;
   let format: DocumentFormat;
@@ -3021,7 +3023,7 @@ export async function registerProject(admin: SupabaseClient, input: RegisterInpu
   const agencyNorm = overview.agency ? normalizeAgency(overview.agency) : null;
 
   const existing = await loadExisting(admin);
-  const decision = decideDuplicate({ sha256: input.sha256, nameNorm, nameCore: nameCore(name), agencyNorm }, existing);
+  const decision = decideDuplicate({ sha256, nameNorm, nameCore: nameCore(name), agencyNorm }, existing);
   if (decision.kind === "duplicate") {
     await removeUpload(admin, input.storagePath);
     return { kind: "duplicate", projectId: decision.projectId };
@@ -3046,18 +3048,19 @@ export async function registerProject(admin: SupabaseClient, input: RegisterInpu
       await removeUpload(admin, input.storagePath);
       if (dup) return { kind: "duplicate", projectId: dup.id };
     }
+    await removeUpload(admin, input.storagePath);
     return { kind: "error", status: 500, message: error?.message ?? "프로젝트 저장에 실패했습니다." };
   }
 
   const { error: fe } = await admin.from("rfp_files").insert({
     project_id: project.id, storage_path: input.storagePath, original_filename: input.fileName, format,
-    size_bytes: input.sizeBytes, sha256: input.sha256, uploaded_by: input.userId,
+    size_bytes: input.sizeBytes, sha256, uploaded_by: input.userId,
   });
   if (fe) {
     await admin.from("rfp_projects").delete().eq("id", project.id);
     await removeUpload(admin, input.storagePath);
     if (fe.code === "23505") {
-      const dup = existing.find((p) => p.fileHashes.includes(input.sha256));
+      const dup = existing.find((p) => p.fileHashes.includes(sha256));
       if (dup) return { kind: "duplicate", projectId: dup.id };
     }
     return { kind: "error", status: 500, message: fe.message };
@@ -3213,24 +3216,23 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/rfp/projects {storagePath, fileName, sha256, sizeBytes, force?}
+ * POST /api/rfp/projects {storagePath, fileName, sizeBytes, force?} — sha256은 서버가 파일 바이트로 계산하므로 본문 값은 받아도 쓰지 않는다.
  * 200 {duplicate} | 200 {needsConfirm, candidates, overview} | 201 {created, projectId}. 등록되면 after()로 추출 실행.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as
-    | { storagePath?: string; fileName?: string; sha256?: string; sizeBytes?: number; force?: boolean }
+    | { storagePath?: string; fileName?: string; sizeBytes?: number; force?: boolean }
     | null;
   const storagePath = body?.storagePath ?? "";
   const fileName = body?.fileName?.trim() ?? "";
-  const sha256 = (body?.sha256 ?? "").toLowerCase();
   const sizeBytes = Number(body?.sizeBytes);
-  if (!storagePath.startsWith("uploads/") || !fileName || !/^[a-f0-9]{64}$/.test(sha256) || !Number.isFinite(sizeBytes)) {
-    return NextResponse.json({ error: "storagePath, fileName, sha256, sizeBytes가 필요합니다." }, { status: 400 });
+  if (!storagePath.startsWith("uploads/") || !fileName || !Number.isFinite(sizeBytes)) {
+    return NextResponse.json({ error: "storagePath, fileName, sizeBytes가 필요합니다." }, { status: 400 });
   }
 
-  const result = await registerProject(auth.admin, { storagePath, fileName, sha256, sizeBytes, force: body?.force === true, userId: auth.userId });
+  const result = await registerProject(auth.admin, { storagePath, fileName, sizeBytes, force: body?.force === true, userId: auth.userId });
   if (result.kind === "error") return NextResponse.json({ error: result.message }, { status: result.status });
   if (result.kind === "duplicate") {
     const res: RegisterResponse = { duplicate: true, projectId: result.projectId };
@@ -3657,7 +3659,7 @@ Claude-Session: https://claude.ai/code/session_01HBFSDo2gi4ZcXWhXTHTpWv"
 
 **Interfaces:**
 - Consumes: Task 13 API(`POST /api/rfp/uploads`, `GET|POST /api/rfp/projects`), `types/rfp.ts`, 기존 `createClient`(`@/lib/supabase`, 브라우저 anon 클라이언트), shadcn `Button`·`Input`·`Badge`·`Dialog`·`Alert`
-- Produces: `uploadAndRegister(file, opts): Promise<{ response: RegisterResponse; ticket: UploadTicket; sha256: string }>`, `sha256Hex(file)`, 컴포넌트 3개, `/rfp` 화면
+- Produces: `uploadAndRegister(file, opts): Promise<{ response: RegisterResponse; ticket: UploadTicket }>`, 컴포넌트 3개, `/rfp` 화면 (sha256은 서버가 계산하므로 클라이언트 해시 없음)
 
 - [ ] **Step 1: 내비·역할·홈 카드**
 
@@ -3700,26 +3702,19 @@ const ROLE_ACCESS: Record<UserRole, string[]> = {
 import { createClient } from "@/lib/supabase";
 import type { RegisterResponse, UploadTicket } from "@/types/rfp";
 
-export type UploadPhase = "hashing" | "uploading" | "registering";
-export const PHASE_LABEL: Record<UploadPhase, string> = { hashing: "파일 확인 중…", uploading: "업로드 중…", registering: "분석 중…" };
-
-export async function sha256Hex(file: File): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+export type UploadPhase = "uploading" | "registering";
+export const PHASE_LABEL: Record<UploadPhase, string> = { uploading: "업로드 중…", registering: "분석 중…" };
 
 export interface RegisterOptions {
   force?: boolean;
   onPhase?: (phase: UploadPhase) => void;
   /** needsConfirm 뒤 "새로 등록"일 때: 이미 올린 파일을 다시 쓰기 위해 넘긴다 */
   ticket?: UploadTicket;
-  sha256?: string;
 }
 
 export interface RegisterOutcome {
   response: RegisterResponse;
   ticket: UploadTicket;
-  sha256: string;
 }
 
 async function readError(res: Response, fallback: string): Promise<string> {
@@ -3727,14 +3722,9 @@ async function readError(res: Response, fallback: string): Promise<string> {
   return json?.error ?? fallback;
 }
 
-/** sha256 → 서명 URL → Storage 직접 업로드 → 등록 요청. 스펙 §3 1~3단계. */
+/** 서명 URL → Storage 직접 업로드 → 등록 요청. 스펙 §3 1~3단계(sha256은 서버가 계산). */
 export async function uploadAndRegister(file: File, opts: RegisterOptions = {}): Promise<RegisterOutcome> {
-  let sha256 = opts.sha256;
   let ticket = opts.ticket;
-  if (!sha256) {
-    opts.onPhase?.("hashing");
-    sha256 = await sha256Hex(file);
-  }
   if (!ticket) {
     opts.onPhase?.("uploading");
     const tr = await fetch("/api/rfp/uploads", {
@@ -3752,10 +3742,10 @@ export async function uploadAndRegister(file: File, opts: RegisterOptions = {}):
   const rr = await fetch("/api/rfp/projects", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ storagePath: ticket.storagePath, fileName: file.name, sha256, sizeBytes: file.size, force: opts.force === true }),
+    body: JSON.stringify({ storagePath: ticket.storagePath, fileName: file.name, sizeBytes: file.size, force: opts.force === true }),
   });
   if (!rr.ok) throw new Error(await readError(rr, "등록에 실패했습니다."));
-  return { response: (await rr.json()) as RegisterResponse, ticket, sha256 };
+  return { response: (await rr.json()) as RegisterResponse, ticket };
 }
 ```
 
@@ -3932,7 +3922,7 @@ import ConfirmDuplicateDialog, { type DuplicateCandidate } from "@/components/rf
 import { uploadAndRegister, PHASE_LABEL, type UploadPhase } from "@/lib/rfp/client-upload";
 import type { RfpProjectSummary, UploadTicket } from "@/types/rfp";
 
-interface Pending { file: File; ticket: UploadTicket; sha256: string }
+interface Pending { file: File; ticket: UploadTicket }
 
 export default function RfpPage() {
   const router = useRouter();
@@ -3971,7 +3961,7 @@ export default function RfpPage() {
       setMessage({ kind: "info", text: "이미 등록된 프로젝트입니다. 상세 화면으로 이동합니다." });
       router.push(`/rfp/${r.projectId}`);
     } else if ("needsConfirm" in r) {
-      setConfirm({ candidates: r.candidates, overview: r.overview, pending: { file, ticket: outcome.ticket, sha256: outcome.sha256 } });
+      setConfirm({ candidates: r.candidates, overview: r.overview, pending: { file, ticket: outcome.ticket } });
     } else {
       router.push(`/rfp/${r.projectId}`);
     }
@@ -3995,8 +3985,8 @@ export default function RfpPage() {
     if (!confirm) return;
     setBusy(true);
     try {
-      const { file, ticket, sha256 } = confirm.pending;
-      const outcome = await uploadAndRegister(file, { force: true, ticket, sha256, onPhase: setPhase });
+      const { file, ticket } = confirm.pending;
+      const outcome = await uploadAndRegister(file, { force: true, ticket, onPhase: setPhase });
       setConfirm(null);
       handleOutcome(file, outcome);
     } catch (e) {
@@ -4051,7 +4041,7 @@ export default function RfpPage() {
 cd frontend && npx tsc --noEmit 2>&1 | grep -E "src/(app/rfp|components/rfp|lib/rfp)"; npm run lint 2>&1 | tail -3
 ./scripts/restart-frontend.sh
 ```
-브라우저에서 `http://localhost:3003/rfp`(user 역할로 로그인): 내비에 "RFP 분석", 홈에 카드가 보이고, 샘플 `제안요청서.hwp`를 드롭하면 "파일 확인 중 → 업로드 중 → 분석 중"을 거쳐 `/rfp/{id}`로 이동한다(상세 화면은 Task 16에서 만들므로 지금은 404가 정상). `/api/rfp/projects` GET으로 `status`가 `ready`, `requirementCount` 124인지 확인한다. 같은 파일을 다시 올리면 "이미 등록된 프로젝트" 메시지 후 이동.
+브라우저에서 `http://localhost:3003/rfp`(user 역할로 로그인): 내비에 "RFP 분석", 홈에 카드가 보이고, 샘플 `제안요청서.hwp`를 드롭하면 "업로드 중 → 분석 중"을 거쳐 `/rfp/{id}`로 이동한다(상세 화면은 Task 16에서 만들므로 지금은 404가 정상). `/api/rfp/projects` GET으로 `status`가 `ready`, `requirementCount` 124인지 확인한다. 같은 파일을 다시 올리면 "이미 등록된 프로젝트" 메시지 후 이동.
 
 - [ ] **Step 8: 커밋**
 

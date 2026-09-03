@@ -33,9 +33,9 @@
 ```
 브라우저 /rfp ──① 서명 업로드 URL 요청──▶ POST /api/rfp/uploads
    │                                        (Storage 버킷 rfp, 경로 uploads/{uuid}/{원본명})
-   ├──② 파일 PUT(브라우저→Storage 직접, sha256 동봉)
-   └──③ POST /api/rfp/projects {storagePath, fileName, sha256, force?}
-             │ 파일 내려받기 → parse(hwp|hwpx|docx) → DocumentModel
+   ├──② 파일 PUT(브라우저→Storage 직접)
+   └──③ POST /api/rfp/projects {storagePath, fileName, sizeBytes, force?}
+             │ 파일 내려받기 → sha256 계산 → parse(hwp|hwpx|docx) → DocumentModel
              │ extractOverview → dedupe(해시·사업명+발주기관·유사도)
              ├─ 중복 → 200 {duplicate:true, projectId}
              ├─ 유사(확정 불가) & !force → 200 {needsConfirm:true, candidates[], overview}
@@ -245,7 +245,7 @@ create index rfp_requirements_project_idx on public.rfp_requirements (project_id
 | 메서드·경로 | 역할 | 요청 → 응답 |
 |---|---|---|
 | `POST /api/rfp/uploads` | 서명 업로드 URL | `{fileName, size}` → 확장자·크기 검사 → `{storagePath, signedUrl, token}` (`createSignedUploadUrl`, 5분) |
-| `POST /api/rfp/projects` | 등록 | `{storagePath, fileName, sha256, force?}` → 파싱·개요·중복 판단 → `200 {duplicate}` / `200 {needsConfirm, candidates, overview}` / `201 {projectId}`. 파싱 실패 400·415, 이후 `after()`로 추출. `maxDuration = 300` |
+| `POST /api/rfp/projects` | 등록 | `{storagePath, fileName, sizeBytes, force?}`(sha256은 서버가 파일 바이트로 계산) → 파싱·개요·중복 판단 → `200 {duplicate}` / `200 {needsConfirm, candidates, overview}` / `201 {projectId}`. 파싱 실패 400·415, 이후 `after()`로 추출. `maxDuration = 300` |
 | `GET /api/rfp/projects` | 목록 | `?q=` 사업명·발주기관 검색 → `{projects:[{id,name,agency,status,requirementCount,createdBy:{name},createdAt}]}` |
 | `GET /api/rfp/projects/[id]` | 상세 | `{project, files, requirements}` (폴링에도 사용, `?fields=status`면 상태만) |
 | `PATCH /api/rfp/projects/[id]` | 개요 편집 | `{name?, agency?, period?, budget?, bidMethod?}` → 정규화 갱신, 유니크 위반은 409 |
