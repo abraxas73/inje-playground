@@ -92,6 +92,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/admin/perf` — 성과 지표 전체 조회(admin): 개인용 `/usage/perf`와 같은 5탭 + 팀 필터 + 개인(이름/이메일) 검색. API `GET /api/admin/work-metrics/perf?from&to&team&q`, 집계는 `lib/work-metrics/perf-report.ts` 공용, UI는 `components/usage/PerfDashboard.tsx` 공용
 - `/admin/directory` — 조직/팀(admin): 사내 조직도(그룹웨어 아마란스, inno-creed MCP — Claude 사용량 표 "소속" 컬럼의 출처)·Claude 멤버·초대·조직·설정(관리형 설정 JSON) 탭
 - `/usage/code`, `/usage/chat`, `/usage/perf` — 개인용 Claude 사용량·성과(user): 본인 것만, 조직장은 자기 말단 조직 전체(units[] 포함 비교 — 팀장→팀, 센터장→센터 산하 전체, 본부장→본부). 조직장 = `company_directory.is_leader`(어드민 조직/팀 탭 체크박스, null이면 duty 자동 판정). `lib/usage-scope.ts`. 어드민과 같은 지표·표(모델별 비용, 토큰/프롬프트, 프롬프트 사람/자동, 팀별 집계, 조직/팀 검색 필터, 총계 행, 도구·시간대, CSV 데이터 기간 선택, 노는 시트, CSV 내려받기)를 허용 범위 안에서만 보여주고, **프롬프트 내용 탭은 개인용에 없다**. 팀별 집계는 `lib/claude-usage/code-team-summary.ts`·`chat-team-summary.ts` 공용
+- `/rfp`, `/rfp/[id]` — RFP 분석(user): 제안요청서(hwp·hwpx·docx) 업로드 → 프로젝트 등록(중복 판단) → 요구사항 표(TanStack Table 셀 편집·행 추가/삭제) → xlsx 다운로드. 런북 `docs/rfp-analyzer.md`
 
 ### API Routes (`frontend/src/app/api/`)
 - `GET /api/dooray/members?projectId=X` — Proxies Dooray API to fetch project members
@@ -113,6 +114,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `GET /api/admin/directory`, `POST /api/admin/directory/sync` — 사내 조직도 명부 조회/동기화(동기화는 관리자 세션 또는 수집 토큰; 로컬 `frontend/scripts/company-directory-sync.py`가 inno-creed MCP `find_person` 전사 명부를 밀어 넣음). 런북 `docs/company-directory.md`
 - `GET /api/usage/{scope,code,chat,perf,tools,hourly}` — 개인용 사용량·성과(로그인 사용자, guest 제외). 서버가 usage-scope로 허용 이메일 계산(본인/조직장은 말단 조직 전체) — `chat?periodEnd=`·`perf?team&q`는 그 범위 안에서만 좁히는 필터. code는 totals·users·daily·models(어드민 summary와 같은 구성), chat은 행마다 같은 기간의 Claude Code 프롬프트(사람/자동)·조직도 소속(parent_unit)을 붙인다. 대량 조회는 `selectAll`. hourly는 RPC `claude_code_hourly_emails`(SQL `2026-08-31-usage-scope.sql`, isodow 1=월)
 - `GET /api/cron/work-metrics?source=all|jira|confluence|gitlab&from&to` — 성과 지표 일 수집(Vercel Cron 07:30 KST, `CRON_SECRET` 또는 관리자 세션). env `ATLASSIAN_*`/`GITLAB_*` 미설정 소스는 스킵. 설계 `docs/superpowers/specs/2026-08-31-claude-roi-integrations-design.md`
+- `/api/rfp/{uploads,projects,projects/[id],projects/[id]/{reextract,xlsx,file,requirements},requirements/[requirementId]}` — RFP 분석(user 이상, `lib/rfp/require-user.ts`). 파일은 Storage 버킷 `rfp`에 브라우저 직접 업로드, 추출은 `after()`(maxDuration 300)
 
 ### Supabase Tables (guide feature)
 - `nlm_notebooks` — Notebook metadata with `is_visible`, `sort_order`
@@ -127,6 +129,9 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 
 ### Supabase Tables (company directory)
 - `company_directory`(email PK, units[], division/headquarters/team, duty, position, active, synced_at), `company_directory_sync` — 사내 조직도 명부(아마란스). SQL `docs/sql/2026-08-29-company-directory.sql`
+
+### Supabase Tables (RFP 분석)
+- `rfp_projects`(사업 개요·상태·정규화 키), `rfp_files`(원본, sha256 유니크), `rfp_requirements`(구분 코드·ID·7필드·solution) — SQL `docs/sql/2026-09-03-rfp-analyzer.sql`
 
 ### Key Patterns
 
@@ -144,15 +149,18 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 
 **Claude 사용량 대시보드**: `lib/claude-usage/`가 OTLP 페이로드 파싱(`otlp.ts`)·수집 인증(`ingest-auth.ts`)·저장(`ingest-handler.ts`/`ingest-store.ts`)·CSV 파싱(`members-csv.ts`)·집계(`aggregate.ts`)·관리자 권한 체크(`require-admin.ts`)·관리형 설정 JSON 생성(`managed-settings.ts`)을 담당. 런북: `docs/claude-usage.md`, 아키텍처: `docs/claude-usage-architecture.md`.
 
+**RFP 분석**: `lib/rfp/` — 파서 3종(`parse-hwp.ts` cfb+zlib 레코드 파서, `parse-hwpx.ts`, `parse-docx.ts`) → 공통 `DocumentModel` → `overview.ts`(개요·정규화) → `dedupe.ts` → `extract-standard.ts`(표준 7행 표 규칙) / `extract-llm.ts`(Claude 폴백) → `xlsx.ts`(exceljs). 라우트는 `pipeline.ts`의 `registerProject`·`runExtraction`만 호출.
+
 **Environment Variables**:
 - `NLM_SERVICE_URL` — NLM service endpoint (default: `http://localhost:8090`, prod: `https://inje-nlm-service.fly.dev`)
 - `GW_LOGIN_ENABLED` — `true`일 때만 `POST /api/auth/gw`(GW 로그인 백엔드) 활성, 기본 404. GW가 토큰 기반 사용자 조회 API를 제공해 이메일을 서버 검증할 수 있을 때까지 꺼둔다
 - `TEAMS_GRAPH_CLIENT_SECRET` — Graph app-only 클라이언트 시크릿 (멤버 가져오기를 Graph 방식으로 쓸 때만 필수; `teams_members_webhook_url` 웹훅 방식이면 불필요; settings에 저장 금지)
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service_role 키(서버 전용, 클라이언트 노출 금지). Claude 사용량 대시보드 관리자 API에서 사용
 - `CLAUDE_OTEL_INGEST_TOKEN` — Claude Code OTLP 수신 엔드포인트(`/api/otel/v1/*`) Bearer 인증 토큰(`openssl rand -hex 32`)
+- `ANTHROPIC_API_KEY`, `RFP_LLM_MODEL`(기본 claude-opus-5) — RFP 비표준 문서 LLM 폴백
 
 ### Directory Layout (frontend/src/)
-- `components/` — Organized by feature: `ladder/`, `team/`, `food/`, `guide/`, `settings/`, `shared/`, `layout/`, `admin/claude-usage/`(Claude 사용량 대시보드 탭·차트), `admin/directory/`(사내 조직도 표)
+- `components/` — Organized by feature: `ladder/`, `team/`, `food/`, `guide/`, `settings/`, `shared/`, `layout/`, `admin/claude-usage/`(Claude 사용량 대시보드 탭·차트), `admin/directory/`(사내 조직도 표), `rfp/`(업로드·개요·요구사항 표)
 - `hooks/` — `useLocalStorage`, `useParticipants`, `useBgm`, `useTts`, `useSettings`(관리자 전역 설정), `useProviderSettings`(provider 3축)
-- `lib/` — Pure logic: `ladder.ts`, `team-divider.ts`, `dooray.ts`, `nlm-service.ts`, `providers.ts`(provider 상수/파서), `settings-server.ts`(서버 settings 로더), `teams-graph.ts`(Graph app-only), `notify/`(Notifier: dooray/teams/messages/recipients), `members/`(MemberSource: dooray/teams), `claude-usage/`(OTLP 파서·CSV 파서·집계·인증)
-- `types/` — TypeScript interfaces: `ladder.ts`, `team.ts`, `dooray.ts`, `guide.ts`, `claude-usage.ts`
+- `lib/` — Pure logic: `ladder.ts`, `team-divider.ts`, `dooray.ts`, `nlm-service.ts`, `providers.ts`(provider 상수/파서), `settings-server.ts`(서버 settings 로더), `teams-graph.ts`(Graph app-only), `notify/`(Notifier: dooray/teams/messages/recipients), `members/`(MemberSource: dooray/teams), `claude-usage/`(OTLP 파서·CSV 파서·집계·인증), `rfp/`(파서·개요·중복·추출·xlsx)
+- `types/` — TypeScript interfaces: `ladder.ts`, `team.ts`, `dooray.ts`, `guide.ts`, `claude-usage.ts`, `rfp.ts`
