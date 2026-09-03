@@ -76,6 +76,7 @@ delete from claude_orgs            where id = 'test-org';
 - 어드민과 같은 지표·표를 제공한다: 모델별 비용, 토큰/프롬프트(입/출), 프롬프트 사람/자동 구분, 팀별 집계(조직장 범위에 팀이 둘 이상일 때), 조직/팀 검색 필터·총계 행, 도구·시간대 패턴, CSV 데이터 기간 선택·수집 시각, 노는 시트 표시, 성과 팀 필터·이름 검색, CSV 내려받기.
 - **프롬프트 내용은 개인용에 없다.** 어드민 "프롬프트" 탭(`claude_code_prompts`)만 내용을 보여주며, 개인용 API는 그 테이블을 읽지 않는다. 수집·분류 규칙은 1.3 참고.
 - 조직장 범위가 커지면(본부장 × 90일) 일 집계 행이 1000행을 넘으므로 개인용 API는 모두 `selectAll`(PostgREST 상한 우회)로 읽는다.
+- 시간대 패턴 RPC `claude_code_hourly_emails`는 `docs/sql/2026-09-03-usage-hourly-users.sql`(2026-09-03 적용)로 users(고유 사용자 수) 컬럼이 붙었다. 반환 컬럼 변경이라 drop 후 재생성한다.
 
 ## 5. 테스트
 - 단위: `cd frontend && npx vitest run` (parser·CSV·집계·인증·관리형 설정).

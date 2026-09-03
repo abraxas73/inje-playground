@@ -5,7 +5,7 @@ import { dateRangePreset } from "@/lib/claude-usage/aggregate";
 
 export const runtime = "nodejs";
 
-/** GET /api/usage/hourly?from&to — 개인/조직장용 시간대 패턴(KST 요일×시각, RPC claude_code_hourly_emails) */
+/** GET /api/usage/hourly?from&to — 개인/조직장용 시간대 패턴(KST isodow×시각, RPC claude_code_hourly_emails → dow·hour·requests·cost_usd·users). SQL docs/sql/2026-09-03-usage-hourly-users.sql */
 export async function GET(request: NextRequest) {
   const r = await resolveUsageScope();
   if (!r.ok) return r.response;

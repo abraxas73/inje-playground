@@ -33,8 +33,8 @@ interface Resp {
   models: { model: string; cost_usd: number; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number }[];
 }
 interface ToolRow { tool: string; calls: number; errors: number; duration_ms_sum: number; accepts: number; rejects: number; users: number }
-/** RPC claude_code_hourly_emails — dow는 isodow(1=월 … 7=일) */
-interface HourCell { dow: number; hour: number; requests: number; cost_usd: number }
+/** RPC claude_code_hourly_emails — dow는 isodow(1=월 … 7=일). users = 그 시간대에 요청한 고유 사용자 수 */
+interface HourCell { dow: number; hour: number; requests: number; cost_usd: number; users: number }
 
 /** mcp__server__tool → server : tool 축약 */
 function toolLabel(t: string): string {
@@ -122,7 +122,7 @@ export default function MyCodeUsagePage() {
     let total = 0;
     const totals = Array.from({ length: 24 }, () => 0);
     for (const c of hourCells) {
-      const cell = { ...c, requests: Number(c.requests), cost_usd: Number(c.cost_usd) };
+      const cell = { ...c, requests: Number(c.requests), cost_usd: Number(c.cost_usd), users: Number(c.users) || 0 };
       grid.set(`${cell.dow}:${cell.hour}`, cell);
       max = Math.max(max, cell.requests);
       total += cell.requests;
@@ -296,7 +296,7 @@ export default function MyCodeUsagePage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">시간대 패턴 (KST · API 요청 {int(hourTotal)}건)</CardTitle>
-            <p className="text-xs text-muted-foreground">Claude Code API 요청 발생 시각 기준. 진할수록 요청이 많은 시간대이고 마지막 줄은 시각별 합계입니다.</p>
+            <p className="text-xs text-muted-foreground">Claude Code API 요청 발생 시각 기준. 진할수록 요청이 많은 시간대이고 마지막 줄은 시각별 합계입니다. 셀에 마우스를 올리면 요청·비용{isTeamView ? "·사용자 수" : ""}가 보입니다.</p>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -320,7 +320,7 @@ export default function MyCodeUsagePage() {
                             key={h}
                             className="h-7 w-7 rounded-sm text-center align-middle text-[9px]"
                             style={{ backgroundColor: v === 0 ? "var(--muted)" : `rgba(79, 70, 229, ${alpha.toFixed(2)})`, color: alpha > 0.55 ? "#fff" : undefined }}
-                            title={cell ? `${ISODOW_LABELS[dow]} ${h}시 — 요청 ${int(v)}건 · ${usd(cell.cost_usd)}` : `${ISODOW_LABELS[dow]} ${h}시 — 없음`}
+                            title={cell ? `${ISODOW_LABELS[dow]} ${h}시 — 요청 ${int(v)}건 · ${usd(cell.cost_usd)}${isTeamView ? ` · 사용자 ${int(cell.users)}명` : ""}` : `${ISODOW_LABELS[dow]} ${h}시 — 없음`}
                           >
                             {v > 0 && v >= hourMax * 0.5 ? int(v) : ""}
                           </td>
