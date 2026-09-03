@@ -6,6 +6,7 @@ const PROTECTED_ROUTES: { prefix: string; minRole: string }[] = [
   { prefix: "/admin", minRole: "admin" },
   { prefix: "/guide", minRole: "user" },
   { prefix: "/usage", minRole: "user" },
+  { prefix: "/rfp", minRole: "user" },
 ];
 
 const ROLE_PRIORITY: Record<string, number> = { guest: 0, user: 1, admin: 2 };

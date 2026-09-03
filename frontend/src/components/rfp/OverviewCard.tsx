@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, FileText, RefreshCw, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,8 +24,19 @@ const FIELDS: { key: "name" | "agency" | "period" | "budget" | "bidMethod"; labe
   { key: "name", label: "사업명" }, { key: "agency", label: "발주기관" }, { key: "period", label: "사업기간" }, { key: "budget", label: "설계금액" }, { key: "bidMethod", label: "입찰 및 계약방법" },
 ];
 
+/** 서버(reextract 라우트)와 같은 기준: extracting이 이만큼 지나면 멈춘 것으로 보고 재추출 버튼을 다시 활성화한다. */
+const STALE_EXTRACTING_MS = 6 * 60 * 1000;
+
 export default function OverviewCard({ project, canDelete, onPatched, onReextract, onDelete }: Props) {
   const [busy, setBusy] = useState<"reextract" | "delete" | "file" | null>(null);
+  // extracting 중에는 부모가 상태만 폴링하고 project를 갱신하지 않을 수 있어(멈춘 경우), 여기서 직접 시간을 흘려 재계산한다.
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (project.status !== "extracting") return;
+    const t = setInterval(() => tick((n) => n + 1), 15_000);
+    return () => clearInterval(t);
+  }, [project.status]);
+  const staleExtracting = project.status === "extracting" && Date.now() - Date.parse(project.updatedAt) > STALE_EXTRACTING_MS;
 
   const save = (key: (typeof FIELDS)[number]["key"]) => async (next: string) => {
     const res = await fetch(`/api/rfp/projects/${project.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [key]: next }) });
@@ -72,7 +83,7 @@ export default function OverviewCard({ project, canDelete, onPatched, onReextrac
           ) : (
             <Button size="sm" disabled><Download className="mr-1 h-4 w-4" />xlsx 다운로드</Button>
           )}
-          <Button variant="outline" size="sm" disabled={busy !== null || project.status === "extracting"} onClick={async () => { setBusy("reextract"); try { await onReextract(); } finally { setBusy(null); } }}>
+          <Button variant="outline" size="sm" disabled={busy !== null || (project.status === "extracting" && !staleExtracting)} onClick={async () => { setBusy("reextract"); try { await onReextract(); } finally { setBusy(null); } }}>
             <RefreshCw className="mr-1 h-4 w-4" />재추출
           </Button>
           {canDelete && (
