@@ -10,11 +10,19 @@ const row = (code: string, id: string, sortOrder: number, o: Partial<Requirement
 });
 const rows = [row("INR-DTL", "INR-DTL-001", 2, { solution: "Openstackit" }), row("SER", "SER-002", 1), row("SER", "SER-001", 0)];
 
+/** exceljs의 `load(data: Buffer)`는 exceljs 자체 Buffer 타입(ArrayBuffer 확장)을 쓰기 때문에
+ * Node `Buffer<ArrayBufferLike>`를 그대로 넘기면 tsc가 타입 불일치로 잡는다. 정확한 길이의
+ * 새 ArrayBuffer로 복사해 넘겨 피한다(값·동작은 동일). */
+async function loadWorkbook(buf: Buffer): Promise<ExcelJS.Workbook> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(new Uint8Array(buf).buffer as ArrayBuffer);
+  return wb;
+}
+
 describe("buildWorkbook", () => {
   it("시트 구성·헤더·행·너비가 샘플과 같다", async () => {
     const buf = await buildWorkbook(project, rows);
-    const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buf);
+    const wb = await loadWorkbook(buf);
     expect(wb.worksheets.map((w) => w.name)).toEqual(["0.개요", "1.요구사항_목록", "2.SER", "3.INRDTL"]);
 
     const ov = wb.getWorksheet("0.개요")!;
@@ -41,8 +49,7 @@ describe("buildWorkbook", () => {
   });
   it("extra가 있으면 개요 시트에 '2. 기타'로 이어 붙인다", async () => {
     const buf = await buildWorkbook({ ...project, extra: { "추진 배경": "AI 도입 필요" } }, rows);
-    const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buf);
+    const wb = await loadWorkbook(buf);
     const ov = wb.getWorksheet("0.개요")!;
     expect(ov.getCell("B11").value).toBe("2. 기타");
     expect(ov.getCell("B12").value).toBe("추진 배경");
