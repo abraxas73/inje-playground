@@ -29,7 +29,8 @@ interface ExistingRow {
 export async function runImport(admin: SupabaseClient, solutionCode: string, sourceIds: string[], deps: ImportDeps = DEFAULT_DEPS): Promise<void> {
   if (!sourceIds.length) return;
   const failAll = async (message: string) => {
-    await admin.from("rfp_solution_sources").update({ import_status: "failed", error: message.slice(0, 500) }).in("id", sourceIds);
+    const { error } = await admin.from("rfp_solution_sources").update({ import_status: "failed", error: message.slice(0, 500) }).in("id", sourceIds);
+    if (error) console.error("[rfp] catalog import status update failed", solutionCode, sourceIds, error.message);
   };
   const cfg = confluenceConfig();
   if (!cfg) return await failAll("ATLASSIAN_SITE·ATLASSIAN_EMAIL·ATLASSIAN_API_TOKEN 환경 변수가 설정되지 않았습니다.");
@@ -44,7 +45,8 @@ export async function runImport(admin: SupabaseClient, solutionCode: string, sou
 
   for (const sourceId of sourceIds) {
     const fail = async (message: string) => {
-      await admin.from("rfp_solution_sources").update({ import_status: "failed", error: message.slice(0, 500) }).eq("id", sourceId);
+      const { error } = await admin.from("rfp_solution_sources").update({ import_status: "failed", error: message.slice(0, 500) }).eq("id", sourceId);
+      if (error) console.error("[rfp] catalog import status update failed", solutionCode, sourceId, error.message);
     };
     try {
       const { data: src, error: srcError } = await admin.from("rfp_solution_sources").select("id, url, page_id").eq("id", sourceId).maybeSingle();
@@ -80,13 +82,14 @@ export async function runImport(admin: SupabaseClient, solutionCode: string, sou
       }
       const notes = [...extracted.warnings];
       if (plan.skippedEdited.length) notes.push(`사람이 고친 기능 ${plan.skippedEdited.length}개는 유지했습니다.`);
-      await admin
+      const { error: doneError } = await admin
         .from("rfp_solution_sources")
         .update({
           import_status: "ready", error: null, note: notes.join(" ") || null, title: page.title, page_version: page.version,
           imported_at: new Date().toISOString(), feature_count: plan.toInsert.length + plan.toUpdate.length,
         })
         .eq("id", sourceId);
+      if (doneError) throw new Error(`상태 갱신 실패: ${doneError.message}`);
     } catch (e) {
       console.error("[rfp] catalog import failed", solutionCode, sourceId, e);
       await fail(e instanceof Error ? e.message : String(e));
