@@ -2621,14 +2621,17 @@ const DEFAULT_DEPS: MappingDeps = { makeCall: (t) => createAnthropicMappingCall(
  * 어떤 경우에도 mapping_status를 running으로 남기지 않는다.
  */
 export async function runMapping(admin: SupabaseClient, projectId: string, mode: MappingMode, deps: MappingDeps = DEFAULT_DEPS): Promise<void> {
+  // supabase-js는 DB 오류를 throw하지 않고 error로 돌려준다. 종료 상태 갱신이 실패하면 running으로 남으므로 반드시 검사한다(Task 6 리뷰 지적과 같은 규칙).
   const fail = async (message: string) => {
-    await admin.from("rfp_projects").update({ mapping_status: "failed", mapping_error: message.slice(0, 500) }).eq("id", projectId);
+    const { error } = await admin.from("rfp_projects").update({ mapping_status: "failed", mapping_error: message.slice(0, 500) }).eq("id", projectId);
+    if (error) console.error("[rfp] mapping status update failed", projectId, error.message);
   };
   const ready = async (warnings: string[]) => {
-    await admin
+    const { error } = await admin
       .from("rfp_projects")
       .update({ mapping_status: "ready", mapping_error: null, mapping_at: new Date().toISOString(), mapping_warnings: warnings.slice(0, 200) })
       .eq("id", projectId);
+    if (error) await fail(`상태 갱신 실패: ${error.message}`);
   };
   try {
     const catalog = await loadCatalog(admin, { activeSolutionsOnly: true });
