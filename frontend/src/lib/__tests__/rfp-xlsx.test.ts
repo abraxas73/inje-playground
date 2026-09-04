@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import ExcelJS from "exceljs";
 import { buildWorkbook, xlsxFileName, type XlsxProject } from "@/lib/rfp/xlsx";
 import type { RequirementRow } from "@/lib/rfp/requirements";
+import { VERDICT_LABEL } from "@/lib/rfp/mapping/types";
+import type { CatalogSolution, MappingRow } from "@/lib/rfp/mapping/types";
 
 const project: XlsxProject = { name: "생성형 AI 플랫폼 구축 및 AX 개발 사업", agency: "한국석유공사", period: "12개월", budget: "13,225,835,150원", bidMethod: "일반경쟁입찰", extra: {} };
 const row = (code: string, id: string, sortOrder: number, o: Partial<RequirementRow> = {}): RequirementRow => ({
@@ -61,5 +63,66 @@ describe("xlsxFileName", () => {
   it("(발주기관) 사업명_요구사항 검토_YYYYMMDD.xlsx, 파일명 금지 문자는 _", () => {
     expect(xlsxFileName(project, new Date(2026, 8, 3))).toBe("(한국석유공사) 생성형 AI 플랫폼 구축 및 AX 개발 사업_요구사항 검토_20260903.xlsx");
     expect(xlsxFileName({ ...project, agency: null, name: "A/B: C" }, new Date(2026, 0, 5))).toBe("A_B_ C_요구사항 검토_20260105.xlsx");
+  });
+});
+
+describe("buildWorkbook + mapping", () => {
+  const catalog: CatalogSolution[] = [
+    { code: "secloudit", name: "SECloudit", description: "", isActive: true, sortOrder: 1, features: [{ id: "f-iam", solutionCode: "secloudit", name: "IAM", description: "", evidenceUrl: "https://c/iam", isActive: true }] },
+    { code: "devopsit", name: "Devopsit", description: "", isActive: true, sortOrder: 2, features: [{ id: "f-pipe", solutionCode: "devopsit", name: "파이프라인", description: "", evidenceUrl: null, isActive: true }] },
+  ];
+  const m = (id: string, requirementId: string, verdict: MappingRow["verdict"], featureId: string | null, solutionCode: string | null, sortOrder: number, edited = false): MappingRow =>
+    ({ id, requirementId, verdict, featureId, solutionCode, rationale: `이유 ${id}`, evidenceUrl: featureId === "f-iam" ? "https://c/iam" : null, edited, sortOrder });
+  const mappingRows: MappingRow[] = [
+    m("m1", "SER-001-uuid", "fulfilled", "f-iam", "secloudit", 0, true),
+    m("m2", "SER-001-uuid", "partial", "f-pipe", "devopsit", 1),
+    m("m3", "INR-DTL-001-uuid", "build", null, null, 0),
+  ];
+  const mapping = { rows: mappingRows, catalog, mappingAt: "2026-09-04T01:23:00.000Z" };
+
+  it("목록 시트에 요약 + 5열, 여러 매핑은 셀 안 줄바꿈, 미매핑은 '미매핑'", async () => {
+    const wb = await loadWorkbook(await buildWorkbook(project, rows, mapping));
+    const list = wb.getWorksheet("1.요구사항_목록")!;
+    expect(list.getRow(3).values).toEqual([undefined, "연번", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "상세 시트 위치", "당사 솔루션", "솔루션", "기능", "판정", "매핑 설명", "근거 URL"]);
+    expect(list.getRow(4).values).toEqual([undefined, 1, "서비스 요구사항", "SER-001", "제목 SER-001", "2.SER", "SECloudit·IAM(충족) / Devopsit·파이프라인(부분충족)", "SECloudit\nDevopsit", "IAM\n파이프라인", "충족\n부분충족", "이유 m1\n이유 m2", "https://c/iam\n"]);
+    expect(list.getRow(5).getCell(7).value).toBe("");
+    expect(list.getRow(5).getCell(9).value).toBe("미매핑");
+    expect(list.getRow(6).getCell(9).value).toBe(VERDICT_LABEL.build);
+    expect(list.getRow(6).getCell(8).value).toBe("");
+    expect(list.getColumn(11).width).toBe(40);
+  });
+  it("상세 시트 번호는 그대로이고 마지막에 '{n}.솔루션_매핑' 시트가 붙는다(미매핑 포함, 수정 표시)", async () => {
+    const wb = await loadWorkbook(await buildWorkbook(project, rows, mapping));
+    expect(wb.worksheets.map((w) => w.name)).toEqual(["0.개요", "1.요구사항_목록", "2.SER", "3.INRDTL", "4.솔루션_매핑"]);
+    const ms = wb.getWorksheet("4.솔루션_매핑")!;
+    expect(ms.getRow(3).values).toEqual([undefined, "연번", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "솔루션", "기능", "판정", "매핑 설명", "근거 URL", "수정"]);
+    expect(ms.getRow(4).values).toEqual([undefined, 1, "서비스 요구사항", "SER-001", "제목 SER-001", "SECloudit", "IAM", "충족", "이유 m1", "https://c/iam", "수정"]);
+    expect(ms.getRow(5).values).toEqual([undefined, 2, "서비스 요구사항", "SER-001", "제목 SER-001", "Devopsit", "파이프라인", "부분충족", "이유 m2", "", ""]);
+    expect(ms.getRow(6).values).toEqual([undefined, 3, "서비스 요구사항", "SER-002", "제목 SER-002", "", "", "미매핑", "", "", ""]);
+    expect(ms.getRow(7).values).toEqual([undefined, 4, "인프라 상세 요구사항", "INR-DTL-001", "제목 INR-DTL-001", "", "", "설계·구축영역", "이유 m3", "", ""]);
+    expect(ms.getRow(8).getCell(3).value).toBeNull();
+  });
+  it("개요 시트에 '3. 솔루션 매핑 요약' 블록", async () => {
+    const wb = await loadWorkbook(await buildWorkbook(project, rows, mapping));
+    const ov = wb.getWorksheet("0.개요")!;
+    expect(ov.getCell("B11").value).toBe("3. 솔루션 매핑 요약");
+    expect(ov.getCell("B12").value).toBe("실행 시각");
+    expect(ov.getCell("B13").value).toBe("충족");
+    expect(ov.getCell("C13").value).toBe("1건");
+    expect(ov.getCell("B14").value).toBe("부분충족");
+    expect(ov.getCell("C14").value).toBe("0건");
+    expect(ov.getCell("B15").value).toBe("설계·구축영역");
+    expect(ov.getCell("C15").value).toBe("1건");
+    expect(ov.getCell("B17").value).toBe("미매핑");
+    expect(ov.getCell("C17").value).toBe("1건");
+    expect(ov.getCell("B18").value).toBe("SECloudit");
+    expect(ov.getCell("C18").value).toBe("충족 1건 · 부분충족 0건");
+    expect(ov.getCell("B19").value).toBe("Devopsit");
+    expect(ov.getCell("C19").value).toBe("충족 0건 · 부분충족 1건");
+  });
+  it("mapping을 주지 않으면 1단계와 같은 시트·열", async () => {
+    const wb = await loadWorkbook(await buildWorkbook(project, rows));
+    expect(wb.worksheets.map((w) => w.name)).toEqual(["0.개요", "1.요구사항_목록", "2.SER", "3.INRDTL"]);
+    expect(wb.getWorksheet("1.요구사항_목록")!.getRow(3).cellCount).toBe(6);
   });
 });

@@ -6,9 +6,9 @@ import { parseReqId } from "@/lib/rfp/requirements";
 export const runtime = "nodejs";
 
 type Params = { params: Promise<{ requirementId: string }> };
-const TEXT_FIELDS = ["title", "definition", "details", "deliverables", "related", "solution", "categoryName"] as const;
+const TEXT_FIELDS = ["title", "definition", "details", "deliverables", "related", "categoryName"] as const;
 const COLUMN: Record<(typeof TEXT_FIELDS)[number], string> = {
-  title: "title", definition: "definition", details: "details", deliverables: "deliverables", related: "related", solution: "solution", categoryName: "category_name",
+  title: "title", definition: "definition", details: "details", deliverables: "deliverables", related: "related", categoryName: "category_name",
 };
 
 /** PATCH /api/rfp/requirements/[requirementId] — 셀 단위 부분 갱신. reqId를 바꾸면 category_code도 따라간다. */
@@ -18,6 +18,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { requirementId } = await params;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "본문이 필요합니다." }, { status: 400 });
+  if ("solution" in body) return NextResponse.json({ error: "solution은 매핑에서 관리합니다. 요구사항 행을 펼쳐 매핑을 편집하세요." }, { status: 400 });
 
   const patch: Record<string, unknown> = { updated_by: auth.userId };
   for (const f of TEXT_FIELDS) {
