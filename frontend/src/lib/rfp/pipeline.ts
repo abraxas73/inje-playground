@@ -151,7 +151,8 @@ export async function registerProject(admin: SupabaseClient, input: RegisterInpu
  */
 export async function runExtraction(admin: SupabaseClient, projectId: string): Promise<void> {
   const fail = async (message: string) => {
-    await admin.from("rfp_projects").update({ status: "failed", error: message.slice(0, 500) }).eq("id", projectId);
+    const { error } = await admin.from("rfp_projects").update({ status: "failed", error: message.slice(0, 500) }).eq("id", projectId);
+    if (error) console.error("[rfp] extraction status update failed", projectId, error.message);
   };
   try {
     const { data: file, error: fileError } = await admin
@@ -196,13 +197,14 @@ export async function runExtraction(admin: SupabaseClient, projectId: string): P
     const { data: proj, error: projError } = await admin.from("rfp_projects").select("warnings").eq("id", projectId).single();
     if (projError) throw new Error(projError.message);
     const registerWarnings = (Array.isArray(proj?.warnings) ? (proj!.warnings as string[]) : []).filter((w) => w.startsWith("사업명을"));
-    await admin
+    const { error: readyError } = await admin
       .from("rfp_projects")
       .update({
         status: "ready", error: null, extraction_method: result.method,
         warnings: [...registerWarnings, ...result.warnings], requirement_count: result.requirements.length,
       })
       .eq("id", projectId);
+    if (readyError) throw new Error(`상태 갱신 실패: ${readyError.message}`);
   } catch (e) {
     console.error("[rfp] extraction failed", projectId, e);
     await fail(e instanceof Error ? e.message : String(e));

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminClientOr500, requireAdmin } from "@/lib/claude-usage/require-admin";
 import { FEATURE_COLUMNS, mapAdminFeature, type FeatureDbRow } from "@/lib/rfp/catalog/store";
 import { FEATURE_NAME_MAX, normalizeFeatureName } from "@/lib/rfp/catalog/merge-features";
+import { normalizeHttpUrl } from "@/lib/rfp/url";
 
 export const runtime = "nodejs";
 type Params = { params: Promise<{ featureId: string }> };
@@ -28,10 +29,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     patch.description = body.description.trim();
   }
   if ("evidenceUrl" in body) {
-    if (body.evidenceUrl !== null && typeof body.evidenceUrl !== "string") return NextResponse.json({ error: "evidenceUrl은 문자열 또는 null이어야 합니다." }, { status: 400 });
-    const v = typeof body.evidenceUrl === "string" ? body.evidenceUrl.trim() : "";
-    if (v.length > 2000) return NextResponse.json({ error: "근거 URL이 너무 깁니다." }, { status: 400 });
-    patch.evidence_url = v || null;
+    const urlCheck = normalizeHttpUrl(body.evidenceUrl);
+    if (!urlCheck.ok) return NextResponse.json({ error: urlCheck.error }, { status: 400 });
+    patch.evidence_url = urlCheck.value;
   }
   if ("isActive" in body) {
     if (typeof body.isActive !== "boolean") return NextResponse.json({ error: "isActive는 불리언이어야 합니다." }, { status: 400 });

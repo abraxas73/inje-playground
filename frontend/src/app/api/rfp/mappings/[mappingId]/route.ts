@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/rfp/require-user";
 import { loadCatalog } from "@/lib/rfp/catalog/store";
 import { validateManualMapping } from "@/lib/rfp/mapping/validate";
 import { MAPPING_COLUMNS, mapMapping, type MappingDbRow } from "@/lib/rfp/mappers";
+import { normalizeHttpUrl } from "@/lib/rfp/url";
 
 export const runtime = "nodejs";
 type Params = { params: Promise<{ mappingId: string }> };
@@ -26,10 +27,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     patch.rationale = body.rationale.trim();
   }
   if ("evidenceUrl" in body) {
-    if (body.evidenceUrl !== null && typeof body.evidenceUrl !== "string") return NextResponse.json({ error: "evidenceUrl은 문자열 또는 null이어야 합니다." }, { status: 400 });
-    const v = typeof body.evidenceUrl === "string" ? body.evidenceUrl.trim() : "";
-    if (v.length > 2000) return NextResponse.json({ error: "근거 URL이 너무 깁니다." }, { status: 400 });
-    patch.evidence_url = v || null;
+    const urlCheck = normalizeHttpUrl(body.evidenceUrl);
+    if (!urlCheck.ok) return NextResponse.json({ error: urlCheck.error }, { status: 400 });
+    patch.evidence_url = urlCheck.value;
   }
   const touchesRule = "verdict" in body || "solutionCode" in body || "featureId" in body;
   if (touchesRule) {

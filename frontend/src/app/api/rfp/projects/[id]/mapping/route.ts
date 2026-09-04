@@ -17,7 +17,9 @@ const COLUMNS = "id, status, mapping_status, mapping_error, mapping_warnings, ma
 type Row = Pick<ProjectDbRow, "id" | "status" | "mapping_status" | "mapping_error" | "mapping_warnings" | "mapping_at" | "updated_at">;
 
 async function loadMappings(admin: SupabaseClient, projectId: string): Promise<RfpMapping[]> {
-  const { data, error } = await selectAll<MappingDbRow>(() => admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS, { count: "exact" }).eq("project_id", projectId).order("sort_order"));
+  const { data, error } = await selectAll<MappingDbRow>(() =>
+    admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS, { count: "exact" }).eq("project_id", projectId).order("sort_order").order("id"),
+  );
   if (error) throw new Error(error.message);
   return data.map(mapMapping);
 }

@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/rfp/require-user";
 import { loadCatalog } from "@/lib/rfp/catalog/store";
 import { validateManualMapping } from "@/lib/rfp/mapping/validate";
 import { MAPPING_COLUMNS, mapMapping, type MappingDbRow } from "@/lib/rfp/mappers";
+import { normalizeHttpUrl } from "@/lib/rfp/url";
 
 export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
@@ -15,9 +16,10 @@ export async function POST(request: NextRequest, { params }: Params) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body || typeof body.requirementId !== "string") return NextResponse.json({ error: "requirementId가 필요합니다." }, { status: 400 });
   const rationale = typeof body.rationale === "string" ? body.rationale.trim() : "";
-  const evidenceUrl = typeof body.evidenceUrl === "string" && body.evidenceUrl.trim() ? body.evidenceUrl.trim() : null;
   if (rationale.length > 4000) return NextResponse.json({ error: "설명은 4000자 이하입니다." }, { status: 400 });
-  if (evidenceUrl && evidenceUrl.length > 2000) return NextResponse.json({ error: "근거 URL이 너무 깁니다." }, { status: 400 });
+  const urlCheck = normalizeHttpUrl(body.evidenceUrl);
+  if (!urlCheck.ok) return NextResponse.json({ error: urlCheck.error }, { status: 400 });
+  const evidenceUrl = urlCheck.value;
 
   const { data: req, error: reqError } = await auth.admin.from("rfp_requirements").select("id, project_id").eq("id", body.requirementId).maybeSingle();
   if (reqError) return NextResponse.json({ error: reqError.message }, { status: 500 });
@@ -45,5 +47,13 @@ export async function POST(request: NextRequest, { params }: Params) {
     .select(MAPPING_COLUMNS)
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const { error: statusError } = await auth.admin
+    .from("rfp_projects")
+    .update({ mapping_status: "ready", updated_by: auth.userId })
+    .eq("id", id)
+    .eq("mapping_status", "none");
+  if (statusError) console.error("[rfp] mapping status update failed", id, statusError.message);
+
   return NextResponse.json(mapMapping(data as MappingDbRow), { status: 201 });
 }

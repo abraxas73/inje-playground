@@ -247,7 +247,7 @@ alter table public.rfp_projects
 
 ### 4.4 요약 (`mapping/summary.ts`, 순수 함수 — 화면·xlsx 공용)
 
-- `mappingSummary(rows, catalog)`: 요구사항 하나의 행들을 `sort_order` 순으로 `{솔루션명}·{기능명}({판정})`을 ` / `로 이어 만든다. `build` → `설계·구축영역`, `na` → `해당없음`, 행 없음 → 빈 문자열. 기능이 비활성이면 `{기능명}(비활성)`.
+- `mappingSummary(rows, catalog)`: 요구사항 하나의 행들을 `sort_order` 순으로 `{솔루션명}·{기능명}({판정})`을 ` / `로 이어 만든다. `build` → `설계·구축영역`, `na` → `해당없음`, 행 없음 → 빈 문자열. 기능이 비활성이면 `{기능명}[비활성]`.
 - `countByVerdict(requirements, rows)`: `{fulfilled, partial, build, na, unmapped}` — 요구사항 단위(한 요구사항에 fulfilled와 partial이 함께 있으면 더 좋은 쪽 하나로 센다: fulfilled > partial > build > na).
 - `countBySolution(rows, catalog)`: 솔루션별 `{fulfilled, partial}` 행 수(요구사항 중복 제거).
 
@@ -303,12 +303,12 @@ alter table public.rfp_projects
 - 폴링: 기존 `?fields=status` 폴링이 `mappingStatus`도 보고, `running → ready|failed`로 바뀌면 `GET …/mapping`으로 행을 갱신한다.
 - `MappingSummary`(표 위): 판정별 건수 칩(충족·부분충족·설계·구축영역·해당없음·미매핑 — `countByVerdict`) + 솔루션별 건수(`countBySolution`). 칩을 누르면 표를 그 판정으로 필터.
 - `RequirementsTable`: "전체 목록" 탭의 "당사 솔루션" 열을 읽기 전용 `mappingSummary` 텍스트로 바꾼다(편집 불가, `solution` 필드 편집 제거). 모든 탭에서 행 앞 ▸ 아이콘 클릭 → `getExpandedRowModel`로 아래 행에 `MappingEditor`가 펼쳐진다. 판정 필터(칩)·텍스트 필터 함께 적용.
-- `MappingEditor`(요구사항 하나): 매핑 행 목록. 행마다 솔루션 콤보(활성 솔루션) → 기능 콤보(그 솔루션의 활성 기능; 현재 값이 비활성이면 "(비활성)" 표시로 유지) → 판정 셀렉트 → 설명 textarea(자동 높이) → 근거 URL 입력 → 삭제. 판정을 build/na로 바꾸면 솔루션·기능 콤보가 비활성화되고 null로 저장. 변경은 필드별 blur 저장(PATCH), 실패 시 원값 복원 + 토스트. "행 추가"는 기본값 `{verdict:"partial"}`에 솔루션·기능을 고르면 POST. ✎ 아이콘으로 edited 표시, hover에 수정자·시각.
+- `MappingEditor`(요구사항 하나): 매핑 행 목록. 행마다 솔루션 콤보(활성 솔루션) → 기능 콤보(그 솔루션의 활성 기능; 현재 값이 비활성이면 "(비활성)" 표시로 유지) → 판정 셀렉트 → 설명 textarea(자동 높이) → 근거 URL 입력 → 삭제. 판정을 build/na로 바꾸면 솔루션·기능 콤보가 비활성화되고 null로 저장. 변경은 필드별 blur 저장(PATCH), 실패 시 원값 복원 + 토스트. "행 추가"는 기본값 `{verdict:"partial"}`에 솔루션·기능을 고르면 POST. ✎ 아이콘으로 edited 표시, hover에 수정 시각.
 - `/rfp` 목록(`ProjectList`): "매핑" 열에 상태 배지.
 
 ## 7. xlsx (`xlsx.ts` 확장)
 
-`buildWorkbook(project, rows, mapping?: { rows: RfpMapping[]; catalog })` — `mapping`이 없으면 1단계와 같은 결과(기존 테스트 유지).
+`buildWorkbook(project, rows, mapping?: { rows: RfpMapping[]; catalog })` — `mapping`이 없으면 1단계와 같은 결과(기존 테스트 유지). 매핑 실행을 하지 않고 사람이 직접 추가한 매핑만 있어도 행이 하나 이상이면 매핑 열·시트를 넣는다. 행 추가 API는 `mapping_status`가 `none`이면 `ready`로 바꾼다.
 - `1.요구사항_목록`: 6번째 "당사 솔루션" 열에 `mappingSummary` 문자열. 그 뒤 5열 추가 — 솔루션, 기능, 판정, 매핑 설명, 근거 URL(너비 14/24/10/50/40). 요구사항에 매핑이 여러 행이면 다섯 셀 모두 같은 순서로 줄바꿈(`\n`)해 넣는다(행 수는 요구사항 수 그대로). build/na는 솔루션·기능 칸 비움.
 - 구분별 상세 시트: 1단계 7열 그대로. 번호도 그대로(`2.SER`…).
 - 새 시트 **`{n}.솔루션_매핑`** — `n`은 마지막 상세 시트 다음 번호. 매핑 1행 = 연번·요구사항 구분·요구사항 ID·요구사항 명칭·솔루션·기능·판정·매핑 설명·근거 URL·수정 여부(✎ → "수정"). 미매핑 요구사항도 판정 "미매핑"으로 1행 넣어 빠짐없이 보이게 한다. 열 너비 5/18/14/36/14/26/10/50/40/8. 헤더·본문 스타일은 기존 `styleHeader`/`styleBody`.

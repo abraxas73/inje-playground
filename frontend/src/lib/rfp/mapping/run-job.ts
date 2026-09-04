@@ -109,7 +109,9 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
 
     const [reqRes, mapRes] = await Promise.all([
       admin.from("rfp_requirements").select("id, req_id, title, category_code, category_name, definition, details, sort_order").eq("project_id", projectId),
-      selectAll<{ requirement_id: string; edited: boolean }>(() => admin.from("rfp_requirement_mappings").select("requirement_id, edited", { count: "exact" }).eq("project_id", projectId)),
+      selectAll<{ requirement_id: string; edited: boolean }>(() =>
+        admin.from("rfp_requirement_mappings").select("requirement_id, edited", { count: "exact" }).eq("project_id", projectId).order("id"),
+      ),
     ]);
     if (reqRes.error) throw new Error(reqRes.error.message);
     if (mapRes.error) throw new Error(mapRes.error.message);

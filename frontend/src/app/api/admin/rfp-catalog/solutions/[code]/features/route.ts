@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminClientOr500, requireAdmin } from "@/lib/claude-usage/require-admin";
 import { FEATURE_COLUMNS, mapAdminFeature, type FeatureDbRow } from "@/lib/rfp/catalog/store";
 import { FEATURE_NAME_MAX, normalizeFeatureName } from "@/lib/rfp/catalog/merge-features";
+import { normalizeHttpUrl } from "@/lib/rfp/url";
 import { selectAll } from "@/lib/work-metrics/common";
 
 export const runtime = "nodejs";
@@ -16,7 +17,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
   const { code } = await params;
   const [feats, maps] = await Promise.all([
     a.admin.from("rfp_solution_features").select(FEATURE_COLUMNS).eq("solution_code", code).order("sort_order").order("name"),
-    selectAll<{ feature_id: string | null }>(() => a.admin.from("rfp_requirement_mappings").select("feature_id", { count: "exact" }).eq("solution_code", code)),
+    selectAll<{ feature_id: string | null }>(() => a.admin.from("rfp_requirement_mappings").select("feature_id", { count: "exact" }).eq("solution_code", code).order("id")),
   ]);
   if (feats.error) return NextResponse.json({ error: feats.error.message }, { status: 500 });
   if (maps.error) return NextResponse.json({ error: maps.error.message }, { status: 500 });
@@ -35,10 +36,11 @@ export async function POST(request: NextRequest, { params }: Params) {
   const body = (await request.json().catch(() => null)) as { name?: unknown; description?: unknown; evidenceUrl?: unknown } | null;
   const name = typeof body?.name === "string" ? body.name.trim() : "";
   const description = typeof body?.description === "string" ? body.description.trim() : "";
-  const evidenceUrl = typeof body?.evidenceUrl === "string" && body.evidenceUrl.trim() ? body.evidenceUrl.trim() : null;
   if (!name || name.length > FEATURE_NAME_MAX) return NextResponse.json({ error: `기능 이름은 1~${FEATURE_NAME_MAX}자입니다.` }, { status: 400 });
   if (description.length > 4000) return NextResponse.json({ error: "설명은 4000자 이하입니다." }, { status: 400 });
-  if (evidenceUrl && evidenceUrl.length > 2000) return NextResponse.json({ error: "근거 URL이 너무 깁니다." }, { status: 400 });
+  const urlCheck = normalizeHttpUrl(body?.evidenceUrl);
+  if (!urlCheck.ok) return NextResponse.json({ error: urlCheck.error }, { status: 400 });
+  const evidenceUrl = urlCheck.value;
   const { data: sol } = await a.admin.from("rfp_solutions").select("code").eq("code", code).maybeSingle();
   if (!sol) return NextResponse.json({ error: "솔루션이 없습니다." }, { status: 404 });
   const { data: last } = await a.admin.from("rfp_solution_features").select("sort_order").eq("solution_code", code).order("sort_order", { ascending: false }).limit(1).maybeSingle();

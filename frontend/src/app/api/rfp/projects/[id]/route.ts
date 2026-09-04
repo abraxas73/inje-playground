@@ -35,7 +35,9 @@ export async function GET(request: NextRequest, { params }: Params) {
   const [filesRes, reqsRes, mapsRes, names] = await Promise.all([
     auth.admin.from("rfp_files").select("id, original_filename, format, size_bytes, created_at").eq("project_id", id).order("created_at", { ascending: false }),
     auth.admin.from("rfp_requirements").select("*").eq("project_id", id).order("sort_order", { ascending: true }),
-    selectAll<MappingDbRow>(() => auth.admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS, { count: "exact" }).eq("project_id", id).order("sort_order", { ascending: true })),
+    selectAll<MappingDbRow>(() =>
+      auth.admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS, { count: "exact" }).eq("project_id", id).order("sort_order", { ascending: true }).order("id"),
+    ),
     creatorNames(auth.admin, row.created_by ? [row.created_by] : []),
   ]);
   if (filesRes.error) return NextResponse.json({ error: filesRes.error.message }, { status: 500 });
