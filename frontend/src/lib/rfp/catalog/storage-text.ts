@@ -49,7 +49,7 @@ export function storageToText(xhtml: string): string {
   // 4. 공백 정리: 줄 안 연속 공백(nbsp 포함) → 하나, 빈 줄 제거
   return s
     .split("\n")
-    .map((l) => l.replace(/[ \t ]+/g, " ").trim())
+    .map((l) => l.replace(/[ \t\u00a0]+/g, " ").trim())
     .filter(Boolean)
     .join("\n");
 }

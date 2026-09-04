@@ -23,6 +23,7 @@ describe("storageToText", () => {
   });
   it("연속 공백은 하나로, 빈 줄은 모두 없앤다", () => {
     expect(storageToText(`<p>a&nbsp;&nbsp; b</p>\n\n\n<p></p><p></p><p>c</p>`)).toBe("a b\nc");
+    expect(storageToText("<p>a\u00a0\u00a0 b</p>")).toBe("a b");
   });
   it("빈 입력은 빈 문자열", () => {
     expect(storageToText("")).toBe("");
