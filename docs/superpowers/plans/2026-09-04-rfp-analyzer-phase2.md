@@ -3379,16 +3379,21 @@ export function xlsxFileName(project: XlsxProject, date = new Date()): string {
 
 - [ ] **Step 4: xlsx 라우트에 매핑·카탈로그 전달**
 
-`frontend/src/app/api/rfp/projects/[id]/xlsx/route.ts`의 import에 `MAPPING_COLUMNS, mapMapping, type MappingDbRow`(`@/lib/rfp/mappers`)와 `loadCatalog`(`@/lib/rfp/catalog/store`), `type XlsxMapping`(`@/lib/rfp/xlsx`)을 추가하고, `buildWorkbook` 호출 부분을 다음으로 바꾼다.
+`frontend/src/app/api/rfp/projects/[id]/xlsx/route.ts`의 import에 `MAPPING_COLUMNS, mapMapping, type MappingDbRow`(`@/lib/rfp/mappers`)와 `loadCatalog`(`@/lib/rfp/catalog/store`), `type XlsxMapping`(`@/lib/rfp/xlsx`), `selectAll`(`@/lib/work-metrics/common`)을 추가하고, `buildWorkbook` 호출 부분을 다음으로 바꾼다. 매핑은 수동 추가 행에 상한이 없어 Supabase 1000행 상한을 넘을 수 있으므로 `selectAll`로 끝까지 읽는다(Task 12 리뷰에서 확정한 규칙).
 ```ts
   let mapping: XlsxMapping | undefined;
   if (p.mapping_status !== "none") {
-    const [mapsRes, catalog] = await Promise.all([
-      auth.admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS).eq("project_id", id).order("sort_order"),
-      loadCatalog(auth.admin),
-    ]);
+    let catalog;
+    try {
+      catalog = await loadCatalog(auth.admin);
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "카탈로그를 불러오지 못했습니다." }, { status: 500 });
+    }
+    const mapsRes = await selectAll<MappingDbRow>(() =>
+      auth.admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS, { count: "exact" }).eq("project_id", id).order("sort_order"),
+    );
     if (mapsRes.error) return NextResponse.json({ error: mapsRes.error.message }, { status: 500 });
-    mapping = { rows: ((mapsRes.data ?? []) as MappingDbRow[]).map(mapMapping), catalog, mappingAt: p.mapping_at };
+    mapping = { rows: mapsRes.data.map(mapMapping), catalog, mappingAt: p.mapping_at };
   }
   const xlsxProject = { name: p.name, agency: p.agency, period: p.period, budget: p.budget, bidMethod: p.bid_method, extra: p.extra ?? {} };
   const buf = await buildWorkbook(xlsxProject, ((reqs ?? []) as RequirementDbRow[]).map(toRequirementRow), mapping);
