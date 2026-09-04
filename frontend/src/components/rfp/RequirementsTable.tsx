@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { createColumnHelper, flexRender, getCoreRowModel, getFilteredRowModel, getSortedRowModel, useReactTable, type SortingState } from "@tanstack/react-table";
-import { ArrowUpDown, Plus, Trash2 } from "lucide-react";
+import { Fragment, useCallback, useMemo, useState } from "react";
+import {
+  createColumnHelper, flexRender, getCoreRowModel, getExpandedRowModel, getFilteredRowModel, getSortedRowModel, useReactTable, type ExpandedState, type SortingState,
+} from "@tanstack/react-table";
+import { ArrowUpDown, ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,16 +14,24 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import EditableCell from "@/components/rfp/EditableCell";
+import MappingEditor from "@/components/rfp/MappingEditor";
+import { VerdictBadge, type VerdictFilter } from "@/components/rfp/MappingSummary";
 import { orderCategoryCodes, sheetNameFor } from "@/lib/rfp/requirements";
-import type { RfpRequirement } from "@/types/rfp";
+import { bestVerdict, groupByRequirement, indexCatalog, mappingSummary } from "@/lib/rfp/mapping/summary";
+import type { CatalogSolution } from "@/lib/rfp/mapping/types";
+import type { RfpMapping, RfpRequirement } from "@/types/rfp";
 
 interface Props {
   projectId: string;
   requirements: RfpRequirement[];
+  mappings: RfpMapping[];
+  catalog: CatalogSolution[];
+  verdictFilter: VerdictFilter;
   onChange: (next: RfpRequirement[]) => void;
+  onMappingsChange: (next: RfpMapping[]) => void;
 }
 
-type EditableField = "categoryName" | "reqId" | "title" | "definition" | "details" | "deliverables" | "related" | "solution";
+type EditableField = "categoryName" | "reqId" | "title" | "definition" | "details" | "deliverables" | "related";
 
 async function patchRequirement(id: string, patch: Partial<Record<EditableField, string>>): Promise<RfpRequirement> {
   const res = await fetch(`/api/rfp/requirements/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
@@ -30,7 +40,7 @@ async function patchRequirement(id: string, patch: Partial<Record<EditableField,
   return json;
 }
 
-export default function RequirementsTable({ projectId, requirements, onChange }: Props) {
+export default function RequirementsTable({ projectId, requirements, mappings, catalog, verdictFilter, onChange, onMappingsChange }: Props) {
   const codes = useMemo(() => orderCategoryCodes(requirements.map((r) => r.categoryCode)), [requirements]);
   const sheetIndex = useMemo(() => new Map(codes.map((c, i) => [c, i + 2])), [codes]);
   const categoryNames = useMemo(() => {
@@ -38,9 +48,12 @@ export default function RequirementsTable({ projectId, requirements, onChange }:
     for (const r of requirements) if (!m.has(r.categoryCode)) m.set(r.categoryCode, r.categoryName);
     return m;
   }, [requirements]);
+  const index = useMemo(() => indexCatalog(catalog), [catalog]);
+  const groups = useMemo(() => groupByRequirement(mappings), [mappings]);
   const [tab, setTab] = useState("all");
   const [filter, setFilter] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [expanded, setExpanded] = useState<ExpandedState>({});
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<RfpRequirement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,9 +67,15 @@ export default function RequirementsTable({ projectId, requirements, onChange }:
     const res = await fetch(`/api/rfp/requirements/${row.id}`, { method: "DELETE" });
     if (!res.ok) { setError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "삭제에 실패했습니다."); return; }
     onChange(requirements.filter((r) => r.id !== row.id));
+    onMappingsChange(mappings.filter((m) => m.requirementId !== row.id));
   };
 
-  // save·sheetIndex가 바뀔 때마다 컬럼을 다시 만든다(그렇지 않으면 편집 콜백이 마운트 시점의 requirements를 그대로 캡처해 이후 편집이 유실된다).
+  /** 요구사항 하나의 매핑 행이 바뀌면 전체 목록에서 그 요구사항 행만 교체 */
+  const replaceMappingsFor = useCallback((requirementId: string, rows: RfpMapping[]) => {
+    onMappingsChange([...mappings.filter((m) => m.requirementId !== requirementId), ...rows]);
+  }, [mappings, onMappingsChange]);
+
+  // save·groups·index가 바뀔 때마다 컬럼을 다시 만든다(편집 콜백이 옛 requirements를 캡처하지 않게 — 1단계와 같은 이유)
   const { allColumns, detailColumns } = useMemo(() => {
     const col = createColumnHelper<RfpRequirement>();
     const editable = (field: EditableField, header: string, opts: { clamp?: number; width?: string } = {}) =>
@@ -65,6 +84,16 @@ export default function RequirementsTable({ projectId, requirements, onChange }:
         cell: (ctx) => <EditableCell value={ctx.getValue()} onSave={save(ctx.row.original, field)} clampLines={opts.clamp ?? 3} />,
         meta: { width: opts.width },
       });
+    const expander = col.display({
+      id: "expand",
+      header: "",
+      cell: (ctx) => (
+        <button type="button" className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground" title="솔루션 매핑 펼치기" onClick={ctx.row.getToggleExpandedHandler()}>
+          {ctx.row.getIsExpanded() ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </button>
+      ),
+      meta: { width: "2rem" },
+    });
     const actions = col.display({
       id: "actions",
       header: "",
@@ -72,46 +101,75 @@ export default function RequirementsTable({ projectId, requirements, onChange }:
       meta: { width: "3rem" },
     });
     const seq = col.display({ id: "seq", header: "연번", cell: (ctx) => <span className="tabular-nums text-muted-foreground">{ctx.row.index + 1}</span>, meta: { width: "3.5rem" } });
+    const solution = col.display({
+      id: "solution",
+      header: "당사 솔루션",
+      cell: (ctx) => {
+        const g = groups.get(ctx.row.original.id) ?? [];
+        const best = bestVerdict(g);
+        return (
+          <div className="space-y-1">
+            <VerdictBadge verdict={best ?? "unmapped"} />
+            {g.length > 0 && <div className="line-clamp-2 text-xs text-muted-foreground">{mappingSummary(g, index)}</div>}
+          </div>
+        );
+      },
+      meta: { width: "16rem" },
+    });
 
     return {
       allColumns: [
+        expander,
         seq,
         editable("categoryName", "요구사항 구분", { clamp: 0, width: "11rem" }),
         editable("reqId", "요구사항 ID", { clamp: 0, width: "8rem" }),
         editable("title", "요구사항 명칭", { clamp: 0, width: "20rem" }),
         col.display({ id: "sheet", header: "상세 시트 위치", cell: (ctx) => <span className="text-muted-foreground">{sheetNameFor(ctx.row.original.categoryCode, sheetIndex.get(ctx.row.original.categoryCode) ?? 0)}</span>, meta: { width: "8rem" } }),
-        editable("solution", "당사 솔루션", { clamp: 2, width: "14rem" }),
+        solution,
         actions,
       ],
       detailColumns: [
+        expander,
         seq,
         editable("reqId", "요구사항 ID", { clamp: 0, width: "8rem" }),
         editable("title", "요구사항명", { clamp: 0, width: "14rem" }),
         editable("definition", "정의", { clamp: 3, width: "14rem" }),
-        editable("details", "세부 내용", { clamp: 3, width: "34rem" }),
+        editable("details", "세부 내용", { clamp: 3, width: "30rem" }),
         editable("deliverables", "산출정보", { clamp: 3, width: "10rem" }),
-        editable("related", "관련요구사항", { clamp: 3, width: "14rem" }),
+        editable("related", "관련요구사항", { clamp: 3, width: "12rem" }),
+        solution,
         actions,
       ],
     };
-  }, [save, sheetIndex]);
+  }, [save, sheetIndex, groups, index]);
 
-  const data = useMemo(() => (tab === "all" ? requirements : requirements.filter((r) => r.categoryCode === tab)), [requirements, tab]);
+  const data = useMemo(() => {
+    const byTab = tab === "all" ? requirements : requirements.filter((r) => r.categoryCode === tab);
+    if (!verdictFilter) return byTab;
+    return byTab.filter((r) => (bestVerdict(groups.get(r.id) ?? []) ?? "unmapped") === verdictFilter);
+  }, [requirements, tab, verdictFilter, groups]);
+
   const table = useReactTable({
     data,
     columns: tab === "all" ? allColumns : detailColumns,
-    state: { sorting, globalFilter: filter },
+    state: { sorting, globalFilter: filter, expanded },
     onSortingChange: setSorting,
     onGlobalFilterChange: setFilter,
+    onExpandedChange: setExpanded,
+    getRowId: (r) => r.id,
+    getRowCanExpand: () => true,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
     globalFilterFn: (row, _id, value: string) => {
       const q = value.toLowerCase();
       const r = row.original;
-      return [r.reqId, r.title, r.categoryName, r.definition, r.details, r.deliverables, r.related, r.solution].some((s) => s.toLowerCase().includes(q));
+      const summary = mappingSummary(groups.get(r.id) ?? [], index);
+      return [r.reqId, r.title, r.categoryName, r.definition, r.details, r.deliverables, r.related, summary].some((s) => s.toLowerCase().includes(q));
     },
   });
+  const colCount = (tab === "all" ? allColumns : detailColumns).length;
 
   return (
     <div className="space-y-3">
@@ -124,7 +182,7 @@ export default function RequirementsTable({ projectId, requirements, onChange }:
             ))}
           </TabsList>
           <div className="flex items-center gap-2">
-            <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="ID·명칭·내용 검색" className="h-8 w-56" />
+            <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="ID·명칭·내용·솔루션 검색" className="h-8 w-56" />
             <Button size="sm" variant="outline" onClick={() => setAdding(true)}><Plus className="mr-1 h-4 w-4" />행 추가</Button>
           </div>
         </div>
@@ -135,7 +193,7 @@ export default function RequirementsTable({ projectId, requirements, onChange }:
                 {table.getHeaderGroups().map((hg) => (
                   <tr key={hg.id}>
                     {hg.headers.map((h) => (
-                      <th key={h.id} style={{ width: (h.column.columnDef.meta as { width?: string } | undefined)?.width }} className="px-2 py-2 align-middle">
+                      <th key={h.id} style={{ width: h.column.columnDef.meta?.width }} className="px-2 py-2 align-middle">
                         {h.column.getCanSort() ? (
                           <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={h.column.getToggleSortingHandler()}>
                             {flexRender(h.column.columnDef.header, h.getContext())}<ArrowUpDown className="h-3 w-3" />
@@ -148,11 +206,26 @@ export default function RequirementsTable({ projectId, requirements, onChange }:
               </thead>
               <tbody>
                 {table.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="border-t align-top hover:bg-muted/20" title={row.original.updatedBy ? `수정 ${new Date(row.original.updatedAt).toLocaleString("ko-KR")}` : undefined}>
-                    {row.getVisibleCells().map((cell) => <td key={cell.id} className="px-2 py-1.5">{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
-                  </tr>
+                  <Fragment key={row.id}>
+                    <tr className="border-t align-top hover:bg-muted/20" title={row.original.updatedBy ? `수정 ${new Date(row.original.updatedAt).toLocaleString("ko-KR")}` : undefined}>
+                      {row.getVisibleCells().map((cell) => <td key={cell.id} className="px-2 py-1.5">{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                    </tr>
+                    {row.getIsExpanded() && (
+                      <tr className="border-t bg-muted/10">
+                        <td colSpan={colCount} className="px-3 py-2">
+                          <MappingEditor
+                            projectId={projectId}
+                            requirement={row.original}
+                            rows={groups.get(row.original.id) ?? []}
+                            catalog={catalog}
+                            onChange={(rows) => replaceMappingsFor(row.original.id, rows)}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
-                {table.getRowModel().rows.length === 0 && <tr><td colSpan={99} className="px-3 py-8 text-center text-muted-foreground">표시할 요구사항이 없습니다.</td></tr>}
+                {table.getRowModel().rows.length === 0 && <tr><td colSpan={colCount} className="px-3 py-8 text-center text-muted-foreground">표시할 요구사항이 없습니다.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -174,7 +247,7 @@ export default function RequirementsTable({ projectId, requirements, onChange }:
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>요구사항 {deleting?.reqId}을(를) 삭제할까요?</AlertDialogTitle>
-            <AlertDialogDescription>{deleting?.title}</AlertDialogDescription>
+            <AlertDialogDescription>{deleting?.title} — 이 요구사항의 솔루션 매핑도 함께 지워집니다.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>

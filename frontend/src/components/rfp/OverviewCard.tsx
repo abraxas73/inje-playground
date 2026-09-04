@@ -9,14 +9,18 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import EditableCell from "@/components/rfp/EditableCell";
-import { StatusBadge } from "@/components/rfp/ProjectList";
+import { StatusBadge, MappingStatusBadge } from "@/components/rfp/ProjectList";
+import MappingRunButton from "@/components/rfp/MappingRunButton";
+import type { MappingMode } from "@/lib/rfp/mapping/run-job";
 import type { RfpProjectDetail } from "@/types/rfp";
 
 interface Props {
   project: RfpProjectDetail;
   canDelete: boolean;
+  catalogReady: boolean;
   onPatched: (patch: Partial<Pick<RfpProjectDetail, "name" | "agency" | "period" | "budget" | "bidMethod">>) => void;
   onReextract: () => Promise<void>;
+  onRunMapping: (mode: MappingMode) => Promise<void>;
   onDelete: () => Promise<void>;
 }
 
@@ -27,7 +31,7 @@ const FIELDS: { key: "name" | "agency" | "period" | "budget" | "bidMethod"; labe
 /** 서버(reextract 라우트)와 같은 기준: extracting이 이만큼 지나면 멈춘 것으로 보고 재추출 버튼을 다시 활성화한다. */
 const STALE_EXTRACTING_MS = 6 * 60 * 1000;
 
-export default function OverviewCard({ project, canDelete, onPatched, onReextract, onDelete }: Props) {
+export default function OverviewCard({ project, canDelete, catalogReady, onPatched, onReextract, onRunMapping, onDelete }: Props) {
   const [busy, setBusy] = useState<"reextract" | "delete" | "file" | null>(null);
   // extracting 중에는 부모가 상태만 폴링하고 project를 갱신하지 않을 수 있어(멈춘 경우), 여기서 직접 시간을 흘려 재계산한다.
   const [, tick] = useState(0);
@@ -67,15 +71,18 @@ export default function OverviewCard({ project, canDelete, onPatched, onReextrac
           <CardTitle className="flex flex-wrap items-center gap-2 text-xl">
             <span className="break-keep">{project.name}</span>
             <StatusBadge status={project.status} />
+            <MappingStatusBadge status={project.mappingStatus} />
           </CardTitle>
           <div className="text-sm text-muted-foreground">
             요구사항 {project.requirementCount}건
             {project.extractionMethod && ` · ${project.extractionMethod === "standard" ? "표준 양식(규칙 추출)" : "LLM 추출"}`}
             {" · "}등록 {project.createdBy.name ?? "—"} · {new Date(project.createdAt).toLocaleString("ko-KR")}
+            {project.mappingAt && ` · 매핑 ${new Date(project.mappingAt).toLocaleString("ko-KR")}`}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {file && <Button variant="outline" size="sm" disabled={busy === "file"} onClick={openFile}><FileText className="mr-1 h-4 w-4" />{file.originalFilename}</Button>}
+          <MappingRunButton project={project} catalogReady={catalogReady} onRun={onRunMapping} />
           {project.status === "ready" ? (
             <Button size="sm" asChild>
               <a href={`/api/rfp/projects/${project.id}/xlsx`}><Download className="mr-1 h-4 w-4" />xlsx 다운로드</a>
@@ -119,6 +126,15 @@ export default function OverviewCard({ project, canDelete, onPatched, onReextrac
         )}
         {project.warnings.length > 0 && (
           <Alert><AlertDescription><ul className="list-disc pl-4">{project.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul></AlertDescription></Alert>
+        )}
+        {project.mappingStatus === "failed" && project.mappingError && (
+          <Alert variant="destructive"><AlertDescription>솔루션 매핑 실패: {project.mappingError} — &quot;솔루션 매핑 실행 → 미매핑만&quot;으로 이어서 할 수 있습니다.</AlertDescription></Alert>
+        )}
+        {project.mappingWarnings.length > 0 && (
+          <details className="rounded-lg border p-3 text-sm">
+            <summary className="cursor-pointer text-muted-foreground">매핑 경고 {project.mappingWarnings.length}건</summary>
+            <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs">{project.mappingWarnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+          </details>
         )}
       </CardContent>
     </Card>
