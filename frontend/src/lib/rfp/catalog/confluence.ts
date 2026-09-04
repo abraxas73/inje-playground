@@ -11,7 +11,7 @@ export interface ConfluenceConfig {
   auth: string;
 }
 
-export function confluenceConfig(env: NodeJS.ProcessEnv = process.env): ConfluenceConfig | null {
+export function confluenceConfig(env: Record<string, string | undefined> = process.env): ConfluenceConfig | null {
   const site = (env.ATLASSIAN_SITE ?? "").trim().replace(/\/+$/, "");
   const email = (env.ATLASSIAN_EMAIL ?? "").trim();
   const token = (env.ATLASSIAN_API_TOKEN ?? "").trim();

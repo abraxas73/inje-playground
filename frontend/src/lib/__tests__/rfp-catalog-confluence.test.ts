@@ -5,13 +5,14 @@ import {
 } from "@/lib/rfp/catalog/confluence";
 
 const HOST = "nhnent.atlassian.net";
-const ENV = { ATLASSIAN_SITE: `https://${HOST}/`, ATLASSIAN_EMAIL: "a@b.c", ATLASSIAN_API_TOKEN: "tok" } as NodeJS.ProcessEnv;
+const ENV: Record<string, string | undefined> = { ATLASSIAN_SITE: `https://${HOST}/`, ATLASSIAN_EMAIL: "a@b.c", ATLASSIAN_API_TOKEN: "tok" };
 
 describe("confluenceConfig", () => {
   it("세 변수가 모두 있어야 하고 끝 슬래시를 떼고 host를 준다", () => {
     expect(confluenceConfig(ENV)).toMatchObject({ site: `https://${HOST}`, host: HOST });
     expect(confluenceConfig(ENV)!.auth).toMatch(/^Basic /);
-    expect(confluenceConfig({ ATLASSIAN_SITE: `https://${HOST}` } as NodeJS.ProcessEnv)).toBeNull();
+    const partial: Record<string, string | undefined> = { ATLASSIAN_SITE: `https://${HOST}` };
+    expect(confluenceConfig(partial)).toBeNull();
   });
 });
 
