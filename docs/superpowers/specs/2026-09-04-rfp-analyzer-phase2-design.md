@@ -109,6 +109,7 @@ create table if not exists public.rfp_solution_sources (
   imported_at timestamptz,
   feature_count int not null default 0,                    -- 마지막 가져오기에서 추가·갱신한 기능 수
   error text,
+  note text,                                               -- 가져오기 안내(예: 사람이 고친 기능 N개 유지)
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -145,14 +146,14 @@ create index if not exists rfp_solution_features_solution_idx on public.rfp_solu
 - **XHTML → 텍스트** (`storageToText`): 정규식 기반(storage 포맷은 `ac:`·`ri:` 네임스페이스와 HTML 엔티티가 섞여 XML 파서가 자주 실패한다).
   1. `<ac:image>`·`<ri:*>`·`<ac:parameter>`·`<script>`·`<style>`은 내용까지 제거. 그 외 `ac:structured-macro`·`ac:rich-text-body`·`ac:plain-text-body`는 태그만 벗기고 내용은 남긴다(코드·expand·info 매크로 본문 보존).
   2. `<table>` 안의 `<tr>`은 한 줄 `| 셀 | 셀 |`, 셀 안 줄바꿈은 공백. `<li>`는 `- ` 접두, `<h1>`~`<h6>`는 `# ` 접두, `<p>`·`<br>`·`<div>`는 줄바꿈.
-  3. 남은 태그 제거 → 엔티티 디코드(`&nbsp;` `&amp;` `&lt;` `&gt;` `&quot;` `&#39;` `&#x…;` `&#…;`) → 연속 공백 정리, 빈 줄 2개 이상은 1개로.
+  3. 남은 태그 제거 → 엔티티 디코드(`&nbsp;` `&amp;` `&lt;` `&gt;` `&quot;` `&#39;` `&#x…;` `&#…;`) → 줄 안 연속 공백 정리, 빈 줄은 모두 제거(LLM 입력이라 단락 사이 빈 줄이 필요 없다).
 - **기능 추출** (`extract-features.ts`): `splitIntoChunks(text, 30000)`(1단계 함수 재사용) → 청크마다 Claude 호출. 시스템 프롬프트에 솔루션 이름·설명을 넣고, 출력은 `{ features: [{ name: string, description: string }] }`(name ≤ 40자, description 1~3문장, 문서에 없는 기능은 만들지 말 것). 청크 결과는 `normalizeFeatureName` 기준으로 합치고 같은 이름은 설명이 긴 것을 남긴다. 모델·thinking·스트리밍·구조화 출력은 1단계 LLM 폴백과 같다(`claude-opus-5`, env `RFP_LLM_MODEL`, `thinking: {type:"adaptive"}`, `messages.stream` + `finalMessage()`, `zodOutputFormat`). `ANTHROPIC_API_KEY`가 없으면 POST /import가 400.
 - **병합** (`merge-features.ts`): `normalizeFeatureName` = 1단계 `normalizeName`과 같은 규칙(NFKC → 소문자 → 공백·기호 제거, 괄호 안 내용 유지). 들어온 기능마다
   - 같은 솔루션에 같은 `name_norm`이 있고 `edited=false` → `description`·`evidence_url`(소스 URL)·`source_id` 갱신.
   - 있고 `edited=true` → 건너뜀(`skippedEdited`에 기록, 화면에 "사람이 고친 항목 N개는 유지").
   - 없으면 → 새 행(`sort_order`는 현재 최댓값 뒤로, `evidence_url` = 소스 URL, `source_id`).
   - 이전 가져오기에 있었지만 이번에 없는 기능은 **지우지 않는다**(어드민이 비활성화).
-- **잡** (`import-job.ts`, `runImport`): 대상 소스를 `running`으로 바꾼 뒤 순서대로 처리한다. 소스 하나가 실패해도 다음 소스는 계속하고 실패한 소스만 `failed`+`error`. 성공 시 `ready`, `title`, `page_version`, `imported_at`, `feature_count`(추가+갱신). 예외는 잡아 소스 행에 쓰고 절대 `running`으로 남기지 않는다.
+- **잡** (`import-job.ts`, `runImport`): 대상 소스를 `running`으로 바꾼 뒤 순서대로 처리한다. 소스 하나가 실패해도 다음 소스는 계속하고 실패한 소스만 `failed`+`error`. 성공 시 `ready`, `title`, `page_version`, `imported_at`, `feature_count`(추가+갱신), `note`("사람이 고친 기능 N개는 유지했습니다" 등 안내). 예외는 잡아 소스 행에 쓰고 절대 `running`으로 남기지 않는다.
 
 ## 4. 매핑
 
