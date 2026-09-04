@@ -91,7 +91,7 @@ export default function ChatTeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">팀별 채팅 · Cowork 활동 ({rows.length}개 팀 · 사내 조직도 기준)</CardTitle>
-          <p className="text-xs text-muted-foreground">팀 = 조직도 말단 부서(팀·센터), 아래 줄은 팀 바로 위 조직. &quot;활동자/시트&quot;는 기간 내 활동일이 있는 인원 / 이 팀에서 Claude 시트를 가진 인원(조직도 인원과 다를 수 있음). 여러 Claude 조직에 속한 계정은 활동 수치는 합산하고 인원은 1명으로 셉니다. 명부에 없는 이메일은 &quot;명부 없음&quot;으로 묶입니다.</p>
+          <p className="text-xs text-muted-foreground">팀 = 조직도 말단 부서(팀·센터), 아래 줄은 팀 바로 위 조직. &quot;활동자/시트&quot;는 기간 내 활동일이 있는 인원 / 이 팀에서 Claude 시트를 가진 인원(조직도 인원과 다를 수 있음). 여러 Claude 조직에 속한 계정은 활동 수치는 합산하고 인원은 1명으로 셉니다. 명부에 없는 이메일은 &quot;명부 없음&quot;으로 묶입니다. Claude in Chrome(사이드 패널) 사용은 Cowork 세션·메시지에 포함되며, Excel·Word·PowerPoint 추가 기능 사용은 Team 플랜 CSV에 없습니다.</p>
         </CardHeader>
         <CardContent>
           <SortableTable totalLabel={`총계 (${rows.length}개 팀)`} rows={rows} columns={columns} rowKey={(r) => r.team} defaultSort={{ key: "msgs", dir: "desc" }} emptyText={loading ? "불러오는 중..." : "업로드된 CSV가 없습니다."} />

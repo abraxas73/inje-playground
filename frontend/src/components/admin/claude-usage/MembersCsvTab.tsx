@@ -135,7 +135,9 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">멤버 활동 ({rows.length}명) — 노는 시트는 붉게 표시{data?.period && lastCollected && <span className="ml-2 font-normal text-muted-foreground">· 데이터 {data.period.start} ~ {data.period.end}, 수집 {fmtDateTime(lastCollected.at)}</span>}</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-sm">멤버 활동 ({rows.length}명) — 노는 시트는 붉게 표시{data?.period && lastCollected && <span className="ml-2 font-normal text-muted-foreground">· 데이터 {data.period.start} ~ {data.period.end}, 수집 {fmtDateTime(lastCollected.at)}</span>}</CardTitle>
+          <p className="text-xs text-muted-foreground">Cowork 세션·메시지에는 Claude in Chrome(사이드 패널) 세션이 포함됩니다(구분 없음). Excel·Word·PowerPoint 추가 기능 사용은 Team 플랜 분석 CSV에 없어 이 표에 잡히지 않습니다.</p>
+        </CardHeader>
         <CardContent>
           <SortableTable totalLabel={`총계 (${rows.length}명)`} rows={rows} columns={columns} rowKey={(r) => `${r.import_id}:${r.email}`} defaultSort={{ key: "chats", dir: "desc" }} rowClassName={(r) => (isIdleSeat(r) ? "bg-destructive/5" : "")} emptyText={loading ? "불러오는 중..." : "업로드된 CSV가 없습니다."} />
         </CardContent>

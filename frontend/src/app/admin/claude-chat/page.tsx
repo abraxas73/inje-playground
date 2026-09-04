@@ -30,6 +30,7 @@ export default function ClaudeChatUsagePage() {
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold"><MessagesSquare className="h-5 w-5" />Claude 사용량 (Chat/Cowork)</h1>
         <p className="text-sm text-muted-foreground">claude.ai 채팅 · Cowork 멤버 활동 — 분석 대시보드 월간 CSV(30일 롤링). Claude Code 실시간 사용량은 &quot;Claude Code 사용량&quot; 메뉴에서 봅니다.</p>
+        <p className="text-xs text-muted-foreground">Claude in Chrome(사이드 패널)은 Cowork 세션으로 실행되어 Cowork 세션·메시지에 합산되고 별도 구분은 없습니다. Excel·Word·PowerPoint 추가 기능 사용은 Team 플랜 분석에 제공되지 않아 어디에도 잡히지 않습니다(시트 한도는 소모).</p>
         {orgsError && <p className="text-sm text-destructive">{orgsError}</p>}
       </div>
       <Tabs defaultValue="members">

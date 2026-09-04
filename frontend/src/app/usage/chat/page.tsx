@@ -151,6 +151,7 @@ export default function MyChatUsagePage() {
         </h1>
         <p className="text-sm text-muted-foreground">
           claude.ai 채팅 · Cowork 활동(30일 롤링, 매일 수집되는 멤버 활동 CSV 스냅샷). 조직장(팀장·센터장·본부장)은 소속 구성원까지 보입니다.
+          Claude in Chrome(사이드 패널) 사용은 Cowork 세션·메시지에 포함되고 따로 구분되지 않습니다. Excel·Word·PowerPoint 추가 기능 사용은 Team 플랜 분석에 제공되지 않아 여기 잡히지 않습니다.
         </p>
       </div>
 
