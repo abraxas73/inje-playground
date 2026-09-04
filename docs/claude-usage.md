@@ -78,6 +78,21 @@ delete from claude_orgs            where id = 'test-org';
 - 조직장 범위가 커지면(본부장 × 90일) 일 집계 행이 1000행을 넘으므로 개인용 API는 모두 `selectAll`(PostgREST 상한 우회)로 읽는다.
 - 시간대 패턴 RPC `claude_code_hourly_emails`는 `docs/sql/2026-09-03-usage-hourly-users.sql`(2026-09-03 적용)로 users(고유 사용자 수) 컬럼이 붙었다. 반환 컬럼 변경이라 drop 후 재생성한다.
 
+## 7. 수집 범위 한계 — Chrome 확장·Office 추가 기능 (2026-09-04 확인)
+
+- **Claude in Chrome(사이드 패널)**: Cowork 세션으로 실행되어 CSV의 Cowork 세션·메시지에 합산된다. Team 플랜 분석(Cowork 탭·CSV)에는 출처(웹/데스크톱/Chrome) 구분이 없고, 제품 `claude_in_chrome` 구분은 Enterprise Analytics API에만 있다. 분석 개요의 커넥터 카드 "claude-in-chrome N명"은 Cowork·채팅에서 Chrome 확장을 도구로 쓴 인원이며 사이드 패널 대화량이 아니다. 화면(어드민 Chat/Cowork 두 탭, 개인 `/usage/chat`)에 이 안내를 붙였다.
+- **Excel·Word·PowerPoint(Outlook) 추가 기능**: Team 플랜에서는 어디에도 잡히지 않는다. 분석 제품 필터는 Claude.ai/Claude Code/Claude Design/Cowork 넷뿐이고 CSV에 Office 컬럼이 없다. 추가 기능 대화 기록은 사용자 기기 브라우저 IndexedDB에만 저장돼 claude.ai 채팅 수에도 들어가지 않는다. 사용은 시트 한도를 소모하지만 관리자·사용자 모두 양을 볼 수 없다. Anthropic 수집기로 `office_agent.*` 카운터가 가지만 고객에게는 Enterprise Analytics API(`office_metrics`)로만 제공된다.
+
+### Office 추가 기능 사용량 수집 방안(검토)
+
+| 방안 | 얻는 것 | 조건·비용 | 판단 |
+|---|---|---|---|
+| ① Enterprise 전환 → Analytics API `GET /v1/organizations/analytics/users` | 사용자·일·제품별 `office_metrics`(message_count, distinct_session_count, 커넥터·스킬 수), 제품 `office_agent`·`claude_in_chrome`, 토큰·비용 리포트 | Enterprise 플랜, 어드민 API 키(`read:analytics`). CSV 파이프라인을 API로 대체 | 유일한 공식 경로 |
+| ② 추가 기능 커스텀 OTel 수집기 | 턴마다 스팬: `agent.query`(user.email·surface sheet/doc/slide/mail·session.id·모델), `agent.stream`(input/output/cache 토큰), 도구 실행 | 문서상 Enterprise 또는 Bedrock/Vertex/Foundry/게이트웨이 직접 배포 전용. 설정 채널(부트스트랩 → Entra 확장 속성 → 매니페스트 URL 파라미터 `taskpane.html?otlp_endpoint=…`)이 Claude 계정 로그인(Team)에서도 읽히는지는 문서에 없음. 수신 측은 `/v1/traces` OTLP/HTTP + CORS(`https://pivot.claude.ai`) 필요, 스팬에 프롬프트·도구 입출력 원문이 포함되므로 수신 즉시 폐기하고 카운트·토큰만 저장해야 함 | 커스텀 매니페스트 1인 시험(1~2시간)으로 성립 여부 확인 가치 있음. 비공식 |
+| ③ 사내 프록시/보안 게이트웨이 로그 | `pivot.claude.ai`·`api.anthropic.com` 요청 수를 사용자·일별 집계 | 사내망/VPN 한정, 토큰·내용 불가, 보안팀 협조 | 활동 유무 정도 |
+| ④ 설문(`/admin/surveys`) 자기보고 | 사용 여부·빈도·용도 | 정확도 낮음 | 보조 |
+| ✗ 기기 IndexedDB(`claude-chat-history`) 읽기 | 대화 원문 | 개인정보·동의 문제, 기기별 수집 | 비권장 |
+
 ## 5. 테스트
 - 단위: `cd frontend && npx vitest run` (parser·CSV·집계·인증·관리형 설정).
 - E2E: `cd frontend && npx playwright test e2e/claude-usage.spec.ts` — OTLP 수신/관리자 API 게이트(401·415·400·200)는 세션 없이 실행된다. 관리자 화면 2개 테스트(3탭 렌더, 합성 CSV 업로드→표→삭제)는 `E2E_ADMIN_STORAGE_STATE`(Google 관리자 로그인 storageState JSON; `npx playwright codegen --save-storage=/tmp/admin-storage.json http://localhost:3003`)와 `SUPABASE_SERVICE_ROLE_KEY`(로컬 `.env.local`)가 있을 때만 실행되고 없으면 SKIP된다.
