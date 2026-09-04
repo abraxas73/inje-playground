@@ -57,10 +57,16 @@ export default function FeatureTable({ solution, refreshKey, onChanged }: { solu
         header: "순서",
         cell: (ctx) => (
           <Input
+            key={`${ctx.row.original.id}-${ctx.getValue()}`}
             type="number"
             defaultValue={ctx.getValue()}
             className="h-7 w-16 px-1 text-xs"
-            onBlur={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n !== ctx.getValue()) patch(ctx.row.original, { sortOrder: n }).catch((err) => setError(err instanceof Error ? err.message : "저장 실패")); }}
+            onBlur={(e) => {
+              const raw = e.target.value.trim();
+              if (raw === "") { e.target.value = String(ctx.getValue()); return; }
+              const n = Number(raw);
+              if (Number.isInteger(n) && n !== ctx.getValue()) patch(ctx.row.original, { sortOrder: n }).catch((err) => setError(err instanceof Error ? err.message : "저장 실패"));
+            }}
           />
         ),
         meta: { width: "4.5rem" },

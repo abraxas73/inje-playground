@@ -30,6 +30,8 @@ export default function RfpCatalogPage() {
   }, []);
   useEffect(() => { void load(); }, [load]);
 
+  const handleImported = useCallback(() => { setFeatureVersion((v) => v + 1); void load(); }, [load]);
+
   const current = solutions.find((s) => s.code === selected) ?? null;
 
   return (
@@ -44,8 +46,8 @@ export default function RfpCatalogPage() {
         {current ? (
           <div className="min-w-0 space-y-4">
             <SolutionHeader solution={current} onChanged={load} onDeleted={() => { setSelected(null); void load(); }} />
-            <SourceTable solution={current} onImported={() => { setFeatureVersion((v) => v + 1); void load(); }} />
-            <FeatureTable solution={current} refreshKey={featureVersion} onChanged={load} />
+            <SourceTable key={current.code} solution={current} onImported={handleImported} />
+            <FeatureTable key={current.code} solution={current} refreshKey={featureVersion} onChanged={load} />
           </div>
         ) : (
           <div className="rounded-lg border p-10 text-center text-sm text-muted-foreground">솔루션을 선택하거나 추가하세요.</div>
