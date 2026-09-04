@@ -33,10 +33,13 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
   const touchesRule = "verdict" in body || "solutionCode" in body || "featureId" in body;
   if (touchesRule) {
-    const [catalog, siblingsRes] = await Promise.all([
-      loadCatalog(auth.admin, { activeSolutionsOnly: true }),
-      auth.admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS).eq("requirement_id", row.requirement_id).neq("id", mappingId),
-    ]);
+    let catalog: Awaited<ReturnType<typeof loadCatalog>>;
+    try {
+      catalog = await loadCatalog(auth.admin, { activeSolutionsOnly: true });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "카탈로그를 불러오지 못했습니다." }, { status: 500 });
+    }
+    const siblingsRes = await auth.admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS).eq("requirement_id", row.requirement_id).neq("id", mappingId);
     if (siblingsRes.error) return NextResponse.json({ error: siblingsRes.error.message }, { status: 500 });
     const check = validateManualMapping(
       {

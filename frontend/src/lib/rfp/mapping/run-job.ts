@@ -8,6 +8,7 @@ import { chunkRequirements, type ChunkRequirement } from "./chunk";
 import { validateMappingOutput } from "./validate";
 import { indexCatalog } from "./summary";
 import { createAnthropicMappingCall, type MappingCall } from "./llm";
+import { selectAll } from "../../work-metrics/common";
 
 export type MappingMode = "all" | "missing";
 /** 동시에 보내는 청크 수. 124건(7청크) → 3라운드로 Vercel 300초 안에 끝나게. */
@@ -108,13 +109,13 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
 
     const [reqRes, mapRes] = await Promise.all([
       admin.from("rfp_requirements").select("id, req_id, title, category_code, category_name, definition, details, sort_order").eq("project_id", projectId),
-      admin.from("rfp_requirement_mappings").select("requirement_id, edited").eq("project_id", projectId),
+      selectAll<{ requirement_id: string; edited: boolean }>(() => admin.from("rfp_requirement_mappings").select("requirement_id, edited", { count: "exact" }).eq("project_id", projectId)),
     ]);
     if (reqRes.error) throw new Error(reqRes.error.message);
     if (mapRes.error) throw new Error(mapRes.error.message);
-    // 요구사항 수백 건 × 최대 5행이라 1000행 상한에 걸리지 않는다.
+    // 요구사항은 수백 건이라 1000행 상한에 걸리지 않지만, 매핑은 수동 추가 행에 상한이 없어 selectAll로 끝까지 읽는다.
     const requirements = (reqRes.data ?? []) as ReqRow[];
-    const existing = ((mapRes.data ?? []) as { requirement_id: string; edited: boolean }[]).map((m) => ({ requirementId: m.requirement_id, edited: m.edited }));
+    const existing = mapRes.data.map((m) => ({ requirementId: m.requirement_id, edited: m.edited }));
     const targets = selectTargetRequirements(requirements, existing, mode);
     if (!targets.length) return await ready(["매핑할 요구사항이 없습니다(모두 사람이 검토했거나 이미 매핑됨)."]);
 

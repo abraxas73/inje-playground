@@ -19,13 +19,17 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (rationale.length > 4000) return NextResponse.json({ error: "설명은 4000자 이하입니다." }, { status: 400 });
   if (evidenceUrl && evidenceUrl.length > 2000) return NextResponse.json({ error: "근거 URL이 너무 깁니다." }, { status: 400 });
 
-  const { data: req } = await auth.admin.from("rfp_requirements").select("id, project_id").eq("id", body.requirementId).maybeSingle();
+  const { data: req, error: reqError } = await auth.admin.from("rfp_requirements").select("id, project_id").eq("id", body.requirementId).maybeSingle();
+  if (reqError) return NextResponse.json({ error: reqError.message }, { status: 500 });
   if (!req || req.project_id !== id) return NextResponse.json({ error: "요구사항이 없습니다." }, { status: 404 });
 
-  const [catalog, siblingsRes] = await Promise.all([
-    loadCatalog(auth.admin, { activeSolutionsOnly: true }),
-    auth.admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS).eq("requirement_id", req.id).order("sort_order"),
-  ]);
+  let catalog: Awaited<ReturnType<typeof loadCatalog>>;
+  try {
+    catalog = await loadCatalog(auth.admin, { activeSolutionsOnly: true });
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "카탈로그를 불러오지 못했습니다." }, { status: 500 });
+  }
+  const siblingsRes = await auth.admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS).eq("requirement_id", req.id).order("sort_order");
   if (siblingsRes.error) return NextResponse.json({ error: siblingsRes.error.message }, { status: 500 });
   const siblings = ((siblingsRes.data ?? []) as MappingDbRow[]).map(mapMapping);
   const check = validateManualMapping({ verdict: body.verdict, solutionCode: body.solutionCode, featureId: body.featureId }, catalog, siblings);

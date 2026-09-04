@@ -6,6 +6,7 @@ import { buildCatalogPrompt } from "@/lib/rfp/mapping/prompt";
 import { runMapping, type MappingMode } from "@/lib/rfp/mapping/run-job";
 import { STALE_RUNNING_MS } from "@/lib/rfp/mapping/types";
 import { MAPPING_COLUMNS, mapMapping, type MappingDbRow, type ProjectDbRow } from "@/lib/rfp/mappers";
+import { selectAll } from "@/lib/work-metrics/common";
 import type { MappingResponse, RfpMapping } from "@/types/rfp";
 
 export const runtime = "nodejs";
@@ -16,9 +17,9 @@ const COLUMNS = "id, status, mapping_status, mapping_error, mapping_warnings, ma
 type Row = Pick<ProjectDbRow, "id" | "status" | "mapping_status" | "mapping_error" | "mapping_warnings" | "mapping_at" | "updated_at">;
 
 async function loadMappings(admin: SupabaseClient, projectId: string): Promise<RfpMapping[]> {
-  const { data, error } = await admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS).eq("project_id", projectId).order("sort_order");
+  const { data, error } = await selectAll<MappingDbRow>(() => admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS, { count: "exact" }).eq("project_id", projectId).order("sort_order"));
   if (error) throw new Error(error.message);
-  return ((data ?? []) as MappingDbRow[]).map(mapMapping);
+  return data.map(mapMapping);
 }
 
 /** GET /api/rfp/projects/[id]/mapping — 매핑 행 + 상태(실행이 끝난 뒤 행만 다시 받을 때) */
