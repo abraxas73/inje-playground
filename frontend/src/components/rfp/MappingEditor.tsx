@@ -135,9 +135,9 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" title="행 삭제" onClick={() => remove(row)}><Trash2 className="h-4 w-4" /></Button>
               </div>
             </div>
-            <Textarea defaultValue={row.rationale} rows={2} placeholder="설명(왜 이 판정인지)" className="min-h-0 text-sm" onBlur={(e) => changeText(row, "rationale", e.target.value.trim())} />
+            <Textarea key={`${row.id}:rationale:${row.updatedAt}`} defaultValue={row.rationale} rows={2} placeholder="설명(왜 이 판정인지)" className="min-h-0 text-sm" onBlur={(e) => changeText(row, "rationale", e.target.value.trim())} />
             <div className="flex items-center gap-1">
-              <Input defaultValue={row.evidenceUrl ?? ""} placeholder="근거 URL" className="h-8 text-xs" onBlur={(e) => changeText(row, "evidenceUrl", e.target.value.trim())} />
+              <Input key={`${row.id}:evidence:${row.updatedAt}`} defaultValue={row.evidenceUrl ?? ""} placeholder="근거 URL" className="h-8 text-xs" onBlur={(e) => changeText(row, "evidenceUrl", e.target.value.trim())} />
               {row.evidenceUrl && <a href={row.evidenceUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground"><ExternalLink className="h-4 w-4" /></a>}
             </div>
           </div>
