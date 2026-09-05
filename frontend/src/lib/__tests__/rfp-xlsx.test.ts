@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import ExcelJS from "exceljs";
-import { buildWorkbook, xlsxFileName, type XlsxProject } from "@/lib/rfp/xlsx";
+import { buildWorkbook, kstYmd, xlsxFileName, type XlsxProject } from "@/lib/rfp/xlsx";
 import type { RequirementRow } from "@/lib/rfp/requirements";
 import { VERDICT_LABEL } from "@/lib/rfp/mapping/types";
 import type { CatalogSolution, MappingRow } from "@/lib/rfp/mapping/types";
@@ -63,6 +63,12 @@ describe("xlsxFileName", () => {
   it("(발주기관) 사업명_요구사항 검토_YYYYMMDD.xlsx, 파일명 금지 문자는 _", () => {
     expect(xlsxFileName(project, new Date(2026, 8, 3))).toBe("(한국석유공사) 생성형 AI 플랫폼 구축 및 AX 개발 사업_요구사항 검토_20260903.xlsx");
     expect(xlsxFileName({ ...project, agency: null, name: "A/B: C" }, new Date(2026, 0, 5))).toBe("A_B_ C_요구사항 검토_20260105.xlsx");
+  });
+
+  it("날짜는 KST 기준 — UTC 15:30은 KST 다음날 00:30", () => {
+    expect(xlsxFileName({ ...project, agency: null, name: "A" }, new Date("2026-09-03T15:30:00Z"))).toBe("A_요구사항 검토_20260904.xlsx");
+    expect(xlsxFileName({ ...project, agency: null, name: "A" }, new Date("2026-09-03T14:59:59Z"))).toBe("A_요구사항 검토_20260903.xlsx");
+    expect(kstYmd(new Date("2026-12-31T15:00:00Z"))).toBe("20270101");
   });
 });
 

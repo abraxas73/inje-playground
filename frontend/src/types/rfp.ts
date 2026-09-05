@@ -56,6 +56,8 @@ export interface RfpProjectDetail extends RfpProjectSummary {
   mappings: RfpMapping[];
   files: RfpFile[];
   requirements: RfpRequirement[];
+  /** 3단계 — 상세 초기 표시용. 이력 전체는 GET …/sharepoint */
+  sharepoint: { folder: SharepointFolder | null; lastUpload: RfpSharepointUpload | null };
 }
 
 /** GET /api/rfp/projects/[id]?fields=status */
@@ -152,4 +154,42 @@ export interface RfpAdminFeature {
   sortOrder: number;
   updatedAt: string;
   mappingCount: number;
+}
+
+/** 3단계 — rfp_projects.sharepoint_folder(jsonb) */
+export interface SharepointFolder {
+  url: string;
+  driveId: string;
+  itemId: string;
+  name: string;
+  webUrl: string;
+  setBy: string | null;
+  setAt: string;
+}
+
+export interface RfpSharepointUpload {
+  id: string;
+  fileName: string;
+  webUrl: string;
+  sizeBytes: number;
+  uploadedBy: { id: string | null; name: string | null };
+  createdAt: string;
+}
+
+/** GET /api/rfp/projects/[id]/sharepoint */
+export interface SharepointResponse {
+  folder: SharepointFolder | null;
+  lastUpload: RfpSharepointUpload | null;
+  uploads: RfpSharepointUpload[];
+}
+
+/** folder PUT·upload POST 오류 응답의 code — 화면이 버튼(연결/재연결/폴더 지정)을 고르는 기준 */
+export type SharepointErrorCode = "no_folder" | "not_connected" | "reconnect";
+
+/** POST /api/rfp/projects/[id]/sharepoint/upload */
+export interface UploadResponse {
+  upload: RfpSharepointUpload;
+  /** Teams 채널 알림 전송 여부. false이고 notifyError가 없으면 웹후크 미설정 */
+  notified: boolean;
+  notifyError?: string;
 }

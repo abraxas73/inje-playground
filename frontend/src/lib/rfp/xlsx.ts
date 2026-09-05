@@ -197,10 +197,16 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
-/** "(발주기관) 사업명_요구사항 검토_YYYYMMDD.xlsx" — 파일명 금지 문자는 _ */
+/** KST(Asia/Seoul) 기준 YYYYMMDD. Vercel은 UTC라 서버 로컬 날짜를 쓰면 밤 시간대에 하루 어긋난다(3단계 스펙 §5.2). */
+export function kstYmd(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+  const pick = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${pick("year")}${pick("month")}${pick("day")}`;
+}
+
+/** "(발주기관) 사업명_요구사항 검토_YYYYMMDD.xlsx" — 파일명 금지 문자는 _, 날짜는 KST */
 export function xlsxFileName(project: XlsxProject, date = new Date()): string {
-  const ymd = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
   const safe = (s: string) => s.replace(/[\\/:*?"<>|\x00-\x1f]/g, "_").trim();
   const prefix = project.agency ? `(${safe(project.agency)}) ` : "";
-  return `${prefix}${safe(project.name)}_요구사항 검토_${ymd}.xlsx`;
+  return `${prefix}${safe(project.name)}_요구사항 검토_${kstYmd(date)}.xlsx`;
 }

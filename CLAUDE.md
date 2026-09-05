@@ -85,14 +85,14 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/guide` — Guide Q&A: AI-powered Q&A on company guidelines via NotebookLM. Visible notebooks displayed as tabs.
 - `/guide/admin` — Admin: notebook/source management, visibility toggle, sort order (superOnly)
 - `/admin/chat-history` — Admin: all users' guide Q&A history viewer with filters
-- `/settings` — Dooray API token and project ID configuration (stored in localStorage)
+- `/settings` — Dooray API token and project ID configuration (stored in localStorage) + Microsoft 계정 연결 카드(`MicrosoftAccountCard`: SharePoint 업로드용 위임 OAuth, refresh 토큰은 서버가 암호화 보관)
 - `/manual` — User manual with Playwright-captured screenshots (8 sections)
 - `/admin/claude-usage` — Claude Code 사용량(admin, OTel 실시간): Claude Code·팀별 집계·도구 사용·시간대 패턴·프롬프트 탭
 - `/admin/claude-chat` — Claude 사용량 Chat/Cowork(admin, 월간 CSV): 채팅·Cowork 멤버 활동 + 팀별 집계 탭, 데이터 기간 선택. CSV 업로드는 웹 UI 없이 `/claude-usage-csv` 스킬·`scripts/claude-usage-upload.sh`가 `POST /api/admin/claude-usage/imports`로 처리
 - `/admin/perf` — 성과 지표 전체 조회(admin): 개인용 `/usage/perf`와 같은 5탭 + 팀 필터 + 개인(이름/이메일) 검색. API `GET /api/admin/work-metrics/perf?from&to&team&q`, 집계는 `lib/work-metrics/perf-report.ts` 공용, UI는 `components/usage/PerfDashboard.tsx` 공용
 - `/admin/directory` — 조직/팀(admin): 사내 조직도(그룹웨어 아마란스, inno-creed MCP — Claude 사용량 표 "소속" 컬럼의 출처)·Claude 멤버·초대·조직·설정(관리형 설정 JSON) 탭
 - `/usage/code`, `/usage/chat`, `/usage/perf` — 개인용 Claude 사용량·성과(user): 본인 것만, 조직장은 자기 말단 조직 전체(units[] 포함 비교 — 팀장→팀, 센터장→센터 산하 전체, 본부장→본부). 조직장 = `company_directory.is_leader`(어드민 조직/팀 탭 체크박스, null이면 duty 자동 판정). `lib/usage-scope.ts`. 어드민과 같은 지표·표(모델별 비용, 토큰/프롬프트, 프롬프트 사람/자동, 팀별 집계, 조직/팀 검색 필터, 총계 행, 도구·시간대, CSV 데이터 기간 선택, 노는 시트, CSV 내려받기)를 허용 범위 안에서만 보여주고, **프롬프트 내용 탭은 개인용에 없다**. 팀별 집계는 `lib/claude-usage/code-team-summary.ts`·`chat-team-summary.ts` 공용
-- `/rfp`, `/rfp/[id]` — RFP 분석(user): 제안요청서(hwp·hwpx·docx) 업로드 → 프로젝트 등록(중복 판단) → 요구사항 표(TanStack Table 셀 편집·행 추가/삭제) → xlsx 다운로드 → 솔루션 매핑(상세 "솔루션 매핑 실행", 요구사항별 판정 충족/부분충족/설계·구축영역/해당없음, 행 펼침 편집). 런북 `docs/rfp-analyzer.md`
+- `/rfp`, `/rfp/[id]` — RFP 분석(user): 제안요청서(hwp·hwpx·docx) 업로드 → 프로젝트 등록(중복 판단) → 요구사항 표(TanStack Table 셀 편집·행 추가/삭제) → xlsx 다운로드 → 솔루션 매핑(상세 "솔루션 매핑 실행", 요구사항별 판정 충족/부분충족/설계·구축영역/해당없음, 행 펼침 편집) → SharePoint 등록(3단계: 상세 "SharePoint 등록" 섹션에서 폴더 '링크 복사' 값 지정 → 같은 xlsx를 사용자 위임 권한으로 업로드(같은 날 덮어쓰기) → 이력·Teams 채널 알림). 런북 `docs/rfp-analyzer.md`
 - `/admin/rfp-catalog` — RFP 솔루션 카탈로그(admin): 솔루션(SECloudit·Devopsit·AICubeit·TabCloudit·Openstackit) · Confluence 소스 URL 등록/가져오기(Claude 기능 추출, ✎ 편집 항목 보존) · 기능 표 인라인 편집
 
 ### API Routes (`frontend/src/app/api/`)
@@ -118,6 +118,8 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/api/rfp/{uploads,projects,projects/[id],projects/[id]/{reextract,xlsx,file,requirements},requirements/[requirementId]}` — RFP 분석(user 이상, `lib/rfp/require-user.ts`). 파일은 Storage 버킷 `rfp`에 브라우저 직접 업로드, 추출은 `after()`(maxDuration 300)
 - `/api/admin/rfp-catalog/{solutions,solutions/[code],solutions/[code]/{sources,import,features},sources/[sourceId],features/[featureId]}` — 카탈로그 관리(admin). 가져오기는 `after()`+`runImport`
 - `GET /api/rfp/catalog`, `/api/rfp/projects/[id]/mapping`(GET·POST {mode all|missing, confirm}), `POST /api/rfp/projects/[id]/mapping/rows`, `/api/rfp/mappings/[mappingId]`(PATCH·DELETE) — 솔루션 매핑(user 이상). 실행은 `after()`+`runMapping`(20건 청크·동시 3·청크별 저장)
+- `GET /api/ms/connect?returnTo=`(Azure authorize 302), `GET /api/ms/callback`(state 검증·코드 교환·`ms_connections` 저장 → `returnTo?ms_connected=1|ms_error=`), `GET·DELETE /api/ms/connection` — Microsoft 계정 연결(user 이상, `lib/ms/`). 오리진은 `MS_ALLOWED_ORIGINS` 허용 목록만
+- `GET /api/rfp/projects/[id]/sharepoint`, `PUT·DELETE …/sharepoint/folder`({url} → Graph shares 해석 → `rfp_projects.sharepoint_folder`), `POST …/sharepoint/upload`(→ `{upload, notified, notifyError?}`, 오류 `code: no_folder|not_connected|reconnect`) — SharePoint 등록(user 이상). 업로드는 `uploadProjectXlsx`(xlsx 라우트와 같은 `buildProjectWorkbook`)
 
 ### Supabase Tables (guide feature)
 - `nlm_notebooks` — Notebook metadata with `is_visible`, `sort_order`
@@ -136,6 +138,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 ### Supabase Tables (RFP 분석)
 - `rfp_projects`(사업 개요·상태·정규화 키), `rfp_files`(원본, sha256 유니크), `rfp_requirements`(구분 코드·ID·7필드·solution) — SQL `docs/sql/2026-09-03-rfp-analyzer.sql`
 - `rfp_solutions`, `rfp_solution_sources`(Confluence 페이지·import_status), `rfp_solution_features`(name_norm 유니크·edited), `rfp_requirement_mappings`(요구사항별 0~N행·verdict·edited), `rfp_projects.mapping_status|mapping_error|mapping_warnings|mapping_at` — SQL `docs/sql/2026-09-04-rfp-solution-mapping.sql`
+- `ms_connections`(사용자당 1행, `refresh_token_enc` AES-256-GCM `v1.iv.tag.cipher`, RLS 정책 없음 = service role만), `rfp_projects.sharepoint_folder`(jsonb {url, driveId, itemId, name, webUrl, setBy, setAt}), `rfp_sharepoint_uploads`(업로드 이력) — SQL `docs/sql/2026-09-05-rfp-sharepoint.sql`
 
 ### Key Patterns
 
@@ -153,19 +156,21 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 
 **Claude 사용량 대시보드**: `lib/claude-usage/`가 OTLP 페이로드 파싱(`otlp.ts`)·수집 인증(`ingest-auth.ts`)·저장(`ingest-handler.ts`/`ingest-store.ts`)·CSV 파싱(`members-csv.ts`)·집계(`aggregate.ts`)·관리자 권한 체크(`require-admin.ts`)·관리형 설정 JSON 생성(`managed-settings.ts`)을 담당. 런북: `docs/claude-usage.md`, 아키텍처: `docs/claude-usage-architecture.md`.
 
-**RFP 분석**: `lib/rfp/` — 파서 3종(`parse-hwp.ts` cfb+zlib 레코드 파서, `parse-hwpx.ts`, `parse-docx.ts`) → 공통 `DocumentModel` → `overview.ts`(개요·정규화) → `dedupe.ts` → `extract-standard.ts`(표준 7행 표 규칙) / `extract-llm.ts`(Claude 폴백) → `xlsx.ts`(exceljs). 라우트는 `pipeline.ts`의 `registerProject`·`runExtraction`만 호출. 2단계: `lib/rfp/catalog/`(Confluence URL→페이지 id·storage XHTML→텍스트·Claude 기능 추출·이름 정규화 병합·`runImport`) · `lib/rfp/mapping/`(판정 상수 `types.ts`·S/F 별칭 프롬프트·20건 청크·출력 검증·요약/건수·`runMapping`). 라우트는 `runImport`·`runMapping`만 호출. `rfp_requirements.solution`은 더는 편집하지 않고 화면·xlsx의 "당사 솔루션"은 `mappingSummary`로 만든다.
+**RFP 분석**: `lib/rfp/` — 파서 3종(`parse-hwp.ts` cfb+zlib 레코드 파서, `parse-hwpx.ts`, `parse-docx.ts`) → 공통 `DocumentModel` → `overview.ts`(개요·정규화) → `dedupe.ts` → `extract-standard.ts`(표준 7행 표 규칙) / `extract-llm.ts`(Claude 폴백) → `xlsx.ts`(exceljs). 라우트는 `pipeline.ts`의 `registerProject`·`runExtraction`만 호출. 2단계: `lib/rfp/catalog/`(Confluence URL→페이지 id·storage XHTML→텍스트·Claude 기능 추출·이름 정규화 병합·`runImport`) · `lib/rfp/mapping/`(판정 상수 `types.ts`·S/F 별칭 프롬프트·20건 청크·출력 검증·요약/건수·`runMapping`). 라우트는 `runImport`·`runMapping`만 호출. `rfp_requirements.solution`은 더는 편집하지 않고 화면·xlsx의 "당사 솔루션"은 `mappingSummary`로 만든다. 3단계: `lib/ms/`(crypto AES-GCM·HMAC state / oauth 위임 토큰 / config settings+env / origin 허용 오리진·returnTo / connections `ms_connections`+access 토큰 5분 캐시 / graph-drive shares 해석·업로드) + `lib/rfp/sharepoint.ts`(`buildProjectWorkbook` xlsx 라우트 공용·`uploadProjectXlsx`·`buildUploadNotice`·`loadUploads`). 파일명 날짜는 KST(`kstYmd`). 토큰·시크릿은 어떤 로그·응답에도 쓰지 않는다.
 
 **Environment Variables**:
 - `NLM_SERVICE_URL` — NLM service endpoint (default: `http://localhost:8090`, prod: `https://inje-nlm-service.fly.dev`)
 - `GW_LOGIN_ENABLED` — `true`일 때만 `POST /api/auth/gw`(GW 로그인 백엔드) 활성, 기본 404. GW가 토큰 기반 사용자 조회 API를 제공해 이메일을 서버 검증할 수 있을 때까지 꺼둔다
-- `TEAMS_GRAPH_CLIENT_SECRET` — Graph app-only 클라이언트 시크릿 (멤버 가져오기를 Graph 방식으로 쓸 때만 필수; `teams_members_webhook_url` 웹훅 방식이면 불필요; settings에 저장 금지)
+- `TEAMS_GRAPH_CLIENT_SECRET` — Graph 클라이언트 시크릿. 멤버 가져오기 Graph 방식(app-only)과 RFP SharePoint 업로드(위임 OAuth 토큰 교환·갱신)에 필수; 멤버 가져오기만 웹훅 방식이면 후자 때문에 여전히 필요. settings에 저장 금지
+- `MS_TOKEN_ENC_KEY` — RFP SharePoint 업로드용 Microsoft refresh 토큰 암호화 키(64자 hex, `openssl rand -hex 32`). 교체 시 모든 연결이 재연결 필요
+- `MS_ALLOWED_ORIGINS` — (선택) Microsoft OAuth 리디렉션 오리진 허용 목록(쉼표). 기본 `https://inje-playground.vercel.app,http://localhost:3003`
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service_role 키(서버 전용, 클라이언트 노출 금지). Claude 사용량 대시보드 관리자 API에서 사용
 - `CLAUDE_OTEL_INGEST_TOKEN` — Claude Code OTLP 수신 엔드포인트(`/api/otel/v1/*`) Bearer 인증 토큰(`openssl rand -hex 32`)
 - `ANTHROPIC_API_KEY`, `RFP_LLM_MODEL`(기본 claude-opus-5) — RFP 비표준 문서 LLM 폴백 + 카탈로그 기능 추출 + 솔루션 매핑
 - `ATLASSIAN_SITE`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN` — 카탈로그 Confluence 가져오기(기존 성과 지표와 공유)
 
 ### Directory Layout (frontend/src/)
-- `components/` — Organized by feature: `ladder/`, `team/`, `food/`, `guide/`, `settings/`, `shared/`, `layout/`, `admin/claude-usage/`(Claude 사용량 대시보드 탭·차트), `admin/directory/`(사내 조직도 표), `admin/rfp-catalog/`(솔루션·소스·기능 표), `rfp/`(업로드·개요·요구사항 표)
-- `hooks/` — `useLocalStorage`, `useParticipants`, `useBgm`, `useTts`, `useSettings`(관리자 전역 설정), `useProviderSettings`(provider 3축)
-- `lib/` — Pure logic: `ladder.ts`, `team-divider.ts`, `dooray.ts`, `nlm-service.ts`, `providers.ts`(provider 상수/파서), `settings-server.ts`(서버 settings 로더), `teams-graph.ts`(Graph app-only), `notify/`(Notifier: dooray/teams/messages/recipients), `members/`(MemberSource: dooray/teams), `claude-usage/`(OTLP 파서·CSV 파서·집계·인증), `rfp/`(파서·개요·중복·추출·xlsx·catalog/·mapping/)
-- `types/` — TypeScript interfaces: `ladder.ts`, `team.ts`, `dooray.ts`, `guide.ts`, `claude-usage.ts`, `rfp.ts`
+- `components/` — Organized by feature: `ladder/`, `team/`, `food/`, `guide/`, `settings/`(+`MicrosoftAccountCard`), `shared/`, `layout/`, `admin/claude-usage/`(Claude 사용량 대시보드 탭·차트), `admin/directory/`(사내 조직도 표), `admin/rfp-catalog/`(솔루션·소스·기능 표), `rfp/`(업로드·개요·요구사항 표·`SharePointSection`)
+- `hooks/` — `useLocalStorage`, `useParticipants`, `useBgm`, `useTts`, `useSettings`(관리자 전역 설정), `useProviderSettings`(provider 3축), `useMsCallbackQuery`(Microsoft 연결 콜백 쿼리 처리)
+- `lib/` — Pure logic: `ladder.ts`, `team-divider.ts`, `dooray.ts`, `nlm-service.ts`, `providers.ts`(provider 상수/파서), `settings-server.ts`(서버 settings 로더), `teams-graph.ts`(Graph app-only), `ms/`(Microsoft 위임 OAuth·토큰 암호화·연결 저장·Graph 드라이브), `notify/`(Notifier: dooray/teams/messages/recipients), `members/`(MemberSource: dooray/teams), `claude-usage/`(OTLP 파서·CSV 파서·집계·인증), `rfp/`(파서·개요·중복·추출·xlsx·catalog/·mapping/·sharepoint.ts)
+- `types/` — TypeScript interfaces: `ladder.ts`, `team.ts`, `dooray.ts`, `guide.ts`, `claude-usage.ts`, `rfp.ts`, `ms.ts`

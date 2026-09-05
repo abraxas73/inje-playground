@@ -6,7 +6,8 @@ import { normalizeAgency, normalizeName } from "@/lib/rfp/overview";
 import { sortRequirements } from "@/lib/rfp/requirements";
 import { RFP_BUCKET } from "@/lib/rfp/pipeline";
 import { selectAll } from "@/lib/work-metrics/common";
-import type { StatusResponse } from "@/types/rfp";
+import { loadUploads } from "@/lib/rfp/sharepoint";
+import type { RfpSharepointUpload, StatusResponse } from "@/types/rfp";
 
 export const runtime = "nodejs";
 
@@ -32,22 +33,27 @@ export async function GET(request: NextRequest, { params }: Params) {
     return NextResponse.json(res);
   }
 
-  const [filesRes, reqsRes, mapsRes, names] = await Promise.all([
+  const [filesRes, reqsRes, mapsRes, names, lastRes] = await Promise.all([
     auth.admin.from("rfp_files").select("id, original_filename, format, size_bytes, created_at").eq("project_id", id).order("created_at", { ascending: false }),
     auth.admin.from("rfp_requirements").select("*").eq("project_id", id).order("sort_order", { ascending: true }),
     selectAll<MappingDbRow>(() =>
       auth.admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS, { count: "exact" }).eq("project_id", id).order("sort_order", { ascending: true }).order("id"),
     ),
     creatorNames(auth.admin, row.created_by ? [row.created_by] : []),
+    // 3단계: 마지막 업로드 1건(초기 표시용). 이력 전체는 GET …/sharepoint
+    loadUploads(auth.admin, id, 1)
+      .then((uploads): { data: RfpSharepointUpload[]; error: string | null } => ({ data: uploads, error: null }))
+      .catch((e: unknown): { data: RfpSharepointUpload[]; error: string | null } => ({ data: [], error: e instanceof Error ? e.message : "업로드 이력 조회 실패" })),
   ]);
   if (filesRes.error) return NextResponse.json({ error: filesRes.error.message }, { status: 500 });
   if (reqsRes.error) return NextResponse.json({ error: reqsRes.error.message }, { status: 500 });
   if (mapsRes.error) return NextResponse.json({ error: mapsRes.error.message }, { status: 500 });
+  if (lastRes.error) return NextResponse.json({ error: lastRes.error }, { status: 500 });
   // 요구사항은 프로젝트당 수백 건이라 1000행 상한에 걸리지 않지만, 매핑은 수동 추가 행에 상한이 없어 selectAll로 끝까지 읽는다.
   const requirements = sortRequirements(((reqsRes.data ?? []) as RequirementDbRow[]).map(mapRequirement));
   const mappings = mapsRes.data.map(mapMapping);
   const creatorName = row.created_by ? names.get(row.created_by) ?? null : null;
-  return NextResponse.json(mapProjectDetail(row, creatorName, (filesRes.data ?? []) as FileDbRow[], requirements, mappings));
+  return NextResponse.json(mapProjectDetail(row, creatorName, (filesRes.data ?? []) as FileDbRow[], requirements, mappings, lastRes.data[0] ?? null));
 }
 
 /** PATCH /api/rfp/projects/[id] {name?, agency?, period?, budget?, bidMethod?} — 개요 편집 */

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import OverviewCard from "@/components/rfp/OverviewCard";
 import RequirementsTable from "@/components/rfp/RequirementsTable";
 import MappingSummary, { type VerdictFilter } from "@/components/rfp/MappingSummary";
+import SharePointSection from "@/components/rfp/SharePointSection";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toCatalog } from "@/lib/rfp/mapping/client-catalog";
 import type { CatalogSolution } from "@/lib/rfp/mapping/types";
@@ -140,6 +141,7 @@ export default function RfpProjectPage() {
       />
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       {notice && <Alert><AlertDescription>{notice}</AlertDescription></Alert>}
+      <SharePointSection projectId={project.id} projectStatus={project.status} initial={project.sharepoint} />
       {project.status === "extracting" ? (
         <div className="rounded-lg border p-10 text-center text-sm text-muted-foreground">요구사항을 추출하고 있습니다… 표준 양식은 몇 초, LLM 추출은 수 분 걸릴 수 있습니다.</div>
       ) : (
