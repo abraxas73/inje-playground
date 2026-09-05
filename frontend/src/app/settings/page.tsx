@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import MyTeamCard from "@/components/settings/MyTeamCard";
+import MicrosoftAccountCard from "@/components/settings/MicrosoftAccountCard";
 import { fetchProjects as fetchDoorayProjects, fetchProjectMembers } from "@/lib/dooray-client";
 
 interface DoorayProject {
@@ -241,6 +242,9 @@ export default function UserSettingsPage() {
 
       {/* 내 팀 구성원 */}
       <MyTeamCard />
+
+      {/* Microsoft 계정 (SharePoint 업로드) */}
+      <MicrosoftAccountCard />
 
       {/* Dooray 연동 */}
       <Card>
