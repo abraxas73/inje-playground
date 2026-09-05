@@ -15,6 +15,7 @@ export interface MsAppConfig {
   clientSecret: string;
 }
 
+/** OAuth 오류를 code로 정규화한다. message는 code만 담고, description(Azure error_description)은 서버 로그 전용이다. */
 export class OAuthError extends Error {
   constructor(
     public readonly code: string,
@@ -22,7 +23,7 @@ export class OAuthError extends Error {
     public readonly description: string,
     public readonly status: number,
   ) {
-    super(`${code}: ${description}`);
+    super(code);
     this.name = "OAuthError";
   }
 }

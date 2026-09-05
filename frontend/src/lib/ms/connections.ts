@@ -42,7 +42,7 @@ interface StatusRow {
   last_error: string | null;
 }
 
-const tokenCache = new Map<string, { token: string; exp: number }>();
+const tokenCache = new Map<string, { token: string; exp: number; connectedAt: string }>();
 
 /** 테스트용 */
 export function _resetMsTokenCache() {
@@ -108,21 +108,24 @@ async function markError(admin: SupabaseClient, userId: string, code: string): P
 /**
  * 사용자 위임 access 토큰. 순서: 행 없음 → NotConnectedError / 캐시 히트 → 반환 / refresh 발급 → 캐시·last_used_at·(새 refresh면 교체).
  * invalid_grant 계열·복호화 실패는 last_error를 남기고 ReconnectRequiredError.
+ * 캐시는 행의 connected_at에 묶여 있어, 다른 인스턴스에서 재연결(계정 교체)이 일어나 connected_at이
+ * 바뀌면 이 인스턴스가 들고 있던 캐시도 함께 무효화된다.
  */
 export async function getAccessTokenForUser(admin: SupabaseClient, userId: string, deps: TokenDeps): Promise<string> {
   const now = deps.now ?? Date.now;
   const fetchImpl = deps.fetchImpl ?? fetch;
 
-  const { data, error } = await admin.from(TABLE).select("refresh_token_enc").eq("user_id", userId).maybeSingle();
+  const { data, error } = await admin.from(TABLE).select("refresh_token_enc, connected_at").eq("user_id", userId).maybeSingle();
   if (error) throw new Error(`ms_connections 조회 실패: ${error.message}`);
   if (!data) throw new NotConnectedError();
+  const row = data as { refresh_token_enc: string; connected_at: string };
 
   const cached = tokenCache.get(userId);
-  if (cached && cached.exp > now()) return cached.token;
+  if (cached && cached.exp > now() && cached.connectedAt === row.connected_at) return cached.token;
 
   let refreshToken: string;
   try {
-    refreshToken = decryptSecret((data as { refresh_token_enc: string }).refresh_token_enc, deps.encKey);
+    refreshToken = decryptSecret(row.refresh_token_enc, deps.encKey);
   } catch {
     await markError(admin, userId, "decrypt");
     throw new ReconnectRequiredError("decrypt");
@@ -140,7 +143,7 @@ export async function getAccessTokenForUser(admin: SupabaseClient, userId: strin
   }
 
   const ttl = Math.max(0, Math.min(tok.expiresIn * 1000 - TOKEN_SKEW_MS, TOKEN_CACHE_MAX_MS));
-  tokenCache.set(userId, { token: tok.accessToken, exp: now() + ttl });
+  tokenCache.set(userId, { token: tok.accessToken, exp: now() + ttl, connectedAt: row.connected_at });
 
   const patch: Record<string, unknown> = { last_used_at: new Date(now()).toISOString(), last_error: null };
   if (tok.refreshToken && tok.refreshToken !== refreshToken) patch.refresh_token_enc = encryptSecret(tok.refreshToken, deps.encKey);

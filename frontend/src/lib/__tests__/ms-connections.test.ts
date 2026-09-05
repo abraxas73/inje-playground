@@ -140,4 +140,16 @@ describe("getAccessTokenForUser", () => {
     expect(state.updates).toEqual([{ last_error: "decrypt" }]);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
+  it("다른 인스턴스에서 재연결(connected_at 변경)되면 캐시를 버리고 다시 발급한다", async () => {
+    const { admin, state } = fakeAdmin(connectedRow("RT-1"));
+    const fetchImpl = vi.fn(async () => json(200, { access_token: "AT-old", expires_in: 3600 }));
+    expect(await getAccessTokenForUser(admin, "u-1", { app, encKey: key, fetchImpl })).toBe("AT-old");
+    // 다른 인스턴스가 saveConnection을 실행한 것처럼 DB 행만 바꾼다(이 인스턴스의 캐시는 그대로)
+    state.row = { ...state.row!, refresh_token_enc: encryptSecret("RT-2", key), connected_at: "2026-09-05T02:00:00.000Z" };
+    fetchImpl.mockResolvedValueOnce(json(200, { access_token: "AT-new", expires_in: 3600 }));
+    expect(await getAccessTokenForUser(admin, "u-1", { app, encKey: key, fetchImpl })).toBe("AT-new");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    const body = new URLSearchParams((fetchImpl.mock.calls[1] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.get("refresh_token")).toBe("RT-2");
+  });
 });

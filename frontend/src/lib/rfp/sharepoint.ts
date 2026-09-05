@@ -130,7 +130,7 @@ export async function uploadProjectXlsx(admin: SupabaseClient, projectId: string
   if (deps.notifier.channelConfigured) {
     const r = await deps.notifier.sendChannel(buildUploadNotice({ projectName: row.name, userName: deps.userName, folderName: folder.name, fileName: uploadRow.fileName, webUrl: uploadRow.webUrl }));
     if (r.ok) notified = true;
-    else notifyError = r.error ?? "알림 실패";
+    else notifyError = r.error || "알림 실패";
   }
   return notifyError ? { upload: uploadRow, notified, notifyError } : { upload: uploadRow, notified };
 }
