@@ -1,9 +1,9 @@
-import type { RfpFile, RfpMapping, RfpProjectDetail, RfpProjectSummary, RfpRequirement } from "@/types/rfp";
+import type { RfpFile, RfpMapping, RfpProjectDetail, RfpProjectSummary, RfpRequirement, RfpSharepointUpload, SharepointFolder } from "@/types/rfp";
 import type { Verdict } from "./mapping/types";
 import type { RequirementRow } from "./requirements";
 
 export const PROJECT_COLUMNS =
-  "id, name, agency, period, budget, bid_method, extra, status, extraction_method, error, warnings, requirement_count, created_by, created_at, updated_at, mapping_status, mapping_error, mapping_warnings, mapping_at";
+  "id, name, agency, period, budget, bid_method, extra, status, extraction_method, error, warnings, requirement_count, created_by, created_at, updated_at, mapping_status, mapping_error, mapping_warnings, mapping_at, sharepoint_folder";
 
 /** rfp_projects 행(PROJECT_COLUMNS) */
 export interface ProjectDbRow {
@@ -26,6 +26,8 @@ export interface ProjectDbRow {
   mapping_error: string | null;
   mapping_warnings: unknown;
   mapping_at: string | null;
+  /** 3단계 — jsonb. parseSharepointFolder로 읽는다 */
+  sharepoint_folder: unknown;
 }
 
 export interface RequirementDbRow {
@@ -68,6 +70,37 @@ export interface MappingDbRow {
   sort_order: number;
   updated_at: string;
   updated_by: string | null;
+}
+
+export const SHAREPOINT_UPLOAD_COLUMNS = "id, project_id, drive_id, item_id, file_name, web_url, size_bytes, uploaded_by, created_at";
+
+export interface SharepointUploadDbRow {
+  id: string;
+  project_id: string;
+  drive_id: string;
+  item_id: string;
+  file_name: string;
+  web_url: string;
+  size_bytes: number;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+/** rfp_projects.sharepoint_folder(jsonb) → 타입. 필수 문자열 필드가 하나라도 없으면 null(지정 안 됨으로 취급). */
+export function parseSharepointFolder(v: unknown): SharepointFolder | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string) : null);
+  const url = str("url"), driveId = str("driveId"), itemId = str("itemId"), name = str("name"), webUrl = str("webUrl"), setAt = str("setAt");
+  if (url === null || driveId === null || itemId === null || name === null || webUrl === null || setAt === null) return null;
+  return { url, driveId, itemId, name, webUrl, setBy: str("setBy"), setAt };
+}
+
+export function mapSharepointUpload(row: SharepointUploadDbRow, uploaderName: string | null): RfpSharepointUpload {
+  return {
+    id: row.id, fileName: row.file_name, webUrl: row.web_url, sizeBytes: Number(row.size_bytes),
+    uploadedBy: { id: row.uploaded_by, name: row.uploaded_by ? uploaderName : null }, createdAt: row.created_at,
+  };
 }
 
 export function mapMapping(row: MappingDbRow): RfpMapping {
@@ -135,7 +168,10 @@ export function toRequirementRow(row: RequirementDbRow): RequirementRow {
   };
 }
 
-export function mapProjectDetail(row: ProjectDbRow, creatorName: string | null, files: FileDbRow[], requirements: RfpRequirement[], mappings: RfpMapping[]): RfpProjectDetail {
+export function mapProjectDetail(
+  row: ProjectDbRow, creatorName: string | null, files: FileDbRow[], requirements: RfpRequirement[], mappings: RfpMapping[],
+  lastUpload: RfpSharepointUpload | null = null,
+): RfpProjectDetail {
   return {
     ...mapProjectSummary(row, creatorName),
     period: row.period,
@@ -150,5 +186,6 @@ export function mapProjectDetail(row: ProjectDbRow, creatorName: string | null, 
     files: files.map(mapFile),
     requirements,
     mappings,
+    sharepoint: { folder: parseSharepointFolder(row.sharepoint_folder), lastUpload },
   };
 }
