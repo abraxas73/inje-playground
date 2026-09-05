@@ -16,7 +16,7 @@
 | | `teams_graph_client_id` | Graph 앱(클라이언트) ID |
 | | `teams_group_id` | 멤버를 가져올 팀의 Microsoft 365 그룹 ID |
 
-**환경변수(서버 전용·비밀, Graph 방식일 때만)**: `TEAMS_GRAPH_CLIENT_SECRET` — 로컬 `frontend/.env.local`, 운영 Vercel Environment Variables. settings 테이블에 저장하지 않는다. §3-B 웹훅 방식을 쓰면 불필요.
+**환경변수(서버 전용·비밀, Graph 방식일 때만)**: `TEAMS_GRAPH_CLIENT_SECRET` — 로컬 `frontend/.env.local`, 운영 Vercel Environment Variables. settings 테이블에 저장하지 않는다. §3-B 웹훅 방식을 쓰면 불필요 — 단, RFP 분석 SharePoint 업로드(§3-C 위임 OAuth)를 쓰면 다시 필수이고 `MS_TOKEN_ENC_KEY`(64자 hex)도 함께 둔다.
 
 권장 조합: `dm=teams`이면 멤버 소스는 `users` 또는 `teams`(이메일 보유), `dm=dooray`이면 멤버 소스는 `dooray`(멤버 ID 보유). 어긋나면 점심 DM을 보낼 수 없다(가이드 답변 DM은 로그인 이메일이라 무관). **표준 라이선스 기본 구성: notify=teams, member=users, dm=teams.**
 
@@ -137,6 +137,17 @@ curl -i -X POST "$TEAMS_DM_WEBHOOK_URL" -H "Content-Type: application/json" -d '
   `{"value":[{"id":…,"displayName":…` 가 보이면 정상. 앱에서는 `GET /api/teams/members` → `{ members: [...], source: "webhook" }`.
 - 주의: 흐름 소유자 계정의 권한으로 조회된다(소유자가 해당 팀을 볼 수 있어야 함). 소유자 퇴사·연결 만료 시 흐름이 멈추므로 가능하면 공용/서비스 계정 소유로 만든다. HTTP 트리거/응답은 Power Automate 프리미엄 기능(채널·DM 흐름과 동일 조건).
 
+## 3-C. RFP 분석 SharePoint 업로드 — Microsoft Graph 위임 권한 (관리자 동의 불필요)
+
+> 3-A의 앱 권한과 달리 **위임된 권한**은 사용자가 스스로 동의한다. 테넌트가 사용자 동의를 막아 "관리자 승인 필요"가 뜨더라도 Application Administrator가 동의할 수 있다(GA 불필요). 설계: `docs/superpowers/specs/2026-09-05-rfp-analyzer-phase3-design.md`, 런북: `docs/rfp-analyzer.md`.
+
+1. Entra 앱 등록(3-A와 같은 앱) → 인증 → 플랫폼 "웹" 리디렉션 URI 추가: `https://inje-playground.vercel.app/api/ms/callback`, `http://localhost:3003/api/ms/callback` (다른 도메인을 쓰면 env `MS_ALLOWED_ORIGINS`에도 추가).
+2. API 권한 → Microsoft Graph → **위임된 권한** → `Files.ReadWrite.All`, `Sites.Read.All`, `User.Read`, `offline_access` 추가. "관리자 동의 부여"는 누르지 않아도 된다.
+3. 인증서 및 암호 → 클라이언트 암호(없으면 새로) → `TEAMS_GRAPH_CLIENT_SECRET`. `openssl rand -hex 32` → `MS_TOKEN_ENC_KEY`. 둘 다 Vercel env(+로컬 `.env.local`), settings에는 저장하지 않는다.
+4. settings `teams_tenant_id`·`teams_graph_client_id`는 3-A와 공용.
+5. 흐름: `/settings` "Microsoft 계정 연결" → `GET /api/ms/connect`(state HMAC 서명·10분) → `login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize` → `GET /api/ms/callback`(state 검증·세션 사용자 일치 → 코드 교환 → `GET /me` → refresh 토큰 AES-256-GCM 암호화 → `ms_connections` upsert) → `returnTo?ms_connected=1`. 업로드 때마다 refresh로 access 토큰(서버 메모리 5분 캐시) → `GET /shares/{u!base64url(폴더 링크)}/driveItem`, `PUT /drives/{driveId}/items/{itemId}:/{파일명}:/content?@microsoft.graph.conflictBehavior=replace`(4MiB 이상은 `createUploadSession` + 10MiB 청크).
+6. 확인: 연결 후 `GET /api/ms/connection` → `{connected:true, accountUpn, …}`(토큰 없음). 업로드 실패 502 로그의 `request-id`로 Microsoft 지원 문의. `invalid_grant`가 `ms_connections.last_error`에 남으면 사용자가 "다시 연결".
+
 ## 4. 코드 구조
 
 | 파일 | 역할 |
@@ -151,6 +162,10 @@ curl -i -X POST "$TEAMS_DM_WEBHOOK_URL" -H "Content-Type: application/json" -d '
 | `frontend/src/app/api/teams/members/route.ts` | `GET` 그룹 멤버 |
 | `frontend/src/hooks/useProviderSettings.ts` | 클라이언트 provider 조회 |
 | `frontend/src/components/settings/ProviderSettings.tsx`, `TeamsSettings.tsx` | 관리자 UI |
+| `frontend/src/lib/ms/` | 3-C 위임 OAuth — `crypto.ts`(AES-GCM·HMAC state), `oauth.ts`(authorize·토큰 교환/갱신·/me), `config.ts`(settings+env), `origin.ts`(리디렉션 오리진·returnTo), `connections.ts`(ms_connections·access 토큰 캐시), `graph-drive.ts`(shares 해석·업로드) |
+| `frontend/src/app/api/ms/{connect,callback,connection}/route.ts` | 연결 시작·콜백·상태/해제 |
+| `frontend/src/lib/rfp/sharepoint.ts`, `app/api/rfp/projects/[id]/sharepoint/**` | RFP xlsx SharePoint 업로드·폴더 지정·이력(런북 `docs/rfp-analyzer.md`) |
+| `frontend/src/components/settings/MicrosoftAccountCard.tsx`, `components/rfp/SharePointSection.tsx`, `hooks/useMsCallbackQuery.ts` | 개인 설정 카드·상세 섹션·콜백 쿼리 처리 |
 
 ## 5. 알려진 제약
 - Teams 멤버 import는 `user_members`에 이름만 저장한다(`dooray_member_id`는 null). 재-DM 식별은 점심 모달이 Graph에서 이메일을 다시 읽어 해결한다.
