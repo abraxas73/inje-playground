@@ -83,7 +83,7 @@ docs/sql/2026-09-05-rfp-sharepoint.sql
 - `signState(payload)` → `base64url(json) + "." + base64url(hmac)`; `verifyState(token)` — 상수 시간 비교(`timingSafeEqual`), 만기 지나면 `null`.
 - `getAccessTokenForUser(admin, userId, deps)`:
   1. `ms_connections` 행이 없으면 `NotConnectedError`.
-  2. 메모리 캐시(`Map<userId, {token, exp}>`, 만기 60초 전까지 유효, 최대 5분) 히트면 반환.
+  2. 메모리 캐시(`Map<userId, {token, exp}>`, 만기 60초 전까지 유효, 최대 5분) 히트면 반환. 캐시 항목은 행의 connected_at에 묶여 있어 다른 인스턴스에서 재연결(계정 교체)되면 무효가 된다.
   3. `refreshAccessToken({ tenantId, clientId, clientSecret, refreshToken })` → 성공: 캐시 저장, 응답에 새 `refresh_token`이 있으면 재암호화해 교체, `last_used_at=now`, `last_error=null`.
   4. `OAuthError` 코드가 `invalid_grant`·`interaction_required`·`consent_required`면 `last_error`에 코드를 쓰고 `ReconnectRequiredError`. 그 외는 그대로 던진다(라우트가 502).
 - `deleteConnection`은 행 삭제 + 캐시 제거. 연결을 해제해도 이미 올라간 파일·프로젝트의 폴더 설정은 남는다.
@@ -198,7 +198,7 @@ create index if not exists rfp_sharepoint_uploads_project_idx on public.rfp_shar
 | Graph 403 | 403 "이 폴더에 쓸 권한이 없습니다"(업로드) / "이 폴더를 볼 권한이 없습니다"(해석) |
 | Graph 404(폴더 삭제·이동) | 404 "폴더가 없습니다(삭제·이동). 링크를 다시 지정하세요" — 폴더 설정은 그대로 두고 화면에 경고 |
 | Graph 423(파일 잠김) | 409 "파일이 열려 있어 덮어쓸 수 없습니다. 잠시 뒤 다시 시도하세요" |
-| Graph 429·5xx | Retry-After 후 1회 재시도, 그래도 실패 → 502 "SharePoint 응답 오류(NNN)" |
+| Graph 429·503 | Retry-After 후 1회 재시도, 그래도 실패 → 502 "SharePoint 응답 오류(NNN)" |
 | 알림 실패·미설정 | 업로드는 성공, `notified=false`(+`notifyError`) |
 | 토큰 복호화 실패(키 교체 등) | 409 `{code:"reconnect"}` + `last_error="decrypt"` |
 
