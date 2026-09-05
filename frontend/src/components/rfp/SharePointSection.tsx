@@ -96,6 +96,7 @@ export default function SharePointSection({ projectId, projectStatus, initial }:
       setFolderInput("");
       setEditing(false);
       setNotice(`폴더를 지정했습니다: ${folder.name}`);
+      await loadData();
     } finally {
       setBusy(null);
     }
@@ -113,6 +114,7 @@ export default function SharePointSection({ projectId, projectStatus, initial }:
       }
       setData((d) => ({ ...d, folder: null }));
       setEditing(false);
+      await loadData();
     } finally {
       setBusy(null);
     }
