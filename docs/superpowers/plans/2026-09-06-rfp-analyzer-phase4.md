@@ -3141,3 +3141,4 @@ Claude-Session: https://claude.ai/code/session_01HBFSDo2gi4ZcXWhXTHTpWv"
 - 최종 리뷰(opus) 반영: `splitCells`를 `"|"` 분리로 바꿔 빈 셀(`| |`) 행의 열 밀림을 고쳤고 `storageToText` 연동 테스트를 추가했다; `loadCatalog`·어드민 솔루션 목록의 기능 조회를 `selectAll`로 감쌌다(규칙 파서·xlsx는 기능을 수백 건 올릴 수 있음); `isCandidate` 경계·xlsx 다중 시트 합산 테스트 추가.
 - import 라우트의 `ANTHROPIC_API_KEY` 검사는 대상에 confluence 소스가 있을 때만 한다(스펙 §6.1은 "llm이면 검사"). xlsx 소스는 엔진과 무관하게 파서로 읽으므로 xlsx만 있는 가져오기는 키 없이도 202가 맞다.
 - xlsx 파서의 폴백 설명(설명 열 없음)은 이름 열뿐 아니라 **키워드 열도 제외**한다 — 키워드는 `IncomingFeature.keywords`로 따로 들어가 중복을 피한다(스펙 §4.3의 의도적 축소, 코드 주석에 기록).
+- 운영 첫 실행 튜닝(2026-09-07 07:0x): 첫 규칙 매핑이 모든 요구사항에 3개 후보를 채웠고 표본에서 "설정·접근·제어·화면·요약" 같은 범용 키워드가 매칭을 끌었다. `buildFeatureIndex`가 활성 기능의 10%를 넘게 쓰인 키워드를 매칭에서 빼고(`DF_MAX_RATIO 0.1`, 20개 이상일 때), 후보 조건을 `MIN_HIT_WEIGHT 2`(이름 키워드 1개 또는 설명 키워드 2개)·`SIM_THRESHOLD 0.5`로 올렸다(스펙 §5.3 상수 조정 — 스펙은 "상수는 코드에서 조정"으로 열어 두었다).

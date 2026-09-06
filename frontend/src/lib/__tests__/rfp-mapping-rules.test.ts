@@ -45,7 +45,7 @@ describe("scoreFeature", () => {
     expect(d.hitWeight).toBe(0);
     expect(isCandidate(d)).toBe(false);
   });
-  it("키워드가 하나라도 맞으면 후보. 점수 = 0.15×가중치 + 0.7×유사도(소수 2자리)", () => {
+  it("이름 키워드 하나(가중치 2)면 후보. 점수 = 0.15×가중치 + 0.7×유사도(소수 2자리)", () => {
     const d = scoreFeature(r, index[1]);
     expect(d.hits).toEqual(["접근"]);
     expect(d.hitWeight).toBe(2);
@@ -69,12 +69,24 @@ describe("scoreFeature", () => {
 });
 
 describe("isCandidate — 경계", () => {
-  it("히트 0이면 유사도 0.30부터, 히트 가중치 1부터 후보", () => {
+  it("히트 0이면 유사도 0.50부터, 키워드 가중치 2(이름 1개 또는 설명 2개)부터 후보", () => {
     const base = { hits: [] as string[], hitWeight: 0, score: 0 };
-    expect(isCandidate({ ...base, sim: 0.29 })).toBe(false);
+    expect(isCandidate({ ...base, sim: 0.49 })).toBe(false);
     expect(isCandidate({ ...base, sim: RULES.SIM_THRESHOLD })).toBe(true);
-    expect(isCandidate({ hits: ["x"], hitWeight: 1, sim: 0, score: 0.15 })).toBe(true);
+    expect(isCandidate({ hits: ["x"], hitWeight: 1, sim: 0, score: 0.15 })).toBe(false);
+    expect(isCandidate({ hits: ["x", "y"], hitWeight: 2, sim: 0, score: 0.3 })).toBe(true);
     expect(isCandidate({ hits: [], hitWeight: 0, sim: 0, score: 0 })).toBe(false);
+  });
+});
+
+describe("buildFeatureIndex — 흔한 키워드 제거", () => {
+  it("활성 기능 20개 이상이면 10%를 넘게 쓰인 키워드는 매칭 목록에서 빠진다", () => {
+    const features = Array.from({ length: 30 }, (_, i) => feat(`f${i}`, "s", `기능${i}`, "", ["공통어", `고유${i}`]));
+    const idx = buildFeatureIndex([{ code: "s", name: "S", description: "", isActive: true, sortOrder: 1, features }]);
+    expect(idx.every((f) => !f.keywords.includes("공통어"))).toBe(true);
+    expect(idx[3].keywords).toEqual(["고유3"]);
+    const small = buildFeatureIndex([{ code: "s", name: "S", description: "", isActive: true, sortOrder: 1, features: features.slice(0, 5) }]);
+    expect(small[0].keywords).toContain("공통어");
   });
 });
 
@@ -89,12 +101,12 @@ describe("rationaleFor", () => {
 describe("matchRequirement / matchChunk", () => {
   it("후보를 점수순으로 최대 3개, 솔루션당 2개까지 candidate 행으로 낸다", () => {
     const many: CatalogSolution[] = [
-      { code: "s1", name: "S1", description: "", isActive: true, sortOrder: 1, features: ["a1", "a2", "a3", "a4"].map((n) => feat(n, "s1", n, "", ["로그인"])) },
-      { code: "s2", name: "S2", description: "", isActive: true, sortOrder: 2, features: [feat("b1", "s2", "b1", "", ["로그인"])] },
+      { code: "s1", name: "S1", description: "", isActive: true, sortOrder: 1, features: ["a1", "a2", "a3", "a4"].map((n) => feat(n, "s1", `${n} 로그인`, "", ["로그인"])) },
+      { code: "s2", name: "S2", description: "", isActive: true, sortOrder: 2, features: [feat("b1", "s2", "b1 로그인", "", ["로그인"])] },
     ];
     const items = matchRequirement(req("SER-001", "로그인 기능"), buildFeatureIndex(many));
     expect(items.map((i) => i.feature)).toEqual(["a1", "a2", "b1"]);
-    expect(items[0]).toEqual({ reqId: "SER-001", verdict: "candidate", feature: "a1", rationale: "자동 매칭 — 일치 키워드: 로그인 · 유사도 0.00", score: 0.15 });
+    expect(items[0]).toEqual({ reqId: "SER-001", verdict: "candidate", feature: "a1", rationale: "자동 매칭 — 일치 키워드: 로그인 · 유사도 0.00", score: 0.3 });
   });
   it("후보가 없는 요구사항은 행을 내지 않고, 청크는 요구사항 순서대로 이어 붙인다", () => {
     const items = matchChunk([req("SER-001", "통합 인증(SSO) 기능", "한 번 로그인으로 접근"), req("SER-002", "사업 관리 산출물 제출"), req("SER-003", "가상 머신 생성")], index);
