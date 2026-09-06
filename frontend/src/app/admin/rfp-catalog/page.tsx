@@ -48,8 +48,9 @@ export default function RfpCatalogPage() {
         {current ? (
           <div className="min-w-0 space-y-4">
             <SolutionHeader solution={current} onChanged={load} onDeleted={() => { setSelected(null); void load(); }} />
-            <SourceTable key={current.code} solution={current} llmAvailable={llmAvailable} onImported={handleImported} />
-            <FeatureTable key={current.code} solution={current} refreshKey={featureVersion} onChanged={load} />
+            {/* 형제 key가 같으면(둘 다 code) React 재조정이 이전 SourceTable을 지우지 못해 표가 쌓인다 — 접두어로 구분 */}
+            <SourceTable key={`sources-${current.code}`} solution={current} llmAvailable={llmAvailable} onImported={handleImported} />
+            <FeatureTable key={`features-${current.code}`} solution={current} refreshKey={featureVersion} onChanged={load} />
           </div>
         ) : (
           <div className="rounded-lg border p-10 text-center text-sm text-muted-foreground">솔루션을 선택하거나 추가하세요.</div>
