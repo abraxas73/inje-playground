@@ -40,7 +40,7 @@ export default function RfpCatalogPage() {
     <div className="space-y-4">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold"><Layers className="h-5 w-5" />RFP 솔루션 카탈로그</h1>
-        <p className="text-sm text-muted-foreground">솔루션별 기능 목록. Confluence 페이지나 SharePoint xlsx 기능명세서를 등록해 가져오면 규칙(표·제목·키워드)으로 기능과 키워드를 정리하고, ANTHROPIC_API_KEY가 있으면 Claude로 보강할 수 있습니다. 사람이 고친 ✎ 항목은 가져오기가 덮어쓰지 않습니다. RFP 요구사항 매핑이 이 카탈로그를 기준으로 실행됩니다.</p>
+        <p className="text-sm text-muted-foreground">솔루션별 기능 목록. Confluence 페이지나 SharePoint xlsx 기능명세서를 등록해 가져오면 규칙(표·제목·키워드)으로 기능과 키워드를 정리합니다{llmAvailable && ", 필요하면 Claude로 보강할 수 있습니다"}. 사람이 고친 ✎ 항목은 가져오기가 덮어쓰지 않습니다. RFP 요구사항 매핑이 이 카탈로그를 기준으로 실행됩니다.</p>
       </div>
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">

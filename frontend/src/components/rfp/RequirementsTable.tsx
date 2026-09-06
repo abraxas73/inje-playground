@@ -213,6 +213,7 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
                     {row.getIsExpanded() && (
                       <tr className="border-t bg-muted/10">
                         <td colSpan={colCount} className="px-3 py-2">
+                          <RequirementDetails requirement={row.original} />
                           <MappingEditor
                             projectId={projectId}
                             requirement={row.original}
@@ -255,6 +256,33 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+/** 펼친 행 위쪽: 매핑을 확인할 때 요구사항 본문(정의·세부 내용·산출정보·관련 요구사항)을 같이 본다 — 전체 목록 탭에는 이 내용이 열로 없다. 편집은 구분 탭의 셀에서. */
+function RequirementDetails({ requirement }: { requirement: RfpRequirement }) {
+  const fields = ([
+    ["정의", requirement.definition],
+    ["세부 내용", requirement.details],
+    ["산출정보", requirement.deliverables],
+    ["관련 요구사항", requirement.related],
+  ] as [string, string][]).filter(([, v]) => v.trim());
+  return (
+    <div className="mb-3 rounded-lg border bg-background p-3">
+      <div className="mb-2 text-xs font-medium text-muted-foreground">{requirement.reqId} · {requirement.title}</div>
+      {fields.length === 0 ? (
+        <div className="text-sm text-muted-foreground">세부 내용이 없습니다.</div>
+      ) : (
+        <dl className="grid gap-x-4 gap-y-2 text-sm md:grid-cols-[7rem_minmax(0,1fr)]">
+          {fields.map(([label, value]) => (
+            <Fragment key={label}>
+              <dt className="text-xs font-medium text-muted-foreground md:pt-0.5">{label}</dt>
+              <dd className="whitespace-pre-wrap break-words">{value}</dd>
+            </Fragment>
+          ))}
+        </dl>
+      )}
     </div>
   );
 }

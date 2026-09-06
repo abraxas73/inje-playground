@@ -9,7 +9,7 @@ import { STALE_RUNNING_MS, type EngineKind } from "@/lib/rfp/mapping/types";
 import type { MappingMode } from "@/lib/rfp/mapping/run-job";
 import type { RfpProjectDetail } from "@/types/rfp";
 
-/** 실행 다이얼로그: 엔진(규칙 기본 / Claude) + 모드(전체 / 미매핑). 첫 실행에도 다이얼로그를 연다(4단계 스펙 §7.2). */
+/** 실행 다이얼로그: 모드(전체 / 미매핑) + 엔진 선택은 Claude 키가 있을 때만 보인다(없으면 규칙 고정, 사용자 요청으로 숨김). 첫 실행에도 다이얼로그를 연다. */
 export default function MappingRunButton({ project, catalogReady, llmAvailable, onRun }: {
   project: RfpProjectDetail; catalogReady: boolean; llmAvailable: boolean; onRun: (mode: MappingMode, engine: EngineKind) => Promise<void>;
 }) {
@@ -41,13 +41,13 @@ export default function MappingRunButton({ project, catalogReady, llmAvailable, 
     }
   };
 
-  const engineButton = (kind: EngineKind, label: string, desc: string, off = false) => (
+  const engineButton = (kind: EngineKind, label: string, desc: string) => (
     <button
-      type="button" disabled={off || busy} onClick={() => setEngine(kind)} title={off ? "ANTHROPIC_API_KEY 미설정" : undefined}
-      className={cn("flex-1 rounded-md border p-3 text-left text-sm transition-colors", engine === kind ? "border-primary bg-muted/60" : "hover:bg-muted/30", off && "cursor-not-allowed opacity-50")}
+      type="button" disabled={busy} onClick={() => setEngine(kind)}
+      className={cn("flex-1 rounded-md border p-3 text-left text-sm transition-colors", engine === kind ? "border-primary bg-muted/60" : "hover:bg-muted/30")}
     >
       <div className="font-medium">{label}</div>
-      <div className="text-xs text-muted-foreground">{off ? "ANTHROPIC_API_KEY 미설정" : desc}</div>
+      <div className="text-xs text-muted-foreground">{desc}</div>
     </button>
   );
 
@@ -68,13 +68,17 @@ export default function MappingRunButton({ project, catalogReady, llmAvailable, 
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div>
-              <div className="mb-1 text-xs font-medium text-muted-foreground">엔진</div>
-              <div className="flex gap-2">
-                {engineButton("rules", "규칙(키워드) — 기본", "카탈로그 키워드·유사도로 후보를 고릅니다. 키 없이 동작")}
-                {engineButton("llm", "Claude", "Claude가 충족·부분충족·설계·해당없음을 판정합니다", !llmAvailable)}
+            {llmAvailable ? (
+              <div>
+                <div className="mb-1 text-xs font-medium text-muted-foreground">엔진</div>
+                <div className="flex gap-2">
+                  {engineButton("rules", "규칙(키워드) — 기본", "카탈로그 키워드·유사도로 후보를 고릅니다")}
+                  {engineButton("llm", "Claude", "Claude가 충족·부분충족·설계·해당없음을 판정합니다")}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">규칙(키워드) 엔진 — 카탈로그 키워드·유사도로 후보를 고릅니다.</div>
+            )}
             <div className="grid gap-2">
               {hasAny ? (
                 <>

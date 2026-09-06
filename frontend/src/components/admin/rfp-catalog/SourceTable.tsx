@@ -99,9 +99,11 @@ export default function SourceTable({ solution, llmAvailable, onImported }: { so
           <Button size="sm" disabled={busy || running || !sources.length} onClick={() => runImport("rules")}>
             {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}가져오기(규칙)
           </Button>
-          <Button size="sm" variant="outline" disabled={busy || running || !sources.length || !llmAvailable} title={llmAvailable ? "Confluence 소스를 Claude로 다시 읽어 기능 설명을 보강합니다" : "ANTHROPIC_API_KEY 미설정"} onClick={() => runImport("llm")}>
-            <Sparkles className="mr-1 h-4 w-4" />Claude로 보강
-          </Button>
+          {llmAvailable && (
+            <Button size="sm" variant="outline" disabled={busy || running || !sources.length} title="Confluence 소스를 Claude로 다시 읽어 기능 설명을 보강합니다" onClick={() => runImport("llm")}>
+              <Sparkles className="mr-1 h-4 w-4" />Claude로 보강
+            </Button>
+          )}
         </div>
       </div>
       <div className="flex gap-2">
