@@ -2,6 +2,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   encodeShareUrl, resolveFolder, uploadFile, fetchWithRetry, retryDelayMs, GraphError, FolderResolveError, SMALL_UPLOAD_MAX, CHUNK_SIZE, XLSX_MIME,
+  resolveItem, downloadFile, XLSX_SOURCE_MAX_BYTES,
 } from "@/lib/ms/graph-drive";
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
@@ -126,5 +127,58 @@ describe("uploadFile", () => {
     expect(await uploadFile("AT", { ...target, buffer: Buffer.alloc(10) }, fetchImpl, sleep)).toEqual(item);
     expect(sleep).toHaveBeenCalledWith(3000);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("resolveItem", () => {
+  const FILE_URL = "https://innogridoffice.sharepoint.com/:x:/s/PQS/IQCEW08r2rYbTp7-FfwLawrNAdLYSOaZ1qsMG4v-fHsKDvg";
+  const fileItem = { id: "01FILE", name: "DevOpsit_기능명세서_v1.7.xlsx", size: 52340, webUrl: "https://innogridoffice.sharepoint.com/sites/PQS/x.xlsx", file: { mimeType: XLSX_MIME }, parentReference: { driveId: "b!drive" } };
+  it("shares/{enc}/driveItem을 조회해 driveId·itemId·name·size·webUrl", async () => {
+    const fetchImpl = vi.fn(async () => json(200, fileItem));
+    expect(await resolveItem("AT", FILE_URL, fetchImpl, noSleep)).toEqual({ driveId: "b!drive", itemId: "01FILE", name: fileItem.name, size: 52340, webUrl: fileItem.webUrl });
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(`https://graph.microsoft.com/v1.0/shares/${encodeShareUrl(FILE_URL)}/driveItem?$select=id,name,size,file,folder,webUrl,parentReference`);
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer AT");
+  });
+  it("폴더·xlsx 아님·20MiB 초과는 FolderResolveError 400", async () => {
+    await expect(resolveItem("AT", FILE_URL, vi.fn(async () => json(200, { ...fileItem, folder: { childCount: 1 } })), noSleep)).rejects.toMatchObject({ status: 400, message: "폴더 링크입니다. xlsx 파일 링크를 붙여 주세요." });
+    await expect(resolveItem("AT", FILE_URL, vi.fn(async () => json(200, { ...fileItem, name: "a.docx", file: { mimeType: "application/msword" } })), noSleep)).rejects.toMatchObject({ status: 400, message: "xlsx 파일만 등록할 수 있습니다." });
+    await expect(resolveItem("AT", FILE_URL, vi.fn(async () => json(200, { ...fileItem, size: XLSX_SOURCE_MAX_BYTES + 1 })), noSleep)).rejects.toMatchObject({ status: 400, message: "파일이 너무 큽니다(20MB 이하)." });
+  });
+  it("확장자가 xlsx면 mimeType이 달라도 받는다", async () => {
+    const r = await resolveItem("AT", FILE_URL, vi.fn(async () => json(200, { ...fileItem, file: { mimeType: "application/octet-stream" } })), noSleep);
+    expect(r.itemId).toBe("01FILE");
+  });
+  it("404·400은 해석 불가 400, 403은 권한 403, 5xx는 GraphError", async () => {
+    const mk = (status: number) => vi.fn(async () => json(status, { error: { code: "x", message: "y" } }));
+    await expect(resolveItem("AT", FILE_URL, mk(404), noSleep)).rejects.toMatchObject({ status: 400, message: "링크를 해석할 수 없습니다. 파일의 '링크 복사'를 사용하세요." });
+    await expect(resolveItem("AT", FILE_URL, mk(403), noSleep)).rejects.toMatchObject({ status: 403, message: "이 파일을 볼 권한이 없습니다." });
+    await expect(resolveItem("AT", FILE_URL, mk(500), noSleep)).rejects.toBeInstanceOf(GraphError);
+  });
+});
+
+describe("downloadFile", () => {
+  const bytes = new Uint8Array([1, 2, 3, 4]);
+  it("content를 redirect:manual로 부르고 302면 Location을 Authorization 없이 GET", async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { Location: "https://download.example/blob?tempauth=abc" } }))
+      .mockResolvedValueOnce(new Response(bytes, { status: 200 }));
+    const buf = await downloadFile("AT", "b!drive", "01FILE", fetchImpl, noSleep);
+    expect([...buf]).toEqual([1, 2, 3, 4]);
+    const [url1, init1] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url1).toBe("https://graph.microsoft.com/v1.0/drives/b!drive/items/01FILE/content");
+    expect(init1.redirect).toBe("manual");
+    expect((init1.headers as Record<string, string>).Authorization).toBe("Bearer AT");
+    const [url2, init2] = fetchImpl.mock.calls[1] as unknown as [string, RequestInit];
+    expect(url2).toBe("https://download.example/blob?tempauth=abc");
+    expect((init2.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
+  });
+  it("200이 바로 오면 본문을 그대로 쓴다", async () => {
+    const buf = await downloadFile("AT", "b!drive", "01FILE", vi.fn(async () => new Response(bytes, { status: 200 })), noSleep);
+    expect(buf.length).toBe(4);
+  });
+  it("302에 Location이 없거나 최종 응답이 실패면 GraphError", async () => {
+    await expect(downloadFile("AT", "b!drive", "01FILE", vi.fn(async () => new Response(null, { status: 302 })), noSleep)).rejects.toMatchObject({ code: "no_location" });
+    await expect(downloadFile("AT", "b!drive", "01FILE", vi.fn(async () => json(404, { error: { code: "itemNotFound", message: "gone" } })), noSleep)).rejects.toMatchObject({ status: 404, code: "itemNotFound" });
   });
 });
