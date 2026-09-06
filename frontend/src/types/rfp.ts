@@ -134,6 +134,17 @@ export interface RfpAdminSolution {
   sourceCount: number;
   updatedAt: string;
 }
+/** GET /api/admin/rfp-catalog/confluence-search 결과 행 */
+export interface ConfluenceSearchHit {
+  pageId: string;
+  title: string;
+  spaceKey: string | null;
+  spaceName: string | null;
+  /** 전체 페이지 URL — POST …/sources {url}에 그대로 넣는다 */
+  url: string;
+  lastModified: string | null;
+}
+
 /** GET /api/admin/rfp-catalog/solutions */
 export interface RfpAdminSolutionsResponse {
   solutions: RfpAdminSolution[];
