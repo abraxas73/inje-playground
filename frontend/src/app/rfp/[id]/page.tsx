@@ -12,7 +12,7 @@ import MappingSummary, { type VerdictFilter } from "@/components/rfp/MappingSumm
 import SharePointSection from "@/components/rfp/SharePointSection";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toCatalog } from "@/lib/rfp/mapping/client-catalog";
-import type { CatalogSolution } from "@/lib/rfp/mapping/types";
+import type { CatalogSolution, EngineKind } from "@/lib/rfp/mapping/types";
 import type { MappingMode } from "@/lib/rfp/mapping/run-job";
 import type { MappingResponse, RfpCatalogResponse, RfpProjectDetail, StatusResponse } from "@/types/rfp";
 
@@ -25,6 +25,7 @@ export default function RfpProjectPage() {
   const { isAdmin } = useUserRole();
   const [project, setProject] = useState<RfpProjectDetail | null>(null);
   const [catalog, setCatalog] = useState<CatalogSolution[]>([]);
+  const [llmAvailable, setLlmAvailable] = useState(false);
   const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -52,7 +53,10 @@ export default function RfpProjectPage() {
   }, [load]);
   useEffect(() => {
     fetch("/api/users/role").then((r) => r.json()).then((j: { userId?: string }) => setMe(j.userId ?? null)).catch(() => undefined);
-    fetch("/api/rfp/catalog").then(async (r) => (r.ok ? toCatalog((await r.json()) as RfpCatalogResponse) : [])).then(setCatalog).catch(() => setCatalog([]));
+    fetch("/api/rfp/catalog")
+      .then(async (r) => (r.ok ? ((await r.json()) as RfpCatalogResponse) : null))
+      .then((res) => { setCatalog(res ? toCatalog(res) : []); setLlmAvailable(res?.llmAvailable === true); })
+      .catch(() => { setCatalog([]); setLlmAvailable(false); });
   }, []);
 
   // 추출 중이거나 매핑 중이면 상태만 폴링, 끝나면 재조회(추출은 전체, 매핑은 매핑만)
@@ -92,17 +96,17 @@ export default function RfpProjectPage() {
     await load();
   };
 
-  const runMapping = async (mode: MappingMode) => {
+  const runMapping = async (mode: MappingMode, engine: EngineKind) => {
     setNotice(null);
     setError(null);
     const post = (body: object) => fetch(`/api/rfp/projects/${id}/mapping`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    let res = await post({ mode });
+    let res = await post({ mode, engine });
     if (res.status === 409) {
       const j = (await res.json()) as { needsConfirm?: boolean; editedRequirements?: number; running?: boolean; error?: string };
       if (j.running) { setNotice(j.error ?? "이미 매핑 중입니다."); await loadMappings(); return; }
       if (!j.needsConfirm) { setError(j.error ?? "매핑을 시작할 수 없습니다."); return; }
       if (!window.confirm(`사람이 고친 매핑이 있는 요구사항 ${j.editedRequirements}건은 건너뛰고 나머지를 다시 매핑합니다. 계속할까요?`)) return;
-      res = await post({ mode, confirm: true });
+      res = await post({ mode, engine, confirm: true });
     }
     if (!res.ok) { setError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "매핑 요청에 실패했습니다."); return; }
     stuckRef.current = false;
@@ -134,6 +138,7 @@ export default function RfpProjectPage() {
         project={project}
         canDelete={isAdmin || (me !== null && me === project.createdBy.id)}
         catalogReady={catalogReady}
+        llmAvailable={llmAvailable}
         onPatched={(patch) => setProject((p) => (p ? { ...p, ...patch } : p))}
         onReextract={reextract}
         onRunMapping={runMapping}
