@@ -63,4 +63,19 @@ describe("parseXlsxFeatures", () => {
     expect(r.sheets).toBe(2);
     expect(r.warnings).toEqual([]);
   });
+  it("결과가 없는 수식 셀·날짜·하이퍼링크 셀이 있어도 예외 없이 읽는다", async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("S");
+    ws.getRow(1).values = ["기능명", "설명", "비고"];
+    ws.getCell("A2").value = { formula: "B9", result: null as unknown as undefined };
+    ws.getCell("B2").value = "수식 이름";
+    ws.getCell("A3").value = "일정 관리";
+    ws.getCell("B3").value = { text: "링크 설명", hyperlink: "https://example.com" };
+    ws.getCell("C3").value = new Date("2026-09-07T00:00:00Z");
+    ws.getCell("A4").value = { formula: "A3", result: "수식 결과" };
+    ws.getCell("B4").value = "결과 있는 수식";
+    const r = await parseXlsxFeatures(await toBuffer(wb));
+    expect(r.features.map((f) => f.name)).toEqual(["일정 관리", "수식 결과"]);
+    expect(r.features[0].description).toBe("링크 설명");
+  });
 });
