@@ -9,7 +9,13 @@ import type { CatalogSolution, EngineItem } from "./types";
 export const RULES = {
   HIT_WEIGHT: 0.15,
   SIM_WEIGHT: 0.7,
-  SIM_THRESHOLD: 0.3,
+  /** 키워드 히트가 없을 때 유사도만으로 후보가 되는 하한(운영 튜닝 2026-09-07: 0.3 → 0.5) */
+  SIM_THRESHOLD: 0.5,
+  /** 후보가 되는 최소 키워드 가중치 — 이름 키워드 1개 또는 설명 키워드 2개(운영 튜닝: 1 → 2) */
+  MIN_HIT_WEIGHT: 2,
+  /** 활성 기능의 이 비율을 넘게 쓰인 키워드는 변별력이 없어 매칭에서 뺀다(카탈로그가 DF_MIN_FEATURES 이상일 때) */
+  DF_MAX_RATIO: 0.1,
+  DF_MIN_FEATURES: 20,
   /** 기능 bigram이 이보다 적으면 유사도를 0으로 본다(이름만 있는 짧은 기능이 우연히 맞는 것 방지) */
   MIN_FEATURE_BIGRAMS: 6,
   TOP_PER_REQ: 3,
@@ -34,7 +40,10 @@ export interface FeatureEntry {
   bigrams: Set<string>;
 }
 
-/** 활성 솔루션의 활성 기능만. 키워드는 저장값이 이미 정규화돼 있지만 방어적으로 한 번 더 정규화한다. */
+/**
+ * 활성 솔루션의 활성 기능만. 키워드는 저장값이 이미 정규화돼 있지만 방어적으로 한 번 더 정규화한다.
+ * 카탈로그 전체에서 너무 흔한 키워드(활성 기능의 DF_MAX_RATIO 초과)는 변별력이 없어 매칭 목록에서 뺀다 — "설정·접근·화면"처럼 모든 요구사항에 걸리는 단어가 후보를 채우는 것을 막는다.
+ */
 export function buildFeatureIndex(catalog: CatalogSolution[]): FeatureEntry[] {
   const out: FeatureEntry[] = [];
   for (const s of catalog) {
@@ -45,11 +54,17 @@ export function buildFeatureIndex(catalog: CatalogSolution[]): FeatureEntry[] {
         featureId: f.id,
         solutionCode: s.code,
         name: f.name,
-        keywords: f.keywords.map((k) => normalizeText(k)).filter(Boolean),
+        keywords: [...new Set(f.keywords.map((k) => normalizeText(k)).filter(Boolean))],
         nameTokens: new Set(tokenize(f.name)),
         bigrams: charBigrams(`${f.name} ${f.description}`),
       });
     }
+  }
+  if (out.length >= RULES.DF_MIN_FEATURES) {
+    const df = new Map<string, number>();
+    for (const f of out) for (const k of f.keywords) df.set(k, (df.get(k) ?? 0) + 1);
+    const max = out.length * RULES.DF_MAX_RATIO;
+    for (const f of out) f.keywords = f.keywords.filter((k) => (df.get(k) ?? 0) <= max);
   }
   return out;
 }
@@ -94,7 +109,7 @@ export function scoreFeature(req: RequirementText, f: FeatureEntry): ScoreDetail
 }
 
 export function isCandidate(d: ScoreDetail): boolean {
-  return d.hitWeight >= 1 || d.sim >= RULES.SIM_THRESHOLD;
+  return d.hitWeight >= RULES.MIN_HIT_WEIGHT || d.sim >= RULES.SIM_THRESHOLD;
 }
 
 export function rationaleFor(d: ScoreDetail): string {
