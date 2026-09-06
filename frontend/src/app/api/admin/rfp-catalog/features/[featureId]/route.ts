@@ -3,11 +3,12 @@ import { adminClientOr500, requireAdmin } from "@/lib/claude-usage/require-admin
 import { FEATURE_COLUMNS, mapAdminFeature, type FeatureDbRow } from "@/lib/rfp/catalog/store";
 import { FEATURE_NAME_MAX, normalizeFeatureName } from "@/lib/rfp/catalog/merge-features";
 import { normalizeHttpUrl } from "@/lib/rfp/url";
+import { parseKeywordInput, seedKeywords } from "@/lib/rfp/catalog/keywords";
 
 export const runtime = "nodejs";
 type Params = { params: Promise<{ featureId: string }> };
 
-/** PATCH /api/admin/rfp-catalog/features/[featureId] {name?, description?, evidenceUrl?, isActive?, sortOrder?} — 어떤 필드든 바꾸면 edited=true */
+/** PATCH /api/admin/rfp-catalog/features/[featureId] {name?, description?, evidenceUrl?, isActive?, sortOrder?, keywords?: string[] | null} — 어떤 필드든 바꾸면 edited=true. keywords null은 이름·설명에서 다시 시드(4단계 §6.1) */
 export async function PATCH(request: NextRequest, { params }: Params) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
@@ -41,7 +42,19 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     if (typeof body.sortOrder !== "number" || !Number.isInteger(body.sortOrder)) return NextResponse.json({ error: "sortOrder는 정수여야 합니다." }, { status: 400 });
     patch.sort_order = body.sortOrder;
   }
-  if (Object.keys(patch).length === 2) return NextResponse.json({ error: "바꿀 필드가 없습니다." }, { status: 400 });
+  let reseed = false;
+  if ("keywords" in body) {
+    if (body.keywords === null) reseed = true;
+    else if (Array.isArray(body.keywords) && body.keywords.every((k): k is string => typeof k === "string")) patch.keywords = parseKeywordInput(body.keywords.join(","));
+    else return NextResponse.json({ error: "keywords는 문자열 배열 또는 null입니다." }, { status: 400 });
+  }
+  if (Object.keys(patch).length === 2 && !reseed) return NextResponse.json({ error: "바꿀 필드가 없습니다." }, { status: 400 });
+  if (reseed) {
+    const { data: cur, error: curError } = await a.admin.from("rfp_solution_features").select("name, description").eq("id", featureId).maybeSingle();
+    if (curError) return NextResponse.json({ error: curError.message }, { status: 500 });
+    if (!cur) return NextResponse.json({ error: "기능이 없습니다." }, { status: 404 });
+    patch.keywords = seedKeywords((patch.name as string | undefined) ?? (cur.name as string), (patch.description as string | undefined) ?? (cur.description as string));
+  }
   const { data, error } = await a.admin.from("rfp_solution_features").update(patch).eq("id", featureId).select(FEATURE_COLUMNS).maybeSingle();
   if (error) {
     if (error.code === "23505") return NextResponse.json({ error: "같은 이름의 기능이 이미 있습니다." }, { status: 409 });

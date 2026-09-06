@@ -43,13 +43,17 @@ describe("mergeFeatures", () => {
       { name: "감사로그", description: "덮어쓰기 시도" },
       { name: "백업", description: "신규" },
     ]);
-    expect(plan.toInsert).toEqual([{ name: "백업", nameNorm: "백업", description: "신규" }]);
-    expect(plan.toUpdate).toEqual([{ id: "f1", description: "새 설명" }]);
+    expect(plan.toInsert).toEqual([{ name: "백업", nameNorm: "백업", description: "신규", keywords: ["백업", "신규"] }]);
+    expect(plan.toUpdate).toEqual([{ id: "f1", description: "새 설명", keywords: ["sso", "설명"] }]);
     expect(plan.skippedEdited).toEqual(["감사 로그"]);
   });
   it("들어온 목록 안의 중복은 한 번만 처리하고, 빈 이름은 건너뛴다", () => {
     const plan = mergeFeatures([], [{ name: "A", description: "1" }, { name: "a", description: "2" }, { name: "  ", description: "3" }]);
     expect(plan.toInsert).toHaveLength(1);
     expect(plan.toInsert[0].description).toBe("1");
+  });
+  it("incoming.keywords는 시드의 extra로 들어간다", () => {
+    const plan = mergeFeatures([], [{ name: "SSO 로그인", description: "통합 인증", keywords: ["Single Sign-On"] }]);
+    expect(plan.toInsert[0].keywords).toEqual(["sso", "로그인", "통합", "인증", "single sign-on"]);
   });
 });

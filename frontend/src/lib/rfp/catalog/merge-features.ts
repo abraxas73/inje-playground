@@ -1,4 +1,5 @@
 import { normalizeName } from "../overview";
+import { seedKeywords } from "./keywords";
 
 /** LLM 출력·수동 입력 모두 이 길이로 자른다 */
 export const FEATURE_NAME_MAX = 40;
@@ -23,8 +24,8 @@ export interface ExistingFeature {
 }
 
 export interface MergePlan {
-  toInsert: { name: string; nameNorm: string; description: string }[];
-  toUpdate: { id: string; description: string }[];
+  toInsert: { name: string; nameNorm: string; description: string; keywords: string[] }[];
+  toUpdate: { id: string; description: string; keywords: string[] }[];
   /** 사람이 고쳐서 건너뛴 기존 기능의 이름 */
   skippedEdited: string[];
 }
@@ -56,6 +57,7 @@ export function dedupeIncoming(features: IncomingFeature[]): IncomingFeature[] {
 /**
  * 스펙 §3.2 병합 규칙. 기존에 있고 edited=false → 설명 갱신, edited=true → 건너뜀, 없으면 추가.
  * 이번 결과에 없는 기존 기능은 지우지 않는다(어드민이 비활성화).
+ * 키워드는 이름·설명(+incoming.keywords)에서 시드한다(edited 기능은 건너뛰므로 키워드도 보존 — 4단계 §4.5).
  */
 export function mergeFeatures(existing: ExistingFeature[], incoming: IncomingFeature[]): MergePlan {
   const byNorm = new Map(existing.map((f) => [f.nameNorm, f]));
@@ -66,9 +68,10 @@ export function mergeFeatures(existing: ExistingFeature[], incoming: IncomingFea
     if (!f || seen.has(f.nameNorm)) continue;
     seen.add(f.nameNorm);
     const cur = byNorm.get(f.nameNorm);
-    if (!cur) plan.toInsert.push(f);
+    const keywords = seedKeywords(f.name, f.description, raw.keywords ?? []);
+    if (!cur) plan.toInsert.push({ ...f, keywords });
     else if (cur.edited) plan.skippedEdited.push(cur.name);
-    else plan.toUpdate.push({ id: cur.id, description: f.description });
+    else plan.toUpdate.push({ id: cur.id, description: f.description, keywords });
   }
   return plan;
 }
