@@ -1,13 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sortRequirements } from "../requirements";
-import { LlmUnavailableError } from "../extract-llm";
 import { loadCatalog } from "../catalog/store";
-import type { MappingRow } from "./types";
-import { buildCatalogPrompt, buildChunkMessage } from "./prompt";
+import type { EngineKind, MappingRow } from "./types";
 import { chunkRequirements, type ChunkRequirement } from "./chunk";
 import { validateMappingOutput } from "./validate";
 import { indexCatalog } from "./summary";
-import { createAnthropicMappingCall, type MappingCall } from "./llm";
+import { ENGINE_FACTORIES, LlmUnavailableError, type EngineFactory, type EngineSetup } from "./engine";
 import { selectAll } from "../../work-metrics/common";
 
 export type MappingMode = "all" | "missing";
@@ -79,16 +77,16 @@ interface ReqRow {
   sort_order: number;
 }
 
-export interface MappingDeps {
-  makeCall: (catalogText: string) => MappingCall;
+export interface RunDeps {
+  factories: Record<EngineKind, EngineFactory>;
 }
-const DEFAULT_DEPS: MappingDeps = { makeCall: (t) => createAnthropicMappingCall(t) };
+const DEFAULT_DEPS: RunDeps = { factories: ENGINE_FACTORIES };
 
 /**
- * 스펙 §4.3 잡. 카탈로그 → 대상 선정 → 20건 청크(동시 3) → 검증 → 청크마다 즉시 저장(edited 행 보존) → ready|failed.
+ * 2단계 §4.3 + 4단계 §5.4 잡. 카탈로그 → 엔진(rules|llm, 팩토리 주입) → 대상 선정 → 20건 청크(동시 3) → 검증 → 청크마다 즉시 저장(edited 행 보존, engine·score 기록) → ready|failed.
  * 어떤 경우에도 mapping_status를 running으로 남기지 않는다.
  */
-export async function runMapping(admin: SupabaseClient, projectId: string, mode: MappingMode, deps: MappingDeps = DEFAULT_DEPS): Promise<void> {
+export async function runMapping(admin: SupabaseClient, projectId: string, mode: MappingMode, engine: EngineKind, deps: RunDeps = DEFAULT_DEPS): Promise<void> {
   // supabase-js는 DB 오류를 throw하지 않고 error로 돌려준다. 종료 상태 갱신이 실패하면 running으로 남으므로 반드시 검사한다(Task 6 리뷰 지적과 같은 규칙).
   const fail = async (message: string) => {
     const { error } = await admin.from("rfp_projects").update({ mapping_status: "failed", mapping_error: message.slice(0, 500) }).eq("id", projectId);
@@ -103,8 +101,14 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
   };
   try {
     const catalog = await loadCatalog(admin, { activeSolutionsOnly: true });
-    const { systemText, aliases } = buildCatalogPrompt(catalog);
-    if (!aliases.features.size) return await fail("카탈로그가 비어 있습니다. 관리자에게 문의하세요.");
+    let setup: EngineSetup;
+    try {
+      setup = deps.factories[engine](catalog);
+    } catch (e) {
+      if (e instanceof LlmUnavailableError) return await fail(e.message);
+      throw e;
+    }
+    if (!setup.lookup.size) return await fail("카탈로그가 비어 있습니다. 관리자에게 문의하세요.");
     const index = indexCatalog(catalog);
 
     const [reqRes, mapRes] = await Promise.all([
@@ -126,17 +130,9 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
       sorted.map<ChunkRequirement>((r) => ({ id: r.id, reqId: r.req_id, title: r.title, categoryName: r.category_name, definition: r.definition, details: r.details })),
     );
 
-    let call: MappingCall;
-    try {
-      call = deps.makeCall(systemText);
-    } catch (e) {
-      if (e instanceof LlmUnavailableError) return await fail(e.message);
-      throw e;
-    }
-
     const results = await runWithConcurrency(chunks, CONCURRENCY, async (chunk): Promise<ChunkOutcome> => {
-      const out = await call(buildChunkMessage(chunk));
-      const v = validateMappingOutput(out.mappings, chunk, aliases);
+      const items = await setup.run(chunk);
+      const v = validateMappingOutput(items, chunk, setup.lookup);
       const ids = chunk.map((r) => r.id);
       const { error: de } = await admin.from("rfp_requirement_mappings").delete().eq("project_id", projectId).eq("edited", false).in("requirement_id", ids);
       if (de) throw new Error(de.message);
@@ -145,6 +141,7 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
           v.rows.map((r) => ({
             project_id: projectId, requirement_id: r.requirementId, solution_code: r.solutionCode, feature_id: r.featureId, verdict: r.verdict,
             rationale: r.rationale, evidence_url: r.featureId ? (index.feature.get(r.featureId)?.evidenceUrl ?? null) : null, edited: false, sort_order: r.sortOrder,
+            engine, score: r.score,
           })),
         );
         if (ie) throw new Error(ie.message);

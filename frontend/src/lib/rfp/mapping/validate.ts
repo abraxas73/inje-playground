@@ -1,16 +1,7 @@
-import { isVerdict, requiresFeature, type CatalogSolution, type MappingRow, type Verdict } from "./types";
-import type { CatalogAliases } from "./prompt";
+import { isVerdict, requiresFeature, type CatalogSolution, type EngineItem, type FeatureLookup, type MappingRow, type Verdict } from "./types";
 import type { ChunkRequirement } from "./chunk";
 
 export const MAX_ROWS_PER_REQUIREMENT = 5;
-
-/** LLM 출력 한 행(별칭 상태) */
-export interface LlmMappingItem {
-  reqId: string;
-  verdict: Verdict;
-  feature: string | null;
-  rationale: string;
-}
 
 /** 검증을 통과해 DB에 넣을 행 */
 export interface ValidatedRow {
@@ -19,6 +10,8 @@ export interface ValidatedRow {
   featureId: string | null;
   verdict: Verdict;
   rationale: string;
+  /** 규칙 엔진 점수 0~1(범위 밖·없음은 null) */
+  score: number | null;
   sortOrder: number;
 }
 
@@ -34,10 +27,11 @@ interface Candidate {
   solutionCode: string | null;
   featureId: string | null;
   rationale: string;
+  score: number | null;
 }
 
-/** 스펙 §4.3 검증 1~6. 순수 함수. */
-export function validateMappingOutput(items: LlmMappingItem[], chunk: readonly ChunkRequirement[], aliases: CatalogAliases): ValidationResult {
+/** 2단계 스펙 §4.3 검증 1~6 + 4단계 §5.4(FeatureLookup·score). 순수 함수. lookup 키는 llm 별칭("F3") 또는 규칙 기능 id — 대소문자 정리는 엔진이 한다. */
+export function validateMappingOutput(items: EngineItem[], chunk: readonly ChunkRequirement[], lookup: FeatureLookup): ValidationResult {
   const byReqId = new Map(chunk.map((r) => [r.reqId.replace(/\s+/g, "").toUpperCase(), r]));
   const warnings: string[] = [];
   const unmapped: string[] = [];
@@ -56,7 +50,7 @@ export function validateMappingOutput(items: LlmMappingItem[], chunk: readonly C
     let solutionCode: string | null = null;
     let featureId: string | null = null;
     if (requiresFeature(it.verdict)) {
-      const f = it.feature ? aliases.features.get(it.feature.trim().toUpperCase()) : undefined;
+      const f = it.feature ? lookup.get(it.feature.trim()) : undefined;
       if (!f) {
         warnings.push(`${req.reqId}: 기능 별칭 불명 ${it.feature ?? "null"}`);
         continue;
@@ -66,7 +60,7 @@ export function validateMappingOutput(items: LlmMappingItem[], chunk: readonly C
     }
     // build/na에 feature가 붙어 있으면 feature만 버리고 행은 유지(규칙 3)
     const list = cands.get(req.id) ?? [];
-    list.push({ verdict: it.verdict, solutionCode, featureId, rationale: it.rationale.trim() });
+    list.push({ verdict: it.verdict, solutionCode, featureId, rationale: it.rationale.trim(), score: typeof it.score === "number" && it.score >= 0 && it.score <= 1 ? it.score : null });
     cands.set(req.id, list);
   }
 
@@ -95,7 +89,7 @@ export function validateMappingOutput(items: LlmMappingItem[], chunk: readonly C
       warnings.push(`${req.reqId}: 매핑 결과 없음`);
       continue;
     }
-    list.forEach((c, i) => rows.push({ requirementId: req.id, solutionCode: c.solutionCode, featureId: c.featureId, verdict: c.verdict, rationale: c.rationale, sortOrder: i }));
+    list.forEach((c, i) => rows.push({ requirementId: req.id, solutionCode: c.solutionCode, featureId: c.featureId, verdict: c.verdict, rationale: c.rationale, score: c.score, sortOrder: i }));
   }
   return { rows, warnings, unmapped };
 }

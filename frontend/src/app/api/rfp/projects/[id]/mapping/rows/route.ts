@@ -42,7 +42,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     .from("rfp_requirement_mappings")
     .insert({
       project_id: id, requirement_id: req.id, solution_code: check.solutionCode, feature_id: check.featureId, verdict: check.verdict,
-      rationale, evidence_url: evidenceUrl, edited: true, sort_order: sortOrder, updated_by: auth.userId,
+      rationale, evidence_url: evidenceUrl, edited: true, sort_order: sortOrder, engine: "manual", score: null, updated_by: auth.userId,
     })
     .select(MAPPING_COLUMNS)
     .single();
