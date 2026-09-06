@@ -40,7 +40,7 @@ export function storageToText(xhtml: string): string {
     return `\n| ${cells.join(" | ")} |\n`;
   });
   // 3. 블록 요소 → 줄바꿈·접두. 줄바꿈은 넉넉히 넣고 4단계에서 빈 줄을 모두 지운다(LLM 입력이라 단락 간 빈 줄은 필요 없다).
-  s = s.replace(/<h[1-6]\b[^>]*>/gi, "\n# ").replace(/<\/h[1-6]>/gi, "\n");
+  s = s.replace(/<h([1-6])\b[^>]*>/gi, (_m, level: string) => `\n${"#".repeat(Number(level))} `).replace(/<\/h[1-6]>/gi, "\n");
   s = s.replace(/<li\b[^>]*>/gi, "\n- ").replace(/<\/li>/gi, "\n");
   s = s.replace(/<br\s*\/?>/gi, "\n");
   s = s.replace(new RegExp(`<\\/?(${BLOCK})\\b[^>]*>`, "gi"), "\n");
