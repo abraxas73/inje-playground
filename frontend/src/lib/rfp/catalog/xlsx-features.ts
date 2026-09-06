@@ -65,6 +65,7 @@ export async function parseXlsxFeatures(buffer: Buffer): Promise<XlsxParseResult
       let description = "";
       if (descCol > 0) description = cellText(row.getCell(descCol));
       else {
+        // 키워드 열은 IncomingFeature.keywords로 따로 들어가므로 설명에 중복시키지 않는다(스펙 §4.3 "이름 열을 뺀 나머지"의 의도적 축소)
         const parts: string[] = [];
         row.eachCell({ includeEmpty: false }, (cell, col) => {
           if (col === nameCol || col === kwCol) return;

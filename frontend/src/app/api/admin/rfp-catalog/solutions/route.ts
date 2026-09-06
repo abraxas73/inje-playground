@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminClientOr500, requireAdmin } from "@/lib/claude-usage/require-admin";
 import { SOLUTION_CODE_RE, SOLUTION_COLUMNS, mapAdminSolution, type SolutionDbRow } from "@/lib/rfp/catalog/store";
 import type { RfpAdminSolutionsResponse } from "@/types/rfp";
+import { selectAll } from "@/lib/work-metrics/common";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,7 @@ export async function GET() {
   if (!a.ok) return a.response;
   const [sols, feats, srcs] = await Promise.all([
     a.admin.from("rfp_solutions").select(SOLUTION_COLUMNS).order("sort_order").order("code"),
-    a.admin.from("rfp_solution_features").select("solution_code, is_active"),
+    selectAll<{ solution_code: string; is_active: boolean }>(() => a.admin.from("rfp_solution_features").select("solution_code, is_active", { count: "exact" }).order("id")),
     a.admin.from("rfp_solution_sources").select("solution_code"),
   ]);
   for (const r of [sols, feats, srcs]) if (r.error) return NextResponse.json({ error: r.error.message }, { status: 500 });
@@ -25,7 +26,7 @@ export async function GET() {
     if (!c) { c = { total: 0, active: 0, sources: 0 }; counts.set(code, c); }
     return c;
   };
-  for (const f of (feats.data ?? []) as { solution_code: string; is_active: boolean }[]) {
+  for (const f of feats.data ?? []) {
     const c = bump(f.solution_code);
     c.total += 1;
     if (f.is_active) c.active += 1;

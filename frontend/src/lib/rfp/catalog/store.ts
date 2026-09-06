@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CatalogFeature, CatalogSolution } from "../mapping/types";
 import type { RfpAdminFeature, RfpAdminSolution, RfpImportStatus, RfpSolutionSource, RfpSourceKind } from "@/types/rfp";
+import { selectAll } from "@/lib/work-metrics/common";
 
 export const SOLUTION_CODE_RE = /^[a-z0-9-]{2,30}$/;
 
@@ -77,19 +78,19 @@ export function mapAdminFeature(row: FeatureDbRow, mappingCount: number): RfpAdm
 
 /**
  * 카탈로그 전체. 기능은 비활성 포함(매핑이 참조하는 이름을 그려야 함) — 활성만 필요하면 호출 쪽에서 거른다.
- * 솔루션 수 개 × 기능 수십 개라 Supabase 1000행 상한에 걸리지 않는다.
+ * 4단계 규칙 파서·xlsx 기능명세서는 기능을 수백 건씩 올릴 수 있어 기능 조회는 selectAll로 1000행 상한을 넘어 읽는다.
  */
 export async function loadCatalog(admin: SupabaseClient, opts: { activeSolutionsOnly?: boolean } = {}): Promise<CatalogSolution[]> {
   const base = admin.from("rfp_solutions").select(SOLUTION_COLUMNS);
   const solutionsQuery = (opts.activeSolutionsOnly ? base.eq("is_active", true) : base).order("sort_order").order("code");
   const [sols, feats] = await Promise.all([
     solutionsQuery,
-    admin.from("rfp_solution_features").select(FEATURE_COLUMNS).order("sort_order").order("name"),
+    selectAll<FeatureDbRow>(() => admin.from("rfp_solution_features").select(FEATURE_COLUMNS, { count: "exact" }).order("sort_order").order("name").order("id")),
   ]);
   if (sols.error) throw new Error(sols.error.message);
   if (feats.error) throw new Error(feats.error.message);
   const byCode = new Map<string, CatalogFeature[]>();
-  for (const f of (feats.data ?? []) as FeatureDbRow[]) {
+  for (const f of feats.data) {
     const list = byCode.get(f.solution_code) ?? [];
     list.push(mapFeature(f));
     byCode.set(f.solution_code, list);

@@ -41,8 +41,9 @@ export interface RulesExtractResult {
   stats: { tables: number; headings: number; bullets: number };
 }
 
+/** storageToText는 연속 공백을 하나로 줄이므로 빈 셀은 "| |"로 온다 — 파이프 자체로 자른다(셀 안 "|"는 스펙 §4.2대로 미지원). */
 function splitCells(line: string): string[] {
-  return line.slice(1, -1).split(" | ").map((c) => c.trim());
+  return line.slice(1, -1).split("|").map((c) => c.trim());
 }
 
 function pickNameColumn(header: string[]): number {

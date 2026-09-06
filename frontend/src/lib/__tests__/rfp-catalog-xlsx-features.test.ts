@@ -50,4 +50,17 @@ describe("parseXlsxFeatures", () => {
     expect(r.sheets).toBe(0);
     expect(r.warnings).toEqual(["시트 빈 시트: 기능 열을 찾지 못했습니다.", "파일에서 기능을 찾지 못했습니다."]);
   });
+  it("여러 시트의 기능을 합산하고 sheets는 헤더를 찾은 시트 수", async () => {
+    const wb = new ExcelJS.Workbook();
+    const a = wb.addWorksheet("A");
+    a.getRow(1).values = ["기능명", "설명"];
+    a.getRow(2).values = ["백업", "일 1회"];
+    const b = wb.addWorksheet("B");
+    b.getRow(2).values = ["Feature", "Description"];
+    b.getRow(3).values = ["복구", "시점 복구"];
+    const r = await parseXlsxFeatures(await toBuffer(wb));
+    expect(r.features).toEqual([{ name: "백업", description: "일 1회" }, { name: "복구", description: "시점 복구" }]);
+    expect(r.sheets).toBe(2);
+    expect(r.warnings).toEqual([]);
+  });
 });

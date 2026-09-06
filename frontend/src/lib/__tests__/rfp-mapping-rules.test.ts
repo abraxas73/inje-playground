@@ -68,6 +68,16 @@ describe("scoreFeature", () => {
   });
 });
 
+describe("isCandidate — 경계", () => {
+  it("히트 0이면 유사도 0.30부터, 히트 가중치 1부터 후보", () => {
+    const base = { hits: [] as string[], hitWeight: 0, score: 0 };
+    expect(isCandidate({ ...base, sim: 0.29 })).toBe(false);
+    expect(isCandidate({ ...base, sim: RULES.SIM_THRESHOLD })).toBe(true);
+    expect(isCandidate({ hits: ["x"], hitWeight: 1, sim: 0, score: 0.15 })).toBe(true);
+    expect(isCandidate({ hits: [], hitWeight: 0, sim: 0, score: 0 })).toBe(false);
+  });
+});
+
 describe("rationaleFor", () => {
   it("키워드가 있으면 목록(최대 5개)+유사도, 없으면 유사도만", () => {
     expect(rationaleFor({ hits: ["sso", "로그인"], hitWeight: 4, sim: 0.4237, score: 1 })).toBe("자동 매칭 — 일치 키워드: sso, 로그인 · 유사도 0.42");

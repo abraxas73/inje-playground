@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { extractFeaturesByRules, isCodeOnly, rulesNote, HEADING_DESC_MAX } from "@/lib/rfp/catalog/extract-rules";
+import { storageToText } from "@/lib/rfp/catalog/storage-text";
 
 describe("isCodeOnly", () => {
   it("코드·번호만인 문자열", () => {
@@ -37,6 +38,23 @@ describe("extractFeaturesByRules — 표", () => {
   it("1열 표는 이름만, 60자 초과 이름은 문장으로 보고 건너뛴다", () => {
     const long = "가".repeat(61);
     expect(extractFeaturesByRules(`| 기능 |\n| 백업 |\n| ${long} |`).features).toEqual([{ name: "백업", description: "" }]);
+  });
+});
+
+describe("extractFeaturesByRules — storageToText 연동", () => {
+  it("빈 셀(<td></td>)이 있는 행도 열이 밀리지 않는다(storageToText는 연속 공백을 하나로 줄인다)", () => {
+    const xhtml = `<table><tbody>
+      <tr><th>대분류</th><th>중분류</th><th>기능명</th><th>설명</th></tr>
+      <tr><td>계정</td><td></td><td>SSO 로그인</td><td>통합 인증</td></tr>
+      <tr><td></td><td>권한</td><td>역할 관리</td><td></td></tr>
+    </tbody></table><h2>3. 감사</h2><p>감사 로그 조회</p>`;
+    const text = storageToText(xhtml);
+    expect(text.split("\n")[1]).toBe("| 계정 | | SSO 로그인 | 통합 인증 |");
+    expect(extractFeaturesByRules(text).features).toEqual([
+      { name: "SSO 로그인", description: "계정 · 통합 인증" },
+      { name: "역할 관리", description: "권한" },
+      { name: "감사", description: "감사 로그 조회" },
+    ]);
   });
 });
 
