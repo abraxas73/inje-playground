@@ -3,6 +3,7 @@ import { adminClientOr500, requireAdmin } from "@/lib/claude-usage/require-admin
 import { FEATURE_COLUMNS, mapAdminFeature, type FeatureDbRow } from "@/lib/rfp/catalog/store";
 import { FEATURE_NAME_MAX, normalizeFeatureName } from "@/lib/rfp/catalog/merge-features";
 import { normalizeHttpUrl } from "@/lib/rfp/url";
+import { parseKeywordInput, seedKeywords } from "@/lib/rfp/catalog/keywords";
 import { selectAll } from "@/lib/work-metrics/common";
 
 export const runtime = "nodejs";
@@ -26,14 +27,14 @@ export async function GET(_request: NextRequest, { params }: Params) {
   return NextResponse.json({ features: ((feats.data ?? []) as FeatureDbRow[]).map((f) => mapAdminFeature(f, counts.get(f.id) ?? 0)) });
 }
 
-/** POST /api/admin/rfp-catalog/solutions/[code]/features {name, description?, evidenceUrl?} → edited=true, 201 */
+/** POST /api/admin/rfp-catalog/solutions/[code]/features {name, description?, evidenceUrl?, keywords?} → edited=true, 201. keywords가 없으면 이름·설명에서 시드(4단계 §6.1) */
 export async function POST(request: NextRequest, { params }: Params) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
   const a = adminClientOr500();
   if (!a.ok) return a.response;
   const { code } = await params;
-  const body = (await request.json().catch(() => null)) as { name?: unknown; description?: unknown; evidenceUrl?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { name?: unknown; description?: unknown; evidenceUrl?: unknown; keywords?: unknown } | null;
   const name = typeof body?.name === "string" ? body.name.trim() : "";
   const description = typeof body?.description === "string" ? body.description.trim() : "";
   if (!name || name.length > FEATURE_NAME_MAX) return NextResponse.json({ error: `기능 이름은 1~${FEATURE_NAME_MAX}자입니다.` }, { status: 400 });
@@ -41,13 +42,17 @@ export async function POST(request: NextRequest, { params }: Params) {
   const urlCheck = normalizeHttpUrl(body?.evidenceUrl);
   if (!urlCheck.ok) return NextResponse.json({ error: urlCheck.error }, { status: 400 });
   const evidenceUrl = urlCheck.value;
+  let keywords: string[];
+  if (body?.keywords === undefined || (Array.isArray(body.keywords) && body.keywords.length === 0)) keywords = seedKeywords(name, description);
+  else if (Array.isArray(body.keywords) && body.keywords.every((k): k is string => typeof k === "string")) keywords = parseKeywordInput(body.keywords.join(","));
+  else return NextResponse.json({ error: "keywords는 문자열 배열이어야 합니다." }, { status: 400 });
   const { data: sol } = await a.admin.from("rfp_solutions").select("code").eq("code", code).maybeSingle();
   if (!sol) return NextResponse.json({ error: "솔루션이 없습니다." }, { status: 404 });
   const { data: last } = await a.admin.from("rfp_solution_features").select("sort_order").eq("solution_code", code).order("sort_order", { ascending: false }).limit(1).maybeSingle();
   const { data, error } = await a.admin
     .from("rfp_solution_features")
     .insert({
-      solution_code: code, name, name_norm: normalizeFeatureName(name), description, evidence_url: evidenceUrl,
+      solution_code: code, name, name_norm: normalizeFeatureName(name), description, keywords, evidence_url: evidenceUrl,
       edited: true, sort_order: ((last?.sort_order as number | undefined) ?? 0) + 1, updated_by: auth.userId,
     })
     .select(FEATURE_COLUMNS)

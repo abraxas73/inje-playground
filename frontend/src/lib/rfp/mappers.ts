@@ -1,5 +1,5 @@
 import type { RfpFile, RfpMapping, RfpProjectDetail, RfpProjectSummary, RfpRequirement, RfpSharepointUpload, SharepointFolder } from "@/types/rfp";
-import type { Verdict } from "./mapping/types";
+import type { MappingEngineKind, Verdict } from "./mapping/types";
 import type { RequirementRow } from "./requirements";
 
 export const PROJECT_COLUMNS =
@@ -55,7 +55,7 @@ export interface FileDbRow {
   created_at: string;
 }
 
-export const MAPPING_COLUMNS = "id, project_id, requirement_id, solution_code, feature_id, verdict, rationale, evidence_url, edited, sort_order, updated_at, updated_by";
+export const MAPPING_COLUMNS = "id, project_id, requirement_id, solution_code, feature_id, verdict, rationale, evidence_url, edited, sort_order, engine, score, updated_at, updated_by";
 
 export interface MappingDbRow {
   id: string;
@@ -68,6 +68,9 @@ export interface MappingDbRow {
   evidence_url: string | null;
   edited: boolean;
   sort_order: number;
+  engine: MappingEngineKind;
+  /** numeric → 문자열로 올 수 있다 */
+  score: number | string | null;
   updated_at: string;
   updated_by: string | null;
 }
@@ -106,7 +109,9 @@ export function mapSharepointUpload(row: SharepointUploadDbRow, uploaderName: st
 export function mapMapping(row: MappingDbRow): RfpMapping {
   return {
     id: row.id, requirementId: row.requirement_id, solutionCode: row.solution_code, featureId: row.feature_id, verdict: row.verdict,
-    rationale: row.rationale, evidenceUrl: row.evidence_url, edited: row.edited, sortOrder: row.sort_order, updatedAt: row.updated_at, updatedBy: row.updated_by,
+    rationale: row.rationale, evidenceUrl: row.evidence_url, edited: row.edited, sortOrder: row.sort_order,
+    engine: row.engine, score: row.score === null || row.score === undefined ? null : Number(row.score),
+    updatedAt: row.updated_at, updatedBy: row.updated_by,
   };
 }
 

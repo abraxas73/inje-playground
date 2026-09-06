@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminClientOr500, requireAdmin } from "@/lib/claude-usage/require-admin";
 import { SOLUTION_CODE_RE, SOLUTION_COLUMNS, mapAdminSolution, type SolutionDbRow } from "@/lib/rfp/catalog/store";
+import type { RfpAdminSolutionsResponse } from "@/types/rfp";
+import { selectAll } from "@/lib/work-metrics/common";
 
 export const runtime = "nodejs";
 
 type Counts = { total: number; active: number; sources: number };
 
-/** GET /api/admin/rfp-catalog/solutions — 솔루션 목록 + 기능·활성 기능·소스 건수 */
+/** GET /api/admin/rfp-catalog/solutions — 솔루션 목록 + 기능·활성 기능·소스 건수 + llmAvailable(ANTHROPIC_API_KEY 존재) */
 export async function GET() {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
@@ -14,7 +16,7 @@ export async function GET() {
   if (!a.ok) return a.response;
   const [sols, feats, srcs] = await Promise.all([
     a.admin.from("rfp_solutions").select(SOLUTION_COLUMNS).order("sort_order").order("code"),
-    a.admin.from("rfp_solution_features").select("solution_code, is_active"),
+    selectAll<{ solution_code: string; is_active: boolean }>(() => a.admin.from("rfp_solution_features").select("solution_code, is_active", { count: "exact" }).order("id")),
     a.admin.from("rfp_solution_sources").select("solution_code"),
   ]);
   for (const r of [sols, feats, srcs]) if (r.error) return NextResponse.json({ error: r.error.message }, { status: 500 });
@@ -24,14 +26,18 @@ export async function GET() {
     if (!c) { c = { total: 0, active: 0, sources: 0 }; counts.set(code, c); }
     return c;
   };
-  for (const f of (feats.data ?? []) as { solution_code: string; is_active: boolean }[]) {
+  for (const f of feats.data ?? []) {
     const c = bump(f.solution_code);
     c.total += 1;
     if (f.is_active) c.active += 1;
   }
   for (const s of (srcs.data ?? []) as { solution_code: string }[]) bump(s.solution_code).sources += 1;
   const empty: Counts = { total: 0, active: 0, sources: 0 };
-  return NextResponse.json({ solutions: ((sols.data ?? []) as SolutionDbRow[]).map((r) => mapAdminSolution(r, counts.get(r.code) ?? empty)) });
+  const res: RfpAdminSolutionsResponse = {
+    llmAvailable: !!process.env.ANTHROPIC_API_KEY,
+    solutions: ((sols.data ?? []) as SolutionDbRow[]).map((r) => mapAdminSolution(r, counts.get(r.code) ?? empty)),
+  };
+  return NextResponse.json(res);
 }
 
 /** POST /api/admin/rfp-catalog/solutions {code, name, description?} → 201 */

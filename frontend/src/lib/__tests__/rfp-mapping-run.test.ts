@@ -2,6 +2,9 @@
 import { describe, it, expect } from "vitest";
 import { selectTargetRequirements, runWithConcurrency, summarizeChunkOutcomes, CONCURRENCY } from "@/lib/rfp/mapping/run-job";
 import { MappingOutputSchema } from "@/lib/rfp/mapping/llm";
+import { createRulesEngine, createLlmEngine } from "@/lib/rfp/mapping/engine";
+import { LlmUnavailableError } from "@/lib/rfp/extract-llm";
+import type { CatalogSolution } from "@/lib/rfp/mapping/types";
 
 describe("selectTargetRequirements", () => {
   const reqs = [{ id: "r1" }, { id: "r2" }, { id: "r3" }, { id: "r4" }];
@@ -54,5 +57,41 @@ describe("MappingOutputSchema", () => {
   it("판정 enum·nullable feature를 검사한다", () => {
     expect(MappingOutputSchema.safeParse({ mappings: [{ reqId: "SER-001", verdict: "na", feature: null, rationale: "" }] }).success).toBe(true);
     expect(MappingOutputSchema.safeParse({ mappings: [{ reqId: "SER-001", verdict: "maybe", feature: null, rationale: "" }] }).success).toBe(false);
+  });
+  it("candidate는 Claude 스키마가 거부한다", () => {
+    expect(MappingOutputSchema.safeParse({ mappings: [{ reqId: "SER-001", verdict: "candidate", feature: "F1", rationale: "" }] }).success).toBe(false);
+  });
+});
+
+const catalog: CatalogSolution[] = [
+  { code: "secloudit", name: "SECloudit", description: "", isActive: true, sortOrder: 1, features: [
+    { id: "f-sso", solutionCode: "secloudit", name: "SSO 로그인", description: "통합 인증", evidenceUrl: null, isActive: true, keywords: ["sso", "로그인", "통합", "인증"] },
+    { id: "f-off", solutionCode: "secloudit", name: "옛기능", description: "", evidenceUrl: null, isActive: false, keywords: ["sso"] },
+  ] },
+];
+
+describe("createRulesEngine", () => {
+  it("활성 기능만 lookup(기능 id 키)에 넣고 run은 후보를 돌려준다", async () => {
+    const setup = createRulesEngine(catalog);
+    expect([...setup.lookup.entries()]).toEqual([["f-sso", { featureId: "f-sso", solutionCode: "secloudit" }]]);
+    const items = await setup.run([{ id: "r1", reqId: "SER-001", title: "SSO 통합 인증", categoryName: "c", definition: "", details: "" }]);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ reqId: "SER-001", verdict: "candidate", feature: "f-sso" });
+  });
+});
+
+describe("createLlmEngine", () => {
+  it("키가 없으면 LlmUnavailableError", () => {
+    const prev = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    try {
+      expect(() => createLlmEngine(catalog)).toThrow(LlmUnavailableError);
+    } finally {
+      if (prev !== undefined) process.env.ANTHROPIC_API_KEY = prev;
+    }
+  });
+  it("키가 있으면 별칭 lookup을 준다(호출은 하지 않는다)", () => {
+    const setup = createLlmEngine(catalog, { apiKey: "test-key" });
+    expect([...setup.lookup.keys()]).toEqual(["F1"]);
   });
 });

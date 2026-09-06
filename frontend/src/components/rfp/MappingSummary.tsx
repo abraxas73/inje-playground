@@ -10,6 +10,7 @@ export type VerdictFilter = Verdict | "unmapped" | null;
 const VERDICT_CLASS: Record<Verdict | "unmapped", string> = {
   fulfilled: "bg-emerald-100 text-emerald-900 hover:bg-emerald-200",
   partial: "bg-amber-100 text-amber-900 hover:bg-amber-200",
+  candidate: "bg-indigo-100 text-indigo-900 hover:bg-indigo-200",
   build: "bg-sky-100 text-sky-900 hover:bg-sky-200",
   na: "bg-slate-100 text-slate-700 hover:bg-slate-200",
   unmapped: "bg-rose-100 text-rose-900 hover:bg-rose-200",
@@ -24,7 +25,7 @@ export default function MappingSummary({ requirementIds, mappings, catalog, filt
   requirementIds: string[]; mappings: MappingRow[]; catalog: CatalogSolution[]; filter: VerdictFilter; onFilter: (f: VerdictFilter) => void;
 }) {
   const counts = countByVerdict(requirementIds, mappings);
-  const bySolution = countBySolution(mappings, catalog).filter((s) => s.fulfilled + s.partial > 0);
+  const bySolution = countBySolution(mappings, catalog).filter((s) => s.fulfilled + s.partial + s.candidate > 0);
   const keys: (Verdict | "unmapped")[] = [...VERDICT_ORDER, "unmapped"];
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
@@ -39,7 +40,11 @@ export default function MappingSummary({ requirementIds, mappings, catalog, filt
       </div>
       {bySolution.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
-          {bySolution.map((s) => <span key={s.code}><span className="font-medium text-foreground">{s.name}</span> 충족 {s.fulfilled} · 부분 {s.partial}</span>)}
+          {bySolution.map((s) => (
+            <span key={s.code}>
+              <span className="font-medium text-foreground">{s.name}</span> 충족 {s.fulfilled} · 부분 {s.partial}{s.candidate > 0 && ` · 후보 ${s.candidate}`}
+            </span>
+          ))}
         </div>
       )}
     </div>

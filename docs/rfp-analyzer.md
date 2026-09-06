@@ -1,6 +1,6 @@
 # RFP 분석 런북
 
-설계: `docs/superpowers/specs/2026-09-03-rfp-analyzer-phase1-design.md`(1단계) · `docs/superpowers/specs/2026-09-04-rfp-analyzer-phase2-design.md`(2단계) · `docs/superpowers/specs/2026-09-05-rfp-analyzer-phase3-design.md`(3단계) · 계획: `docs/superpowers/plans/2026-09-03-rfp-analyzer-phase1.md` · `docs/superpowers/plans/2026-09-04-rfp-analyzer-phase2.md` · `docs/superpowers/plans/2026-09-05-rfp-analyzer-phase3.md`
+설계: `docs/superpowers/specs/2026-09-03-rfp-analyzer-phase1-design.md`(1단계) · `docs/superpowers/specs/2026-09-04-rfp-analyzer-phase2-design.md`(2단계) · `docs/superpowers/specs/2026-09-05-rfp-analyzer-phase3-design.md`(3단계) · `docs/superpowers/specs/2026-09-06-rfp-analyzer-phase4-design.md`(4단계) · 계획: `docs/superpowers/plans/2026-09-03-rfp-analyzer-phase1.md` · `docs/superpowers/plans/2026-09-04-rfp-analyzer-phase2.md` · `docs/superpowers/plans/2026-09-05-rfp-analyzer-phase3.md` · `docs/superpowers/plans/2026-09-06-rfp-analyzer-phase4.md`
 
 ## 구성
 - 화면 `/rfp`(목록·업로드), `/rfp/[id]`(개요·요구사항 표). user 역할 이상.
@@ -12,16 +12,18 @@
 
 - **3단계(SharePoint 등록)**: 사용자가 `/settings`(또는 상세)에서 **Microsoft 계정을 연결**(OAuth 위임, 스코프 `offline_access User.Read Files.ReadWrite.All Sites.Read.All`, 앱 권한·관리자 동의 불필요) → 서버가 refresh 토큰을 AES-256-GCM(`MS_TOKEN_ENC_KEY`)으로 암호화해 `ms_connections`에 보관. 상세 화면 "SharePoint 등록" 섹션에서 Teams/SharePoint 폴더의 **'링크 복사' 값을 붙이면** Graph `shares/{u!…}/driveItem`으로 해석해 `rfp_projects.sharepoint_folder`에 저장(프로젝트 속성). "SharePoint에 업로드" → xlsx 다운로드와 같은 `buildProjectWorkbook` 결과를 그 폴더에 PUT(`conflictBehavior=replace`, 파일명 날짜 KST → 같은 날 덮어쓰기·SharePoint 버전 이력) → `rfp_sharepoint_uploads`에 이력 → `notify_provider=teams` 웹후크가 있으면 채널에 링크 알림(실패해도 업로드는 성공). 라이브러리 `frontend/src/lib/ms/`(crypto·oauth·config·origin·connections·graph-drive) + `lib/rfp/sharepoint.ts`. API `/api/ms/{connect,callback,connection}`, `/api/rfp/projects/[id]/sharepoint{,/folder,/upload}`. SQL `docs/sql/2026-09-05-rfp-sharepoint.sql`.
 
+- **4단계(규칙 기반 카탈로그·매핑, LLM 폴백)**: `ANTHROPIC_API_KEY` 없이 동작한다. 어드민 소스는 **Confluence 페이지 URL**(규칙 파서: 표의 기능명 열·h2~h4 제목·글머리 `이름: 설명`)과 **SharePoint xlsx 기능명세서 링크**(가져오기 실행자의 Microsoft 위임 토큰으로 Graph에서 내려받아 exceljs로 헤더 탐지 — 기능명/설명/키워드 열) 두 종류이고, "Confluence에서 찾기" 패널로 제목 검색(CQL) 뒤 한 번에 등록할 수 있다. 가져오기는 기본 "규칙", 키가 있으면 "Claude로 보강". 기능마다 **키워드**(이름 토큰 + 설명 토큰 10개, 어드민 편집·↻ 재생성)를 둔다. 상세 "솔루션 매핑 실행" 다이얼로그에서 엔진(규칙 기본 / Claude)을 고른다. 규칙 엔진은 키워드 일치(이름 키워드 2, 나머지 1) + 문자 bigram overlap 유사도로 점수(`0.15×가중치 + 0.7×유사도`, 후보 조건 가중치≥1 또는 유사도≥0.3)를 매겨 요구사항당 상위 3(솔루션당 2)을 판정 **"후보"**(`candidate`)로 저장한다. 사람이 후보를 충족/부분충족 등으로 확정하고, 나중에 Claude로 다시 실행하면 후보는 교체되고 확정 행(✎)은 남는다. 매핑 행에 `engine`(rules|llm|manual)·`score`. SQL `docs/sql/2026-09-06-rfp-rules-mapping.sql`. 라이브러리 `lib/rfp/catalog/{source-kind,extract-rules,xlsx-features,keywords,confluence-search}.ts`, `lib/rfp/mapping/{tokenize,rules,engine}.ts`, `lib/ms/graph-drive.ts`(resolveItem·downloadFile), `lib/ms/route-token.ts`.
+
 ## 환경 변수
 | 이름 | 용도 |
 |---|---|
 | `SUPABASE_SERVICE_ROLE_KEY` | 기존. DB·Storage 서버 접근 |
-| `ANTHROPIC_API_KEY` | 비표준 RFP LLM 폴백 + 2단계 카탈로그 가져오기·솔루션 매핑. 없으면 표준 양식 추출만 동작 |
+| `ANTHROPIC_API_KEY` | 비표준 RFP LLM 폴백 + 카탈로그 "Claude로 보강" + 매핑 엔진 "Claude". **선택** — 없으면 규칙 엔진만 동작하고 화면에서 Claude 버튼이 비활성 |
 | `RFP_LLM_MODEL` | 기본 `claude-opus-5` |
-| `ATLASSIAN_SITE`·`ATLASSIAN_EMAIL`·`ATLASSIAN_API_TOKEN` | 기존(성과 지표와 공유). 카탈로그 Confluence 가져오기. 없으면 가져오기 400 |
-| `MS_TOKEN_ENC_KEY` | 3단계. refresh 토큰 암호화 키(64자 hex, `openssl rand -hex 32`). 없으면 연결·업로드 500. **교체하면 모든 연결이 복호화 실패 → 재연결 안내** |
+| `ATLASSIAN_SITE`·`ATLASSIAN_EMAIL`·`ATLASSIAN_API_TOKEN` | 기존(성과 지표와 공유). 카탈로그 Confluence 가져오기·Confluence 검색 패널. 없으면 가져오기·검색 400 |
+| `MS_TOKEN_ENC_KEY` | 3단계. refresh 토큰 암호화 키(64자 hex, `openssl rand -hex 32`). 없으면 연결·업로드 500. **교체하면 모든 연결이 복호화 실패 → 재연결 안내**. (4단계) xlsx 소스 등록·가져오기에도 사용 |
 | `MS_ALLOWED_ORIGINS` | 3단계(선택). OAuth 리디렉션 오리진 허용 목록(쉼표). 기본 `https://inje-playground.vercel.app,http://localhost:3003`. Entra 앱 리디렉션 URI와 짝을 맞춘다 |
-| `TEAMS_GRAPH_CLIENT_SECRET` | 기존(Teams 멤버 Graph 방식과 공유). 3단계 토큰 교환·갱신에 필수. settings `teams_tenant_id`·`teams_graph_client_id`도 함께 필요 |
+| `TEAMS_GRAPH_CLIENT_SECRET` | 기존(Teams 멤버 Graph 방식과 공유). 3단계 토큰 교환·갱신에 필수. settings `teams_tenant_id`·`teams_graph_client_id`도 함께 필요. (4단계) xlsx 소스 등록·가져오기에도 사용 |
 
 ## 최초 설치
 1. SQL 실행(Supabase SQL Editor 또는 Management API) → 테이블 3개 + 버킷 `rfp`(private, 50MB).
@@ -32,6 +34,8 @@
 6. (3단계) Entra 앱 등록(기존 Teams 앱) → 인증 → 플랫폼 "웹" 리디렉션 URI `https://inje-playground.vercel.app/api/ms/callback`, `http://localhost:3003/api/ms/callback` 추가. API 권한 → Microsoft Graph → **위임된 권한** `Files.ReadWrite.All`, `Sites.Read.All`, `User.Read`, `offline_access` 추가(관리자 동의 버튼은 누르지 않아도 된다. 테넌트가 사용자 동의를 막아 첫 연결에서 "관리자 승인 필요"가 뜨면 Application Administrator가 위임 권한에 동의 — 앱 권한과 달리 GA 불필요). 클라이언트 암호가 없으면 새로 만들어 `TEAMS_GRAPH_CLIENT_SECRET`에.
 7. (3단계) `docs/sql/2026-09-05-rfp-sharepoint.sql` 실행 → `ms_connections`·`rfp_sharepoint_uploads` + `rfp_projects.sharepoint_folder`. Vercel env에 `MS_TOKEN_ENC_KEY`·`TEAMS_GRAPH_CLIENT_SECRET` 추가 후 재배포. 관리자 시스템 설정에 `teams_tenant_id`·`teams_graph_client_id` 확인.
 8. (3단계) Teams 알림을 받으려면 `notify_provider=teams` + `teams_notify_webhook_url`(기존 채널 웹후크). 없어도 업로드는 되고 화면에 "Teams 알림 미설정"으로 표시된다.
+9. (4단계) `docs/sql/2026-09-06-rfp-rules-mapping.sql` 실행 → `rfp_solution_features.keywords`, `rfp_solution_sources.kind|drive_id`, `rfp_requirement_mappings.verdict`에 candidate·`engine`·`score`(기존 자동 행은 `llm`으로 백필). 재배포.
+10. (4단계) 어드민에서 등록된 소스 "가져오기(규칙)" → 기능 표에서 회의록성 항목 비활성·키워드 보강 → SharePoint xlsx 기능명세서 링크 등록·가져오기(등록자 Microsoft 계정 연결 필요) → 상세에서 "규칙" 매핑 → 후보 검토. 키가 들어오면 "Claude로 보강"·엔진 Claude로 재실행.
 
 ## 운영 메모
 - 지원 형식: hwp(5.x, 암호화·배포용 제외), hwpx, docx. 스캔 이미지 문서는 요구사항이 나오지 않는다.
@@ -51,6 +55,10 @@
 - (3단계) refresh 실패 코드(`invalid_grant`·`interaction_required`·`consent_required`)와 복호화 실패(`decrypt`)는 `ms_connections.last_error`에 남고 화면은 "다시 연결"을 띄운다. 그 외 Azure 오류는 502. Graph 429·503은 Retry-After(기본 2초, 최대 5초) 뒤 1회 재시도하고, 그래도 실패하면 502 "SharePoint 응답 오류(NNN)". 서버 로그에는 오류 코드·상태·`request-id`만 남는다(토큰·시크릿·error_description은 클라이언트에 나가지 않는다).
 - (3단계) 폴더 링크는 `https://`만, 파일 링크는 "폴더 링크가 아닙니다" 400. 폴더가 삭제·이동되면 업로드 404 "폴더가 없습니다(삭제·이동)" — 폴더 설정은 그대로 두고 다시 지정한다. 파일이 열려 잠겨 있으면(423) 409 "파일이 열려 있어 덮어쓸 수 없습니다".
 - (3단계) 파일명 날짜가 KST로 바뀌어 xlsx 다운로드도 함께 KST를 쓴다(Vercel UTC에서 밤 시간대 하루 어긋남 해소). 4MiB 미만은 단순 PUT, 이상은 업로드 세션(10MiB 청크). 업로드 라우트 `maxDuration 60`.
+
+- (4단계) 규칙 엔진 상수는 `lib/rfp/mapping/rules.ts`의 `RULES`, 불용어는 `lib/rfp/mapping/tokenize.ts`의 `STOPWORDS`. 후보가 너무 많으면 임계값을 올리고, 너무 적으면 기능 키워드를 보강한다(어드민 기능 표 "키워드" 열). 후보는 판정일 뿐 확정이 아니므로 xlsx에도 "후보"로 나간다.
+- (4단계) xlsx 소스는 **가져오기를 누른 사람**의 Microsoft 토큰으로 읽는다(3단계 업로드와 같은 권한 규칙). 미연결이면 400 + `/settings` 링크, 파일이 지워졌으면 그 소스만 "파일이 없습니다(삭제·이동)". 20MB 초과 파일은 등록이 거부된다. Confluence 검색은 제목만(`title ~`) 본다.
+- (4단계) 규칙 파서는 표·제목·글머리에서 기능을 뽑기 때문에 회의록·일정 항목이 섞일 수 있다. 기능이 아닌 항목은 삭제 대신 비활성으로 두면 다음 가져오기가 다시 만들지 않는다(`name_norm` 유니크로 병합됨). `edited=false` 기능은 가져오기마다 키워드가 다시 시드된다. 버전 문자열(`v2.6`)·코드(`SEC-001`)만인 셀은 이름·설명에서 제외된다.
 
 ## 수동 회귀 체크리스트
 1. user 계정으로 `/rfp` 진입, 내비·홈 카드 노출.
@@ -83,3 +91,12 @@
 26. Teams 채널에 "[RFP] {사업명} 요구사항 검토 파일을 SharePoint에 올렸습니다 — {이름} · {폴더명}" 카드 + 파일명 + 링크. `teams_notify_webhook_url`을 비우면 "Teams 알림 미설정(웹후크 없음)"이지만 업로드는 성공.
 27. `/settings`에서 "해제" → 상세 업로드 행이 "Microsoft 계정 연결" 버튼으로 바뀜(`not_connected`); 폴더 설정·이력은 그대로. 상세에서 연결하면 상세 경로로 복귀(`returnTo`).
 28. Vercel env `MS_TOKEN_ENC_KEY`를 다른 값으로 바꾼 뒤(테스트 환경) 업로드 → 409 "연결이 만료되었습니다" + "다시 연결" 버튼, `last_error=decrypt`. 되돌리고 재연결하면 정상.
+
+29. admin: 소스 입력에 SharePoint xlsx 링크 → 종류 `xlsx`·파일명 표시. Microsoft 미연결 계정으로는 400 문구 + "Microsoft 계정 연결" 링크. 폴더 링크는 "폴더 링크입니다" 400. 다른 호스트는 "Confluence 페이지 URL 또는 SharePoint 파일 링크만" 400.
+30. "Confluence에서 찾기" → "기능명세서" 검색 → 결과 표 → "등록" → 소스 표에 추가되고 결과 행이 "등록됨"으로 바뀜.
+31. "가져오기(규칙)" → 완료 → 기능 표에 기능·키워드, 소스 메모 "규칙 추출: 표 N·제목 M·글머리 K → 기능 X개"(xlsx는 "xlsx: 시트 N개 → 기능 X개"). 키 없으면 "Claude로 보강" 비활성(툴팁 "ANTHROPIC_API_KEY 미설정").
+32. 키워드 셀 편집(쉼표) → ✎ → 다시 가져오기 → 키워드 유지. ↻ → 이름·설명 기준으로 재생성(✎ 유지).
+33. 상세 → "솔루션 매핑 실행" → 다이얼로그 엔진 "규칙(키워드)" 기본, "Claude" 비활성(키 없음) → 실행 → 완료 → "후보 N" 칩, 행 펼침에 근거 "자동 매칭 — 일치 키워드: … · 유사도 0.xx"와 "자동(규칙) 0.xx".
+34. 후보 행 판정을 충족으로 변경 → ✎ + "자동(규칙)" 유지 → "전체 다시 매핑"(규칙) → 그 요구사항은 그대로, 다른 요구사항의 후보는 교체.
+35. xlsx 다운로드 → 판정 열 "후보", 개요 "후보 N건"과 솔루션 줄 "· 후보 K건", 요약 "SECloudit·IAM(후보)". SharePoint 업로드 파일도 같다.
+36. (키 추가 후) "Claude로 보강"·엔진 "Claude" 활성 → 매핑 실행 → 후보가 충족/부분충족/설계·구축영역/해당없음으로 교체, ✎ 행은 유지, 행 출처 "자동(Claude)".

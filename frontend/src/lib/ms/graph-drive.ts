@@ -1,5 +1,5 @@
 /**
- * Microsoft Graph 드라이브(위임 토큰) — 공유 링크 → 폴더 해석, 파일 업로드(스펙 §4·§5.2).
+ * Microsoft Graph 드라이브(위임 토큰) — 공유 링크 → 폴더 해석, 파일 업로드(3단계 스펙 §4·§5.2), xlsx 파일 링크 해석·내려받기(4단계 §4.3).
  * 4MiB 미만은 단순 PUT(conflictBehavior=replace), 이상은 업로드 세션 + 10MiB 청크.
  * 429·503은 Retry-After(기본 2초, 최대 5초) 뒤 1회 재시도. 토큰은 로그에 쓰지 않는다.
  */
@@ -96,6 +96,69 @@ export async function resolveFolder(token: string, url: string, fetchImpl: Fetch
 export const SMALL_UPLOAD_MAX = 4 * 1024 * 1024;
 export const CHUNK_SIZE = 10 * 1024 * 1024;
 export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/** 카탈로그 xlsx 소스 파일 크기 상한(등록·내려받기 공용) */
+export const XLSX_SOURCE_MAX_BYTES = 20 * 1024 * 1024;
+const RESOLVE_FAIL_FILE = "링크를 해석할 수 없습니다. 파일의 '링크 복사'를 사용하세요.";
+const TOO_LARGE = "파일이 너무 큽니다(20MB 이하).";
+
+export interface ResolvedItem {
+  driveId: string;
+  itemId: string;
+  name: string;
+  size: number;
+  webUrl: string;
+}
+
+/**
+ * GET /shares/{u!…}/driveItem — xlsx 파일 링크 해석(4단계 §4.3). 폴더·xlsx 아님·20MiB 초과·해석 불가·권한은 FolderResolveError
+ * (클래스 이름은 3단계 것을 재사용 — 공유 링크 해석 오류라는 뜻), 그 외 실패는 GraphError.
+ */
+export async function resolveItem(token: string, url: string, fetchImpl: FetchLike = fetch, sleep: Sleep = defaultSleep): Promise<ResolvedItem> {
+  const res = await fetchWithRetry(
+    fetchImpl,
+    `${GRAPH_BASE}/shares/${encodeShareUrl(url)}/driveItem?$select=id,name,size,file,folder,webUrl,parentReference`,
+    { headers: { Authorization: `Bearer ${token}` } },
+    sleep,
+  );
+  if (!res.ok) {
+    const err = await readGraphError(res);
+    if (res.status === 403) throw new FolderResolveError(403, "이 파일을 볼 권한이 없습니다.");
+    if (res.status === 400 || res.status === 404) throw new FolderResolveError(400, RESOLVE_FAIL_FILE);
+    throw err;
+  }
+  const j = (await res.json()) as { id?: string; name?: string; size?: number; webUrl?: string; file?: { mimeType?: string }; folder?: unknown; parentReference?: { driveId?: string } };
+  if (j.folder) throw new FolderResolveError(400, "폴더 링크입니다. xlsx 파일 링크를 붙여 주세요.");
+  const name = j.name ?? "";
+  if (!/\.xlsx$/i.test(name) && j.file?.mimeType !== XLSX_MIME) throw new FolderResolveError(400, "xlsx 파일만 등록할 수 있습니다.");
+  const size = Number(j.size ?? 0);
+  if (size > XLSX_SOURCE_MAX_BYTES) throw new FolderResolveError(400, TOO_LARGE);
+  if (!j.id || !j.parentReference?.driveId) throw new FolderResolveError(400, RESOLVE_FAIL_FILE);
+  return { driveId: j.parentReference.driveId, itemId: j.id, name, size, webUrl: j.webUrl ?? "" };
+}
+
+/**
+ * GET /drives/{driveId}/items/{itemId}/content — redirect:"manual"로 부르고 3xx면 Location(사전 인증 URL)을
+ * Authorization 없이 다시 GET 한다(토큰을 붙이면 401). 20MiB 초과 본문은 오류.
+ */
+export async function downloadFile(token: string, driveId: string, itemId: string, fetchImpl: FetchLike = fetch, sleep: Sleep = defaultSleep): Promise<Buffer> {
+  const first = await fetchWithRetry(
+    fetchImpl,
+    `${GRAPH_BASE}/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}/content`,
+    { headers: { Authorization: `Bearer ${token}` }, redirect: "manual" },
+    sleep,
+  );
+  let res = first;
+  if (first.status >= 300 && first.status < 400) {
+    const location = first.headers.get("Location");
+    if (!location) throw new GraphError(502, "no_location", "다운로드 리디렉션에 Location이 없습니다.", first.headers.get("request-id"));
+    res = await fetchImpl(location, { method: "GET" });
+  }
+  if (!res.ok) throw await readGraphError(res);
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length > XLSX_SOURCE_MAX_BYTES) throw new GraphError(413, "too_large", TOO_LARGE, null);
+  return buf;
+}
 
 export interface UploadTarget {
   driveId: string;

@@ -20,6 +20,15 @@ describe("dedupeIncoming", () => {
     expect(out[0]).toEqual({ name: "SSO", description: "훨씬 더 긴 설명입니다" });
     expect(out[1].name).toHaveLength(FEATURE_NAME_MAX);
   });
+  it("같은 이름의 keywords는 합치고 없으면 필드를 두지 않는다", () => {
+    const out = dedupeIncoming([
+      { name: "SSO", description: "a", keywords: ["sso"] },
+      { name: "sso", description: "더 긴 설명", keywords: ["통합인증", "sso"] },
+      { name: "백업", description: "b" },
+    ]);
+    expect(out[0]).toEqual({ name: "SSO", description: "더 긴 설명", keywords: ["sso", "통합인증"] });
+    expect(out[1]).toEqual({ name: "백업", description: "b" });
+  });
 });
 
 describe("mergeFeatures", () => {
@@ -34,13 +43,17 @@ describe("mergeFeatures", () => {
       { name: "감사로그", description: "덮어쓰기 시도" },
       { name: "백업", description: "신규" },
     ]);
-    expect(plan.toInsert).toEqual([{ name: "백업", nameNorm: "백업", description: "신규" }]);
-    expect(plan.toUpdate).toEqual([{ id: "f1", description: "새 설명" }]);
+    expect(plan.toInsert).toEqual([{ name: "백업", nameNorm: "백업", description: "신규", keywords: ["백업", "신규"] }]);
+    expect(plan.toUpdate).toEqual([{ id: "f1", description: "새 설명", keywords: ["sso", "설명"] }]);
     expect(plan.skippedEdited).toEqual(["감사 로그"]);
   });
   it("들어온 목록 안의 중복은 한 번만 처리하고, 빈 이름은 건너뛴다", () => {
     const plan = mergeFeatures([], [{ name: "A", description: "1" }, { name: "a", description: "2" }, { name: "  ", description: "3" }]);
     expect(plan.toInsert).toHaveLength(1);
     expect(plan.toInsert[0].description).toBe("1");
+  });
+  it("incoming.keywords는 시드의 extra로 들어간다", () => {
+    const plan = mergeFeatures([], [{ name: "SSO 로그인", description: "통합 인증", keywords: ["Single Sign-On"] }]);
+    expect(plan.toInsert[0].keywords).toEqual(["sso", "로그인", "통합", "인증", "single sign-on"]);
   });
 });

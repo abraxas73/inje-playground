@@ -92,8 +92,8 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/admin/perf` — 성과 지표 전체 조회(admin): 개인용 `/usage/perf`와 같은 5탭 + 팀 필터 + 개인(이름/이메일) 검색. API `GET /api/admin/work-metrics/perf?from&to&team&q`, 집계는 `lib/work-metrics/perf-report.ts` 공용, UI는 `components/usage/PerfDashboard.tsx` 공용
 - `/admin/directory` — 조직/팀(admin): 사내 조직도(그룹웨어 아마란스, inno-creed MCP — Claude 사용량 표 "소속" 컬럼의 출처)·Claude 멤버·초대·조직·설정(관리형 설정 JSON) 탭
 - `/usage/code`, `/usage/chat`, `/usage/perf` — 개인용 Claude 사용량·성과(user): 본인 것만, 조직장은 자기 말단 조직 전체(units[] 포함 비교 — 팀장→팀, 센터장→센터 산하 전체, 본부장→본부). 조직장 = `company_directory.is_leader`(어드민 조직/팀 탭 체크박스, null이면 duty 자동 판정). `lib/usage-scope.ts`. 어드민과 같은 지표·표(모델별 비용, 토큰/프롬프트, 프롬프트 사람/자동, 팀별 집계, 조직/팀 검색 필터, 총계 행, 도구·시간대, CSV 데이터 기간 선택, 노는 시트, CSV 내려받기)를 허용 범위 안에서만 보여주고, **프롬프트 내용 탭은 개인용에 없다**. 팀별 집계는 `lib/claude-usage/code-team-summary.ts`·`chat-team-summary.ts` 공용
-- `/rfp`, `/rfp/[id]` — RFP 분석(user): 제안요청서(hwp·hwpx·docx) 업로드 → 프로젝트 등록(중복 판단) → 요구사항 표(TanStack Table 셀 편집·행 추가/삭제) → xlsx 다운로드 → 솔루션 매핑(상세 "솔루션 매핑 실행", 요구사항별 판정 충족/부분충족/설계·구축영역/해당없음, 행 펼침 편집) → SharePoint 등록(3단계: 상세 "SharePoint 등록" 섹션에서 폴더 '링크 복사' 값 지정 → 같은 xlsx를 사용자 위임 권한으로 업로드(같은 날 덮어쓰기) → 이력·Teams 채널 알림). 런북 `docs/rfp-analyzer.md`
-- `/admin/rfp-catalog` — RFP 솔루션 카탈로그(admin): 솔루션(SECloudit·Devopsit·AICubeit·TabCloudit·Openstackit) · Confluence 소스 URL 등록/가져오기(Claude 기능 추출, ✎ 편집 항목 보존) · 기능 표 인라인 편집
+- `/rfp`, `/rfp/[id]` — RFP 분석(user): 제안요청서(hwp·hwpx·docx) 업로드 → 프로젝트 등록(중복 판단) → 요구사항 표(TanStack Table 셀 편집·행 추가/삭제) → xlsx 다운로드 → 솔루션 매핑(상세 "솔루션 매핑 실행" 다이얼로그에서 엔진 규칙(키워드, 기본)/Claude 선택, 요구사항별 판정 충족/부분충족/후보/설계·구축영역/해당없음, 행 펼침 편집) → SharePoint 등록(3단계: 상세 "SharePoint 등록" 섹션에서 폴더 '링크 복사' 값 지정 → 같은 xlsx를 사용자 위임 권한으로 업로드(같은 날 덮어쓰기) → 이력·Teams 채널 알림). 런북 `docs/rfp-analyzer.md`
+- `/admin/rfp-catalog` — RFP 솔루션 카탈로그(admin): 솔루션(SECloudit·Devopsit·AICubeit·TabCloudit·Openstackit) · 소스 등록(Confluence 페이지 URL 또는 SharePoint xlsx 링크, "Confluence에서 찾기" 제목 검색) · 가져오기(규칙 파서 기본, `ANTHROPIC_API_KEY` 있으면 "Claude로 보강"; ✎ 편집 항목 보존) · 기능 표 인라인 편집(키워드 열·↻ 재생성)
 
 ### API Routes (`frontend/src/app/api/`)
 - `GET /api/dooray/members?projectId=X` — Proxies Dooray API to fetch project members
@@ -116,8 +116,8 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `GET /api/usage/{scope,code,chat,perf,tools,hourly}` — 개인용 사용량·성과(로그인 사용자, guest 제외). 서버가 usage-scope로 허용 이메일 계산(본인/조직장은 말단 조직 전체) — `chat?periodEnd=`·`perf?team&q`는 그 범위 안에서만 좁히는 필터. code는 totals·users·daily·models(어드민 summary와 같은 구성), chat은 행마다 같은 기간의 Claude Code 프롬프트(사람/자동)·조직도 소속(parent_unit)을 붙인다. 대량 조회는 `selectAll`. hourly는 RPC `claude_code_hourly_emails`(SQL `2026-08-31-usage-scope.sql` → `2026-09-03-usage-hourly-users.sql`에서 users 컬럼 추가, isodow 1=월)
 - `GET /api/cron/work-metrics?source=all|jira|confluence|gitlab&from&to` — 성과 지표 일 수집(Vercel Cron 07:30 KST, `CRON_SECRET` 또는 관리자 세션). env `ATLASSIAN_*`/`GITLAB_*` 미설정 소스는 스킵. 설계 `docs/superpowers/specs/2026-08-31-claude-roi-integrations-design.md`
 - `/api/rfp/{uploads,projects,projects/[id],projects/[id]/{reextract,xlsx,file,requirements},requirements/[requirementId]}` — RFP 분석(user 이상, `lib/rfp/require-user.ts`). 파일은 Storage 버킷 `rfp`에 브라우저 직접 업로드, 추출은 `after()`(maxDuration 300)
-- `/api/admin/rfp-catalog/{solutions,solutions/[code],solutions/[code]/{sources,import,features},sources/[sourceId],features/[featureId]}` — 카탈로그 관리(admin). 가져오기는 `after()`+`runImport`
-- `GET /api/rfp/catalog`, `/api/rfp/projects/[id]/mapping`(GET·POST {mode all|missing, confirm}), `POST /api/rfp/projects/[id]/mapping/rows`, `/api/rfp/mappings/[mappingId]`(PATCH·DELETE) — 솔루션 매핑(user 이상). 실행은 `after()`+`runMapping`(20건 청크·동시 3·청크별 저장)
+- `/api/admin/rfp-catalog/{solutions,solutions/[code],solutions/[code]/{sources,import,features},sources/[sourceId],features/[featureId],confluence-search}` — 카탈로그 관리(admin). 가져오기는 `after()`+`runImport`(engine rules|llm, xlsx 소스는 세션 사용자 Graph 토큰)
+- `GET /api/rfp/catalog`(`llmAvailable` 포함), `/api/rfp/projects/[id]/mapping`(GET·POST {mode all|missing, engine rules|llm, confirm}), `POST /api/rfp/projects/[id]/mapping/rows`, `/api/rfp/mappings/[mappingId]`(PATCH·DELETE) — 솔루션 매핑(user 이상). 실행은 `after()`+`runMapping`(엔진 팩토리 주입, 20건 청크·동시 3·청크별 저장, 행에 engine·score)
 - `GET /api/ms/connect?returnTo=`(Azure authorize 302), `GET /api/ms/callback`(state 검증·코드 교환·`ms_connections` 저장 → `returnTo?ms_connected=1|ms_error=`), `GET·DELETE /api/ms/connection` — Microsoft 계정 연결(user 이상, `lib/ms/`). 오리진은 `MS_ALLOWED_ORIGINS` 허용 목록만
 - `GET /api/rfp/projects/[id]/sharepoint`, `PUT·DELETE …/sharepoint/folder`({url} → Graph shares 해석 → `rfp_projects.sharepoint_folder`), `POST …/sharepoint/upload`(→ `{upload, notified, notifyError?}`, 오류 `code: no_folder|not_connected|reconnect`) — SharePoint 등록(user 이상). 업로드는 `uploadProjectXlsx`(xlsx 라우트와 같은 `buildProjectWorkbook`)
 
@@ -138,6 +138,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 ### Supabase Tables (RFP 분석)
 - `rfp_projects`(사업 개요·상태·정규화 키), `rfp_files`(원본, sha256 유니크), `rfp_requirements`(구분 코드·ID·7필드·solution) — SQL `docs/sql/2026-09-03-rfp-analyzer.sql`
 - `rfp_solutions`, `rfp_solution_sources`(Confluence 페이지·import_status), `rfp_solution_features`(name_norm 유니크·edited), `rfp_requirement_mappings`(요구사항별 0~N행·verdict·edited), `rfp_projects.mapping_status|mapping_error|mapping_warnings|mapping_at` — SQL `docs/sql/2026-09-04-rfp-solution-mapping.sql`
+- `rfp_solution_features.keywords`(text[]), `rfp_solution_sources.kind|drive_id`(confluence|xlsx), `rfp_requirement_mappings.verdict`에 candidate·`engine`(rules|llm|manual)·`score` — SQL `docs/sql/2026-09-06-rfp-rules-mapping.sql`
 - `ms_connections`(사용자당 1행, `refresh_token_enc` AES-256-GCM `v1.iv.tag.cipher`, RLS 정책 없음 = service role만), `rfp_projects.sharepoint_folder`(jsonb {url, driveId, itemId, name, webUrl, setBy, setAt}), `rfp_sharepoint_uploads`(업로드 이력) — SQL `docs/sql/2026-09-05-rfp-sharepoint.sql`
 
 ### Key Patterns
@@ -156,7 +157,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 
 **Claude 사용량 대시보드**: `lib/claude-usage/`가 OTLP 페이로드 파싱(`otlp.ts`)·수집 인증(`ingest-auth.ts`)·저장(`ingest-handler.ts`/`ingest-store.ts`)·CSV 파싱(`members-csv.ts`)·집계(`aggregate.ts`)·관리자 권한 체크(`require-admin.ts`)·관리형 설정 JSON 생성(`managed-settings.ts`)을 담당. 런북: `docs/claude-usage.md`, 아키텍처: `docs/claude-usage-architecture.md`.
 
-**RFP 분석**: `lib/rfp/` — 파서 3종(`parse-hwp.ts` cfb+zlib 레코드 파서, `parse-hwpx.ts`, `parse-docx.ts`) → 공통 `DocumentModel` → `overview.ts`(개요·정규화) → `dedupe.ts` → `extract-standard.ts`(표준 7행 표 규칙) / `extract-llm.ts`(Claude 폴백) → `xlsx.ts`(exceljs). 라우트는 `pipeline.ts`의 `registerProject`·`runExtraction`만 호출. 2단계: `lib/rfp/catalog/`(Confluence URL→페이지 id·storage XHTML→텍스트·Claude 기능 추출·이름 정규화 병합·`runImport`) · `lib/rfp/mapping/`(판정 상수 `types.ts`·S/F 별칭 프롬프트·20건 청크·출력 검증·요약/건수·`runMapping`). 라우트는 `runImport`·`runMapping`만 호출. `rfp_requirements.solution`은 더는 편집하지 않고 화면·xlsx의 "당사 솔루션"은 `mappingSummary`로 만든다. 3단계: `lib/ms/`(crypto AES-GCM·HMAC state / oauth 위임 토큰 / config settings+env / origin 허용 오리진·returnTo / connections `ms_connections`+access 토큰 5분 캐시 / graph-drive shares 해석·업로드) + `lib/rfp/sharepoint.ts`(`buildProjectWorkbook` xlsx 라우트 공용·`uploadProjectXlsx`·`buildUploadNotice`·`loadUploads`). 파일명 날짜는 KST(`kstYmd`). 토큰·시크릿은 어떤 로그·응답에도 쓰지 않는다.
+**RFP 분석**: `lib/rfp/` — 파서 3종(`parse-hwp.ts` cfb+zlib 레코드 파서, `parse-hwpx.ts`, `parse-docx.ts`) → 공통 `DocumentModel` → `overview.ts`(개요·정규화) → `dedupe.ts` → `extract-standard.ts`(표준 7행 표 규칙) / `extract-llm.ts`(Claude 폴백) → `xlsx.ts`(exceljs). 라우트는 `pipeline.ts`의 `registerProject`·`runExtraction`만 호출. 2단계: `lib/rfp/catalog/`(Confluence URL→페이지 id·storage XHTML→텍스트·Claude 기능 추출·이름 정규화 병합·`runImport`) · `lib/rfp/mapping/`(판정 상수 `types.ts`·S/F 별칭 프롬프트·20건 청크·출력 검증·요약/건수·`runMapping`). 라우트는 `runImport`·`runMapping`만 호출. `rfp_requirements.solution`은 더는 편집하지 않고 화면·xlsx의 "당사 솔루션"은 `mappingSummary`로 만든다. 3단계: `lib/ms/`(crypto AES-GCM·HMAC state / oauth 위임 토큰 / config settings+env / origin 허용 오리진·returnTo / connections `ms_connections`+access 토큰 5분 캐시 / graph-drive shares 해석·업로드) + `lib/rfp/sharepoint.ts`(`buildProjectWorkbook` xlsx 라우트 공용·`uploadProjectXlsx`·`buildUploadNotice`·`loadUploads`). 파일명 날짜는 KST(`kstYmd`). 토큰·시크릿은 어떤 로그·응답에도 쓰지 않는다. 4단계: 카탈로그 적재·매핑이 엔진 주입형 — `catalog/{source-kind,extract-rules,xlsx-features,keywords,confluence-search}.ts`, `mapping/{tokenize,rules,engine}.ts`. 규칙 엔진은 "후보"만 내고 확정은 사람 또는 Claude. Graph 토큰은 라우트가 발급해 `runImport` 인자로만 넘긴다(`lib/ms/route-token.ts`).
 
 **Environment Variables**:
 - `NLM_SERVICE_URL` — NLM service endpoint (default: `http://localhost:8090`, prod: `https://inje-nlm-service.fly.dev`)
@@ -166,7 +167,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `MS_ALLOWED_ORIGINS` — (선택) Microsoft OAuth 리디렉션 오리진 허용 목록(쉼표). 기본 `https://inje-playground.vercel.app,http://localhost:3003`
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service_role 키(서버 전용, 클라이언트 노출 금지). Claude 사용량 대시보드 관리자 API에서 사용
 - `CLAUDE_OTEL_INGEST_TOKEN` — Claude Code OTLP 수신 엔드포인트(`/api/otel/v1/*`) Bearer 인증 토큰(`openssl rand -hex 32`)
-- `ANTHROPIC_API_KEY`, `RFP_LLM_MODEL`(기본 claude-opus-5) — RFP 비표준 문서 LLM 폴백 + 카탈로그 기능 추출 + 솔루션 매핑
+- `ANTHROPIC_API_KEY`, `RFP_LLM_MODEL`(기본 claude-opus-5) — RFP 비표준 문서 LLM 폴백 + 카탈로그 기능 추출 + 솔루션 매핑(선택 — 없으면 규칙 엔진만)
 - `ATLASSIAN_SITE`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN` — 카탈로그 Confluence 가져오기(기존 성과 지표와 공유)
 
 ### Directory Layout (frontend/src/)

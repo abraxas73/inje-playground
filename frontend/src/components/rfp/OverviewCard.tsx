@@ -12,15 +12,17 @@ import EditableCell from "@/components/rfp/EditableCell";
 import { StatusBadge, MappingStatusBadge } from "@/components/rfp/ProjectList";
 import MappingRunButton from "@/components/rfp/MappingRunButton";
 import type { MappingMode } from "@/lib/rfp/mapping/run-job";
+import type { EngineKind } from "@/lib/rfp/mapping/types";
 import type { RfpProjectDetail } from "@/types/rfp";
 
 interface Props {
   project: RfpProjectDetail;
   canDelete: boolean;
   catalogReady: boolean;
+  llmAvailable: boolean;
   onPatched: (patch: Partial<Pick<RfpProjectDetail, "name" | "agency" | "period" | "budget" | "bidMethod">>) => void;
   onReextract: () => Promise<void>;
-  onRunMapping: (mode: MappingMode) => Promise<void>;
+  onRunMapping: (mode: MappingMode, engine: EngineKind) => Promise<void>;
   onDelete: () => Promise<void>;
 }
 
@@ -31,7 +33,7 @@ const FIELDS: { key: "name" | "agency" | "period" | "budget" | "bidMethod"; labe
 /** 서버(reextract 라우트)와 같은 기준: extracting이 이만큼 지나면 멈춘 것으로 보고 재추출 버튼을 다시 활성화한다. */
 const STALE_EXTRACTING_MS = 6 * 60 * 1000;
 
-export default function OverviewCard({ project, canDelete, catalogReady, onPatched, onReextract, onRunMapping, onDelete }: Props) {
+export default function OverviewCard({ project, canDelete, catalogReady, llmAvailable, onPatched, onReextract, onRunMapping, onDelete }: Props) {
   const [busy, setBusy] = useState<"reextract" | "delete" | "file" | null>(null);
   // extracting 중에는 부모가 상태만 폴링하고 project를 갱신하지 않을 수 있어(멈춘 경우), 여기서 직접 시간을 흘려 재계산한다.
   const [, tick] = useState(0);
@@ -82,7 +84,7 @@ export default function OverviewCard({ project, canDelete, catalogReady, onPatch
         </div>
         <div className="flex flex-wrap gap-2">
           {file && <Button variant="outline" size="sm" disabled={busy === "file"} onClick={openFile}><FileText className="mr-1 h-4 w-4" />{file.originalFilename}</Button>}
-          <MappingRunButton project={project} catalogReady={catalogReady} onRun={onRunMapping} />
+          <MappingRunButton project={project} catalogReady={catalogReady} llmAvailable={llmAvailable} onRun={onRunMapping} />
           {project.status === "ready" ? (
             <Button size="sm" asChild>
               <a href={`/api/rfp/projects/${project.id}/xlsx`}><Download className="mr-1 h-4 w-4" />xlsx 다운로드</a>

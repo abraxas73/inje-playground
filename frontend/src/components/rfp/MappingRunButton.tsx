@@ -1,16 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { STALE_RUNNING_MS } from "@/lib/rfp/mapping/types";
+import { cn } from "@/lib/utils";
+import { STALE_RUNNING_MS, type EngineKind } from "@/lib/rfp/mapping/types";
 import type { MappingMode } from "@/lib/rfp/mapping/run-job";
 import type { RfpProjectDetail } from "@/types/rfp";
 
-export default function MappingRunButton({ project, catalogReady, onRun }: { project: RfpProjectDetail; catalogReady: boolean; onRun: (mode: MappingMode) => Promise<void> }) {
+/** 실행 다이얼로그: 엔진(규칙 기본 / Claude) + 모드(전체 / 미매핑). 첫 실행에도 다이얼로그를 연다(4단계 스펙 §7.2). */
+export default function MappingRunButton({ project, catalogReady, llmAvailable, onRun }: {
+  project: RfpProjectDetail; catalogReady: boolean; llmAvailable: boolean; onRun: (mode: MappingMode, engine: EngineKind) => Promise<void>;
+}) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [engine, setEngine] = useState<EngineKind>("rules");
   const [, tick] = useState(0);
   useEffect(() => {
     if (project.mappingStatus !== "running") return;
@@ -29,42 +34,73 @@ export default function MappingRunButton({ project, catalogReady, onRun }: { pro
   const run = async (mode: MappingMode) => {
     setBusy(true);
     try {
-      await onRun(mode);
+      await onRun(mode, engine);
       setOpen(false);
     } finally {
       setBusy(false);
     }
   };
 
+  const engineButton = (kind: EngineKind, label: string, desc: string, off = false) => (
+    <button
+      type="button" disabled={off || busy} onClick={() => setEngine(kind)} title={off ? "ANTHROPIC_API_KEY 미설정" : undefined}
+      className={cn("flex-1 rounded-md border p-3 text-left text-sm transition-colors", engine === kind ? "border-primary bg-muted/60" : "hover:bg-muted/30", off && "cursor-not-allowed opacity-50")}
+    >
+      <div className="font-medium">{label}</div>
+      <div className="text-xs text-muted-foreground">{off ? "ANTHROPIC_API_KEY 미설정" : desc}</div>
+    </button>
+  );
+
   return (
     <>
-      <Button size="sm" variant="secondary" disabled={disabled} title={title} onClick={() => (hasAny ? setOpen(true) : run("all"))}>
+      <Button size="sm" variant="secondary" disabled={disabled} title={title} onClick={() => setOpen(true)}>
         {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
         {running ? "매핑 중" : "솔루션 매핑 실행"}
       </Button>
       <Dialog open={open} onOpenChange={(o) => !o && !busy && setOpen(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>솔루션 매핑을 다시 실행할까요?</DialogTitle>
+            <DialogTitle>{hasAny ? "솔루션 매핑을 다시 실행할까요?" : "솔루션 매핑 실행"}</DialogTitle>
             <DialogDescription>
               {editedRequirements > 0
                 ? `사람이 고친 매핑이 있는 요구사항 ${editedRequirements}건은 어느 방식이든 건드리지 않습니다.`
-                : "Claude가 만든 매핑은 새 결과로 교체됩니다."}
+                : hasAny ? "자동으로 만든 매핑(규칙 후보·Claude)은 새 결과로 교체됩니다." : "카탈로그 기능을 요구사항마다 대조합니다."}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2">
-            <Button variant="outline" className="h-auto justify-start py-3 text-left" disabled={busy} onClick={() => run("all")}>
-              <div>
-                <div className="font-medium">전체 다시 매핑</div>
-                <div className="text-xs text-muted-foreground">사람이 고치지 않은 모든 요구사항을 다시 매핑합니다. 카탈로그가 바뀌었을 때.</div>
+          <div className="space-y-3">
+            <div>
+              <div className="mb-1 text-xs font-medium text-muted-foreground">엔진</div>
+              <div className="flex gap-2">
+                {engineButton("rules", "규칙(키워드) — 기본", "카탈로그 키워드·유사도로 후보를 고릅니다. 키 없이 동작")}
+                {engineButton("llm", "Claude", "Claude가 충족·부분충족·설계·해당없음을 판정합니다", !llmAvailable)}
               </div>
-            </Button>
-            <Button variant="outline" className="h-auto justify-start py-3 text-left" disabled={busy || missing === 0} onClick={() => run("missing")}>
-              <div>
-                <div className="font-medium">미매핑 {missing}건만</div>
-                <div className="text-xs text-muted-foreground">매핑이 하나도 없는 요구사항만 채웁니다. 실패·중단 뒤 이어서 할 때.</div>
-              </div>
-            </Button>
+            </div>
+            <div className="grid gap-2">
+              {hasAny ? (
+                <>
+                  <Button variant="outline" className="h-auto justify-start py-3 text-left" disabled={busy} onClick={() => run("all")}>
+                    <div>
+                      <div className="font-medium">전체 다시 매핑</div>
+                      <div className="text-xs text-muted-foreground">사람이 고치지 않은 모든 요구사항을 다시 매핑합니다. 카탈로그가 바뀌었을 때.</div>
+                    </div>
+                  </Button>
+                  <Button variant="outline" className="h-auto justify-start py-3 text-left" disabled={busy || missing === 0} onClick={() => run("missing")}>
+                    <div>
+                      <div className="font-medium">미매핑 {missing}건만</div>
+                      <div className="text-xs text-muted-foreground">매핑이 하나도 없는 요구사항만 채웁니다. 실패·중단 뒤 이어서 할 때.</div>
+                    </div>
+                  </Button>
+                </>
+              ) : (
+                <Button className="h-auto justify-start py-3 text-left" disabled={busy} onClick={() => run("all")}>
+                  <Wand2 className="mr-2 h-4 w-4" />
+                  <div>
+                    <div className="font-medium">매핑 실행</div>
+                    <div className="text-xs opacity-80">요구사항 {project.requirements.length}건 전체</div>
+                  </div>
+                </Button>
+              )}
+            </div>
           </div>
           <DialogFooter><Button variant="ghost" disabled={busy} onClick={() => setOpen(false)}>닫기</Button></DialogFooter>
         </DialogContent>

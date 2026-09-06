@@ -1,4 +1,4 @@
-import type { MappingRow, Verdict } from "@/lib/rfp/mapping/types";
+import type { MappingEngineKind, MappingRow, Verdict } from "@/lib/rfp/mapping/types";
 
 export type RfpMappingStatus = "none" | "running" | "ready" | "failed";
 export type RfpVerdict = Verdict;
@@ -84,6 +84,10 @@ export type RegisterResponse =
   | { created: true; projectId: string };
 
 export interface RfpMapping extends MappingRow {
+  /** 행을 만든 주체. 사람이 고쳐도 바뀌지 않는다(edited로 표시) */
+  engine: MappingEngineKind;
+  /** 규칙 엔진 점수 0~1. llm·manual은 null */
+  score: number | null;
   updatedAt: string;
   updatedBy: string | null;
 }
@@ -114,6 +118,8 @@ export interface RfpCatalogSolution {
 }
 export interface RfpCatalogResponse {
   solutions: RfpCatalogSolution[];
+  /** ANTHROPIC_API_KEY 존재 여부 — Claude 엔진 선택 가능 */
+  llmAvailable: boolean;
 }
 
 /** 어드민 /api/admin/rfp-catalog */
@@ -128,11 +134,31 @@ export interface RfpAdminSolution {
   sourceCount: number;
   updatedAt: string;
 }
+/** GET /api/admin/rfp-catalog/confluence-search 결과 행 */
+export interface ConfluenceSearchHit {
+  pageId: string;
+  title: string;
+  spaceKey: string | null;
+  spaceName: string | null;
+  /** 전체 페이지 URL — POST …/sources {url}에 그대로 넣는다 */
+  url: string;
+  lastModified: string | null;
+}
+
+/** GET /api/admin/rfp-catalog/solutions */
+export interface RfpAdminSolutionsResponse {
+  solutions: RfpAdminSolution[];
+  llmAvailable: boolean;
+}
+export type RfpSourceKind = "confluence" | "xlsx";
 export type RfpImportStatus = "idle" | "running" | "ready" | "failed";
 export interface RfpSolutionSource {
   id: string;
+  kind: RfpSourceKind;
   url: string;
   pageId: string;
+  /** kind가 xlsx일 때 Graph driveId */
+  driveId: string | null;
   title: string | null;
   pageVersion: number | null;
   importStatus: RfpImportStatus;
@@ -148,6 +174,7 @@ export interface RfpAdminFeature {
   name: string;
   description: string;
   evidenceUrl: string | null;
+  keywords: string[];
   sourceId: string | null;
   isActive: boolean;
   edited: boolean;

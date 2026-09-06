@@ -74,8 +74,8 @@ describe("xlsxFileName", () => {
 
 describe("buildWorkbook + mapping", () => {
   const catalog: CatalogSolution[] = [
-    { code: "secloudit", name: "SECloudit", description: "", isActive: true, sortOrder: 1, features: [{ id: "f-iam", solutionCode: "secloudit", name: "IAM", description: "", evidenceUrl: "https://c/iam", isActive: true }] },
-    { code: "devopsit", name: "Devopsit", description: "", isActive: true, sortOrder: 2, features: [{ id: "f-pipe", solutionCode: "devopsit", name: "파이프라인", description: "", evidenceUrl: null, isActive: true }] },
+    { code: "secloudit", name: "SECloudit", description: "", isActive: true, sortOrder: 1, features: [{ id: "f-iam", solutionCode: "secloudit", name: "IAM", description: "", evidenceUrl: "https://c/iam", isActive: true, keywords: [] }] },
+    { code: "devopsit", name: "Devopsit", description: "", isActive: true, sortOrder: 2, features: [{ id: "f-pipe", solutionCode: "devopsit", name: "파이프라인", description: "", evidenceUrl: null, isActive: true, keywords: [] }] },
   ];
   const m = (id: string, requirementId: string, verdict: MappingRow["verdict"], featureId: string | null, solutionCode: string | null, sortOrder: number, edited = false): MappingRow =>
     ({ id, requirementId, verdict, featureId, solutionCode, rationale: `이유 ${id}`, evidenceUrl: featureId === "f-iam" ? "https://c/iam" : null, edited, sortOrder });
@@ -117,14 +117,24 @@ describe("buildWorkbook + mapping", () => {
     expect(ov.getCell("C13").value).toBe("1건");
     expect(ov.getCell("B14").value).toBe("부분충족");
     expect(ov.getCell("C14").value).toBe("0건");
-    expect(ov.getCell("B15").value).toBe("설계·구축영역");
-    expect(ov.getCell("C15").value).toBe("1건");
-    expect(ov.getCell("B17").value).toBe("미매핑");
-    expect(ov.getCell("C17").value).toBe("1건");
-    expect(ov.getCell("B18").value).toBe("SECloudit");
-    expect(ov.getCell("C18").value).toBe("충족 1건 · 부분충족 0건");
-    expect(ov.getCell("B19").value).toBe("Devopsit");
-    expect(ov.getCell("C19").value).toBe("충족 0건 · 부분충족 1건");
+    expect(ov.getCell("B15").value).toBe("후보");
+    expect(ov.getCell("C15").value).toBe("0건");
+    expect(ov.getCell("B16").value).toBe("설계·구축영역");
+    expect(ov.getCell("C16").value).toBe("1건");
+    expect(ov.getCell("B18").value).toBe("미매핑");
+    expect(ov.getCell("C18").value).toBe("1건");
+    expect(ov.getCell("B19").value).toBe("SECloudit");
+    expect(ov.getCell("C19").value).toBe("충족 1건 · 부분충족 0건 · 후보 0건");
+    expect(ov.getCell("B20").value).toBe("Devopsit");
+    expect(ov.getCell("C20").value).toBe("충족 0건 · 부분충족 1건 · 후보 0건");
+  });
+  it("후보 판정은 '후보'로 표시된다", async () => {
+    const withCandidate = { ...mapping, rows: [...mappingRows, m("m4", "SER-002-uuid", "candidate", "f-pipe", "devopsit", 0)] };
+    const wb = await loadWorkbook(await buildWorkbook(project, rows, withCandidate));
+    expect(wb.getWorksheet("1.요구사항_목록")!.getRow(5).getCell(9).value).toBe("후보");
+    expect(wb.getWorksheet("1.요구사항_목록")!.getRow(5).getCell(6).value).toBe("Devopsit·파이프라인(후보)");
+    expect(wb.getWorksheet("0.개요")!.getCell("C15").value).toBe("1건");
+    expect(wb.getWorksheet("0.개요")!.getCell("C20").value).toBe("충족 0건 · 부분충족 1건 · 후보 1건");
   });
   it("mapping을 주지 않으면 1단계와 같은 시트·열", async () => {
     const wb = await loadWorkbook(await buildWorkbook(project, rows));

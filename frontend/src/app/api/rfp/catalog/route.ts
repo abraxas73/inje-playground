@@ -12,6 +12,7 @@ export async function GET() {
   try {
     const catalog = await loadCatalog(auth.admin, { activeSolutionsOnly: true });
     const res: RfpCatalogResponse = {
+      llmAvailable: !!process.env.ANTHROPIC_API_KEY,
       solutions: catalog.map((s) => ({
         code: s.code, name: s.name, description: s.description, isActive: s.isActive,
         features: s.features.map((f) => ({ id: f.id, name: f.name, description: f.description, evidenceUrl: f.evidenceUrl, isActive: f.isActive })),

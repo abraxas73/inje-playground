@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createColumnHelper, flexRender, getCoreRowModel, getFilteredRowModel, getSortedRowModel, useReactTable, type SortingState } from "@tanstack/react-table";
-import { ArrowUpDown, ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowUpDown, ExternalLink, Pencil, Plus, RotateCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -82,6 +82,27 @@ export default function FeatureTable({ solution, refreshKey, onChanged }: { solu
         meta: { width: "14rem" },
       }),
       col.accessor("description", { header: "설명", cell: (ctx) => <EditableCell value={ctx.getValue()} onSave={(v) => patch(ctx.row.original, { description: v })} clampLines={3} /> }),
+      col.accessor("keywords", {
+        header: "키워드",
+        cell: (ctx) => (
+          <div className="flex items-start gap-1">
+            <EditableCell
+              value={ctx.getValue().join(", ")}
+              onSave={(v) => patch(ctx.row.original, { keywords: v.split(/[,、\n]/).map((s) => s.trim()).filter(Boolean) })}
+              clampLines={2}
+              placeholder="쉼표로 구분"
+              className="min-w-0 flex-1 text-xs"
+            />
+            <Button
+              variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-muted-foreground" title="이름·설명에서 다시 생성"
+              onClick={() => patch(ctx.row.original, { keywords: null }).catch((err) => setError(err instanceof Error ? err.message : "저장 실패"))}
+            >
+              <RotateCw className="h-3 w-3" />
+            </Button>
+          </div>
+        ),
+        meta: { width: "14rem" },
+      }),
       col.accessor("evidenceUrl", {
         header: "근거 URL",
         cell: (ctx) => (
@@ -118,7 +139,7 @@ export default function FeatureTable({ solution, refreshKey, onChanged }: { solu
     getRowId: (r) => r.id,
     globalFilterFn: (row, _id, value: string) => {
       const q = value.toLowerCase();
-      return [row.original.name, row.original.description, row.original.evidenceUrl ?? ""].some((s) => s.toLowerCase().includes(q));
+      return [row.original.name, row.original.description, row.original.evidenceUrl ?? "", row.original.keywords.join(" ")].some((s) => s.toLowerCase().includes(q));
     },
   });
 
@@ -131,7 +152,7 @@ export default function FeatureTable({ solution, refreshKey, onChanged }: { solu
           <Button size="sm" variant="outline" onClick={() => setAdding(true)}><Plus className="mr-1 h-4 w-4" />기능 추가</Button>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">✎ 표시는 사람이 고친 항목입니다. 가져오기는 이 항목을 덮어쓰지 않습니다. 매핑이 참조하는 기능은 삭제 대신 비활성으로 바꾸세요.</p>
+      <p className="text-xs text-muted-foreground">✎ 표시는 사람이 고친 항목입니다. 가져오기는 이 항목을 덮어쓰지 않습니다. 규칙 가져오기 결과에는 회의록·일정 같은 항목이 섞일 수 있으니 기능이 아닌 항목은 비활성으로 바꾸세요. 키워드는 규칙 매핑이 요구사항과 대조하는 단어입니다(↻는 이름·설명에서 다시 생성). 매핑이 참조하는 기능은 삭제 대신 비활성으로 바꾸세요.</p>
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full table-fixed text-sm">
           <thead className="bg-muted/50 text-left text-xs text-muted-foreground">

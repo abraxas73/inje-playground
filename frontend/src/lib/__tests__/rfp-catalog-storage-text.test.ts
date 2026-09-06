@@ -12,8 +12,11 @@ describe("storageToText", () => {
     const html = `<table><tbody><tr><th>기능</th><th>설명</th></tr><tr><td><p>SSO</p></td><td>통합<br/>인증</td></tr></tbody></table>`;
     expect(storageToText(html)).toBe("| 기능 | 설명 |\n| SSO | 통합 인증 |");
   });
-  it("목록은 '- ', 제목은 '# ', 문단은 줄바꿈", () => {
-    expect(storageToText(`<h2>주요 기능</h2><p>소개</p><ul><li>A</li><li><strong>B</strong></li></ul>`)).toBe("# 주요 기능\n소개\n- A\n- B");
+  it("목록은 '- ', 제목은 수준만큼 '#', 문단은 줄바꿈", () => {
+    expect(storageToText(`<h2>주요 기능</h2><p>소개</p><ul><li>A</li><li><strong>B</strong></li></ul>`)).toBe("## 주요 기능\n소개\n- A\n- B");
+  });
+  it("제목 수준을 # 개수로 보존한다(h1~h6)", () => {
+    expect(storageToText(`<h1>A</h1><h3 class="x">B</h3><h6>C</h6>`)).toBe("# A\n### B\n###### C");
   });
   it("이미지·ri·parameter는 내용까지 제거, 매크로 본문은 남기고 CDATA는 푼다", () => {
     const html = `<ac:image ac:width="300"><ri:attachment ri:filename="a.png" /></ac:image>` +

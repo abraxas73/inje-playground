@@ -2,14 +2,14 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { DEFAULT_LLM_MODEL, LlmUnavailableError } from "../extract-llm";
-import { VERDICTS } from "./types";
+import { LLM_VERDICTS } from "./types";
 import { MAPPING_RULES_PROMPT } from "./prompt";
 
 export const MappingOutputSchema = z.object({
   mappings: z.array(
     z.object({
       reqId: z.string(),
-      verdict: z.enum(VERDICTS),
+      verdict: z.enum(LLM_VERDICTS),
       /** F{n} 별칭. build/na는 null */
       feature: z.string().nullable(),
       rationale: z.string(),

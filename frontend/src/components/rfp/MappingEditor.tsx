@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SearchableSelect, { type SearchableOption } from "@/components/shared/SearchableSelect";
-import { requiresFeature, VERDICT_LABEL, VERDICT_ORDER, type CatalogSolution, type Verdict } from "@/lib/rfp/mapping/types";
+import { ENGINE_LABEL, requiresFeature, VERDICT_LABEL, VERDICT_ORDER, type CatalogSolution, type Verdict } from "@/lib/rfp/mapping/types";
 import type { RfpMapping, RfpRequirement } from "@/types/rfp";
 
 interface Props {
@@ -131,6 +131,11 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
             <div className="flex items-start justify-between gap-2">
               {ruleRow(value, (next) => changeRule(row, next), row.id)}
               <div className="flex items-center gap-1">
+                {row.engine !== "manual" && (
+                  <span className="text-xs text-muted-foreground" title="자동 매핑이 만든 행">
+                    자동({ENGINE_LABEL[row.engine]}){row.score !== null && ` ${row.score.toFixed(2)}`}
+                  </span>
+                )}
                 {row.edited && <Pencil className="h-3.5 w-3.5 text-muted-foreground" aria-label="사람이 고친 행" />}
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" title="행 삭제" onClick={() => remove(row)}><Trash2 className="h-4 w-4" /></Button>
               </div>
@@ -149,7 +154,7 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
             {ruleRow(draft, changeDraft, "draft")}
             <Button variant="ghost" size="sm" disabled={busy} onClick={() => setDraft(null)}>취소</Button>
           </div>
-          <div className="text-xs text-muted-foreground">설계·구축영역/해당없음을 고르면 바로 추가되고, 충족/부분충족은 기능까지 고르면 추가됩니다. 설명·근거 URL은 추가된 뒤 입력하세요.</div>
+          <div className="text-xs text-muted-foreground">설계·구축영역/해당없음을 고르면 바로 추가되고, 충족/부분충족/후보는 기능까지 고르면 추가됩니다. 설명·근거 URL은 추가된 뒤 입력하세요.</div>
         </div>
       )}
       {!sorted.length && !draft && <div className="text-sm text-muted-foreground">매핑이 없습니다(미매핑). &quot;행 추가&quot;로 직접 매핑하거나 개요의 &quot;솔루션 매핑 실행&quot;을 누르세요.</div>}
