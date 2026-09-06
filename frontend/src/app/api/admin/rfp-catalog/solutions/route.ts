@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminClientOr500, requireAdmin } from "@/lib/claude-usage/require-admin";
 import { SOLUTION_CODE_RE, SOLUTION_COLUMNS, mapAdminSolution, type SolutionDbRow } from "@/lib/rfp/catalog/store";
+import type { RfpAdminSolutionsResponse } from "@/types/rfp";
 
 export const runtime = "nodejs";
 
 type Counts = { total: number; active: number; sources: number };
 
-/** GET /api/admin/rfp-catalog/solutions — 솔루션 목록 + 기능·활성 기능·소스 건수 */
+/** GET /api/admin/rfp-catalog/solutions — 솔루션 목록 + 기능·활성 기능·소스 건수 + llmAvailable(ANTHROPIC_API_KEY 존재) */
 export async function GET() {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
@@ -31,7 +32,11 @@ export async function GET() {
   }
   for (const s of (srcs.data ?? []) as { solution_code: string }[]) bump(s.solution_code).sources += 1;
   const empty: Counts = { total: 0, active: 0, sources: 0 };
-  return NextResponse.json({ solutions: ((sols.data ?? []) as SolutionDbRow[]).map((r) => mapAdminSolution(r, counts.get(r.code) ?? empty)) });
+  const res: RfpAdminSolutionsResponse = {
+    llmAvailable: !!process.env.ANTHROPIC_API_KEY,
+    solutions: ((sols.data ?? []) as SolutionDbRow[]).map((r) => mapAdminSolution(r, counts.get(r.code) ?? empty)),
+  };
+  return NextResponse.json(res);
 }
 
 /** POST /api/admin/rfp-catalog/solutions {code, name, description?} → 201 */

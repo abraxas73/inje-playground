@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import SolutionList, { SolutionHeader } from "@/components/admin/rfp-catalog/SolutionList";
 import SourceTable from "@/components/admin/rfp-catalog/SourceTable";
 import FeatureTable from "@/components/admin/rfp-catalog/FeatureTable";
-import type { RfpAdminSolution } from "@/types/rfp";
+import type { RfpAdminSolution, RfpAdminSolutionsResponse } from "@/types/rfp";
 
 export default function RfpCatalogPage() {
   const [solutions, setSolutions] = useState<RfpAdminSolution[]>([]);
@@ -14,14 +14,16 @@ export default function RfpCatalogPage() {
   const [error, setError] = useState<string | null>(null);
   /** 가져오기가 끝나면 +1 → 기능 표가 다시 조회한다 */
   const [featureVersion, setFeatureVersion] = useState(0);
+  const [llmAvailable, setLlmAvailable] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/rfp-catalog/solutions");
-      const json = (await res.json()) as { solutions?: RfpAdminSolution[]; error?: string };
+      const json = (await res.json()) as Partial<RfpAdminSolutionsResponse> & { error?: string };
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       const list = json.solutions ?? [];
       setSolutions(list);
+      setLlmAvailable(json.llmAvailable === true);
       setSelected((cur) => (cur && list.some((s) => s.code === cur) ? cur : list[0]?.code ?? null));
       setError(null);
     } catch (e) {
@@ -38,7 +40,7 @@ export default function RfpCatalogPage() {
     <div className="space-y-4">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold"><Layers className="h-5 w-5" />RFP 솔루션 카탈로그</h1>
-        <p className="text-sm text-muted-foreground">솔루션별 기능 목록. Confluence 페이지를 등록해 가져오면 Claude가 기능을 정리하고, 사람이 고친 항목은 다음 가져오기가 덮어쓰지 않습니다. RFP 요구사항 매핑이 이 카탈로그를 기준으로 실행됩니다.</p>
+        <p className="text-sm text-muted-foreground">솔루션별 기능 목록. Confluence 페이지나 SharePoint xlsx 기능명세서를 등록해 가져오면 규칙(표·제목·키워드)으로 기능과 키워드를 정리하고, ANTHROPIC_API_KEY가 있으면 Claude로 보강할 수 있습니다. 사람이 고친 ✎ 항목은 가져오기가 덮어쓰지 않습니다. RFP 요구사항 매핑이 이 카탈로그를 기준으로 실행됩니다.</p>
       </div>
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
@@ -46,7 +48,7 @@ export default function RfpCatalogPage() {
         {current ? (
           <div className="min-w-0 space-y-4">
             <SolutionHeader solution={current} onChanged={load} onDeleted={() => { setSelected(null); void load(); }} />
-            <SourceTable key={current.code} solution={current} onImported={handleImported} />
+            <SourceTable key={current.code} solution={current} llmAvailable={llmAvailable} onImported={handleImported} />
             <FeatureTable key={current.code} solution={current} refreshKey={featureVersion} onChanged={load} />
           </div>
         ) : (
