@@ -11,6 +11,8 @@ export function normalizeFeatureName(s: string): string {
 export interface IncomingFeature {
   name: string;
   description: string;
+  /** 소스가 직접 준 키워드(xlsx "키워드" 열). 시드에 extra로 들어간다 */
+  keywords?: string[];
 }
 
 export interface ExistingFeature {
@@ -35,17 +37,20 @@ function clean(f: IncomingFeature): { name: string; nameNorm: string; descriptio
   return { name, nameNorm, description: f.description.trim() };
 }
 
-/** 청크별 결과 합치기: 같은 이름(정규화)은 설명이 긴 것을 남긴다. 순서는 처음 등장한 순서. */
+/** 청크·소스별 결과 합치기: 같은 이름(정규화)은 설명이 긴 것을 남기고 keywords는 합친다. 순서는 처음 등장한 순서. */
 export function dedupeIncoming(features: IncomingFeature[]): IncomingFeature[] {
-  const byNorm = new Map<string, { name: string; description: string }>();
+  const byNorm = new Map<string, { name: string; description: string; keywords: string[] }>();
   for (const raw of features) {
     const f = clean(raw);
     if (!f) continue;
     const cur = byNorm.get(f.nameNorm);
-    if (!cur) byNorm.set(f.nameNorm, { name: f.name, description: f.description });
-    else if (f.description.length > cur.description.length) cur.description = f.description;
+    if (!cur) byNorm.set(f.nameNorm, { name: f.name, description: f.description, keywords: [...(raw.keywords ?? [])] });
+    else {
+      if (f.description.length > cur.description.length) cur.description = f.description;
+      for (const k of raw.keywords ?? []) if (!cur.keywords.includes(k)) cur.keywords.push(k);
+    }
   }
-  return [...byNorm.values()];
+  return [...byNorm.values()].map((v) => (v.keywords.length ? { name: v.name, description: v.description, keywords: v.keywords } : { name: v.name, description: v.description }));
 }
 
 /**

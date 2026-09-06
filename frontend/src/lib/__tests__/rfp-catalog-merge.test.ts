@@ -20,6 +20,15 @@ describe("dedupeIncoming", () => {
     expect(out[0]).toEqual({ name: "SSO", description: "훨씬 더 긴 설명입니다" });
     expect(out[1].name).toHaveLength(FEATURE_NAME_MAX);
   });
+  it("같은 이름의 keywords는 합치고 없으면 필드를 두지 않는다", () => {
+    const out = dedupeIncoming([
+      { name: "SSO", description: "a", keywords: ["sso"] },
+      { name: "sso", description: "더 긴 설명", keywords: ["통합인증", "sso"] },
+      { name: "백업", description: "b" },
+    ]);
+    expect(out[0]).toEqual({ name: "SSO", description: "더 긴 설명", keywords: ["sso", "통합인증"] });
+    expect(out[1]).toEqual({ name: "백업", description: "b" });
+  });
 });
 
 describe("mergeFeatures", () => {
