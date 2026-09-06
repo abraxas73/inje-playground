@@ -3130,3 +3130,11 @@ Claude-Session: https://claude.ai/code/session_01HBFSDo2gi4ZcXWhXTHTpWv"
 - `resolveItem`의 오류 클래스는 스펙대로 3단계 `FolderResolveError`를 재사용한다(이름은 "공유 링크 해석 오류"로 읽는다).
 - `runImport`는 대상 소스를 한 번에 읽고(`in("id", …)`) 소스마다 처리한다. DB에 없는 id는 건너뛴다(2단계와 같은 동작).
 - `validateMappingOutput`의 "기능 별칭 불명" 경고 문구는 그대로 둔다(규칙 엔진은 인덱스와 lookup이 같은 집합이라 이 경고를 내지 않는다).
+
+## 실행 중 조정(inline 실행, 2026-09-06~07)
+
+- T1 xlsx 테스트: 요약 "당사 솔루션"은 목록 시트 **6열**(7열은 "솔루션" 이름) — 계획의 `getCell(7)`을 `getCell(6)`으로 고쳤다.
+- T2 tokenize 테스트: "사용자"는 `STOPWORDS`에 있어 토큰에서 빠지는 것이 맞다 — 기대값에서 제외하고 `STOPWORDS.has("사용자")` 단언을 추가했다.
+- T4 xlsx 파서 테스트: `v2.6` 같은 버전 문자열은 `isCodeOnly`(`/^[A-Za-z]{0,4}[-_.]?\d{1,4}([-_.]\d{1,4})*$/`)에 맞아 설명에서 빠진다 — 기대값을 `"보안"`으로 고쳤다(의도한 동작: 버전·코드는 잡음).
+- T11 정렬: `localeCompare(…, "ko")`는 ICU 콜레이션이 한글을 라틴 앞에 둬 기대 순서(`sso` → `로그인`)와 어긋난다 — 코드포인트 비교 `byCodePoint`로 바꿔 환경에 독립적으로 만들었다.
+- 운영 DB SQL은 T1 커밋 직후 Management API로 적용했다(2026-09-06 21:5x, 열 5개 확인, 기존 매핑 행 0건이라 백필 대상 없음).
