@@ -17,7 +17,8 @@ describe("normalizeText / stripJosa", () => {
 
 describe("tokenize", () => {
   it("기호로 나누고 조사·불용어·2자 미만·중복을 없앤다", () => {
-    expect(tokenize("사용자의 권한 관리 기능을 제공한다. SSO(통합 인증) 및 SSO")).toEqual(["권한", "제공한다", "sso", "통합", "인증"]);
+    expect(tokenize("사용자의 권한 관리 기능을 제공한다. SSO(통합 인증) 및 SSO")).toEqual(["권한", "sso", "통합", "인증"]);
+    expect(STOPWORDS.has("제공한다")).toBe(true);
     expect(STOPWORDS.has("사용자")).toBe(true);
     expect(STOPWORDS.has("관리")).toBe(true);
     expect(tokenize("")).toEqual([]);

@@ -31,11 +31,11 @@ describe("buildFeatureIndex", () => {
 
 describe("scoreFeature", () => {
   const r = requirementText(req("SER-001", "통합 인증(SSO) 기능", "사용자는 한 번 로그인으로 모든 시스템에 접근"));
-  it("이름 토큰 키워드는 2, 설명 키워드는 1로 더하고 overlap 유사도를 합쳐 1에서 자른다", () => {
+  it("이름 토큰 키워드는 2, 설명 키워드는 1로 더하고 cosine 유사도를 합쳐 1에서 자른다", () => {
     const d = scoreFeature(r, index[0]);
     expect(d.hits).toEqual(["sso", "로그인", "인증", "통합"]);
     expect(d.hitWeight).toBe(6);
-    expect(d.sim).toBeGreaterThan(0.5);
+    expect(d.sim).toBeGreaterThan(0.4);
     expect(d.score).toBe(1);
     expect(isCandidate(d)).toBe(true);
   });
@@ -80,7 +80,7 @@ describe("isCandidate — 경계", () => {
 });
 
 describe("buildFeatureIndex — 흔한 키워드 제거", () => {
-  it("활성 기능 20개 이상이면 10%를 넘게 쓰인 키워드는 매칭 목록에서 빠진다", () => {
+  it("활성 기능 20개 이상이면 5%를 넘게 쓰인 키워드는 매칭 목록에서 빠진다", () => {
     const features = Array.from({ length: 30 }, (_, i) => feat(`f${i}`, "s", `기능${i}`, "", ["공통어", `고유${i}`]));
     const idx = buildFeatureIndex([{ code: "s", name: "S", description: "", isActive: true, sortOrder: 1, features }]);
     expect(idx.every((f) => !f.keywords.includes("공통어"))).toBe(true);
