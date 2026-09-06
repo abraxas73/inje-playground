@@ -3,7 +3,8 @@ import { truncateDetails, type ChunkRequirement } from "./chunk";
 import type { CatalogSolution, EngineItem } from "./types";
 
 /**
- * 규칙 매핑 엔진(4단계 스펙 §5.3). 키워드 일치(이름 토큰 가중치 2, 나머지 1) + 문자 bigram overlap 유사도로 점수를 매겨
+ * 규칙 매핑 엔진(4단계 스펙 §5.3). 키워드 일치(이름 토큰 가중치 2, 나머지 1) + 문자 bigram 유사도로 점수를 매겨
+ * (유사도는 운영 튜닝 2026-09-07에 overlap coefficient → cosine `|A∩B|/√(|A|·|B|)`: 짧은 기능 설명이 긴 요구사항에 우연히 포함돼 0.6~0.9로 부풀던 것을 길이로 정규화)
  * 요구사항마다 상위 후보를 "candidate" 판정으로 낸다. 순수 함수 — I/O 없음.
  */
 export const RULES = {
@@ -14,7 +15,7 @@ export const RULES = {
   /** 후보가 되는 최소 키워드 가중치 — 이름 키워드 1개 또는 설명 키워드 2개(운영 튜닝: 1 → 2) */
   MIN_HIT_WEIGHT: 2,
   /** 활성 기능의 이 비율을 넘게 쓰인 키워드는 변별력이 없어 매칭에서 뺀다(카탈로그가 DF_MIN_FEATURES 이상일 때) */
-  DF_MAX_RATIO: 0.1,
+  DF_MAX_RATIO: 0.05,
   DF_MIN_FEATURES: 20,
   /** 기능 bigram이 이보다 적으면 유사도를 0으로 본다(이름만 있는 짧은 기능이 우연히 맞는 것 방지) */
   MIN_FEATURE_BIGRAMS: 6,
@@ -102,7 +103,7 @@ export function scoreFeature(req: RequirementText, f: FeatureEntry): ScoreDetail
   if (f.bigrams.size >= RULES.MIN_FEATURE_BIGRAMS && req.bigrams.size > 0) {
     let inter = 0;
     for (const b of f.bigrams) if (req.bigrams.has(b)) inter += 1;
-    sim = inter / Math.min(f.bigrams.size, req.bigrams.size);
+    sim = inter / Math.sqrt(f.bigrams.size * req.bigrams.size);
   }
   const score = Math.round(Math.min(1, RULES.HIT_WEIGHT * hitWeight + RULES.SIM_WEIGHT * sim) * 100) / 100;
   return { hits: scored.map((x) => x.k), hitWeight, sim, score };
