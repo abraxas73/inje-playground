@@ -12,13 +12,13 @@
 
 - **3단계(SharePoint 등록)**: 사용자가 `/settings`(또는 상세)에서 **Microsoft 계정을 연결**(OAuth 위임, 스코프 `offline_access User.Read Files.ReadWrite.All Sites.Read.All`, 앱 권한·관리자 동의 불필요) → 서버가 refresh 토큰을 AES-256-GCM(`MS_TOKEN_ENC_KEY`)으로 암호화해 `ms_connections`에 보관. 상세 화면 "SharePoint 등록" 섹션에서 Teams/SharePoint 폴더의 **'링크 복사' 값을 붙이면** Graph `shares/{u!…}/driveItem`으로 해석해 `rfp_projects.sharepoint_folder`에 저장(프로젝트 속성). "SharePoint에 업로드" → xlsx 다운로드와 같은 `buildProjectWorkbook` 결과를 그 폴더에 PUT(`conflictBehavior=replace`, 파일명 날짜 KST → 같은 날 덮어쓰기·SharePoint 버전 이력) → `rfp_sharepoint_uploads`에 이력 → `notify_provider=teams` 웹후크가 있으면 채널에 링크 알림(실패해도 업로드는 성공). 라이브러리 `frontend/src/lib/ms/`(crypto·oauth·config·origin·connections·graph-drive) + `lib/rfp/sharepoint.ts`. API `/api/ms/{connect,callback,connection}`, `/api/rfp/projects/[id]/sharepoint{,/folder,/upload}`. SQL `docs/sql/2026-09-05-rfp-sharepoint.sql`.
 
-- **4단계(규칙 기반 카탈로그·매핑, LLM 폴백)**: `ANTHROPIC_API_KEY` 없이 동작한다. 어드민 소스는 **Confluence 페이지 URL**(규칙 파서: 표의 기능명 열·h2~h4 제목·글머리 `이름: 설명`)과 **SharePoint xlsx 기능명세서 링크**(가져오기 실행자의 Microsoft 위임 토큰으로 Graph에서 내려받아 exceljs로 헤더 탐지 — 기능명/설명/키워드 열) 두 종류이고, "Confluence에서 찾기" 패널로 제목 검색(CQL) 뒤 한 번에 등록할 수 있다. 가져오기는 기본 "규칙", 키가 있으면 "Claude로 보강". 기능마다 **키워드**(이름 토큰 + 설명 토큰 10개, 어드민 편집·↻ 재생성)를 둔다. 상세 "솔루션 매핑 실행" 다이얼로그에서 엔진(규칙 기본 / Claude)을 고른다. 규칙 엔진은 키워드 일치(이름 키워드 2, 나머지 1; 활성 기능의 5%를 넘게 쓰인 키워드는 제외) + 문자 bigram cosine 유사도(`|A∩B|/√(|A|·|B|)`)로 점수(`0.15×가중치 + 0.7×유사도`, 후보 조건 가중치≥2 또는 유사도≥0.5 — 운영 튜닝 2026-09-07)를 매겨 요구사항당 상위 3(솔루션당 2)을 판정 **"후보"**(`candidate`)로 저장한다. 사람이 후보를 충족/부분충족 등으로 확정하고, 나중에 Claude로 다시 실행하면 후보는 교체되고 확정 행(✎)은 남는다. 매핑 행에 `engine`(rules|llm|manual)·`score`. SQL `docs/sql/2026-09-06-rfp-rules-mapping.sql`. 라이브러리 `lib/rfp/catalog/{source-kind,extract-rules,xlsx-features,keywords,confluence-search}.ts`, `lib/rfp/mapping/{tokenize,rules,engine}.ts`, `lib/ms/graph-drive.ts`(resolveItem·downloadFile), `lib/ms/route-token.ts`.
+- **4단계(규칙 기반 카탈로그·매핑, LLM 폴백)**: `ANTHROPIC_API_KEY` 없이 동작한다. 어드민 소스는 **Confluence 페이지 URL**(규칙 파서: 표의 기능명 열·h2~h4 제목·글머리 `이름: 설명`)과 **SharePoint xlsx 기능명세서 링크**(가져오기 실행자의 Microsoft 위임 토큰으로 Graph에서 내려받아 exceljs로 헤더 탐지 — 기능명/설명/키워드 열) 두 종류이고, "Confluence에서 찾기" 패널로 제목 검색(CQL) 뒤 한 번에 등록할 수 있다. 가져오기는 기본 "규칙", 키가 있으면 "Claude로 보강". 기능마다 **키워드**(이름 토큰 + 설명 토큰 10개, 어드민 편집·↻ 재생성)를 둔다. 상세 "솔루션 매핑 실행" 다이얼로그에서 엔진(규칙 기본 / Claude)을 고른다. 규칙 엔진은 키워드 일치(이름 키워드 2, 나머지 1; 활성 기능의 5%를 넘게 쓰인 키워드는 제외) + 문자 bigram cosine 유사도(`|A∩B|/√(|A|·|B|)`)로 점수(`0.15×가중치 + 0.7×유사도`, 후보 조건 가중치≥2 또는 유사도≥0.5 — 운영 튜닝 2026-09-07)를 매겨 요구사항당 상위 3(솔루션당 2)을 판정 **"후보"**(`candidate`)로 저장한다. 사람이 후보를 충족/부분충족 등으로 확정하고, 나중에 Claude로 다시 실행하면 후보는 교체되고 확정 행(✎)은 남는다. 매핑 행에 `engine`(rules|llm|manual)·`score`. 전체 목록에서 행을 펼치면 요구사항 정의·세부 내용·산출정보·관련 요구사항이 매핑 편집기 위에 함께 보인다(후보 확인용). SQL `docs/sql/2026-09-06-rfp-rules-mapping.sql`. 라이브러리 `lib/rfp/catalog/{source-kind,extract-rules,xlsx-features,keywords,confluence-search}.ts`, `lib/rfp/mapping/{tokenize,rules,engine}.ts`, `lib/ms/graph-drive.ts`(resolveItem·downloadFile), `lib/ms/route-token.ts`.
 
 ## 환경 변수
 | 이름 | 용도 |
 |---|---|
 | `SUPABASE_SERVICE_ROLE_KEY` | 기존. DB·Storage 서버 접근 |
-| `ANTHROPIC_API_KEY` | 비표준 RFP LLM 폴백 + 카탈로그 "Claude로 보강" + 매핑 엔진 "Claude". **선택** — 없으면 규칙 엔진만 동작하고 화면에서 Claude 버튼이 비활성 |
+| `ANTHROPIC_API_KEY` | 비표준 RFP LLM 폴백 + 카탈로그 "Claude로 보강" + 매핑 엔진 "Claude". **선택** — 없으면 규칙 엔진만 동작하고 Claude 관련 버튼·엔진 선택이 화면에 나오지 않는다 |
 | `RFP_LLM_MODEL` | 기본 `claude-opus-5` |
 | `ATLASSIAN_SITE`·`ATLASSIAN_EMAIL`·`ATLASSIAN_API_TOKEN` | 기존(성과 지표와 공유). 카탈로그 Confluence 가져오기·Confluence 검색 패널. 없으면 가져오기·검색 400 |
 | `MS_TOKEN_ENC_KEY` | 3단계. refresh 토큰 암호화 키(64자 hex, `openssl rand -hex 32`). 없으면 연결·업로드 500. **교체하면 모든 연결이 복호화 실패 → 재연결 안내**. (4단계) xlsx 소스 등록·가져오기에도 사용 |
@@ -94,9 +94,9 @@
 
 29. admin: 소스 입력에 SharePoint xlsx 링크 → 종류 `xlsx`·파일명 표시. Microsoft 미연결 계정으로는 400 문구 + "Microsoft 계정 연결" 링크. 폴더 링크는 "폴더 링크입니다" 400. 다른 호스트는 "Confluence 페이지 URL 또는 SharePoint 파일 링크만" 400.
 30. "Confluence에서 찾기" → "기능명세서" 검색 → 결과 표 → "등록" → 소스 표에 추가되고 결과 행이 "등록됨"으로 바뀜.
-31. "가져오기(규칙)" → 완료 → 기능 표에 기능·키워드, 소스 메모 "규칙 추출: 표 N·제목 M·글머리 K → 기능 X개"(xlsx는 "xlsx: 시트 N개 → 기능 X개"). 키 없으면 "Claude로 보강" 비활성(툴팁 "ANTHROPIC_API_KEY 미설정").
+31. "가져오기(규칙)" → 완료 → 기능 표에 기능·키워드, 소스 메모 "규칙 추출: 표 N·제목 M·글머리 K → 기능 X개"(xlsx는 "xlsx: 시트 N개 → 기능 X개"). 키 없으면 "Claude로 보강" 버튼이 표시되지 않는다.
 32. 키워드 셀 편집(쉼표) → ✎ → 다시 가져오기 → 키워드 유지. ↻ → 이름·설명 기준으로 재생성(✎ 유지).
-33. 상세 → "솔루션 매핑 실행" → 다이얼로그 엔진 "규칙(키워드)" 기본, "Claude" 비활성(키 없음) → 실행 → 완료 → "후보 N" 칩, 행 펼침에 근거 "자동 매칭 — 일치 키워드: … · 유사도 0.xx"와 "자동(규칙) 0.xx".
+33. 상세 → "솔루션 매핑 실행" → 다이얼로그에 엔진 선택이 없고(키 없음 → 규칙 고정) "규칙(키워드) 엔진" 안내만 보임 → 실행 → 완료 → "후보 N" 칩, 행 펼침에 근거 "자동 매칭 — 일치 키워드: … · 유사도 0.xx"와 "자동(규칙) 0.xx".
 34. 후보 행 판정을 충족으로 변경 → ✎ + "자동(규칙)" 유지 → "전체 다시 매핑"(규칙) → 그 요구사항은 그대로, 다른 요구사항의 후보는 교체.
 35. xlsx 다운로드 → 판정 열 "후보", 개요 "후보 N건"과 솔루션 줄 "· 후보 K건", 요약 "SECloudit·IAM(후보)". SharePoint 업로드 파일도 같다.
-36. (키 추가 후) "Claude로 보강"·엔진 "Claude" 활성 → 매핑 실행 → 후보가 충족/부분충족/설계·구축영역/해당없음으로 교체, ✎ 행은 유지, 행 출처 "자동(Claude)".
+36. (키 추가 후) "Claude로 보강" 버튼과 다이얼로그의 엔진 선택(규칙/Claude)이 나타남 → Claude로 매핑 실행 → 후보가 충족/부분충족/설계·구축영역/해당없음으로 교체, ✎ 행은 유지, 행 출처 "자동(Claude)".
