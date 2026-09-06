@@ -18,8 +18,28 @@ export interface XlsxParseResult {
   sheets: number;
 }
 
+/** exceljs cell.text는 result가 null인 수식 셀 등에서 예외를 던진다(운영 xlsx에서 발견) — 값 객체를 직접 푼다 */
+function valueToText(v: ExcelJS.CellValue): string {
+  if (v === null || v === undefined) return "";
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === "object") {
+    const o = v as { richText?: { text?: string }[]; result?: ExcelJS.CellValue; text?: unknown; error?: unknown };
+    if (Array.isArray(o.richText)) return o.richText.map((t) => t.text ?? "").join("");
+    if ("result" in o) return valueToText(o.result ?? null);
+    if (typeof o.text === "string") return o.text;
+    return "";
+  }
+  return String(v);
+}
+
 function cellText(cell: ExcelJS.Cell): string {
-  return String(cell.text ?? "").replace(/\s+/g, " ").trim();
+  let raw: string;
+  try {
+    raw = String(cell.text ?? "");
+  } catch {
+    raw = valueToText(cell.value);
+  }
+  return raw.replace(/\s+/g, " ").trim();
 }
 
 export async function parseXlsxFeatures(buffer: Buffer): Promise<XlsxParseResult> {
