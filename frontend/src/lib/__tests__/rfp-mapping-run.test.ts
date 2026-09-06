@@ -55,4 +55,7 @@ describe("MappingOutputSchema", () => {
     expect(MappingOutputSchema.safeParse({ mappings: [{ reqId: "SER-001", verdict: "na", feature: null, rationale: "" }] }).success).toBe(true);
     expect(MappingOutputSchema.safeParse({ mappings: [{ reqId: "SER-001", verdict: "maybe", feature: null, rationale: "" }] }).success).toBe(false);
   });
+  it("candidate는 Claude 스키마가 거부한다", () => {
+    expect(MappingOutputSchema.safeParse({ mappings: [{ reqId: "SER-001", verdict: "candidate", feature: "F1", rationale: "" }] }).success).toBe(false);
+  });
 });

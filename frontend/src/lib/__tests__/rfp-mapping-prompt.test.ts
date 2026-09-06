@@ -7,15 +7,15 @@ const catalog: CatalogSolution[] = [
   {
     code: "secloudit", name: "SECloudit", description: "멀티 클라우드 보안", isActive: true, sortOrder: 1,
     features: [
-      { id: "f-sso", solutionCode: "secloudit", name: "SSO", description: "통합 인증\n및 접근 제어", evidenceUrl: null, isActive: true },
-      { id: "f-old", solutionCode: "secloudit", name: "옛기능", description: "", evidenceUrl: null, isActive: false },
+      { id: "f-sso", solutionCode: "secloudit", name: "SSO", description: "통합 인증\n및 접근 제어", evidenceUrl: null, isActive: true, keywords: [] },
+      { id: "f-old", solutionCode: "secloudit", name: "옛기능", description: "", evidenceUrl: null, isActive: false, keywords: [] },
     ],
   },
-  { code: "devopsit", name: "Devopsit", description: "", isActive: false, sortOrder: 2, features: [{ id: "f-ci", solutionCode: "devopsit", name: "CI", description: "d", evidenceUrl: null, isActive: true }] },
+  { code: "devopsit", name: "Devopsit", description: "", isActive: false, sortOrder: 2, features: [{ id: "f-ci", solutionCode: "devopsit", name: "CI", description: "d", evidenceUrl: null, isActive: true, keywords: [] }] },
   { code: "aicubeit", name: "AICubeit", description: "AI 플랫폼", isActive: true, sortOrder: 3, features: [] },
   {
     code: "openstackit", name: "Openstackit", description: "IaaS", isActive: true, sortOrder: 4,
-    features: [{ id: "f-vm", solutionCode: "openstackit", name: "VM", description: "가상 머신", evidenceUrl: null, isActive: true }],
+    features: [{ id: "f-vm", solutionCode: "openstackit", name: "VM", description: "가상 머신", evidenceUrl: null, isActive: true, keywords: [] }],
   },
 ];
 

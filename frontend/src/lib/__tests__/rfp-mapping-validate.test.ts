@@ -57,22 +57,26 @@ describe("validateMappingOutput", () => {
 
 describe("validateManualMapping", () => {
   const catalog: CatalogSolution[] = [
-    { code: "secloudit", name: "SECloudit", description: "", isActive: true, sortOrder: 1, features: [{ id: "f-sso", solutionCode: "secloudit", name: "SSO", description: "", evidenceUrl: null, isActive: true }] },
-    { code: "devopsit", name: "Devopsit", description: "", isActive: true, sortOrder: 2, features: [{ id: "f-ci", solutionCode: "devopsit", name: "CI", description: "", evidenceUrl: null, isActive: true }] },
+    { code: "secloudit", name: "SECloudit", description: "", isActive: true, sortOrder: 1, features: [{ id: "f-sso", solutionCode: "secloudit", name: "SSO", description: "", evidenceUrl: null, isActive: true, keywords: [] }] },
+    { code: "devopsit", name: "Devopsit", description: "", isActive: true, sortOrder: 2, features: [{ id: "f-ci", solutionCode: "devopsit", name: "CI", description: "", evidenceUrl: null, isActive: true, keywords: [] }] },
   ];
   const row = (verdict: MappingRow["verdict"], featureId: string | null): MappingRow => ({ id: "m", requirementId: "r1", solutionCode: featureId ? "secloudit" : null, featureId, verdict, rationale: "", evidenceUrl: null, edited: true, sortOrder: 0 });
   it("충족·부분충족은 기능 필수, 기능의 솔루션을 채워 준다", () => {
     expect(validateManualMapping({ verdict: "fulfilled", featureId: "f-sso" }, catalog, [])).toEqual({ ok: true, verdict: "fulfilled", solutionCode: "secloudit", featureId: "f-sso" });
-    expect(validateManualMapping({ verdict: "partial", featureId: null }, catalog, [])).toEqual({ ok: false, error: "충족·부분충족은 기능을 골라야 합니다." });
+    expect(validateManualMapping({ verdict: "partial", featureId: null }, catalog, [])).toEqual({ ok: false, error: "충족·부분충족·후보는 기능을 골라야 합니다." });
     expect(validateManualMapping({ verdict: "partial", featureId: "nope" }, catalog, [])).toMatchObject({ ok: false, error: "카탈로그에 없는 기능입니다." });
     expect(validateManualMapping({ verdict: "partial", solutionCode: "devopsit", featureId: "f-sso" }, catalog, [])).toMatchObject({ ok: false, error: "기능이 선택한 솔루션의 것이 아닙니다." });
   });
   it("build/na는 솔루션·기능 null, 요구사항당 하나, 충족·부분충족과 공존 불가", () => {
     expect(validateManualMapping({ verdict: "build", solutionCode: "secloudit", featureId: "f-sso" }, catalog, [])).toEqual({ ok: true, verdict: "build", solutionCode: null, featureId: null });
     expect(validateManualMapping({ verdict: "na" }, catalog, [row("build", null)])).toEqual({ ok: false, error: "설계·구축영역·해당없음은 요구사항당 하나만 둘 수 있습니다." });
-    expect(validateManualMapping({ verdict: "na" }, catalog, [row("fulfilled", "f-sso")])).toEqual({ ok: false, error: "설계·구축영역·해당없음은 충족·부분충족과 함께 둘 수 없습니다." });
+    expect(validateManualMapping({ verdict: "na" }, catalog, [row("fulfilled", "f-sso")])).toEqual({ ok: false, error: "설계·구축영역·해당없음은 충족·부분충족·후보와 함께 둘 수 없습니다." });
     expect(validateManualMapping({ verdict: "fulfilled", featureId: "f-ci" }, catalog, [row("na", null)])).toMatchObject({ ok: false, error: expect.stringContaining("먼저 지우거나") });
     expect(validateManualMapping({ verdict: "fulfilled", featureId: "f-sso" }, catalog, [row("partial", "f-sso")])).toEqual({ ok: false, error: "같은 기능이 이미 매핑돼 있습니다." });
-    expect(validateManualMapping({ verdict: "maybe" }, catalog, [])).toEqual({ ok: false, error: "판정은 fulfilled·partial·build·na 중 하나입니다." });
+    expect(validateManualMapping({ verdict: "maybe" }, catalog, [])).toEqual({ ok: false, error: "판정은 fulfilled·partial·candidate·build·na 중 하나입니다." });
+  });
+  it("candidate는 partial과 같은 규칙: 기능 필수, build/na와 공존 불가", () => {
+    expect(validateManualMapping({ verdict: "candidate", featureId: "f-sso" }, catalog, [])).toEqual({ ok: true, verdict: "candidate", solutionCode: "secloudit", featureId: "f-sso" });
+    expect(validateManualMapping({ verdict: "candidate" }, catalog, [])).toEqual({ ok: false, error: "충족·부분충족·후보는 기능을 골라야 합니다." });
   });
 });

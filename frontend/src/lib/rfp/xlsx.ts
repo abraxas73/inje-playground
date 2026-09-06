@@ -119,7 +119,7 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
     const counts = countByVerdict(sorted.map((q) => q.id), mapping.rows);
     for (const v of VERDICT_ORDER) keyValueRow(ov, r++, VERDICT_LABEL[v], `${counts[v]}건`);
     keyValueRow(ov, r++, UNMAPPED_LABEL, `${counts.unmapped}건`);
-    for (const s of countBySolution(mapping.rows, mapping.catalog)) keyValueRow(ov, r++, s.name, `충족 ${s.fulfilled}건 · 부분충족 ${s.partial}건`);
+    for (const s of countBySolution(mapping.rows, mapping.catalog)) keyValueRow(ov, r++, s.name, `충족 ${s.fulfilled}건 · 부분충족 ${s.partial}건 · 후보 ${s.candidate}건`);
   }
 
   // 1.요구사항_목록

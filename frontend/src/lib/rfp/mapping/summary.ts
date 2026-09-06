@@ -52,7 +52,7 @@ export type VerdictCounts = Record<Verdict | "unmapped", number>;
 
 /** 요구사항 단위 건수. 한 요구사항은 가장 좋은 판정 하나로만 센다. */
 export function countByVerdict(requirementIds: readonly string[], rows: readonly MappingRow[]): VerdictCounts {
-  const counts: VerdictCounts = { fulfilled: 0, partial: 0, build: 0, na: 0, unmapped: 0 };
+  const counts: VerdictCounts = { fulfilled: 0, partial: 0, candidate: 0, build: 0, na: 0, unmapped: 0 };
   const groups = groupByRequirement(rows);
   for (const id of requirementIds) {
     const best = bestVerdict(groups.get(id) ?? []);
@@ -66,9 +66,10 @@ export interface SolutionCount {
   name: string;
   fulfilled: number;
   partial: number;
+  candidate: number;
 }
 
-/** 솔루션별 충족/부분충족 요구사항 수(요구사항 중복 제거: 그 솔루션 행들 중 가장 좋은 판정). 카탈로그 순서. */
+/** 솔루션별 충족/부분충족/후보 요구사항 수(요구사항 중복 제거: 그 솔루션 행들 중 가장 좋은 판정). 카탈로그 순서. */
 export function countBySolution(rows: readonly MappingRow[], catalog: CatalogSolution[]): SolutionCount[] {
   return catalog.map((s) => {
     const perReq = new Map<string, Verdict>();
@@ -79,7 +80,12 @@ export function countBySolution(rows: readonly MappingRow[], catalog: CatalogSol
     }
     let fulfilled = 0;
     let partial = 0;
-    for (const v of perReq.values()) if (v === "fulfilled") fulfilled += 1; else partial += 1;
-    return { code: s.code, name: s.name, fulfilled, partial };
+    let candidate = 0;
+    for (const v of perReq.values()) {
+      if (v === "fulfilled") fulfilled += 1;
+      else if (v === "partial") partial += 1;
+      else candidate += 1;
+    }
+    return { code: s.code, name: s.name, fulfilled, partial, candidate };
   });
 }

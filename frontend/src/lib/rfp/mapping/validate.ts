@@ -115,18 +115,18 @@ export type ManualCheck =
  * 충족·부분충족은 기능 필수이고 기능의 솔루션으로 solutionCode를 채운다. build/na는 둘 다 null.
  */
 export function validateManualMapping(input: ManualMappingInput, catalog: CatalogSolution[], siblings: readonly MappingRow[]): ManualCheck {
-  if (!isVerdict(input.verdict)) return { ok: false, error: "판정은 fulfilled·partial·build·na 중 하나입니다." };
+  if (!isVerdict(input.verdict)) return { ok: false, error: "판정은 fulfilled·partial·candidate·build·na 중 하나입니다." };
   const verdict = input.verdict;
   if (requiresFeature(verdict)) {
     const featureId = typeof input.featureId === "string" ? input.featureId : "";
-    if (!featureId) return { ok: false, error: "충족·부분충족은 기능을 골라야 합니다." };
+    if (!featureId) return { ok: false, error: "충족·부분충족·후보는 기능을 골라야 합니다." };
     const owner = catalog.find((s) => s.features.some((f) => f.id === featureId));
     if (!owner) return { ok: false, error: "카탈로그에 없는 기능입니다." };
     if (typeof input.solutionCode === "string" && input.solutionCode && input.solutionCode !== owner.code) {
       return { ok: false, error: "기능이 선택한 솔루션의 것이 아닙니다." };
     }
     if (siblings.some((s) => !requiresFeature(s.verdict))) {
-      return { ok: false, error: "설계·구축영역/해당없음 행이 있는 요구사항에는 충족·부분충족을 추가할 수 없습니다. 그 행을 먼저 지우거나 바꾸세요." };
+      return { ok: false, error: "설계·구축영역/해당없음 행이 있는 요구사항에는 충족·부분충족·후보를 추가할 수 없습니다. 그 행을 먼저 지우거나 바꾸세요." };
     }
     if (siblings.some((s) => s.featureId === featureId)) return { ok: false, error: "같은 기능이 이미 매핑돼 있습니다." };
     return { ok: true, verdict, solutionCode: owner.code, featureId };
@@ -135,7 +135,7 @@ export function validateManualMapping(input: ManualMappingInput, catalog: Catalo
     return {
       ok: false,
       error: siblings.some((s) => requiresFeature(s.verdict))
-        ? "설계·구축영역·해당없음은 충족·부분충족과 함께 둘 수 없습니다."
+        ? "설계·구축영역·해당없음은 충족·부분충족·후보와 함께 둘 수 없습니다."
         : "설계·구축영역·해당없음은 요구사항당 하나만 둘 수 있습니다.",
     };
   }
