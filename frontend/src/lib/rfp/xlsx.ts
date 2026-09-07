@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { orderCategoryCodes, sheetNameFor, sortRequirements, type RequirementRow } from "./requirements";
 import { requiresFeature, UNMAPPED_LABEL, VERDICT_LABEL, VERDICT_ORDER, type CatalogSolution, type MappingRow } from "./mapping/types";
-import { countBySolution, countByVerdict, groupByRequirement, indexCatalog, mappingSummary, type CatalogIndex } from "./mapping/summary";
+import { countBySolution, countByVerdict, groupByRequirement, indexCatalog, mappingRollup, mappingSummary, type CatalogIndex } from "./mapping/summary";
 import { groupRowsByDetail, isDetailScoped, type DetailGroup } from "./mapping/detail-groups";
 import { parseDetailUnits } from "./mapping/detail-items";
 
@@ -186,7 +186,9 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
     const sheet = sheetNameFor(q.categoryCode, sheetIndex.get(q.categoryCode)!);
     if (mapping && index) {
       const g = groups.get(q.id) ?? [];
-      row.values = [i + 1, q.categoryName, q.reqId, q.title, sheet, g.length ? mappingSummary(g, index) : UNMAPPED_LABEL, detailProgress(q)];
+      const scoped = isDetailScoped(detailGroups.get(q.id) ?? []);
+      const summary = g.length ? (scoped ? mappingRollup(g, index) : mappingSummary(g, index)) : UNMAPPED_LABEL;
+      row.values = [i + 1, q.categoryName, q.reqId, q.title, sheet, summary, detailProgress(q)];
     } else {
       row.values = [i + 1, q.categoryName, q.reqId, q.title, sheet, q.solution];
     }

@@ -41,6 +41,22 @@ export function mappingSummary(rows: readonly MappingRow[], index: CatalogIndex)
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder).map((r) => describeMapping(r, index)).join(" / ");
 }
 
+/**
+ * 세부 항목이 여러 개인 요구사항의 요약: "후보 26건 — SECloudit, Devopsit".
+ * 항목마다 후보가 붙으면 행이 수십 개가 되어 한 줄씩 나열(mappingSummary)하면 읽을 수 없다.
+ * 자세한 내용은 화면의 항목별 카드·xlsx 상세 시트에 있으므로 여기서는 판정 건수와 솔루션만 센다.
+ */
+export function mappingRollup(rows: readonly MappingRow[], index: CatalogIndex): string {
+  if (!rows.length) return "";
+  const counts = new Map<Verdict, number>();
+  for (const r of rows) counts.set(r.verdict, (counts.get(r.verdict) ?? 0) + 1);
+  const verdicts = VERDICT_ORDER.filter((v) => counts.has(v)).map((v) => `${VERDICT_LABEL[v]} ${counts.get(v)}건`).join(" · ");
+  const solutions = [...new Set(
+    rows.filter((r) => requiresFeature(r.verdict) && r.solutionCode).map((r) => index.solutionName.get(r.solutionCode!) ?? r.solutionCode!),
+  )];
+  return solutions.length ? `${verdicts} — ${solutions.join(", ")}` : verdicts;
+}
+
 /** fulfilled > partial > build > na. 행이 없으면 null. */
 export function bestVerdict(rows: readonly MappingRow[]): Verdict | null {
   let best: Verdict | null = null;

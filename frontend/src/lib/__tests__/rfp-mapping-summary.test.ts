@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { indexCatalog, groupByRequirement, mappingSummary, bestVerdict, countByVerdict, countBySolution } from "@/lib/rfp/mapping/summary";
+import { indexCatalog, groupByRequirement, mappingSummary, mappingRollup, bestVerdict, countByVerdict, countBySolution } from "@/lib/rfp/mapping/summary";
 import type { CatalogSolution, MappingRow } from "@/lib/rfp/mapping/types";
 
 const catalog: CatalogSolution[] = [
@@ -60,5 +60,23 @@ describe("countBySolution", () => {
     expect(bestVerdict(groupByRequirement(withCandidate).get("r7")!)).toBe("candidate");
     expect(countByVerdict(["r7"], withCandidate)).toEqual({ fulfilled: 0, partial: 0, candidate: 1, build: 0, na: 0, unmapped: 0 });
     expect(mappingSummary(groupByRequirement(withCandidate).get("r7")!, index)).toBe("SECloudit·IAM(후보) / Devopsit·파이프라인(후보)");
+  });
+});
+
+describe("mappingRollup", () => {
+  it("판정 건수와 솔루션만 센다(항목이 많은 요구사항용)", () => {
+    const many = [
+      row("r9", "candidate", "f-iam", "secloudit"),
+      row("r9", "candidate", "f-pipe", "devopsit"),
+      row("r9", "candidate", "f-iam", "secloudit"),
+      row("r9", "fulfilled", "f-iam", "secloudit"),
+    ];
+    expect(mappingRollup(many, index)).toBe("충족 1건 · 후보 3건 — SECloudit, Devopsit");
+  });
+  it("솔루션이 필요 없는 판정만 있으면 건수만", () => {
+    expect(mappingRollup([row("r9", "build", null, null)], index)).toBe("설계·구축영역 1건");
+  });
+  it("행이 없으면 빈 문자열", () => {
+    expect(mappingRollup([], index)).toBe("");
   });
 });

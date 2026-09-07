@@ -20,7 +20,7 @@ import type { MappingRunTarget } from "@/lib/rfp/mapping/run-target";
 import { VERDICT_CLASS, VerdictBadge, type VerdictFilter } from "@/components/rfp/MappingSummary";
 import { cn } from "@/lib/utils";
 import { orderCategoryCodes, sheetNameFor } from "@/lib/rfp/requirements";
-import { bestVerdict, groupByRequirement, indexCatalog, mappingSummary } from "@/lib/rfp/mapping/summary";
+import { bestVerdict, groupByRequirement, indexCatalog, mappingRollup, mappingSummary } from "@/lib/rfp/mapping/summary";
 import { parseDetailUnits } from "@/lib/rfp/mapping/detail-items";
 import { UNMAPPED_LABEL, VERDICT_LABEL, type CatalogSolution } from "@/lib/rfp/mapping/types";
 import { categoryLabel, findCategorySummary, type CategorySummaryRow } from "@/lib/rfp/category-summary";
@@ -176,7 +176,8 @@ export default function RequirementsTable({
                 </span>
               )}
             </div>
-            {g.length > 0 && <div className="line-clamp-2 text-xs text-muted-foreground">{mappingSummary(g, index)}</div>}
+            {/* 항목마다 후보가 붙으면 행이 수십 개라 한 줄씩 나열하지 않고 판정 건수·솔루션만(자세한 건 펼친 카드에) */}
+            {g.length > 0 && <div className="line-clamp-2 text-xs text-muted-foreground">{multi ? mappingRollup(g, index) : mappingSummary(g, index)}</div>}
           </div>
         );
       },
