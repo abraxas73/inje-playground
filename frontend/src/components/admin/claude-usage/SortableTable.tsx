@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 
 export interface Column<T> {
   key: string;
+  /** 헤더 문구. "\n"을 넣으면 그 자리에서 줄을 바꿔 표시한다(긴 헤더를 2줄로) */
   header: string;
   value: (row: T) => number | string | null;
   render?: (row: T) => ReactNode;
@@ -80,7 +81,9 @@ export default function SortableTable<T>({ rows, columns, rowKey, defaultSort, e
                 className={`cursor-pointer select-none whitespace-nowrap px-2 py-2 font-medium ${c.align === "right" ? "text-right" : "text-left"} ${c.className ?? ""}`}
               >
                 <span className="inline-flex items-center gap-0.5">
-                  {c.header}
+                  {c.header.includes("\n")
+                    ? <span className={`inline-block leading-tight ${c.align === "right" ? "text-right" : "text-left"}`}>{c.header.split("\n").map((line, i) => <span key={i} className="block">{line}</span>)}</span>
+                    : c.header}
                   {sort.key === c.key && (sort.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
                 </span>
               </th>

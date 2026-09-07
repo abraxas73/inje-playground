@@ -96,7 +96,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
     { key: "tier", header: "시트", value: (r) => r.seat_tier, render: (r) => (hasSeat(r.seat_tier) ? r.seat_tier : <span className="text-muted-foreground">미할당</span>) },
     { key: "last", header: "마지막 활동", value: (r) => r.last_active ?? "" },
     { key: "days", header: "활동일", align: "right", value: (r) => r.days_active, total: "sum" },
-    { key: "codep", header: "Claude Code 프롬프트 (사람 / 자동)", align: "right", value: (r) => r.code_prompts ?? 0, render: (r) => <span title="같은 데이터 기간의 Claude Code 프롬프트 수(OTel, Claude 조직 무관) — 사람이 친 것 / 플러그인·스크립트 자동화. 채팅 0이어도 Claude Code를 쓰는 시트 구분용">{`${int(r.code_prompts ?? 0)} / ${int(r.code_prompts_auto ?? 0)}`}</span>, total: (rows) => `${int(sumBy(rows, (r) => r.code_prompts ?? 0))} / ${int(sumBy(rows, (r) => r.code_prompts_auto ?? 0))}` },
+    { key: "codep", header: "Claude Code 프롬프트\n(사람 / 자동)", align: "right", value: (r) => r.code_prompts ?? 0, render: (r) => <span title="같은 데이터 기간의 Claude Code 프롬프트 수(OTel, Claude 조직 무관) — 사람이 친 것 / 플러그인·스크립트 자동화. 채팅 0이어도 Claude Code를 쓰는 시트 구분용">{`${int(r.code_prompts ?? 0)} / ${int(r.code_prompts_auto ?? 0)}`}</span>, total: (rows) => `${int(sumBy(rows, (r) => r.code_prompts ?? 0))} / ${int(sumBy(rows, (r) => r.code_prompts_auto ?? 0))}` },
     { key: "chats", header: "채팅", align: "right", value: (r) => r.chats , total: "sum" },
     { key: "msgs", header: "메시지", align: "right", value: (r) => r.messages , total: "sum" },
     { key: "code", header: "코드 세션", align: "right", value: (r) => r.code_sessions , total: "sum" },

@@ -57,8 +57,8 @@ export function officeUserColumns(opts: { showUnit: boolean; showOrgs: boolean; 
     { key: "in", header: "입력 토큰", align: "right", value: (r) => r.input_tokens, render: (r) => int(r.input_tokens), total: "sum" },
     { key: "out", header: "출력 토큰", align: "right", value: (r) => r.output_tokens, render: (r) => int(r.output_tokens), total: "sum" },
     { key: "cache", header: "캐시 읽기", align: "right", value: (r) => r.cache_read_tokens, render: (r) => int(r.cache_read_tokens), total: "sum" },
-    { key: "perTurn", header: "토큰/턴 (입/출)", align: "right", value: (r) => (r.turns ? r.output_tokens / r.turns : 0), render: (r) => <span title="턴 1건당 평균 토큰 — 입력(캐시 읽기 제외) / 출력">{perTurn(r.input_tokens, r.output_tokens, r.turns)}</span>, total: (rows) => perTurn(sumBy(rows, (r) => r.input_tokens), sumBy(rows, (r) => r.output_tokens), sumBy(rows, (r) => r.turns)) },
-    { key: "tools", header: "도구 호출 (실패)", align: "right", value: (r) => r.tool_calls, render: (r) => `${int(r.tool_calls)} (${int(r.tool_errors)})`, total: (rows) => `${int(sumBy(rows, (r) => r.tool_calls))} (${int(sumBy(rows, (r) => r.tool_errors))})` },
+    { key: "perTurn", header: "토큰/턴\n(입/출)", align: "right", value: (r) => (r.turns ? r.output_tokens / r.turns : 0), render: (r) => <span title="턴 1건당 평균 토큰 — 입력(캐시 읽기 제외) / 출력">{perTurn(r.input_tokens, r.output_tokens, r.turns)}</span>, total: (rows) => perTurn(sumBy(rows, (r) => r.input_tokens), sumBy(rows, (r) => r.output_tokens), sumBy(rows, (r) => r.turns)) },
+    { key: "tools", header: "도구 호출\n(실패)", align: "right", value: (r) => r.tool_calls, render: (r) => `${int(r.tool_calls)} (${int(r.tool_errors)})`, total: (rows) => `${int(sumBy(rows, (r) => r.tool_calls))} (${int(sumBy(rows, (r) => r.tool_errors))})` },
     { key: "files", header: "파일 업로드", align: "right", value: (r) => r.file_uploads, render: (r) => int(r.file_uploads), total: "sum" },
   );
   return cols;
