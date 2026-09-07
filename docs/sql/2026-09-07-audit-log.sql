@@ -40,7 +40,14 @@ from public.login_history l
 left join public.user_profiles p on p.user_id = l.user_id
 union all
 select
-  case when a.source = 'api' then 'api' else 'action' end,
+  -- 로그인 시도·실패는 세션이 없어 login_history에 못 남으므로 action_history에 남긴다.
+  -- 어떤 결과였는지는 기록자가 detail.result에 넣고(뒤에 문구를 바꿔도 안전), 뷰가 그걸로 kind를 나눈다.
+  case
+    when a.source = 'api' then 'api'
+    when a.category = 'auth' and a.detail->>'result' in ('failure', 'blocked') then 'login_failed'
+    when a.category = 'auth' and a.detail->>'result' = 'attempt' then 'login_attempt'
+    else 'action'
+  end,
   a.id,
   a.created_at,
   a.user_id,
@@ -55,7 +62,7 @@ select
 from public.action_history a
 left join public.user_profiles p on p.user_id = a.user_id;
 
-comment on view public.audit_log is '로그인 이력 + 액션 이력 통합 조회(어드민 Audit 로그). kind: login|action|api, detail_text = detail을 검색용 문자열로';
+comment on view public.audit_log is '로그인 이력 + 액션 이력 통합 조회(어드민 Audit 로그). kind: login|login_failed|login_attempt|action|api, detail_text = detail을 검색용 문자열로';
 
 -- 감사 로그는 관리자 화면(service_role)만 읽는다 — 클라이언트 키로는 접근 불가
 revoke all on public.audit_log from anon, authenticated;

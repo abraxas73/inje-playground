@@ -14,6 +14,8 @@ import type { AuditResponse, AuditRow } from "@/types/audit";
 
 const KIND_CLASS: Record<AuditRow["kind"], string> = {
   login: "bg-emerald-100 text-emerald-900",
+  login_failed: "bg-rose-100 text-rose-900",
+  login_attempt: "bg-amber-100 text-amber-900",
   action: "bg-indigo-100 text-indigo-900",
   api: "bg-slate-100 text-slate-700",
 };
@@ -138,8 +140,9 @@ export default function AdminAuditPage() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          로그인 이력과 액션 이력을 함께 봅니다. “API 호출”은 변경 요청(POST·PUT·PATCH·DELETE)을 서버가 자동으로 남긴 것이고,
-          “액션”은 화면·서버가 뜻을 붙여 남긴 것입니다. 익명 설문 응답은 익명성 보장을 위해 기록하지 않습니다.
+          로그인(성공·실패·시도)과 액션 이력을 함께 봅니다. “API 호출”은 변경 요청(POST·PUT·PATCH·DELETE)을 서버가 자동으로 남긴 것이고,
+          “액션”은 화면·서버가 뜻을 붙여 남긴 것입니다. 로그인 실패는 사유(공급자 거절·코드 만료 등)가 상세에 남습니다.
+          익명 설문 응답은 익명성 보장을 위해 기록하지 않습니다.
         </p>
       </CardHeader>
       <CardContent>
@@ -151,7 +154,9 @@ export default function AdminAuditPage() {
               <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">전체</SelectItem>
-                <SelectItem value="login">로그인</SelectItem>
+                <SelectItem value="login">로그인 성공</SelectItem>
+                <SelectItem value="login_failed">로그인 실패</SelectItem>
+                <SelectItem value="login_attempt">로그인 시도</SelectItem>
                 <SelectItem value="action">액션</SelectItem>
                 <SelectItem value="api">API 호출</SelectItem>
               </SelectContent>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { requestContext } from "@/lib/audit";
+import { AUTH_EVENT_ACTION, isAuthEvent, requestContext, toAuthProvider } from "@/lib/audit";
 import { auditCategoryFor, shouldAuditRequest } from "@/lib/audit-proxy";
 import { kstRange, pageRange, parseAuditQuery, sanitizeSearch, searchOrFilter, AUDIT_PAGE_SIZE_MAX } from "@/lib/audit-query";
 
@@ -101,5 +101,32 @@ describe("searchOrFilter · pageRange", () => {
   it("페이지는 0-based 끝 포함 범위", () => {
     expect(pageRange(1, 50)).toEqual({ start: 0, end: 49 });
     expect(pageRange(3, 20)).toEqual({ start: 40, end: 59 });
+  });
+});
+
+describe("로그인 이벤트(익명)", () => {
+  it("event는 화이트리스트만 통과한다", () => {
+    expect(isAuthEvent("attempt")).toBe(true);
+    expect(isAuthEvent("failure")).toBe(true);
+    expect(isAuthEvent("blocked")).toBe(true);
+    expect(isAuthEvent("success")).toBe(false);
+    expect(isAuthEvent(1)).toBe(false);
+    expect(isAuthEvent(null)).toBe(false);
+  });
+  it("provider는 목록 밖 값을 unknown으로 바꾼다(공개 엔드포인트 방어)", () => {
+    expect(toAuthProvider("google")).toBe("google");
+    expect(toAuthProvider("azure")).toBe("azure");
+    expect(toAuthProvider("gw")).toBe("gw");
+    expect(toAuthProvider("<script>")).toBe("unknown");
+    expect(toAuthProvider(undefined)).toBe("unknown");
+  });
+  it("행위 이름은 한국어 고정 문구", () => {
+    expect(AUTH_EVENT_ACTION.attempt).toBe("로그인 시도");
+    expect(AUTH_EVENT_ACTION.failure).toBe("로그인 실패");
+    expect(AUTH_EVENT_ACTION.blocked).toBe("로그인 차단");
+  });
+  it("실패·시도 kind로 조회할 수 있다", () => {
+    expect(parseAuditQuery(new URLSearchParams({ kind: "login_failed" })).kind).toBe("login_failed");
+    expect(parseAuditQuery(new URLSearchParams({ kind: "login_attempt" })).kind).toBe("login_attempt");
   });
 });

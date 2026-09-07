@@ -15,6 +15,8 @@ export type AuditCategory = (typeof AUDIT_CATEGORIES)[number] | string;
 
 export const AUDIT_KIND_LABEL: Record<string, string> = {
   login: "로그인",
+  login_failed: "로그인 실패",
+  login_attempt: "로그인 시도",
   action: "액션",
   api: "API 호출",
 };
@@ -96,6 +98,54 @@ export async function logAudit(
   } catch (e) {
     console.error("[audit] insert threw", entry.action, e instanceof Error ? e.message : e);
   }
+}
+
+/**
+ * 로그인 관련 익명 이벤트. 성공은 `login_history`에 남지만 **시도·실패는 남을 곳이 없어서**
+ * action_history에 category "auth"로 남긴다(detail.result로 뷰가 구분 → kind login_attempt|login_failed).
+ */
+export const AUTH_EVENTS = ["attempt", "failure", "blocked"] as const;
+export type AuthEvent = (typeof AUTH_EVENTS)[number];
+
+export const AUTH_EVENT_ACTION: Record<AuthEvent, string> = {
+  attempt: "로그인 시도",
+  failure: "로그인 실패",
+  blocked: "로그인 차단",
+};
+
+/** 로그인 공급자(화면 버튼·GW). 목록 밖 값은 기록하지 않는다 — 공개 엔드포인트라 임의 문자열을 막는다 */
+export const AUTH_PROVIDERS = ["google", "azure", "gw", "unknown"] as const;
+export type AuthProvider = (typeof AUTH_PROVIDERS)[number];
+
+export function isAuthEvent(v: unknown): v is AuthEvent {
+  return typeof v === "string" && (AUTH_EVENTS as readonly string[]).includes(v);
+}
+export function toAuthProvider(v: unknown): AuthProvider {
+  return typeof v === "string" && (AUTH_PROVIDERS as readonly string[]).includes(v) ? (v as AuthProvider) : "unknown";
+}
+
+export interface AuthEventInput {
+  event: AuthEvent;
+  provider?: unknown;
+  /** 아는 경우에만(GW 로그인처럼 이메일을 받은 경우). 검색되도록 user_email에 넣는다 */
+  email?: string | null;
+  /** 실패 사유(사람이 읽는 짧은 문구). 토큰·비밀번호는 절대 넣지 않는다 */
+  reason?: string | null;
+}
+
+/** 로그인 시도·실패 한 건. 행위자가 없을 수 있어(익명) service role 클라이언트로 부른다. */
+export async function logAuthEvent(
+  client: SupabaseClient,
+  request: { headers: Headers } | null,
+  input: AuthEventInput,
+): Promise<void> {
+  const provider = toAuthProvider(input.provider);
+  await logAudit(client, request, {
+    userEmail: input.email?.trim().toLowerCase() || null,
+    action: AUTH_EVENT_ACTION[input.event],
+    category: "auth",
+    detail: { result: input.event, provider, reason: input.reason?.slice(0, 200) || undefined },
+  });
 }
 
 /** 로그인 이력 한 건 + user_profiles.last_login_at 갱신. 실패해도 로그인 흐름을 막지 않는다. */

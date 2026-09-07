@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
-import { logAction } from "@/lib/action-log";
+import { logAuthEvent } from "@/lib/action-log";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
@@ -12,26 +12,29 @@ export default function LoginPage() {
   // 구글 로그인은 기본 숨김(2026-08-31 요청) — 필요 시 /login?google=1 로 표시
   const [showGoogle] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("google") === "1");
   const handleGoogleLogin = async () => {
-    logAction("Google 로그인 시도", "auth");
+    // 리다이렉트 전에 시도를 남긴다(실패해도 로그인은 계속 진행)
+    await logAuthEvent("attempt", "google");
     const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
+    if (error) await logAuthEvent("failure", "google", error.message);
   };
 
   const handleMsLogin = async () => {
-    logAction("Microsoft 로그인 시도", "auth");
+    await logAuthEvent("attempt", "azure");
     const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
         scopes: "email openid profile",
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
+    if (error) await logAuthEvent("failure", "azure", error.message);
   };
 
   return (

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { buildGwSignature, isInnogridEmail } from "@/lib/gw-auth";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { logAuthEvent } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,15 @@ function isGwLoginEnabled(): boolean {
   return process.env.GW_LOGIN_ENABLED === "true";
 }
 
+/** GW 로그인 실패·차단 기록(익명 상태라 service role). 감사 기록 실패는 삼킨다. */
+async function recordGw(req: Request, event: "failure" | "blocked", reason: string, email?: string | null) {
+  try {
+    await logAuthEvent(createAdminClient(), req, { event, provider: "gw", email: email ?? null, reason });
+  } catch {
+    // 로그인 응답을 막지 않는다
+  }
+}
+
 export async function POST(req: Request) {
   if (!isGwLoginEnabled()) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -37,6 +47,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "missing fields" }, { status: 400 });
   }
   if (!isInnogridEmail(email)) {
+    await recordGw(req, "blocked", "사내 이메일이 아님", email);
     return NextResponse.json({ error: "invalid email" }, { status: 403 });
   }
 
@@ -56,10 +67,12 @@ export async function POST(req: Request) {
     body: "",
   });
   if (!gwRes.ok) {
+    await recordGw(req, "failure", `GW 인증 실패(${gwRes.status})`, email);
     return NextResponse.json({ error: "gw auth failed" }, { status: 401 });
   }
   const data = (await gwRes.json().catch(() => ({}))) as Record<string, unknown>;
   if (data?.resultCode !== 0) {
+    await recordGw(req, "failure", "GW 세션 무효(resultCode≠0)", email);
     return NextResponse.json({ error: "gw session invalid" }, { status: 401 });
   }
 
@@ -76,6 +89,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "role check failed" }, { status: 500 });
   }
   if (existingProfile?.role === "admin") {
+    await recordGw(req, "blocked", "관리자 계정은 GW 로그인 불가", email);
     return NextResponse.json({ error: "admin_gw_forbidden" }, { status: 403 });
   }
 
@@ -87,6 +101,7 @@ export async function POST(req: Request) {
     options: { data: { full_name: name } },
   });
   if (error || !link?.properties?.hashed_token) {
+    await recordGw(req, "failure", "세션 발급 실패", email);
     return NextResponse.json({ error: "session issue failed" }, { status: 500 });
   }
 

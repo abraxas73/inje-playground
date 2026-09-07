@@ -2,7 +2,7 @@
  * 어드민 Audit 로그 조회 조건 해석. 순수 함수라 라우트와 테스트가 같은 규칙을 쓴다.
  * 뷰 `audit_log`(로그인 이력 + 액션 이력)를 대상으로 kind·카테고리·기간·검색어·페이징을 만든다.
  */
-export const AUDIT_KINDS = ["all", "login", "action", "api"] as const;
+export const AUDIT_KINDS = ["all", "login", "login_failed", "login_attempt", "action", "api"] as const;
 export type AuditKind = (typeof AUDIT_KINDS)[number];
 
 export const AUDIT_PAGE_SIZE_DEFAULT = 50;
