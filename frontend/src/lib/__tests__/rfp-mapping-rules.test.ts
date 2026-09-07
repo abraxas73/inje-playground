@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { RULES, buildFeatureIndex, requirementText, scoreFeature, isCandidate, rationaleFor, matchRequirement, matchChunk } from "@/lib/rfp/mapping/rules";
+import { RULES, buildFeatureIndex, requirementText, scoreFeature, isCandidate, rationaleFor, matchRequirement, matchChunk, evidenceSentence } from "@/lib/rfp/mapping/rules";
 import type { CatalogSolution, CatalogFeature } from "@/lib/rfp/mapping/types";
 import type { ChunkRequirement } from "@/lib/rfp/mapping/chunk";
 
@@ -157,5 +157,25 @@ describe("matchRequirement / matchChunk", () => {
     expect(items.filter((i) => i.reqId === "SER-001").map((i) => i.feature)).toEqual(["f-sso", "f-acl"]);
     expect(items.filter((i) => i.reqId === "SER-003")[0].feature).toBe("f-vm");
     expect(items.every((i) => i.verdict === "candidate" && typeof i.score === "number")).toBe(true);
+  });
+});
+
+describe("evidenceSentence", () => {
+  const entry = buildFeatureIndex([{ code: "s", name: "S", description: "", isActive: true, sortOrder: 1, features: [feat("f", "s", "스키마 관리", "", [])] }])[0];
+  it("요구 텍스트와 가장 많이 겹치는 문장을 고르고, 중점으로 끊긴 짧은 조각은 쓰지 않는다", () => {
+    const req = requirementText({ id: "x", reqId: "SER-001", title: "메시지 스키마를 중앙 저장소에서 관리", categoryName: "c", definition: "", details: "" });
+    const desc = "Schema Registry · Repository · 서비스 간 메시지 스키마를 중앙 저장소에서 등록하고 버전으로 관리한다";
+    expect(evidenceSentence(req, entry, desc)).toBe("서비스 간 메시지 스키마를 중앙 저장소에서 등록하고 버전으로 관리한다");
+  });
+  it("쓸 만한 문장이 없으면 설명 전체, 설명이 없으면 기능 이름", () => {
+    const req = requirementText({ id: "x", reqId: "SER-001", title: "무관한 요구", categoryName: "c", definition: "", details: "" });
+    expect(evidenceSentence(req, entry, "짧은 설명")).toBe("짧은 설명");
+    expect(evidenceSentence(req, entry, "")).toBe("스키마 관리");
+  });
+  it("아주 긴 문장은 잘라 낸다", () => {
+    const req = requirementText({ id: "x", reqId: "SER-001", title: "가", categoryName: "c", definition: "", details: "" });
+    const out = evidenceSentence(req, entry, "가".repeat(400));
+    expect(out.length).toBeLessThanOrEqual(RULES.EVIDENCE_MAX + 1);
+    expect(out.endsWith("…")).toBe(true);
   });
 });

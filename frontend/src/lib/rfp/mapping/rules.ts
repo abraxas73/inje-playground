@@ -30,6 +30,10 @@ export const RULES = {
   HITS_SHOWN: 5,
   /** 근거 문장 최대 길이 */
   EVIDENCE_MAX: 180,
+  /** 근거 문장 최소 길이 — 중점(·)으로 끊긴 "Repository" 같은 조각을 쓰지 않는다 */
+  EVIDENCE_MIN: 14,
+  /** 근거 문장 길이 보정 기준 — 이보다 짧으면 점수를 깎아 조각보다 온전한 문장을 고른다 */
+  EVIDENCE_FULL_LEN: 40,
 } as const;
 
 /** 결정적 정렬(ICU 로케일에 기대지 않는다): 코드포인트 순 — 라틴이 한글보다 앞 */
@@ -102,11 +106,14 @@ export function detailUnitText(r: ChunkRequirement, unit: DetailUnit): Requireme
  */
 export function evidenceSentence(req: RequirementText, f: FeatureEntry, description: string): string {
   const cut = (s: string) => (s.length <= RULES.EVIDENCE_MAX ? s : `${s.slice(0, RULES.EVIDENCE_MAX).trim()}…`);
+  const clean = (s: string) => s.replace(/^[\s\-–—•·※*]+/, "").replace(/\s+/g, " ").trim();
+  const whole = clean(description);
   const sentences = description
     .split(/\n|·|(?<=[.。!?])\s+/)
-    .map((s) => s.replace(/^[\s\-–—•·※*]+/, "").trim())
-    .filter((s) => s.length >= 6);
-  if (!sentences.length) return cut(f.name);
+    .map(clean)
+    .filter((s) => s.length >= RULES.EVIDENCE_MIN);
+  // 쓸 만한 문장이 없으면 설명 전체(짧으면 그대로), 설명도 없으면 기능 이름
+  if (!sentences.length) return cut(whole || f.name);
   let best = sentences[0];
   let bestScore = -1;
   for (const s of sentences) {
@@ -114,7 +121,8 @@ export function evidenceSentence(req: RequirementText, f: FeatureEntry, descript
     if (!b.size) continue;
     let inter = 0;
     for (const x of b) if (req.bigrams.has(x)) inter += 1;
-    const score = inter / Math.sqrt(b.size * Math.max(1, req.bigrams.size));
+    // 길이 보정: 짧은 조각이 우연히 높은 겹침을 얻어 뽑히는 것을 막는다
+    const score = (inter / Math.sqrt(b.size * Math.max(1, req.bigrams.size))) * Math.min(1, s.length / RULES.EVIDENCE_FULL_LEN);
     if (score > bestScore) { bestScore = score; best = s; }
   }
   return cut(best);
