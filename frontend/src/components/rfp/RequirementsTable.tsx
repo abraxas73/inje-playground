@@ -109,17 +109,18 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
       id: "expand",
       header: "",
       cell: (ctx) => (
-        <button type="button" className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground" title="솔루션 매핑 펼치기" onClick={ctx.row.getToggleExpandedHandler()}>
+        <button type="button" className="rounded text-muted-foreground hover:bg-muted hover:text-foreground" title="솔루션 매핑 펼치기" onClick={ctx.row.getToggleExpandedHandler()}>
           {ctx.row.getIsExpanded() ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </button>
       ),
-      meta: { width: "2rem" },
+      // 아이콘 열은 기본 좌우 여백(px-2 = 16px)이 좁은 창에서 배정 폭보다 커져 표를 넘치게 한다 → 여백 없이 가운데
+      meta: { width: "2rem", cellClassName: "px-0 text-center" },
     });
     const actions = col.display({
       id: "actions",
       header: "",
-      cell: (ctx) => <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" title="행 삭제" onClick={() => setDeleting(ctx.row.original)}><Trash2 className="h-4 w-4" /></Button>,
-      meta: { width: "3rem" },
+      cell: (ctx) => <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" title="행 삭제" onClick={() => setDeleting(ctx.row.original)}><Trash2 className="h-4 w-4" /></Button>,
+      meta: { width: "3rem", cellClassName: "px-0 text-center" },
     });
     const seq = col.display({ id: "seq", header: "연번", cell: (ctx) => <span className="tabular-nums text-muted-foreground">{ctx.row.index + 1}</span>, meta: { width: "3.5rem" } });
     // 매핑 전에는 다른 셀처럼 클릭해서 편집. 매핑 후에는 판정 색 버튼(클릭 → 행 펼침)이 되고 ID 편집은 펼친 패널 헤더에서 한다.
@@ -253,7 +254,7 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
                 {table.getHeaderGroups().map((hg) => (
                   <tr key={hg.id}>
                     {hg.headers.map((h) => (
-                      <th key={h.id} style={{ width: widthPct.get(h.column.id) ?? h.column.columnDef.meta?.width }} className="px-2 py-2 align-middle">
+                      <th key={h.id} style={{ width: widthPct.get(h.column.id) ?? h.column.columnDef.meta?.width }} className={`py-2 align-middle ${h.column.columnDef.meta?.cellClassName ?? "px-2"}`}>
                         {h.column.getCanSort() ? (
                           <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={h.column.getToggleSortingHandler()}>
                             {flexRender(h.column.columnDef.header, h.getContext())}<ArrowUpDown className="h-3 w-3" />
@@ -268,7 +269,9 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
                 {table.getRowModel().rows.map((row) => (
                   <Fragment key={row.id}>
                     <tr className="border-t align-top hover:bg-muted/20" title={row.original.updatedBy ? `수정 ${new Date(row.original.updatedAt).toLocaleString("ko-KR")}` : undefined}>
-                      {row.getVisibleCells().map((cell) => <td key={cell.id} className="px-2 py-1.5">{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                      {row.getVisibleCells().map((cell) => (
+                        <td key={cell.id} className={`py-1.5 ${cell.column.columnDef.meta?.cellClassName ?? "px-2"}`}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                      ))}
                     </tr>
                     {row.getIsExpanded() && (
                       <tr className="border-t bg-muted/10">
