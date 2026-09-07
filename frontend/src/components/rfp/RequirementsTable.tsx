@@ -48,6 +48,11 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
     for (const r of requirements) if (!m.has(r.categoryCode)) m.set(r.categoryCode, r.categoryName);
     return m;
   }, [requirements]);
+  const countByCode = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of requirements) m.set(r.categoryCode, (m.get(r.categoryCode) ?? 0) + 1);
+    return m;
+  }, [requirements]);
   const index = useMemo(() => indexCatalog(catalog), [catalog]);
   const groups = useMemo(() => groupByRequirement(mappings), [mappings]);
   const [tab, setTab] = useState("all");
@@ -174,14 +179,15 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
   return (
     <div className="space-y-3">
       <Tabs value={tab} onValueChange={setTab}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <TabsList className="h-auto flex-wrap">
-            <TabsTrigger value="all">전체 목록 <span className="ml-1 text-xs text-muted-foreground">{requirements.length}</span></TabsTrigger>
+        {/* 구분이 20개를 넘으면 탭이 두 줄로 접힌다. TabsList 기본 고정 높이(h-9)를 풀어야(!) 둘째 줄이 상자 밖으로 넘치지 않고, 트리거는 flex-1로 늘어나지 않게, 검색·행 추가는 오른쪽 고정 폭. */}
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <TabsList className="h-auto! min-w-0 flex-wrap justify-start gap-0.5">
+            <TabsTrigger value="all" className="flex-none">전체 목록 <span className="ml-1 text-xs text-muted-foreground">{requirements.length}</span></TabsTrigger>
             {codes.map((c) => (
-              <TabsTrigger key={c} value={c}>{c} <span className="ml-1 text-xs text-muted-foreground">{requirements.filter((r) => r.categoryCode === c).length}</span></TabsTrigger>
+              <TabsTrigger key={c} value={c} className="flex-none">{c} <span className="ml-1 text-xs text-muted-foreground">{countByCode.get(c) ?? 0}</span></TabsTrigger>
             ))}
           </TabsList>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="ID·명칭·내용·솔루션 검색" className="h-8 w-56" />
             <Button size="sm" variant="outline" onClick={() => setAdding(true)}><Plus className="mr-1 h-4 w-4" />행 추가</Button>
           </div>

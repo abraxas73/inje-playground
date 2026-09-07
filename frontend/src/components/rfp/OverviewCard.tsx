@@ -126,19 +126,23 @@ export default function OverviewCard({ project, canDelete, catalogReady, llmAvai
         {project.status === "failed" && project.error && (
           <Alert variant="destructive"><AlertDescription>추출 실패: {project.error} — 개요를 확인하고 &quot;재추출&quot;을 눌러 다시 시도하세요.</AlertDescription></Alert>
         )}
-        {project.warnings.length > 0 && (
-          <Alert><AlertDescription><ul className="list-disc pl-4">{project.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul></AlertDescription></Alert>
-        )}
+        <WarningList title="추출 경고" items={project.warnings} />
         {project.mappingStatus === "failed" && project.mappingError && (
           <Alert variant="destructive"><AlertDescription>솔루션 매핑 실패: {project.mappingError} — &quot;솔루션 매핑 실행 → 미매핑만&quot;으로 이어서 할 수 있습니다.</AlertDescription></Alert>
         )}
-        {project.mappingWarnings.length > 0 && (
-          <details className="rounded-lg border p-3 text-sm">
-            <summary className="cursor-pointer text-muted-foreground">매핑 경고 {project.mappingWarnings.length}건</summary>
-            <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs">{project.mappingWarnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
-          </details>
-        )}
+        <WarningList title="매핑 경고" items={project.mappingWarnings} />
       </CardContent>
     </Card>
+  );
+}
+
+/** 추출·매핑 경고는 접어 두고 건수만 보인다 — 총괄표 대비 건수 같은 참고 줄이 수십 개면 개요 카드가 화면을 다 차지하던 문제. */
+function WarningList({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <details className="rounded-lg border px-3 py-2 text-sm">
+      <summary className="cursor-pointer text-muted-foreground">{title} {items.length}건</summary>
+      <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs">{items.map((w, i) => <li key={i}>{w}</li>)}</ul>
+    </details>
   );
 }
