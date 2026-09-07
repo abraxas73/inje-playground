@@ -136,9 +136,10 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
             onClick={ctx.row.getToggleExpandedHandler()}
             aria-expanded={open}
             title={`${label} — 클릭하면 솔루션 매핑을 ${open ? "접습니다" : "펼칩니다"}. ID 편집은 펼친 패널에서.`}
-            className={cn("inline-flex max-w-full items-center rounded-md border border-transparent px-2 py-0.5 text-left text-sm font-medium tabular-nums ring-offset-background transition", VERDICT_CLASS[verdict], open && "ring-2 ring-ring ring-offset-1")}
+            className={cn("inline-flex max-w-full items-center rounded-md border border-transparent px-2 py-0.5 text-left text-sm font-medium leading-tight tabular-nums ring-offset-background transition", VERDICT_CLASS[verdict], open && "ring-2 ring-ring ring-offset-1")}
           >
-            <span className="truncate">{ctx.getValue() || "ID 없음"}</span>
+            {/* 좁은 열(구분 탭은 열이 10개)에서는 잘라내지 않고 줄바꿈 — ID는 끝 번호까지 보여야 한다 */}
+            <span className="break-all">{ctx.getValue() || "ID 없음"}</span>
           </button>
         );
       },
@@ -174,10 +175,10 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
       detailColumns: [
         expander,
         seq,
-        reqIdCol,
+        { ...reqIdCol, meta: { width: "9.5rem" } },
         editable("title", "요구사항명", { clamp: 0, width: "14rem" }),
         editable("definition", "정의", { clamp: 3, width: "14rem" }),
-        editable("details", "세부 내용", { clamp: 3, width: "30rem" }),
+        editable("details", "세부 내용", { clamp: 3, width: "28rem" }),
         editable("deliverables", "산출정보", { clamp: 3, width: "10rem" }),
         editable("related", "관련요구사항", { clamp: 3, width: "12rem" }),
         solution,
