@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
 import { logAudit } from "@/lib/audit";
 import { createServerSupabase } from "@/lib/supabase-server";
-import { getNotifier } from "@/lib/notify";
+import { getNotifier, personalNotifyOverrides, USER_NOTIFIER_SETTING_KEYS } from "@/lib/notify";
+import { loadUserSettings } from "@/lib/settings-server";
+import { loadUserDefaultFolder } from "@/lib/rfp/user-folder";
 import { creatorNames } from "@/lib/rfp/creators";
 import { loadMsConfig, missingConfigMessage } from "@/lib/ms/config";
 import { OAuthError, oauthErrorMessage } from "@/lib/ms/oauth";
@@ -29,11 +31,17 @@ export async function POST(request: NextRequest, { params }: Params) {
     console.error("[ms] 연결 설정 누락:", cfg.missing.join(", "));
     return NextResponse.json({ error: missingConfigMessage(cfg.missing) }, { status: 500 });
   }
-  const [notifier, names] = await Promise.all([getNotifier(supabase, "notify"), creatorNames(auth.admin, [auth.userId])]);
+  // 개인 설정: 알림은 자기 워크플로우 URL로, 폴더는 프로젝트 지정이 없을 때 쓸 기본 폴더
+  const userSettings = await loadUserSettings(supabase, auth.userId, USER_NOTIFIER_SETTING_KEYS);
+  const [notifier, names, fallbackFolder] = await Promise.all([
+    getNotifier(supabase, "notify", personalNotifyOverrides(userSettings)),
+    creatorNames(auth.admin, [auth.userId]),
+    loadUserDefaultFolder(auth.admin, auth.userId),
+  ]);
   const userName = names.get(auth.userId) ?? "사용자";
 
   try {
-    const res = await uploadProjectXlsx(auth.admin, id, auth.userId, { app: cfg.config.app, encKey: cfg.config.encKey, notifier, userName });
+    const res = await uploadProjectXlsx(auth.admin, id, auth.userId, { app: cfg.config.app, encKey: cfg.config.encKey, notifier, userName, fallbackFolder });
     // 감사: 사외 저장소로 파일이 나가는 행위라 파일명·알림 여부를 남긴다
     await logAudit(auth.admin, request, {
       userId: auth.userId, action: "SharePoint 업로드", category: "rfp",

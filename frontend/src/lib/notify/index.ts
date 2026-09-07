@@ -30,6 +30,22 @@ export function createNotifier(axis: NotifyAxis, settings: Record<string, string
   return createDoorayNotifier({ hookUrl: settings.dooray_hook_url, token: settings.dooray_token });
 }
 
+/** 개인 설정(user_settings)에서 알림에 쓰는 키 — 채널 알림을 자기 워크플로우로 보내는 사람용 */
+export const USER_NOTIFIER_SETTING_KEYS = ["teams_notify_webhook_url", "dooray_token"] as const;
+
+/**
+ * 개인 설정 → getNotifier overrides.
+ * 개인 워크플로우 URL이 있으면 그 사람의 채널 알림은 **Teams 웹후크로 보낸다**(전역 provider가
+ * Dooray라도). 개인 값이 없으면 빈 객체라 전역 설정이 그대로 쓰인다.
+ */
+export function personalNotifyOverrides(userSettings: Record<string, string | undefined>): Record<string, string | undefined> {
+  const webhook = userSettings.teams_notify_webhook_url?.trim();
+  return {
+    dooray_token: userSettings.dooray_token,
+    ...(webhook ? { teams_notify_webhook_url: webhook, notify_provider: "teams" } : {}),
+  };
+}
+
 /**
  * 서버 전용: settings 테이블을 읽어 Notifier 생성.
  * overrides의 truthy 값만 시스템 값을 덮어쓴다(예: user_settings.dooray_token 우선).

@@ -213,6 +213,8 @@ export interface RfpSharepointUpload {
 /** GET /api/rfp/projects/[id]/sharepoint */
 export interface SharepointResponse {
   folder: SharepointFolder | null;
+  /** 프로젝트 폴더가 없을 때 업로드에 쓰이는 내 기본 폴더(개인 설정). 없으면 null */
+  defaultFolder?: SharepointFolder | null;
   lastUpload: RfpSharepointUpload | null;
   uploads: RfpSharepointUpload[];
 }

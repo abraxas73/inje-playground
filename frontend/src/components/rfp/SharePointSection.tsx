@@ -139,8 +139,13 @@ export default function SharePointSection({ projectId, projectStatus, initial }:
     }
   };
 
-  const canUpload = !!data.folder && projectStatus === "ready" && busy === null;
-  const uploadHint = !data.folder ? "먼저 SharePoint 폴더를 지정하세요." : projectStatus !== "ready" ? "요구사항 추출이 끝난 뒤 업로드할 수 있습니다." : undefined;
+  // 프로젝트 폴더가 없으면 개인 설정의 기본 폴더로 올라간다(설정 > SharePoint 업로드 기본 폴더)
+  const effectiveFolder = data.folder ?? data.defaultFolder ?? null;
+  const usingDefault = !data.folder && !!data.defaultFolder;
+  const canUpload = !!effectiveFolder && projectStatus === "ready" && busy === null;
+  const uploadHint = !effectiveFolder
+    ? "먼저 SharePoint 폴더를 지정하세요(설정에서 기본 폴더를 등록해도 됩니다)."
+    : projectStatus !== "ready" ? "요구사항 추출이 끝난 뒤 업로드할 수 있습니다." : undefined;
   const needsReconnect = reconnect || (conn?.connected === true && !!conn.lastError);
 
   return (
@@ -208,6 +213,24 @@ export default function SharePointSection({ projectId, projectStatus, initial }:
             </>
           )}
         </div>
+
+        {/* 프로젝트 폴더가 없으면 어디로 올라가는지 밝힌다 */}
+        {usingDefault && !editing && (
+          <div className="flex flex-wrap items-center gap-1.5 pl-16 text-xs text-muted-foreground">
+            <FolderOpen className="h-3.5 w-3.5" />
+            프로젝트 폴더가 없어 <span className="font-medium text-foreground">내 기본 폴더</span>로 올라갑니다 —
+            <span className="font-medium text-foreground">{data.defaultFolder?.name}</span>
+            <Button size="sm" variant="link" className="h-auto p-0 text-xs" asChild>
+              <a href={data.defaultFolder?.webUrl} target="_blank" rel="noreferrer">
+                폴더 열기<ExternalLink className="ml-1 h-3 w-3" />
+              </a>
+            </Button>
+            <span>·</span>
+            <Button size="sm" variant="link" className="h-auto p-0 text-xs" asChild>
+              <a href="/settings">설정에서 변경</a>
+            </Button>
+          </div>
+        )}
 
         {/* 업로드 */}
         <div className="flex flex-wrap items-center gap-2">

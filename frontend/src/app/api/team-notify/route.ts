@@ -1,7 +1,8 @@
 import { createServerSupabase } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
-import { getNotifier } from "@/lib/notify";
+import { getNotifier, personalNotifyOverrides, USER_NOTIFIER_SETTING_KEYS } from "@/lib/notify";
 import { buildTeamResultMessage, type TeamResultInput } from "@/lib/notify/messages";
+import { loadUserSettings } from "@/lib/settings-server";
 
 export async function POST(request: NextRequest) {
   const supabase = await createServerSupabase();
@@ -19,8 +20,10 @@ export async function POST(request: NextRequest) {
 
   const message = buildTeamResultMessage(teams);
 
-  // 채널 알림 provider(settings.notify_provider)에 따라 Dooray Hook / Teams 웹훅으로 발송
-  const notifier = await getNotifier(supabase, "notify");
+  // 채널 알림 provider(settings.notify_provider)에 따라 Dooray Hook / Teams 웹훅으로 발송.
+  // 개인 설정에 자기 워크플로우 URL이 있으면 그 채널로 보낸다.
+  const userSettings = await loadUserSettings(supabase, user.id, USER_NOTIFIER_SETTING_KEYS);
+  const notifier = await getNotifier(supabase, "notify", personalNotifyOverrides(userSettings));
   const results = { webhook_sent: false };
 
   if (notifier.channelConfigured) {

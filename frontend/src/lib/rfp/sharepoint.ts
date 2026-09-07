@@ -7,7 +7,7 @@ import { getAccessTokenForUser, NotConnectedError, ReconnectRequiredError } from
 import { GraphError, uploadFile, type UploadedItem } from "@/lib/ms/graph-drive";
 import type { MsAppConfig } from "@/lib/ms/oauth";
 import type { ChannelMessage, FetchLike, Notifier } from "@/lib/notify/types";
-import type { RfpSharepointUpload, SharepointErrorCode, UploadResponse } from "@/types/rfp";
+import type { RfpSharepointUpload, SharepointErrorCode, SharepointFolder, UploadResponse } from "@/types/rfp";
 import { loadCatalog } from "./catalog/store";
 import { creatorNames } from "./creators";
 import {
@@ -72,6 +72,11 @@ export interface UploadFlowDeps {
   notifier: Notifier;
   /** 알림 문구·이력 표시용 업로더 이름 */
   userName: string;
+  /**
+   * 프로젝트에 폴더가 지정돼 있지 않을 때 쓸 개인 기본 폴더(개인 설정).
+   * 둘 다 없으면 예전처럼 no_folder로 막는다.
+   */
+  fallbackFolder?: SharepointFolder | null;
   fetchImpl?: FetchLike;
   now?: () => Date;
   /** 테스트 주입용 — 기본은 실제 구현 */
@@ -95,8 +100,9 @@ export async function uploadProjectXlsx(admin: SupabaseClient, projectId: string
   if (!data) throw new SharepointFlowError(404, "프로젝트가 없습니다.");
   const row = data as ProjectDbRow;
   if (row.status !== "ready") throw new SharepointFlowError(400, "요구사항 추출이 끝난 뒤 업로드할 수 있습니다.");
-  const folder = parseSharepointFolder(row.sharepoint_folder);
-  if (!folder) throw new SharepointFlowError(400, "SharePoint 폴더가 지정되지 않았습니다.", "no_folder");
+  // 프로젝트 지정 → 없으면 개인 기본 폴더(개인 설정) → 둘 다 없으면 안내
+  const folder = parseSharepointFolder(row.sharepoint_folder) ?? deps.fallbackFolder ?? null;
+  if (!folder) throw new SharepointFlowError(400, "SharePoint 폴더가 지정되지 않았습니다. 프로젝트에서 폴더를 지정하거나 설정에서 기본 폴더를 등록하세요.", "no_folder");
 
   let token: string;
   try {

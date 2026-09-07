@@ -32,6 +32,8 @@ import {
 import { cn } from "@/lib/utils";
 import MyTeamCard from "@/components/settings/MyTeamCard";
 import MicrosoftAccountCard from "@/components/settings/MicrosoftAccountCard";
+import SharepointFolderCard from "@/components/settings/SharepointFolderCard";
+import NotifyChannelCard from "@/components/settings/NotifyChannelCard";
 import { fetchProjects as fetchDoorayProjects, fetchProjectMembers } from "@/lib/dooray-client";
 
 interface DoorayProject {
@@ -245,6 +247,12 @@ export default function UserSettingsPage() {
 
       {/* Microsoft 계정 (SharePoint 업로드) */}
       <MicrosoftAccountCard />
+
+      {/* SharePoint 업로드 기본 폴더 */}
+      <SharepointFolderCard />
+
+      {/* 알림 채널(개인 워크플로우 URL) */}
+      <NotifyChannelCard />
 
       {/* Dooray 연동 */}
       <Card>

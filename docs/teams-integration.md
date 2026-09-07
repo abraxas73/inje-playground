@@ -52,6 +52,9 @@ Power Automate의 **"HTTP 요청을 받은 경우" 트리거와 "응답" 작업�
 4. 저장 → 트리거 카드를 다시 열어 **HTTP POST URL** 복사 → `teams_dm_webhook_url`.
 - 숨김 TextBlock(`isVisible:false`)은 카드에 표시되지 않는다. 수신자는 같은 테넌트 사용자여야 한다.
 
+### 2.2-A 개인 채널 알림 (2026-09-08)
+사용자가 `/settings`의 "알림 채널(개인 워크플로우 URL)"에 자기 워크플로우 트리거 URL(2.1과 같은 템플릿)을 넣으면, **그 사람이 만든 알림만** 그 채널로 간다(RFP SharePoint 업로드·팀 구성 결과). 전역 provider가 Dooray여도 개인 URL이 있으면 Teams 웹후크로 보낸다. 비워 두면 관리자 설정 채널로 돌아간다. 화면의 "테스트 전송"이 실제 카드 1건을 보내므로 URL 확인은 이걸로 한다. 개인 URL은 `user_settings.teams_notify_webhook_url`에 저장되고 어드민 화면에는 노출되지 않는다.
+
 ### 2.3 테스트
 ```bash
 # A 채널
