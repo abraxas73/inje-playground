@@ -7,7 +7,8 @@ import { countBySolution, countByVerdict } from "@/lib/rfp/mapping/summary";
 
 export type VerdictFilter = Verdict | "unmapped" | null;
 
-const VERDICT_CLASS: Record<Verdict | "unmapped", string> = {
+/** 판정별 색. 요약 칩·배지·요구사항 ID 버튼이 같은 색을 쓴다 */
+export const VERDICT_CLASS: Record<Verdict | "unmapped", string> = {
   fulfilled: "bg-emerald-100 text-emerald-900 hover:bg-emerald-200",
   partial: "bg-amber-100 text-amber-900 hover:bg-amber-200",
   candidate: "bg-indigo-100 text-indigo-900 hover:bg-indigo-200",

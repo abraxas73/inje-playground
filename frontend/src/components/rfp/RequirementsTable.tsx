@@ -15,17 +15,19 @@ import {
 } from "@/components/ui/alert-dialog";
 import EditableCell from "@/components/rfp/EditableCell";
 import MappingEditor from "@/components/rfp/MappingEditor";
-import { VerdictBadge, type VerdictFilter } from "@/components/rfp/MappingSummary";
+import { VERDICT_CLASS, VerdictBadge, type VerdictFilter } from "@/components/rfp/MappingSummary";
+import { cn } from "@/lib/utils";
 import { orderCategoryCodes, sheetNameFor } from "@/lib/rfp/requirements";
 import { bestVerdict, groupByRequirement, indexCatalog, mappingSummary } from "@/lib/rfp/mapping/summary";
-import type { CatalogSolution } from "@/lib/rfp/mapping/types";
-import type { RfpMapping, RfpRequirement } from "@/types/rfp";
+import { UNMAPPED_LABEL, VERDICT_LABEL, type CatalogSolution } from "@/lib/rfp/mapping/types";
+import type { RfpMapping, RfpMappingStatus, RfpRequirement } from "@/types/rfp";
 
 interface Props {
   projectId: string;
   requirements: RfpRequirement[];
   mappings: RfpMapping[];
   catalog: CatalogSolution[];
+  mappingStatus: RfpMappingStatus;
   verdictFilter: VerdictFilter;
   onChange: (next: RfpRequirement[]) => void;
   onMappingsChange: (next: RfpMapping[]) => void;
@@ -40,7 +42,9 @@ async function patchRequirement(id: string, patch: Partial<Record<EditableField,
   return json;
 }
 
-export default function RequirementsTable({ projectId, requirements, mappings, catalog, verdictFilter, onChange, onMappingsChange }: Props) {
+export default function RequirementsTable({ projectId, requirements, mappings, catalog, mappingStatus, verdictFilter, onChange, onMappingsChange }: Props) {
+  /** 매핑이 한 번 끝났으면(또는 매핑 행이 있으면) 요구사항 ID를 판정 색 버튼으로 그린다 */
+  const mapped = mappingStatus === "ready" || mappings.length > 0;
   const codes = useMemo(() => orderCategoryCodes(requirements.map((r) => r.categoryCode)), [requirements]);
   const sheetIndex = useMemo(() => new Map(codes.map((c, i) => [c, i + 2])), [codes]);
   const categoryNames = useMemo(() => {
@@ -106,6 +110,28 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
       meta: { width: "3rem" },
     });
     const seq = col.display({ id: "seq", header: "연번", cell: (ctx) => <span className="tabular-nums text-muted-foreground">{ctx.row.index + 1}</span>, meta: { width: "3.5rem" } });
+    // 매핑 전에는 다른 셀처럼 클릭해서 편집. 매핑 후에는 판정 색 버튼(클릭 → 행 펼침)이 되고 ID 편집은 펼친 패널 헤더에서 한다.
+    const reqIdCol = col.accessor("reqId", {
+      header: "요구사항 ID",
+      cell: (ctx) => {
+        if (!mapped) return <EditableCell value={ctx.getValue()} onSave={save(ctx.row.original, "reqId")} clampLines={0} />;
+        const verdict = bestVerdict(groups.get(ctx.row.original.id) ?? []) ?? "unmapped";
+        const label = verdict === "unmapped" ? UNMAPPED_LABEL : VERDICT_LABEL[verdict];
+        const open = ctx.row.getIsExpanded();
+        return (
+          <button
+            type="button"
+            onClick={ctx.row.getToggleExpandedHandler()}
+            aria-expanded={open}
+            title={`${label} — 클릭하면 솔루션 매핑을 ${open ? "접습니다" : "펼칩니다"}. ID 편집은 펼친 패널에서.`}
+            className={cn("inline-flex max-w-full items-center rounded-md border border-transparent px-2 py-0.5 text-left text-sm font-medium tabular-nums ring-offset-background transition", VERDICT_CLASS[verdict], open && "ring-2 ring-ring ring-offset-1")}
+          >
+            <span className="truncate">{ctx.getValue() || "ID 없음"}</span>
+          </button>
+        );
+      },
+      meta: { width: "8rem" },
+    });
     const solution = col.display({
       id: "solution",
       header: "당사 솔루션",
@@ -127,7 +153,7 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
         expander,
         seq,
         editable("categoryName", "요구사항 구분", { clamp: 0, width: "11rem" }),
-        editable("reqId", "요구사항 ID", { clamp: 0, width: "8rem" }),
+        reqIdCol,
         editable("title", "요구사항 명칭", { clamp: 0, width: "20rem" }),
         col.display({ id: "sheet", header: "상세 시트 위치", cell: (ctx) => <span className="text-muted-foreground">{sheetNameFor(ctx.row.original.categoryCode, sheetIndex.get(ctx.row.original.categoryCode) ?? 0)}</span>, meta: { width: "8rem" } }),
         solution,
@@ -136,7 +162,7 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
       detailColumns: [
         expander,
         seq,
-        editable("reqId", "요구사항 ID", { clamp: 0, width: "8rem" }),
+        reqIdCol,
         editable("title", "요구사항명", { clamp: 0, width: "14rem" }),
         editable("definition", "정의", { clamp: 3, width: "14rem" }),
         editable("details", "세부 내용", { clamp: 3, width: "30rem" }),
@@ -146,7 +172,7 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
         actions,
       ],
     };
-  }, [save, sheetIndex, groups, index]);
+  }, [save, sheetIndex, groups, index, mapped]);
 
   const data = useMemo(() => {
     const byTab = tab === "all" ? requirements : requirements.filter((r) => r.categoryCode === tab);
@@ -219,7 +245,7 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
                     {row.getIsExpanded() && (
                       <tr className="border-t bg-muted/10">
                         <td colSpan={colCount} className="px-3 py-2">
-                          <RequirementDetails requirement={row.original} />
+                          <RequirementDetails requirement={row.original} onSaveReqId={save(row.original, "reqId")} />
                           <MappingEditor
                             projectId={projectId}
                             requirement={row.original}
@@ -266,8 +292,8 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
   );
 }
 
-/** 펼친 행 위쪽: 매핑을 확인할 때 요구사항 본문(정의·세부 내용·산출정보·관련 요구사항)을 같이 본다 — 전체 목록 탭에는 이 내용이 열로 없다. 편집은 구분 탭의 셀에서. */
-function RequirementDetails({ requirement }: { requirement: RfpRequirement }) {
+/** 펼친 행 위쪽: 매핑을 확인할 때 요구사항 본문(정의·세부 내용·산출정보·관련 요구사항)을 같이 본다 — 전체 목록 탭에는 이 내용이 열로 없다. 본문 편집은 구분 탭의 셀에서, ID는 여기 헤더에서(매핑 후 ID 셀이 버튼이 되므로). */
+function RequirementDetails({ requirement, onSaveReqId }: { requirement: RfpRequirement; onSaveReqId: (next: string) => Promise<void> }) {
   const fields = ([
     ["정의", requirement.definition],
     ["세부 내용", requirement.details],
@@ -276,7 +302,10 @@ function RequirementDetails({ requirement }: { requirement: RfpRequirement }) {
   ] as [string, string][]).filter(([, v]) => v.trim());
   return (
     <div className="mb-3 rounded-lg border bg-background p-3">
-      <div className="mb-2 text-xs font-medium text-muted-foreground">{requirement.reqId} · {requirement.title}</div>
+      <div className="mb-2 flex flex-wrap items-center gap-x-2 text-xs font-medium text-muted-foreground">
+        <EditableCell value={requirement.reqId} onSave={onSaveReqId} clampLines={0} placeholder="ID 없음" className="rounded px-1 -mx-1 hover:bg-muted" />
+        <span>· {requirement.title}</span>
+      </div>
       {fields.length === 0 ? (
         <div className="text-sm text-muted-foreground">세부 내용이 없습니다.</div>
       ) : (

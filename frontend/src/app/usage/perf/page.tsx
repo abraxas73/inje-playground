@@ -5,7 +5,7 @@ import PerfDashboard from "@/components/usage/PerfDashboard";
 
 export default function MyPerfPage() {
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-4 py-6 md:px-8">
+    <div className="space-y-4">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold">
           <TrendingUp className="h-5 w-5" />성과 지표

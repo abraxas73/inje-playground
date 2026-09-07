@@ -121,7 +121,7 @@ export default function RfpProjectPage() {
 
   if (error && !project) {
     return (
-      <div className="mx-auto max-w-6xl space-y-4 p-6">
+      <div className="space-y-4">
         <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
         <Button variant="outline" asChild><Link href="/rfp"><ArrowLeft className="mr-1 h-4 w-4" />목록으로</Link></Button>
       </div>
@@ -132,7 +132,7 @@ export default function RfpProjectPage() {
   const catalogReady = catalog.some((s) => s.isActive && s.features.some((f) => f.isActive));
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-4 p-4 md:p-6">
+    <div className="space-y-4">
       <Link href="/rfp" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="mr-1 h-4 w-4" />RFP 분석 목록</Link>
       <OverviewCard
         project={project}
@@ -163,6 +163,7 @@ export default function RfpProjectPage() {
             requirements={project.requirements}
             mappings={project.mappings}
             catalog={catalog}
+            mappingStatus={project.mappingStatus}
             verdictFilter={verdictFilter}
             onChange={(next) => setProject((p) => (p ? { ...p, requirements: next, requirementCount: next.length } : p))}
             onMappingsChange={(next) => setProject((p) => (p ? { ...p, mappings: next } : p))}

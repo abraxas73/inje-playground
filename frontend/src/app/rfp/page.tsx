@@ -87,7 +87,7 @@ export default function RfpPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
+    <div className="space-y-6">
       <div className="flex items-center gap-3">
         <FileSearch className="h-7 w-7 text-violet-600" />
         <div>
