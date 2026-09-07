@@ -103,3 +103,14 @@ delete from claude_orgs            where id = 'test-org';
 ## 5. 테스트
 - 단위: `cd frontend && npx vitest run` (parser·CSV·집계·인증·관리형 설정).
 - E2E: `cd frontend && npx playwright test e2e/claude-usage.spec.ts` — OTLP 수신/관리자 API 게이트(401·415·400·200)는 세션 없이 실행된다. 관리자 화면 2개 테스트(3탭 렌더, 합성 CSV 업로드→표→삭제)는 `E2E_ADMIN_STORAGE_STATE`(Google 관리자 로그인 storageState JSON; `npx playwright codegen --save-storage=/tmp/admin-storage.json http://localhost:3003`)와 `SUPABASE_SERVICE_ROLE_KEY`(로컬 `.env.local`)가 있을 때만 실행되고 없으면 SKIP된다.
+
+### 라인 +/− 가 0인 사용자 (2026-09-07 점검)
+
+라인 수는 OTel 메트릭 `claude_code.lines_of_code.count`이며 **Claude Code의 Edit·Write 도구가 파일을 실제로 고칠 때만** 온다. 수집 문제가 아니라 사용 패턴이다.
+
+- 193명 중 123명은 라인이 있고 70명이 0. 편집 도구 사용 기록이 있는 117명은 **전원** 라인 > 0이고, 편집 도구 기록이 없는 70명이 라인 0(도구 집계는 2026-08-31부터라 그 전에만 활동한 6명은 도구 행이 없어도 라인이 있다).
+- 라인 0인 70명은 편집 수락 수(`code_edit_tool.decision`)도 전원 0 — 독립된 두 지표가 같은 결론.
+- 수신 로그 `claude_ingest_log`의 dropped는 최근 7일 0건이라 파서가 라인 포인트를 버리는 문제도 아니다.
+- 0으로 남는 경우: ① MCP·SDK 자동화 워크플로(예: 세션 1,125·프롬프트 991·$1,107인데 도구는 MCP 3,460·Bash 65뿐) ② Bash(sed·heredoc·스크립트)로 파일을 고치는 습관 ③ 읽기·질문 전용 ④ API 키 직접 호출(이름·조직이 안 붙는 27명, 전부 sdk). 요청 종류로 보면 라인 0 그룹은 89.5%가 `sdk`·대화형 CLI 6.6%, 라인 > 0 그룹은 대화형 CLI 44.9%.
+- 화면에는 이 조건을 툴팁으로 붙였다(`lib/claude-usage/metric-hints.ts` `LOC_HINT` — 어드민 Claude Code 표·"수락 라인/수락률" 카드, 개인 `/usage/code` 표·지표 카드, 성과 지표 표 `LOC(Claude)`). 헤더에 점선 밑줄이 보이면 툴팁이 있다는 뜻.
+- **라인 0을 미사용으로 읽지 말 것** — 비용 상위권에도 라인 0인 사용자가 있다.

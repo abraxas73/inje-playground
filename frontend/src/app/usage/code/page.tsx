@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { LOC_HINT } from "@/lib/claude-usage/metric-hints";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -147,7 +148,7 @@ export default function MyCodeUsagePage() {
     { key: "in", header: "입력 토큰", align: "right", value: (r) => r.input_tokens, render: (r) => int(r.input_tokens), total: "sum" },
     { key: "out", header: "출력 토큰", align: "right", value: (r) => r.output_tokens, render: (r) => int(r.output_tokens), total: "sum" },
     { key: "perPrompt", header: "토큰/프롬프트\n(입/출)", align: "right", value: (r) => (r.prompts ? r.output_tokens / r.prompts : 0), render: (r) => <span title="프롬프트 1건당 평균 토큰 — 입력(캐시 읽기 제외) / 출력">{perPrompt(r.input_tokens, r.output_tokens, r.prompts)}</span>, total: (rows) => perPrompt(sumBy(rows, (r) => r.input_tokens), sumBy(rows, (r) => r.output_tokens), sumBy(rows, (r) => r.prompts)) },
-    { key: "loc", header: "라인 +/−", align: "right", value: (r) => r.loc_added, render: (r) => `${int(r.loc_added)} / ${int(r.loc_removed)}`, total: (rows) => `${int(sumBy(rows, (r) => r.loc_added))} / ${int(sumBy(rows, (r) => r.loc_removed))}` },
+    { key: "loc", header: "라인 +/−", hint: LOC_HINT, align: "right", value: (r) => r.loc_added, render: (r) => `${int(r.loc_added)} / ${int(r.loc_removed)}`, total: (rows) => `${int(sumBy(rows, (r) => r.loc_added))} / ${int(sumBy(rows, (r) => r.loc_removed))}` },
     { key: "accept", header: "수락률", align: "right", value: (r) => acceptRate(r.edits_accepted, r.edits_rejected) ?? -1, render: (r) => { const a = acceptRate(r.edits_accepted, r.edits_rejected); return a === null ? "—" : `${a}%`; }, total: (rows) => { const a = acceptRate(sumBy(rows, (r) => r.edits_accepted), sumBy(rows, (r) => r.edits_rejected)); return a === null ? "—" : `${a}%`; } },
     { key: "commits", header: "커밋", align: "right", value: (r) => r.commits, render: (r) => int(r.commits), total: "sum" },
     { key: "prs", header: "PR", align: "right", value: (r) => r.pull_requests, render: (r) => int(r.pull_requests), total: "sum" },
@@ -231,7 +232,7 @@ export default function MyCodeUsagePage() {
           <Stat label="세션" value={int(t.sessions)} />
           <Stat label="프롬프트 (사람 / 자동)" value={`${int(t.prompts - t.prompts_auto)} / ${int(t.prompts_auto)}`} title="사람이 친 프롬프트 / 플러그인·스크립트 자동화(claude-mem 관찰자 등). 내용 수집이 없는 사용자는 전부 사람으로 잡힘" />
           <Stat label="토큰/프롬프트 (입/출)" value={perPrompt(t.input_tokens, t.output_tokens, t.prompts)} sub="프롬프트 1건당 평균 · 입력은 캐시 읽기 제외" />
-          <Stat label="라인 +/−" value={`${int(t.loc_added)} / ${int(t.loc_removed)}`} />
+          <Stat label="라인 +/−" value={`${int(t.loc_added)} / ${int(t.loc_removed)}`} title={LOC_HINT} />
           <Stat label="편집 수락률" value={accept === null ? "—" : `${accept}%`} sub={`수락 ${int(t.edits_accepted)} / 거절 ${int(t.edits_rejected)}`} />
           <Stat label="커밋 · PR" value={`${int(t.commits)} · ${int(t.pull_requests)}`} />
           <Stat label="활성 시간" value={hours(t.active_user_seconds)} sub="Claude Code와 상호작용한 시간" />

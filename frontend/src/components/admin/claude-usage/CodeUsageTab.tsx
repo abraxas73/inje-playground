@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { EDIT_ACCEPT_HINT, LOC_HINT } from "@/lib/claude-usage/metric-hints";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,7 +85,7 @@ export default function CodeUsageTab() {
     { key: "out", header: "출력 토큰", align: "right", value: (u) => u.output_tokens, render: (u) => int(u.output_tokens) , total: "sum" },
     { key: "cache", header: "캐시 읽기", align: "right", value: (u) => u.cache_read_tokens, render: (u) => int(u.cache_read_tokens) , total: "sum" },
     { key: "perPrompt", header: "토큰/프롬프트\n(입/출)", align: "right", value: (u) => (u.prompts ? u.output_tokens / u.prompts : 0), render: (u) => (u.prompts ? <span title="프롬프트 1건당 평균 토큰 — 입력(캐시 읽기 제외) / 출력">{`${int(u.input_tokens / u.prompts)} / ${int(u.output_tokens / u.prompts)}`}</span> : "—"), total: (rows) => { const p = sumBy(rows, (u) => u.prompts); return p ? `${int(sumBy(rows, (u) => u.input_tokens) / p)} / ${int(sumBy(rows, (u) => u.output_tokens) / p)}` : "—"; } },
-    { key: "loc", header: "라인 +/−", align: "right", value: (u) => u.loc_added, render: (u) => `${int(u.loc_added)} / ${int(u.loc_removed)}` , total: (rows) => `${int(sumBy(rows, (u) => u.loc_added))} / ${int(sumBy(rows, (u) => u.loc_removed))}` },
+    { key: "loc", header: "라인 +/−", hint: LOC_HINT, align: "right", value: (u) => u.loc_added, render: (u) => `${int(u.loc_added)} / ${int(u.loc_removed)}` , total: (rows) => `${int(sumBy(rows, (u) => u.loc_added))} / ${int(sumBy(rows, (u) => u.loc_removed))}` },
     { key: "accept", header: "수락률", align: "right", value: (u) => acceptRate(u.edits_accepted, u.edits_rejected), render: (u) => { const r = acceptRate(u.edits_accepted, u.edits_rejected); return r === null ? "—" : `${r}%`; } , total: (rows) => { const a = acceptRate(sumBy(rows, (u) => u.edits_accepted), sumBy(rows, (u) => u.edits_rejected)); return a === null ? "—" : `${a}%`; } },
     { key: "commits", header: "커밋", align: "right", value: (u) => u.commits, render: (u) => int(u.commits) , total: "sum" },
     { key: "prs", header: "PR", align: "right", value: (u) => u.pull_requests, render: (u) => int(u.pull_requests) , total: "sum" },
@@ -130,10 +131,15 @@ export default function CodeUsageTab() {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
           {[
             ["비용", usd(t.cost_usd)], ["활성 사용자", int(t.active_users)], ["세션", int(t.sessions)],
-            ["수락 라인", int(t.loc_added)], ["수락률", (() => { const r = acceptRate(t.edits_accepted, t.edits_rejected); return r === null ? "—" : `${r}%`; })()],
+            ["수락 라인", int(t.loc_added), LOC_HINT], ["수락률", (() => { const r = acceptRate(t.edits_accepted, t.edits_rejected); return r === null ? "—" : `${r}%`; })(), EDIT_ACCEPT_HINT],
             ["커밋 / PR", `${int(t.commits)} / ${int(t.pull_requests)}`],
-          ].map(([k, v]) => (
-            <Card key={k}><CardContent className="p-3"><div className="text-xs text-muted-foreground">{k}</div><div className="text-lg font-semibold tabular-nums">{v}</div></CardContent></Card>
+          ].map(([k, v, hint]) => (
+            <Card key={String(k)} title={typeof hint === "string" ? hint : undefined}>
+              <CardContent className="p-3">
+                <div className={`text-xs text-muted-foreground ${hint ? "decoration-dotted underline-offset-4 [text-decoration-line:underline]" : ""}`}>{k}</div>
+                <div className="text-lg font-semibold tabular-nums">{v}</div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

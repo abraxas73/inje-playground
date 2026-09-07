@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { LOC_HINT } from "@/lib/claude-usage/metric-hints";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -218,7 +219,7 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
     { key: "opened", header: "MR 오픈", align: "right", value: (r) => r.mrs_opened, render: (r) => int(r.mrs_opened) , total: "sum" },
     { key: "merged", header: "MR 머지", align: "right", value: (r) => r.mrs_merged, render: (r) => int(r.mrs_merged) , total: "sum" },
     { key: "mrlead", header: "MR 리드(평균)", align: "right", value: (r) => (r.mrs_merged ? r.mr_lead_hours_sum / r.mrs_merged : -1), render: (r) => h(r.mr_lead_hours_sum, r.mrs_merged) , total: (rows) => h(sumBy(rows, (r) => r.mr_lead_hours_sum), sumBy(rows, (r) => r.mrs_merged)) },
-    { key: "loc", header: "LOC(Claude)", align: "right", value: (r) => r.loc_added, render: (r) => `+${int(r.loc_added)}/-${int(r.loc_removed)}` , total: (rows) => `+${int(sumBy(rows, (r) => r.loc_added))}/-${int(sumBy(rows, (r) => r.loc_removed))}` },
+    { key: "loc", header: "LOC(Claude)", hint: LOC_HINT, align: "right", value: (r) => r.loc_added, render: (r) => `+${int(r.loc_added)}/-${int(r.loc_removed)}` , total: (rows) => `+${int(sumBy(rows, (r) => r.loc_added))}/-${int(sumBy(rows, (r) => r.loc_removed))}` },
   ];
   const docUserCols: Column<UserPerf>[] = [
     userCell,

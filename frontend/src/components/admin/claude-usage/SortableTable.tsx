@@ -7,6 +7,8 @@ export interface Column<T> {
   key: string;
   /** 헤더 문구. "\n"을 넣으면 그 자리에서 줄을 바꿔 표시한다(긴 헤더를 2줄로) */
   header: string;
+  /** 헤더 툴팁(지표의 뜻·집계 범위). 있으면 헤더에 점선 밑줄이 붙는다 */
+  hint?: string;
   value: (row: T) => number | string | null;
   render?: (row: T) => ReactNode;
   align?: "left" | "right";
@@ -78,9 +80,10 @@ export default function SortableTable<T>({ rows, columns, rowKey, defaultSort, e
                     toggle(c.key);
                   }
                 }}
+                title={c.hint}
                 className={`cursor-pointer select-none whitespace-nowrap px-2 py-2 font-medium ${c.align === "right" ? "text-right" : "text-left"} ${c.className ?? ""}`}
               >
-                <span className="inline-flex items-center gap-0.5">
+                <span className={`inline-flex items-center gap-0.5 ${c.hint ? "decoration-dotted underline-offset-4 [text-decoration-line:underline]" : ""}`}>
                   {c.header.includes("\n")
                     ? <span className={`inline-block leading-tight ${c.align === "right" ? "text-right" : "text-left"}`}>{c.header.split("\n").map((line, i) => <span key={i} className="block">{line}</span>)}</span>
                     : c.header}
