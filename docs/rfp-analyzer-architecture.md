@@ -77,7 +77,7 @@ flowchart LR
 솔루션 기능 목록이 매핑의 유일한 근거다. 관리자가 `/admin/rfp-catalog`에서 관리한다.
 
 1. **솔루션**: SECloudit · Devopsit · AICubeit · TabCloudit · Openstackit (활성/비활성, 정렬 순서).
-2. **소스**: Confluence 페이지 URL(제목 검색 지원) 또는 SharePoint xlsx 기능명세서 링크. Confluence는 storage 포맷 XHTML을 평문으로 바꾸고(`storage-text.ts`, 이름 엔티티 복원 포함), xlsx는 시트마다 기능명·설명·키워드 열을 찾는다.
+2. **소스**: Confluence 페이지 URL(제목·본문 검색으로 찾아 개별 또는 "미등록 모두 등록"으로 일괄 등록) 또는 SharePoint xlsx 기능명세서 링크. 가져오기는 **등록된 소스만** 다시 읽는다 — 새 문서는 먼저 소스로 등록해야 들어온다. Confluence는 storage 포맷 XHTML을 평문으로 바꾸고(`storage-text.ts`, 이름 엔티티 복원 포함), xlsx는 시트마다 기능명·설명·키워드 열을 찾는다.
 3. **가져오기**: 규칙 파서가 기본(표·제목·글머리에서 기능 후보 추출 → 이름 정규화로 기존 기능과 병합). `ANTHROPIC_API_KEY`가 있으면 "Claude로 보강"이 추가로 뜬다. 사람이 고친(✎) 기능·키워드는 어느 경로로도 덮어쓰지 않는다.
 4. **키워드**: 기능 이름·설명에서 자동 생성하고 관리자가 표에서 직접 고친다(쉼표 구분, ↻로 재생성). 규칙 엔진 매칭의 핵심 입력이다.
 5. **매핑 설정**: 요구사항(세부 항목)당 후보 상한 1~5(기본 5). 전역 설정 키 `rfp_mapping_max_candidates`.

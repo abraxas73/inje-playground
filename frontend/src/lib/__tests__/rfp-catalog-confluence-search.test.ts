@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from "vitest";
 import { confluenceConfig, ConfluenceFetchError } from "@/lib/rfp/catalog/confluence";
-import { buildTitleCql, searchConfluencePages, SEARCH_LIMIT_DEFAULT, SEARCH_LIMIT_MAX } from "@/lib/rfp/catalog/confluence-search";
+import { buildSearchCql, buildTitleCql, searchConfluencePages, unregisteredHits, SEARCH_LIMIT_DEFAULT, SEARCH_LIMIT_MAX } from "@/lib/rfp/catalog/confluence-search";
 
 const cfg = confluenceConfig({ ATLASSIAN_SITE: "https://pms-innogrid.atlassian.net/", ATLASSIAN_EMAIL: "a@b.c", ATLASSIAN_API_TOKEN: "tok" })!;
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -42,5 +42,21 @@ describe("searchConfluencePages", () => {
     const fetchImpl = vi.fn(async () => new Response("boom", { status: 502 }));
     await expect(searchConfluencePages(cfg, "x", 5, fetchImpl as unknown as typeof fetch)).rejects.toMatchObject({ status: 502, message: "Confluence 검색 실패(502)" });
     await expect(searchConfluencePages(cfg, "x", 5, fetchImpl as unknown as typeof fetch)).rejects.toBeInstanceOf(ConfluenceFetchError);
+  });
+});
+
+describe("buildSearchCql / unregisteredHits", () => {
+  it("본문 범위는 제목 OR 본문으로 찾는다", () => {
+    expect(buildSearchCql("SECloudit")).toBe('type=page AND title ~ "SECloudit" ORDER BY lastmodified DESC');
+    expect(buildSearchCql("SECloudit", "text")).toBe('type=page AND (title ~ "SECloudit" OR text ~ "SECloudit") ORDER BY lastmodified DESC');
+    expect(buildTitleCql("SECloudit")).toBe(buildSearchCql("SECloudit", "title"));
+  });
+  it("따옴표·역슬래시는 빼고 공백은 하나로", () => {
+    expect(buildSearchCql('  기능  "명세"\\서 ', "text")).toContain('title ~ "기능 명세서"');
+  });
+  it("등록된 pageId와 중복 결과를 걸러 낸다", () => {
+    const hits = [{ pageId: "1" }, { pageId: "2" }, { pageId: "2" }, { pageId: "" }, { pageId: "3" }];
+    expect(unregisteredHits(hits, new Set(["3"])).map((h) => h.pageId)).toEqual(["1", "2"]);
+    expect(unregisteredHits([], new Set())).toEqual([]);
   });
 });

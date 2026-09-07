@@ -211,7 +211,13 @@ export default function SourceTable({ solution, llmAvailable, onImported }: { so
           {error.code === "reconnect" && <> <Link href="/settings" className="underline">다시 연결</Link></>}
         </div>
       )}
-      <ConfluenceSearchPanel solution={solution} registeredPageIds={registeredPageIds} onRegistered={load} />
+      <ConfluenceSearchPanel
+        solution={solution}
+        registeredPageIds={registeredPageIds}
+        onRegistered={load}
+        onImportAll={() => runImport("rules")}
+        importDisabled={busy || running}
+      />
     </div>
   );
 }
