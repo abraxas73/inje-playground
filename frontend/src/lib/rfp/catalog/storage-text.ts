@@ -2,7 +2,15 @@
  * Confluence storage 포맷(XHTML + ac:/ri: 네임스페이스) → 평문(스펙 §3.2).
  * XML 파서 대신 정규식을 쓴다 — storage 본문은 HTML 엔티티와 닫히지 않은 태그가 섞여 파서가 자주 실패한다.
  */
-const NAMED: Record<string, string> = { nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+/** Confluence 본문에 흔한 이름 엔티티. 없는 이름은 그대로 둔다(&zzz;) */
+const NAMED: Record<string, string> = {
+  nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
+  middot: "·", bull: "•", hellip: "…", ndash: "–", mdash: "—",
+  lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”", laquo: "«", raquo: "»",
+  larr: "←", rarr: "→", uarr: "↑", darr: "↓", harr: "↔",
+  times: "×", divide: "÷", plusmn: "±", deg: "°", copy: "©", reg: "®", trade: "™",
+  ensp: " ", emsp: " ", thinsp: " ", shy: "", zwj: "", zwnj: "",
+};
 
 export function decodeEntities(s: string): string {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, code: string) => {

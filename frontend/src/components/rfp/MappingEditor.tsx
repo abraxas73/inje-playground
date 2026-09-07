@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Check, ExternalLink, FileText, Link2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SearchableSelect, { type SearchableOption } from "@/components/shared/SearchableSelect";
-import { ENGINE_LABEL, requiresFeature, VERDICT_LABEL, VERDICT_ORDER, type CatalogSolution, type Verdict } from "@/lib/rfp/mapping/types";
+import { ENGINE_LABEL, requiresFeature, VERDICT_LABEL, VERDICT_ORDER, type CatalogFeature, type CatalogSolution, type Verdict } from "@/lib/rfp/mapping/types";
+import { indexCatalog } from "@/lib/rfp/mapping/summary";
 import type { RfpMapping, RfpRequirement } from "@/types/rfp";
 
 interface Props {
@@ -32,6 +33,9 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
   const [pending, setPending] = useState<Record<string, Pending>>({});
   const [draft, setDraft] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
+  /** 근거 URL 입력을 펼친 행 — 기본은 문서 제목·요약만 보이고 URL은 "바로가기"로 */
+  const [urlEditing, setUrlEditing] = useState<Record<string, boolean>>({});
+  const featureIndex = useMemo(() => indexCatalog(catalog).feature, [catalog]);
 
   const solutionOptions: SearchableOption[] = catalog.filter((s) => s.isActive).map((s) => ({ value: s.code, label: s.name }));
   const featureOptions = (solutionCode: string | null, currentFeatureId: string | null): SearchableOption[] => {
@@ -141,10 +145,13 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
               </div>
             </div>
             <Textarea key={`${row.id}:rationale:${row.updatedAt}`} defaultValue={row.rationale} rows={2} placeholder="설명(왜 이 판정인지)" className="min-h-0 text-sm" onBlur={(e) => changeText(row, "rationale", e.target.value.trim())} />
-            <div className="flex items-center gap-1">
-              <Input key={`${row.id}:evidence:${row.updatedAt}`} defaultValue={row.evidenceUrl ?? ""} placeholder="근거 URL" className="h-8 text-xs" onBlur={(e) => changeText(row, "evidenceUrl", e.target.value.trim())} />
-              {row.evidenceUrl && <a href={row.evidenceUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground"><ExternalLink className="h-4 w-4" /></a>}
-            </div>
+            <EvidenceRow
+              row={row}
+              feature={row.featureId ? featureIndex.get(row.featureId) : undefined}
+              editing={!!urlEditing[row.id]}
+              onToggleEdit={() => setUrlEditing((p) => ({ ...p, [row.id]: !p[row.id] }))}
+              onSaveUrl={(v) => changeText(row, "evidenceUrl", v)}
+            />
           </div>
         );
       })}
@@ -159,6 +166,52 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
       )}
       {!sorted.length && !draft && <div className="text-sm text-muted-foreground">매핑이 없습니다(미매핑). &quot;행 추가&quot;로 직접 매핑하거나 개요의 &quot;솔루션 매핑 실행&quot;을 누르세요.</div>}
       {error && <div className="text-sm text-destructive">{error}</div>}
+    </div>
+  );
+}
+
+/**
+ * 근거 표시. 기능이 있으면 주소 대신 매핑된 문서 제목(소스 페이지·파일명)과 기능 요약을 보여주고, 링크는 끝의 "바로가기"로만.
+ * URL은 링크 아이콘을 눌러 펼친 입력에서 고친다. 기능이 없는 행(설계·구축영역·해당없음)은 보여줄 문서가 없어 URL 입력을 그대로 둔다.
+ */
+function EvidenceRow({ row, feature, editing, onToggleEdit, onSaveUrl }: {
+  row: RfpMapping; feature: CatalogFeature | undefined; editing: boolean; onToggleEdit: () => void; onSaveUrl: (value: string) => void;
+}) {
+  const url = row.evidenceUrl ?? feature?.evidenceUrl ?? null;
+  const urlInput = (
+    <Input key={`${row.id}:evidence:${row.updatedAt}`} defaultValue={row.evidenceUrl ?? ""} placeholder="근거 URL" className="h-8 text-xs" onBlur={(e) => onSaveUrl(e.target.value.trim())} />
+  );
+  if (!feature) {
+    return (
+      <div className="flex items-center gap-1">
+        {urlInput}
+        {url && <a href={url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground" title="바로가기"><ExternalLink className="h-4 w-4" /></a>}
+      </div>
+    );
+  }
+  const title = feature.sourceTitle?.trim() || feature.name;
+  const showFeatureName = !!feature.sourceTitle?.trim() && feature.sourceTitle.trim() !== feature.name;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-start gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs">
+        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium text-foreground" title={title}>
+            {title}
+            {showFeatureName && <span className="font-normal text-muted-foreground"> › {feature.name}</span>}
+          </div>
+          <div className={`line-clamp-2 ${feature.description ? "text-muted-foreground" : "italic text-muted-foreground/60"}`}>{feature.description || "요약 없음"}</div>
+        </div>
+        {url && (
+          <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center gap-1 text-primary hover:underline" title={url}>
+            바로가기<ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        )}
+        <button type="button" onClick={onToggleEdit} title={editing ? "URL 입력 닫기" : "근거 URL 편집"} className={`shrink-0 rounded p-0.5 hover:bg-muted hover:text-foreground ${editing ? "text-foreground" : "text-muted-foreground"}`}>
+          {editing ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+      {editing && <div className="flex items-center gap-1">{urlInput}</div>}
     </div>
   );
 }

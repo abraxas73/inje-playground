@@ -57,6 +57,8 @@ export interface CatalogFeature {
   isActive: boolean;
   /** 규칙 엔진 키워드(소문자 NFKC). 클라이언트 toCatalog는 빈 배열 */
   keywords: string[];
+  /** 기능을 뽑아낸 소스 문서 제목(Confluence 페이지 제목·xlsx 파일명). 매핑 편집기가 근거 URL 대신 보여준다 */
+  sourceTitle?: string | null;
 }
 
 export interface CatalogSolution {

@@ -4,6 +4,8 @@ import { storageToText, decodeEntities } from "@/lib/rfp/catalog/storage-text";
 describe("decodeEntities", () => {
   it("이름·10진·16진 엔티티를 디코드하고 모르는 것은 남긴다", () => {
     expect(decodeEntities("a&nbsp;b &amp; &lt;x&gt; &quot;q&quot; &#39;s&#39; &#x41;&#66; &zzz;")).toBe("a b & <x> \"q\" 's' AB &zzz;");
+    // Confluence 기능명세서에 실제로 남던 이름 엔티티(2026-09-07 카탈로그 433건 중 79건)
+    expect(decodeEntities("AI 모델 이행지원&middot;모니터링 &rarr; 재학습 &ldquo;테스트&rdquo; &lsquo;유형&rsquo; &mdash; 끝 &harr; &larr;")).toBe("AI 모델 이행지원·모니터링 → 재학습 “테스트” ‘유형’ — 끝 ↔ ←");
   });
 });
 

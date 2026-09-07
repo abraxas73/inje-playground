@@ -107,6 +107,8 @@ export interface RfpCatalogFeature {
   name: string;
   description: string;
   evidenceUrl: string | null;
+  /** 소스 문서 제목(Confluence 페이지·xlsx 파일명) — 근거 표시용 */
+  sourceTitle: string | null;
   isActive: boolean;
 }
 export interface RfpCatalogSolution {

@@ -51,8 +51,8 @@ export interface FeatureDbRow {
   updated_at: string;
 }
 
-export function mapFeature(row: FeatureDbRow): CatalogFeature {
-  return { id: row.id, solutionCode: row.solution_code, name: row.name, description: row.description, evidenceUrl: row.evidence_url, isActive: row.is_active, keywords: row.keywords ?? [] };
+export function mapFeature(row: FeatureDbRow, sourceTitle: string | null = null): CatalogFeature {
+  return { id: row.id, solutionCode: row.solution_code, name: row.name, description: row.description, evidenceUrl: row.evidence_url, isActive: row.is_active, keywords: row.keywords ?? [], sourceTitle };
 }
 
 export function mapAdminSolution(row: SolutionDbRow, counts: { total: number; active: number; sources: number }): RfpAdminSolution {
@@ -83,16 +83,19 @@ export function mapAdminFeature(row: FeatureDbRow, mappingCount: number): RfpAdm
 export async function loadCatalog(admin: SupabaseClient, opts: { activeSolutionsOnly?: boolean } = {}): Promise<CatalogSolution[]> {
   const base = admin.from("rfp_solutions").select(SOLUTION_COLUMNS);
   const solutionsQuery = (opts.activeSolutionsOnly ? base.eq("is_active", true) : base).order("sort_order").order("code");
-  const [sols, feats] = await Promise.all([
+  const [sols, feats, sources] = await Promise.all([
     solutionsQuery,
     selectAll<FeatureDbRow>(() => admin.from("rfp_solution_features").select(FEATURE_COLUMNS, { count: "exact" }).order("sort_order").order("name").order("id")),
+    admin.from("rfp_solution_sources").select("id, title"),
   ]);
   if (sols.error) throw new Error(sols.error.message);
   if (feats.error) throw new Error(feats.error.message);
+  if (sources.error) throw new Error(sources.error.message);
+  const sourceTitle = new Map(((sources.data ?? []) as { id: string; title: string | null }[]).map((s) => [s.id, s.title]));
   const byCode = new Map<string, CatalogFeature[]>();
   for (const f of feats.data) {
     const list = byCode.get(f.solution_code) ?? [];
-    list.push(mapFeature(f));
+    list.push(mapFeature(f, f.source_id ? sourceTitle.get(f.source_id) ?? null : null));
     byCode.set(f.solution_code, list);
   }
   return ((sols.data ?? []) as SolutionDbRow[]).map((s) => ({
