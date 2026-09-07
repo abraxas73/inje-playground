@@ -17,6 +17,16 @@ export const VERDICT_CLASS: Record<Verdict | "unmapped", string> = {
   unmapped: "bg-rose-100 text-rose-900 hover:bg-rose-200",
 };
 
+/** 판정별 왼쪽 강조선. 세부 항목 카드가 이 색으로 "이 항목은 어떤 상태인지"를 먼저 보여준다 */
+export const VERDICT_ACCENT: Record<Verdict | "unmapped", string> = {
+  fulfilled: "border-l-emerald-400",
+  partial: "border-l-amber-400",
+  candidate: "border-l-indigo-400",
+  build: "border-l-sky-400",
+  na: "border-l-slate-300",
+  unmapped: "border-l-rose-300",
+};
+
 export function VerdictBadge({ verdict, className }: { verdict: Verdict | "unmapped"; className?: string }) {
   return <Badge variant="outline" className={cn("border-transparent", VERDICT_CLASS[verdict], className)}>{verdict === "unmapped" ? UNMAPPED_LABEL : VERDICT_LABEL[verdict]}</Badge>;
 }

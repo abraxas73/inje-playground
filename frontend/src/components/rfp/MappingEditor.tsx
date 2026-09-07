@@ -7,8 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SearchableSelect, { type SearchableOption } from "@/components/shared/SearchableSelect";
+import { cn } from "@/lib/utils";
 import { ENGINE_LABEL, requiresFeature, VERDICT_LABEL, VERDICT_ORDER, type CatalogFeature, type CatalogSolution, type Verdict } from "@/lib/rfp/mapping/types";
-import { indexCatalog } from "@/lib/rfp/mapping/summary";
+import { bestVerdict, indexCatalog } from "@/lib/rfp/mapping/summary";
+import { VERDICT_ACCENT, VERDICT_CLASS } from "@/components/rfp/MappingSummary";
 import { parseDetailUnits } from "@/lib/rfp/mapping/detail-items";
 import MappingRunDialog, { type MappingRunArgs, type MappingRunScope, type MappingRunSolution } from "@/components/rfp/MappingRunDialog";
 import type { MappingRunTarget } from "@/lib/rfp/mapping/run-target";
@@ -133,7 +135,8 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
   const ruleRow = (value: Pending, onRule: (next: Partial<Pending>) => void, keyPrefix: string, trailing?: ReactNode) => (
     <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
       <Select value={value.verdict} onValueChange={(v) => onRule({ verdict: v as Verdict })}>
-        <SelectTrigger className="h-8 w-28 shrink-0 text-xs"><SelectValue /></SelectTrigger>
+        {/* 판정은 요약 칩·요구사항 ID 버튼과 같은 색을 써서 행을 훑을 때 상태가 먼저 보이게 한다 */}
+        <SelectTrigger className={cn("h-8 w-28 shrink-0 border-transparent text-xs font-medium", VERDICT_CLASS[value.verdict])}><SelectValue /></SelectTrigger>
         <SelectContent>{VERDICT_ORDER.map((v) => <SelectItem key={`${keyPrefix}-${v}`} value={v}>{VERDICT_LABEL[v]}</SelectItem>)}</SelectContent>
       </Select>
       <SearchableSelect value={value.solutionCode ?? ""} onChange={(v) => onRule({ solutionCode: v })} options={solutionOptions} placeholder="솔루션" className={`w-32 shrink-0 ${requiresFeature(value.verdict) ? "" : "pointer-events-none opacity-50"}`} />
@@ -187,13 +190,13 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
       </button>
     ) : undefined;
     return (
-      <div key={row.id} className="space-y-2 rounded-md border bg-background p-3" title={row.updatedBy ? `수정 ${new Date(row.updatedAt).toLocaleString("ko-KR")}` : undefined}>
+      <div key={row.id} className="space-y-1.5 px-2.5 py-2" title={row.updatedBy ? `수정 ${new Date(row.updatedAt).toLocaleString("ko-KR")}` : undefined}>
         <div className="flex items-center justify-between gap-2">
           {ruleRow(value, (next) => changeRule(row, next), row.id, inlineRationale)}
           <div className="flex shrink-0 items-center gap-1">
             {row.engine !== "manual" && (
-              <span className="text-xs text-muted-foreground" title="자동 매핑이 만든 행">
-                자동({ENGINE_LABEL[row.engine]}){row.score !== null && ` ${row.score.toFixed(2)}`}
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground" title={`자동 매핑이 만든 행(${ENGINE_LABEL[row.engine]} 엔진)${row.score !== null ? ` · 점수 ${row.score.toFixed(2)}` : ""}`}>
+                {ENGINE_LABEL[row.engine]}{row.score !== null && ` ${row.score.toFixed(2)}`}
               </span>
             )}
             {row.edited && <Pencil className="h-3.5 w-3.5 text-muted-foreground" aria-label="사람이 고친 행" />}
@@ -215,7 +218,7 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
   };
 
   const draftBlock = (
-    <div className="space-y-2 rounded-md border border-dashed bg-background p-3">
+    <div className="space-y-1.5 bg-muted/30 px-2.5 py-2">
       <div className="flex items-start justify-between gap-2">
         {ruleRow(draft ?? { verdict: "partial", solutionCode: null, featureId: null }, changeDraft, "draft")}
         <Button variant="ghost" size="sm" disabled={busy} onClick={() => setDraft(null)}>취소</Button>
@@ -244,24 +247,23 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
         </Button>
       </div>
       {groups.map((g) => (
-        <div key={g.key ?? "__all"} className="space-y-2">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 text-xs">
-              {g.key ? (
-                <span className="font-medium text-foreground" title={g.text || g.label}>
-                  <span className="mr-1 inline-flex h-4 min-w-4 items-center justify-center rounded bg-muted px-1 text-[10px] text-muted-foreground">{g.key}</span>
-                  {g.label}
-                  {g.stale && <span className="ml-1 text-amber-700">(세부 내용이 바뀐 뒤 남은 매핑)</span>}
+        /* 세부 항목 하나 = 카드 하나. 왼쪽 강조선은 그 항목의 가장 좋은 판정 색(행이 없으면 미매핑 색) */
+        <section key={g.key ?? "__all"} className={cn("overflow-hidden rounded-md border border-l-4 bg-background", VERDICT_ACCENT[bestVerdict(g.rows) ?? "unmapped"])}>
+          <div className="flex items-start justify-between gap-2 border-b bg-muted/40 px-2.5 py-1.5">
+            <div className="flex min-w-0 items-baseline gap-1.5">
+              {g.key && <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded border bg-background px-1 text-[11px] font-semibold tabular-nums text-muted-foreground">{g.key}</span>}
+              <div className="min-w-0 text-sm leading-snug">
+                <span className={cn("font-medium", g.key ? "text-foreground" : "text-muted-foreground")} title={g.text || g.label}>
+                  {g.key ? g.label : multi ? "요구사항 전체" : "매핑"}
                 </span>
-              ) : (
-                <span className="font-medium text-muted-foreground">{multi ? "요구사항 전체" : "매핑"}</span>
-              )}
-              <span className="ml-1 text-muted-foreground">{g.rows.length}행</span>
+                {g.stale && <span className="ml-1 text-xs text-amber-700">세부 내용이 바뀐 뒤 남은 매핑</span>}
+                <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{g.rows.length}행</span>
+              </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="flex shrink-0 items-center gap-0.5">
               {g.key && !g.stale && (
                 <Button
-                  size="sm" variant="ghost" className="h-7 text-xs" disabled={busy || running}
+                  size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" disabled={busy || running}
                   title={running ? "매핑이 실행 중입니다." : "이 세부 항목만 다시 매핑합니다"}
                   onClick={() => setRunScope({
                     scope: { kind: "detail", reqId: requirement.reqId, detailKey: g.key!, detailLabel: g.label },
@@ -271,19 +273,21 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
                   <RefreshCw className="mr-1 h-3.5 w-3.5" />다시 매핑
                 </Button>
               )}
-              <Button size="sm" variant="outline" disabled={busy || draft !== null} onClick={() => setDraft({ verdict: "partial", solutionCode: null, featureId: null, detailKey: g.key })}>
-                <Plus className="mr-1 h-4 w-4" />행 추가
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" disabled={busy || draft !== null} title="이 항목에 매핑 행을 직접 추가합니다" onClick={() => setDraft({ verdict: "partial", solutionCode: null, featureId: null, detailKey: g.key })}>
+                <Plus className="mr-1 h-3.5 w-3.5" />행 추가
               </Button>
             </div>
           </div>
-          {g.rows.map(rowBlock)}
-          {draft && (draft.detailKey ?? null) === g.key && draftBlock}
-          {!g.rows.length && !(draft && (draft.detailKey ?? null) === g.key) && (
-            <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-              {g.key ? "이 세부 항목은 매핑이 없습니다." : "매핑이 없습니다(미매핑). \u201c행 추가\u201d로 직접 매핑하거나 개요의 \u201c솔루션 매핑 실행\u201d을 누르세요."}
-            </div>
-          )}
-        </div>
+          <div className="divide-y">
+            {g.rows.map(rowBlock)}
+            {draft && (draft.detailKey ?? null) === g.key && draftBlock}
+            {!g.rows.length && !(draft && (draft.detailKey ?? null) === g.key) && (
+              <div className="px-2.5 py-2 text-xs text-muted-foreground">
+                {g.key ? "이 세부 항목은 매핑이 없습니다." : "매핑이 없습니다(미매핑). \u201c행 추가\u201d로 직접 매핑하거나 개요의 \u201c솔루션 매핑 실행\u201d을 누르세요."}
+              </div>
+            )}
+          </div>
+        </section>
       ))}
       {error && <div className="text-sm text-destructive">{error}</div>}
       {runScope && (
@@ -335,17 +339,18 @@ function EvidenceRow({ row, feature, editing, onToggleEdit, onSaveUrl }: {
   const title = feature.sourceTitle?.trim() || feature.name;
   const showFeatureName = !!feature.sourceTitle?.trim() && feature.sourceTitle.trim() !== feature.name;
   return (
+    /* 카드 안 카드를 만들지 않는다 — 왼쪽 선으로만 들여쓰고, 판정 근거(문장)를 문서 제목보다 앞세운다 */
     <div className="space-y-1">
-      <div className="flex items-start gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs">
-        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+      <div className="flex items-start gap-2 border-l-2 pl-2 text-xs">
         <div className="min-w-0 flex-1">
-          <div className="truncate font-medium text-foreground" title={title}>
+          <div className="truncate text-muted-foreground" title={title}>
+            <FileText className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />
             {title}
-            {showFeatureName && <span className="font-normal text-muted-foreground"> › {feature.name}</span>}
+            {showFeatureName && <span> › {feature.name}</span>}
           </div>
           {/* 근거 문장(엔진이 기능 설명에서 뽑은 뒷받침 문장)이 있으면 그것을, 없으면 기능 요약을 보여준다 */}
-          <div className={`line-clamp-2 ${row.evidenceText || feature.description ? "text-muted-foreground" : "italic text-muted-foreground/60"}`} title={row.evidenceText ?? feature.description}>
-            {row.evidenceText ? <><span className="font-medium text-foreground">근거</span> {row.evidenceText}</> : feature.description || "요약 없음"}
+          <div className={`line-clamp-2 ${row.evidenceText ? "text-foreground" : feature.description ? "text-muted-foreground" : "italic text-muted-foreground/60"}`} title={row.evidenceText ?? feature.description}>
+            {row.evidenceText ? <><span className="mr-1 rounded bg-muted px-1 text-[10px] font-medium text-muted-foreground">근거</span>{row.evidenceText}</> : feature.description || "요약 없음"}
           </div>
         </div>
         {url && (
