@@ -4,7 +4,7 @@
  *
  * 기록하지 않는 것
  * - 수집·프록시 엔드포인트(OTel 수신, PAYCO·Dooray 프록시, cron): 하루 수천 건이라 로그가 묻힌다.
- * - 이미 자기 자신을 기록하는 곳(`/api/action-history`, `/api/users/login-history`).
+ * - 이미 자기 자신을 기록하는 곳(`/api/action-history`, `/api/auth/events`, `/api/users/login-history`).
  * - **익명 설문 응답(`/api/surveys/…`)**: 설문은 익명 보장이라 IP·시각을 남기면 응답자를 좁힐 수 있다.
  * - 로그인하지 않은 요청: 남길 행위자가 없고 라우트가 어차피 401로 막는다.
  */
@@ -18,6 +18,7 @@ const SKIP_PREFIXES = [
   "/api/otel/",
   "/api/cron/",
   "/api/action-history",
+  "/api/auth/events",
   "/api/users/login-history",
   "/api/food/payco",
   "/api/dooray/members",

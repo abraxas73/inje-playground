@@ -20,7 +20,7 @@
 
 - **익명 설문 응답**(`/api/surveys/…`): 설문은 익명 보장이라 시각·IP를 남기면 응답자를 좁힐 수 있다.
 - 수집·프록시 엔드포인트: `/api/otel/*`(하루 수천 건), `/api/cron/*`, `/api/food/payco`, `/api/dooray/members`.
-- 자기 자신을 이미 기록하는 `/api/action-history`, `/api/users/login-history`.
+- 자기 자신을 이미 기록하는 `/api/action-history`, `/api/auth/events`, `/api/users/login-history`.
 - 비로그인 요청의 **변경 API 호출**(행위자가 없고 라우트가 401로 막는다). 단 로그인 시도·실패는 예외로 남긴다(아래 공개 엔드포인트).
 - **비밀 값**: 토큰·비밀번호·웹훅 URL은 detail에 넣지 않는다(설정 변경은 키 이름·길이만, GW 실패는 사유 문구만).
 

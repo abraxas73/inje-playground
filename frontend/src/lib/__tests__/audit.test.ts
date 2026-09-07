@@ -26,6 +26,7 @@ describe("shouldAuditRequest", () => {
   it("수집·프록시·자기기록·익명 설문은 빼고 기록한다", () => {
     expect(shouldAuditRequest("POST", "/api/otel/v1/metrics")).toBe(false);
     expect(shouldAuditRequest("POST", "/api/action-history")).toBe(false);
+    expect(shouldAuditRequest("POST", "/api/auth/events")).toBe(false);
     expect(shouldAuditRequest("POST", "/api/users/login-history")).toBe(false);
     expect(shouldAuditRequest("POST", "/api/food/payco")).toBe(false);
     expect(shouldAuditRequest("POST", "/api/surveys/claude-2026/responses")).toBe(false);
