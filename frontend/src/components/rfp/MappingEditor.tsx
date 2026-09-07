@@ -12,6 +12,7 @@ import { ENGINE_LABEL, requiresFeature, VERDICT_LABEL, VERDICT_ORDER, type Catal
 import { bestVerdict, indexCatalog } from "@/lib/rfp/mapping/summary";
 import { VERDICT_ACCENT, VERDICT_CLASS } from "@/components/rfp/MappingSummary";
 import { parseDetailUnits } from "@/lib/rfp/mapping/detail-items";
+import { groupRowsByDetail, isDetailScoped } from "@/lib/rfp/mapping/detail-groups";
 import MappingRunDialog, { type MappingRunArgs, type MappingRunScope, type MappingRunSolution } from "@/components/rfp/MappingRunDialog";
 import type { MappingRunTarget } from "@/lib/rfp/mapping/run-target";
 import type { RfpMapping, RfpRequirement } from "@/types/rfp";
@@ -151,30 +152,9 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
 
   /**
    * 매핑 단위(그룹). 세부 내용이 목록이면 1단 항목마다 한 그룹, 아니면 "요구사항 전체" 한 그룹.
-   * 세부 내용을 나중에 고쳐 키가 사라진 행은 저장된 라벨로 별도 그룹에 남긴다(사라지지 않게).
+   * xlsx 상세 시트와 같은 함수를 쓴다 — 화면과 파일의 매핑 단위가 어긋나지 않게.
    */
-  const groups = useMemo(() => {
-    const byKey = new Map<string, RfpMapping[]>();
-    for (const r of sorted) {
-      const k = r.detailKey ?? "";
-      byKey.set(k, [...(byKey.get(k) ?? []), r]);
-    }
-    const useUnits = !structure.flat && structure.units.length > 1;
-    const out: { key: string | null; label: string; text: string; rows: RfpMapping[]; stale?: boolean }[] = [];
-    if (useUnits) {
-      for (const u of structure.units) out.push({ key: u.key, label: u.label, text: u.text, rows: byKey.get(u.key) ?? [] });
-      byKey.delete("");
-      for (const u of structure.units) byKey.delete(u.key);
-      if ((byKey.size || (sorted.some((r) => !r.detailKey)))) {
-        const rest = sorted.filter((r) => !r.detailKey);
-        if (rest.length) out.unshift({ key: null, label: "요구사항 전체", text: "", rows: rest });
-      }
-      for (const [k, rs] of byKey) out.push({ key: k, label: rs[0]?.detailText || `세부 항목 ${k}`, text: "", rows: rs, stale: true });
-    } else {
-      out.push({ key: null, label: "요구사항 전체", text: "", rows: sorted });
-    }
-    return out;
-  }, [sorted, structure]);
+  const groups = useMemo(() => groupRowsByDetail(rows, structure), [rows, structure]);
 
   const rowBlock = (row: RfpMapping) => {
     const value = pending[row.id] ?? { verdict: row.verdict, solutionCode: row.solutionCode, featureId: row.featureId };
@@ -227,7 +207,7 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
     </div>
   );
 
-  const multi = groups.length > 1 || groups[0]?.key !== null;
+  const multi = isDetailScoped(groups);
   return (
     <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">

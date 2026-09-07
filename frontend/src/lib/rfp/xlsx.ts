@@ -2,6 +2,8 @@ import ExcelJS from "exceljs";
 import { orderCategoryCodes, sheetNameFor, sortRequirements, type RequirementRow } from "./requirements";
 import { requiresFeature, UNMAPPED_LABEL, VERDICT_LABEL, VERDICT_ORDER, type CatalogSolution, type MappingRow } from "./mapping/types";
 import { countBySolution, countByVerdict, groupByRequirement, indexCatalog, mappingSummary, type CatalogIndex } from "./mapping/summary";
+import { groupRowsByDetail, isDetailScoped, type DetailGroup } from "./mapping/detail-groups";
+import { parseDetailUnits } from "./mapping/detail-items";
 
 export interface XlsxProject {
   name: string;
@@ -74,9 +76,31 @@ function formatKst(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }) : "—";
 }
 
+/** 세로 병합(요구사항·세부 항목 칸을 그 아래 매핑 행만큼 잡는다). 한 줄이면 병합하지 않는다. */
+function mergeDown(ws: ExcelJS.Worksheet, col: number, top: number, bottom: number) {
+  if (bottom > top) ws.mergeCells(top, col, bottom, col);
+}
+
+/** 세부 항목 칸에 넣을 본문. 항목이면 항목 전체 텍스트(하위 줄 포함), 요구사항 전체 단위면 세부 내용 전체 */
+function detailCellText(group: DetailGroup, details: string): string {
+  return group.text || (group.key ? group.label : details);
+}
+
+/** 상세 시트(구분별) 열 — 매핑이 있으면 요구사항 → 세부 항목 → 매핑 순서로 오른쪽으로 넓어진다(화면과 같은 계층) */
+const DETAIL_HEADER = ["연번", "요구사항\nID", "요구사항명", "정의", "세부 내용", "산출정보", "관련요구사항"];
+const DETAIL_WIDTHS = [5, 12, 24, 26, 85, 20, 32];
+const DETAIL_HEADER_MAPPED = [
+  "연번", "요구사항\nID", "요구사항명", "정의", "산출정보", "관련요구사항",
+  "항목", "세부 내용", "판정", "솔루션", "기능", "매핑 설명", "근거 문장", "근거 URL", "수정",
+];
+const DETAIL_WIDTHS_MAPPED = [5, 14, 24, 32, 18, 18, 5, 58, 12, 14, 26, 38, 42, 32, 6];
+
 /**
- * 시트 구성: 0.개요 / 1.요구사항_목록(6열, 매핑 있으면 +5열) / 구분별 상세(7열) / (매핑 있으면) {n}.솔루션_매핑
+ * 시트 구성: 0.개요 / 1.요구사항_목록(6열, 매핑 있으면 +1열) / 구분별 상세(7열, 매핑 있으면 15열) / (매핑 있으면) {n}.솔루션_매핑
  * 매핑 시트를 마지막에 두는 이유: 1단계 상세 시트 번호(2.SER…)를 바꾸지 않기 위해(스펙 §7).
+ *
+ * 매핑은 요구사항 목록이 아니라 **상세 시트의 세부 항목마다** 붙는다(화면 매핑 편집기와 같은 단위) —
+ * 목록 시트는 요약("당사 솔루션"·"세부 항목 매핑")만, 솔루션_매핑 시트는 병합 없는 한 줄 = 한 매핑 덤프.
  */
 export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[], mapping?: XlsxMapping): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
@@ -86,6 +110,24 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
   const sheetIndex = new Map(codes.map((c, i) => [c, i + 2]));
   const index = mapping ? indexCatalog(mapping.catalog) : null;
   const groups = mapping ? groupByRequirement(mapping.rows) : new Map<string, MappingRow[]>();
+  /** 요구사항 → 세부 항목 그룹(화면과 같은 함수). 목록·상세·매핑 시트가 모두 이 결과를 쓴다. */
+  const detailGroups = new Map<string, DetailGroup[]>();
+  /** 요구사항 → 세부 항목 수(목록 시트의 "세부 항목 매핑" 열) */
+  const unitCounts = new Map<string, number>();
+  if (mapping) {
+    for (const q of sorted) {
+      const structure = parseDetailUnits(q.details);
+      detailGroups.set(q.id, groupRowsByDetail(groups.get(q.id) ?? [], structure));
+      unitCounts.set(q.id, structure.units.length);
+    }
+  }
+  /** "3/5"(매핑된 세부 항목 / 전체). 세부 항목 단위가 아니면 빈 문자열 — 화면 표 배지와 같은 값 */
+  const detailProgress = (q: RequirementRow): string => {
+    const gs = detailGroups.get(q.id) ?? [];
+    if (!isDetailScoped(gs)) return "";
+    const done = gs.filter((g) => g.key && g.rows.length).length;
+    return `${done}/${unitCounts.get(q.id) ?? 0}`;
+  };
 
   // 0.개요
   const ov = wb.addWorksheet("0.개요");
@@ -116,6 +158,13 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
     sectionTitle(ov, r, "3. 솔루션 매핑 요약");
     r += 1;
     keyValueRow(ov, r++, "실행 시각", formatKst(mapping.mappingAt));
+    // 세부 항목이 목록인 요구사항이 있으면 항목 단위 진행도 한 줄(상세 시트가 이 단위로 펼쳐진다)
+    const scopedReqs = sorted.filter((q) => isDetailScoped(detailGroups.get(q.id) ?? []));
+    if (scopedReqs.length) {
+      const totalUnits = scopedReqs.reduce((s, q) => s + (unitCounts.get(q.id) ?? 0), 0);
+      const mappedUnits = scopedReqs.reduce((s, q) => s + (detailGroups.get(q.id) ?? []).filter((g) => g.key && g.rows.length).length, 0);
+      keyValueRow(ov, r++, "세부 항목 매핑", `${mappedUnits}/${totalUnits}개 항목 (목록형 요구사항 ${scopedReqs.length}건)`);
+    }
     const counts = countByVerdict(sorted.map((q) => q.id), mapping.rows);
     for (const v of VERDICT_ORDER) keyValueRow(ov, r++, VERDICT_LABEL[v], `${counts[v]}건`);
     keyValueRow(ov, r++, UNMAPPED_LABEL, `${counts.unmapped}건`);
@@ -123,13 +172,14 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
   }
 
   // 1.요구사항_목록
+  // 1.요구사항_목록 — 매핑은 요약만(자세한 건 상세 시트의 세부 항목 행에 있다)
   const list = wb.addWorksheet("1.요구사항_목록");
-  const listWidths = mapping ? [5, 22, 16, 38, 55, 30, 14, 24, 10, 50, 40] : [5, 22, 16, 38, 55, 30];
+  const listWidths = mapping ? [5, 22, 16, 38, 55, 30, 12] : [5, 22, 16, 38, 55, 30];
   listWidths.forEach((w, i) => (list.getColumn(i + 1).width = w));
   list.getCell("A1").value = `요구사항 목록 총괄 (전체 ${sorted.length}건)`;
   list.getCell("A1").font = { ...FONT, size: 12, bold: true };
   const listHeader = ["연번", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "상세 시트 위치", "당사 솔루션"];
-  if (mapping) listHeader.push("솔루션", "기능", "판정", "매핑 설명", "근거 URL");
+  if (mapping) listHeader.push("세부 항목\n매핑");
   list.getRow(3).values = listHeader;
   styleHeader(list.getRow(3));
   sorted.forEach((q, i) => {
@@ -137,34 +187,63 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
     const sheet = sheetNameFor(q.categoryCode, sheetIndex.get(q.categoryCode)!);
     if (mapping && index) {
       const g = groups.get(q.id) ?? [];
-      const nm = g.map((m) => names(m, index));
-      row.values = [
-        i + 1, q.categoryName, q.reqId, q.title, sheet, mappingSummary(g, index),
-        nm.map((n) => n.solution).join("\n"),
-        nm.map((n) => n.feature).join("\n"),
-        g.length ? g.map((m) => VERDICT_LABEL[m.verdict]).join("\n") : UNMAPPED_LABEL,
-        g.map((m) => m.rationale).join("\n"),
-        g.map((m) => m.evidenceUrl ?? "").join("\n"),
-      ];
+      row.values = [i + 1, q.categoryName, q.reqId, q.title, sheet, g.length ? mappingSummary(g, index) : UNMAPPED_LABEL, detailProgress(q)];
     } else {
       row.values = [i + 1, q.categoryName, q.reqId, q.title, sheet, q.solution];
     }
     styleBody(row);
   });
 
-  // 구분별 상세(1단계 그대로)
+  // 구분별 상세 — 매핑이 없으면 1단계 그대로(요구사항 한 건 = 한 줄),
+  // 매핑이 있으면 세부 항목마다 줄을 펼치고 그 항목의 매핑 행을 오른쪽에 붙인다(화면 매핑 편집기와 같은 단위).
   for (const code of codes) {
     const ws = wb.addWorksheet(sheetNameFor(code, sheetIndex.get(code)!));
-    [5, 12, 24, 26, 85, 20, 32].forEach((w, i) => (ws.getColumn(i + 1).width = w));
+    (mapping ? DETAIL_WIDTHS_MAPPED : DETAIL_WIDTHS).forEach((w, i) => (ws.getColumn(i + 1).width = w));
     const inCode = sorted.filter((q) => q.categoryCode === code);
     ws.getCell("A1").value = `[${code}] ${inCode[0].categoryName} — 상세 요구사항`;
     ws.getCell("A1").font = { ...FONT, size: 12, bold: true };
-    ws.getRow(3).values = ["연번", "요구사항\nID", "요구사항명", "정의", "세부 내용", "산출정보", "관련요구사항"];
+    ws.getRow(3).values = mapping ? [...DETAIL_HEADER_MAPPED] : [...DETAIL_HEADER];
     styleHeader(ws.getRow(3));
+    let r = 4;
     inCode.forEach((q, i) => {
-      const row = ws.getRow(4 + i);
-      row.values = [i + 1, q.reqId, q.title, q.definition, q.details, q.deliverables, q.related];
-      styleBody(row);
+      if (!mapping || !index) {
+        const row = ws.getRow(r++);
+        row.values = [i + 1, q.reqId, q.title, q.definition, q.details, q.deliverables, q.related];
+        styleBody(row);
+        return;
+      }
+      const gs = detailGroups.get(q.id) ?? [];
+      const scoped = isDetailScoped(gs);
+      const reqTop = r;
+      for (const g of gs) {
+        const groupTop = r;
+        // 매핑이 없는 세부 항목도 한 줄 남긴다(판정 "미매핑") — 화면에서 "이 세부 항목은 매핑이 없습니다"로 보이는 자리
+        const cells: (MappingRow | null)[] = g.rows.length ? g.rows : [null];
+        for (const m of cells) {
+          const nm = m ? names(m, index) : { solution: "", feature: "" };
+          const row = ws.getRow(r);
+          row.values = [
+            r === reqTop ? i + 1 : null,
+            r === reqTop ? q.reqId : null,
+            r === reqTop ? q.title : null,
+            r === reqTop ? q.definition : null,
+            r === reqTop ? q.deliverables : null,
+            r === reqTop ? q.related : null,
+            r === groupTop ? (g.key ?? (scoped ? "전체" : "")) : null,
+            r === groupTop ? detailCellText(g, q.details) : null,
+            m ? VERDICT_LABEL[m.verdict] : UNMAPPED_LABEL,
+            nm.solution, nm.feature,
+            m?.rationale ?? "", m?.evidenceText ?? "", m?.evidenceUrl ?? "", m?.edited ? "수정" : "",
+          ];
+          styleBody(row);
+          r += 1;
+        }
+        // 세부 항목 칸(항목·세부 내용)은 그 항목의 매핑 행만큼 세로로 합친다
+        mergeDown(ws, 7, groupTop, r - 1);
+        mergeDown(ws, 8, groupTop, r - 1);
+      }
+      // 요구사항 칸(연번·ID·명칭·정의·산출정보·관련요구사항)은 그 요구사항의 모든 줄만큼 합친다
+      for (const col of [1, 2, 3, 4, 5, 6]) mergeDown(ws, col, reqTop, r - 1);
     });
   }
 
@@ -179,19 +258,20 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
     styleHeader(ms.getRow(3));
     let n = 0;
     for (const q of sorted) {
-      const g = groups.get(q.id) ?? [];
-      if (!g.length) {
-        const row = ms.getRow(4 + n);
-        row.values = [++n, q.categoryName, q.reqId, q.title, "", "", "", UNMAPPED_LABEL, "", "", "", ""];
-        styleBody(row);
-        continue;
-      }
-      for (const m of g) {
-        const nm = names(m, index);
-        const row = ms.getRow(4 + n);
-        const detail = m.detailText ? `${m.detailKey ?? ""}. ${m.detailText}`.trim() : "";
-        row.values = [++n, q.categoryName, q.reqId, q.title, detail, nm.solution, nm.feature, VERDICT_LABEL[m.verdict], m.rationale, m.evidenceText ?? "", m.evidenceUrl ?? "", m.edited ? "수정" : ""];
-        styleBody(row);
+      for (const g of detailGroups.get(q.id) ?? []) {
+        const detail = g.key ? `${g.key}. ${g.label}` : "";
+        // 매핑이 없는 세부 항목·요구사항은 판정 "미매핑" 한 줄(빈 항목이 표에서 사라지지 않게)
+        const cells: (MappingRow | null)[] = g.rows.length ? g.rows : [null];
+        for (const m of cells) {
+          const nm = m ? names(m, index) : { solution: "", feature: "" };
+          const row = ms.getRow(4 + n);
+          row.values = [
+            ++n, q.categoryName, q.reqId, q.title, detail, nm.solution, nm.feature,
+            m ? VERDICT_LABEL[m.verdict] : UNMAPPED_LABEL,
+            m?.rationale ?? "", m?.evidenceText ?? "", m?.evidenceUrl ?? "", m?.edited ? "수정" : "",
+          ];
+          styleBody(row);
+        }
       }
     }
   }
