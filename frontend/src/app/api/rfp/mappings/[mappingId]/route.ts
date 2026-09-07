@@ -8,7 +8,7 @@ import { normalizeHttpUrl } from "@/lib/rfp/url";
 export const runtime = "nodejs";
 type Params = { params: Promise<{ mappingId: string }> };
 
-/** PATCH /api/rfp/mappings/[mappingId] {solutionCode?, featureId?, verdict?, rationale?, evidenceUrl?} → 규칙 검사 → edited=true */
+/** PATCH /api/rfp/mappings/[mappingId] {solutionCode?, featureId?, verdict?, rationale?, evidenceUrl?, note?} → 규칙 검사 → edited=true */
 export async function PATCH(request: NextRequest, { params }: Params) {
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
@@ -30,6 +30,13 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const urlCheck = normalizeHttpUrl(body.evidenceUrl);
     if (!urlCheck.ok) return NextResponse.json({ error: urlCheck.error }, { status: 400 });
     patch.evidence_url = urlCheck.value;
+  }
+  // 메모(xlsx "비고"). 빈 문자열은 null로 지운다 — 자동 매핑은 이 칸을 건드리지 않는다.
+  if ("note" in body) {
+    if (body.note !== null && (typeof body.note !== "string" || body.note.length > 2000)) {
+      return NextResponse.json({ error: "메모는 2000자 이하의 문자열이어야 합니다." }, { status: 400 });
+    }
+    patch.note = typeof body.note === "string" ? body.note.trim() || null : null;
   }
   const touchesRule = "verdict" in body || "solutionCode" in body || "featureId" in body;
   if (touchesRule) {

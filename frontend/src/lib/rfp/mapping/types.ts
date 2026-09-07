@@ -92,4 +92,6 @@ export interface MappingRow {
   detailText?: string | null;
   /** 판정 근거 문장(기능 설명에서 뽑은 뒷받침 문장) */
   evidenceText?: string | null;
+  /** 사람이 적는 메모. xlsx "비고" 열로 나간다(자동 매핑은 채우지 않는다) */
+  note?: string | null;
 }

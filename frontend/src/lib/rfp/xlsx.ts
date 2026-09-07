@@ -91,12 +91,12 @@ const DETAIL_HEADER = ["연번", "요구사항\nID", "요구사항명", "정의"
 const DETAIL_WIDTHS = [5, 12, 24, 26, 85, 20, 32];
 const DETAIL_HEADER_MAPPED = [
   "연번", "요구사항\nID", "요구사항명", "정의", "산출정보", "관련요구사항",
-  "항목", "세부 내용", "판정", "솔루션", "기능", "매핑 설명", "근거 문장", "근거 URL", "수정",
+  "항목", "세부 내용", "판정", "솔루션", "기능", "매핑 설명", "근거 문장", "근거 URL", "비고", "수정",
 ];
-const DETAIL_WIDTHS_MAPPED = [5, 14, 24, 32, 18, 18, 5, 58, 12, 14, 26, 38, 42, 32, 6];
+const DETAIL_WIDTHS_MAPPED = [5, 14, 24, 32, 18, 18, 5, 58, 12, 14, 26, 38, 42, 32, 30, 6];
 
 /**
- * 시트 구성: 0.개요 / 1.요구사항_목록(6열, 매핑 있으면 +1열) / 구분별 상세(7열, 매핑 있으면 15열) / (매핑 있으면) {n}.솔루션_매핑
+ * 시트 구성: 0.개요 / 1.요구사항_목록(6열, 매핑 있으면 +1열) / 구분별 상세(7열, 매핑 있으면 16열) / (매핑 있으면) {n}.솔루션_매핑
  * 매핑 시트를 마지막에 두는 이유: 1단계 상세 시트 번호(2.SER…)를 바꾸지 않기 위해(스펙 §7).
  *
  * 매핑은 요구사항 목록이 아니라 **상세 시트의 세부 항목마다** 붙는다(화면 매핑 편집기와 같은 단위) —
@@ -171,7 +171,6 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
     for (const s of countBySolution(mapping.rows, mapping.catalog)) keyValueRow(ov, r++, s.name, `충족 ${s.fulfilled}건 · 부분충족 ${s.partial}건 · 후보 ${s.candidate}건`);
   }
 
-  // 1.요구사항_목록
   // 1.요구사항_목록 — 매핑은 요약만(자세한 건 상세 시트의 세부 항목 행에 있다)
   const list = wb.addWorksheet("1.요구사항_목록");
   const listWidths = mapping ? [5, 22, 16, 38, 55, 30, 12] : [5, 22, 16, 38, 55, 30];
@@ -233,7 +232,7 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
             r === groupTop ? detailCellText(g, q.details) : null,
             m ? VERDICT_LABEL[m.verdict] : UNMAPPED_LABEL,
             nm.solution, nm.feature,
-            m?.rationale ?? "", m?.evidenceText ?? "", m?.evidenceUrl ?? "", m?.edited ? "수정" : "",
+            m?.rationale ?? "", m?.evidenceText ?? "", m?.evidenceUrl ?? "", m?.note ?? "", m?.edited ? "수정" : "",
           ];
           styleBody(row);
           r += 1;
@@ -250,11 +249,11 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
   // {n}.솔루션_매핑 — 매핑 1행 = 1줄, 미매핑 요구사항도 1줄
   if (mapping && index) {
     const ms = wb.addWorksheet(`${codes.length + 2}.솔루션_매핑`);
-    [5, 18, 14, 36, 40, 14, 26, 10, 50, 46, 40, 8].forEach((w, i) => (ms.getColumn(i + 1).width = w));
+    [5, 18, 14, 36, 40, 14, 26, 10, 50, 46, 40, 30, 8].forEach((w, i) => (ms.getColumn(i + 1).width = w));
     const detailRows = mapping.rows.filter((m) => m.detailKey).length;
     ms.getCell("A1").value = `솔루션 매핑 (요구사항 ${sorted.length}건, 매핑 ${mapping.rows.length}행${detailRows ? `, 세부 항목 단위 ${detailRows}행` : ""})`;
     ms.getCell("A1").font = { ...FONT, size: 12, bold: true };
-    ms.getRow(3).values = ["연번", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "세부 항목", "솔루션", "기능", "판정", "매핑 설명", "근거 문장", "근거 URL", "수정"];
+    ms.getRow(3).values = ["연번", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "세부 항목", "솔루션", "기능", "판정", "매핑 설명", "근거 문장", "근거 URL", "비고", "수정"];
     styleHeader(ms.getRow(3));
     let n = 0;
     for (const q of sorted) {
@@ -268,7 +267,7 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
           row.values = [
             ++n, q.categoryName, q.reqId, q.title, detail, nm.solution, nm.feature,
             m ? VERDICT_LABEL[m.verdict] : UNMAPPED_LABEL,
-            m?.rationale ?? "", m?.evidenceText ?? "", m?.evidenceUrl ?? "", m?.edited ? "수정" : "",
+            m?.rationale ?? "", m?.evidenceText ?? "", m?.evidenceUrl ?? "", m?.note ?? "", m?.edited ? "수정" : "",
           ];
           styleBody(row);
         }

@@ -99,7 +99,7 @@ describe("buildWorkbook + mapping", () => {
     const ser = wb.getWorksheet("2.SER")!;
     expect(ser.getRow(3).values).toEqual([
       undefined, "연번", "요구사항\nID", "요구사항명", "정의", "산출정보", "관련요구사항",
-      "항목", "세부 내용", "판정", "솔루션", "기능", "매핑 설명", "근거 문장", "근거 URL", "수정",
+      "항목", "세부 내용", "판정", "솔루션", "기능", "매핑 설명", "근거 문장", "근거 URL", "비고", "수정",
     ]);
     // 세부 내용이 목록이 아니면 항목 열은 비고, 요구사항 한 건이 매핑 행 수만큼 늘어난다
     expect(ser.getRow(4).getCell(7).value).toBe("");
@@ -115,11 +115,11 @@ describe("buildWorkbook + mapping", () => {
     const wb = await loadWorkbook(await buildWorkbook(project, rows, mapping));
     expect(wb.worksheets.map((w) => w.name)).toEqual(["0.개요", "1.요구사항_목록", "2.SER", "3.INRDTL", "4.솔루션_매핑"]);
     const ms = wb.getWorksheet("4.솔루션_매핑")!;
-    expect(ms.getRow(3).values).toEqual([undefined, "연번", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "세부 항목", "솔루션", "기능", "판정", "매핑 설명", "근거 문장", "근거 URL", "수정"]);
-    expect(ms.getRow(4).values).toEqual([undefined, 1, "서비스 요구사항", "SER-001", "제목 SER-001", "", "SECloudit", "IAM", "충족", "이유 m1", "", "https://c/iam", "수정"]);
-    expect(ms.getRow(5).values).toEqual([undefined, 2, "서비스 요구사항", "SER-001", "제목 SER-001", "", "Devopsit", "파이프라인", "부분충족", "이유 m2", "", "", ""]);
-    expect(ms.getRow(6).values).toEqual([undefined, 3, "서비스 요구사항", "SER-002", "제목 SER-002", "", "", "", "미매핑", "", "", "", ""]);
-    expect(ms.getRow(7).values).toEqual([undefined, 4, "인프라 상세 요구사항", "INR-DTL-001", "제목 INR-DTL-001", "", "", "", "설계·구축영역", "이유 m3", "", "", ""]);
+    expect(ms.getRow(3).values).toEqual([undefined, "연번", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "세부 항목", "솔루션", "기능", "판정", "매핑 설명", "근거 문장", "근거 URL", "비고", "수정"]);
+    expect(ms.getRow(4).values).toEqual([undefined, 1, "서비스 요구사항", "SER-001", "제목 SER-001", "", "SECloudit", "IAM", "충족", "이유 m1", "", "https://c/iam", "", "수정"]);
+    expect(ms.getRow(5).values).toEqual([undefined, 2, "서비스 요구사항", "SER-001", "제목 SER-001", "", "Devopsit", "파이프라인", "부분충족", "이유 m2", "", "", "", ""]);
+    expect(ms.getRow(6).values).toEqual([undefined, 3, "서비스 요구사항", "SER-002", "제목 SER-002", "", "", "", "미매핑", "", "", "", "", ""]);
+    expect(ms.getRow(7).values).toEqual([undefined, 4, "인프라 상세 요구사항", "INR-DTL-001", "제목 INR-DTL-001", "", "", "", "설계·구축영역", "이유 m3", "", "", "", ""]);
     expect(ms.getRow(8).getCell(3).value).toBeNull();
   });
   it("개요 시트에 '3. 솔루션 매핑 요약' 블록", async () => {
@@ -168,7 +168,7 @@ describe("buildWorkbook + 세부 항목 단위 매핑", () => {
   const base = { requirementId: "SER-010-uuid", edited: false, evidenceUrl: null as string | null };
   const mappingRows: MappingRow[] = [
     { ...base, id: "d0", verdict: "build", featureId: null, solutionCode: null, rationale: "옛 요구사항 단위 행", sortOrder: 0, detailKey: null },
-    { ...base, id: "d1", verdict: "fulfilled", featureId: "f-iam", solutionCode: "secloudit", rationale: "이유 d1", sortOrder: 10, detailKey: "1", detailText: "첫째 항목", evidenceText: "근거 문장 1", evidenceUrl: "https://c/iam", edited: true },
+    { ...base, id: "d1", verdict: "fulfilled", featureId: "f-iam", solutionCode: "secloudit", rationale: "이유 d1", sortOrder: 10, detailKey: "1", detailText: "첫째 항목", evidenceText: "근거 문장 1", evidenceUrl: "https://c/iam", edited: true, note: "메모 한 줄" },
     { ...base, id: "d2", verdict: "candidate", featureId: "f-pipe", solutionCode: "devopsit", rationale: "이유 d2", sortOrder: 11, detailKey: "1", detailText: "첫째 항목" },
     { ...base, id: "d3", verdict: "na", featureId: null, solutionCode: null, rationale: "이유 d3", sortOrder: 20, detailKey: "2", detailText: "둘째 항목" },
   ];
@@ -178,13 +178,14 @@ describe("buildWorkbook + 세부 항목 단위 매핑", () => {
     const wb = await loadWorkbook(await buildWorkbook(project, [req], mapping));
     const ws = wb.getWorksheet("2.SER")!;
     // 4행: 요구사항 전체(옛 행) / 5~6행: 항목 1의 두 매핑 / 7행: 항목 2 / 8행: 매핑 없는 항목 3
-    expect(ws.getRow(4).values).toEqual([undefined, 1, "SER-010", "제목 SER-010", "정의", "", "", "전체", details, "설계·구축영역", "", "", "옛 요구사항 단위 행", "", "", ""]);
+    expect(ws.getRow(4).values).toEqual([undefined, 1, "SER-010", "제목 SER-010", "정의", "", "", "전체", details, "설계·구축영역", "", "", "옛 요구사항 단위 행", "", "", "", ""]);
     expect(ws.getRow(5).getCell(7).value).toBe("1");
     expect(ws.getRow(5).getCell(8).value).toBe("○ 첫째 항목\n- 하위 설명");
     expect(ws.getRow(5).getCell(9).value).toBe("충족");
     expect(ws.getRow(5).getCell(11).value).toBe("IAM");
     expect(ws.getRow(5).getCell(13).value).toBe("근거 문장 1");
-    expect(ws.getRow(5).getCell(15).value).toBe("수정");
+    expect(ws.getRow(5).getCell(15).value).toBe("메모 한 줄");
+    expect(ws.getRow(5).getCell(16).value).toBe("수정");
     expect(ws.getRow(6).getCell(9).value).toBe("후보");
     expect(ws.getRow(7).getCell(7).value).toBe("2");
     expect(ws.getRow(7).getCell(9).value).toBe("해당없음");
@@ -214,6 +215,9 @@ describe("buildWorkbook + 세부 항목 단위 매핑", () => {
     expect(ms.getRow(7).getCell(5).value).toBe("2. 둘째 항목");
     expect(ms.getRow(8).getCell(5).value).toBe("3. 셋째 항목");
     expect(ms.getRow(8).getCell(8).value).toBe("미매핑");
+    // 메모는 "비고" 열(12번)로 나간다
+    expect(ms.getRow(5).getCell(12).value).toBe("메모 한 줄");
+    expect(ms.getRow(6).getCell(12).value).toBe("");
     expect(ms.getRow(9).getCell(1).value).toBeNull();
   });
 });

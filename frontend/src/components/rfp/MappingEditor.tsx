@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Check, ExternalLink, FileText, Link2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Check, ExternalLink, FileText, Link2, Pencil, Plus, RefreshCw, StickyNote, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,6 +51,8 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
   const [urlEditing, setUrlEditing] = useState<Record<string, boolean>>({});
   /** 규칙 엔진의 정형 설명("자동 매칭 — …")은 윗줄 끝에 한 줄로만 보이고, 클릭하면 편집 칸이 열린다 */
   const [rationaleEditing, setRationaleEditing] = useState<Record<string, boolean>>({});
+  /** 메모(xlsx "비고")를 펼친 행 — 메모가 있으면 접어도 본문이 보인다 */
+  const [noteEditing, setNoteEditing] = useState<Record<string, boolean>>({});
   const featureIndex = useMemo(() => indexCatalog(catalog).feature, [catalog]);
   /** 다시 매핑 레이어 — 요구사항 전체(detailKey null) 또는 세부 항목 하나 */
   const [runScope, setRunScope] = useState<{ scope: MappingRunScope; target: MappingRunTarget } | null>(null);
@@ -89,10 +91,11 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
     }
   };
 
-  const changeText = async (row: RfpMapping, field: "rationale" | "evidenceUrl", value: string) => {
+  const changeText = async (row: RfpMapping, field: "rationale" | "evidenceUrl" | "note", value: string) => {
     if ((row[field] ?? "") === value) return;
     try {
-      await patch(row, { [field]: field === "evidenceUrl" ? value || null : value });
+      // 설명은 빈 문자열도 저장(엔진 문구를 지울 수 있게), 근거 URL·메모는 비우면 null
+      await patch(row, { [field]: field === "rationale" ? value : value || null });
     } catch (e) {
       setError(e instanceof Error ? e.message : "저장에 실패했습니다.");
     }
@@ -180,6 +183,14 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
               </span>
             )}
             {row.edited && <Pencil className="h-3.5 w-3.5 text-muted-foreground" aria-label="사람이 고친 행" />}
+            <Button
+              variant="ghost" size="icon"
+              className={cn("h-7 w-7", row.note ? "text-amber-700" : "text-muted-foreground")}
+              title={row.note ? `메모: ${row.note}` : "메모 추가(엑셀 \u201c비고\u201d 열로 나갑니다)"}
+              onClick={() => setNoteEditing((p) => ({ ...p, [row.id]: !p[row.id] }))}
+            >
+              <StickyNote className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" title="행 삭제" onClick={() => remove(row)}><Trash2 className="h-4 w-4" /></Button>
           </div>
         </div>
@@ -193,6 +204,24 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
           onToggleEdit={() => setUrlEditing((p) => ({ ...p, [row.id]: !p[row.id] }))}
           onSaveUrl={(v) => changeText(row, "evidenceUrl", v)}
         />
+        {/* 메모(xlsx "비고"). 적힌 메모는 접어도 보이고, 클릭하면 편집 칸이 열린다 */}
+        {(noteEditing[row.id] || row.note) && (
+          <div className="flex items-start gap-2 border-l-2 border-amber-300 pl-2 text-xs">
+            <span className="mt-0.5 shrink-0 rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-900">비고</span>
+            {noteEditing[row.id] ? (
+              <Textarea
+                key={`${row.id}:note:${row.updatedAt}`} defaultValue={row.note ?? ""} rows={2} autoFocus
+                placeholder="메모 — 엑셀 “비고” 열로 나갑니다"
+                className="min-h-0 text-sm"
+                onBlur={(e) => { changeText(row, "note", e.target.value.trim()); setNoteEditing((p) => { const rest = { ...p }; delete rest[row.id]; return rest; }); }}
+              />
+            ) : (
+              <button type="button" className="min-w-0 flex-1 whitespace-pre-wrap text-left text-foreground hover:underline" title="클릭하면 메모를 편집합니다" onClick={() => setNoteEditing((p) => ({ ...p, [row.id]: true }))}>
+                {row.note}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   };

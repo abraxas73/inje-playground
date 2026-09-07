@@ -58,7 +58,7 @@ export interface FileDbRow {
   created_at: string;
 }
 
-export const MAPPING_COLUMNS = "id, project_id, requirement_id, solution_code, feature_id, verdict, rationale, evidence_url, edited, sort_order, engine, score, detail_key, detail_text, evidence_text, updated_at, updated_by";
+export const MAPPING_COLUMNS = "id, project_id, requirement_id, solution_code, feature_id, verdict, rationale, evidence_url, edited, sort_order, engine, score, detail_key, detail_text, evidence_text, note, updated_at, updated_by";
 
 export interface MappingDbRow {
   id: string;
@@ -79,6 +79,8 @@ export interface MappingDbRow {
   detail_text: string | null;
   /** 판정 근거 문장 */
   evidence_text: string | null;
+  /** 사람이 적는 메모(xlsx "비고") */
+  note: string | null;
   updated_at: string;
   updated_by: string | null;
 }
@@ -119,7 +121,7 @@ export function mapMapping(row: MappingDbRow): RfpMapping {
     id: row.id, requirementId: row.requirement_id, solutionCode: row.solution_code, featureId: row.feature_id, verdict: row.verdict,
     rationale: row.rationale, evidenceUrl: row.evidence_url, edited: row.edited, sortOrder: row.sort_order,
     engine: row.engine, score: row.score === null || row.score === undefined ? null : Number(row.score),
-    detailKey: row.detail_key, detailText: row.detail_text, evidenceText: row.evidence_text,
+    detailKey: row.detail_key, detailText: row.detail_text, evidenceText: row.evidence_text, note: row.note,
     updatedAt: row.updated_at, updatedBy: row.updated_by,
   };
 }
