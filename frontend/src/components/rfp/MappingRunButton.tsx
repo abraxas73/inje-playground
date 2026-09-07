@@ -10,8 +10,8 @@ import type { MappingMode } from "@/lib/rfp/mapping/run-job";
 import type { RfpProjectDetail } from "@/types/rfp";
 
 /** 실행 다이얼로그: 모드(전체 / 미매핑) + 엔진 선택은 Claude 키가 있을 때만 보인다(없으면 규칙 고정, 사용자 요청으로 숨김). 첫 실행에도 다이얼로그를 연다. */
-export default function MappingRunButton({ project, catalogReady, llmAvailable, onRun }: {
-  project: RfpProjectDetail; catalogReady: boolean; llmAvailable: boolean; onRun: (mode: MappingMode, engine: EngineKind) => Promise<void>;
+export default function MappingRunButton({ project, catalogReady, llmAvailable, maxCandidates, onRun }: {
+  project: RfpProjectDetail; catalogReady: boolean; llmAvailable: boolean; maxCandidates: number; onRun: (mode: MappingMode, engine: EngineKind) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -72,12 +72,12 @@ export default function MappingRunButton({ project, catalogReady, llmAvailable, 
               <div>
                 <div className="mb-1 text-xs font-medium text-muted-foreground">엔진</div>
                 <div className="flex gap-2">
-                  {engineButton("rules", "규칙(키워드) — 기본", "카탈로그 키워드·유사도로 후보를 고릅니다")}
+                  {engineButton("rules", "규칙(키워드) — 기본", `카탈로그 키워드·유사도로 요구사항당 후보를 최대 ${maxCandidates}개 고릅니다`)}
                   {engineButton("llm", "Claude", "Claude가 충족·부분충족·설계·해당없음을 판정합니다")}
                 </div>
               </div>
             ) : (
-              <div className="text-xs text-muted-foreground">규칙(키워드) 엔진 — 카탈로그 키워드·유사도로 후보를 고릅니다.</div>
+              <div className="text-xs text-muted-foreground">규칙(키워드) 엔진 — 카탈로그 키워드·유사도로 요구사항당 후보를 최대 {maxCandidates}개 고릅니다(어드민 카탈로그에서 조정).</div>
             )}
             <div className="grid gap-2">
               {hasAny ? (

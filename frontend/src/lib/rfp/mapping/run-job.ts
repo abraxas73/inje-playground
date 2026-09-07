@@ -6,6 +6,7 @@ import { chunkRequirements, type ChunkRequirement } from "./chunk";
 import { validateMappingOutput } from "./validate";
 import { indexCatalog } from "./summary";
 import { ENGINE_FACTORIES, LlmUnavailableError, type EngineFactory, type EngineSetup } from "./engine";
+import { MAPPING_CANDIDATES_DEFAULT } from "./settings";
 import { selectAll } from "../../work-metrics/common";
 
 export type MappingMode = "all" | "missing";
@@ -79,8 +80,10 @@ interface ReqRow {
 
 export interface RunDeps {
   factories: Record<EngineKind, EngineFactory>;
+  /** 규칙 엔진의 요구사항당 후보 상한(어드민 설정 1~5). 라우트가 settings에서 읽어 넘긴다. */
+  maxCandidates?: number;
 }
-const DEFAULT_DEPS: RunDeps = { factories: ENGINE_FACTORIES };
+const DEFAULT_DEPS: RunDeps = { factories: ENGINE_FACTORIES, maxCandidates: MAPPING_CANDIDATES_DEFAULT };
 
 /**
  * 2단계 §4.3 + 4단계 §5.4 잡. 카탈로그 → 엔진(rules|llm, 팩토리 주입) → 대상 선정 → 20건 청크(동시 3) → 검증 → 청크마다 즉시 저장(edited 행 보존, engine·score 기록) → ready|failed.
@@ -103,7 +106,7 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
     const catalog = await loadCatalog(admin, { activeSolutionsOnly: true });
     let setup: EngineSetup;
     try {
-      setup = deps.factories[engine](catalog);
+      setup = deps.factories[engine](catalog, { maxCandidates: deps.maxCandidates ?? MAPPING_CANDIDATES_DEFAULT });
     } catch (e) {
       if (e instanceof LlmUnavailableError) return await fail(e.message);
       throw e;

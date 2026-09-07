@@ -125,6 +125,8 @@ export interface RfpCatalogResponse {
   solutions: RfpCatalogSolution[];
   /** ANTHROPIC_API_KEY 존재 여부 — Claude 엔진 선택 가능 */
   llmAvailable: boolean;
+  /** 규칙 엔진의 요구사항당 후보 상한(어드민 설정 1~5, 기본 5) — 실행 다이얼로그 안내용 */
+  mappingMaxCandidates: number;
 }
 
 /** 어드민 /api/admin/rfp-catalog */

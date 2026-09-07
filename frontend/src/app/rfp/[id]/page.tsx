@@ -12,6 +12,7 @@ import MappingSummary, { type VerdictFilter } from "@/components/rfp/MappingSumm
 import SharePointSection from "@/components/rfp/SharePointSection";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toCatalog } from "@/lib/rfp/mapping/client-catalog";
+import { MAPPING_CANDIDATES_DEFAULT, parseMaxCandidates } from "@/lib/rfp/mapping/settings";
 import type { CatalogSolution, EngineKind } from "@/lib/rfp/mapping/types";
 import type { MappingMode } from "@/lib/rfp/mapping/run-job";
 import type { MappingResponse, RfpCatalogResponse, RfpProjectDetail, StatusResponse } from "@/types/rfp";
@@ -26,6 +27,7 @@ export default function RfpProjectPage() {
   const [project, setProject] = useState<RfpProjectDetail | null>(null);
   const [catalog, setCatalog] = useState<CatalogSolution[]>([]);
   const [llmAvailable, setLlmAvailable] = useState(false);
+  const [maxCandidates, setMaxCandidates] = useState(MAPPING_CANDIDATES_DEFAULT);
   const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -55,7 +57,11 @@ export default function RfpProjectPage() {
     fetch("/api/users/role").then((r) => r.json()).then((j: { userId?: string }) => setMe(j.userId ?? null)).catch(() => undefined);
     fetch("/api/rfp/catalog")
       .then(async (r) => (r.ok ? ((await r.json()) as RfpCatalogResponse) : null))
-      .then((res) => { setCatalog(res ? toCatalog(res) : []); setLlmAvailable(res?.llmAvailable === true); })
+      .then((res) => {
+        setCatalog(res ? toCatalog(res) : []);
+        setLlmAvailable(res?.llmAvailable === true);
+        setMaxCandidates(parseMaxCandidates(res?.mappingMaxCandidates));
+      })
       .catch(() => { setCatalog([]); setLlmAvailable(false); });
   }, []);
 
@@ -139,6 +145,7 @@ export default function RfpProjectPage() {
         canDelete={isAdmin || (me !== null && me === project.createdBy.id)}
         catalogReady={catalogReady}
         llmAvailable={llmAvailable}
+        maxCandidates={maxCandidates}
         onPatched={(patch) => setProject((p) => (p ? { ...p, ...patch } : p))}
         onReextract={reextract}
         onRunMapping={runMapping}

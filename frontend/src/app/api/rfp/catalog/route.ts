@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
 import { loadCatalog } from "@/lib/rfp/catalog/store";
+import { loadMappingMaxCandidates } from "@/lib/rfp/mapping/settings";
 import type { RfpCatalogResponse } from "@/types/rfp";
 
 export const runtime = "nodejs";
@@ -10,9 +11,13 @@ export async function GET() {
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
   try {
-    const catalog = await loadCatalog(auth.admin, { activeSolutionsOnly: true });
+    const [catalog, mappingMaxCandidates] = await Promise.all([
+      loadCatalog(auth.admin, { activeSolutionsOnly: true }),
+      loadMappingMaxCandidates(auth.admin),
+    ]);
     const res: RfpCatalogResponse = {
       llmAvailable: !!process.env.ANTHROPIC_API_KEY,
+      mappingMaxCandidates,
       solutions: catalog.map((s) => ({
         code: s.code, name: s.name, description: s.description, isActive: s.isActive,
         features: s.features.map((f) => ({ id: f.id, name: f.name, description: f.description, evidenceUrl: f.evidenceUrl, sourceTitle: f.sourceTitle ?? null, isActive: f.isActive })),

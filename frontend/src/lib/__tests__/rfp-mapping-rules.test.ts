@@ -99,7 +99,14 @@ describe("rationaleFor", () => {
 });
 
 describe("matchRequirement / matchChunk", () => {
-  it("후보를 점수순으로 최대 3개, 솔루션당 2개까지 candidate 행으로 낸다", () => {
+  /** 솔루션 s1~s4에 각각 "로그인" 기능 2개 — 솔루션당 2개 상한과 전체 상한을 함께 시험한다 */
+  const manySolutions = (n: number): CatalogSolution[] =>
+    Array.from({ length: n }, (_, i) => ({
+      code: `s${i + 1}`, name: `S${i + 1}`, description: "", isActive: true, sortOrder: i + 1,
+      features: ["a", "b"].map((x) => feat(`s${i + 1}${x}`, `s${i + 1}`, `s${i + 1}${x} 로그인`, "", ["로그인"])),
+    }));
+
+  it("후보를 점수순으로 솔루션당 2개까지 candidate 행으로 낸다", () => {
     const many: CatalogSolution[] = [
       { code: "s1", name: "S1", description: "", isActive: true, sortOrder: 1, features: ["a1", "a2", "a3", "a4"].map((n) => feat(n, "s1", `${n} 로그인`, "", ["로그인"])) },
       { code: "s2", name: "S2", description: "", isActive: true, sortOrder: 2, features: [feat("b1", "s2", "b1 로그인", "", ["로그인"])] },
@@ -107,6 +114,17 @@ describe("matchRequirement / matchChunk", () => {
     const items = matchRequirement(req("SER-001", "로그인 기능"), buildFeatureIndex(many));
     expect(items.map((i) => i.feature)).toEqual(["a1", "a2", "b1"]);
     expect(items[0]).toEqual({ reqId: "SER-001", verdict: "candidate", feature: "a1", rationale: "자동 매칭 — 일치 키워드: 로그인 · 유사도 0.00", score: 0.3 });
+  });
+  it("전체 상한은 기본 5개이고 인자로 1~5까지 바꿀 수 있다(범위 밖은 잘라 쓴다)", () => {
+    const idx = buildFeatureIndex(manySolutions(4));
+    const r = req("SER-001", "로그인 기능");
+    expect(RULES.TOP_PER_REQ).toBe(5);
+    expect(matchRequirement(r, idx)).toHaveLength(5);
+    expect(matchRequirement(r, idx, 1).map((i) => i.feature)).toEqual(["s1a"]);
+    expect(matchRequirement(r, idx, 3)).toHaveLength(3);
+    expect(matchRequirement(r, idx, 99)).toHaveLength(5);
+    expect(matchRequirement(r, idx, 0)).toHaveLength(1);
+    expect(matchChunk([r], idx, 2).map((i) => i.feature)).toEqual(["s1a", "s1b"]);
   });
   it("후보가 없는 요구사항은 행을 내지 않고, 청크는 요구사항 순서대로 이어 붙인다", () => {
     const items = matchChunk([req("SER-001", "통합 인증(SSO) 기능", "한 번 로그인으로 접근"), req("SER-002", "사업 관리 산출물 제출"), req("SER-003", "가상 머신 생성")], index);

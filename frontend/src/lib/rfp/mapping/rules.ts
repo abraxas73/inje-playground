@@ -1,6 +1,7 @@
 import { charBigrams, normalizeText, tokenize } from "./tokenize";
 import { truncateDetails, type ChunkRequirement } from "./chunk";
 import type { CatalogSolution, EngineItem } from "./types";
+import { MAPPING_CANDIDATES_DEFAULT, parseMaxCandidates } from "./settings";
 
 /**
  * 규칙 매핑 엔진(4단계 스펙 §5.3). 키워드 일치(이름 토큰 가중치 2, 나머지 1) + 문자 bigram 유사도로 점수를 매겨
@@ -19,7 +20,8 @@ export const RULES = {
   DF_MIN_FEATURES: 20,
   /** 기능 bigram이 이보다 적으면 유사도를 0으로 본다(이름만 있는 짧은 기능이 우연히 맞는 것 방지) */
   MIN_FEATURE_BIGRAMS: 6,
-  TOP_PER_REQ: 3,
+  /** 요구사항당 후보 기본 상한. 어드민 설정(1~5)이 있으면 그 값을 쓴다 — matchRequirement 인자 */
+  TOP_PER_REQ: MAPPING_CANDIDATES_DEFAULT,
   MAX_PER_SOLUTION: 2,
   /** 부분 문자열 일치를 허용하는 키워드 최소 길이 */
   SUBSTRING_MIN_LEN: 3,
@@ -118,15 +120,19 @@ export function rationaleFor(d: ScoreDetail): string {
   return d.hits.length ? `자동 매칭 — 일치 키워드: ${d.hits.slice(0, RULES.HITS_SHOWN).join(", ")} · ${simText}` : `자동 매칭 — ${simText}`;
 }
 
-/** 요구사항 하나: 후보를 점수 내림차순(동점은 기능 이름 코드포인트순)으로 정렬해 솔루션당 2개, 전체 3개까지 */
-export function matchRequirement(r: ChunkRequirement, index: FeatureEntry[]): EngineItem[] {
+/**
+ * 요구사항 하나: 후보를 점수 내림차순(동점은 기능 이름 코드포인트순)으로 정렬해 솔루션당 MAX_PER_SOLUTION개,
+ * 전체는 maxCandidates개(어드민 설정 1~5, 기본 5)까지.
+ */
+export function matchRequirement(r: ChunkRequirement, index: FeatureEntry[], maxCandidates: number = RULES.TOP_PER_REQ): EngineItem[] {
+  const top = parseMaxCandidates(maxCandidates);
   const req = requirementText(r);
   const cands = index.map((f) => ({ f, d: scoreFeature(req, f) })).filter((c) => isCandidate(c.d));
   cands.sort((a, b) => b.d.score - a.d.score || byCodePoint(a.f.name, b.f.name));
   const perSolution = new Map<string, number>();
   const out: EngineItem[] = [];
   for (const c of cands) {
-    if (out.length >= RULES.TOP_PER_REQ) break;
+    if (out.length >= top) break;
     const n = perSolution.get(c.f.solutionCode) ?? 0;
     if (n >= RULES.MAX_PER_SOLUTION) continue;
     perSolution.set(c.f.solutionCode, n + 1);
@@ -135,6 +141,6 @@ export function matchRequirement(r: ChunkRequirement, index: FeatureEntry[]): En
   return out;
 }
 
-export function matchChunk(chunk: readonly ChunkRequirement[], index: FeatureEntry[]): EngineItem[] {
-  return chunk.flatMap((r) => matchRequirement(r, index));
+export function matchChunk(chunk: readonly ChunkRequirement[], index: FeatureEntry[], maxCandidates: number = RULES.TOP_PER_REQ): EngineItem[] {
+  return chunk.flatMap((r) => matchRequirement(r, index, maxCandidates));
 }

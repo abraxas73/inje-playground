@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Layers } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import SolutionList, { SolutionHeader } from "@/components/admin/rfp-catalog/SolutionList";
+import MappingSettingsCard from "@/components/admin/rfp-catalog/MappingSettingsCard";
 import SourceTable from "@/components/admin/rfp-catalog/SourceTable";
 import FeatureTable from "@/components/admin/rfp-catalog/FeatureTable";
 import type { RfpAdminSolution, RfpAdminSolutionsResponse } from "@/types/rfp";
@@ -44,7 +45,10 @@ export default function RfpCatalogPage() {
       </div>
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <SolutionList solutions={solutions} selected={selected} onSelect={setSelected} onChanged={load} />
+        <div className="space-y-4">
+          <SolutionList solutions={solutions} selected={selected} onSelect={setSelected} onChanged={load} />
+          <MappingSettingsCard />
+        </div>
         {current ? (
           <div className="min-w-0 space-y-4">
             <SolutionHeader solution={current} onChanged={load} onDeleted={() => { setSelected(null); void load(); }} />

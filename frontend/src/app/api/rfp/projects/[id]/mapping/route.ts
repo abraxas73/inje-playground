@@ -2,8 +2,9 @@ import { NextRequest, NextResponse, after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireUser } from "@/lib/rfp/require-user";
 import { loadCatalog } from "@/lib/rfp/catalog/store";
-import { createRulesEngine } from "@/lib/rfp/mapping/engine";
+import { createRulesEngine, ENGINE_FACTORIES } from "@/lib/rfp/mapping/engine";
 import { runMapping, type MappingMode } from "@/lib/rfp/mapping/run-job";
+import { loadMappingMaxCandidates } from "@/lib/rfp/mapping/settings";
 import { isEngineKind, STALE_RUNNING_MS, type EngineKind } from "@/lib/rfp/mapping/types";
 import { MAPPING_COLUMNS, mapMapping, type MappingDbRow, type ProjectDbRow } from "@/lib/rfp/mappers";
 import { selectAll } from "@/lib/work-metrics/common";
@@ -87,8 +88,10 @@ export async function POST(request: NextRequest, { params }: Params) {
   const { error: upError } = await auth.admin.from("rfp_projects").update({ mapping_status: "running", mapping_error: null, updated_by: auth.userId }).eq("id", id);
   if (upError) return NextResponse.json({ error: upError.message }, { status: 500 });
   const admin = auth.admin;
+  // 후보 상한은 실행 시점의 어드민 설정을 쓴다(잡이 아니라 라우트가 읽어 넘긴다 — 잡은 순수하게 유지)
+  const maxCandidates = await loadMappingMaxCandidates(admin);
   after(async () => {
-    await runMapping(admin, id, mode, engine);
+    await runMapping(admin, id, mode, engine, { factories: ENGINE_FACTORIES, maxCandidates });
   });
   return NextResponse.json({ started: true, mode, engine }, { status: 202 });
 }
