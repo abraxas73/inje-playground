@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { UnsupportedDocumentError, type DocumentFormat, type DocumentModel } from "./document-model";
-import { detectFormat, parseDocument } from "./parse";
+import { detectFormat, parseDocumentAsync } from "./parse";
 import { extractOverview, nameCore, normalizeAgency, normalizeName, type Overview } from "./overview";
 import { decideDuplicate, type ExistingProject } from "./dedupe";
 import { extractStandard, isStandardFormat, readSummaryTable, type ExtractionResult } from "./extract-standard";
+import { extractXlsx, isXlsxRequirementFormat } from "./extract-xlsx";
 import { createAnthropicExtractCall, extractWithLlm, LlmUnavailableError } from "./extract-llm";
 
 export const RFP_BUCKET = "rfp";
@@ -83,7 +84,7 @@ export async function registerProject(admin: SupabaseClient, input: RegisterInpu
   let format: DocumentFormat;
   try {
     format = detectFormat(buf, input.fileName);
-    doc = parseDocument(buf, input.fileName);
+    doc = await parseDocumentAsync(buf, input.fileName);
   } catch (e) {
     await removeUpload(admin, input.storagePath);
     if (e instanceof UnsupportedDocumentError) return { kind: "error", status: 415, message: e.message };
@@ -166,13 +167,16 @@ export async function runExtraction(admin: SupabaseClient, projectId: string): P
     if (!file) return await fail("원본 파일이 없습니다.");
 
     const buf = await downloadFile(admin, file.storage_path);
-    const doc = parseDocument(buf, file.original_filename);
+    const doc = await parseDocumentAsync(buf, file.original_filename);
     // 총괄표(구분명·부여규칙·건수)는 추출 방식과 무관하게 있으면 저장 — 화면 구분 탭 이름·검색에 쓴다
     const categorySummary = readSummaryTable(doc);
 
     let result: ExtractionResult;
     if (isStandardFormat(doc)) {
       result = extractStandard(doc);
+    } else if (isXlsxRequirementFormat(doc)) {
+      // 엑셀 요건표(한 행 = 한 요구사항) — 규칙 추출, LLM 폴백 전에 본다
+      result = extractXlsx(doc);
     } else {
       let call;
       try {

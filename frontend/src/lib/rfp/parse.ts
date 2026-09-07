@@ -3,8 +3,11 @@ import { UnsupportedDocumentError, type DocumentFormat, type DocumentModel } fro
 import { parseHwp } from "./parse-hwp";
 import { parseHwpx } from "./parse-hwpx";
 import { parseDocx } from "./parse-docx";
+import { parseXlsx } from "./parse-xlsx";
 
-export const ALLOWED_EXTENSIONS = ["hwp", "hwpx", "docx"] as const;
+export const ALLOWED_EXTENSIONS = ["hwp", "hwpx", "docx", "xlsx"] as const;
+/** 사람이 읽는 허용 형식 목록(업로드 안내·오류 문구 공용) */
+export const ALLOWED_EXTENSIONS_TEXT = "hwp·hwpx·docx·xlsx";
 export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 export function extensionOf(fileName: string): string {
@@ -30,14 +33,26 @@ export function detectFormat(buf: Buffer, fileName: string): DocumentFormat {
     }
     if (names.includes("Contents/content.hpf") || names.some((n) => /^Contents\/section\d+\.xml$/.test(n))) return "hwpx";
     if (names.includes("word/document.xml")) return "docx";
-    throw new UnsupportedDocumentError("zip 안에 HWPX·DOCX 본문이 없습니다.");
+    if (names.includes("xl/workbook.xml") || names.some((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n))) {
+      if (ext === "xls") throw new UnsupportedDocumentError("옛 엑셀(.xls)은 지원하지 않습니다. .xlsx로 저장해 올려주세요.");
+      return "xlsx";
+    }
+    throw new UnsupportedDocumentError("zip 안에 HWPX·DOCX·XLSX 본문이 없습니다.");
   }
-  throw new UnsupportedDocumentError("지원하지 않는 파일 형식입니다. hwp·hwpx·docx만 올릴 수 있습니다.");
+  throw new UnsupportedDocumentError(`지원하지 않는 파일 형식입니다. ${ALLOWED_EXTENSIONS_TEXT}만 올릴 수 있습니다.`);
 }
 
+/** 동기 파서(hwp·hwpx·docx). xlsx는 exceljs 읽기가 비동기라 parseDocumentAsync를 쓴다. */
 export function parseDocument(buf: Buffer, fileName: string): DocumentModel {
   const format = detectFormat(buf, fileName);
   if (format === "hwp") return parseHwp(buf);
   if (format === "hwpx") return parseHwpx(buf);
-  return parseDocx(buf);
+  if (format === "docx") return parseDocx(buf);
+  throw new UnsupportedDocumentError("xlsx는 parseDocumentAsync로 읽습니다.");
+}
+
+/** 모든 형식. 라우트·잡은 이 함수를 쓴다. */
+export async function parseDocumentAsync(buf: Buffer, fileName: string): Promise<DocumentModel> {
+  const format = detectFormat(buf, fileName);
+  return format === "xlsx" ? parseXlsx(buf) : parseDocument(buf, fileName);
 }

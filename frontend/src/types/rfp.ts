@@ -5,7 +5,7 @@ export type RfpMappingStatus = "none" | "running" | "ready" | "failed";
 export type RfpVerdict = Verdict;
 
 export type RfpProjectStatus = "extracting" | "ready" | "failed";
-export type RfpExtractionMethod = "standard" | "llm";
+export type RfpExtractionMethod = "standard" | "llm" | "xlsx";
 
 export interface RfpProjectSummary {
   id: string;

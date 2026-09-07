@@ -2,7 +2,7 @@
  * RFP 문서의 공통 모델. hwp·hwpx·docx 파서가 모두 이 형태를 내고, 개요·요구사항 추출은 이 모델만 본다.
  * 표는 셀 배열(위치·병합 정보 포함)로 두고, 셀 안의 중첩 표는 cell.tables에 따로 둔다.
  */
-export type DocumentFormat = "hwp" | "hwpx" | "docx";
+export type DocumentFormat = "hwp" | "hwpx" | "docx" | "xlsx";
 
 export interface Paragraph {
   type: "paragraph";

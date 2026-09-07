@@ -79,8 +79,8 @@ export function extractOverview(doc: DocumentModel): Overview {
     }
   }
 
-  // 4) 사업명 폴백: 앞 8개 블록의 인용 제목
-  if (!out.name) {
+  // 4) 사업명 폴백: 앞 8개 블록의 인용 제목. 엑셀은 표지가 없고 셀 안 인용어(예: "기술검토" 항목)를 제목으로 오인하므로 건너뛴다
+  if (!out.name && doc.format !== "xlsx") {
     outer: for (const b of doc.blocks.slice(0, 8)) {
       const texts = b.type === "paragraph" ? [b.text] : b.cells.map((c) => c.text);
       for (const t of texts) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
-import { ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES, extensionOf } from "@/lib/rfp/parse";
+import { ALLOWED_EXTENSIONS, ALLOWED_EXTENSIONS_TEXT, MAX_UPLOAD_BYTES, extensionOf } from "@/lib/rfp/parse";
 import { RFP_BUCKET } from "@/lib/rfp/pipeline";
 import type { UploadTicket } from "@/types/rfp";
 
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   if (!fileName || !Number.isFinite(size)) return NextResponse.json({ error: "fileName과 size가 필요합니다." }, { status: 400 });
   const ext = extensionOf(fileName);
   if (!(ALLOWED_EXTENSIONS as readonly string[]).includes(ext)) {
-    return NextResponse.json({ error: "hwp·hwpx·docx 파일만 올릴 수 있습니다." }, { status: 400 });
+    return NextResponse.json({ error: `${ALLOWED_EXTENSIONS_TEXT} 파일만 올릴 수 있습니다.` }, { status: 400 });
   }
   if (size <= 0 || size > MAX_UPLOAD_BYTES) return NextResponse.json({ error: "파일은 50MB 이하여야 합니다." }, { status: 400 });
 

@@ -33,10 +33,10 @@ export default function UploadDropzone({ busy, phaseLabel, onFile }: Props) {
         busy && "cursor-wait opacity-70",
       )}
     >
-      <input ref={inputRef} type="file" accept=".hwp,.hwpx,.docx" className="hidden" onChange={(e) => { pick(e.target.files); e.target.value = ""; }} />
+      <input ref={inputRef} type="file" accept=".hwp,.hwpx,.docx,.xlsx" className="hidden" onChange={(e) => { pick(e.target.files); e.target.value = ""; }} />
       {busy ? <Loader2 className="h-8 w-8 animate-spin text-primary" /> : <Upload className="h-8 w-8 text-muted-foreground" />}
       <div className="font-medium">{busy ? phaseLabel ?? "처리 중…" : "제안요청서 파일을 여기에 놓거나 클릭해 선택하세요"}</div>
-      <div className="text-xs text-muted-foreground">hwp · hwpx · docx, 50MB 이하. 올리면 프로젝트를 등록하고 요구사항을 추출합니다.</div>
+      <div className="text-xs text-muted-foreground">hwp · hwpx · docx · xlsx, 50MB 이하. 올리면 프로젝트를 등록하고 요구사항을 추출합니다. 엑셀은 요건표(구분·No.·항목 열이 있는 시트)를 읽습니다.</div>
     </div>
   );
 }

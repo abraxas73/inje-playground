@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { EXTRACTION_METHOD_LABEL } from "@/lib/rfp/requirements";
 import { Download, FileText, RefreshCw, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,7 +80,7 @@ export default function OverviewCard({ project, canDelete, catalogReady, llmAvai
           </CardTitle>
           <div className="text-sm text-muted-foreground">
             요구사항 {project.requirementCount}건
-            {project.extractionMethod && ` · ${project.extractionMethod === "standard" ? "표준 양식(규칙 추출)" : "LLM 추출"}`}
+            {project.extractionMethod && ` · ${EXTRACTION_METHOD_LABEL[project.extractionMethod]}`}
             {" · "}등록 {project.createdBy.name ?? "—"} · {new Date(project.createdAt).toLocaleString("ko-KR")}
             {project.mappingAt && ` · 매핑 ${new Date(project.mappingAt).toLocaleString("ko-KR")}`}
           </div>

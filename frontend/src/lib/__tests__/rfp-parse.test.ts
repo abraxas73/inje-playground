@@ -15,7 +15,8 @@ describe("extensionOf / 상수", () => {
     expect(extensionOf("제안요청서.HWPX")).toBe("hwpx");
     expect(extensionOf("a.b.docx")).toBe("docx");
     expect(extensionOf("noext")).toBe("");
-    expect(ALLOWED_EXTENSIONS).toEqual(["hwp", "hwpx", "docx"]);
+    expect(extensionOf("요건표.XLSX")).toBe("xlsx");
+    expect(ALLOWED_EXTENSIONS).toEqual(["hwp", "hwpx", "docx", "xlsx"]);
     expect(MAX_UPLOAD_BYTES).toBe(50 * 1024 * 1024);
   });
 });
@@ -25,10 +26,17 @@ describe("detectFormat", () => {
     expect(detectFormat(sample, "제안요청서.hwp")).toBe("hwp");
     expect(() => detectFormat(sample, "제안요청서.doc")).toThrow(UnsupportedDocumentError);
   });
-  it("zip 내용으로 hwpx/docx 구분", () => {
+  it("zip 내용으로 hwpx/docx/xlsx 구분", () => {
     expect(detectFormat(zip({ "Contents/content.hpf": "<p/>", "Contents/section0.xml": "<hs:sec/>" }), "a.hwpx")).toBe("hwpx");
     expect(detectFormat(zip({ "word/document.xml": "<w:document/>" }), "a.docx")).toBe("docx");
-    expect(() => detectFormat(zip({ "xl/workbook.xml": "<x/>" }), "a.xlsx")).toThrow(UnsupportedDocumentError);
+    expect(detectFormat(zip({ "xl/workbook.xml": "<x/>" }), "a.xlsx")).toBe("xlsx");
+    expect(detectFormat(zip({ "xl/worksheets/sheet1.xml": "<w/>" }), "a.xlsx")).toBe("xlsx");
+    // 옛 .xls는 OLE이거나 zip이 아니라서 안내 문구가 다르다
+    expect(() => detectFormat(zip({ "xl/workbook.xml": "<x/>" }), "a.xls")).toThrow(/xls/);
+    expect(() => detectFormat(zip({ "other.txt": "x" }), "a.docx")).toThrow(UnsupportedDocumentError);
+  });
+  it("xlsx는 동기 parseDocument로는 읽지 않는다(parseDocumentAsync)", () => {
+    expect(() => parseDocument(zip({ "xl/workbook.xml": "<x/>" }), "a.xlsx")).toThrow(/parseDocumentAsync/);
   });
   it("OLE도 zip도 아니면 거부", () => {
     expect(() => detectFormat(Buffer.from("plain text"), "a.hwp")).toThrow(UnsupportedDocumentError);

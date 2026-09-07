@@ -25,6 +25,13 @@ export interface RequirementRow extends Requirement {
   updatedBy?: string | null;
 }
 
+/** 추출 방식 표시 문구(화면 공용) */
+export const EXTRACTION_METHOD_LABEL: Record<"standard" | "llm" | "xlsx", string> = {
+  standard: "표준 양식(규칙 추출)",
+  xlsx: "엑셀 요건표(규칙 추출)",
+  llm: "LLM 추출",
+};
+
 /** 공공 SW 사업 표준 요구사항 분류 순서(샘플 xlsx의 시트 순서) */
 export const STANDARD_CATEGORY_ORDER: readonly string[] = [
   "SER", "ASR", "FUR", "DAR", "SYS", "GOV", "QMR", "DPR", "INF", "INR", "INR-DTL", "PER", "TER", "SEC", "PMR", "PSR", "COR",

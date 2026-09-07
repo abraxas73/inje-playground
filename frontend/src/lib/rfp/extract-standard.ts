@@ -5,7 +5,8 @@ import { matchesRule, patternKey, ruleToPattern, type CategorySummaryRow } from 
 export interface ExtractionResult {
   requirements: Requirement[];
   warnings: string[];
-  method: "standard" | "llm";
+  /** standard: hwp·docx 표준 7행 표 규칙 / xlsx: 엑셀 요건표(한 행 = 한 요구사항) / llm: Claude 폴백 */
+  method: "standard" | "llm" | "xlsx";
 }
 
 /** 라벨 셀 후보(정규화 후 비교) */
