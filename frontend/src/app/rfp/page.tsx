@@ -1,15 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileSearch } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileSearch } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import UploadDropzone from "@/components/rfp/UploadDropzone";
 import ProjectList from "@/components/rfp/ProjectList";
+import HowItWorks from "@/components/rfp/HowItWorks";
 import ConfirmDuplicateDialog, { type DuplicateCandidate } from "@/components/rfp/ConfirmDuplicateDialog";
 import { uploadAndRegister, PHASE_LABEL, type UploadPhase } from "@/lib/rfp/client-upload";
-import type { RfpProjectSummary, UploadTicket } from "@/types/rfp";
+import { MAPPING_CANDIDATES_DEFAULT, parseMaxCandidates } from "@/lib/rfp/mapping/settings";
+import type { RfpCatalogResponse, RfpProjectSummary, UploadTicket } from "@/types/rfp";
+
+/** 한 페이지에 보여 줄 프로젝트 수 */
+const PAGE_SIZE = 10;
 
 interface Pending { file: File; ticket: UploadTicket }
 
@@ -22,6 +28,11 @@ export default function RfpPage() {
   const [phase, setPhase] = useState<UploadPhase | null>(null);
   const [message, setMessage] = useState<{ kind: "error" | "info"; text: string } | null>(null);
   const [confirm, setConfirm] = useState<{ candidates: DuplicateCandidate[]; overview: { name: string; agency: string | null }; pending: Pending } | null>(null);
+  const [page, setPage] = useState(1);
+  /** 아래 안내에 쓸 카탈로그 규모·설정(설명이 실제 상태와 어긋나지 않게 서버 값을 쓴다) */
+  const [catalog, setCatalog] = useState<{ solutions: number; features: number; maxCandidates: number; llmAvailable: boolean }>({
+    solutions: 0, features: 0, maxCandidates: MAPPING_CANDIDATES_DEFAULT, llmAvailable: false,
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,6 +54,28 @@ export default function RfpPage() {
     const t = setTimeout(load, 250);
     return () => clearTimeout(t);
   }, [load]);
+
+  useEffect(() => { setPage(1); }, [q]);
+
+  useEffect(() => {
+    fetch("/api/rfp/catalog")
+      .then((r) => (r.ok ? (r.json() as Promise<RfpCatalogResponse>) : null))
+      .then((res) => {
+        if (!res) return;
+        const active = res.solutions.filter((s) => s.isActive);
+        setCatalog({
+          solutions: active.length,
+          features: active.reduce((n, s) => n + s.features.filter((f) => f.isActive).length, 0),
+          maxCandidates: parseMaxCandidates(res.mappingMaxCandidates),
+          llmAvailable: res.llmAvailable === true,
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  const pageCount = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount);
+  const shown = useMemo(() => projects.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE), [projects, current]);
 
   const handleOutcome = (file: File, outcome: Awaited<ReturnType<typeof uploadAndRegister>>) => {
     const r = outcome.response;
@@ -108,7 +141,32 @@ export default function RfpPage() {
         <h2 className="text-lg font-semibold">프로젝트 <span className="text-sm font-normal text-muted-foreground">{projects.length}건</span></h2>
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="사업명·발주기관 검색" className="max-w-xs" />
       </div>
-      <ProjectList projects={projects} loading={loading} />
+      <ProjectList projects={shown} loading={loading} />
+
+      {!loading && projects.length > 0 && (
+        <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+          <span className="tabular-nums">
+            {(current - 1) * PAGE_SIZE + 1}–{Math.min(current * PAGE_SIZE, projects.length)} / {projects.length}건
+          </span>
+          {pageCount > 1 && (
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" className="h-7 px-2" disabled={current <= 1} onClick={() => setPage(current - 1)}>
+                <ChevronLeft className="h-4 w-4" />이전
+              </Button>
+              {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
+                <Button key={n} variant={n === current ? "secondary" : "ghost"} size="sm" className="h-7 w-7 p-0 tabular-nums" onClick={() => setPage(n)}>
+                  {n}
+                </Button>
+              ))}
+              <Button variant="outline" size="sm" className="h-7 px-2" disabled={current >= pageCount} onClick={() => setPage(current + 1)}>
+                다음<ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <HowItWorks solutions={catalog.solutions} features={catalog.features} maxCandidates={catalog.maxCandidates} llmAvailable={catalog.llmAvailable} />
 
       <ConfirmDuplicateDialog
         open={!!confirm}

@@ -3,6 +3,8 @@
 설계: `docs/superpowers/specs/2026-09-03-rfp-analyzer-phase1-design.md`(1단계) · `docs/superpowers/specs/2026-09-04-rfp-analyzer-phase2-design.md`(2단계) · `docs/superpowers/specs/2026-09-05-rfp-analyzer-phase3-design.md`(3단계) · `docs/superpowers/specs/2026-09-06-rfp-analyzer-phase4-design.md`(4단계) · 계획: `docs/superpowers/plans/2026-09-03-rfp-analyzer-phase1.md` · `docs/superpowers/plans/2026-09-04-rfp-analyzer-phase2.md` · `docs/superpowers/plans/2026-09-05-rfp-analyzer-phase3.md` · `docs/superpowers/plans/2026-09-06-rfp-analyzer-phase4.md`
 
 ## 구성
+
+> 구현 전체 설명(파서·추출·카탈로그·매핑 단위·근거·데이터 모델·한계)은 [아키텍처 문서 `docs/rfp-analyzer-architecture.md`](./rfp-analyzer-architecture.md).
 - 화면 `/rfp`(목록·업로드), `/rfp/[id]`(개요·요구사항 표). user 역할 이상.
 - API `/api/rfp/*`. 파일은 브라우저가 Storage 버킷 `rfp`에 서명 URL로 직접 올린다(Vercel 4.5MB 제한 회피).
 - 추출은 `after()`로 응답 뒤 실행(`maxDuration 300`). 표준 양식(첫 셀 "요구사항분류"/"요구사항구분"인 7행 표)은 규칙, 비표준만 Claude.
@@ -112,3 +114,4 @@
 46. 판정 조합 규칙(충족/부분충족 vs 설계·구축영역/해당없음, 5행 상한)은 **단위마다 따로** 적용된다 — 항목1은 충족, 항목2는 해당없음이 공존할 수 있다. 매핑 후보 상한(어드민 1~5)도 단위마다다. 매핑 경고에 "세부 항목 N개는 매핑 결과 없음"이 남고, 요구사항 표 "당사 솔루션" 칸에는 "세부 3/8"이 노란색으로 붙는다(전부 채우면 회색).
 47. **매핑 근거**: 규칙 엔진이 기능 설명에서 요구 텍스트와 가장 많이 겹치는 문장을 뽑아 `evidence_text`에 저장하고, 행 펼침의 문서 카드 둘째 줄에 "근거 …"로 보여준다. Claude 엔진은 프롬프트에서 인용 문장(`evidence`)과 세부 항목 번호(`detail`)를 함께 받는다. xlsx 솔루션_매핑 시트에 "세부 항목"·"근거 문장" 열이 추가됐다(SQL `2026-09-07-rfp-mapping-detail.sql`).
 48. 매핑 편집기는 세부 항목별로 묶여 보인다 — 항목 번호·라벨 헤더 + 그 항목의 행 + 항목별 "행 추가"(수동 추가도 `detailKey`로 그 항목에 붙는다). 세부 내용을 나중에 고쳐 키가 사라진 행은 "(세부 내용이 바뀐 뒤 남은 매핑)"으로 따로 보이고 지워지지 않는다.
+49. `/rfp` 목록은 한 페이지 10건이고 표 아래에 "1–10 / 24건"과 이전·페이지 번호·다음 버튼이 나온다(검색어를 바꾸면 1페이지로). 그 아래 "동작 방식과 매핑 정보 소스" 안내에 4단계 흐름·카탈로그 규모(활성 솔루션·기능 수)·후보 상한·근거·한계가 적히고, 숫자와 Claude 엔진 문구는 `GET /api/rfp/catalog` 응답에서 채운다. 업로드 영역은 한 줄(아이콘 + 문구 2줄)로 줄였다.
