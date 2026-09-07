@@ -15,11 +15,12 @@ import { aggregateChatTeams, type ChatTeamRow } from "@/lib/claude-usage/chat-te
 import { mergeMembersByEmail } from "@/lib/claude-usage/chat-member-merge";
 import { downloadCsv } from "@/lib/claude-usage/csv-download";
 import type { CsvImport, MemberActivityRow } from "@/types/claude-usage";
+import OfficeUsagePanel, { type OfficeData, type OfficeUserView } from "@/components/admin/claude-usage/OfficeUsagePanel";
 
 type Row = MemberActivityRow & {
   org_id: string; import_id: string;
   employee_name: string | null; team: string | null; parent_unit: string | null; headquarters: string | null; division: string | null;
-  code_prompts: number; code_prompts_auto: number;
+  code_prompts: number; code_prompts_auto: number; office_turns: number;
 };
 interface Resp {
   period: { from: string; to: string } | null;
@@ -28,6 +29,7 @@ interface Resp {
   scope: { scope: "self" | "org"; scopeLabel: string };
   rows: Row[];
 }
+type OfficeResp = OfficeData & { range: { from: string; to: string } };
 
 function Stat({ label, value, sub, title }: { label: string; value: string; sub?: string; title?: string }) {
   return (
@@ -72,6 +74,22 @@ export default function MyChatUsagePage() {
   // 기간 옵션은 응답이 갈려도 흔들리지 않게 마지막으로 받은 목록을 유지
   const imports = result?.data?.imports ?? [];
 
+  // Office Agents(Excel·Word·PowerPoint) — 같은 데이터 기간으로 조회. 수집기 등록 조직만 잡힌다
+  const period = data?.period ?? null;
+  const officeKey = period ? `${period.from}|${period.to}` : null;
+  const [office, setOffice] = useState<{ key: string; data?: OfficeResp } | null>(null);
+  useEffect(() => {
+    if (!officeKey || !period) return;
+    let cancelled = false;
+    fetch(`/api/usage/office?from=${period.from}&to=${period.to}`)
+      .then(async (r) => (r.ok ? ((await r.json()) as OfficeResp) : undefined))
+      .then((j) => { if (!cancelled) setOffice({ key: officeKey, data: j }); })
+      .catch(() => { if (!cancelled) setOffice({ key: officeKey }); });
+    return () => { cancelled = true; };
+  }, [officeKey, period]);
+  const officeData = officeKey && office?.key === officeKey ? office.data ?? null : null;
+  const officeLoading = !!officeKey && office?.key !== officeKey;
+
   const isTeamView = data?.scope.scope === "org";
   const merged = useMemo(() => mergeMembersByEmail(data?.rows ?? []), [data]);
   const rows = useMemo(() => {
@@ -90,8 +108,12 @@ export default function MyChatUsagePage() {
     chats: a.chats + r.chats, messages: a.messages + r.messages, code: a.code + r.code_sessions,
     cowork: a.cowork + r.cowork_sessions, cwmsg: a.cwmsg + r.cowork_messages,
     proj: a.proj + r.projects_used, art: a.art + r.artifacts_created,
-    cp: a.cp + r.code_prompts, cpa: a.cpa + r.code_prompts_auto, spend: a.spend + r.estimated_spend_usd,
-  }), { chats: 0, messages: 0, code: 0, cowork: 0, cwmsg: 0, proj: 0, art: 0, cp: 0, cpa: 0, spend: 0 }), [rows]);
+    cp: a.cp + r.code_prompts, cpa: a.cpa + r.code_prompts_auto, spend: a.spend + r.estimated_spend_usd, office: a.office + r.office_turns,
+  }), { chats: 0, messages: 0, code: 0, cowork: 0, cwmsg: 0, proj: 0, art: 0, cp: 0, cpa: 0, spend: 0, office: 0 }), [rows]);
+  const officeUsers = useMemo<OfficeUserView[]>(() => {
+    const s = q.trim().toLowerCase();
+    return (officeData?.users ?? []).filter((u) => matchUnit(u, unit) && (!s || u.user_email.includes(s) || (u.employee_name ?? "").toLowerCase().includes(s) || (u.team ?? "").toLowerCase().includes(s)));
+  }, [officeData, unit, q]);
 
   const columns: Column<Row>[] = [
     { key: "user", header: "구성원", value: (r) => r.employee_name ?? r.name ?? r.email, render: (r) => (
@@ -101,6 +123,7 @@ export default function MyChatUsagePage() {
     { key: "last", header: "마지막 활동", value: (r) => r.last_active ?? "" },
     { key: "days", header: "활동일", align: "right", value: (r) => r.days_active, render: (r) => int(r.days_active), total: "sum" },
     { key: "codep", header: "Claude Code 프롬프트\n(사람 / 자동)", align: "right", value: (r) => r.code_prompts, render: (r) => <span title="같은 데이터 기간의 Claude Code 프롬프트 수(OTel) — 사람이 친 것 / 플러그인·스크립트 자동화. 채팅이 0이어도 Claude Code를 쓰는지 구분용">{`${int(r.code_prompts)} / ${int(r.code_prompts_auto)}`}</span>, total: (rows) => `${int(sumBy(rows, (r) => r.code_prompts))} / ${int(sumBy(rows, (r) => r.code_prompts_auto))}` },
+    { key: "office", header: "Office 턴", align: "right", value: (r) => r.office_turns, render: (r) => <span title="같은 데이터 기간의 Excel·Word·PowerPoint·Outlook 추가 기능 턴 수(Office Agents). 상세는 아래 Office Agents 카드">{int(r.office_turns)}</span>, total: "sum" },
     { key: "chats", header: "채팅", align: "right", value: (r) => r.chats, render: (r) => int(r.chats), total: "sum" },
     { key: "msgs", header: "메시지", align: "right", value: (r) => r.messages, render: (r) => int(r.messages), total: "sum" },
     { key: "code", header: "코드 세션", align: "right", value: (r) => r.code_sessions, render: (r) => int(r.code_sessions), total: "sum" },
@@ -134,8 +157,8 @@ export default function MyChatUsagePage() {
 
   const periodSuffix = data?.period ? `-${data.period.from}-to-${data.period.to}` : "";
   const exportMembersCsv = () => {
-    const head = ["email", "name", "team", "parent_unit", "seat_tier", "last_active", "days_active", "code_prompts_human", "code_prompts_auto", "chats", "messages", "code_sessions", "pull_requests", "cowork_sessions", "cowork_messages", "projects_used", "artifacts_created", "estimated_spend_usd"];
-    downloadCsv(`my-claude-chat-usage${periodSuffix}.csv`, head, rows.map((r) => [r.email, r.employee_name ?? r.name ?? "", r.team ?? "", r.parent_unit ?? "", r.seat_tier ?? "", r.last_active ?? "", r.days_active, r.code_prompts, r.code_prompts_auto, r.chats, r.messages, r.code_sessions, r.pull_requests, r.cowork_sessions, r.cowork_messages, r.projects_used, r.artifacts_created, r.estimated_spend_usd.toFixed(2)]));
+    const head = ["email", "name", "team", "parent_unit", "seat_tier", "last_active", "days_active", "code_prompts_human", "code_prompts_auto", "office_turns", "chats", "messages", "code_sessions", "pull_requests", "cowork_sessions", "cowork_messages", "projects_used", "artifacts_created", "estimated_spend_usd"];
+    downloadCsv(`my-claude-chat-usage${periodSuffix}.csv`, head, rows.map((r) => [r.email, r.employee_name ?? r.name ?? "", r.team ?? "", r.parent_unit ?? "", r.seat_tier ?? "", r.last_active ?? "", r.days_active, r.code_prompts, r.code_prompts_auto, r.office_turns, r.chats, r.messages, r.code_sessions, r.pull_requests, r.cowork_sessions, r.cowork_messages, r.projects_used, r.artifacts_created, r.estimated_spend_usd.toFixed(2)]));
   };
   const exportTeamsCsv = () => {
     const head = ["team", "parent", "active_users", "users", "chats", "messages", "code_sessions", "cowork_sessions", "cowork_messages", "projects_used", "artifacts_created", "spend_usd"];
@@ -175,12 +198,13 @@ export default function MyChatUsagePage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {!loading && rows.length > 0 && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
           <Stat label="채팅 · 메시지" value={`${int(totals.chats)} · ${int(totals.messages)}`} />
           <Stat label="코드 세션" value={int(totals.code)} />
           <Stat label="Cowork 세션 · 메시지" value={`${int(totals.cowork)} · ${int(totals.cwmsg)}`} />
           <Stat label="프로젝트 · 아티팩트" value={`${int(totals.proj)} · ${int(totals.art)}`} />
           <Stat label="Claude Code 프롬프트 (사람 / 자동)" value={`${int(totals.cp)} / ${int(totals.cpa)}`} sub="같은 데이터 기간 · OTel 수집" title="사람이 친 프롬프트 / 플러그인·스크립트 자동화. 내용 수집이 없는 사용자는 전부 사람으로 잡힘" />
+          <Stat label="Office 턴" value={int(totals.office)} sub="Excel·Word·PowerPoint 추가 기능 · OTel 수집" title="Office Agents 턴 수. 조직 설정에 수집기를 등록한 Claude 조직만 잡힘" />
           <Stat label="초과 지출" value={usd(totals.spend)} sub="시트 한도 초과 추정액(CSV)" />
         </div>
       )}
@@ -207,6 +231,18 @@ export default function MyChatUsagePage() {
             <SortableTable totalLabel={`총계 (${rows.length}명)`} rows={rows} columns={columns} rowKey={(r) => r.email} defaultSort={{ key: "msgs", dir: "desc" }} rowClassName={(r) => (isIdleSeat(r) ? "bg-destructive/5" : "")} emptyText={loading ? "불러오는 중..." : "데이터가 없습니다."} />
           </CardContent>
         </Card>
+      )}
+
+      {officeData && !officeData.notReady && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold">Office Agents (Excel · Word · PowerPoint · Outlook)</h2>
+            <p className="text-xs text-muted-foreground">추가 기능 사용량{period ? ` · 데이터 기간 ${period.from} ~ ${period.to}` : ""}. claude.ai 조직 설정에 OTel 수집기를 등록한 Claude 조직에서 쓴 기록만 잡히며, 프롬프트 원문·문서 내용은 저장하지 않습니다.</p>
+          </div>
+          {officeData.totals && officeData.totals.turns > 0
+            ? <OfficeUsagePanel data={officeData} users={officeUsers} showUnit={distinctTeams > 1} showOrgs={false} showTable={isTeamView} title={`구성원별 Office Agents (${officeUsers.length}명)`} loading={officeLoading} />
+            : <p className="text-sm text-muted-foreground">기간 내 수집된 Office 추가 기능 사용이 없습니다.</p>}
+        </section>
       )}
 
       {!loading && !error && merged.length === 0 && (

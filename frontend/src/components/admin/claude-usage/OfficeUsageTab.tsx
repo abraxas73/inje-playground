@@ -81,7 +81,7 @@ export default function OfficeUsageTab({ orgs }: { orgs: ClaudeOrg[] }) {
         </p>
       )}
       <p className="text-xs text-muted-foreground">
-        수집 범위: claude.ai 관리자 설정 &gt; 제품 &gt; Office Agents &gt; 모니터링에 우리 OTLP 엔드포인트를 등록한 Claude 조직만 잡힙니다(2026-09-04 Innogrid-ax 등록, 다른 조직은 미등록). 추가 기능을 다시 열 때부터 적용되며, 조직 설정 없이 쓰는 사용자는 여기 없습니다. 원본 스팬의 프롬프트·도구 입출력·문서 URL은 서버가 읽지 않고 버립니다.
+        Excel·Word·PowerPoint·Outlook 추가 기능(Claude Office Agents) 사용량 — claude.ai 관리자 설정 &gt; 제품 &gt; Office Agents &gt; 모니터링에 등록한 OTLP 수집기로 받습니다(Innogrid-ax 2026-09-04, 나머지 6개 조직 2026-09-07 등록). 등록 뒤 추가 기능을 다시 연 시점부터 잡힙니다. 원본 스팬의 프롬프트·도구 입출력·문서 URL은 서버가 읽지 않고 버립니다.
       </p>
 
       <OfficeUsagePanel data={data} users={users} showUnit showOrgs orgName={orgName} loading={loading} />

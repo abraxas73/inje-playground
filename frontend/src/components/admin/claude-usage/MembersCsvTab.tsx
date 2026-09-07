@@ -14,7 +14,7 @@ import { hasSeat, isIdleSeat } from "@/lib/claude-usage/aggregate";
 import { usd, int, fmtDateTime } from "./format";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
 
-type Row = MemberActivityRow & { org_id: string; import_id: string; employee_name?: string | null; team?: string | null; parent_unit?: string | null; headquarters?: string | null; division?: string | null; code_prompts?: number; code_prompts_auto?: number };
+type Row = MemberActivityRow & { org_id: string; import_id: string; employee_name?: string | null; team?: string | null; parent_unit?: string | null; headquarters?: string | null; division?: string | null; code_prompts?: number; code_prompts_auto?: number; office_turns?: number };
 interface MembersResponse { imports: CsvImport[]; rows: Row[]; period: { start: string; end: string } | null }
 
 /**
@@ -97,6 +97,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
     { key: "last", header: "마지막 활동", value: (r) => r.last_active ?? "" },
     { key: "days", header: "활동일", align: "right", value: (r) => r.days_active, total: "sum" },
     { key: "codep", header: "Claude Code 프롬프트\n(사람 / 자동)", align: "right", value: (r) => r.code_prompts ?? 0, render: (r) => <span title="같은 데이터 기간의 Claude Code 프롬프트 수(OTel, Claude 조직 무관) — 사람이 친 것 / 플러그인·스크립트 자동화. 채팅 0이어도 Claude Code를 쓰는 시트 구분용">{`${int(r.code_prompts ?? 0)} / ${int(r.code_prompts_auto ?? 0)}`}</span>, total: (rows) => `${int(sumBy(rows, (r) => r.code_prompts ?? 0))} / ${int(sumBy(rows, (r) => r.code_prompts_auto ?? 0))}` },
+    { key: "office", header: "Office 턴", align: "right", value: (r) => r.office_turns ?? 0, render: (r) => <span title="같은 데이터 기간의 Excel·Word·PowerPoint·Outlook 추가 기능 턴 수(Office Agents, OTel 수집기 등록 조직만). 상세는 Office Agents 탭">{int(r.office_turns ?? 0)}</span>, total: "sum" },
     { key: "chats", header: "채팅", align: "right", value: (r) => r.chats , total: "sum" },
     { key: "msgs", header: "메시지", align: "right", value: (r) => r.messages , total: "sum" },
     { key: "code", header: "코드 세션", align: "right", value: (r) => r.code_sessions , total: "sum" },
@@ -136,7 +137,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
 
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm">멤버 활동 ({rows.length}명) — 노는 시트는 붉게 표시{data?.period && lastCollected && <span className="ml-2 font-normal text-muted-foreground">· 데이터 {data.period.start} ~ {data.period.end}, 수집 {fmtDateTime(lastCollected.at)}</span>}</CardTitle>
-          <p className="text-xs text-muted-foreground">Cowork 세션·메시지에는 Claude in Chrome(사이드 패널) 세션이 포함됩니다(구분 없음). Excel·Word·PowerPoint 추가 기능 사용은 이 CSV에 없습니다(&quot;Claude Code 사용량 &gt; Office 추가 기능&quot; 탭).</p>
+          <p className="text-xs text-muted-foreground">Cowork 세션·메시지에는 Claude in Chrome(사이드 패널) 세션이 포함됩니다(구분 없음). Excel·Word·PowerPoint 추가 기능은 CSV에 없어 OTel 수집기로 받은 턴 수를 &quot;Office 턴&quot; 컬럼에 붙였습니다(상세는 Office Agents 탭).</p>
         </CardHeader>
         <CardContent>
           <SortableTable totalLabel={`총계 (${rows.length}명)`} rows={rows} columns={columns} rowKey={(r) => `${r.import_id}:${r.email}`} defaultSort={{ key: "chats", dir: "desc" }} rowClassName={(r) => (isIdleSeat(r) ? "bg-destructive/5" : "")} emptyText={loading ? "불러오는 중..." : "업로드된 CSV가 없습니다."} />

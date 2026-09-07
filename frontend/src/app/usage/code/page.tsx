@@ -14,7 +14,6 @@ import { usd, int, hours } from "@/components/admin/claude-usage/format";
 import { acceptRate, dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
 import { aggregateCodeTeams, type CodeTeamRow } from "@/lib/claude-usage/code-team-summary";
 import { downloadCsv } from "@/lib/claude-usage/csv-download";
-import OfficeUsagePanel, { type OfficeData, type OfficeUserView } from "@/components/admin/claude-usage/OfficeUsagePanel";
 import type { DailyMetrics } from "@/types/claude-usage";
 
 const PRESETS: { key: RangePreset; label: string }[] = [
@@ -34,7 +33,6 @@ interface Resp {
   models: { model: string; cost_usd: number; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number }[];
 }
 interface ToolRow { tool: string; calls: number; errors: number; duration_ms_sum: number; accepts: number; rejects: number; users: number }
-type OfficeResp = OfficeData & { range: { from: string; to: string } };
 /** RPC claude_code_hourly_emails — dow는 isodow(1=월 … 7=일). users = 그 시간대에 요청한 고유 사용자 수 */
 interface HourCell { dow: number; hour: number; requests: number; cost_usd: number; users: number }
 
@@ -89,7 +87,6 @@ export default function MyCodeUsagePage() {
 
   const [tools, setTools] = useState<{ key: string; rows?: ToolRow[]; notReady?: boolean } | null>(null);
   const [hourly, setHourly] = useState<{ key: string; cells?: HourCell[]; notReady?: boolean } | null>(null);
-  const [office, setOffice] = useState<{ key: string; data?: OfficeResp } | null>(null);
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/usage/tools?from=${range.from}&to=${range.to}`)
@@ -100,10 +97,6 @@ export default function MyCodeUsagePage() {
       .then((r) => r.json())
       .then((j) => { if (!cancelled) setHourly({ key: requestKey, cells: j.cells ?? [], notReady: j.notReady }); })
       .catch(() => { if (!cancelled) setHourly({ key: requestKey, cells: [] }); });
-    fetch(`/api/usage/office?from=${range.from}&to=${range.to}`)
-      .then(async (r) => (r.ok ? ((await r.json()) as OfficeResp) : undefined))
-      .then((j) => { if (!cancelled) setOffice({ key: requestKey, data: j }); })
-      .catch(() => { if (!cancelled) setOffice({ key: requestKey }); });
     return () => { cancelled = true; };
   }, [range.from, range.to, requestKey]);
 
@@ -138,14 +131,6 @@ export default function MyCodeUsagePage() {
     return { hourGrid: grid, hourMax: Math.max(1, max), hourTotal: total, hourTotals: totals };
   }, [hourCells]);
   const maxHourTotal = Math.max(1, ...hourTotals);
-
-  // Office 추가 기능(Excel·Word·PowerPoint) — 조직 설정에 수집기를 등록한 조직만. 구성원 표 필터(조직/팀·검색)를 같이 적용
-  const officeData = office?.key === requestKey ? office.data ?? null : null;
-  const officeLoading = office?.key !== requestKey;
-  const officeUsers = useMemo<OfficeUserView[]>(() => {
-    const s = q.trim().toLowerCase();
-    return (officeData?.users ?? []).filter((u) => matchUnit(u, unit) && (!s || u.user_email.includes(s) || (u.employee_name ?? "").toLowerCase().includes(s) || (u.team ?? "").toLowerCase().includes(s)));
-  }, [officeData, unit, q]);
 
   const t = data?.totals;
   const accept = t ? acceptRate(t.edits_accepted, t.edits_rejected) : null;
@@ -293,18 +278,6 @@ export default function MyCodeUsagePage() {
             <SortableTable totalLabel={`총계 (${users.length}명)`} rows={users} columns={userColumns} rowKey={(r) => r.email} defaultSort={{ key: "cost", dir: "desc" }} emptyText={loading ? "불러오는 중..." : "데이터가 없습니다."} />
           </CardContent>
         </Card>
-      )}
-
-      {officeData && !officeData.notReady && (
-        <section className="space-y-3">
-          <div>
-            <h2 className="text-sm font-semibold">Office 추가 기능 (Excel · Word · PowerPoint · Outlook)</h2>
-            <p className="text-xs text-muted-foreground">claude.ai 조직 설정에 OTel 수집기를 등록한 Claude 조직(현재 Innogrid-ax)에서 추가 기능을 쓴 기록만 잡힙니다. 프롬프트 원문·문서 내용은 저장하지 않습니다.</p>
-          </div>
-          {officeData.totals && officeData.totals.turns > 0
-            ? <OfficeUsagePanel data={officeData} users={officeUsers} showUnit={distinctTeams > 1} showOrgs={false} showTable={isTeamView} title={`구성원별 Office 추가 기능 (${officeUsers.length}명)`} loading={officeLoading} />
-            : <p className="text-sm text-muted-foreground">기간 내 수집된 Office 추가 기능 사용이 없습니다.</p>}
-        </section>
       )}
 
       {toolRows.length > 0 && (

@@ -24,6 +24,8 @@ export interface ChatMemberLike extends OrgUnitLike {
   projects_used: number;
   artifacts_created: number;
   estimated_spend_usd: number;
+  /** 같은 기간 Office Agents(Excel·Word·PowerPoint) 턴 수 — 없으면 0 */
+  office_turns?: number;
 }
 
 export interface ChatTeamRow {
@@ -41,6 +43,7 @@ export interface ChatTeamRow {
   projects_used: number;
   artifacts_created: number;
   spend_usd: number;
+  office_turns: number;
 }
 
 export const NO_DIRECTORY_TEAM = "명부 없음";
@@ -59,7 +62,7 @@ export function aggregateChatTeams(rows: ChatMemberLike[]): ChatTeamRow[] {
     const team = u.team ?? NO_DIRECTORY_TEAM;
     let t = map.get(team);
     if (!t) {
-      t = { team, parent: parentUnitOf(u), users: 0, active_users: 0, chats: 0, messages: 0, code_sessions: 0, cowork_sessions: 0, cowork_messages: 0, projects_used: 0, artifacts_created: 0, spend_usd: 0, _emails: new Set(), _active: new Set() };
+      t = { team, parent: parentUnitOf(u), users: 0, active_users: 0, chats: 0, messages: 0, code_sessions: 0, cowork_sessions: 0, cowork_messages: 0, projects_used: 0, artifacts_created: 0, spend_usd: 0, office_turns: 0, _emails: new Set(), _active: new Set() };
       map.set(team, t);
     }
     const email = u.email.toLowerCase();
@@ -73,6 +76,7 @@ export function aggregateChatTeams(rows: ChatMemberLike[]): ChatTeamRow[] {
     t.projects_used += u.projects_used;
     t.artifacts_created += u.artifacts_created;
     t.spend_usd += u.estimated_spend_usd;
+    t.office_turns += u.office_turns ?? 0;
   }
   return [...map.values()].map(({ _emails, _active, ...t }) => ({ ...t, users: _emails.size, active_users: _active.size }));
 }

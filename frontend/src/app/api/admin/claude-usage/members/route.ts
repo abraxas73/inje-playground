@@ -7,8 +7,8 @@ import { selectAll } from "@/lib/work-metrics/common";
  * - periodEnd(YYYY-MM-DD): 데이터 기간 종료일이 그 날짜인 CSV 중 조직별 최신 업로드를 고른다(화면의 "데이터 기간" 선택).
  * - importId(uuid): 특정 업로드 하나. 둘 다 없으면 조직별 최신 업로드.
  * 응답 imports는 선택과 무관하게 org 범위의 전체 업로드 목록(기간 옵션용), period는 선택된 CSV들의 데이터 기간.
- * 각 행에 code_prompts(같은 데이터 기간의 Claude Code 프롬프트 수, OTel claude_code_daily, Claude 조직 무관 이메일 합)를 붙인다 —
- * 채팅은 0이어도 Claude Code를 쓰는 시트를 구분하기 위함.
+ * 각 행에 code_prompts(같은 데이터 기간의 Claude Code 프롬프트 수, OTel claude_code_daily, Claude 조직 무관 이메일 합)와
+ * office_turns(같은 기간의 Excel·Word·PowerPoint 추가 기능 턴 수, RPC claude_office_usage)를 붙인다 — 채팅은 0이어도 다른 제품을 쓰는 시트를 구분하기 위함.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin();
@@ -72,11 +72,20 @@ export async function GET(request: NextRequest) {
       codePrompts.set(k, v);
     }
   }
+  // Office Agents 턴(OTel 수집기) — 데이터 기간, 조직 무관 이메일 합. 함수가 없거나 실패해도 표는 내려준다
+  const officeTurns = new Map<string, number>();
+  if (period) {
+    const of = await admin.rpc("claude_office_usage", { p_from: period.start, p_to: period.end, p_emails: null, p_org: null });
+    for (const r of (of.error ? [] : of.data ?? []) as { user_email: string; turns: number | string }[]) {
+      const k = r.user_email.toLowerCase();
+      officeTurns.set(k, (officeTurns.get(k) ?? 0) + Number(r.turns));
+    }
+  }
   const withTeam = (rows.data ?? []).map((r) => {
     const rec = numify(r as Record<string, unknown>) as Record<string, unknown>;
     const email = String(rec.email ?? "").toLowerCase();
     const d = dirByEmail.get(email);
-    return { ...rec, employee_name: d?.name ?? null, team: d?.team ?? null, parent_unit: parentUnit(d), headquarters: d?.headquarters ?? null, division: d?.division ?? null, code_prompts: codePrompts.get(email)?.human ?? 0, code_prompts_auto: codePrompts.get(email)?.auto ?? 0 };
+    return { ...rec, employee_name: d?.name ?? null, team: d?.team ?? null, parent_unit: parentUnit(d), headquarters: d?.headquarters ?? null, division: d?.division ?? null, code_prompts: codePrompts.get(email)?.human ?? 0, code_prompts_auto: codePrompts.get(email)?.auto ?? 0, office_turns: officeTurns.get(email) ?? 0 };
   });
   return NextResponse.json({ imports: all, rows: withTeam, period });
 }

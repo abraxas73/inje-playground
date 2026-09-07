@@ -9,7 +9,7 @@ export const runtime = "nodejs";
  * GET /api/usage/chat?periodEnd=latest|YYYY-MM-DD — 개인/조직장용 채팅·Cowork 활동(월간 CSV 스냅샷, 어드민 아님).
  * - periodEnd(YYYY-MM-DD): 데이터 기간 종료일이 그 날짜인 CSV 중 조직별 최신 업로드. 없으면 조직별 최신.
  * - 허용 범위(resolveUsageScope) 이메일 행만 내려준다. 응답 imports는 기간 선택 옵션용(조직·기간만, 파일명 등 제외).
- * - 각 행에 같은 데이터 기간의 Claude Code 프롬프트 수(OTel, 사람/자동)를 붙인다 — 어드민 멤버 활동 표와 같은 컬럼.
+ * - 각 행에 같은 데이터 기간의 Claude Code 프롬프트 수(OTel, 사람/자동)와 Office Agents 턴 수(RPC claude_office_usage)를 붙인다 — 어드민 멤버 활동 표와 같은 컬럼.
  */
 export async function GET(request: NextRequest) {
   const r = await resolveUsageScope();
@@ -40,13 +40,14 @@ export async function GET(request: NextRequest) {
   const collectedAt = selected.map((p) => p.created_at).sort().at(-1) ?? null;
   const emails = scope.members.map((m) => m.email);
 
-  const [rows, codeRes] = await Promise.all([
+  const [rows, codeRes, officeRes] = await Promise.all([
     selectAll<Record<string, unknown>>(() =>
       admin.from("claude_member_activity").select("*", { count: "exact" }).in("import_id", ids).in("email", emails).order("import_id").order("email")
     ),
     selectAll<{ user_email: string; prompts: number | string; prompts_auto: number | string }>(() =>
       admin.from("claude_code_daily").select("user_email, prompts, prompts_auto", { count: "exact" }).in("user_email", emails).gte("day", period.from).lte("day", period.to).order("day").order("org_id").order("user_email")
     ),
+    admin.rpc("claude_office_usage", { p_from: period.from, p_to: period.to, p_emails: emails, p_org: null }),
   ]);
   if (rows.error) return NextResponse.json({ error: rows.error.message }, { status: 500 });
 
@@ -58,6 +59,11 @@ export async function GET(request: NextRequest) {
     v.human += Number(c.prompts) - Number(c.prompts_auto);
     v.auto += Number(c.prompts_auto);
     codePrompts.set(k, v);
+  }
+  const officeTurns = new Map<string, number>();
+  for (const o of (officeRes.error ? [] : officeRes.data ?? []) as { user_email: string; turns: number | string }[]) {
+    const k = o.user_email.toLowerCase();
+    officeTurns.set(k, (officeTurns.get(k) ?? 0) + Number(o.turns));
   }
   const memberOf = new Map(scope.members.map((m) => [m.email, m]));
 
@@ -79,6 +85,7 @@ export async function GET(request: NextRequest) {
         division: m?.division ?? null,
         code_prompts: codePrompts.get(email)?.human ?? 0,
         code_prompts_auto: codePrompts.get(email)?.auto ?? 0,
+        office_turns: officeTurns.get(email) ?? 0,
       };
     }),
   });

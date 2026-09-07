@@ -11,7 +11,7 @@ import { usd, int } from "./format";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
 import { aggregateChatTeams, type ChatTeamRow } from "@/lib/claude-usage/chat-team-summary";
 
-type Row = MemberActivityRow & { org_id: string; import_id: string; employee_name?: string | null; team?: string | null; parent_unit?: string | null; headquarters?: string | null; division?: string | null };
+type Row = MemberActivityRow & { org_id: string; import_id: string; employee_name?: string | null; team?: string | null; parent_unit?: string | null; headquarters?: string | null; division?: string | null; office_turns?: number };
 interface MembersResponse { imports: CsvImport[]; rows: Row[]; period: { start: string; end: string } | null }
 
 type TeamRow = ChatTeamRow;
@@ -50,6 +50,7 @@ export default function ChatTeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
         <span>{int(r.messages)}</span>
       </div>) , total: (rows) => int(sumBy(rows, (r) => r.messages)) },
     { key: "msgsPerUser", header: "메시지/활동자", align: "right", value: (r) => (r.active_users ? r.messages / r.active_users : 0), render: (r) => (r.active_users ? int(Math.round(r.messages / r.active_users)) : "—") , total: (rows) => { const a = sumBy(rows, (r) => r.active_users); return a ? int(Math.round(sumBy(rows, (r) => r.messages) / a)) : "—"; } },
+    { key: "office", header: "Office 턴", align: "right", value: (r) => r.office_turns, render: (r) => <span title="Excel·Word·PowerPoint·Outlook 추가 기능 턴 수(Office Agents, OTel 수집기 등록 조직만)">{int(r.office_turns)}</span>, total: "sum" },
     { key: "chats", header: "채팅", align: "right", value: (r) => r.chats, render: (r) => int(r.chats) , total: "sum" },
     { key: "code", header: "코드 세션", align: "right", value: (r) => r.code_sessions, render: (r) => int(r.code_sessions) , total: "sum" },
     { key: "cowork", header: "Cowork 세션", align: "right", value: (r) => r.cowork_sessions, render: (r) => int(r.cowork_sessions) , total: "sum" },
@@ -60,8 +61,8 @@ export default function ChatTeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
   ];
 
   const exportCsv = () => {
-    const head = ["team", "parent", "active_users", "users", "chats", "messages", "code_sessions", "cowork_sessions", "cowork_messages", "projects_used", "artifacts_created", "spend_usd"];
-    const lines = rows.map((r) => [r.team, r.parent ?? "", r.active_users, r.users, r.chats, r.messages, r.code_sessions, r.cowork_sessions, r.cowork_messages, r.projects_used, r.artifacts_created, r.spend_usd.toFixed(2)]
+    const head = ["team", "parent", "active_users", "users", "office_turns", "chats", "messages", "code_sessions", "cowork_sessions", "cowork_messages", "projects_used", "artifacts_created", "spend_usd"];
+    const lines = rows.map((r) => [r.team, r.parent ?? "", r.active_users, r.users, r.office_turns, r.chats, r.messages, r.code_sessions, r.cowork_sessions, r.cowork_messages, r.projects_used, r.artifacts_created, r.spend_usd.toFixed(2)]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
     const blob = new Blob(["﻿" + [head.join(","), ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
@@ -91,7 +92,7 @@ export default function ChatTeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">팀별 채팅 · Cowork 활동 ({rows.length}개 팀 · 사내 조직도 기준)</CardTitle>
-          <p className="text-xs text-muted-foreground">팀 = 조직도 말단 부서(팀·센터), 아래 줄은 팀 바로 위 조직. &quot;활동자/시트&quot;는 기간 내 활동일이 있는 인원 / 이 팀에서 Claude 시트를 가진 인원(조직도 인원과 다를 수 있음). 여러 Claude 조직에 속한 계정은 활동 수치는 합산하고 인원은 1명으로 셉니다. 명부에 없는 이메일은 &quot;명부 없음&quot;으로 묶입니다. Claude in Chrome(사이드 패널) 사용은 Cowork 세션·메시지에 포함되며, Excel·Word·PowerPoint 추가 기능 사용은 이 CSV에 없습니다(&quot;Claude Code 사용량 &gt; Office 추가 기능&quot; 탭).</p>
+          <p className="text-xs text-muted-foreground">팀 = 조직도 말단 부서(팀·센터), 아래 줄은 팀 바로 위 조직. &quot;활동자/시트&quot;는 기간 내 활동일이 있는 인원 / 이 팀에서 Claude 시트를 가진 인원(조직도 인원과 다를 수 있음). 여러 Claude 조직에 속한 계정은 활동 수치는 합산하고 인원은 1명으로 셉니다. 명부에 없는 이메일은 &quot;명부 없음&quot;으로 묶입니다. Claude in Chrome(사이드 패널) 사용은 Cowork 세션·메시지에 포함되며, Excel·Word·PowerPoint 추가 기능 턴(Office Agents, OTel)은 &quot;Office 턴&quot; 컬럼에 합쳤습니다.</p>
         </CardHeader>
         <CardContent>
           <SortableTable totalLabel={`총계 (${rows.length}개 팀)`} rows={rows} columns={columns} rowKey={(r) => r.team} defaultSort={{ key: "msgs", dir: "desc" }} emptyText={loading ? "불러오는 중..." : "업로드된 CSV가 없습니다."} />

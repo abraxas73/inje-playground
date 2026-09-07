@@ -106,7 +106,7 @@ export default function OfficeUsagePanel({ data, users, showUnit, showOrgs, orgN
         <Card>
           <CardHeader className="pb-2">
             {header}
-            <CardTitle className="text-sm">{title ?? `사용자별 Office 추가 기능 사용량 (${users.length}명)`}</CardTitle>
+            <CardTitle className="text-sm">{title ?? `사용자별 Office Agents 사용량 (${users.length}명)`}</CardTitle>
             <p className="text-xs text-muted-foreground">턴 = 프롬프트 1건. 토큰은 턴 안의 모델 호출을 합한 값이고 캐시 읽기는 입력에 포함하지 않습니다. 앱별 턴은 Excel·Word·PowerPoint·Outlook 구분. 프롬프트 원문·문서 내용은 저장하지 않습니다.</p>
           </CardHeader>
           <CardContent>

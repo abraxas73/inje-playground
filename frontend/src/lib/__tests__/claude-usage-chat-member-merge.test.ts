@@ -18,12 +18,13 @@ describe("mergeMembersByEmail", () => {
 
   it("시트는 배정된 쪽을 남기고, Claude Code 프롬프트는 더하지 않고 최댓값(이메일 단위 값)", () => {
     const [a] = mergeMembersByEmail([
-      row({ email: "a@x.com", seat_tier: "Unassigned", code_prompts: 120, code_prompts_auto: 30 }),
-      row({ email: "a@x.com", seat_tier: "Team Standard", code_prompts: 120, code_prompts_auto: 30 }),
+      row({ email: "a@x.com", seat_tier: "Unassigned", code_prompts: 120, code_prompts_auto: 30, office_turns: 7 }),
+      row({ email: "a@x.com", seat_tier: "Team Standard", code_prompts: 120, code_prompts_auto: 30, office_turns: 7 }),
     ]);
     expect(a.seat_tier).toBe("Team Standard");
     expect(a.code_prompts).toBe(120);
     expect(a.code_prompts_auto).toBe(30);
+    expect(a.office_turns).toBe(7);
   });
 
   it("입력 배열을 바꾸지 않는다", () => {
