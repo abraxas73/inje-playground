@@ -102,17 +102,17 @@ export default function RfpProjectPage() {
     await load();
   };
 
-  const runMapping = async (mode: MappingMode, engine: EngineKind) => {
+  const runMapping = async (mode: MappingMode, engine: EngineKind, solutions: string[] = []) => {
     setNotice(null);
     setError(null);
     const post = (body: object) => fetch(`/api/rfp/projects/${id}/mapping`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    let res = await post({ mode, engine });
+    let res = await post({ mode, engine, solutions });
     if (res.status === 409) {
       const j = (await res.json()) as { needsConfirm?: boolean; editedRequirements?: number; running?: boolean; error?: string };
       if (j.running) { setNotice(j.error ?? "이미 매핑 중입니다."); await loadMappings(); return; }
       if (!j.needsConfirm) { setError(j.error ?? "매핑을 시작할 수 없습니다."); return; }
       if (!window.confirm(`사람이 고친 매핑이 있는 요구사항 ${j.editedRequirements}건은 건너뛰고 나머지를 다시 매핑합니다. 계속할까요?`)) return;
-      res = await post({ mode, engine, confirm: true });
+      res = await post({ mode, engine, solutions, confirm: true });
     }
     if (!res.ok) { setError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "매핑 요청에 실패했습니다."); return; }
     stuckRef.current = false;
@@ -135,7 +135,10 @@ export default function RfpProjectPage() {
   }
   if (!project) return <div className="p-10 text-center text-sm text-muted-foreground">불러오는 중…</div>;
 
-  const catalogReady = catalog.some((s) => s.isActive && s.features.some((f) => f.isActive));
+  const mappableSolutions = catalog
+    .filter((s) => s.isActive && s.features.some((f) => f.isActive))
+    .map((s) => ({ code: s.code, name: s.name, featureCount: s.features.filter((f) => f.isActive).length }));
+  const catalogReady = mappableSolutions.length > 0;
 
   return (
     <div className="space-y-4">
@@ -146,6 +149,7 @@ export default function RfpProjectPage() {
         catalogReady={catalogReady}
         llmAvailable={llmAvailable}
         maxCandidates={maxCandidates}
+        solutions={mappableSolutions}
         onPatched={(patch) => setProject((p) => (p ? { ...p, ...patch } : p))}
         onReextract={reextract}
         onRunMapping={runMapping}

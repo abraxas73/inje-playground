@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sortRequirements } from "../requirements";
 import { loadCatalog } from "../catalog/store";
-import type { EngineKind, MappingRow } from "./types";
+import type { CatalogSolution, EngineKind, MappingRow } from "./types";
 import { chunkRequirements, type ChunkRequirement } from "./chunk";
 import { validateMappingOutput } from "./validate";
 import { indexCatalog } from "./summary";
@@ -82,6 +82,15 @@ export interface RunDeps {
   factories: Record<EngineKind, EngineFactory>;
   /** 규칙 엔진의 요구사항당 후보 상한(어드민 설정 1~5). 라우트가 settings에서 읽어 넘긴다. */
   maxCandidates?: number;
+  /** 매핑 대상 솔루션 코드. 비었거나 없으면 활성 솔루션 전체(화면 기본값). */
+  solutionCodes?: string[];
+}
+
+/** 대상 솔루션만 남긴 카탈로그. 코드 목록이 비어 있으면 그대로 돌려준다(전체 대상). */
+export function scopeCatalog(catalog: CatalogSolution[], codes: readonly string[] | undefined): CatalogSolution[] {
+  if (!codes?.length) return catalog;
+  const want = new Set(codes.map((c) => c.trim().toLowerCase()).filter(Boolean));
+  return catalog.filter((s) => want.has(s.code.toLowerCase()));
 }
 const DEFAULT_DEPS: RunDeps = { factories: ENGINE_FACTORIES, maxCandidates: MAPPING_CANDIDATES_DEFAULT };
 
@@ -103,7 +112,9 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
     if (error) await fail(`상태 갱신 실패: ${error.message}`);
   };
   try {
-    const catalog = await loadCatalog(admin, { activeSolutionsOnly: true });
+    const all = await loadCatalog(admin, { activeSolutionsOnly: true });
+    const catalog = scopeCatalog(all, deps.solutionCodes);
+    if (!catalog.length) return await fail("선택한 솔루션이 카탈로그에 없습니다. 대상 솔루션을 다시 고르세요.");
     let setup: EngineSetup;
     try {
       setup = deps.factories[engine](catalog, { maxCandidates: deps.maxCandidates ?? MAPPING_CANDIDATES_DEFAULT });
@@ -112,7 +123,9 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
       throw e;
     }
     if (!setup.lookup.size) return await fail("카탈로그가 비어 있습니다. 관리자에게 문의하세요.");
-    const index = indexCatalog(catalog);
+    // 매핑 행의 기능 이름·근거 URL은 선택 밖 솔루션도 그릴 수 있어야 해서 전체 카탈로그로 색인한다
+    const index = indexCatalog(all);
+    const scopeNote = catalog.length < all.length ? [`대상 솔루션 ${catalog.length}/${all.length}개: ${catalog.map((s) => s.name).join(", ")}`] : [];
 
     const [reqRes, mapRes] = await Promise.all([
       admin.from("rfp_requirements").select("id, req_id, title, category_code, category_name, definition, details, sort_order").eq("project_id", projectId),
@@ -126,7 +139,7 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
     const requirements = (reqRes.data ?? []) as ReqRow[];
     const existing = mapRes.data.map((m) => ({ requirementId: m.requirement_id, edited: m.edited }));
     const targets = selectTargetRequirements(requirements, existing, mode);
-    if (!targets.length) return await ready(["매핑할 요구사항이 없습니다(모두 사람이 검토했거나 이미 매핑됨)."]);
+    if (!targets.length) return await ready([...scopeNote, "매핑할 요구사항이 없습니다(모두 사람이 검토했거나 이미 매핑됨)."]);
 
     const sorted = sortRequirements(targets.map((r) => ({ ...r, categoryCode: r.category_code, sortOrder: r.sort_order })));
     const chunks = chunkRequirements(
@@ -153,7 +166,7 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
     });
     const summary = summarizeChunkOutcomes(results);
     if (summary.succeeded === 0) return await fail(`모든 청크가 실패했습니다. ${summary.warnings[0] ?? ""}`.trim());
-    await ready(summary.warnings);
+    await ready([...scopeNote, ...summary.warnings]);
   } catch (e) {
     console.error("[rfp] mapping failed", projectId, e);
     await fail(e instanceof Error ? e.message : String(e));

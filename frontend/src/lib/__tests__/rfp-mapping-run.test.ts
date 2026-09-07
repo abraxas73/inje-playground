@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { selectTargetRequirements, runWithConcurrency, summarizeChunkOutcomes, CONCURRENCY } from "@/lib/rfp/mapping/run-job";
+import { selectTargetRequirements, runWithConcurrency, summarizeChunkOutcomes, scopeCatalog, CONCURRENCY } from "@/lib/rfp/mapping/run-job";
 import { MappingOutputSchema } from "@/lib/rfp/mapping/llm";
 import { createRulesEngine, createLlmEngine } from "@/lib/rfp/mapping/engine";
 import { LlmUnavailableError } from "@/lib/rfp/extract-llm";
@@ -93,5 +93,21 @@ describe("createLlmEngine", () => {
   it("키가 있으면 별칭 lookup을 준다(호출은 하지 않는다)", () => {
     const setup = createLlmEngine(catalog, { apiKey: "test-key" });
     expect([...setup.lookup.keys()]).toEqual(["F1"]);
+  });
+});
+
+describe("scopeCatalog", () => {
+  const cat = [
+    { code: "secloudit", name: "SECloudit", description: "", isActive: true, sortOrder: 1, features: [] },
+    { code: "openstackit", name: "Openstackit", description: "", isActive: true, sortOrder: 2, features: [] },
+  ];
+  it("코드 목록이 비면 전체, 있으면 그 솔루션만(대소문자·공백 무시)", () => {
+    expect(scopeCatalog(cat, undefined)).toHaveLength(2);
+    expect(scopeCatalog(cat, [])).toHaveLength(2);
+    expect(scopeCatalog(cat, ["Openstackit"]).map((s) => s.code)).toEqual(["openstackit"]);
+    expect(scopeCatalog(cat, [" secloudit ", "openstackit"]).map((s) => s.code)).toEqual(["secloudit", "openstackit"]);
+  });
+  it("없는 코드만 주면 빈 배열(라우트·잡이 오류로 처리한다)", () => {
+    expect(scopeCatalog(cat, ["nope"])).toEqual([]);
   });
 });
