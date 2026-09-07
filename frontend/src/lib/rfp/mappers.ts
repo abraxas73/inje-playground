@@ -58,7 +58,7 @@ export interface FileDbRow {
   created_at: string;
 }
 
-export const MAPPING_COLUMNS = "id, project_id, requirement_id, solution_code, feature_id, verdict, rationale, evidence_url, edited, sort_order, engine, score, updated_at, updated_by";
+export const MAPPING_COLUMNS = "id, project_id, requirement_id, solution_code, feature_id, verdict, rationale, evidence_url, edited, sort_order, engine, score, detail_key, detail_text, evidence_text, updated_at, updated_by";
 
 export interface MappingDbRow {
   id: string;
@@ -74,6 +74,11 @@ export interface MappingDbRow {
   engine: MappingEngineKind;
   /** numeric → 문자열로 올 수 있다 */
   score: number | string | null;
+  /** 세부 항목 키·라벨(5단계) — null이면 요구사항 전체 단위 */
+  detail_key: string | null;
+  detail_text: string | null;
+  /** 판정 근거 문장 */
+  evidence_text: string | null;
   updated_at: string;
   updated_by: string | null;
 }
@@ -114,6 +119,7 @@ export function mapMapping(row: MappingDbRow): RfpMapping {
     id: row.id, requirementId: row.requirement_id, solutionCode: row.solution_code, featureId: row.feature_id, verdict: row.verdict,
     rationale: row.rationale, evidenceUrl: row.evidence_url, edited: row.edited, sortOrder: row.sort_order,
     engine: row.engine, score: row.score === null || row.score === undefined ? null : Number(row.score),
+    detailKey: row.detail_key, detailText: row.detail_text, evidenceText: row.evidence_text,
     updatedAt: row.updated_at, updatedBy: row.updated_by,
   };
 }

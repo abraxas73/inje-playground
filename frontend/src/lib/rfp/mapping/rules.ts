@@ -1,5 +1,6 @@
 import { charBigrams, normalizeText, tokenize } from "./tokenize";
 import { truncateDetails, type ChunkRequirement } from "./chunk";
+import { parseDetailUnits, type DetailUnit } from "./detail-items";
 import type { CatalogSolution, EngineItem } from "./types";
 import { MAPPING_CANDIDATES_DEFAULT, parseMaxCandidates } from "./settings";
 
@@ -27,6 +28,8 @@ export const RULES = {
   SUBSTRING_MIN_LEN: 3,
   /** rationale에 나열하는 키워드 수 */
   HITS_SHOWN: 5,
+  /** 근거 문장 최대 길이 */
+  EVIDENCE_MAX: 180,
 } as const;
 
 /** 결정적 정렬(ICU 로케일에 기대지 않는다): 코드포인트 순 — 라틴이 한글보다 앞 */
@@ -81,7 +84,40 @@ export interface RequirementText {
 
 export function requirementText(r: ChunkRequirement): RequirementText {
   const text = `${r.title} ${r.definition} ${truncateDetails(r.details)}`;
+  return textOf(text);
+}
+
+function textOf(text: string): RequirementText {
   return { tokens: new Set(tokenize(text)), compact: normalizeText(text).replace(/\s+/g, ""), bigrams: charBigrams(text) };
+}
+
+/** 세부 항목 하나의 매칭 텍스트 — 요구사항 명칭을 문맥으로 함께 넣는다(항목만으로는 도메인 단어가 빠진다) */
+export function detailUnitText(r: ChunkRequirement, unit: DetailUnit): RequirementText {
+  return textOf(`${r.title} ${truncateDetails(unit.text)}`);
+}
+
+/**
+ * 판정 근거 문장: 기능 설명에서 요구 텍스트와 가장 많이 겹치는 문장을 고른다. 겹치는 게 없으면 첫 문장, 설명이 없으면 기능 이름.
+ * 문장 분리는 줄바꿈·중점(·)·마침표 기준(카탈로그 설명이 글머리 목록인 경우가 많다).
+ */
+export function evidenceSentence(req: RequirementText, f: FeatureEntry, description: string): string {
+  const cut = (s: string) => (s.length <= RULES.EVIDENCE_MAX ? s : `${s.slice(0, RULES.EVIDENCE_MAX).trim()}…`);
+  const sentences = description
+    .split(/\n|·|(?<=[.。!?])\s+/)
+    .map((s) => s.replace(/^[\s\-–—•·※*]+/, "").trim())
+    .filter((s) => s.length >= 6);
+  if (!sentences.length) return cut(f.name);
+  let best = sentences[0];
+  let bestScore = -1;
+  for (const s of sentences) {
+    const b = charBigrams(s);
+    if (!b.size) continue;
+    let inter = 0;
+    for (const x of b) if (req.bigrams.has(x)) inter += 1;
+    const score = inter / Math.sqrt(b.size * Math.max(1, req.bigrams.size));
+    if (score > bestScore) { bestScore = score; best = s; }
+  }
+  return cut(best);
 }
 
 export interface ScoreDetail {
@@ -121,12 +157,10 @@ export function rationaleFor(d: ScoreDetail): string {
 }
 
 /**
- * 요구사항 하나: 후보를 점수 내림차순(동점은 기능 이름 코드포인트순)으로 정렬해 솔루션당 MAX_PER_SOLUTION개,
- * 전체는 maxCandidates개(어드민 설정 1~5, 기본 5)까지.
+ * 텍스트 하나(요구사항 전체 또는 세부 항목)에 대한 후보: 점수 내림차순(동점은 기능 이름 코드포인트순),
+ * 솔루션당 MAX_PER_SOLUTION개, 전체는 maxCandidates개(어드민 설정 1~5, 기본 5)까지.
  */
-export function matchRequirement(r: ChunkRequirement, index: FeatureEntry[], maxCandidates: number = RULES.TOP_PER_REQ): EngineItem[] {
-  const top = parseMaxCandidates(maxCandidates);
-  const req = requirementText(r);
+function matchText(reqId: string, req: RequirementText, index: FeatureEntry[], top: number, detailKey: string | null, descriptions: Map<string, string>): EngineItem[] {
   const cands = index.map((f) => ({ f, d: scoreFeature(req, f) })).filter((c) => isCandidate(c.d));
   cands.sort((a, b) => b.d.score - a.d.score || byCodePoint(a.f.name, b.f.name));
   const perSolution = new Map<string, number>();
@@ -136,11 +170,29 @@ export function matchRequirement(r: ChunkRequirement, index: FeatureEntry[], max
     const n = perSolution.get(c.f.solutionCode) ?? 0;
     if (n >= RULES.MAX_PER_SOLUTION) continue;
     perSolution.set(c.f.solutionCode, n + 1);
-    out.push({ reqId: r.reqId, verdict: "candidate", feature: c.f.featureId, rationale: rationaleFor(c.d), score: c.d.score });
+    out.push({
+      reqId, verdict: "candidate", feature: c.f.featureId, rationale: rationaleFor(c.d), score: c.d.score, detailKey,
+      evidenceText: evidenceSentence(req, c.f, descriptions.get(c.f.featureId) ?? ""),
+    });
   }
   return out;
 }
 
-export function matchChunk(chunk: readonly ChunkRequirement[], index: FeatureEntry[], maxCandidates: number = RULES.TOP_PER_REQ): EngineItem[] {
-  return chunk.flatMap((r) => matchRequirement(r, index, maxCandidates));
+/**
+ * 요구사항 하나. 세부 내용이 목록이면 **세부 항목마다** 후보를 내고(detailKey 1,2…), 목록이 아니면 요구사항 전체로 한 번 낸다.
+ * 2depth 목록은 1단 항목으로 묶는다(detail-items 규칙).
+ */
+export function matchRequirement(
+  r: ChunkRequirement, index: FeatureEntry[], maxCandidates: number = RULES.TOP_PER_REQ, descriptions: Map<string, string> = new Map(),
+): EngineItem[] {
+  const top = parseMaxCandidates(maxCandidates);
+  const { units, flat } = parseDetailUnits(r.details);
+  if (!units.length || flat) return matchText(r.reqId, requirementText(r), index, top, null, descriptions);
+  return units.flatMap((u) => matchText(r.reqId, detailUnitText(r, u), index, top, u.key, descriptions));
+}
+
+export function matchChunk(
+  chunk: readonly ChunkRequirement[], index: FeatureEntry[], maxCandidates: number = RULES.TOP_PER_REQ, descriptions: Map<string, string> = new Map(),
+): EngineItem[] {
+  return chunk.flatMap((r) => matchRequirement(r, index, maxCandidates, descriptions));
 }

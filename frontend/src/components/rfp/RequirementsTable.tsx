@@ -19,6 +19,7 @@ import { VERDICT_CLASS, VerdictBadge, type VerdictFilter } from "@/components/rf
 import { cn } from "@/lib/utils";
 import { orderCategoryCodes, sheetNameFor } from "@/lib/rfp/requirements";
 import { bestVerdict, groupByRequirement, indexCatalog, mappingSummary } from "@/lib/rfp/mapping/summary";
+import { parseDetailUnits } from "@/lib/rfp/mapping/detail-items";
 import { UNMAPPED_LABEL, VERDICT_LABEL, type CatalogSolution } from "@/lib/rfp/mapping/types";
 import { categoryLabel, findCategorySummary, type CategorySummaryRow } from "@/lib/rfp/category-summary";
 import type { RfpMapping, RfpMappingStatus, RfpRequirement } from "@/types/rfp";
@@ -152,9 +153,20 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
       cell: (ctx) => {
         const g = groups.get(ctx.row.original.id) ?? [];
         const best = bestVerdict(g);
+        // 세부 항목 단위로 매핑했으면 몇 개 항목이 채워졌는지 함께 보여준다
+        const { units, flat } = parseDetailUnits(ctx.row.original.details);
+        const multi = !flat && units.length > 1;
+        const done = multi ? new Set(g.filter((m) => m.detailKey).map((m) => m.detailKey)).size : 0;
         return (
           <div className="space-y-1">
-            <VerdictBadge verdict={best ?? "unmapped"} />
+            <div className="flex flex-wrap items-center gap-1">
+              <VerdictBadge verdict={best ?? "unmapped"} />
+              {multi && (
+                <span className={`text-[11px] ${done === units.length ? "text-muted-foreground" : "text-amber-700"}`} title="세부 항목 중 매핑된 항목 수">
+                  세부 {done}/{units.length}
+                </span>
+              )}
+            </div>
             {g.length > 0 && <div className="line-clamp-2 text-xs text-muted-foreground">{mappingSummary(g, index)}</div>}
           </div>
         );

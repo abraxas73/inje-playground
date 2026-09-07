@@ -101,11 +101,11 @@ describe("buildWorkbook + mapping", () => {
     const wb = await loadWorkbook(await buildWorkbook(project, rows, mapping));
     expect(wb.worksheets.map((w) => w.name)).toEqual(["0.개요", "1.요구사항_목록", "2.SER", "3.INRDTL", "4.솔루션_매핑"]);
     const ms = wb.getWorksheet("4.솔루션_매핑")!;
-    expect(ms.getRow(3).values).toEqual([undefined, "연번", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "솔루션", "기능", "판정", "매핑 설명", "근거 URL", "수정"]);
-    expect(ms.getRow(4).values).toEqual([undefined, 1, "서비스 요구사항", "SER-001", "제목 SER-001", "SECloudit", "IAM", "충족", "이유 m1", "https://c/iam", "수정"]);
-    expect(ms.getRow(5).values).toEqual([undefined, 2, "서비스 요구사항", "SER-001", "제목 SER-001", "Devopsit", "파이프라인", "부분충족", "이유 m2", "", ""]);
-    expect(ms.getRow(6).values).toEqual([undefined, 3, "서비스 요구사항", "SER-002", "제목 SER-002", "", "", "미매핑", "", "", ""]);
-    expect(ms.getRow(7).values).toEqual([undefined, 4, "인프라 상세 요구사항", "INR-DTL-001", "제목 INR-DTL-001", "", "", "설계·구축영역", "이유 m3", "", ""]);
+    expect(ms.getRow(3).values).toEqual([undefined, "연번", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "세부 항목", "솔루션", "기능", "판정", "매핑 설명", "근거 문장", "근거 URL", "수정"]);
+    expect(ms.getRow(4).values).toEqual([undefined, 1, "서비스 요구사항", "SER-001", "제목 SER-001", "", "SECloudit", "IAM", "충족", "이유 m1", "", "https://c/iam", "수정"]);
+    expect(ms.getRow(5).values).toEqual([undefined, 2, "서비스 요구사항", "SER-001", "제목 SER-001", "", "Devopsit", "파이프라인", "부분충족", "이유 m2", "", "", ""]);
+    expect(ms.getRow(6).values).toEqual([undefined, 3, "서비스 요구사항", "SER-002", "제목 SER-002", "", "", "", "미매핑", "", "", "", ""]);
+    expect(ms.getRow(7).values).toEqual([undefined, 4, "인프라 상세 요구사항", "INR-DTL-001", "제목 INR-DTL-001", "", "", "", "설계·구축영역", "이유 m3", "", "", ""]);
     expect(ms.getRow(8).getCell(3).value).toBeNull();
   });
   it("개요 시트에 '3. 솔루션 매핑 요약' 블록", async () => {

@@ -13,6 +13,10 @@ export const MappingOutputSchema = z.object({
       /** F{n} 별칭. build/na는 null */
       feature: z.string().nullable(),
       rationale: z.string(),
+      /** 세부 항목 번호("1","2"…). 세부 항목이 없거나 요구사항 전체에 대한 판정이면 null */
+      detail: z.string().nullable().optional(),
+      /** 판정 근거로 인용한 기능 설명 문장(없으면 null) */
+      evidence: z.string().nullable().optional(),
     }),
   ),
 });

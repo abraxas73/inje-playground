@@ -171,24 +171,26 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
   // {n}.솔루션_매핑 — 매핑 1행 = 1줄, 미매핑 요구사항도 1줄
   if (mapping && index) {
     const ms = wb.addWorksheet(`${codes.length + 2}.솔루션_매핑`);
-    [5, 18, 14, 36, 14, 26, 10, 50, 40, 8].forEach((w, i) => (ms.getColumn(i + 1).width = w));
-    ms.getCell("A1").value = `솔루션 매핑 (요구사항 ${sorted.length}건, 매핑 ${mapping.rows.length}행)`;
+    [5, 18, 14, 36, 40, 14, 26, 10, 50, 46, 40, 8].forEach((w, i) => (ms.getColumn(i + 1).width = w));
+    const detailRows = mapping.rows.filter((m) => m.detailKey).length;
+    ms.getCell("A1").value = `솔루션 매핑 (요구사항 ${sorted.length}건, 매핑 ${mapping.rows.length}행${detailRows ? `, 세부 항목 단위 ${detailRows}행` : ""})`;
     ms.getCell("A1").font = { ...FONT, size: 12, bold: true };
-    ms.getRow(3).values = ["연번", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "솔루션", "기능", "판정", "매핑 설명", "근거 URL", "수정"];
+    ms.getRow(3).values = ["연번", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "세부 항목", "솔루션", "기능", "판정", "매핑 설명", "근거 문장", "근거 URL", "수정"];
     styleHeader(ms.getRow(3));
     let n = 0;
     for (const q of sorted) {
       const g = groups.get(q.id) ?? [];
       if (!g.length) {
         const row = ms.getRow(4 + n);
-        row.values = [++n, q.categoryName, q.reqId, q.title, "", "", UNMAPPED_LABEL, "", "", ""];
+        row.values = [++n, q.categoryName, q.reqId, q.title, "", "", "", UNMAPPED_LABEL, "", "", "", ""];
         styleBody(row);
         continue;
       }
       for (const m of g) {
         const nm = names(m, index);
         const row = ms.getRow(4 + n);
-        row.values = [++n, q.categoryName, q.reqId, q.title, nm.solution, nm.feature, VERDICT_LABEL[m.verdict], m.rationale, m.evidenceUrl ?? "", m.edited ? "수정" : ""];
+        const detail = m.detailText ? `${m.detailKey ?? ""}. ${m.detailText}`.trim() : "";
+        row.values = [++n, q.categoryName, q.reqId, q.title, detail, nm.solution, nm.feature, VERDICT_LABEL[m.verdict], m.rationale, m.evidenceText ?? "", m.evidenceUrl ?? "", m.edited ? "수정" : ""];
         styleBody(row);
       }
     }

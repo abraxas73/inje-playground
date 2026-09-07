@@ -157,7 +157,7 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
           v.rows.map((r) => ({
             project_id: projectId, requirement_id: r.requirementId, solution_code: r.solutionCode, feature_id: r.featureId, verdict: r.verdict,
             rationale: r.rationale, evidence_url: r.featureId ? (index.feature.get(r.featureId)?.evidenceUrl ?? null) : null, edited: false, sort_order: r.sortOrder,
-            engine, score: r.score,
+            engine, score: r.score, detail_key: r.detailKey, detail_text: r.detailText, evidence_text: r.evidenceText,
           })),
         );
         if (ie) throw new Error(ie.message);

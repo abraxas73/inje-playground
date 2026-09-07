@@ -18,11 +18,12 @@ const item = (reqId: string, verdict: EngineItem["verdict"], feature: string | n
 describe("validateMappingOutput", () => {
   it("별칭을 실제 id로 되돌리고 sortOrder를 매긴다", () => {
     const v = validateMappingOutput([item("SER-001", "fulfilled", "F1"), item("SER-001", "partial", "F3"), item("SER-002", "na", null), item("SEC-001", "build", "F2")], chunk, lookup);
+    const base = { score: null, detailKey: null, detailText: null, evidenceText: null };
     expect(v.rows).toEqual([
-      { requirementId: "r1", solutionCode: "secloudit", featureId: "f-sso", verdict: "fulfilled", rationale: "r", score: null, sortOrder: 0 },
-      { requirementId: "r1", solutionCode: "devopsit", featureId: "f-ci", verdict: "partial", rationale: "r", score: null, sortOrder: 1 },
-      { requirementId: "r2", solutionCode: null, featureId: null, verdict: "na", rationale: "r", score: null, sortOrder: 0 },
-      { requirementId: "r3", solutionCode: null, featureId: null, verdict: "build", rationale: "r", score: null, sortOrder: 0 },
+      { requirementId: "r1", solutionCode: "secloudit", featureId: "f-sso", verdict: "fulfilled", rationale: "r", sortOrder: 0, ...base },
+      { requirementId: "r1", solutionCode: "devopsit", featureId: "f-ci", verdict: "partial", rationale: "r", sortOrder: 1, ...base },
+      { requirementId: "r2", solutionCode: null, featureId: null, verdict: "na", rationale: "r", sortOrder: 0, ...base },
+      { requirementId: "r3", solutionCode: null, featureId: null, verdict: "build", rationale: "r", sortOrder: 0, ...base },
     ]);
     expect(v.warnings).toEqual([]);
     expect(v.unmapped).toEqual([]);
@@ -39,7 +40,9 @@ describe("validateMappingOutput", () => {
       item("SER-002", "na", null), item("SER-002", "build", null), item("SER-002", "na", null),
       item("SEC-001", "partial", "F2"),
     ], chunk, lookup);
-    expect(v.rows.filter((r) => r.requirementId === "r1")).toEqual([{ requirementId: "r1", solutionCode: "secloudit", featureId: "f-sso", verdict: "fulfilled", rationale: "첫", score: null, sortOrder: 0 }]);
+    expect(v.rows.filter((r) => r.requirementId === "r1")).toEqual([
+      { requirementId: "r1", solutionCode: "secloudit", featureId: "f-sso", verdict: "fulfilled", rationale: "첫", score: null, sortOrder: 0, detailKey: null, detailText: null, evidenceText: null },
+    ]);
     expect(v.rows.filter((r) => r.requirementId === "r2").map((r) => r.verdict)).toEqual(["build"]);
     expect(v.warnings).toContain("SER-001: 충족/부분충족과 함께 나온 설계·구축영역/해당없음 1행 제외");
   });
@@ -48,6 +51,45 @@ describe("validateMappingOutput", () => {
     const v = validateMappingOutput(Array.from({ length: 7 }, (_, i) => item("SER-001", "fulfilled", `F${i + 1}`)), chunk.slice(0, 1), many);
     expect(v.rows).toHaveLength(MAX_ROWS_PER_REQUIREMENT);
     expect(v.warnings).toEqual(["SER-001: 매핑 7행 중 5행만 사용"]);
+  });
+});
+
+describe("validateMappingOutput — 세부 항목 단위", () => {
+  const withDetails: ChunkRequirement[] = [
+    { id: "r1", reqId: "SER-001", title: "a", categoryName: "c", definition: "", details: "○ 로그인 기능\n○ 백업 기능\n○ 감사 로그" },
+  ];
+  const di = (verdict: EngineItem["verdict"], feature: string | null, detailKey: string | null, evidence?: string): EngineItem =>
+    ({ reqId: "SER-001", verdict, feature, rationale: "r", detailKey, evidenceText: evidence });
+
+  it("세부 항목마다 따로 묶어 검증하고 라벨·근거를 채운다", () => {
+    const v = validateMappingOutput([di("fulfilled", "F1", "1", "SSO 제공"), di("partial", "F3", "1"), di("na", null, "2")], withDetails, lookup);
+    expect(v.rows.map((r) => [r.detailKey, r.detailText, r.verdict, r.sortOrder])).toEqual([
+      ["1", "로그인 기능", "fulfilled", 0],
+      ["1", "로그인 기능", "partial", 1],
+      ["2", "백업 기능", "na", 10],
+    ]);
+    expect(v.rows[0].evidenceText).toBe("SSO 제공");
+    expect(v.unmapped).toEqual([]);
+    // 세부 항목 3개 중 1·2만 매핑됐다
+    expect(v.warnings).toEqual(["SER-001: 세부 항목 1개는 매핑 결과 없음"]);
+  });
+
+  it("같은 요구사항의 다른 세부 항목은 판정 조합 규칙을 따로 적용한다(항목1 충족 + 항목2 해당없음 가능)", () => {
+    const v = validateMappingOutput([di("fulfilled", "F1", "1"), di("na", null, "2"), di("build", null, "3")], withDetails, lookup);
+    expect(v.rows.map((r) => r.verdict)).toEqual(["fulfilled", "na", "build"]);
+    expect(v.warnings).toEqual([]);
+  });
+
+  it("없는 세부 항목 키는 요구사항 전체로 넣고 경고", () => {
+    const v = validateMappingOutput([di("fulfilled", "F1", "9")], withDetails, lookup);
+    expect(v.rows[0].detailKey).toBeNull();
+    expect(v.warnings[0]).toContain("세부 항목 9");
+  });
+
+  it("행이 하나도 없으면 요구사항 단위로 미매핑", () => {
+    const v = validateMappingOutput([], withDetails, lookup);
+    expect(v.unmapped).toEqual(["SER-001"]);
+    expect(v.warnings).toEqual(["SER-001: 매핑 결과 없음"]);
   });
 });
 

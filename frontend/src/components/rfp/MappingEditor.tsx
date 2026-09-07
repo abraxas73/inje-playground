@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import SearchableSelect, { type SearchableOption } from "@/components/shared/SearchableSelect";
 import { ENGINE_LABEL, requiresFeature, VERDICT_LABEL, VERDICT_ORDER, type CatalogFeature, type CatalogSolution, type Verdict } from "@/lib/rfp/mapping/types";
 import { indexCatalog } from "@/lib/rfp/mapping/summary";
+import { parseDetailUnits } from "@/lib/rfp/mapping/detail-items";
 import type { RfpMapping, RfpRequirement } from "@/types/rfp";
 
 interface Props {
@@ -31,7 +32,8 @@ async function readError(res: Response, fallback: string): Promise<string> {
 export default function MappingEditor({ projectId, requirement, rows, catalog, onChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, Pending>>({});
-  const [draft, setDraft] = useState<Pending | null>(null);
+  /** 새 행 초안. detailKey = 어느 세부 항목에 넣을지(null = 요구사항 전체) */
+  const [draft, setDraft] = useState<(Pending & { detailKey: string | null }) | null>(null);
   const [busy, setBusy] = useState(false);
   /** 근거 URL 입력을 펼친 행 — 기본은 문서 제목·요약만 보이고 URL은 "바로가기"로 */
   const [urlEditing, setUrlEditing] = useState<Record<string, boolean>>({});
@@ -90,8 +92,8 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
 
   /** 새 행: 판정이 build/na이거나 기능까지 골랐을 때 POST */
   const changeDraft = async (next: Partial<Pending>) => {
-    const cur: Pending = draft ?? { verdict: "partial", solutionCode: null, featureId: null };
-    const merged: Pending = { ...cur, ...next };
+    const cur = draft ?? { verdict: "partial" as Verdict, solutionCode: null, featureId: null, detailKey: null };
+    const merged = { ...cur, ...next };
     if (next.solutionCode !== undefined && next.solutionCode !== cur.solutionCode) merged.featureId = null;
     if (!requiresFeature(merged.verdict)) { merged.solutionCode = null; merged.featureId = null; }
     if (requiresFeature(merged.verdict) && !merged.featureId) { setDraft(merged); return; }
@@ -99,7 +101,8 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
     setError(null);
     try {
       const res = await fetch(`/api/rfp/projects/${projectId}/mapping/rows`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requirementId: requirement.id, ...merged }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requirementId: requirement.id, verdict: merged.verdict, solutionCode: merged.solutionCode, featureId: merged.featureId, detailKey: merged.detailKey }),
       });
       if (!res.ok) throw new Error(await readError(res, "추가에 실패했습니다."));
       onChange([...rows, (await res.json()) as RfpMapping]);
@@ -128,63 +131,122 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
     </div>
   );
 
-  const sorted = [...rows].sort((a, b) => a.sortOrder - b.sortOrder);
+  const sorted = useMemo(() => [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id)), [rows]);
+  const structure = useMemo(() => parseDetailUnits(requirement.details), [requirement.details]);
+
+  /**
+   * 매핑 단위(그룹). 세부 내용이 목록이면 1단 항목마다 한 그룹, 아니면 "요구사항 전체" 한 그룹.
+   * 세부 내용을 나중에 고쳐 키가 사라진 행은 저장된 라벨로 별도 그룹에 남긴다(사라지지 않게).
+   */
+  const groups = useMemo(() => {
+    const byKey = new Map<string, RfpMapping[]>();
+    for (const r of sorted) {
+      const k = r.detailKey ?? "";
+      byKey.set(k, [...(byKey.get(k) ?? []), r]);
+    }
+    const useUnits = !structure.flat && structure.units.length > 1;
+    const out: { key: string | null; label: string; text: string; rows: RfpMapping[]; stale?: boolean }[] = [];
+    if (useUnits) {
+      for (const u of structure.units) out.push({ key: u.key, label: u.label, text: u.text, rows: byKey.get(u.key) ?? [] });
+      byKey.delete("");
+      for (const u of structure.units) byKey.delete(u.key);
+      if ((byKey.size || (sorted.some((r) => !r.detailKey)))) {
+        const rest = sorted.filter((r) => !r.detailKey);
+        if (rest.length) out.unshift({ key: null, label: "요구사항 전체", text: "", rows: rest });
+      }
+      for (const [k, rs] of byKey) out.push({ key: k, label: rs[0]?.detailText || `세부 항목 ${k}`, text: "", rows: rs, stale: true });
+    } else {
+      out.push({ key: null, label: "요구사항 전체", text: "", rows: sorted });
+    }
+    return out;
+  }, [sorted, structure]);
+
+  const rowBlock = (row: RfpMapping) => {
+    const value = pending[row.id] ?? { verdict: row.verdict, solutionCode: row.solutionCode, featureId: row.featureId };
+    const autoRationale = row.engine === "rules" && row.rationale.startsWith("자동 매칭") && !rationaleEditing[row.id];
+    const inlineRationale = autoRationale ? (
+      <button
+        type="button"
+        className="min-w-0 flex-1 truncate text-left text-xs text-muted-foreground hover:text-foreground"
+        title={`${row.rationale} — 클릭하면 설명을 편집합니다`}
+        onClick={() => setRationaleEditing((p) => ({ ...p, [row.id]: true }))}
+      >
+        {row.rationale.replace(/^자동 매칭\s*[—-]\s*/, "")}
+      </button>
+    ) : undefined;
+    return (
+      <div key={row.id} className="space-y-2 rounded-md border bg-background p-3" title={row.updatedBy ? `수정 ${new Date(row.updatedAt).toLocaleString("ko-KR")}` : undefined}>
+        <div className="flex items-center justify-between gap-2">
+          {ruleRow(value, (next) => changeRule(row, next), row.id, inlineRationale)}
+          <div className="flex shrink-0 items-center gap-1">
+            {row.engine !== "manual" && (
+              <span className="text-xs text-muted-foreground" title="자동 매핑이 만든 행">
+                자동({ENGINE_LABEL[row.engine]}){row.score !== null && ` ${row.score.toFixed(2)}`}
+              </span>
+            )}
+            {row.edited && <Pencil className="h-3.5 w-3.5 text-muted-foreground" aria-label="사람이 고친 행" />}
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" title="행 삭제" onClick={() => remove(row)}><Trash2 className="h-4 w-4" /></Button>
+          </div>
+        </div>
+        {!autoRationale && (
+          <Textarea key={`${row.id}:rationale:${row.updatedAt}`} defaultValue={row.rationale} rows={2} placeholder="설명(왜 이 판정인지)" className="min-h-0 text-sm" autoFocus={!!rationaleEditing[row.id]} onBlur={(e) => { changeText(row, "rationale", e.target.value.trim()); setRationaleEditing((p) => { const rest = { ...p }; delete rest[row.id]; return rest; }); }} />
+        )}
+        <EvidenceRow
+          row={row}
+          feature={row.featureId ? featureIndex.get(row.featureId) : undefined}
+          editing={!!urlEditing[row.id]}
+          onToggleEdit={() => setUrlEditing((p) => ({ ...p, [row.id]: !p[row.id] }))}
+          onSaveUrl={(v) => changeText(row, "evidenceUrl", v)}
+        />
+      </div>
+    );
+  };
+
+  const draftBlock = (
+    <div className="space-y-2 rounded-md border border-dashed bg-background p-3">
+      <div className="flex items-start justify-between gap-2">
+        {ruleRow(draft ?? { verdict: "partial", solutionCode: null, featureId: null }, changeDraft, "draft")}
+        <Button variant="ghost" size="sm" disabled={busy} onClick={() => setDraft(null)}>취소</Button>
+      </div>
+      <div className="text-xs text-muted-foreground">설계·구축영역/해당없음을 고르면 바로 추가되고, 충족/부분충족/후보는 기능까지 고르면 추가됩니다. 설명·근거 URL은 추가된 뒤 입력하세요.</div>
+    </div>
+  );
+
+  const multi = groups.length > 1 || groups[0]?.key !== null;
   return (
     <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
-      <div className="flex items-center justify-between">
-        <div className="text-xs font-medium text-muted-foreground">{requirement.reqId} 솔루션 매핑 {sorted.length}행</div>
-        <Button size="sm" variant="outline" disabled={busy || draft !== null} onClick={() => setDraft({ verdict: "partial", solutionCode: null, featureId: null })}><Plus className="mr-1 h-4 w-4" />행 추가</Button>
+      <div className="text-xs font-medium text-muted-foreground">
+        {requirement.reqId} 솔루션 매핑 {sorted.length}행
+        {multi && ` · 세부 항목 ${structure.units.length}개(매핑된 항목 ${groups.filter((g) => g.key && g.rows.length).length}개)`}
       </div>
-      {sorted.map((row) => {
-        const value = pending[row.id] ?? { verdict: row.verdict, solutionCode: row.solutionCode, featureId: row.featureId };
-        const autoRationale = row.engine === "rules" && row.rationale.startsWith("자동 매칭") && !rationaleEditing[row.id];
-        const inlineRationale = autoRationale ? (
-          <button
-            type="button"
-            className="min-w-0 flex-1 truncate text-left text-xs text-muted-foreground hover:text-foreground"
-            title={`${row.rationale} — 클릭하면 설명을 편집합니다`}
-            onClick={() => setRationaleEditing((p) => ({ ...p, [row.id]: true }))}
-          >
-            {row.rationale.replace(/^자동 매칭\s*[—-]\s*/, "")}
-          </button>
-        ) : undefined;
-        return (
-          <div key={row.id} className="space-y-2 rounded-md border bg-background p-3" title={row.updatedBy ? `수정 ${new Date(row.updatedAt).toLocaleString("ko-KR")}` : undefined}>
-            <div className="flex items-center justify-between gap-2">
-              {ruleRow(value, (next) => changeRule(row, next), row.id, inlineRationale)}
-              <div className="flex shrink-0 items-center gap-1">
-                {row.engine !== "manual" && (
-                  <span className="text-xs text-muted-foreground" title="자동 매핑이 만든 행">
-                    자동({ENGINE_LABEL[row.engine]}){row.score !== null && ` ${row.score.toFixed(2)}`}
-                  </span>
-                )}
-                {row.edited && <Pencil className="h-3.5 w-3.5 text-muted-foreground" aria-label="사람이 고친 행" />}
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" title="행 삭제" onClick={() => remove(row)}><Trash2 className="h-4 w-4" /></Button>
-              </div>
-            </div>
-            {!autoRationale && (
-              <Textarea key={`${row.id}:rationale:${row.updatedAt}`} defaultValue={row.rationale} rows={2} placeholder="설명(왜 이 판정인지)" className="min-h-0 text-sm" autoFocus={!!rationaleEditing[row.id]} onBlur={(e) => { changeText(row, "rationale", e.target.value.trim()); setRationaleEditing((p) => { const rest = { ...p }; delete rest[row.id]; return rest; }); }} />
-            )}
-            <EvidenceRow
-              row={row}
-              feature={row.featureId ? featureIndex.get(row.featureId) : undefined}
-              editing={!!urlEditing[row.id]}
-              onToggleEdit={() => setUrlEditing((p) => ({ ...p, [row.id]: !p[row.id] }))}
-              onSaveUrl={(v) => changeText(row, "evidenceUrl", v)}
-            />
-          </div>
-        );
-      })}
-      {draft && (
-        <div className="space-y-2 rounded-md border border-dashed bg-background p-3">
+      {groups.map((g) => (
+        <div key={g.key ?? "__all"} className="space-y-2">
           <div className="flex items-start justify-between gap-2">
-            {ruleRow(draft, changeDraft, "draft")}
-            <Button variant="ghost" size="sm" disabled={busy} onClick={() => setDraft(null)}>취소</Button>
+            <div className="min-w-0 text-xs">
+              {g.key ? (
+                <span className="font-medium text-foreground" title={g.text || g.label}>
+                  <span className="mr-1 inline-flex h-4 min-w-4 items-center justify-center rounded bg-muted px-1 text-[10px] text-muted-foreground">{g.key}</span>
+                  {g.label}
+                  {g.stale && <span className="ml-1 text-amber-700">(세부 내용이 바뀐 뒤 남은 매핑)</span>}
+                </span>
+              ) : (
+                <span className="font-medium text-muted-foreground">{multi ? "요구사항 전체" : "매핑"}</span>
+              )}
+              <span className="ml-1 text-muted-foreground">{g.rows.length}행</span>
+            </div>
+            <Button size="sm" variant="outline" className="shrink-0" disabled={busy || draft !== null} onClick={() => setDraft({ verdict: "partial", solutionCode: null, featureId: null, detailKey: g.key })}>
+              <Plus className="mr-1 h-4 w-4" />행 추가
+            </Button>
           </div>
-          <div className="text-xs text-muted-foreground">설계·구축영역/해당없음을 고르면 바로 추가되고, 충족/부분충족/후보는 기능까지 고르면 추가됩니다. 설명·근거 URL은 추가된 뒤 입력하세요.</div>
+          {g.rows.map(rowBlock)}
+          {draft && (draft.detailKey ?? null) === g.key && draftBlock}
+          {!g.rows.length && !(draft && (draft.detailKey ?? null) === g.key) && (
+            <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+              {g.key ? "이 세부 항목은 매핑이 없습니다." : "매핑이 없습니다(미매핑). \u201c행 추가\u201d로 직접 매핑하거나 개요의 \u201c솔루션 매핑 실행\u201d을 누르세요."}
+            </div>
+          )}
         </div>
-      )}
-      {!sorted.length && !draft && <div className="text-sm text-muted-foreground">매핑이 없습니다(미매핑). &quot;행 추가&quot;로 직접 매핑하거나 개요의 &quot;솔루션 매핑 실행&quot;을 누르세요.</div>}
+      ))}
       {error && <div className="text-sm text-destructive">{error}</div>}
     </div>
   );
@@ -220,7 +282,10 @@ function EvidenceRow({ row, feature, editing, onToggleEdit, onSaveUrl }: {
             {title}
             {showFeatureName && <span className="font-normal text-muted-foreground"> › {feature.name}</span>}
           </div>
-          <div className={`line-clamp-2 ${feature.description ? "text-muted-foreground" : "italic text-muted-foreground/60"}`}>{feature.description || "요약 없음"}</div>
+          {/* 근거 문장(엔진이 기능 설명에서 뽑은 뒷받침 문장)이 있으면 그것을, 없으면 기능 요약을 보여준다 */}
+          <div className={`line-clamp-2 ${row.evidenceText || feature.description ? "text-muted-foreground" : "italic text-muted-foreground/60"}`} title={row.evidenceText ?? feature.description}>
+            {row.evidenceText ? <><span className="font-medium text-foreground">근거</span> {row.evidenceText}</> : feature.description || "요약 없음"}
+          </div>
         </div>
         {url && (
           <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center gap-1 text-primary hover:underline" title={url}>

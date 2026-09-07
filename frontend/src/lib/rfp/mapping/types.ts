@@ -41,6 +41,10 @@ export interface EngineItem {
   rationale: string;
   /** 규칙 엔진 점수 0~1. llm은 없음 */
   score?: number;
+  /** 세부 항목 키("1","2"…). null·없음 = 요구사항 전체 단위 */
+  detailKey?: string | null;
+  /** 판정 근거로 쓴 기능 설명 문장(규칙 엔진이 뽑는다) */
+  evidenceText?: string;
 }
 export type FeatureLookup = Map<string, { featureId: string; solutionCode: string }>;
 export type MappingEngine = (chunk: readonly ChunkRequirement[]) => Promise<EngineItem[]>;
@@ -82,4 +86,10 @@ export interface MappingRow {
   evidenceUrl: string | null;
   edited: boolean;
   sortOrder: number;
+  /** 세부 항목 키("1","2"…). null = 요구사항 전체 단위 */
+  detailKey?: string | null;
+  /** 세부 항목 라벨(저장 시점 스냅샷) */
+  detailText?: string | null;
+  /** 판정 근거 문장(기능 설명에서 뽑은 뒷받침 문장) */
+  evidenceText?: string | null;
 }

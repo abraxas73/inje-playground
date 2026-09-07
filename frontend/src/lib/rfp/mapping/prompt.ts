@@ -1,5 +1,6 @@
 import type { CatalogSolution } from "./types";
 import { truncateDetails, type ChunkRequirement } from "./chunk";
+import { parseDetailUnits } from "./detail-items";
 
 /** 프롬프트 별칭 → 실제 id. 한 실행 안에서만 유효(스펙 §4.3). */
 export interface CatalogAliases {
@@ -24,6 +25,8 @@ export const MAPPING_RULES_PROMPT = `당신은 공공 정보화 사업 제안요
 4. feature에는 카탈로그에 있는 별칭(F숫자)만 씁니다. 없는 별칭을 만들지 않습니다.
 5. rationale은 왜 그 판정인지 한국어 2문장 이내로 씁니다.
 6. 입력에 있는 모든 요구사항에 대해 최소 한 행을 냅니다. reqId는 입력에 적힌 그대로 씁니다.
+7. 요구사항에 "세부 항목" 목록이 있으면 **항목마다** 판정을 내고 detail에 그 번호를 씁니다(예: "2"). 항목 구분 없이 요구사항 전체에 대한 판정이면 detail은 null입니다. 세부 항목 목록이 없으면 detail은 항상 null입니다.
+8. evidence에는 그 판정을 뒷받침하는 카탈로그 기능 설명의 문장을 그대로 한 문장 인용합니다(없으면 null). 새로 쓰지 않습니다.
 결과는 스키마에 맞는 JSON만 출력합니다.`;
 
 /**
@@ -53,15 +56,25 @@ export function buildCatalogPrompt(catalog: CatalogSolution[]): { systemText: st
   return { systemText: lines.join("\n"), aliases };
 }
 
-/** 청크 하나의 사용자 메시지 */
+/**
+ * 청크 하나의 사용자 메시지. 세부 내용이 목록이면 1단 항목을 번호와 함께 나열해(2depth는 하위 줄을 묶어)
+ * 항목별 판정(detail)을 받을 수 있게 한다.
+ */
 export function buildChunkMessage(reqs: readonly ChunkRequirement[]): string {
-  const parts = reqs.map((r) =>
-    [
+  const parts = reqs.map((r) => {
+    const { units, flat } = parseDetailUnits(r.details);
+    const lines = [
       `### ${r.reqId} ${r.title.trim()}`,
       `구분: ${r.categoryName.trim()}`,
       `정의: ${r.definition.trim() || "(없음)"}`,
-      `세부 내용: ${truncateDetails(r.details) || "(없음)"}`,
-    ].join("\n"),
-  );
+    ];
+    if (!flat && units.length > 1) {
+      lines.push(`세부 항목 ${units.length}개 — 항목마다 detail에 번호를 쓰세요:`);
+      for (const u of units) lines.push(`[${u.key}] ${truncateDetails(u.text, 600)}`);
+    } else {
+      lines.push(`세부 내용: ${truncateDetails(r.details) || "(없음)"}`);
+    }
+    return lines.join("\n");
+  });
   return `다음 요구사항 ${reqs.length}건을 카탈로그 기능에 매핑하세요.\n\n${parts.join("\n\n")}`;
 }

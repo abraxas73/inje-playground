@@ -113,7 +113,32 @@ describe("matchRequirement / matchChunk", () => {
     ];
     const items = matchRequirement(req("SER-001", "로그인 기능"), buildFeatureIndex(many));
     expect(items.map((i) => i.feature)).toEqual(["a1", "a2", "b1"]);
-    expect(items[0]).toEqual({ reqId: "SER-001", verdict: "candidate", feature: "a1", rationale: "자동 매칭 — 일치 키워드: 로그인 · 유사도 0.00", score: 0.3 });
+    expect(items[0]).toEqual({ reqId: "SER-001", verdict: "candidate", feature: "a1", rationale: "자동 매칭 — 일치 키워드: 로그인 · 유사도 0.00", score: 0.3, detailKey: null, evidenceText: "a1 로그인" });
+  });
+  it("세부 내용이 목록이면 세부 항목마다 후보를 내고 detailKey를 붙인다", () => {
+    const cat2: CatalogSolution[] = [
+      { code: "s1", name: "S1", description: "", isActive: true, sortOrder: 1, features: [
+        feat("f-login", "s1", "SSO 로그인", "통합 인증으로 한 번 로그인하면 모든 서비스 이용", ["로그인", "sso"]),
+        feat("f-backup", "s1", "백업 스케줄", "볼륨 스냅샷을 스케줄로 백업하고 복구한다", ["백업", "스냅샷"]),
+      ] },
+    ];
+    const idx = buildFeatureIndex(cat2);
+    const r: ChunkRequirement = { id: "u", reqId: "SER-010", title: "계정과 백업", categoryName: "c", definition: "", details: "○ 통합 로그인(SSO) 기능 제공\n○ 볼륨 백업 스냅샷 제공" };
+    // 근거 문장은 기능 설명에서 뽑으므로 엔진처럼 id → 설명 표를 넘긴다
+    const descriptions = new Map(cat2.flatMap((s) => s.features.map((f) => [f.id, f.description] as const)));
+    const items = matchRequirement(r, idx, 5, descriptions);
+    expect([...new Set(items.map((i) => i.detailKey))]).toEqual(["1", "2"]);
+    // 항목마다 그 항목에 맞는 기능이 1순위
+    const first = (key: string) => items.find((i) => i.detailKey === key)!;
+    expect(first("1").feature).toBe("f-login");
+    expect(first("2").feature).toBe("f-backup");
+    // 근거 문장은 기능 설명에서 뽑는다
+    expect(first("2").evidenceText).toBe("볼륨 스냅샷을 스케줄로 백업하고 복구한다");
+  });
+  it("세부 내용이 목록이 아니면 예전처럼 요구사항 전체 한 단위(detailKey null)", () => {
+    const idx = buildFeatureIndex(manySolutions(1));
+    const r: ChunkRequirement = { id: "u", reqId: "SER-011", title: "로그인 기능", categoryName: "c", definition: "", details: "로그인이 되어야 한다" };
+    expect(matchRequirement(r, idx).every((i) => i.detailKey === null)).toBe(true);
   });
   it("전체 상한은 기본 5개이고 인자로 1~5까지 바꿀 수 있다(범위 밖은 잘라 쓴다)", () => {
     const idx = buildFeatureIndex(manySolutions(4));

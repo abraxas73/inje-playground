@@ -25,7 +25,9 @@ export function createRulesEngine(catalog: CatalogSolution[], opts: EngineOption
   const index = buildFeatureIndex(catalog);
   const top = parseMaxCandidates(opts.maxCandidates ?? MAPPING_CANDIDATES_DEFAULT);
   const lookup: FeatureLookup = new Map(index.map((f) => [f.featureId, { featureId: f.featureId, solutionCode: f.solutionCode }]));
-  return { lookup, run: async (chunk) => matchChunk(chunk, index, top) };
+  // 근거 문장은 기능 설명에서 뽑으므로 id → 설명 표를 함께 넘긴다(색인은 이름·키워드만 들고 있다)
+  const descriptions = new Map(catalog.flatMap((s) => s.features.map((f) => [f.id, f.description] as const)));
+  return { lookup, run: async (chunk) => matchChunk(chunk, index, top, descriptions) };
 }
 
 /** Claude 엔진(2단계 그대로): lookup 키 = "F{n}" 별칭. 출력 feature는 trim·대문자로 정리해 돌려준다. */
@@ -34,7 +36,13 @@ export function createLlmEngine(catalog: CatalogSolution[], opts: { apiKey?: str
   const call = createAnthropicMappingCall(systemText, opts);
   return {
     lookup: aliases.features,
-    run: async (chunk) => (await call(buildChunkMessage(chunk))).mappings.map((m) => ({ ...m, feature: m.feature ? m.feature.trim().toUpperCase() : null })),
+    run: async (chunk) =>
+      (await call(buildChunkMessage(chunk))).mappings.map((m) => ({
+        reqId: m.reqId, verdict: m.verdict, rationale: m.rationale,
+        feature: m.feature ? m.feature.trim().toUpperCase() : null,
+        detailKey: m.detail?.trim() || null,
+        evidenceText: m.evidence?.trim() || undefined,
+      })),
   };
 }
 
