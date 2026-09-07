@@ -11,11 +11,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "action and category are required" }, { status: 400 });
   }
 
+  if (!user) {
+    return NextResponse.json({ success: true, skipped: true });
+  }
+
   const { error } = await supabase
     .from("action_history")
     .insert({
-      user_id: user?.id ?? null,
-      user_email: user?.email ?? null,
+      user_id: user.id,
+      user_email: user.email ?? null,
       action,
       category,
       detail: detail ?? {},
