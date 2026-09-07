@@ -2,13 +2,33 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Download, ExternalLink, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, Download, ExternalLink, HelpCircle, Loader2, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ConfluenceSearchPanel from "@/components/admin/rfp-catalog/ConfluenceSearchPanel";
 import type { EngineKind } from "@/lib/rfp/mapping/types";
+import type { FreshnessState } from "@/lib/rfp/catalog/freshness";
 import type { RfpAdminSolution, RfpImportStatus, RfpSolutionSource, RfpSourceKind } from "@/types/rfp";
+
+interface FreshnessRow { id: string; state: FreshnessState; label: string; detail: string }
+
+/** 원본(Confluence 페이지·SharePoint 파일)과 가져온 스냅샷을 비교한 결과 */
+function FreshnessBadge({ row, loading }: { row: FreshnessRow | undefined; loading: boolean }) {
+  if (loading && !row) return <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />확인 중</span>;
+  if (!row) return <span className="text-xs text-muted-foreground">—</span>;
+  if (row.state === "fresh") {
+    return <span className="inline-flex items-center gap-1 text-xs text-emerald-700" title={row.detail}><Check className="h-3.5 w-3.5" />{row.label}</span>;
+  }
+  if (row.state === "stale" || row.state === "never") {
+    return (
+      <Badge variant="outline" className="gap-1 border-amber-300 bg-amber-50 text-amber-900" title={row.detail}>
+        <AlertTriangle className="h-3 w-3" />{row.label}
+      </Badge>
+    );
+  }
+  return <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={row.detail}><HelpCircle className="h-3.5 w-3.5" />{row.label}</span>;
+}
 
 const POLL_MS = 3000;
 const KIND_LABEL: Record<RfpSourceKind, string> = { confluence: "Confluence", xlsx: "xlsx" };
@@ -33,6 +53,10 @@ export default function SourceTable({ solution, llmAvailable, onImported }: { so
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const wasRunning = useRef(false);
+  /** 소스별 최신 여부(원본 버전·수정 시각 비교). 화면을 열 때와 가져오기가 끝난 뒤 자동으로 확인한다 */
+  const [freshness, setFreshness] = useState<Record<string, FreshnessRow>>({});
+  const [checking, setChecking] = useState(false);
+  const [checkedAt, setCheckedAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/admin/rfp-catalog/solutions/${solution.code}/import`);
@@ -42,18 +66,37 @@ export default function SourceTable({ solution, llmAvailable, onImported }: { so
     setRunning(json.running === true);
   }, [solution.code]);
 
-  useEffect(() => { wasRunning.current = false; void load(); }, [load]);
+  const checkFreshness = useCallback(async () => {
+    setChecking(true);
+    try {
+      const res = await fetch(`/api/admin/rfp-catalog/solutions/${solution.code}/sources/freshness`);
+      const json = (await res.json().catch(() => ({}))) as { rows?: FreshnessRow[]; checkedAt?: string; error?: string };
+      if (!res.ok) return;
+      setFreshness(Object.fromEntries((json.rows ?? []).map((r) => [r.id, r])));
+      setCheckedAt(json.checkedAt ?? new Date().toISOString());
+    } finally {
+      setChecking(false);
+    }
+  }, [solution.code]);
 
-  // 가져오는 중이면 3초 폴링, 끝나면 부모에 알려 기능 표를 다시 조회
+  useEffect(() => { wasRunning.current = false; setFreshness({}); setCheckedAt(null); void load(); }, [load]);
+
+  // 소스가 있으면 원본 최신 여부를 자동으로 한 번 확인한다(가져오기가 돌고 있으면 끝난 뒤에)
+  useEffect(() => {
+    if (running || !sources.length || checkedAt !== null) return;
+    void checkFreshness();
+  }, [running, sources.length, checkedAt, checkFreshness]);
+
+  // 가져오는 중이면 3초 폴링, 끝나면 부모에 알려 기능 표를 다시 조회하고 최신 여부도 다시 확인
   useEffect(() => {
     if (!running) {
-      if (wasRunning.current) { wasRunning.current = false; onImported(); }
+      if (wasRunning.current) { wasRunning.current = false; onImported(); void checkFreshness(); }
       return;
     }
     wasRunning.current = true;
     const t = setInterval(() => { void load(); }, POLL_MS);
     return () => clearInterval(t);
-  }, [running, load, onImported]);
+  }, [running, load, onImported, checkFreshness]);
 
   const add = async () => {
     setBusy(true);
@@ -90,12 +133,19 @@ export default function SourceTable({ solution, llmAvailable, onImported }: { so
   };
 
   const registeredPageIds = new Set(sources.filter((s) => s.kind === "confluence").map((s) => s.pageId));
+  const staleCount = sources.filter((s) => ["stale", "never"].includes(freshness[s.id]?.state ?? "")).length;
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">소스 <span className="font-normal text-muted-foreground">{sources.length}</span></h3>
+        <h3 className="text-sm font-semibold">
+          소스 <span className="font-normal text-muted-foreground">{sources.length}</span>
+          {staleCount > 0 && <span className="ml-2 text-xs font-normal text-amber-700">원본이 바뀐 소스 {staleCount}개 — 다시 가져오세요</span>}
+        </h3>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" disabled={checking || !sources.length} title={checkedAt ? `원본 최신 여부 확인: ${new Date(checkedAt).toLocaleString("ko-KR")}` : "원본 최신 여부 확인"} onClick={() => void checkFreshness()}>
+            {checking ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}최신 확인
+          </Button>
           <Button size="sm" disabled={busy || running || !sources.length} onClick={() => runImport("rules")}>
             {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}가져오기(규칙)
           </Button>
@@ -117,6 +167,7 @@ export default function SourceTable({ solution, llmAvailable, onImported }: { so
               <th className="px-3 py-2">종류</th>
               <th className="px-3 py-2">페이지·파일</th>
               <th className="px-3 py-2">버전</th>
+              <th className="px-3 py-2">원본 대비</th>
               <th className="px-3 py-2">상태</th>
               <th className="px-3 py-2">마지막 가져온 시각</th>
               <th className="px-3 py-2 text-right">기능</th>
@@ -135,6 +186,7 @@ export default function SourceTable({ solution, llmAvailable, onImported }: { so
                   {s.title && <div className="truncate text-xs text-muted-foreground">{s.url}</div>}
                 </td>
                 <td className="px-3 py-2 tabular-nums text-muted-foreground">{s.kind === "xlsx" ? "—" : s.pageVersion ?? "—"}</td>
+                <td className="whitespace-nowrap px-3 py-2"><FreshnessBadge row={freshness[s.id]} loading={checking} /></td>
                 <td className="px-3 py-2"><ImportBadge status={s.importStatus} /></td>
                 <td className="px-3 py-2 text-muted-foreground">{s.importedAt ? new Date(s.importedAt).toLocaleString("ko-KR") : "—"}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{s.featureCount}</td>
@@ -148,7 +200,7 @@ export default function SourceTable({ solution, llmAvailable, onImported }: { so
                 </td>
               </tr>
             ))}
-            {!sources.length && <tr><td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">등록된 소스가 없습니다. 위에 Confluence 페이지 URL이나 SharePoint xlsx 링크를 넣어 추가하거나, 아래에서 Confluence를 검색하세요.</td></tr>}
+            {!sources.length && <tr><td colSpan={9} className="px-3 py-6 text-center text-muted-foreground">등록된 소스가 없습니다. 위에 Confluence 페이지 URL이나 SharePoint xlsx 링크를 넣어 추가하거나, 아래에서 Confluence를 검색하세요.</td></tr>}
           </tbody>
         </table>
       </div>

@@ -137,6 +137,26 @@ export async function resolveItem(token: string, url: string, fetchImpl: FetchLi
   return { driveId: j.parentReference.driveId, itemId: j.id, name, size, webUrl: j.webUrl ?? "" };
 }
 
+export interface DriveItemMeta {
+  name: string;
+  size: number;
+  lastModifiedAt: string | null;
+  webUrl: string;
+}
+
+/** GET /drives/{driveId}/items/{itemId} — 내용 없이 이름·크기·수정 시각만(카탈로그 소스 최신 여부 확인용) */
+export async function fetchItemMeta(token: string, driveId: string, itemId: string, fetchImpl: FetchLike = fetch, sleep: Sleep = defaultSleep): Promise<DriveItemMeta> {
+  const res = await fetchWithRetry(
+    fetchImpl,
+    `${GRAPH_BASE}/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}?$select=id,name,size,webUrl,lastModifiedDateTime`,
+    { headers: { Authorization: `Bearer ${token}` } },
+    sleep,
+  );
+  if (!res.ok) throw await readGraphError(res);
+  const j = (await res.json()) as { name?: string; size?: number; webUrl?: string; lastModifiedDateTime?: string };
+  return { name: j.name ?? "", size: Number(j.size ?? 0), lastModifiedAt: j.lastModifiedDateTime ?? null, webUrl: j.webUrl ?? "" };
+}
+
 /**
  * GET /drives/{driveId}/items/{itemId}/content — redirect:"manual"로 부르고 3xx면 Location(사전 인증 URL)을
  * Authorization 없이 다시 GET 한다(토큰을 붙이면 401). 20MiB 초과 본문은 오류.

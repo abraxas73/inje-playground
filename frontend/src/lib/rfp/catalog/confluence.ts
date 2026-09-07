@@ -60,6 +60,12 @@ export function parseConfluencePageId(url: string, expectedHost: string): string
   throw new ConfluenceUrlError("페이지 전체 URL을 넣어 주세요(예: https://…/wiki/spaces/KEY/pages/123456/제목).");
 }
 
+export interface ConfluenceVersionInfo {
+  id: string;
+  title: string;
+  version: number;
+}
+
 export class ConfluenceFetchError extends Error {
   constructor(public readonly status: number, message: string) {
     super(message);
@@ -79,6 +85,22 @@ interface ContentResponse {
   title?: string;
   version?: { number?: number };
   body?: { storage?: { value?: string } };
+}
+
+/**
+ * GET {site}/wiki/rest/api/content/{id}?expand=version — 본문 없이 버전·제목만(최신 여부 확인용, 응답이 작다).
+ * fetch는 테스트에서 주입.
+ */
+export async function fetchConfluenceVersion(cfg: ConfluenceConfig, pageId: string, fetchImpl: typeof fetch = fetch): Promise<ConfluenceVersionInfo> {
+  const res = await fetchImpl(`${cfg.site}/wiki/rest/api/content/${pageId}?expand=version`, {
+    headers: { Authorization: cfg.auth, Accept: "application/json" },
+  });
+  if (!res.ok) {
+    const label = res.status === 403 ? "권한 없음(403)" : res.status === 404 ? "페이지 없음(404)" : `Confluence 오류(${res.status})`;
+    throw new ConfluenceFetchError(res.status, label);
+  }
+  const j = (await res.json()) as ContentResponse;
+  return { id: String(j.id ?? pageId), title: j.title ?? "", version: Number(j.version?.number ?? 0) };
 }
 
 /** GET {site}/wiki/rest/api/content/{id}?expand=body.storage,version — fetch는 테스트에서 주입 */
