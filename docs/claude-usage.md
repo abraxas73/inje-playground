@@ -78,20 +78,27 @@ delete from claude_orgs            where id = 'test-org';
 - 조직장 범위가 커지면(본부장 × 90일) 일 집계 행이 1000행을 넘으므로 개인용 API는 모두 `selectAll`(PostgREST 상한 우회)로 읽는다.
 - 시간대 패턴 RPC `claude_code_hourly_emails`는 `docs/sql/2026-09-03-usage-hourly-users.sql`(2026-09-03 적용)로 users(고유 사용자 수) 컬럼이 붙었다. 반환 컬럼 변경이라 drop 후 재생성한다.
 
-## 7. 수집 범위 한계 — Chrome 확장·Office 추가 기능 (2026-09-04 확인)
+## 7. 수집 범위 — Chrome 확장·Office 추가 기능 (2026-09-04~07 확인)
 
 - **Claude in Chrome(사이드 패널)**: Cowork 세션으로 실행되어 CSV의 Cowork 세션·메시지에 합산된다. Team 플랜 분석(Cowork 탭·CSV)에는 출처(웹/데스크톱/Chrome) 구분이 없고, 제품 `claude_in_chrome` 구분은 Enterprise Analytics API에만 있다. 분석 개요의 커넥터 카드 "claude-in-chrome N명"은 Cowork·채팅에서 Chrome 확장을 도구로 쓴 인원이며 사이드 패널 대화량이 아니다. 화면(어드민 Chat/Cowork 두 탭, 개인 `/usage/chat`)에 이 안내를 붙였다.
-- **Excel·Word·PowerPoint(Outlook) 추가 기능**: Team 플랜에서는 어디에도 잡히지 않는다. 분석 제품 필터는 Claude.ai/Claude Code/Claude Design/Cowork 넷뿐이고 CSV에 Office 컬럼이 없다. 추가 기능 대화 기록은 사용자 기기 브라우저 IndexedDB에만 저장돼 claude.ai 채팅 수에도 들어가지 않는다. 사용은 시트 한도를 소모하지만 관리자·사용자 모두 양을 볼 수 없다. Anthropic 수집기로 `office_agent.*` 카운터가 가지만 고객에게는 Enterprise Analytics API(`office_metrics`)로만 제공된다.
+- **Excel·Word·PowerPoint(Outlook) 추가 기능**: Team 플랜의 분석 화면·CSV·Analytics API 어디에도 없다(제품 필터는 Claude.ai/Claude Code/Claude Design/Cowork 넷, 대화 기록은 사용자 기기 IndexedDB에만 저장, 시트 한도는 소모). 대신 **커스텀 OpenTelemetry 수집기**로 받는다(아래).
 
-### Office 추가 기능 사용량 수집 방안(검토)
+### Office 추가 기능 OTel 수집 (운영 중, 2026-09-04 Innogrid-ax 등록)
+
+- **원리**: 추가 기능(pivot.claude.ai taskpane)은 조직 설정의 OTLP 엔드포인트가 있으면 턴마다 스팬을 그곳으로 보낸다(Anthropic 수집기 대신). 문서는 Enterprise 전용이라 하지만 Team 조직의 관리자 설정에도 입력란이 있다. 번들 분석 결과 Claude 계정 로그인(oauth) 모드에서는 **조직 설정만** 읽고, 커스텀 매니페스트 URL 파라미터·부트스트랩 값은 게이트웨이·Bedrock·Vertex·Foundry 모드에서만 읽는다.
+- **등록(조직별)**: claude.ai 관리자 설정 > 제품 > Office Agents > 모니터링 — OTLP 엔드포인트 `https://inje-playground.vercel.app/api/otel`(추가 기능이 `/v1/traces`를 붙임), 프로토콜 `http/json`, 헤더 `Authorization=Bearer <CLAUDE_OFFICE_OTEL_TOKEN>`. 추가 기능을 다시 열 때부터 적용. 현재 Innogrid-ax만 등록, 나머지 6개 조직은 미등록.
+- **수신**: `POST /api/otel/v1/traces` — `https://pivot.claude.ai` CORS preflight(OPTIONS 204), 전용 토큰 검증, `lib/claude-usage/otlp-traces.ts`가 스팬에서 집계 속성(surface·user.email·organization.id·session.id·모델·토큰·tool_name·tool.success·office.platform)만 읽어 `claude_office_trace_log`에 기록. **프롬프트 원문·도구 입출력·문서 URL은 값을 읽지 않는다**(키 이름만 `attr_keys`에 남음). 응답 텍스트는 스팬에 원래 없다. SQL `docs/sql/2026-09-04-claude-office-traces.sql`.
+- **집계**: RPC `claude_office_usage(p_from, p_to, p_emails, p_org)`(`docs/sql/2026-09-07-claude-office-daily.sql`) — `agent.query`(턴, 사용자·표면·세션) 기준으로 자식 `agent.stream`(모델 호출·토큰)·`agent.tool_execution`(도구)을 trace_id로 귀속, `file.upload`는 session.id로 귀속. 루트 스팬이 아직 오지 않은 트레이스는 빠진다. 화면: 어드민 `/admin/claude-usage` "Office 추가 기능" 탭(`OfficeUsageTab` → `GET /api/admin/claude-usage/office`), 개인 `/usage/code` Office 카드(`GET /api/usage/office`, 스코프 이메일만). 공용 패널 `OfficeUsagePanel`, 집계 함수 `lib/claude-usage/office-usage.ts`.
+- **구성원 영향·고지**: 기능은 그대로이고 백그라운드 전송(5초·최대 10스팬)만 추가된다. 프롬프트 원문이 우리 서버를 **경유**(저장 안 함)하고 토큰이 모든 멤버의 Office WebView에 내려가므로 유지 시 사내 공지가 필요하다. 토큰은 트레이스 요약만 쓰는 저권한 값.
+- **미해결**: 운영자 본인 계정의 추가 기능에서 "Rate limit exceeded"가 나며 스팬이 오지 않은 건 — 추가 기능이 ax 외 조직(시트 없음)으로 로그인된 것으로 추정, 추가 기능 ⋯ 메뉴에서 조직 확인 필요.
+
+### 남은 방안(참고)
 
 | 방안 | 얻는 것 | 조건·비용 | 판단 |
 |---|---|---|---|
-| ① Enterprise 전환 → Analytics API `GET /v1/organizations/analytics/users` | 사용자·일·제품별 `office_metrics`(message_count, distinct_session_count, 커넥터·스킬 수), 제품 `office_agent`·`claude_in_chrome`, 토큰·비용 리포트 | Enterprise 플랜, 어드민 API 키(`read:analytics`). CSV 파이프라인을 API로 대체 | 유일한 공식 경로 |
-| ② 추가 기능 커스텀 OTel 수집기 | 턴마다 스팬: `agent.query`(user.email·surface sheet/doc/slide/mail·session.id·모델), `agent.stream`(input/output/cache 토큰), 도구 실행 | 문서상 Enterprise 또는 Bedrock/Vertex/Foundry/게이트웨이 직접 배포 전용. 설정 채널(부트스트랩 → Entra 확장 속성 → 매니페스트 URL 파라미터 `taskpane.html?otlp_endpoint=…`)이 Claude 계정 로그인(Team)에서도 읽히는지는 문서에 없음. 수신 측은 `/v1/traces` OTLP/HTTP + CORS(`https://pivot.claude.ai`) 필요, 스팬에 프롬프트·도구 입출력 원문이 포함되므로 수신 즉시 폐기하고 카운트·토큰만 저장해야 함 | 커스텀 매니페스트 1인 시험(1~2시간)으로 성립 여부 확인 가치 있음. 비공식 |
-| ③ 사내 프록시/보안 게이트웨이 로그 | `pivot.claude.ai`·`api.anthropic.com` 요청 수를 사용자·일별 집계 | 사내망/VPN 한정, 토큰·내용 불가, 보안팀 협조 | 활동 유무 정도 |
-| ④ 설문(`/admin/surveys`) 자기보고 | 사용 여부·빈도·용도 | 정확도 낮음 | 보조 |
-| ✗ 기기 IndexedDB(`claude-chat-history`) 읽기 | 대화 원문 | 개인정보·동의 문제, 기기별 수집 | 비권장 |
+| Enterprise 전환 → Analytics API | `office_metrics`·`claude_in_chrome` 제품 구분, 토큰·비용 리포트 | Enterprise 플랜, 어드민 API 키 | 공식 경로 |
+| 사내 프록시 로그 | `pivot.claude.ai` 요청 수 | 사내망 한정 | 활동 유무 정도 |
+| 설문 자기보고 | 사용 여부·빈도 | 정확도 낮음 | 보조 |
 
 ## 5. 테스트
 - 단위: `cd frontend && npx vitest run` (parser·CSV·집계·인증·관리형 설정).

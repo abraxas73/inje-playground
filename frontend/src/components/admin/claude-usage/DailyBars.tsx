@@ -1,8 +1,9 @@
 "use client";
 
-export default function DailyBars({ data, valueKey, label, format }: {
-  data: { day: string; cost_usd: number; sessions: number; active_users: number }[];
-  valueKey: "cost_usd" | "sessions" | "active_users";
+/** 일별 막대 — data[valueKey](숫자)를 그린다. 비용·세션·활성 사용자·턴 등 어떤 숫자 키든 쓸 수 있다 */
+export default function DailyBars<K extends string>({ data, valueKey, label, format }: {
+  data: ({ day: string } & Record<K, number>)[];
+  valueKey: K;
   label: string;
   format: (v: number) => string;
 }) {

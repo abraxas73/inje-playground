@@ -87,7 +87,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/admin/chat-history` — Admin: all users' guide Q&A history viewer with filters
 - `/settings` — Dooray API token and project ID configuration (stored in localStorage) + Microsoft 계정 연결 카드(`MicrosoftAccountCard`: SharePoint 업로드용 위임 OAuth, refresh 토큰은 서버가 암호화 보관)
 - `/manual` — User manual with Playwright-captured screenshots (8 sections)
-- `/admin/claude-usage` — Claude Code 사용량(admin, OTel 실시간): Claude Code·팀별 집계·도구 사용·시간대 패턴·프롬프트 탭
+- `/admin/claude-usage` — Claude Code 사용량(admin, OTel 실시간): Claude Code·팀별 집계·도구 사용·시간대 패턴·프롬프트·**Office 추가 기능**(Excel·Word·PowerPoint·Outlook — 조직 설정 Office Agents에 우리 OTLP 수집기를 등록한 Claude 조직만, 2026-09-04 Innogrid-ax) 탭
 - `/admin/claude-chat` — Claude 사용량 Chat/Cowork(admin, 월간 CSV): 채팅·Cowork 멤버 활동 + 팀별 집계 탭, 데이터 기간 선택. CSV 업로드는 웹 UI 없이 `/claude-usage-csv` 스킬·`scripts/claude-usage-upload.sh`가 `POST /api/admin/claude-usage/imports`로 처리
 - `/admin/perf` — 성과 지표 전체 조회(admin): 개인용 `/usage/perf`와 같은 5탭 + 팀 필터 + 개인(이름/이메일) 검색. API `GET /api/admin/work-metrics/perf?from&to&team&q`, 집계는 `lib/work-metrics/perf-report.ts` 공용, UI는 `components/usage/PerfDashboard.tsx` 공용
 - `/admin/directory` — 조직/팀(admin): 사내 조직도(그룹웨어 아마란스, inno-creed MCP — Claude 사용량 표 "소속" 컬럼의 출처)·Claude 멤버·초대·조직·설정(관리형 설정 JSON) 탭
@@ -110,10 +110,11 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `GET /api/members/users` — 앱 사용자 명단(user_profiles, guest 제외) → `{id, name, email}` (멤버 소스 provider `users`)
 - `/api/users/members` — 내 팀(user_members: name, email, external_id, dooray_member_id, is_card_holder) GET/POST(교체)/PATCH(법카)/DELETE
 - `POST /api/otel/v1/metrics`, `POST /api/otel/v1/logs` — Claude Code OTLP/HTTP JSON 수신(Bearer `CLAUDE_OTEL_INGEST_TOKEN`), RPC `claude_code_ingest`로 일 단위 합산
-- `/api/admin/claude-usage/{summary,members,imports,imports/[id],orgs,health,org-members,tools,hourly,prompts}` — Claude 사용량 대시보드(admin). 런북 `docs/claude-usage.md`
+- `POST /api/otel/v1/traces` — Claude for M365 추가 기능(pivot.claude.ai) 커스텀 OTel 수집기(CORS preflight 처리, Bearer `CLAUDE_OFFICE_OTEL_TOKEN` — 모든 멤버 브라우저에 배포되는 저권한 토큰). 파서 `lib/claude-usage/otlp-traces.ts`가 집계 속성만 읽어 `claude_office_trace_log`에 스팬을 남기고 프롬프트·도구 입출력·문서 URL은 버린다. 집계는 RPC `claude_office_usage`(턴=agent.query, 자식 스팬은 trace_id로 귀속) → `GET /api/admin/claude-usage/office`, `GET /api/usage/office`(개인, 스코프 이메일만)
+- `/api/admin/claude-usage/{summary,members,imports,imports/[id],orgs,health,org-members,tools,hourly,prompts,office}` — Claude 사용량 대시보드(admin). 런북 `docs/claude-usage.md`
 - `GET /api/users/[id]`, `DELETE /api/users/[id]` — 관리자용 사용자 상세(프로필·설정·로그인 이력·조직도 소속·활동 요약)/삭제(개인 데이터 → 프로필 → auth.users; 자기 자신·관리자 역할 거부). `/admin/users` 행 클릭 → `components/admin/users/UserDetailSheet`
 - `GET /api/admin/directory`, `POST /api/admin/directory/sync` — 사내 조직도 명부 조회/동기화(동기화는 관리자 세션 또는 수집 토큰; 로컬 `frontend/scripts/company-directory-sync.py`가 inno-creed MCP `find_person` 전사 명부를 밀어 넣음). 런북 `docs/company-directory.md`
-- `GET /api/usage/{scope,code,chat,perf,tools,hourly}` — 개인용 사용량·성과(로그인 사용자, guest 제외). 서버가 usage-scope로 허용 이메일 계산(본인/조직장은 말단 조직 전체) — `chat?periodEnd=`·`perf?team&q`는 그 범위 안에서만 좁히는 필터. code는 totals·users·daily·models(어드민 summary와 같은 구성), chat은 행마다 같은 기간의 Claude Code 프롬프트(사람/자동)·조직도 소속(parent_unit)을 붙인다. 대량 조회는 `selectAll`. hourly는 RPC `claude_code_hourly_emails`(SQL `2026-08-31-usage-scope.sql` → `2026-09-03-usage-hourly-users.sql`에서 users 컬럼 추가, isodow 1=월)
+- `GET /api/usage/{scope,code,chat,perf,tools,hourly,office}` — 개인용 사용량·성과(로그인 사용자, guest 제외). 서버가 usage-scope로 허용 이메일 계산(본인/조직장은 말단 조직 전체) — `chat?periodEnd=`·`perf?team&q`는 그 범위 안에서만 좁히는 필터. code는 totals·users·daily·models(어드민 summary와 같은 구성), chat은 행마다 같은 기간의 Claude Code 프롬프트(사람/자동)·조직도 소속(parent_unit)을 붙인다. 대량 조회는 `selectAll`. hourly는 RPC `claude_code_hourly_emails`(SQL `2026-08-31-usage-scope.sql` → `2026-09-03-usage-hourly-users.sql`에서 users 컬럼 추가, isodow 1=월)
 - `GET /api/cron/work-metrics?source=all|jira|confluence|gitlab&from&to` — 성과 지표 일 수집(Vercel Cron 07:30 KST, `CRON_SECRET` 또는 관리자 세션). env `ATLASSIAN_*`/`GITLAB_*` 미설정 소스는 스킵. 설계 `docs/superpowers/specs/2026-08-31-claude-roi-integrations-design.md`
 - `/api/rfp/{uploads,projects,projects/[id],projects/[id]/{reextract,xlsx,file,requirements},requirements/[requirementId]}` — RFP 분석(user 이상, `lib/rfp/require-user.ts`). 파일은 Storage 버킷 `rfp`에 브라우저 직접 업로드, 추출은 `after()`(maxDuration 300)
 - `/api/admin/rfp-catalog/{solutions,solutions/[code],solutions/[code]/{sources,import,features},sources/[sourceId],features/[featureId],confluence-search}` — 카탈로그 관리(admin). 가져오기는 `after()`+`runImport`(engine rules|llm, xlsx 소스는 세션 사용자 Graph 토큰)
@@ -127,7 +128,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `nlm_sources` — Source metadata cache per notebook (includes `storage_path`, `original_filename`)
 
 ### Supabase Tables (Claude usage feature)
-- `claude_orgs, claude_code_daily(prompts·prompts_auto=자동화 프롬프트, 사람 = prompts−prompts_auto), claude_code_daily_model, claude_code_requests, claude_ingest_log, claude_csv_imports, claude_member_activity, claude_org_members(멤버·초대 상태 active|pending), claude_code_tool_daily(도구별 일 집계), claude_code_prompts(프롬프트 내용, OTEL_LOG_USER_PROMPTS=1)` — Claude Code 사용량 대시보드 데이터(OTLP 수신 + 월간 CSV 업로드). 런북 `docs/claude-usage.md`
+- `claude_orgs, claude_code_daily(prompts·prompts_auto=자동화 프롬프트, 사람 = prompts−prompts_auto), claude_code_daily_model, claude_code_requests, claude_ingest_log, claude_csv_imports, claude_member_activity, claude_org_members(멤버·초대 상태 active|pending), claude_code_tool_daily(도구별 일 집계), claude_code_prompts(프롬프트 내용, OTEL_LOG_USER_PROMPTS=1), claude_office_trace_log(Office 추가 기능 스팬 집계 속성 — SQL `2026-09-04-claude-office-traces.sql`, RPC `claude_office_usage` `2026-09-07-claude-office-daily.sql`)` — Claude Code 사용량 대시보드 데이터(OTLP 수신 + 월간 CSV 업로드). 런북 `docs/claude-usage.md`
 
 ### Supabase Tables (work metrics — 성과 측정)
 - `jira_issue_daily, atlassian_account_map, confluence_daily, gitlab_daily(commits·claude_commits=Co-Authored-By: Claude 커밋·MR), gitlab_email_map(커미터 이메일 수동 매핑), work_metrics_sync` — Jira/Confluence/GitLab 일 집계(성과 분모·사이클타임). SQL `docs/sql/2026-08-31-work-metrics.sql`, `docs/sql/2026-09-03-gitlab-claude-commits.sql`, 수집 `lib/work-metrics/`. GitLab은 사내망 로컬 스크립트 `frontend/scripts/gitlab-metrics-sync.py`(launchd)가 `/api/admin/work-metrics/sync`로 푸시. Supabase 조회는 1000행 상한이 있어 대량 조회는 `selectAll`(`lib/work-metrics/common.ts`)로 페이지네이션
@@ -166,7 +167,8 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `MS_TOKEN_ENC_KEY` — RFP SharePoint 업로드용 Microsoft refresh 토큰 암호화 키(64자 hex, `openssl rand -hex 32`). 교체 시 모든 연결이 재연결 필요
 - `MS_ALLOWED_ORIGINS` — (선택) Microsoft OAuth 리디렉션 오리진 허용 목록(쉼표). 기본 `https://inje-playground.vercel.app,http://localhost:3003`
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service_role 키(서버 전용, 클라이언트 노출 금지). Claude 사용량 대시보드 관리자 API에서 사용
-- `CLAUDE_OTEL_INGEST_TOKEN` — Claude Code OTLP 수신 엔드포인트(`/api/otel/v1/*`) Bearer 인증 토큰(`openssl rand -hex 32`)
+- `CLAUDE_OTEL_INGEST_TOKEN` — Claude Code OTLP 수신 엔드포인트(`/api/otel/v1/metrics|logs`) Bearer 인증 토큰(`openssl rand -hex 32`)
+- `CLAUDE_OFFICE_OTEL_TOKEN` — Office 추가 기능 트레이스 수신(`/api/otel/v1/traces`) 전용 토큰. claude.ai 조직 설정 Office Agents의 OTLP 헤더 `Authorization=Bearer <값>`에 넣는 값이라 Claude Code 토큰과 분리
 - `ANTHROPIC_API_KEY`, `RFP_LLM_MODEL`(기본 claude-opus-5) — RFP 비표준 문서 LLM 폴백 + 카탈로그 기능 추출 + 솔루션 매핑(선택 — 없으면 규칙 엔진만)
 - `ATLASSIAN_SITE`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN` — 카탈로그 Confluence 가져오기(기존 성과 지표와 공유)
 
