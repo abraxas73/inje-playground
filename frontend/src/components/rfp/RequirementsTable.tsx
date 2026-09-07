@@ -168,7 +168,7 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
         editable("categoryName", "요구사항 구분", { clamp: 0, width: "11rem" }),
         reqIdCol,
         editable("title", "요구사항 명칭", { clamp: 0, width: "20rem" }),
-        col.display({ id: "sheet", header: "상세 시트 위치", cell: (ctx) => <span className="text-muted-foreground">{sheetNameFor(ctx.row.original.categoryCode, sheetIndex.get(ctx.row.original.categoryCode) ?? 0)}</span>, meta: { width: "8rem" } }),
+        col.display({ id: "sheet", header: "상세 시트 위치", cell: (ctx) => <span className="break-all text-muted-foreground">{sheetNameFor(ctx.row.original.categoryCode, sheetIndex.get(ctx.row.original.categoryCode) ?? 0)}</span>, meta: { width: "8rem" } }),
         solution,
         actions,
       ],

@@ -111,15 +111,19 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
     }
   };
 
+  /**
+   * 한 줄로 고정한다 — 판정·솔루션·기능 선택과 자동 매칭 요약(trailing)이 같은 줄에 있어야 매핑 행이 2줄(선택 줄 + 문서 카드)로 끝난다.
+   * 좁아지면 줄바꿈 대신 기능 선택과 요약이 줄어들며 잘린다(선택 콤보·요약 모두 내부에서 truncate). 넘치면 감싸서 가로 스크롤을 만들지 않는다.
+   */
   const ruleRow = (value: Pending, onRule: (next: Partial<Pending>) => void, keyPrefix: string, trailing?: ReactNode) => (
-    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
       <Select value={value.verdict} onValueChange={(v) => onRule({ verdict: v as Verdict })}>
-        <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+        <SelectTrigger className="h-8 w-28 shrink-0 text-xs"><SelectValue /></SelectTrigger>
         <SelectContent>{VERDICT_ORDER.map((v) => <SelectItem key={`${keyPrefix}-${v}`} value={v}>{VERDICT_LABEL[v]}</SelectItem>)}</SelectContent>
       </Select>
-      <SearchableSelect value={value.solutionCode ?? ""} onChange={(v) => onRule({ solutionCode: v })} options={solutionOptions} placeholder="솔루션" className={`w-40 ${requiresFeature(value.verdict) ? "" : "pointer-events-none opacity-50"}`} />
-      <SearchableSelect value={value.featureId ?? ""} onChange={(v) => onRule({ featureId: v })} options={featureOptions(value.solutionCode, value.featureId)} placeholder={value.solutionCode ? "기능" : "솔루션 먼저"} emptyText="활성 기능이 없습니다" className={`w-56 ${requiresFeature(value.verdict) ? "" : "pointer-events-none opacity-50"}`} />
-      {requiresFeature(value.verdict) && !value.featureId && <span className="text-xs text-amber-700">기능을 고르면 저장됩니다</span>}
+      <SearchableSelect value={value.solutionCode ?? ""} onChange={(v) => onRule({ solutionCode: v })} options={solutionOptions} placeholder="솔루션" className={`w-32 shrink-0 ${requiresFeature(value.verdict) ? "" : "pointer-events-none opacity-50"}`} />
+      <SearchableSelect value={value.featureId ?? ""} onChange={(v) => onRule({ featureId: v })} options={featureOptions(value.solutionCode, value.featureId)} placeholder={value.solutionCode ? "기능" : "솔루션 먼저"} emptyText="활성 기능이 없습니다" className={`w-44 min-w-[6rem] shrink ${requiresFeature(value.verdict) ? "" : "pointer-events-none opacity-50"}`} />
+      {requiresFeature(value.verdict) && !value.featureId && <span className="shrink-0 text-xs text-amber-700">기능을 고르면 저장됩니다</span>}
       {trailing}
     </div>
   );
@@ -137,7 +141,7 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
         const inlineRationale = autoRationale ? (
           <button
             type="button"
-            className="min-w-0 max-w-full truncate text-left text-xs text-muted-foreground hover:text-foreground"
+            className="min-w-0 flex-1 truncate text-left text-xs text-muted-foreground hover:text-foreground"
             title={`${row.rationale} — 클릭하면 설명을 편집합니다`}
             onClick={() => setRationaleEditing((p) => ({ ...p, [row.id]: true }))}
           >
@@ -146,9 +150,9 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
         ) : undefined;
         return (
           <div key={row.id} className="space-y-2 rounded-md border bg-background p-3" title={row.updatedBy ? `수정 ${new Date(row.updatedAt).toLocaleString("ko-KR")}` : undefined}>
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center justify-between gap-2">
               {ruleRow(value, (next) => changeRule(row, next), row.id, inlineRationale)}
-              <div className="flex items-center gap-1">
+              <div className="flex shrink-0 items-center gap-1">
                 {row.engine !== "manual" && (
                   <span className="text-xs text-muted-foreground" title="자동 매핑이 만든 행">
                     자동({ENGINE_LABEL[row.engine]}){row.score !== null && ` ${row.score.toFixed(2)}`}
