@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { createServerSupabase } from "@/lib/supabase-server";
 import { isAuthEvent, logAuthEvent, requestContext } from "@/lib/audit";
 
 export const runtime = "nodejs";
@@ -41,8 +42,12 @@ export async function POST(request: NextRequest) {
     if ((count ?? 0) >= IP_LIMIT) return NextResponse.json({ ok: true, skipped: "rate-limited" });
   }
 
-  const email = typeof body.email === "string" ? body.email.slice(0, 200) : null;
   const reason = typeof body.reason === "string" ? body.reason.slice(0, 200) : null;
-  await logAuthEvent(admin, request, { event: body.event, provider: body.provider, email, reason });
+  // 이미 로그인된 상태에서 일어난 일(재인증·다른 계정으로 전환 시도 등)이면 그 사용자를 붙인다.
+  // 본문의 email은 신뢰하지 않는다 — 세션이 없을 때만 참고값으로 남긴다.
+  const session = await createServerSupabase().then((c) => c.auth.getUser()).catch(() => null);
+  const user = session?.data.user ?? null;
+  const email = user?.email ?? (typeof body.email === "string" ? body.email.slice(0, 200) : null);
+  await logAuthEvent(admin, request, { event: body.event, provider: body.provider, userId: user?.id ?? null, email, reason });
   return NextResponse.json({ ok: true });
 }

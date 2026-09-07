@@ -127,13 +127,18 @@ export function toAuthProvider(v: unknown): AuthProvider {
 export interface AuthEventInput {
   event: AuthEvent;
   provider?: unknown;
-  /** 아는 경우에만(GW 로그인처럼 이메일을 받은 경우). 검색되도록 user_email에 넣는다 */
+  /**
+   * 이미 로그인된 세션에서 일어난 일이면 그 사용자를 붙인다(재인증 거절·콜백 재접근 등).
+   * 로그인 화면에서 처음 시도하는 경우에는 없다 → 화면에 "비로그인"으로 보인다.
+   */
+  userId?: string | null;
+  /** 아는 경우에만(세션 사용자 또는 GW 로그인처럼 이메일을 받은 경우). 검색되도록 user_email에 넣는다 */
   email?: string | null;
   /** 실패 사유(사람이 읽는 짧은 문구). 토큰·비밀번호는 절대 넣지 않는다 */
   reason?: string | null;
 }
 
-/** 로그인 시도·실패 한 건. 행위자가 없을 수 있어(익명) service role 클라이언트로 부른다. */
+/** 로그인 시도·실패 한 건. 익명일 수 있어 service role 클라이언트로 부른다(세션이 있으면 행위자를 붙인다). */
 export async function logAuthEvent(
   client: SupabaseClient,
   request: { headers: Headers } | null,
@@ -141,6 +146,7 @@ export async function logAuthEvent(
 ): Promise<void> {
   const provider = toAuthProvider(input.provider);
   await logAudit(client, request, {
+    userId: input.userId ?? null,
     userEmail: input.email?.trim().toLowerCase() || null,
     action: AUTH_EVENT_ACTION[input.event],
     category: "auth",

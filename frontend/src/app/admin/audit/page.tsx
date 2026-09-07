@@ -109,7 +109,7 @@ export default function AdminAuditPage() {
     if (!rows.length) return;
     const head = ["시각(KST)", "구분", "사용자", "이메일", "카테고리", "액션", "상세", "IP", "User-Agent"];
     const body = rows.map((r) => [
-      formatAt(r.at), AUDIT_KIND_LABEL[r.kind] ?? r.kind, r.userName ?? "", r.userEmail ?? "",
+      formatAt(r.at), AUDIT_KIND_LABEL[r.kind] ?? r.kind, r.userName ?? (r.userEmail ? "" : "비로그인"), r.userEmail ?? "",
       AUDIT_CATEGORY_LABEL[r.category] ?? r.category, r.action, detailText(r.detail), r.ipAddress ?? "", r.userAgent ?? "",
     ]);
     const csv = [head, ...body].map((cols) => cols.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -225,8 +225,15 @@ export default function AdminAuditPage() {
                       <Badge variant="outline" className={cn("border-transparent text-[11px]", KIND_CLASS[r.kind])}>{AUDIT_KIND_LABEL[r.kind] ?? r.kind}</Badge>
                     </td>
                     <td className="px-2 py-2">
-                      <div className="text-xs font-medium">{r.userName ?? "(이름 없음)"}</div>
-                      <div className="break-all text-[11px] text-muted-foreground">{r.userEmail ?? "-"}</div>
+                      {/* 로그인 전 이벤트는 행위자가 없다 — "이름 없음"이 아니라 비로그인임을 밝힌다 */}
+                      {r.userName || r.userEmail ? (
+                        <>
+                          <div className="text-xs font-medium">{r.userName ?? "(이름 미확인)"}</div>
+                          <div className="break-all text-[11px] text-muted-foreground">{r.userEmail ?? "-"}</div>
+                        </>
+                      ) : (
+                        <div className="text-xs italic text-muted-foreground">비로그인</div>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">{AUDIT_CATEGORY_LABEL[r.category] ?? r.category}</td>
                     <td className="px-2 py-2">

@@ -51,8 +51,8 @@ select
   a.id,
   a.created_at,
   a.user_id,
-  coalesce(a.user_email, p.email),
-  p.display_name,
+  coalesce(a.user_email, p.email, pe.email),
+  coalesce(p.display_name, pe.display_name),
   a.category,
   a.action,
   coalesce(a.detail, '{}'::jsonb),
@@ -60,7 +60,9 @@ select
   a.ip_address,
   a.user_agent
 from public.action_history a
-left join public.user_profiles p on p.user_id = a.user_id;
+left join public.user_profiles p on p.user_id = a.user_id
+-- user_id 없이 이메일만 아는 행(GW 로그인 실패 등)도 이름이 뜨게 이메일로 한 번 더 찾는다
+left join public.user_profiles pe on a.user_id is null and lower(pe.email) = lower(a.user_email);
 
 comment on view public.audit_log is '로그인 이력 + 액션 이력 통합 조회(어드민 Audit 로그). kind: login|login_failed|login_attempt|action|api, detail_text = detail을 검색용 문자열로';
 
