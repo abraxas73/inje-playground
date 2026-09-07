@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { adminClientOr500, requireAdmin } from "@/lib/claude-usage/require-admin";
+import { logAudit } from "@/lib/audit";
 import { SOURCE_COLUMNS, mapSource, type SourceDbRow } from "@/lib/rfp/catalog/store";
 import { confluenceConfig } from "@/lib/rfp/catalog/confluence";
 import { runImport } from "@/lib/rfp/catalog/import-job";
@@ -66,6 +67,10 @@ export async function POST(request: NextRequest, { params }: Params) {
   const { error: upError } = await a.admin.from("rfp_solution_sources").update({ import_status: "running", error: null, note: null }).in("id", ids);
   if (upError) return NextResponse.json({ error: upError.message }, { status: 500 });
   const admin = a.admin;
+  await logAudit(admin, request, {
+    userId: auth.userId, action: "카탈로그 가져오기 실행", category: "rfp",
+    detail: { solution: code, engine, sources: ids.length },
+  });
   after(async () => {
     await runImport(admin, code, ids, { engine, graphToken });
   });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireUser } from "@/lib/rfp/require-user";
+import { logAudit } from "@/lib/audit";
 import { loadCatalog } from "@/lib/rfp/catalog/store";
 import { createRulesEngine, ENGINE_FACTORIES } from "@/lib/rfp/mapping/engine";
 import { runMapping, scopeCatalog, type MappingMode } from "@/lib/rfp/mapping/run-job";
@@ -115,6 +116,14 @@ export async function POST(request: NextRequest, { params }: Params) {
   const maxCandidates = body.maxCandidates === undefined || body.maxCandidates === null
     ? await loadMappingMaxCandidates(admin)
     : parseMaxCandidates(body.maxCandidates);
+  await logAudit(admin, request, {
+    userId: auth.userId, action: "솔루션 매핑 실행", category: "rfp",
+    detail: {
+      projectId: id, mode, engine, maxCandidates,
+      solutions: solutionCodes.length ? solutionCodes.join(",") : "전체",
+      scope: requirementIds.length ? (detailKey ? `요구사항 1건·세부 ${detailKey}` : `요구사항 ${requirementIds.length}건`) : "프로젝트 전체",
+    },
+  });
   after(async () => {
     await runMapping(admin, id, mode, engine, { factories: ENGINE_FACTORIES, maxCandidates, solutionCodes, requirementIds, detailKey });
   });

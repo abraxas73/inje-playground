@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500 } from "@/lib/claude-usage/require-admin";
+import { logAudit } from "@/lib/audit";
 
 /**
  * 관리자용 사용자 상세/삭제.
@@ -78,7 +79,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   });
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(request: NextRequest, { params }: Params) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
   const c = adminClientOr500();
@@ -113,6 +114,12 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   // 로그인 계정 제거 — 이후 같은 계정으로 다시 로그인하면 새 프로필(게스트)이 생성된다
   const a = await admin.auth.admin.deleteUser(id);
   const warning = a.error ? `프로필은 삭제됐지만 로그인 계정 삭제에 실패했습니다: ${a.error.message}` : null;
+
+  // 감사: 되돌릴 수 없는 삭제라 무엇이 몇 건 지워졌는지까지 남긴다
+  await logAudit(admin, request, {
+    userId: auth.userId, action: "사용자 삭제", category: "users",
+    detail: { targetEmail: email || id, targetUserId: id, deleted, authDeleted: !a.error },
+  });
 
   return NextResponse.json({ ok: true, email, deleted, authDeleted: !a.error, warning });
 }

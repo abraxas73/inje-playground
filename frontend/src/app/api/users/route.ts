@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { logAudit } from "@/lib/audit";
 
 /** GET /api/users — 사용자 목록 + 개인 설정 (admin only) */
 export async function GET() {
@@ -94,6 +95,8 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "자신의 관리자 권한은 변경할 수 없습니다." }, { status: 400 });
   }
 
+  const { data: target } = await supabase.from("user_profiles").select("email, role").eq("user_id", userId).maybeSingle();
+
   const { error } = await supabase
     .from("user_profiles")
     .update({ role, updated_at: new Date().toISOString() })
@@ -102,6 +105,12 @@ export async function PATCH(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  await logAudit(supabase, request, {
+    userId: user.id, userEmail: user.email ?? null,
+    action: "사용자 권한 변경", category: "users",
+    detail: { targetEmail: target?.email ?? userId, from: target?.role ?? null, to: role },
+  });
 
   return NextResponse.json({ success: true });
 }

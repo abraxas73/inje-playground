@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
+import { auditProxyRequest } from "./audit-proxy";
 
 /** Routes that require specific minimum roles */
 const PROTECTED_ROUTES: { prefix: string; minRole: string }[] = [
@@ -41,6 +42,16 @@ export async function updateSession(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     const pathname = request.nextUrl.pathname;
+
+    // 변경 요청(POST·PUT·PATCH·DELETE)은 응답을 보낸 뒤 감사 기록한다 — 응답을 늦추지 않는다.
+    // 이 블록은 자체 try/catch로 격리한다: 감사 기록이 실패해도 아래 로그인·권한 검사를 건너뛰면 안 된다.
+    if (user) {
+      try {
+        after(() => auditProxyRequest(supabase, request, { id: user.id, email: user.email }));
+      } catch (e) {
+        console.error("[audit] proxy after() 실패", e instanceof Error ? e.message : e);
+      }
+    }
 
     // 로그인 안 된 경우 /login으로 리다이렉트 (API, login, privacy, survey 등 공개 페이지 제외)
     if (

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
+import { logAudit } from "@/lib/audit";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { getNotifier } from "@/lib/notify";
 import { creatorNames } from "@/lib/rfp/creators";
@@ -16,7 +17,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * POST /api/rfp/projects/[id]/sharepoint/upload — xlsx를 지정 폴더에 올리고 이력·알림(스펙 §5.2).
  * 200 {upload, notified, notifyError?} / 400 {code:no_folder|not_connected}·status / 403 / 404 / 409 {code:reconnect}·잠김 / 502
  */
-export async function POST(_request: NextRequest, { params }: Params) {
+export async function POST(request: NextRequest, { params }: Params) {
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
   const { id } = await params;
@@ -33,6 +34,11 @@ export async function POST(_request: NextRequest, { params }: Params) {
 
   try {
     const res = await uploadProjectXlsx(auth.admin, id, auth.userId, { app: cfg.config.app, encKey: cfg.config.encKey, notifier, userName });
+    // 감사: 사외 저장소로 파일이 나가는 행위라 파일명·알림 여부를 남긴다
+    await logAudit(auth.admin, request, {
+      userId: auth.userId, action: "SharePoint 업로드", category: "rfp",
+      detail: { projectId: id, fileName: res.upload?.fileName, notified: res.notified },
+    });
     return NextResponse.json(res);
   } catch (e) {
     if (e instanceof SharepointFlowError) return NextResponse.json({ error: e.message, ...(e.code ? { code: e.code } : {}) }, { status: e.status });

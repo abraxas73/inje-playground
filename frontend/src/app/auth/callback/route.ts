@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { logAudit, logLogin } from "@/lib/audit";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -28,23 +29,13 @@ export async function GET(request: Request) {
 
     const { error, data } = await supabase.auth.exchangeCodeForSession(code);
     if (!error && data.user) {
-      // Record login history & update last_login_at
-      const ua = request.headers.get("user-agent") ?? null;
-      const forwarded = request.headers.get("x-forwarded-for");
-      const ip = forwarded?.split(",")[0]?.trim() ?? null;
-
-      await Promise.all([
-        supabase.from("login_history").insert({
-          user_id: data.user.id,
-          ip_address: ip,
-          user_agent: ua,
-        }),
-        supabase
-          .from("user_profiles")
-          .update({ last_login_at: new Date().toISOString() })
-          .eq("user_id", data.user.id),
-      ]);
-
+      // 로그인 이력 + last_login_at, 그리고 Audit 로그(어떤 공급자로 들어왔는지)
+      await logLogin(supabase, request, { userId: data.user.id, userEmail: data.user.email ?? null });
+      await logAudit(supabase, request, {
+        userId: data.user.id, userEmail: data.user.email ?? null,
+        action: "로그인", category: "auth",
+        detail: { provider: data.user.app_metadata?.provider ?? null, next },
+      });
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

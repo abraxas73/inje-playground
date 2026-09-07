@@ -31,5 +31,6 @@ nlm-service/.venv/
 frontend/e2e/.auth/*.json
 frontend/test-results/
 frontend/playwright-report/
+
 # Claude Code 로컬 워크트리(별도 체크아웃 — 리포에 담지 않는다)
 .claude/worktrees/

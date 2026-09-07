@@ -1,4 +1,5 @@
 import { createServerSupabase } from "@/lib/supabase-server";
+import { logAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -15,19 +16,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, skipped: true });
   }
 
-  const { error } = await supabase
-    .from("action_history")
-    .insert({
-      user_id: user.id,
-      user_email: user.email ?? null,
-      action,
-      category,
-      detail: detail ?? {},
-    });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  await logAudit(supabase, request, {
+    userId: user.id, userEmail: user.email ?? null,
+    action: String(action), category: String(category), detail: detail as Record<string, unknown> | undefined,
+  });
 
   return NextResponse.json({ success: true });
 }

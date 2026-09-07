@@ -1,6 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase-server";
 import { NextResponse } from "next/server";
 import { ADMIN_ONLY_SETTING_KEYS } from "@/lib/providers";
+import { logAudit } from "@/lib/audit";
 
 async function getCallerRole(supabase: Awaited<ReturnType<typeof createServerSupabase>>) {
   const { data: { user } } = await supabase.auth.getUser();
@@ -53,6 +54,13 @@ export async function PUT(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // 감사: 어떤 키를 바꿨는지만 남긴다(웹훅 URL·토큰 같은 값은 기록하지 않는다)
+  await logAudit(supabase, request, {
+    userId: user.id, userEmail: user.email ?? null,
+    action: "전역 설정 변경", category: "settings",
+    detail: { key, secret: ADMIN_ONLY_SETTING_KEYS.has(key) || undefined, length: String(value).length },
+  });
 
   return NextResponse.json({ success: true });
 }
