@@ -111,3 +111,23 @@ describe("scopeCatalog", () => {
     expect(scopeCatalog(cat, ["nope"])).toEqual([]);
   });
 });
+
+describe("selectTargetRequirements — 요구사항 단위 재실행", () => {
+  const reqs = [{ id: "r1" }, { id: "r2" }, { id: "r3" }];
+  const mappings = [
+    { requirementId: "r1", edited: true },
+    { requirementId: "r2", edited: false },
+  ];
+  it("requirementIds를 주면 그 요구사항만, edited 제외 규칙은 적용하지 않는다", () => {
+    expect(selectTargetRequirements(reqs, mappings, "all", ["r1"]).map((r) => r.id)).toEqual(["r1"]);
+    expect(selectTargetRequirements(reqs, mappings, "missing", ["r1", "r2"]).map((r) => r.id)).toEqual(["r1", "r2"]);
+  });
+  it("없는 id만 주면 대상이 없다(잡이 경고로 끝낸다)", () => {
+    expect(selectTargetRequirements(reqs, mappings, "all", ["nope"])).toEqual([]);
+  });
+  it("빈 배열·undefined면 예전 규칙(all은 edited 제외, missing은 행 없는 것만)", () => {
+    expect(selectTargetRequirements(reqs, mappings, "all", []).map((r) => r.id)).toEqual(["r2", "r3"]);
+    expect(selectTargetRequirements(reqs, mappings, "all").map((r) => r.id)).toEqual(["r2", "r3"]);
+    expect(selectTargetRequirements(reqs, mappings, "missing").map((r) => r.id)).toEqual(["r3"]);
+  });
+});

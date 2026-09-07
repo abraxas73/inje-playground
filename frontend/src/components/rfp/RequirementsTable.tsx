@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import EditableCell from "@/components/rfp/EditableCell";
 import MappingEditor from "@/components/rfp/MappingEditor";
+import type { MappingRunArgs, MappingRunSolution } from "@/components/rfp/MappingRunDialog";
+import type { MappingRunTarget } from "@/lib/rfp/mapping/run-target";
 import { VERDICT_CLASS, VerdictBadge, type VerdictFilter } from "@/components/rfp/MappingSummary";
 import { cn } from "@/lib/utils";
 import { orderCategoryCodes, sheetNameFor } from "@/lib/rfp/requirements";
@@ -29,6 +31,11 @@ interface Props {
   requirements: RfpRequirement[];
   mappings: RfpMapping[];
   catalog: CatalogSolution[];
+  /** 매핑 실행 레이어에 넘길 대상 솔루션·엔진·기본 후보 상한(요구사항·세부 항목 재실행에 쓴다) */
+  solutions: MappingRunSolution[];
+  llmAvailable: boolean;
+  maxCandidates: number;
+  onRunMapping: (args: MappingRunArgs, target?: MappingRunTarget) => Promise<void>;
   mappingStatus: RfpMappingStatus;
   /** 요구사항 총괄표 행 — 구분 탭에 분류명을 붙이고 검색에도 쓴다(없으면 요구사항 행의 구분 셀로 대체) */
   categorySummary: CategorySummaryRow[];
@@ -46,7 +53,9 @@ async function patchRequirement(id: string, patch: Partial<Record<EditableField,
   return json;
 }
 
-export default function RequirementsTable({ projectId, requirements, mappings, catalog, mappingStatus, categorySummary, verdictFilter, onChange, onMappingsChange }: Props) {
+export default function RequirementsTable({
+  projectId, requirements, mappings, catalog, solutions, llmAvailable, maxCandidates, onRunMapping, mappingStatus, categorySummary, verdictFilter, onChange, onMappingsChange,
+}: Props) {
   /** 매핑이 한 번 끝났으면(또는 매핑 행이 있으면) 요구사항 ID를 판정 색 버튼으로 그린다 */
   const mapped = mappingStatus === "ready" || mappings.length > 0;
   const codes = useMemo(() => orderCategoryCodes(requirements.map((r) => r.categoryCode)), [requirements]);
@@ -294,6 +303,11 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
                             requirement={row.original}
                             rows={groups.get(row.original.id) ?? []}
                             catalog={catalog}
+                            solutions={solutions}
+                            llmAvailable={llmAvailable}
+                            maxCandidates={maxCandidates}
+                            running={mappingStatus === "running"}
+                            onRunMapping={onRunMapping}
                             onChange={(rows) => replaceMappingsFor(row.original.id, rows)}
                           />
                         </td>

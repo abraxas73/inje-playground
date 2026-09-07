@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Check, ExternalLink, FileText, Link2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, ExternalLink, FileText, Link2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,6 +10,8 @@ import SearchableSelect, { type SearchableOption } from "@/components/shared/Sea
 import { ENGINE_LABEL, requiresFeature, VERDICT_LABEL, VERDICT_ORDER, type CatalogFeature, type CatalogSolution, type Verdict } from "@/lib/rfp/mapping/types";
 import { indexCatalog } from "@/lib/rfp/mapping/summary";
 import { parseDetailUnits } from "@/lib/rfp/mapping/detail-items";
+import MappingRunDialog, { type MappingRunArgs, type MappingRunScope, type MappingRunSolution } from "@/components/rfp/MappingRunDialog";
+import type { MappingRunTarget } from "@/lib/rfp/mapping/run-target";
 import type { RfpMapping, RfpRequirement } from "@/types/rfp";
 
 interface Props {
@@ -17,6 +19,13 @@ interface Props {
   requirement: RfpRequirement;
   rows: RfpMapping[];
   catalog: CatalogSolution[];
+  /** 매핑 실행 레이어용 */
+  solutions: MappingRunSolution[];
+  llmAvailable: boolean;
+  maxCandidates: number;
+  /** 프로젝트 매핑이 돌고 있으면 재실행 버튼을 잠근다 */
+  running: boolean;
+  onRunMapping: (args: MappingRunArgs, target?: MappingRunTarget) => Promise<void>;
   /** 이 요구사항의 행이 바뀌면 전체 목록에서 교체할 수 있게 새 행 목록을 준다 */
   onChange: (rows: RfpMapping[]) => void;
 }
@@ -29,7 +38,7 @@ async function readError(res: Response, fallback: string): Promise<string> {
   return j.error ?? fallback;
 }
 
-export default function MappingEditor({ projectId, requirement, rows, catalog, onChange }: Props) {
+export default function MappingEditor({ projectId, requirement, rows, catalog, solutions, llmAvailable, maxCandidates, running, onRunMapping, onChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, Pending>>({});
   /** 새 행 초안. detailKey = 어느 세부 항목에 넣을지(null = 요구사항 전체) */
@@ -40,6 +49,9 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
   /** 규칙 엔진의 정형 설명("자동 매칭 — …")은 윗줄 끝에 한 줄로만 보이고, 클릭하면 편집 칸이 열린다 */
   const [rationaleEditing, setRationaleEditing] = useState<Record<string, boolean>>({});
   const featureIndex = useMemo(() => indexCatalog(catalog).feature, [catalog]);
+  /** 다시 매핑 레이어 — 요구사항 전체(detailKey null) 또는 세부 항목 하나 */
+  const [runScope, setRunScope] = useState<{ scope: MappingRunScope; target: MappingRunTarget } | null>(null);
+  const [runBusy, setRunBusy] = useState(false);
 
   const solutionOptions: SearchableOption[] = catalog.filter((s) => s.isActive).map((s) => ({ value: s.code, label: s.name }));
   const featureOptions = (solutionCode: string | null, currentFeatureId: string | null): SearchableOption[] => {
@@ -215,9 +227,21 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
   const multi = groups.length > 1 || groups[0]?.key !== null;
   return (
     <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
-      <div className="text-xs font-medium text-muted-foreground">
-        {requirement.reqId} 솔루션 매핑 {sorted.length}행
-        {multi && ` · 세부 항목 ${structure.units.length}개(매핑된 항목 ${groups.filter((g) => g.key && g.rows.length).length}개)`}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs font-medium text-muted-foreground">
+          {requirement.reqId} 솔루션 매핑 {sorted.length}행
+          {multi && ` · 세부 항목 ${structure.units.length}개(매핑된 항목 ${groups.filter((g) => g.key && g.rows.length).length}개)`}
+        </div>
+        <Button
+          size="sm" variant="outline" className="h-7 shrink-0 text-xs" disabled={busy || running}
+          title={running ? "매핑이 실행 중입니다." : "이 요구사항만 다시 매핑합니다(사람이 고친 행은 유지)"}
+          onClick={() => setRunScope({
+            scope: { kind: "requirement", reqId: requirement.reqId, title: requirement.title },
+            target: { requirementIds: [requirement.id], detailKey: null },
+          })}
+        >
+          <RefreshCw className="mr-1 h-3.5 w-3.5" />다시 매핑
+        </Button>
       </div>
       {groups.map((g) => (
         <div key={g.key ?? "__all"} className="space-y-2">
@@ -234,9 +258,23 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
               )}
               <span className="ml-1 text-muted-foreground">{g.rows.length}행</span>
             </div>
-            <Button size="sm" variant="outline" className="shrink-0" disabled={busy || draft !== null} onClick={() => setDraft({ verdict: "partial", solutionCode: null, featureId: null, detailKey: g.key })}>
-              <Plus className="mr-1 h-4 w-4" />행 추가
-            </Button>
+            <div className="flex shrink-0 items-center gap-1">
+              {g.key && !g.stale && (
+                <Button
+                  size="sm" variant="ghost" className="h-7 text-xs" disabled={busy || running}
+                  title={running ? "매핑이 실행 중입니다." : "이 세부 항목만 다시 매핑합니다"}
+                  onClick={() => setRunScope({
+                    scope: { kind: "detail", reqId: requirement.reqId, detailKey: g.key!, detailLabel: g.label },
+                    target: { requirementIds: [requirement.id], detailKey: g.key },
+                  })}
+                >
+                  <RefreshCw className="mr-1 h-3.5 w-3.5" />다시 매핑
+                </Button>
+              )}
+              <Button size="sm" variant="outline" disabled={busy || draft !== null} onClick={() => setDraft({ verdict: "partial", solutionCode: null, featureId: null, detailKey: g.key })}>
+                <Plus className="mr-1 h-4 w-4" />행 추가
+              </Button>
+            </div>
           </div>
           {g.rows.map(rowBlock)}
           {draft && (draft.detailKey ?? null) === g.key && draftBlock}
@@ -248,6 +286,29 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
         </div>
       ))}
       {error && <div className="text-sm text-destructive">{error}</div>}
+      {runScope && (
+        <MappingRunDialog
+          open
+          onOpenChange={(o) => !o && setRunScope(null)}
+          scope={runScope.scope}
+          solutions={solutions}
+          llmAvailable={llmAvailable}
+          defaultMaxCandidates={maxCandidates}
+          busy={runBusy}
+          onRun={async (args) => {
+            setRunBusy(true);
+            setError(null);
+            try {
+              await onRunMapping(args, runScope.target);
+              setRunScope(null);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : "다시 매핑에 실패했습니다.");
+            } finally {
+              setRunBusy(false);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

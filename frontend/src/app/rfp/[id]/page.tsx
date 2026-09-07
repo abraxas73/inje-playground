@@ -13,8 +13,9 @@ import SharePointSection from "@/components/rfp/SharePointSection";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toCatalog } from "@/lib/rfp/mapping/client-catalog";
 import { MAPPING_CANDIDATES_DEFAULT, parseMaxCandidates } from "@/lib/rfp/mapping/settings";
-import type { CatalogSolution, EngineKind } from "@/lib/rfp/mapping/types";
-import type { MappingMode } from "@/lib/rfp/mapping/run-job";
+import type { MappingRunArgs } from "@/components/rfp/MappingRunDialog";
+import type { MappingRunTarget } from "@/lib/rfp/mapping/run-target";
+import type { CatalogSolution } from "@/lib/rfp/mapping/types";
 import type { MappingResponse, RfpCatalogResponse, RfpProjectDetail, StatusResponse } from "@/types/rfp";
 
 const POLL_MS = 3000;
@@ -102,17 +103,19 @@ export default function RfpProjectPage() {
     await load();
   };
 
-  const runMapping = async (mode: MappingMode, engine: EngineKind, solutions: string[] = []) => {
+  const runMapping = async (args: MappingRunArgs, target?: MappingRunTarget) => {
+    const { mode, engine, solutionCodes: solutions, maxCandidates: cap } = args;
     setNotice(null);
     setError(null);
     const post = (body: object) => fetch(`/api/rfp/projects/${id}/mapping`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    let res = await post({ mode, engine, solutions });
+    const scope = target ? { requirementIds: target.requirementIds, detailKey: target.detailKey ?? null } : {};
+    let res = await post({ mode, engine, solutions, maxCandidates: cap, ...scope });
     if (res.status === 409) {
       const j = (await res.json()) as { needsConfirm?: boolean; editedRequirements?: number; running?: boolean; error?: string };
       if (j.running) { setNotice(j.error ?? "이미 매핑 중입니다."); await loadMappings(); return; }
       if (!j.needsConfirm) { setError(j.error ?? "매핑을 시작할 수 없습니다."); return; }
       if (!window.confirm(`사람이 고친 매핑이 있는 요구사항 ${j.editedRequirements}건은 건너뛰고 나머지를 다시 매핑합니다. 계속할까요?`)) return;
-      res = await post({ mode, engine, solutions, confirm: true });
+      res = await post({ mode, engine, solutions, maxCandidates: cap, ...scope, confirm: true });
     }
     if (!res.ok) { setError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "매핑 요청에 실패했습니다."); return; }
     stuckRef.current = false;
@@ -174,6 +177,10 @@ export default function RfpProjectPage() {
             requirements={project.requirements}
             mappings={project.mappings}
             catalog={catalog}
+            solutions={mappableSolutions}
+            llmAvailable={llmAvailable}
+            maxCandidates={maxCandidates}
+            onRunMapping={runMapping}
             mappingStatus={project.mappingStatus}
             categorySummary={project.categorySummary}
             verdictFilter={verdictFilter}

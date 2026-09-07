@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/rfp/require-user";
 import { loadCatalog } from "@/lib/rfp/catalog/store";
 import { createRulesEngine, ENGINE_FACTORIES } from "@/lib/rfp/mapping/engine";
 import { runMapping, scopeCatalog, type MappingMode } from "@/lib/rfp/mapping/run-job";
-import { loadMappingMaxCandidates } from "@/lib/rfp/mapping/settings";
+import { loadMappingMaxCandidates, parseMaxCandidates } from "@/lib/rfp/mapping/settings";
 import { isEngineKind, STALE_RUNNING_MS, type EngineKind } from "@/lib/rfp/mapping/types";
 import { MAPPING_COLUMNS, mapMapping, type MappingDbRow, type ProjectDbRow } from "@/lib/rfp/mappers";
 import { selectAll } from "@/lib/work-metrics/common";
@@ -47,14 +47,25 @@ export async function GET(_request: NextRequest, { params }: Params) {
 }
 
 /**
- * POST /api/rfp/projects/[id]/mapping {mode?: "all"|"missing", engine?: "rules"|"llm"(기본 rules), confirm?: boolean, solutions?: string[](대상 솔루션 코드, 비우면 전체)}  (2단계 §4.3 + 4단계 §5.5)
+ * POST /api/rfp/projects/[id]/mapping (2단계 §4.3 + 4단계 §5.5 + 5단계)
+ * {mode?: "all"|"missing", engine?: "rules"|"llm"(기본 rules), confirm?: boolean, solutions?: string[](대상 솔루션, 비우면 전체),
+ *  maxCandidates?: 1~5(비우면 어드민 설정), requirementIds?: string[](이 요구사항만 재실행), detailKey?: string(요구사항 1건일 때 그 세부 항목만)}
  * 400(추출 미완·engine 값·llm인데 키 없음·카탈로그 비어 있음) / 409 {running} / 409 {needsConfirm, editedRequirements} / 202 {started, mode}
  */
 export async function POST(request: NextRequest, { params }: Params) {
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  const body = (await request.json().catch(() => ({}))) as { mode?: unknown; engine?: unknown; confirm?: unknown; solutions?: unknown };
+  const body = (await request.json().catch(() => ({}))) as {
+    mode?: unknown; engine?: unknown; confirm?: unknown; solutions?: unknown; maxCandidates?: unknown; requirementIds?: unknown; detailKey?: unknown;
+  };
+  const requirementIds = Array.isArray(body.requirementIds)
+    ? [...new Set(body.requirementIds.filter((v): v is string => typeof v === "string" && v.trim() !== ""))].slice(0, 100)
+    : [];
+  const detailKey = typeof body.detailKey === "string" && body.detailKey.trim() ? body.detailKey.trim() : null;
+  if (detailKey && requirementIds.length !== 1) {
+    return NextResponse.json({ error: "세부 항목만 다시 매핑하려면 요구사항 한 건을 지정해야 합니다." }, { status: 400 });
+  }
   const mode: MappingMode = body.mode === "missing" ? "missing" : "all";
   const engineRaw = body.engine ?? "rules";
   if (!isEngineKind(engineRaw)) return NextResponse.json({ error: "engine은 rules 또는 llm입니다." }, { status: 400 });
@@ -89,7 +100,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: wanted.length ? "선택한 솔루션에 활성 기능이 없습니다." : "카탈로그가 비어 있습니다. 관리자에게 문의하세요." }, { status: 400 });
   }
 
-  if (mode === "all") {
+  // 요구사항·세부 항목 재실행은 사용자가 콕 집은 것이고 사람이 고친 행은 보존되므로 확인 절차를 건너뛴다
+  if (mode === "all" && !requirementIds.length) {
     const { data: edited, error: editedError } = await auth.admin.from("rfp_requirement_mappings").select("requirement_id").eq("project_id", id).eq("edited", true);
     if (editedError) return NextResponse.json({ error: editedError.message }, { status: 500 });
     const n = new Set(((edited ?? []) as { requirement_id: string }[]).map((m) => m.requirement_id)).size;
@@ -99,10 +111,12 @@ export async function POST(request: NextRequest, { params }: Params) {
   const { error: upError } = await auth.admin.from("rfp_projects").update({ mapping_status: "running", mapping_error: null, updated_by: auth.userId }).eq("id", id);
   if (upError) return NextResponse.json({ error: upError.message }, { status: 500 });
   const admin = auth.admin;
-  // 후보 상한은 실행 시점의 어드민 설정을 쓴다(잡이 아니라 라우트가 읽어 넘긴다 — 잡은 순수하게 유지)
-  const maxCandidates = await loadMappingMaxCandidates(admin);
+  // 후보 상한: 요청에 있으면 그 값(1~5로 보정), 없으면 실행 시점의 어드민 설정
+  const maxCandidates = body.maxCandidates === undefined || body.maxCandidates === null
+    ? await loadMappingMaxCandidates(admin)
+    : parseMaxCandidates(body.maxCandidates);
   after(async () => {
-    await runMapping(admin, id, mode, engine, { factories: ENGINE_FACTORIES, maxCandidates, solutionCodes });
+    await runMapping(admin, id, mode, engine, { factories: ENGINE_FACTORIES, maxCandidates, solutionCodes, requirementIds, detailKey });
   });
-  return NextResponse.json({ started: true, mode, engine, solutions: solutionCodes }, { status: 202 });
+  return NextResponse.json({ started: true, mode, engine, solutions: solutionCodes, maxCandidates, requirementIds, detailKey }, { status: 202 });
 }

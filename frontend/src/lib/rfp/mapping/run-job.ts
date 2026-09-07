@@ -13,12 +13,21 @@ export type MappingMode = "all" | "missing";
 /** 동시에 보내는 청크 수. 124건(7청크) → 3라운드로 Vercel 300초 안에 끝나게. */
 export const CONCURRENCY = 3;
 
-/** all: edited 행이 있는 요구사항만 제외 / missing: 행이 하나도 없는 요구사항만(스펙 §4.3). */
+/**
+ * all: edited 행이 있는 요구사항만 제외 / missing: 행이 하나도 없는 요구사항만(스펙 §4.3).
+ * requirementIds를 주면(요구사항·세부 항목 단위 재실행) 그 요구사항만 대상으로 하고 edited 제외 규칙을 적용하지 않는다 —
+ * 사용자가 그 요구사항을 콕 집어 다시 돌리라고 한 것이고, 사람이 고친 **행**은 어차피 저장 단계에서 보존된다.
+ */
 export function selectTargetRequirements<T extends { id: string }>(
   requirements: readonly T[],
   mappings: readonly Pick<MappingRow, "requirementId" | "edited">[],
   mode: MappingMode,
+  requirementIds?: readonly string[],
 ): T[] {
+  if (requirementIds?.length) {
+    const want = new Set(requirementIds);
+    return requirements.filter((r) => want.has(r.id));
+  }
   const has = new Set<string>();
   const edited = new Set<string>();
   for (const m of mappings) {
@@ -84,6 +93,10 @@ export interface RunDeps {
   maxCandidates?: number;
   /** 매핑 대상 솔루션 코드. 비었거나 없으면 활성 솔루션 전체(화면 기본값). */
   solutionCodes?: string[];
+  /** 이 요구사항만 다시 매핑(비었으면 프로젝트 전체) */
+  requirementIds?: string[];
+  /** requirementIds가 한 건일 때, 그 요구사항의 이 세부 항목만 다시 매핑 */
+  detailKey?: string | null;
 }
 
 /** 대상 솔루션만 남긴 카탈로그. 코드 목록이 비어 있으면 그대로 돌려준다(전체 대상). */
@@ -138,8 +151,14 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
     // 요구사항은 수백 건이라 1000행 상한에 걸리지 않지만, 매핑은 수동 추가 행에 상한이 없어 selectAll로 끝까지 읽는다.
     const requirements = (reqRes.data ?? []) as ReqRow[];
     const existing = mapRes.data.map((m) => ({ requirementId: m.requirement_id, edited: m.edited }));
-    const targets = selectTargetRequirements(requirements, existing, mode);
-    if (!targets.length) return await ready([...scopeNote, "매핑할 요구사항이 없습니다(모두 사람이 검토했거나 이미 매핑됨)."]);
+    const targets = selectTargetRequirements(requirements, existing, mode, deps.requirementIds);
+    if (!targets.length) {
+      return await ready([...scopeNote, deps.requirementIds?.length ? "다시 매핑할 요구사항을 찾지 못했습니다." : "매핑할 요구사항이 없습니다(모두 사람이 검토했거나 이미 매핑됨)."]);
+    }
+    // 세부 항목 지정은 요구사항 한 건에만 의미가 있다
+    const detailKey = deps.requirementIds?.length === 1 ? (deps.detailKey ?? null) : null;
+    if (detailKey) scopeNote.push(`세부 항목 ${detailKey}만 다시 매핑`);
+    else if (deps.requirementIds?.length) scopeNote.push(`요구사항 ${targets.length}건만 다시 매핑`);
 
     const sorted = sortRequirements(targets.map((r) => ({ ...r, categoryCode: r.category_code, sortOrder: r.sort_order })));
     const chunks = chunkRequirements(
@@ -148,9 +167,14 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
 
     const results = await runWithConcurrency(chunks, CONCURRENCY, async (chunk): Promise<ChunkOutcome> => {
       const items = await setup.run(chunk);
-      const v = validateMappingOutput(items, chunk, setup.lookup);
+      const validated = validateMappingOutput(items, chunk, setup.lookup);
+      // 세부 항목 지정이면 그 항목의 행만 남긴다(엔진은 요구사항의 모든 항목을 계산한다)
+      const v = detailKey
+        ? { ...validated, rows: validated.rows.filter((r) => r.detailKey === detailKey), warnings: validated.warnings.filter((w) => !w.includes("세부 항목")) }
+        : validated;
       const ids = chunk.map((r) => r.id);
-      const { error: de } = await admin.from("rfp_requirement_mappings").delete().eq("project_id", projectId).eq("edited", false).in("requirement_id", ids);
+      const del = admin.from("rfp_requirement_mappings").delete().eq("project_id", projectId).eq("edited", false).in("requirement_id", ids);
+      const { error: de } = await (detailKey ? del.eq("detail_key", detailKey) : del);
       if (de) throw new Error(de.message);
       if (v.rows.length) {
         const { error: ie } = await admin.from("rfp_requirement_mappings").insert(

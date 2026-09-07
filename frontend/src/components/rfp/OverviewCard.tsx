@@ -12,8 +12,8 @@ import {
 import EditableCell from "@/components/rfp/EditableCell";
 import { StatusBadge, MappingStatusBadge } from "@/components/rfp/ProjectList";
 import MappingRunButton from "@/components/rfp/MappingRunButton";
-import type { MappingMode } from "@/lib/rfp/mapping/run-job";
-import type { EngineKind } from "@/lib/rfp/mapping/types";
+import type { MappingRunArgs } from "@/components/rfp/MappingRunDialog";
+import type { MappingRunTarget } from "@/lib/rfp/mapping/run-target";
 import type { RfpProjectDetail } from "@/types/rfp";
 
 interface Props {
@@ -27,7 +27,7 @@ interface Props {
   solutions: { code: string; name: string; featureCount: number }[];
   onPatched: (patch: Partial<Pick<RfpProjectDetail, "name" | "agency" | "period" | "budget" | "bidMethod">>) => void;
   onReextract: () => Promise<void>;
-  onRunMapping: (mode: MappingMode, engine: EngineKind, solutionCodes: string[]) => Promise<void>;
+  onRunMapping: (args: MappingRunArgs, scope?: MappingRunTarget) => Promise<void>;
   onDelete: () => Promise<void>;
 }
 
