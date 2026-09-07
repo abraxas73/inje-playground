@@ -1,4 +1,5 @@
 import type { MappingEngineKind, MappingRow, Verdict } from "@/lib/rfp/mapping/types";
+import type { CategorySummaryRow } from "@/lib/rfp/category-summary";
 
 export type RfpMappingStatus = "none" | "running" | "ready" | "failed";
 export type RfpVerdict = Verdict;
@@ -58,6 +59,8 @@ export interface RfpProjectDetail extends RfpProjectSummary {
   requirements: RfpRequirement[];
   /** 3단계 — 상세 초기 표시용. 이력 전체는 GET …/sharepoint */
   sharepoint: { folder: SharepointFolder | null; lastUpload: RfpSharepointUpload | null };
+  /** 요구사항 총괄표 행(구분명·ID 부여규칙·건수). 문서에 총괄표가 없으면 빈 배열 — 구분 탭 이름·검색용 */
+  categorySummary: CategorySummaryRow[];
 }
 
 /** GET /api/rfp/projects/[id]?fields=status */

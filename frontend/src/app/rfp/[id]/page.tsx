@@ -164,6 +164,7 @@ export default function RfpProjectPage() {
             mappings={project.mappings}
             catalog={catalog}
             mappingStatus={project.mappingStatus}
+            categorySummary={project.categorySummary}
             verdictFilter={verdictFilter}
             onChange={(next) => setProject((p) => (p ? { ...p, requirements: next, requirementCount: next.length } : p))}
             onMappingsChange={(next) => setProject((p) => (p ? { ...p, mappings: next } : p))}

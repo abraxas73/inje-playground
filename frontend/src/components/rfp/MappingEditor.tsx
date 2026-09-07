@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Check, ExternalLink, FileText, Link2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,8 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
   const [busy, setBusy] = useState(false);
   /** 근거 URL 입력을 펼친 행 — 기본은 문서 제목·요약만 보이고 URL은 "바로가기"로 */
   const [urlEditing, setUrlEditing] = useState<Record<string, boolean>>({});
+  /** 규칙 엔진의 정형 설명("자동 매칭 — …")은 윗줄 끝에 한 줄로만 보이고, 클릭하면 편집 칸이 열린다 */
+  const [rationaleEditing, setRationaleEditing] = useState<Record<string, boolean>>({});
   const featureIndex = useMemo(() => indexCatalog(catalog).feature, [catalog]);
 
   const solutionOptions: SearchableOption[] = catalog.filter((s) => s.isActive).map((s) => ({ value: s.code, label: s.name }));
@@ -109,8 +111,8 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
     }
   };
 
-  const ruleRow = (value: Pending, onRule: (next: Partial<Pending>) => void, keyPrefix: string) => (
-    <div className="flex flex-wrap items-center gap-2">
+  const ruleRow = (value: Pending, onRule: (next: Partial<Pending>) => void, keyPrefix: string, trailing?: ReactNode) => (
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
       <Select value={value.verdict} onValueChange={(v) => onRule({ verdict: v as Verdict })}>
         <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
         <SelectContent>{VERDICT_ORDER.map((v) => <SelectItem key={`${keyPrefix}-${v}`} value={v}>{VERDICT_LABEL[v]}</SelectItem>)}</SelectContent>
@@ -118,6 +120,7 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
       <SearchableSelect value={value.solutionCode ?? ""} onChange={(v) => onRule({ solutionCode: v })} options={solutionOptions} placeholder="솔루션" className={`w-40 ${requiresFeature(value.verdict) ? "" : "pointer-events-none opacity-50"}`} />
       <SearchableSelect value={value.featureId ?? ""} onChange={(v) => onRule({ featureId: v })} options={featureOptions(value.solutionCode, value.featureId)} placeholder={value.solutionCode ? "기능" : "솔루션 먼저"} emptyText="활성 기능이 없습니다" className={`w-56 ${requiresFeature(value.verdict) ? "" : "pointer-events-none opacity-50"}`} />
       {requiresFeature(value.verdict) && !value.featureId && <span className="text-xs text-amber-700">기능을 고르면 저장됩니다</span>}
+      {trailing}
     </div>
   );
 
@@ -130,10 +133,21 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
       </div>
       {sorted.map((row) => {
         const value = pending[row.id] ?? { verdict: row.verdict, solutionCode: row.solutionCode, featureId: row.featureId };
+        const autoRationale = row.engine === "rules" && row.rationale.startsWith("자동 매칭") && !rationaleEditing[row.id];
+        const inlineRationale = autoRationale ? (
+          <button
+            type="button"
+            className="min-w-0 max-w-full truncate text-left text-xs text-muted-foreground hover:text-foreground"
+            title={`${row.rationale} — 클릭하면 설명을 편집합니다`}
+            onClick={() => setRationaleEditing((p) => ({ ...p, [row.id]: true }))}
+          >
+            {row.rationale.replace(/^자동 매칭\s*[—-]\s*/, "")}
+          </button>
+        ) : undefined;
         return (
           <div key={row.id} className="space-y-2 rounded-md border bg-background p-3" title={row.updatedBy ? `수정 ${new Date(row.updatedAt).toLocaleString("ko-KR")}` : undefined}>
             <div className="flex items-start justify-between gap-2">
-              {ruleRow(value, (next) => changeRule(row, next), row.id)}
+              {ruleRow(value, (next) => changeRule(row, next), row.id, inlineRationale)}
               <div className="flex items-center gap-1">
                 {row.engine !== "manual" && (
                   <span className="text-xs text-muted-foreground" title="자동 매핑이 만든 행">
@@ -144,7 +158,9 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, o
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" title="행 삭제" onClick={() => remove(row)}><Trash2 className="h-4 w-4" /></Button>
               </div>
             </div>
-            <Textarea key={`${row.id}:rationale:${row.updatedAt}`} defaultValue={row.rationale} rows={2} placeholder="설명(왜 이 판정인지)" className="min-h-0 text-sm" onBlur={(e) => changeText(row, "rationale", e.target.value.trim())} />
+            {!autoRationale && (
+              <Textarea key={`${row.id}:rationale:${row.updatedAt}`} defaultValue={row.rationale} rows={2} placeholder="설명(왜 이 판정인지)" className="min-h-0 text-sm" autoFocus={!!rationaleEditing[row.id]} onBlur={(e) => { changeText(row, "rationale", e.target.value.trim()); setRationaleEditing((p) => { const rest = { ...p }; delete rest[row.id]; return rest; }); }} />
+            )}
             <EvidenceRow
               row={row}
               feature={row.featureId ? featureIndex.get(row.featureId) : undefined}

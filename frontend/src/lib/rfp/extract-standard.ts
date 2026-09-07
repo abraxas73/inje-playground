@@ -1,5 +1,6 @@
 import { cellAt, collapseWhitespace, findLabelCell, flattenCellText, normalizeLabel, rightOf, topLevelTables, type DocumentModel, type Table } from "./document-model";
 import { parseReqId, type Requirement } from "./requirements";
+import { matchesRule, patternKey, ruleToPattern, type CategorySummaryRow } from "./category-summary";
 
 export interface ExtractionResult {
   requirements: Requirement[];
@@ -37,11 +38,15 @@ export function isStandardFormat(doc: DocumentModel): boolean {
   return topLevelTables(doc).some(isRequirementTable);
 }
 
-/** 총괄표(첫 셀 "요구사항 구분", "요구사항수" 열)에서 구분 코드별 건수. 없으면 null. */
-export function readSummaryCounts(doc: DocumentModel): Map<string, number> | null {
+/**
+ * 요구사항 총괄표(첫 셀 "요구사항 구분", "ID 부여규칙"·"요구사항수" 열) 행 읽기. 없으면 null.
+ * 구분명은 첫 열, 영문명은 둘째 열이 별도 셀이고 영문일 때. 첫 열이 비고 둘째 열에만 이름이 있는 세부 행(예: 인프라 상세)은 둘째 열을 이름으로.
+ * 합계 행과 부여규칙이 코드 꼴이 아닌 행은 버린다. 건수 열이 비면 count=null.
+ */
+export function readSummaryTable(doc: DocumentModel): CategorySummaryRow[] | null {
   for (const t of topLevelTables(doc)) {
     const first = cellAt(t, 0, 0);
-    if (!first || normalizeLabel(first.text) !== "요구사항구분") continue;
+    if (!first || !FIRST_CELL.has(normalizeLabel(first.text))) continue;
     let countCol = -1;
     let ruleCol = -1;
     for (let c = 0; c < t.cols; c++) {
@@ -49,35 +54,57 @@ export function readSummaryCounts(doc: DocumentModel): Map<string, number> | nul
       if (h.includes("요구사항수") || h === "건수" || h === "수량") countCol = c;
       if (h.includes("부여규칙") || h.includes("ID")) ruleCol = c;
     }
-    if (countCol < 0 || ruleCol < 0) continue;
-    const map = new Map<string, number>();
+    if (ruleCol < 0) continue;
+    const rows: CategorySummaryRow[] = [];
     for (let r = 1; r < t.rows; r++) {
-      const label = normalizeLabel(cellAt(t, r, 0)?.text ?? "");
-      if (/^(합계|총계|계)/.test(label)) continue;
-      const countText = (cellAt(t, r, countCol)?.text ?? "").trim();
-      if (!countText) continue;
-      const count = Number(countText.replace(/[^\d]/g, ""));
-      const rule = (cellAt(t, r, ruleCol)?.text ?? "").replace(/\s+/g, "").toUpperCase();
-      const m = /^([A-Z]{2,5}(?:-[A-Z]{2,5})*)-0+$/.exec(rule);
-      if (!m || !Number.isFinite(count)) continue;
-      map.set(m[1], (map.get(m[1]) ?? 0) + count);
+      const c0 = cellAt(t, r, 0);
+      const c1 = ruleCol > 1 ? cellAt(t, r, 1) : undefined;
+      const t0 = collapseWhitespace(c0?.text ?? "");
+      const t1 = c1 && c1 !== c0 ? collapseWhitespace(c1.text) : "";
+      if (/^(합계|총계|계)/.test(normalizeLabel(t0)) || /^(합계|총계|계)/.test(normalizeLabel(t1))) continue;
+      const rule = (cellAt(t, r, ruleCol)?.text ?? "").normalize("NFKC").replace(/\s+/g, "").toUpperCase();
+      if (!ruleToPattern(rule)) continue;
+      const name = t0 || t1;
+      if (!name) continue;
+      const nameEn = t0 && t1 && t1 !== t0 && /[A-Za-z]/.test(t1) && !/[가-힣]/.test(t1) ? t1 : null;
+      const countText = countCol >= 0 ? (cellAt(t, r, countCol)?.text ?? "").replace(/[^\d]/g, "") : "";
+      rows.push({ name, nameEn, rule, count: countText ? Number(countText) : null });
     }
-    return map.size ? map : null;
+    if (rows.length) return rows;
   }
   return null;
 }
 
+/** 총괄표에서 규칙 패턴("SER", "ECR-OOO")별 건수. 건수 없는 행은 뺀다. 없으면 null. */
+export function readSummaryCounts(doc: DocumentModel): Map<string, number> | null {
+  const rows = readSummaryTable(doc);
+  if (!rows) return null;
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    if (r.count === null) continue;
+    const p = ruleToPattern(r.rule);
+    if (!p) continue;
+    const key = patternKey(p);
+    map.set(key, (map.get(key) ?? 0) + r.count);
+  }
+  return map.size ? map : null;
+}
+
+/** 총괄표 건수와 추출 건수 비교. 와일드카드 규칙(ECR-OOO)은 ECR-IFR·ECR-HWA… 를 모두 합쳐 센다. */
 function compareWithSummary(doc: DocumentModel, requirements: Requirement[]): string[] {
-  const summary = readSummaryCounts(doc);
-  if (!summary) return [];
+  const rows = readSummaryTable(doc);
+  if (!rows) return [];
+  const patterns = rows.map((r) => ({ p: ruleToPattern(r.rule)!, count: r.count })).filter((x) => x.p);
+  if (!patterns.length) return [];
+  const warnings: string[] = [];
+  for (const { p, count } of patterns) {
+    if (count === null) continue;
+    const m = requirements.filter((r) => matchesRule(p, r.categoryCode)).length;
+    if (m !== count) warnings.push(`총괄표 ${patternKey(p)} ${count}건, 추출 ${m}건`);
+  }
   const extracted = new Map<string, number>();
   for (const r of requirements) extracted.set(r.categoryCode, (extracted.get(r.categoryCode) ?? 0) + 1);
-  const warnings: string[] = [];
-  for (const [code, n] of summary) {
-    const m = extracted.get(code) ?? 0;
-    if (m !== n) warnings.push(`총괄표 ${code} ${n}건, 추출 ${m}건`);
-  }
-  for (const code of extracted.keys()) if (!summary.has(code)) warnings.push(`총괄표에 없는 구분 ${code} ${extracted.get(code)}건 추출`);
+  for (const [code, n] of extracted) if (!patterns.some(({ p }) => matchesRule(p, code))) warnings.push(`총괄표에 없는 구분 ${code} ${n}건 추출`);
   return warnings;
 }
 

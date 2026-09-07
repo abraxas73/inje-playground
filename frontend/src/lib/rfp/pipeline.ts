@@ -4,7 +4,7 @@ import { UnsupportedDocumentError, type DocumentFormat, type DocumentModel } fro
 import { detectFormat, parseDocument } from "./parse";
 import { extractOverview, nameCore, normalizeAgency, normalizeName, type Overview } from "./overview";
 import { decideDuplicate, type ExistingProject } from "./dedupe";
-import { extractStandard, isStandardFormat, type ExtractionResult } from "./extract-standard";
+import { extractStandard, isStandardFormat, readSummaryTable, type ExtractionResult } from "./extract-standard";
 import { createAnthropicExtractCall, extractWithLlm, LlmUnavailableError } from "./extract-llm";
 
 export const RFP_BUCKET = "rfp";
@@ -167,6 +167,8 @@ export async function runExtraction(admin: SupabaseClient, projectId: string): P
 
     const buf = await downloadFile(admin, file.storage_path);
     const doc = parseDocument(buf, file.original_filename);
+    // 총괄표(구분명·부여규칙·건수)는 추출 방식과 무관하게 있으면 저장 — 화면 구분 탭 이름·검색에 쓴다
+    const categorySummary = readSummaryTable(doc);
 
     let result: ExtractionResult;
     if (isStandardFormat(doc)) {
@@ -202,6 +204,7 @@ export async function runExtraction(admin: SupabaseClient, projectId: string): P
       .update({
         status: "ready", error: null, extraction_method: result.method,
         warnings: [...registerWarnings, ...result.warnings], requirement_count: result.requirements.length,
+        category_summary: categorySummary,
       })
       .eq("id", projectId);
     if (readyError) throw new Error(`상태 갱신 실패: ${readyError.message}`);

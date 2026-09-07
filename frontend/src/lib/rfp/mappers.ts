@@ -1,9 +1,10 @@
 import type { RfpFile, RfpMapping, RfpProjectDetail, RfpProjectSummary, RfpRequirement, RfpSharepointUpload, SharepointFolder } from "@/types/rfp";
 import type { MappingEngineKind, Verdict } from "./mapping/types";
 import type { RequirementRow } from "./requirements";
+import { parseCategorySummary } from "./category-summary";
 
 export const PROJECT_COLUMNS =
-  "id, name, agency, period, budget, bid_method, extra, status, extraction_method, error, warnings, requirement_count, created_by, created_at, updated_at, mapping_status, mapping_error, mapping_warnings, mapping_at, sharepoint_folder";
+  "id, name, agency, period, budget, bid_method, extra, status, extraction_method, error, warnings, requirement_count, created_by, created_at, updated_at, mapping_status, mapping_error, mapping_warnings, mapping_at, sharepoint_folder, category_summary";
 
 /** rfp_projects 행(PROJECT_COLUMNS) */
 export interface ProjectDbRow {
@@ -28,6 +29,8 @@ export interface ProjectDbRow {
   mapping_at: string | null;
   /** 3단계 — jsonb. parseSharepointFolder로 읽는다 */
   sharepoint_folder: unknown;
+  /** 총괄표 행 jsonb(CategorySummaryRow[]). 추출 때 저장, 없으면 null */
+  category_summary: unknown;
 }
 
 export interface RequirementDbRow {
@@ -192,5 +195,6 @@ export function mapProjectDetail(
     requirements,
     mappings,
     sharepoint: { folder: parseSharepointFolder(row.sharepoint_folder), lastUpload },
+    categorySummary: parseCategorySummary(row.category_summary),
   };
 }

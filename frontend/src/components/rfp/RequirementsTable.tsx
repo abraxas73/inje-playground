@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { orderCategoryCodes, sheetNameFor } from "@/lib/rfp/requirements";
 import { bestVerdict, groupByRequirement, indexCatalog, mappingSummary } from "@/lib/rfp/mapping/summary";
 import { UNMAPPED_LABEL, VERDICT_LABEL, type CatalogSolution } from "@/lib/rfp/mapping/types";
+import { categoryLabel, findCategorySummary, type CategorySummaryRow } from "@/lib/rfp/category-summary";
 import type { RfpMapping, RfpMappingStatus, RfpRequirement } from "@/types/rfp";
 
 interface Props {
@@ -28,6 +29,8 @@ interface Props {
   mappings: RfpMapping[];
   catalog: CatalogSolution[];
   mappingStatus: RfpMappingStatus;
+  /** 요구사항 총괄표 행 — 구분 탭에 분류명을 붙이고 검색에도 쓴다(없으면 요구사항 행의 구분 셀로 대체) */
+  categorySummary: CategorySummaryRow[];
   verdictFilter: VerdictFilter;
   onChange: (next: RfpRequirement[]) => void;
   onMappingsChange: (next: RfpMapping[]) => void;
@@ -42,7 +45,7 @@ async function patchRequirement(id: string, patch: Partial<Record<EditableField,
   return json;
 }
 
-export default function RequirementsTable({ projectId, requirements, mappings, catalog, mappingStatus, verdictFilter, onChange, onMappingsChange }: Props) {
+export default function RequirementsTable({ projectId, requirements, mappings, catalog, mappingStatus, categorySummary, verdictFilter, onChange, onMappingsChange }: Props) {
   /** 매핑이 한 번 끝났으면(또는 매핑 행이 있으면) 요구사항 ID를 판정 색 버튼으로 그린다 */
   const mapped = mappingStatus === "ready" || mappings.length > 0;
   const codes = useMemo(() => orderCategoryCodes(requirements.map((r) => r.categoryCode)), [requirements]);
@@ -57,6 +60,15 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
     for (const r of requirements) m.set(r.categoryCode, (m.get(r.categoryCode) ?? 0) + 1);
     return m;
   }, [requirements]);
+  /** 구분 코드 → 탭 이름(총괄표 우선, 없으면 행의 구분 셀) · 검색용 원문(국/영) */
+  const codeLabels = useMemo(() => {
+    const m = new Map<string, { label: string | null; search: string }>();
+    for (const c of codes) {
+      const row = findCategorySummary(categorySummary, c);
+      m.set(c, { label: categoryLabel(categorySummary, c, categoryNames.get(c)), search: [row?.name, row?.nameEn].filter(Boolean).join(" ") });
+    }
+    return m;
+  }, [codes, categorySummary, categoryNames]);
   const index = useMemo(() => indexCatalog(catalog), [catalog]);
   const groups = useMemo(() => groupByRequirement(mappings), [mappings]);
   const [tab, setTab] = useState("all");
@@ -197,10 +209,18 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
       const q = value.toLowerCase();
       const r = row.original;
       const summary = mappingSummary(groups.get(r.id) ?? [], index);
-      return [r.reqId, r.title, r.categoryName, r.definition, r.details, r.deliverables, r.related, summary].some((s) => s.toLowerCase().includes(q));
+      const cat = codeLabels.get(r.categoryCode);
+      return [r.reqId, r.title, r.categoryName, cat?.label ?? "", cat?.search ?? "", r.definition, r.details, r.deliverables, r.related, summary].some((s) => s.toLowerCase().includes(q));
     },
   });
   const colCount = (tab === "all" ? allColumns : detailColumns).length;
+  // 열 폭은 rem 비율 → %로 환산해 표가 컨테이너를 넘지 않게 한다(고정 rem 합이 화면보다 크면 표가 옆으로 스크롤되고 펼친 행의 매핑 패널까지 잘렸다)
+  const widthPct = useMemo(() => {
+    const cols = tab === "all" ? allColumns : detailColumns;
+    const rems = cols.map((c) => parseFloat(String(c.meta?.width ?? "8rem")) || 8);
+    const total = rems.reduce((a, b) => a + b, 0);
+    return new Map(cols.map((c, i) => [c.id ?? (c as { accessorKey?: string }).accessorKey ?? String(i), `${((rems[i] / total) * 100).toFixed(2)}%`]));
+  }, [tab, allColumns, detailColumns]);
 
   return (
     <div className="space-y-3">
@@ -209,9 +229,16 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <TabsList className="h-auto! min-w-0 flex-wrap justify-start gap-0.5">
             <TabsTrigger value="all" className="flex-none">전체 목록 <span className="ml-1 text-xs text-muted-foreground">{requirements.length}</span></TabsTrigger>
-            {codes.map((c) => (
-              <TabsTrigger key={c} value={c} className="flex-none">{c} <span className="ml-1 text-xs text-muted-foreground">{countByCode.get(c) ?? 0}</span></TabsTrigger>
-            ))}
+            {codes.map((c) => {
+              const label = codeLabels.get(c)?.label;
+              return (
+                <TabsTrigger key={c} value={c} className="flex-none" title={label ? `${c} · ${label}` : c}>
+                  {c}
+                  {label && <span className="ml-1 text-xs font-normal text-muted-foreground">{label}</span>}
+                  <span className="ml-1 text-xs text-muted-foreground">{countByCode.get(c) ?? 0}</span>
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
           <div className="flex shrink-0 items-center gap-2">
             <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="ID·명칭·내용·솔루션 검색" className="h-8 w-56" />
@@ -225,7 +252,7 @@ export default function RequirementsTable({ projectId, requirements, mappings, c
                 {table.getHeaderGroups().map((hg) => (
                   <tr key={hg.id}>
                     {hg.headers.map((h) => (
-                      <th key={h.id} style={{ width: h.column.columnDef.meta?.width }} className="px-2 py-2 align-middle">
+                      <th key={h.id} style={{ width: widthPct.get(h.column.id) ?? h.column.columnDef.meta?.width }} className="px-2 py-2 align-middle">
                         {h.column.getCanSort() ? (
                           <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={h.column.getToggleSortingHandler()}>
                             {flexRender(h.column.columnDef.header, h.getContext())}<ArrowUpDown className="h-3 w-3" />

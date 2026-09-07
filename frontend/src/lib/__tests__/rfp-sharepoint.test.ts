@@ -10,7 +10,7 @@ import type { ProjectDbRow } from "@/lib/rfp/mappers";
 const folder = { url: "https://innogrid.sharepoint.com/sites/RFP/Shared%20Documents/2026", driveId: "b!drive", itemId: "01ITEM", name: "2026", webUrl: "https://innogrid.sharepoint.com/sites/RFP/Shared%20Documents/2026", setBy: "u-9", setAt: "2026-09-05T01:00:00.000Z" };
 const project: ProjectDbRow = {
   id: "p-1", name: "생성형 AI 플랫폼 구축", agency: "한국석유공사", period: null, budget: null, bid_method: null, extra: {}, status: "ready", extraction_method: "standard", error: null, warnings: [],
-  requirement_count: 3, created_by: "u-9", created_at: "2026-09-04T00:00:00.000Z", updated_at: "2026-09-04T00:00:00.000Z", mapping_status: "ready", mapping_error: null, mapping_warnings: [], mapping_at: null, sharepoint_folder: folder,
+  requirement_count: 3, created_by: "u-9", created_at: "2026-09-04T00:00:00.000Z", updated_at: "2026-09-04T00:00:00.000Z", mapping_status: "ready", mapping_error: null, mapping_warnings: [], mapping_at: null, sharepoint_folder: folder, category_summary: null,
 };
 const FILE = "(한국석유공사) 생성형 AI 플랫폼 구축_요구사항 검토_20260905.xlsx";
 const item = { id: "01FILE", name: FILE, webUrl: "https://innogrid.sharepoint.com/sites/RFP/Shared%20Documents/2026/x.xlsx", size: 4 };

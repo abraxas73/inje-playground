@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseHwp } from "@/lib/rfp/parse-hwp";
-import { extractStandard, isStandardFormat, isRequirementTable, readSummaryCounts } from "@/lib/rfp/extract-standard";
+import { extractStandard, isStandardFormat, isRequirementTable, readSummaryCounts, readSummaryTable } from "@/lib/rfp/extract-standard";
 import type { DocumentModel, Table } from "@/lib/rfp/document-model";
 
 const here = import.meta.url; // Vite의 new URL(리터럴, import.meta.url) 특수 처리 우회
@@ -62,6 +62,27 @@ describe("extractStandard — 합성 문서", () => {
     const r = extractStandard({ format: "hwp", blocks: [summary, reqTable("SER-001")] });
     expect(r.warnings).toEqual(["총괄표 SER 3건, 추출 1건"]);
   });
+  it("총괄표 행(구분명·영문명·부여규칙·건수) — 와일드카드 규칙은 세부 구분을 합쳐 비교", () => {
+    const cell = (row: number, col: number, text: string, colSpan = 1) => ({ row, col, rowSpan: 1, colSpan, text, tables: [] });
+    const summary: Table = { type: "table", rows: 4, cols: 4, cells: [
+      cell(0, 0, "요구사항 구분", 2), cell(0, 2, "ID 부여규칙"), cell(0, 3, "요구사항 수"),
+      cell(1, 0, "시스템 장비구성 요구사항"), cell(1, 1, "Equipment Composition Requirement"), cell(1, 2, "ECR-OOO-000"), cell(1, 3, "2"),
+      cell(2, 0, ""), cell(2, 1, "인프라 상세 요구사항(Infra Detail Requirement)"), cell(2, 2, "INR-DTL-000"), cell(2, 3, "1"),
+      cell(3, 0, "합계", 3), cell(3, 3, "3"),
+    ] };
+    expect(readSummaryTable({ format: "hwp", blocks: [summary] })).toEqual([
+      { name: "시스템 장비구성 요구사항", nameEn: "Equipment Composition Requirement", rule: "ECR-OOO-000", count: 2 },
+      { name: "인프라 상세 요구사항(Infra Detail Requirement)", nameEn: null, rule: "INR-DTL-000", count: 1 },
+    ]);
+    expect(readSummaryCounts({ format: "hwp", blocks: [summary] })).toEqual(new Map([["ECR-OOO", 2], ["INR-DTL", 1]]));
+    const r = extractStandard({ format: "hwp", blocks: [summary, reqTable("ECR-IFR-001"), reqTable("ECR-HWA-001"), reqTable("INR-DTL-001")] });
+    expect(r.warnings).toEqual([]);
+    const r2 = extractStandard({ format: "hwp", blocks: [summary, reqTable("ECR-IFR-001"), reqTable("PMR-GEN-001")] });
+    expect(r2.warnings).toEqual(["총괄표 ECR-OOO 2건, 추출 1건", "총괄표 INR-DTL 1건, 추출 0건", "총괄표에 없는 구분 PMR-GEN 1건 추출"]);
+  });
+  it("총괄표가 없으면 null", () => {
+    expect(readSummaryTable({ format: "hwp", blocks: [reqTable("SER-001")] })).toBeNull();
+  });
 });
 
 describe("extractStandard — 샘플 HWP", () => {
@@ -72,6 +93,10 @@ describe("extractStandard — 샘플 HWP", () => {
     const counts = readSummaryCounts(sample)!;
     expect([...counts.values()].reduce((a, b) => a + b, 0)).toBe(124);
     expect(counts.get("INR-DTL")).toBe(4);
+    const rows = readSummaryTable(sample)!;
+    expect(rows).toHaveLength(17);
+    expect(rows.find((x) => x.rule === "INR-DTL-000")?.name).toContain("인프라 상세");
+    expect(rows[0]).toMatchObject({ name: "서비스 요구사항 (Service Requirement)", nameEn: null, rule: "SER-000", count: 4 });
   });
   it("필드 값", () => {
     const ser1 = r.requirements.find((q) => q.reqId === "SER-001")!;
