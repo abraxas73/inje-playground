@@ -61,19 +61,33 @@ export interface ChunkOutcome {
   rows: number;
 }
 
-export function summarizeChunkOutcomes(results: readonly PromiseSettledResult<ChunkOutcome>[]): { warnings: string[]; succeeded: number; failed: number; rows: number } {
-  const out = { warnings: [] as string[], succeeded: 0, failed: 0, rows: 0 };
+/**
+ * 청크 결과 집계. **실패 문구를 앞에 모은다** — 경고는 200건에서 잘리므로(ready) 뒤에 있으면
+ * 대형 프로젝트에서 실패 사실이 사라진다.
+ * `failedChunks`는 실패한 청크의 요구사항 ID 목록 — 그 요구사항들은 기존 자동 매핑이 이미
+ * 지워진 뒤 새 행을 못 넣은 상태(= 미매핑)라 사용자에게 알려 다시 실행하게 해야 한다.
+ */
+export function summarizeChunkOutcomes(
+  results: readonly PromiseSettledResult<ChunkOutcome>[],
+  chunks: readonly (readonly { reqId: string }[])[] = [],
+): { warnings: string[]; succeeded: number; failed: number; rows: number; failedReqIds: string[] } {
+  const failures: string[] = [];
+  const notes: string[] = [];
+  const out = { succeeded: 0, failed: 0, rows: 0, failedReqIds: [] as string[] };
   results.forEach((r, i) => {
     if (r.status === "fulfilled") {
       out.succeeded += 1;
       out.rows += r.value.rows;
-      out.warnings.push(...r.value.warnings);
-    } else {
-      out.failed += 1;
-      out.warnings.push(`청크 ${i + 1}/${results.length} 실패: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`);
+      notes.push(...r.value.warnings);
+      return;
     }
+    out.failed += 1;
+    const ids = (chunks[i] ?? []).map((c) => c.reqId);
+    out.failedReqIds.push(...ids);
+    const which = ids.length ? ` — 요구사항 ${ids.slice(0, 5).join(", ")}${ids.length > 5 ? ` 외 ${ids.length - 5}건` : ""}` : "";
+    failures.push(`청크 ${i + 1}/${results.length} 실패: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}${which}`);
   });
-  return out;
+  return { ...out, warnings: [...failures, ...notes] };
 }
 
 interface ReqRow {
@@ -188,8 +202,18 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
       }
       return { warnings: v.warnings, rows: v.rows.length };
     });
-    const summary = summarizeChunkOutcomes(results);
+    const summary = summarizeChunkOutcomes(results, chunks);
     if (summary.succeeded === 0) return await fail(`모든 청크가 실패했습니다. ${summary.warnings[0] ?? ""}`.trim());
+    if (summary.failed > 0) {
+      // 부분 실패를 "완료"로 보고하면 사용자는 그 요구사항이 원래 미매핑인 줄 안다.
+      // 끝난 청크의 행은 그대로 두고 상태만 failed로 남겨 "미매핑만" 재실행을 유도한다.
+      console.error(`[rfp] mapping partial failure project=${projectId} failed=${summary.failed}/${results.length}`);
+      await admin.from("rfp_projects").update({ mapping_warnings: [...scopeNote, ...summary.warnings].slice(0, 200) }).eq("id", projectId);
+      return await fail(
+        `청크 ${summary.failed}/${results.length}개가 실패해 요구사항 ${summary.failedReqIds.length}건이 미매핑으로 남았습니다. ` +
+        `"솔루션 매핑 실행 → 미매핑만"으로 이어서 실행하세요. (${summary.warnings[0] ?? ""})`,
+      );
+    }
     await ready([...scopeNote, ...summary.warnings]);
   } catch (e) {
     console.error("[rfp] mapping failed", projectId, e);

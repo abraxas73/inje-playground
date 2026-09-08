@@ -74,3 +74,26 @@ describe("parseDetailUnits", () => {
     expect(parseDetailUnits(`${long}\n○ 둘째`).units[0].label.length).toBeLessThanOrEqual(121);
   });
 });
+
+describe("글머리 문자 집합(2026-09-08 리뷰)", () => {
+  it("◦·ㅇ·► 도 1단 글머리로 본다 — 다른 파서와 같은 집합", () => {
+    const detail = "◦ 첫째 항목\n◦ 둘째 항목\n◦ 셋째 항목";
+    const r = parseDetailUnits(detail);
+    expect(r.flat).toBe(false);
+    expect(r.units.map((u) => u.label)).toEqual(["첫째 항목", "둘째 항목", "셋째 항목"]);
+
+    expect(parseDetailUnits("ㅇ 하나\nㅇ 둘").units).toHaveLength(2);
+    expect(parseDetailUnits("► 하나\n► 둘").units).toHaveLength(2);
+  });
+
+  it("▫·・는 하위 글머리라 1단 항목에 붙는다", () => {
+    const r = parseDetailUnits("○ 상위 항목\n▫ 하위 1\n・ 하위 2\n○ 다음 상위");
+    expect(r.units.map((u) => u.label)).toEqual(["상위 항목", "다음 상위"]);
+    expect(r.units[0].childCount).toBe(2);
+    expect(r.nested).toBe(true);
+  });
+
+  it("한글 문장을 글머리로 오해하지 않는다", () => {
+    expect(parseDetailUnits("ㅇㅇ 이렇게 쓰면 글머리가 아니다\n가나다 라마바").flat).toBe(true);
+  });
+});

@@ -86,6 +86,11 @@ export async function POST(request: NextRequest) {
     action: "알림 채널 테스트 발송", category: "settings",
     detail: { personal, ok: sent.ok },
   });
-  if (!sent.ok) return NextResponse.json({ error: sent.error || "발송에 실패했습니다. URL을 확인하세요." }, { status: 502 });
+  if (!sent.ok) {
+    // 원격 응답 본문은 사용자에게 돌려주지 않는다(내부 주소 탐색 방지) — 상태 코드만 알린다.
+    console.error("[notify] 개인 채널 테스트 실패", sent.error);
+    const status = /(\b\d{3}\b)/.exec(sent.error ?? "")?.[1];
+    return NextResponse.json({ error: `발송에 실패했습니다${status ? ` (응답 ${status})` : ""}. 워크플로우 URL을 확인하세요.` }, { status: 502 });
+  }
   return NextResponse.json({ ok: true, personal });
 }

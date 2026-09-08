@@ -31,7 +31,7 @@ describe("personalNotifyOverrides", () => {
 });
 
 describe("checkWebhookUrl", () => {
-  it("https 공개 주소만 통과", () => {
+  it("https 공개 도메인만 통과", () => {
     expect(checkWebhookUrl("https://prod-12.koreacentral.logic.azure.com/workflows/abc/triggers/manual/paths/invoke")).toEqual({
       ok: true, url: "https://prod-12.koreacentral.logic.azure.com/workflows/abc/triggers/manual/paths/invoke",
     });
@@ -55,6 +55,20 @@ describe("checkWebhookUrl", () => {
       "https://gw.internal/hook",
       "https://printer.local/hook",
       "https://[::1]/hook",
+    ]) {
+      expect(checkWebhookUrl(u).ok, u).toBe(false);
+    }
+  });
+  it("표기 우회(IPv4 매핑 IPv6·후행 점·단일 라벨·사설 접미사)도 막는다", () => {
+    for (const u of [
+      "https://[::ffff:127.0.0.1]/hook",   // IPv4-mapped IPv6
+      "https://[::ffff:7f00:1]/hook",      // 같은 주소의 hex 표기
+      "https://localhost./hook",           // 후행 점
+      "https://metadata.google.internal./hook",
+      "https://gw/hook",                   // 점 없는 단일 라벨
+      "https://wiki.corp/hook",
+      "https://nas.lan/hook",
+      "https://host.home.arpa/hook",
     ]) {
       expect(checkWebhookUrl(u).ok, u).toBe(false);
     }

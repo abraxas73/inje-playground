@@ -43,13 +43,33 @@ describe("runWithConcurrency", () => {
 });
 
 describe("summarizeChunkOutcomes", () => {
-  it("성공 청크의 경고를 모으고 실패 청크는 번호를 붙인다", () => {
+  it("실패 문구를 앞에 모으고 성공 청크의 경고는 뒤에 붙인다(경고 200건 절단에서 살아남게)", () => {
     const s = summarizeChunkOutcomes([
       { status: "fulfilled", value: { warnings: ["a"], rows: 10 } },
       { status: "rejected", reason: new Error("timeout") },
       { status: "fulfilled", value: { warnings: [], rows: 7 } },
     ]);
-    expect(s).toEqual({ warnings: ["a", "청크 2/3 실패: timeout"], succeeded: 2, failed: 1, rows: 17 });
+    expect(s).toEqual({ warnings: ["청크 2/3 실패: timeout", "a"], succeeded: 2, failed: 1, rows: 17, failedReqIds: [] });
+  });
+
+  it("청크를 함께 주면 실패한 요구사항 ID를 남긴다(그 요구사항은 미매핑으로 남는다)", () => {
+    const chunks = [[{ reqId: "SER-001" }], [{ reqId: "SER-002" }, { reqId: "SER-003" }]];
+    const s = summarizeChunkOutcomes(
+      [
+        { status: "fulfilled", value: { warnings: [], rows: 3 } },
+        { status: "rejected", reason: new Error("insert 실패") },
+      ],
+      chunks,
+    );
+    expect(s.failed).toBe(1);
+    expect(s.failedReqIds).toEqual(["SER-002", "SER-003"]);
+    expect(s.warnings[0]).toBe("청크 2/2 실패: insert 실패 — 요구사항 SER-002, SER-003");
+  });
+
+  it("실패 요구사항이 5건을 넘으면 뒤는 건수로 줄인다", () => {
+    const ids = ["A", "B", "C", "D", "E", "F", "G"].map((reqId) => ({ reqId }));
+    const s = summarizeChunkOutcomes([{ status: "rejected", reason: new Error("x") }], [ids]);
+    expect(s.warnings[0]).toBe("청크 1/1 실패: x — 요구사항 A, B, C, D, E 외 2건");
   });
 });
 

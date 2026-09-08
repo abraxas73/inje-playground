@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { UnsupportedDocumentError, type DocumentFormat, type DocumentModel } from "./document-model";
-import { detectFormat, parseDocumentAsync } from "./parse";
+import { detectFormat, isUploadPath, parseDocumentAsync } from "./parse";
 import { extractOverview, nameCore, normalizeAgency, normalizeName, type Overview } from "./overview";
 import { decideDuplicate, type ExistingProject } from "./dedupe";
 import { extractStandard, isStandardFormat, readSummaryTable, type ExtractionResult } from "./extract-standard";
@@ -60,6 +60,10 @@ async function removeUpload(admin: SupabaseClient, storagePath: string) {
  * 추출은 하지 않는다(라우트가 after()로 runExtraction을 호출).
  */
 export async function registerProject(admin: SupabaseClient, input: RegisterInput): Promise<RegisterResult> {
+  // 이 함수는 service role로 Storage를 읽으므로 경로 형식을 다시 확인한다(라우트 검증과 이중 방어).
+  if (!isUploadPath(input.storagePath)) {
+    return { kind: "error", status: 400, message: "업로드 경로가 올바르지 않습니다." };
+  }
   // storagePath가 이미 다른 프로젝트에 등록돼 있으면(중복 제출·재시도) 아무것도 지우지 않고 그 프로젝트로 안내한다.
   // 등록된 파일의 경로도 uploads/… 아래에 있고 서명 다운로드 URL로 노출되므로, route.ts의 startsWith("uploads/") 검사만으로는
   // "새 업로드"와 "이미 등록된 원본"을 구분할 수 없다 — 여기서 rfp_files를 직접 조회해 구분한다.
@@ -209,6 +213,9 @@ export async function runExtraction(admin: SupabaseClient, projectId: string): P
         status: "ready", error: null, extraction_method: result.method,
         warnings: [...registerWarnings, ...result.warnings], requirement_count: result.requirements.length,
         category_summary: categorySummary,
+        // 요구사항을 교체하면 매핑 행은 FK cascade로 함께 사라진다 —
+        // 상태를 되돌리지 않으면 화면·xlsx가 행 0건인데 "매핑 완료"로 표시된다.
+        mapping_status: "none", mapping_error: null, mapping_at: null, mapping_warnings: [],
       })
       .eq("id", projectId);
     if (readyError) throw new Error(`상태 갱신 실패: ${readyError.message}`);

@@ -84,6 +84,8 @@ async function postJson(fetchImpl: FetchLike, url: string, payload: unknown): Pr
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    // 리다이렉트를 따라가지 않는다 — 개인 웹훅 URL이 302로 사내 주소를 가리키는 우회를 막는다
+    redirect: "manual",
   });
 }
 
@@ -101,7 +103,10 @@ export function createTeamsNotifier(cfg: TeamsNotifierConfig, fetchImpl: FetchLi
       try {
         const res = await postJson(fetchImpl, notifyUrl, buildTeamsCardPayload({ title: msg.title, text: msg.text }));
         if (res.ok) return { ok: true };
-        return { ok: false, error: `teams hook: ${res.status} ${await res.text()}` };
+        // 응답 본문은 담지 않는다 — 웹훅 URL이 개인 설정이면 그 본문이 사용자에게 그대로 되돌아가
+        // 서버를 통한 내부 주소 탐색 창구가 된다. 본문은 서버 로그에만 남긴다.
+        console.error(`[notify] teams channel ${res.status}: ${(await res.text()).slice(0, 200)}`);
+        return { ok: false, error: `teams hook: ${res.status}` };
       } catch (e) {
         return { ok: false, error: `teams hook exception: ${errMsg(e)}` };
       }
@@ -116,7 +121,8 @@ export function createTeamsNotifier(cfg: TeamsNotifierConfig, fetchImpl: FetchLi
       try {
         const res = await postJson(fetchImpl, dmUrl, buildTeamsCardPayload({ recipientEmail: email, text: msg.text }));
         if (res.ok) return { ok: true };
-        return { ok: false, error: `dm(${email}): ${res.status} ${await res.text()}` };
+        console.error(`[notify] teams dm ${res.status}: ${(await res.text()).slice(0, 200)}`);
+        return { ok: false, error: `dm(${email}): ${res.status}` };
       } catch (e) {
         return { ok: false, error: `exception(${email}): ${errMsg(e)}` };
       }

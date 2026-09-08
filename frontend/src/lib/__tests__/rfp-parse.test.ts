@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { zipSync, strToU8 } from "fflate";
-import { detectFormat, parseDocument, extensionOf, ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES } from "@/lib/rfp/parse";
+import { detectFormat, parseDocument, extensionOf, isUploadPath, ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES } from "@/lib/rfp/parse";
 import { topLevelTables, UnsupportedDocumentError } from "@/lib/rfp/document-model";
 
 // vitest(Vite)는 `new URL("./x", import.meta.url)` 리터럴을 자산 URL로 바꿔 버리므로 변수로 우회한다
@@ -48,5 +48,23 @@ describe("parseDocument", () => {
     const doc = parseDocument(sample, "제안요청서.hwp");
     expect(doc.format).toBe("hwp");
     expect(topLevelTables(doc)).toHaveLength(232);
+  });
+});
+
+describe("isUploadPath", () => {
+  const ok = "uploads/0b3a4f2e-1c2d-4e5f-8a9b-0c1d2e3f4a5b/1a2b3c4d-5e6f-4718-9a0b-1c2d3e4f5a6b.hwp";
+  it("업로드 라우트가 만드는 형식만 통과한다", () => {
+    expect(isUploadPath(ok)).toBe(true);
+    expect(isUploadPath(ok.replace(".hwp", ".xlsx"))).toBe(true);
+  });
+  it("경로 조작·다른 버킷·확장자 위조를 막는다", () => {
+    expect(isUploadPath("uploads/../../nlm-files/secret.docx")).toBe(false);
+    expect(isUploadPath("uploads/%2e%2e/%2e%2e/nlm-files/secret.docx")).toBe(false);
+    expect(isUploadPath(ok.replace(".hwp", ".exe"))).toBe(false);
+    expect(isUploadPath("uploads/abc/def.hwp")).toBe(false);
+    expect(isUploadPath(`${ok}?x=1`)).toBe(false);
+    expect(isUploadPath(`/${ok}`)).toBe(false);
+    expect(isUploadPath("")).toBe(false);
+    expect(isUploadPath(null)).toBe(false);
   });
 });

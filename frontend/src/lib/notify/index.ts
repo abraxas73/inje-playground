@@ -2,6 +2,7 @@ import { resolveProvider, type ProviderAxis } from "@/lib/providers";
 import { loadSettings, type ServerSupabase } from "@/lib/settings-server";
 import { createDoorayNotifier } from "./dooray";
 import { createTeamsNotifier } from "./teams";
+import { checkWebhookUrl } from "./url-guard";
 import type { Notifier } from "./types";
 
 export type { Notifier, ChannelMessage, DirectRecipient, SendResult } from "./types";
@@ -39,7 +40,12 @@ export const USER_NOTIFIER_SETTING_KEYS = ["teams_notify_webhook_url", "dooray_t
  * Dooray라도). 개인 값이 없으면 빈 객체라 전역 설정이 그대로 쓰인다.
  */
 export function personalNotifyOverrides(userSettings: Record<string, string | undefined>): Record<string, string | undefined> {
-  const webhook = userSettings.teams_notify_webhook_url?.trim();
+  // 저장 시점(전용 라우트)에 이미 검사했지만 **발송 직전에 한 번 더** 본다.
+  // 값이 다른 경로로 들어왔거나 규칙이 바뀐 경우에도 사설망 주소로 POST하지 않게 하는 마지막 관문이다.
+  const raw = userSettings.teams_notify_webhook_url?.trim();
+  const checked = raw ? checkWebhookUrl(raw) : null;
+  if (raw && !checked?.ok) console.error("[notify] 개인 웹훅 URL이 규칙에 맞지 않아 무시했습니다.");
+  const webhook = checked?.ok ? checked.url : null;
   return {
     dooray_token: userSettings.dooray_token,
     ...(webhook ? { teams_notify_webhook_url: webhook, notify_provider: "teams" } : {}),

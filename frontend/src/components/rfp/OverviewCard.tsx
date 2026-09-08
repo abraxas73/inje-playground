@@ -97,7 +97,12 @@ export default function OverviewCard({ project, canDelete, catalogReady, llmAvai
           ) : (
             <Button size="sm" disabled><Download className="mr-1 h-4 w-4" />xlsx 다운로드</Button>
           )}
-          <Button variant="outline" size="sm" disabled={busy !== null || (project.status === "extracting" && !staleExtracting)} onClick={async () => { setBusy("reextract"); try { await onReextract(); } finally { setBusy(null); } }}>
+          <Button
+            variant="outline" size="sm"
+            disabled={busy !== null || (project.status === "extracting" && !staleExtracting) || project.mappingStatus === "running"}
+            title={project.mappingStatus === "running" ? "솔루션 매핑이 끝난 뒤 재추출할 수 있습니다." : "원본을 다시 파싱해 요구사항을 교체합니다(매핑은 초기화됩니다)."}
+            onClick={async () => { setBusy("reextract"); try { await onReextract(); } finally { setBusy(null); } }}
+          >
             <RefreshCw className="mr-1 h-4 w-4" />재추출
           </Button>
           {canDelete && (

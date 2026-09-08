@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
 import { loadCatalog } from "@/lib/rfp/catalog/store";
 import { validateManualMapping } from "@/lib/rfp/mapping/validate";
+import { loadDetailSiblings } from "@/lib/rfp/mapping/siblings";
 import { detailUnitMap } from "@/lib/rfp/mapping/detail-items";
 import { MAPPING_COLUMNS, mapMapping, type MappingDbRow } from "@/lib/rfp/mappers";
 import { normalizeHttpUrl } from "@/lib/rfp/url";
@@ -42,9 +43,9 @@ export async function POST(request: NextRequest, { params }: Params) {
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "카탈로그를 불러오지 못했습니다." }, { status: 500 });
   }
-  const siblingsRes = await auth.admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS).eq("requirement_id", req.id).order("sort_order");
-  if (siblingsRes.error) return NextResponse.json({ error: siblingsRes.error.message }, { status: 500 });
-  const siblings = ((siblingsRes.data ?? []) as MappingDbRow[]).map(mapMapping).filter((s) => (s.detailKey ?? null) === detailKey);
+  const siblingsRes = await loadDetailSiblings(auth.admin, req.id, detailKey);
+  if (!siblingsRes.ok) return NextResponse.json({ error: siblingsRes.error }, { status: 500 });
+  const siblings = siblingsRes.siblings;
   const check = validateManualMapping({ verdict: body.verdict, solutionCode: body.solutionCode, featureId: body.featureId }, catalog, siblings);
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
 

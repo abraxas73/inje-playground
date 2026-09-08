@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
 import { registerProject, runExtraction } from "@/lib/rfp/pipeline";
+import { isUploadPath } from "@/lib/rfp/parse";
 import { creatorNames } from "@/lib/rfp/creators";
 import { PROJECT_COLUMNS, mapProjectSummary, type ProjectDbRow } from "@/lib/rfp/mappers";
 import type { RegisterResponse } from "@/types/rfp";
@@ -40,8 +41,12 @@ export async function POST(request: NextRequest) {
   const storagePath = body?.storagePath ?? "";
   const fileName = body?.fileName?.trim() ?? "";
   const sizeBytes = Number(body?.sizeBytes);
-  if (!storagePath.startsWith("uploads/") || !fileName || !Number.isFinite(sizeBytes)) {
+  if (!fileName || !Number.isFinite(sizeBytes)) {
     return NextResponse.json({ error: "storagePath, fileName, sizeBytes가 필요합니다." }, { status: 400 });
+  }
+  // 경로는 /api/rfp/uploads가 만든 형식만 받는다(경로 조작으로 다른 버킷을 읽지 못하게)
+  if (!isUploadPath(storagePath)) {
+    return NextResponse.json({ error: "업로드 경로가 올바르지 않습니다. 파일을 다시 올려 주세요." }, { status: 400 });
   }
 
   const result = await registerProject(auth.admin, { storagePath, fileName, sizeBytes, force: body?.force === true, userId: auth.userId });

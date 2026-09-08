@@ -67,7 +67,7 @@ describe("createTeamsNotifier.sendChannel", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(
       await createTeamsNotifier({ notifyWebhookUrl: "https://w" }, vi.fn().mockResolvedValue(mockRes(401, "denied"))).sendChannel({ title: "t", text: "x" })
-    ).toEqual({ ok: false, error: "teams hook: 401 denied" });
+    ).toEqual({ ok: false, error: "teams hook: 401" }); // 원격 응답 본문은 담지 않는다(개인 웹훅이면 사용자에게 반사되므로)
     expect(
       await createTeamsNotifier({ notifyWebhookUrl: "https://w" }, vi.fn().mockRejectedValue(new Error("boom"))).sendChannel({ title: "t", text: "x" })
     ).toEqual({ ok: false, error: "teams hook exception: boom" });
@@ -97,7 +97,7 @@ describe("createTeamsNotifier.sendDirect", () => {
   it("실패 응답/예외 포맷", async () => {
     expect(
       await createTeamsNotifier({ dmWebhookUrl: "https://w" }, vi.fn().mockResolvedValue(mockRes(500, "err"))).sendDirect({ email: "a@b.c" }, { text: "x" })
-    ).toEqual({ ok: false, error: "dm(a@b.c): 500 err" });
+    ).toEqual({ ok: false, error: "dm(a@b.c): 500" });
     expect(
       await createTeamsNotifier({ dmWebhookUrl: "https://w" }, vi.fn().mockRejectedValue(new Error("net"))).sendDirect({ email: "a@b.c" }, { text: "x" })
     ).toEqual({ ok: false, error: "exception(a@b.c): net" });

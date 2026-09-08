@@ -93,9 +93,16 @@ export default function RfpProjectPage() {
     setNotice(null);
     let res = await fetch(`/api/rfp/projects/${id}/reextract`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     if (res.status === 409) {
-      const j = (await res.json()) as { needsConfirm?: boolean; editedCount?: number; error?: string };
+      const j = (await res.json()) as { needsConfirm?: boolean; editedCount?: number; mappingCount?: number; editedMappingCount?: number; error?: string };
       if (!j.needsConfirm) { setError(j.error ?? "재추출할 수 없습니다."); return; }
-      if (!window.confirm(`편집한 요구사항 ${j.editedCount}건이 원본 추출 결과로 덮어써집니다. 계속할까요?`)) return;
+      // 재추출은 요구사항을 전량 교체하므로 매핑 행도 함께 사라진다 — 손실될 것을 모두 밝힌다.
+      const lost = [
+        (j.editedCount ?? 0) > 0 ? `편집한 요구사항 ${j.editedCount}건` : null,
+        (j.mappingCount ?? 0) > 0
+          ? `솔루션 매핑 ${j.mappingCount}행${(j.editedMappingCount ?? 0) > 0 ? `(직접 확정 ${j.editedMappingCount}행 포함)` : ""}`
+          : null,
+      ].filter(Boolean).join(", ");
+      if (!window.confirm(`재추출하면 ${lost}이 사라지고 원본 추출 결과로 바뀝니다. 매핑은 다시 실행해야 합니다. 계속할까요?`)) return;
       res = await fetch(`/api/rfp/projects/${id}/reextract`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: true }) });
     }
     if (!res.ok) { setError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "재추출 요청에 실패했습니다."); return; }

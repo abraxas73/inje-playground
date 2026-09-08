@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
 import { loadCatalog } from "@/lib/rfp/catalog/store";
 import { validateManualMapping } from "@/lib/rfp/mapping/validate";
+import { loadDetailSiblings } from "@/lib/rfp/mapping/siblings";
 import { MAPPING_COLUMNS, mapMapping, type MappingDbRow } from "@/lib/rfp/mappers";
 import { normalizeHttpUrl } from "@/lib/rfp/url";
 
@@ -46,8 +47,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : "카탈로그를 불러오지 못했습니다." }, { status: 500 });
     }
-    const siblingsRes = await auth.admin.from("rfp_requirement_mappings").select(MAPPING_COLUMNS).eq("requirement_id", row.requirement_id).neq("id", mappingId);
-    if (siblingsRes.error) return NextResponse.json({ error: siblingsRes.error.message }, { status: 500 });
+    // 형제는 **같은 세부 항목**의 행만(행 추가 경로와 같은 규칙 — lib/rfp/mapping/siblings.ts)
+    const siblingsRes = await loadDetailSiblings(auth.admin, row.requirement_id, row.detail_key ?? null, mappingId);
+    if (!siblingsRes.ok) return NextResponse.json({ error: siblingsRes.error }, { status: 500 });
     const check = validateManualMapping(
       {
         verdict: "verdict" in body ? body.verdict : row.verdict,
@@ -55,7 +57,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
         featureId: "featureId" in body ? body.featureId : row.feature_id,
       },
       catalog,
-      ((siblingsRes.data ?? []) as MappingDbRow[]).map(mapMapping),
+      siblingsRes.siblings,
     );
     if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
     patch.verdict = check.verdict;
