@@ -132,3 +132,9 @@
     5. **재추출의 매핑 손실**: 요구사항을 교체하면 매핑 행이 FK cascade로 사라지므로 `runExtraction`이 `mapping_status`를 `none`으로 되돌린다(전에는 행 0건인데 "매핑 완료"로 표시). 확인 문구도 매핑 행 수·직접 확정 행 수를 세어 "재추출하면 편집한 요구사항 N건, 솔루션 매핑 M행(직접 확정 K행 포함)이 사라진다"로 바꿨고, 매핑 실행 중에는 재추출을 서버·화면 양쪽에서 막는다(요구사항이 갈리면 유령 행이 남는다).
     6. **청크 부분 실패**: 한 청크가 실패하면 `mapping_status`를 `failed`로 끝내고(끝난 청크의 행은 유지) 어떤 요구사항이 미매핑으로 남았는지 오류 문구에 남긴다. 실패 문구는 경고 배열 맨 앞에 모아 200건 절단에서 살아남게 했다. 전에는 한 청크만 성공해도 "매핑 완료"였고, 실패 청크의 요구사항은 삭제만 되고 새 행이 없어 조용히 미매핑이 됐다.
     남은 리뷰 지적(미착수): 상세 API payload 얕게(1.74MB), LLM 엔진 동시성 역산(241건에서 300초 초과), `selectAll` 미적용 4곳(`rfp_files` 우선), 카탈로그 편집 검증의 전량 조회, 가져오기 N+1 UPDATE, `detail_key` 위치 기반 오배치, stale running 상태 보정, 화면 스냅샷 갱신(lost update)·저장 실패 시 입력 소실·`EditableCell` 키보드 접근성, `runMapping`/`runImport` 잡 본체 테스트.
+60. **공유 링크**(2026-09-09): 프로젝트를 등록한 사람(또는 admin)이 상세 화면 "공유 링크" 카드에서 읽기 전용 링크를 만든다. 만들 때 공개 범위를 고른다 — **공개(public)**는 로그인 없이 열리고(사외 공유용), **사내(private)**는 링크가 있어도 우리 계정으로 로그인해야 열린다(라우트가 401 `{code:"login_required"}`을 주고 화면이 로그인 버튼을 보여 준다). 만들면 링크가 클립보드에 복사되고, 목록에 열람 횟수·최근 열람 시각이 표시되며, **폐기**하면 그 링크는 즉시 열리지 않는다(행 삭제). 프로젝트당 10개까지.
+    - 열람 화면 `/rfp/shared/{token}`: 개요·판정 요약 칩·요구사항 목록(검색·행 펼침)·세부 항목별 매핑을 본다. 편집·업로드·원본 다운로드·xlsx는 없다 — 서버 payload(`toSharedProject`)에 파일·SharePoint·소유자 정보가 아예 없다.
+    - **공개 링크는 근거 URL(사내 Confluence 주소)과 비고(내부 메모)를 감춘다.** 사내 링크는 둘 다 보여 준다.
+    - 토큰은 URL 자체가 열람 권한(capability URL)이라 감사 로그·서버 로그에 남기지 않는다(감사에는 링크 id와 공개 범위만: "공유 링크 생성"·"공유 링크 폐기"). 열람은 링크 행의 카운터로만 센다.
+    - 경로 공개는 proxy의 `PUBLIC_PREFIXES`에 `/rfp/shared`를 넣어 처리한다(로그인 리다이렉트·역할 검사 모두 건너뜀 — guest 계정도 공개 링크를 볼 수 있어야 한다). 링크 URL 오리진은 `MS_ALLOWED_ORIGINS` 허용 목록으로 고정한다(`x-forwarded-host`를 그대로 믿지 않는다).
+    - API: `GET·POST /api/rfp/projects/[id]/shares`(소유자·admin), `DELETE /api/rfp/shares/[shareId]`(소유자·admin), `GET /api/rfp/shared/[token]`(**인증 없음**, `Cache-Control: no-store`). DB `rfp_share_links` + RPC `rfp_share_link_viewed` — SQL `docs/sql/2026-09-09-rfp-share-links.sql`(운영 적용 완료).

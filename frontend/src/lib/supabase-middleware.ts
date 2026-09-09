@@ -2,6 +2,17 @@ import { createServerClient } from "@supabase/ssr";
 import { after, NextResponse, type NextRequest } from "next/server";
 import { auditProxyRequest } from "./audit-proxy";
 
+/**
+ * 로그인 없이 열리는 경로. RFP 공유 링크(`/rfp/shared/…`)는 사외 공유용이라
+ * 로그인 리다이렉트와 역할 검사를 모두 건너뛴다 — 실제 열람 권한은 라우트가 토큰으로 판단하고,
+ * private 링크는 그 라우트에서 401(login_required)로 막는다.
+ */
+const PUBLIC_PREFIXES = ["/login", "/auth", "/api", "/privacy", "/survey", "/rfp/shared"];
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 /** Routes that require specific minimum roles */
 const PROTECTED_ROUTES: { prefix: string; minRole: string }[] = [
   { prefix: "/admin", minRole: "admin" },
@@ -53,22 +64,15 @@ export async function updateSession(request: NextRequest) {
       }
     }
 
-    // 로그인 안 된 경우 /login으로 리다이렉트 (API, login, privacy, survey 등 공개 페이지 제외)
-    if (
-      !user &&
-      !pathname.startsWith("/login") &&
-      !pathname.startsWith("/auth") &&
-      !pathname.startsWith("/api") &&
-      !pathname.startsWith("/privacy") &&
-      !pathname.startsWith("/survey")
-    ) {
+    // 로그인 안 된 경우 /login으로 리다이렉트 (공개 경로 제외)
+    if (!user && !isPublicPath(pathname)) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       return NextResponse.redirect(url);
     }
 
-    // Role-based route protection
-    if (user) {
+    // Role-based route protection (공개 경로는 검사하지 않는다 — guest 계정도 공유 링크를 열 수 있어야 한다)
+    if (user && !isPublicPath(pathname)) {
       const route = PROTECTED_ROUTES.find((r) => pathname.startsWith(r.prefix));
       if (route) {
         const { data: roleData } = await supabase

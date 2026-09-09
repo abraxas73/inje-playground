@@ -229,3 +229,49 @@ export interface UploadResponse {
   notified: boolean;
   notifyError?: string;
 }
+
+/** 공유 링크 공개 범위 — public은 로그인 없이, private은 사내 로그인 후 열람 */
+export type RfpShareVisibility = "public" | "private";
+
+/** 소유자 화면용 공유 링크(토큰은 url 안에만 들어간다) */
+export interface RfpShareLink {
+  id: string;
+  visibility: RfpShareVisibility;
+  /** 전체 URL(https://…/rfp/shared/{token}) */
+  url: string;
+  createdAt: string;
+  viewCount: number;
+  lastViewedAt: string | null;
+}
+
+/** GET /api/rfp/projects/[id]/shares */
+export interface ShareLinksResponse {
+  links: RfpShareLink[];
+  /** 소유자·admin이 아니면 false — 화면이 만들기 버튼을 감춘다 */
+  canManage: boolean;
+}
+
+/** 공유 화면에 내려주는 매핑 행(솔루션·기능 이름을 미리 붙여 카탈로그 없이 그린다) */
+export interface SharedMapping extends RfpMapping {
+  solutionName: string | null;
+  featureName: string | null;
+}
+
+/** GET /api/rfp/shared/[token] — 읽기 전용 payload(파일·SharePoint·소유자 정보 없음) */
+export interface SharedProject {
+  visibility: RfpShareVisibility;
+  project: {
+    id: string;
+    name: string;
+    agency: string | null;
+    period: string | null;
+    budget: string | null;
+    bidMethod: string | null;
+    extra: Record<string, string>;
+    requirementCount: number;
+    mappingAt: string | null;
+    updatedAt: string;
+  };
+  requirements: RfpRequirement[];
+  mappings: SharedMapping[];
+}
