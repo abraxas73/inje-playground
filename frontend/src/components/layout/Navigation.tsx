@@ -72,7 +72,8 @@ export default function Navigation() {
     router.push("/login");
   };
 
-  if (pathname === "/login" || pathname === "/privacy") return null;
+  // 공유 링크 화면은 사외 열람용이라 사내 메뉴를 보여 주지 않는다(눌러도 로그인으로 튕긴다)
+  if (pathname === "/login" || pathname === "/privacy" || pathname.startsWith("/rfp/shared/")) return null;
 
   const visibleItems = NAV_ITEMS.filter((item) => hasMinRole(role, item.minRole));
   const mobileItems = visibleItems.filter((item) => item.minRole !== "admin");
