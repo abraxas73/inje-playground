@@ -125,7 +125,7 @@ export default function RfpPage() {
         <FileSearch className="h-7 w-7 text-violet-600" />
         <div>
           <h1 className="text-2xl font-bold">RFP 분석</h1>
-          <p className="text-sm text-muted-foreground">제안요청서(hwp·hwpx·docx)나 엑셀 요건표(xlsx)를 올리면 프로젝트를 등록하고 요구사항 표를 만듭니다.</p>
+          <p className="text-sm text-muted-foreground">제안요청서(hwp·hwpx·docx·pdf)나 엑셀 요건표(xlsx)를 올리면 프로젝트를 등록하고 요구사항 표를 만듭니다.</p>
         </div>
       </div>
 

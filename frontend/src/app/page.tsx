@@ -51,7 +51,7 @@ const FEATURES = [
   {
     href: "/rfp",
     title: "RFP 분석",
-    description: "제안요청서(hwp·hwpx·docx)를 올리면 사업 개요와 요구사항 표를 만들어 드립니다. 편집하고 엑셀로 내려받으세요.",
+    description: "제안요청서(hwp·hwpx·docx·pdf)를 올리면 사업 개요와 요구사항 표를 만들어 드립니다. 편집하고 엑셀로 내려받으세요.",
     icon: FileSearch,
     gradient: "from-violet-500 to-purple-600",
     bgAccent: "bg-violet-50",

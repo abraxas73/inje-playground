@@ -7,7 +7,7 @@
 > 구현 전체 설명(파서·추출·카탈로그·매핑 단위·근거·데이터 모델·한계)은 [아키텍처 문서 `docs/rfp-analyzer-architecture.md`](./rfp-analyzer-architecture.md).
 - 화면 `/rfp`(목록·업로드), `/rfp/[id]`(개요·요구사항 표). user 역할 이상.
 - API `/api/rfp/*`. 파일은 브라우저가 Storage 버킷 `rfp`에 서명 URL로 직접 올린다(Vercel 4.5MB 제한 회피).
-- 추출은 `after()`로 응답 뒤 실행(`maxDuration 300`). 표준 양식(첫 셀 "요구사항분류"/"요구사항구분"인 7행 표)은 규칙, 비표준만 Claude.
+- 원본은 hwp·hwpx·docx·xlsx·pdf. 추출은 `after()`로 응답 뒤 실행(`maxDuration 300`). 표준 양식(첫 셀 "요구사항분류"/"요구사항구분"인 7행 표)은 규칙, 비표준만 Claude. PDF는 표 구조가 없어 글자 좌표로 표를 복원한 뒤 같은 규칙을 적용한다(61항).
 - 테이블 `rfp_projects`·`rfp_files`·`rfp_requirements` — SQL `docs/sql/2026-09-03-rfp-analyzer.sql`.
 
 - **2단계(솔루션 매핑)**: 어드민 `/admin/rfp-catalog`에서 솔루션(SECloudit·Devopsit·AICubeit·TabCloudit·Openstackit 시드)마다 Confluence 페이지 URL을 등록해 "가져오기" → 서버가 페이지 id로 REST 조회 → Claude가 기능 목록 정리 → 카탈로그 병합(사람이 고친 ✎ 항목은 덮어쓰지 않음). 상세 화면 "솔루션 매핑 실행" → `after()`에서 카탈로그를 시스템 프롬프트(캐싱)로 넣고 요구사항 20건씩(동시 3) Claude 호출 → 요구사항별 0~N행(솔루션·기능·판정 충족/부분충족/설계·구축영역/해당없음·설명·근거 URL). 사람이 고친 행(✎)이 있는 요구사항은 재실행에서 제외. 테이블 `rfp_solutions`·`rfp_solution_sources`·`rfp_solution_features`·`rfp_requirement_mappings` + `rfp_projects.mapping_*` — SQL `docs/sql/2026-09-04-rfp-solution-mapping.sql`.
@@ -138,3 +138,9 @@
     - 토큰은 URL 자체가 열람 권한(capability URL)이라 감사 로그·서버 로그에 남기지 않는다(감사에는 링크 id와 공개 범위만: "공유 링크 생성"·"공유 링크 폐기"). 열람은 링크 행의 카운터로만 센다.
     - 경로 공개는 proxy의 `PUBLIC_PREFIXES`에 `/rfp/shared`를 넣어 처리한다(로그인 리다이렉트·역할 검사 모두 건너뜀 — guest 계정도 공개 링크를 볼 수 있어야 한다). 링크 URL 오리진은 `MS_ALLOWED_ORIGINS` 허용 목록으로 고정한다(`x-forwarded-host`를 그대로 믿지 않는다).
     - API: `GET·POST /api/rfp/projects/[id]/shares`(소유자·admin), `DELETE /api/rfp/shares/[shareId]`(소유자·admin), `GET /api/rfp/shared/[token]`(**인증 없음**, `Cache-Control: no-store`). DB `rfp_share_links` + RPC `rfp_share_link_viewed` — SQL `docs/sql/2026-09-09-rfp-share-links.sql`(운영 적용 완료).
+61. **PDF 제안요청서**(2026-09-09): 나라장터 제안요청서가 PDF뿐인 경우가 있어 `.pdf`도 올릴 수 있다(50MB, 다른 형식과 같은 흐름).
+    - PDF에는 표 구조가 없어 **글자 좌표로 표를 복원**한다(`lib/rfp/parse-pdf.ts`, unpdf = 서버리스용 pdf.js 번들 — 워커·canvas 없이 동작): 기준선 y가 비슷한 조각을 한 줄로 묶고(글자 높이의 0.5배), 한 줄 안에서 가로로 크게 벌어진 곳(글자 높이의 1.2배 또는 6pt)을 칸 경계로 본다. 칸이 2개 이상인 줄이 이어지면 표, 칸 1개인 줄은 문단이거나 **첫 열보다 오른쪽에 있으면 앞 칸에 이어지는 줄**(줄바꿈으로 붙여 세부 내용 글머리를 살린다). 열 번호는 칸 수가 가장 많은 줄들로 열 x 범위를 잡고 칸이 모자란 줄은 겹침으로 찾아 왼쪽으로 밀리지 않게 한다. 줄 간격이 그 표의 중앙값보다 크게 튀면 다른 표로 끊는다 — **제목 줄 없이 잇달아 붙은 요구사항 표를 나누는 규칙**이고, 이게 없으면 뒤 요구사항이 통째로 사라진다.
+    - **한/글로 만든 PDF는 낱말 사이가 NUL(U+0000)로 나온다.** 그대로 두면 라벨 비교(`요구사항분류`)가 어긋나 요구사항 표를 못 찾고, Postgres text 컬럼은 NUL을 저장하지 못해 등록 자체가 실패한다 → `cleanPdfText`가 제어문자를 공백으로 바꾸고 이어진 공백을 접는다(줄바꿈은 남긴다).
+    - 복원한 뒤는 hwp·docx와 **같은 추출 경로**다: 표준 7행 표면 `standard`, 요건표 꼴이면 `xlsx`, 아니면 Claude 폴백. 개요(사업명·발주기관·기간·금액·입찰방식)도 같은 규칙으로 읽는다.
+    - 한계: 셀 병합(rowSpan·colSpan)은 복원하지 못하고(빈 칸은 없는 칸), 칸 사이 여백이 글자 높이보다 좁은 촘촘한 표는 한 칸으로 붙을 수 있고, 한 표가 페이지 경계를 넘으면 페이지마다 다른 표가 된다(이어 붙이면 서로 다른 표가 합쳐져 요구사항이 사라질 위험이 더 크다). 여러 줄로 감기는 셀이 있는 **다열** 표는 시각적 줄마다 한 행이 된다(2열 라벨/값 표는 이어지는 줄로 정상 처리). **글자가 없는 스캔 이미지 PDF는 415로 거절**하고 "원본 문서(hwp·hwpx·docx)를 올려주세요"로 안내한다. 괘선(테두리 선)은 읽지 않는다 — 선을 그리는 방식이 만든 프로그램마다 달라 글자 좌표만 쓰는 쪽이 문서를 가리지 않는다.
+    - 검증: 실제 조달청 공고서 PDF(한/글 산출)에서 라벨/값 표 복원·NUL 제거 확인, 크롬 인쇄 PDF 샘플에서 총괄표(3열)·요구사항 표 3건 복원 후 `extractStandard` 3건 추출·경고 0건 확인. SQL `docs/sql/2026-09-09-rfp-pdf-source.sql`(`rfp_files.format`에 pdf 추가, 운영 적용 완료).

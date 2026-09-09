@@ -23,7 +23,7 @@ export interface RfpProjectSummary {
 export interface RfpFile {
   id: string;
   originalFilename: string;
-  format: "hwp" | "hwpx" | "docx";
+  format: "hwp" | "hwpx" | "docx" | "xlsx" | "pdf";
   sizeBytes: number;
   createdAt: string;
 }

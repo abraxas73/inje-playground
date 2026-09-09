@@ -63,8 +63,11 @@ flowchart LR
 | hwpx | `parse-hwpx.ts` (zip + XML) | 같음 |
 | docx | `parse-docx.ts` (zip + XML) | 같음 |
 | xlsx | `parse-xlsx.ts` (exceljs, 병합 셀 보존) | 요건표 → `extract-xlsx` |
+| pdf | `parse-pdf.ts` (unpdf = 서버리스용 pdf.js, 글자 좌표로 줄·칸 복원) | 복원한 표로 위 세 경로 그대로 |
 
-네 파서 모두 같은 `DocumentModel`(문단·표, 표는 병합 정보를 가진 셀 배열)을 낸다. 형식 판별은 매직넘버 + zip 내용(`Contents/section*.xml` / `word/document.xml` / `xl/workbook.xml`)이며 확장자만 믿지 않는다. xlsx만 비동기라 라우트·잡은 `parseDocumentAsync`를 쓴다.
+다섯 파서 모두 같은 `DocumentModel`(문단·표, 표는 병합 정보를 가진 셀 배열)을 낸다. 형식 판별은 매직넘버(`%PDF-`·OLE) + zip 내용(`Contents/section*.xml` / `word/document.xml` / `xl/workbook.xml`)이며 확장자만 믿지 않는다. xlsx·pdf는 비동기라 라우트·잡은 `parseDocumentAsync`를 쓴다.
+
+PDF에는 표 구조가 없어 글자 좌표로 표를 복원한다(줄 묶기 → 가로 간격으로 칸 나누기 → 칸 수가 가장 많은 줄로 열 잡기 → 줄 간격이 튀면 다른 표). 셀 병합은 복원하지 못하고, 글자가 없는 스캔 PDF는 415로 거절한다. 자세한 규칙·한계는 런북 61항.
 
 추출 분기(`runExtraction`): 표준 7행 표가 있으면 규칙 → 없고 엑셀 요건표가 있으면 엑셀 규칙 → 둘 다 아니면 Claude(키 없으면 실패). 결과는 `extraction_method`(standard·xlsx·llm)로 남고 화면 배지에 표시된다.
 
@@ -124,7 +127,7 @@ score     = min(1, 0.15·hitWeight + 0.7·sim)
 | 테이블 | 핵심 컬럼 |
 |---|---|
 | `rfp_projects` | 사업 개요 5필드, `status`(extracting·ready·failed), `extraction_method`, `warnings`, `category_summary`(총괄표), `mapping_status`·`mapping_error`·`mapping_warnings`·`mapping_at`, `sharepoint_folder` |
-| `rfp_files` | `storage_path`, `original_filename`, `format`(hwp·hwpx·docx·xlsx), `sha256`(유니크) |
+| `rfp_files` | `storage_path`, `original_filename`, `format`(hwp·hwpx·docx·xlsx·pdf), `sha256`(유니크) |
 | `rfp_requirements` | `category_code`·`category_name`, `req_id`, 7필드, `sort_order`, `source` |
 | `rfp_solutions` / `rfp_solution_sources` / `rfp_solution_features` | 솔루션·소스(kind confluence·xlsx, import_status)·기능(`name_norm` 유니크, `keywords`, `edited`) |
 | `rfp_requirement_mappings` | `requirement_id`, `detail_key`·`detail_text`(세부 항목), `solution_code`·`feature_id`, `verdict`, `rationale`, `evidence_text`, `evidence_url`, `engine`(rules·llm·manual), `score`, `edited`, `sort_order` |
@@ -145,7 +148,8 @@ RLS는 켜져 있고 정책은 관리자 읽기만 둔다. 쓰기는 서버(serv
 - 엑셀 요건표는 표지가 없어 사업명·발주기관을 문서에서 찾지 못한다(파일명 폴백 후 개요에서 수정). 숨긴 시트는 읽지 않는다.
 - 원본 견적요청 엑셀의 답변·비고 칸을 채워 되돌려주는 기능은 없다. 산출물은 우리 표준 xlsx다.
 - SharePoint 공유 링크(`:x:/s/…`)는 Graph에서 403이 날 수 있어 직접 경로 URL로 등록해야 한다. 사이트 정책에 따라 접근이 막히는 곳이 있다.
-- hwp 파서는 배포용·암호화 문서를 지원하지 않는다(415로 안내).
+- hwp 파서는 배포용·암호화 문서를 지원하지 않는다(415로 안내). PDF도 암호가 걸리면 415다.
+- PDF는 좌표로 표를 복원하므로 셀 병합을 잃고, 촘촘한 표는 칸이 붙을 수 있고, 표가 페이지를 넘으면 페이지마다 다른 표가 된다(런북 61항).
 
 ## 10. 파일 지도
 
@@ -159,7 +163,7 @@ frontend/src/
   components/rfp/                      업로드·개요·요구사항 표·매핑 편집기·SharePoint 섹션
   components/admin/rfp-catalog/        솔루션·소스·기능 표·매핑 설정
   lib/rfp/
-    parse*.ts document-model.ts        문서 파서 4종 + 공통 모델
+    parse*.ts document-model.ts        문서 파서 5종(hwp·hwpx·docx·xlsx·pdf) + 공통 모델
     overview.ts dedupe.ts              개요 추출·중복 판단
     extract-standard.ts extract-xlsx.ts extract-llm.ts
     category-summary.ts requirements.ts

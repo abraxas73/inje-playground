@@ -53,7 +53,7 @@ export interface RequirementDbRow {
 export interface FileDbRow {
   id: string;
   original_filename: string;
-  format: "hwp" | "hwpx" | "docx";
+  format: "hwp" | "hwpx" | "docx" | "xlsx" | "pdf";
   size_bytes: number;
   created_at: string;
 }

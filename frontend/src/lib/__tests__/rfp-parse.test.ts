@@ -16,7 +16,7 @@ describe("extensionOf / 상수", () => {
     expect(extensionOf("a.b.docx")).toBe("docx");
     expect(extensionOf("noext")).toBe("");
     expect(extensionOf("요건표.XLSX")).toBe("xlsx");
-    expect(ALLOWED_EXTENSIONS).toEqual(["hwp", "hwpx", "docx", "xlsx"]);
+    expect(ALLOWED_EXTENSIONS).toEqual(["hwp", "hwpx", "docx", "xlsx", "pdf"]);
     expect(MAX_UPLOAD_BYTES).toBe(50 * 1024 * 1024);
   });
 });
@@ -35,8 +35,9 @@ describe("detectFormat", () => {
     expect(() => detectFormat(zip({ "xl/workbook.xml": "<x/>" }), "a.xls")).toThrow(/xls/);
     expect(() => detectFormat(zip({ "other.txt": "x" }), "a.docx")).toThrow(UnsupportedDocumentError);
   });
-  it("xlsx는 동기 parseDocument로는 읽지 않는다(parseDocumentAsync)", () => {
+  it("xlsx·pdf는 동기 parseDocument로는 읽지 않는다(parseDocumentAsync)", () => {
     expect(() => parseDocument(zip({ "xl/workbook.xml": "<x/>" }), "a.xlsx")).toThrow(/parseDocumentAsync/);
+    expect(() => parseDocument(Buffer.from("%PDF-1.4\n"), "a.pdf")).toThrow(/parseDocumentAsync/);
   });
   it("OLE도 zip도 아니면 거부", () => {
     expect(() => detectFormat(Buffer.from("plain text"), "a.hwp")).toThrow(UnsupportedDocumentError);
@@ -56,6 +57,7 @@ describe("isUploadPath", () => {
   it("업로드 라우트가 만드는 형식만 통과한다", () => {
     expect(isUploadPath(ok)).toBe(true);
     expect(isUploadPath(ok.replace(".hwp", ".xlsx"))).toBe(true);
+    expect(isUploadPath(ok.replace(".hwp", ".pdf"))).toBe(true);
   });
   it("경로 조작·다른 버킷·확장자 위조를 막는다", () => {
     expect(isUploadPath("uploads/../../nlm-files/secret.docx")).toBe(false);
