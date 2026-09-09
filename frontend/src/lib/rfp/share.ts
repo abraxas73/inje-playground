@@ -87,10 +87,12 @@ export function toSharedProject(
   return {
     visibility,
     project,
-    requirements,
+    // 편집자 UUID(`updatedBy`)는 읽는 사람에게 쓸모가 없어 두 범위 모두에서 뺀다
+    requirements: requirements.map((r) => ({ ...r, updatedBy: null })),
     // 공개 링크에서는 사내 주소(근거 URL)와 내부 메모(비고)를 감춘다.
     mappings: mappings.map((m) => ({
       ...m,
+      updatedBy: null,
       evidenceUrl: isPublic ? null : m.evidenceUrl,
       note: isPublic ? null : m.note ?? null,
       solutionName: (m.solutionCode && index.solutionName.get(m.solutionCode)) ?? m.solutionCode ?? null,

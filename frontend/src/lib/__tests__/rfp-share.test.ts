@@ -86,6 +86,9 @@ describe("toSharedProject", () => {
     const keys = Object.keys(out);
     expect(keys.sort()).toEqual(["mappings", "project", "requirements", "visibility"]);
     expect(Object.keys(out.project)).not.toContain("createdBy");
+    // 내부 사용자 UUID는 두 범위 모두에서 빠진다
+    expect(out.mappings[0].updatedBy).toBeNull();
+    expect(out.requirements[0].updatedBy).toBeNull();
     expect(JSON.stringify(out)).not.toContain("sharepoint");
   });
 
