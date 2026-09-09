@@ -38,7 +38,7 @@ export default function UploadDropzone({ busy, phaseLabel, onFile }: Props) {
       {busy ? <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" /> : <Upload className="h-5 w-5 shrink-0 text-muted-foreground" />}
       <div className="min-w-0">
         <div className="text-sm font-medium">{busy ? phaseLabel ?? "처리 중…" : "제안요청서 파일을 여기에 놓거나 클릭해 선택하세요"}</div>
-        <div className="text-xs text-muted-foreground">hwp · hwpx · docx · xlsx · pdf, 50MB 이하 · 엑셀은 요건표(구분·No.·항목 열) 시트를, PDF는 글자 좌표로 표를 복원해 읽습니다</div>
+        <div className="text-xs text-muted-foreground">hwp · hwpx · docx · xlsx · pdf, 50MB 이하 · 엑셀은 요건표(구분·No.·항목 열) 시트를, PDF는 괘선으로 표를 복원해 읽습니다(스캔본 제외)</div>
       </div>
     </div>
   );

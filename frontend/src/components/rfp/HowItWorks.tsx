@@ -13,7 +13,7 @@ export default function HowItWorks({ solutions, features, maxCandidates, llmAvai
   llmAvailable: boolean;
 }) {
   const steps = [
-    { icon: FileSearch, title: "1. 업로드·등록", body: "hwp·hwpx·docx는 표준 요구사항 표(7행)를, xlsx는 요건표 시트(한 행 = 한 요구사항)를 규칙으로 읽습니다. PDF는 표 구조가 없어 글자 좌표로 표를 복원해 같은 규칙을 적용합니다(스캔한 이미지 PDF는 읽지 못합니다). 비표준 문서만 Claude가 추출합니다. 사업명·발주기관·기간·금액은 문서에서 찾아 채우고, 같은 파일·같은 사업명은 중복으로 알려 줍니다." },
+    { icon: FileSearch, title: "1. 업로드·등록", body: "hwp·hwpx·docx는 표준 요구사항 표(7행)를, xlsx는 요건표 시트(한 행 = 한 요구사항)를 규칙으로 읽습니다. PDF는 표 구조가 없어 괘선(테두리 선)으로 표를 복원해 같은 규칙을 적용합니다 — 테두리가 없는 표와 스캔한 이미지 PDF는 읽지 못합니다. 비표준 문서만 Claude가 추출합니다. 사업명·발주기관·기간·금액은 문서에서 찾아 채우고, 같은 파일·같은 사업명은 중복으로 알려 줍니다." },
     { icon: Table2, title: "2. 요구사항 표", body: "구분 탭으로 나눠 보고 셀을 눌러 바로 고칩니다. 총괄표가 있으면 구분마다 분류명이 붙고 건수를 대조해 경고를 남깁니다. 행 추가·삭제도 됩니다." },
     { icon: Sparkles, title: "3. 솔루션 매핑", body: `요구사항의 세부 내용이 목록이면 1단 항목마다(2depth는 1단으로 묶어) 후보를 냅니다. 대상 솔루션을 골라 실행하고, 세부 항목당 최대 ${maxCandidates}개·솔루션당 2개까지 제시합니다. 규칙 엔진은 "후보"만 내며 충족·부분충족 확정은 사람이 합니다.` },
     { icon: ListChecks, title: "4. 산출", body: "판정·근거를 담은 xlsx를 내려받거나 SharePoint 폴더에 올립니다(같은 날 다시 올리면 덮어쓰고 Teams로 알립니다)." },
