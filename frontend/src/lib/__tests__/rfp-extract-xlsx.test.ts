@@ -134,3 +134,17 @@ describe("extractXlsx — 견적요청 양식", () => {
     expect(r.warnings.some((w) => w.includes("찾지 못했습니다"))).toBe(true);
   });
 });
+
+describe("findHeader — 라벨/값 표 오인 방지", () => {
+  it("인식한 열이 하나뿐이면 요건표로 보지 않는다", () => {
+    // PDF 요구사항 표는 값 칸에 "…기본 요건"처럼 항목 열 문구가 들어가 헤더로 오인될 수 있다
+    const c = (row: number, col: number, text: string, colSpan = 1) => ({ row, col, rowSpan: 1, colSpan, text, tables: [] });
+    const labelValue: Table = { type: "table", rows: 3, cols: 3, cells: [
+      c(0, 0, "요구사항 번호", 2), c(0, 2, "ECR-002"),
+      c(1, 0, "요구사항 명칭", 2), c(1, 2, "HW/SW 구성 기본 요건"),
+      c(2, 0, "요구사항 상세", 2), c(2, 2, "○ 제안사는 서버, 스토리지를 산정해야 함"),
+    ] };
+    expect(findHeader(labelValue)).toBeNull();
+    expect(isXlsxRequirementFormat({ format: "pdf", blocks: [labelValue] })).toBe(false);
+  });
+});

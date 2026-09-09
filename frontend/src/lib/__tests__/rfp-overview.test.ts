@@ -89,3 +89,34 @@ describe("정규화", () => {
     expect(normalizeAgency("(주) 이노그리드")).toBe("이노그리드");
   });
 });
+
+describe("extractOverview — 한글 문서의 라벨 변형", () => {
+  it("자간을 벌린 라벨(`사 업 명`)도 읽는다", () => {
+    // 한글 제안요청서는 칸을 맞추려 라벨 자간을 벌린다(실측: 한전 AI 인프라 제안요청서)
+    const o = extractOverview({ format: "pdf", blocks: [
+      p("□ 사 업 명 : KEPCO형 AI 인프라 구축 사업"),
+      p("□ 사업기간 : 착수일로부터 6개월"),
+      p("□ 사업예산 : 약 194억원 (부가세 별도)"),
+    ] });
+    expect(o.name).toBe("KEPCO형 AI 인프라 구축 사업");
+    expect(o.period).toBe("착수일로부터 6개월");
+    expect(o.budget).toBe("약 194억원 (부가세 별도)");
+  });
+
+  it("표 라벨 칸의 끝 콜론을 떼고 공고명을 사업명으로 읽는다", () => {
+    const c = (row: number, col: number, text: string) => ({ row, col, rowSpan: 1, colSpan: 1, text, tables: [] });
+    const t: Table = { type: "table", rows: 2, cols: 2, cells: [
+      c(0, 0, "○ 공고명:"), c(0, 1, "2024년 건강보험 클라우드 표준 플랫폼 구축 사업"),
+      c(1, 0, "○ 계약방법:"), c(1, 1, "일반경쟁입찰"),
+    ] };
+    const o = extractOverview({ format: "pdf", blocks: [t] });
+    expect(o.name).toBe("2024년 건강보험 클라우드 표준 플랫폼 구축 사업");
+    expect(o.bidMethod).toBe("일반경쟁입찰");
+  });
+
+  it("값 칸이 또 다른 라벨이면(빈 계약서 양식) 값으로 쓰지 않는다", () => {
+    const c = (row: number, col: number, text: string) => ({ row, col, rowSpan: 1, colSpan: 1, text, tables: [] });
+    const form: Table = { type: "table", rows: 1, cols: 3, cells: [c(0, 0, "발주기관"), c(0, 1, "사업명"), c(0, 2, "계약금액")] };
+    expect(extractOverview({ format: "pdf", blocks: [form] }).agency).toBeNull();
+  });
+});

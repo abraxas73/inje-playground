@@ -111,3 +111,78 @@ describe("extractStandard — 샘플 HWP", () => {
     expect(new Set(r.requirements.map((q) => q.categoryCode)).size).toBe(17);
   });
 });
+
+/**
+ * 분류 행이 없는 변형 표(실측: 한전 AI 인프라 제안요청서).
+ * 번호·명칭은 라벨 칸이 두 열에 걸쳐 있고, "요구사항 상세"는 좁은 칸에서 줄바꿈되어 세로 병합된다.
+ */
+function variantTable(id: string, opts: Partial<{ title: string; definition: string; details: string }> = {}): Table {
+  const c = (row: number, col: number, text: string, rowSpan = 1, colSpan = 1) => ({ row, col, rowSpan, colSpan, text, tables: [] });
+  return { type: "table", rows: 4, cols: 3, cells: [
+    c(0, 0, "요구사항 번호", 1, 2), c(0, 2, id),
+    c(1, 0, "요구사항 명칭", 1, 2), c(1, 2, opts.title ?? "GPU 서버"),
+    c(2, 0, "요구\n사항\n상세", 2), c(2, 1, "정의"), c(2, 2, opts.definition ?? "GPU 서버 요구사항"),
+    c(3, 1, "세부\n내용"), c(3, 2, opts.details ?? "○ 수량 : 10대"),
+  ] };
+}
+
+/** 부여규칙 열이 없는 총괄표("구 분 | 세부 내용 | 수량", 구분명 괄호 안에 코드) */
+function summaryVariant(): Table {
+  const c = (row: number, col: number, text: string) => ({ row, col, rowSpan: 1, colSpan: 1, text, tables: [] });
+  return { type: "table", rows: 3, cols: 3, cells: [
+    c(0, 0, "구 분"), c(0, 1, "세부 내용"), c(0, 2, "수량"),
+    c(1, 0, "시스템 장비 요구사항\n(ECR, Equipment Composition Requirement)"), c(1, 1, "·장비 구성 관련"), c(1, 2, "2"),
+    c(2, 0, "기능 요구사항 (SFR, System Function Requirement)"), c(2, 1, "·기능 관련"), c(2, 2, "1"),
+  ] };
+}
+
+describe("분류 행이 없는 변형 표", () => {
+  it("첫 셀이 '요구사항 번호'여도 요구사항 표로 읽는다", () => {
+    expect(isRequirementTable(variantTable("ECR-001"))).toBe(true);
+    const doc: DocumentModel = { format: "pdf", blocks: [variantTable("ECR-001")] };
+    const r = extractStandard(doc);
+    expect(r.requirements).toHaveLength(1);
+    expect(r.requirements[0]).toMatchObject({
+      categoryCode: "ECR", reqId: "ECR-001", title: "GPU 서버",
+      definition: "GPU 서버 요구사항", details: "○ 수량 : 10대", deliverables: "", related: "",
+    });
+  });
+
+  it("구분명은 총괄표에서 찾고, 없으면 코드를 쓴다", () => {
+    const withSummary = extractStandard({ format: "pdf", blocks: [summaryVariant(), variantTable("ECR-001"), variantTable("ECR-002")] });
+    expect(withSummary.requirements[0].categoryName).toBe("시스템 장비 요구사항 (ECR, Equipment Composition Requirement)");
+    // ECR은 총괄표 2건 = 추출 2건이라 경고가 없고, 표가 없는 SFR만 경고로 남는다
+    expect(withSummary.warnings).toEqual(["총괄표 SFR 1건, 추출 0건"]);
+    const noSummary = extractStandard({ format: "pdf", blocks: [variantTable("PER-001")] });
+    expect(noSummary.requirements[0].categoryName).toBe("PER");
+  });
+
+  it("페이지로 갈린 이어지는 표(명칭 없음, 같은 ID)는 세부 내용에 붙인다", () => {
+    const c = (row: number, col: number, text: string, colSpan = 1) => ({ row, col, rowSpan: 1, colSpan, text, tables: [] });
+    const continuation: Table = { type: "table", rows: 2, cols: 3, cells: [
+      c(0, 0, "요구사항 번호", 2), c(0, 2, "ECR-001"), c(1, 2, "○ 이어진 내용"),
+    ] };
+    const r = extractStandard({ format: "pdf", blocks: [variantTable("ECR-001", { details: "○ 첫 페이지" }), continuation] });
+    expect(r.requirements).toHaveLength(1);
+    expect(r.requirements[0].details).toBe("○ 첫 페이지\n○ 이어진 내용");
+    expect(r.warnings.some((w) => w.includes("이어지는 표"))).toBe(true);
+  });
+});
+
+describe("readSummaryTable — 부여규칙 열이 없는 변형", () => {
+  it("구분명 괄호 안의 코드를 규칙으로 쓰고 수량을 건수로 읽는다", () => {
+    const rows = readSummaryTable({ format: "pdf", blocks: [summaryVariant()] })!;
+    expect(rows.map((r) => [r.rule, r.count])).toEqual([["ECR", 2], ["SFR", 1]]);
+    expect(readSummaryCounts({ format: "pdf", blocks: [summaryVariant()] })).toEqual(new Map([["ECR", 2], ["SFR", 1]]));
+  });
+
+  it("코드가 없는 '구분 | 품목 | 수량' 물량표는 총괄표로 보지 않는다", () => {
+    const c = (row: number, col: number, text: string) => ({ row, col, rowSpan: 1, colSpan: 1, text, tables: [] });
+    const 물량표: Table = { type: "table", rows: 3, cols: 3, cells: [
+      c(0, 0, "구 분"), c(0, 1, "품목"), c(0, 2, "수량"),
+      c(1, 0, "서버"), c(1, 1, "GPU 서버"), c(1, 2, "10"),
+      c(2, 0, "스토리지"), c(2, 1, "AI 스토리지"), c(2, 2, "1"),
+    ] };
+    expect(readSummaryTable({ format: "pdf", blocks: [물량표] })).toBeNull();
+  });
+});

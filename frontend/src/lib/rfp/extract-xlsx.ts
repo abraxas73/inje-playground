@@ -56,6 +56,9 @@ export function findHeader(t: Table): HeaderMatch | null {
       if (hit && cols[hit[1]] === undefined) cols[hit[1]] = c;
     }
     if (cols.item === undefined && cols.title === undefined) continue;
+    // 인식한 열이 하나뿐이면 요건표로 보지 않는다 — "…기본 요건"처럼 항목 열 문구가 값 칸에
+    // 우연히 들어간 라벨/값 표(PDF 요구사항 표 등)가 요건표로 오인되는 것을 막는다
+    if (Object.keys(cols).length < 2) continue;
     // 헤더 아래에 데이터가 실제로 있어야 한다
     const textCol = cols.item ?? cols.title!;
     let dataRows = 0;

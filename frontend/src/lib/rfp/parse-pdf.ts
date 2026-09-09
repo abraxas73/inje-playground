@@ -1,38 +1,43 @@
 /**
  * PDF → DocumentModel.
  *
- * PDF에는 표(表) 구조가 없다. 글자와 좌표만 있어서 표는 **좌표로 복원**한다:
- * 기준선 y가 비슷한 조각을 한 줄로 묶고, 한 줄 안에서 가로로 크게 벌어진 곳을 칸 경계로 본다.
- * 칸이 2개 이상인 줄이 이어지면 표로 보고, 칸이 1개인 줄은 문단(또는 앞 칸의 이어지는 줄)으로 본다.
+ * PDF에는 표(表) 구조가 없다. 글자와 좌표, 그리고 그려진 선만 있다.
+ * 그래서 **괘선(테두리 선)으로 표를 찾는다**: 세로선이 열 경계, 가로선이 행 경계이고
+ * 선이 없는 곳은 셀이 이어져 있다는 뜻이라 **셀 병합(rowSpan·colSpan)까지 복원된다**.
+ * 선으로 둘러싸인 칸 안에 있는 글자는 그 셀의 텍스트, 어떤 셀에도 들지 않는 글자는 문단이다.
  *
- * 괘선(테두리 선)은 읽지 않는다 — 선을 그리는 방식이 만든 프로그램(한/글·워드·크롬)마다 달라서
- * 글자 좌표만 쓰는 쪽이 문서를 가리지 않는다. 그 대가로 한계가 있다:
- * - 셀 병합(rowSpan·colSpan)은 복원하지 못한다. 비어 있는 칸은 그냥 없는 칸이 된다.
- * - 칸 사이 여백이 글자 높이보다 좁은 촘촘한 표는 한 칸으로 붙을 수 있다.
- * - 한 표가 페이지 경계를 넘으면 페이지마다 다른 표가 된다(페이지를 이어 붙이면 서로 다른 표가
- *   한 표로 합쳐질 위험이 더 크다 — 요구사항 표 하나가 통째로 사라지는 쪽이 더 나쁘다).
- * 요구사항 표는 "라벨 | 값" 2칸 표라 이 방식으로 잘 복원된다. hwp·hwpx·docx는 문서에 표 구조가
- * 있으니 그대로 읽는다(parse-hwp·parse-hwpx·parse-docx) — 이 파일은 PDF에만 쓴다.
+ * 글자 간격만으로 표를 추측하지 않는다. 한글 제안요청서 본문은 `사 업 명 : …`처럼 자간을
+ * 벌리고 탭으로 정렬해서, "가로로 벌어지면 다른 칸"으로 보면 **본문 문단이 표로 오인된다**
+ * (실측: 98쪽 제안요청서에서 표 349개가 잡히고 개요의 사업명이 엉뚱한 값으로 채워졌다).
+ * 요구사항 표는 언제나 테두리가 있으니 괘선을 믿는 쪽이 맞다.
+ *
+ * 한계:
+ * - 테두리가 없는 표는 표로 잡히지 않는다(문단이 된다). 틀린 표를 만드는 것보다 낫다.
+ * - 표 전체를 한 번의 경로(path)로 그리는 PDF는 선을 낱개로 알 수 없어 표를 놓친다.
+ * - 한 표가 페이지 경계를 넘으면 페이지마다 다른 표가 된다.
+ * - 그림·도형이 많은 페이지는 도형 테두리가 작은 표로 잡힐 수 있다(요구사항 표와 섞이지는 않는다).
+ * hwp·hwpx·docx는 문서에 표 구조가 있으니 그대로 읽는다 — 이 파일은 PDF에만 쓴다.
  */
-import { UnsupportedDocumentError, type Block, type Cell, type DocumentModel, type Table } from "./document-model";
+import { UnsupportedDocumentError, type Block, type Cell, type DocumentModel } from "./document-model";
 
 /** 같은 줄로 볼 기준선 y 차이 = 글자 높이 × 이 값 */
 const LINE_TOL_RATIO = 0.5;
-/** 다른 칸으로 볼 가로 간격 = max(글자 높이 × 이 값, CELL_GAP_MIN) */
-const CELL_GAP_RATIO = 1.2;
-const CELL_GAP_MIN = 6;
-/** 같은 칸 안에서도 이만큼(글자 높이 × 값) 벌어지면 공백 한 칸을 넣는다(글자마다 조각을 내는 PDF 대비) */
+/** 같은 줄에서 이만큼(글자 높이 × 값) 벌어지면 공백 한 칸을 넣는다(낱말·글자마다 조각을 내는 PDF 대비) */
 const WORD_GAP_RATIO = 0.2;
-/** 공백 조각이 이 폭(글자 높이 × 값) 이상이면 칸 구분 신호로 본다 */
-const BLANK_SEP_RATIO = 0.8;
-/** 표 안 줄 간격이 지금까지 간격 중앙값의 이 배수를 넘으면 다른 표로 끊는다 */
-const ROW_GAP_OUTLIER_RATIO = 1.8;
-const ROW_GAP_OUTLIER_MIN = 8;
+/** 선으로 볼 두께(pt)와 최소 길이(pt) */
+const LINE_MAX_THICK = 3;
+const LINE_MIN_LEN = 8;
+/** 선끼리 이 거리(pt) 안에서 닿으면 같은 표로 묶는다 */
+const JOIN_TOL = 3;
+/** 같은 열·행 경계로 볼 좌표 차이(pt) */
+const SNAP_TOL = 2.5;
+/** 경계선이 칸 범위의 이 비율 이상을 덮으면 칸이 나뉘어 있다고 본다 */
+const CLOSED_RATIO = 0.6;
 
 /**
  * PDF에서 뽑은 글자 정리.
- * 한/글로 만든 PDF는 낱말 사이 글리프가 유니코드로 매핑되지 않아 **NUL(U+0000)** 로 나온다
- * (`국가를 당사자로`). 그대로 두면 라벨 비교(`요구사항분류`)가 어긋나 요구사항 표를 못 찾고,
+ * 한/글로 만든 PDF는 낱말 사이 글리프가 유니코드로 매핑되지 않아 **NUL(U+0000)** 로 나온다.
+ * 그대로 두면 라벨 비교(`요구사항분류`)가 어긋나 요구사항 표를 못 찾고,
  * Postgres text 컬럼은 NUL을 아예 저장하지 못해 프로젝트 등록이 실패한다.
  * 제어문자는 공백으로 바꿔 낱말 경계를 살리고, 이어진 공백은 한 칸으로 접는다
  * (줄바꿈은 세부 내용 글머리를 나누는 데 필요해 남긴다).
@@ -48,11 +53,22 @@ export interface TextFrag {
   x0: number;
   x1: number;
   y: number;
-  /** 글자 높이 — 모든 임계값의 기준 */
+  /** 글자 높이 — 줄 묶기·낱말 간격의 기준 */
   h: number;
   text: string;
-  /** 공백만 있는 조각. 텍스트로는 쓰지 않고 칸 구분 신호로만 쓴다. */
-  blank: boolean;
+}
+
+export interface Rect {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+}
+
+/** 페이지에서 뽑은 괘선(가로·세로 따로) */
+export interface PageRules {
+  horizontal: Rect[];
+  vertical: Rect[];
 }
 
 export interface TextLine {
@@ -61,14 +77,7 @@ export interface TextLine {
   frags: TextFrag[];
 }
 
-/** 한 줄을 가로 간격으로 끊은 칸 */
-export interface LineCell {
-  x0: number;
-  x1: number;
-  text: string;
-}
-
-/** 기준선 y가 비슷한 조각끼리 한 줄로 묶는다(위 → 아래). */
+/** 기준선 y가 비슷한 조각끼리 한 줄로 묶는다(위 → 아래, 줄 안에서는 왼쪽 → 오른쪽). */
 export function groupLines(frags: TextFrag[]): TextLine[] {
   const sorted = [...frags].sort((a, b) => b.y - a.y || a.x0 - b.x0);
   const lines: TextLine[] = [];
@@ -85,188 +94,276 @@ export function groupLines(frags: TextFrag[]): TextLine[] {
   return lines;
 }
 
-/** 한 줄 → 칸들. 가로 간격이 크거나 사이에 넓은 공백 조각이 있으면 다른 칸으로 끊는다. */
-export function splitLineCells(line: TextLine): LineCell[] {
-  const cells: LineCell[] = [];
-  for (const f of line.frags) {
-    if (f.blank) continue;
-    const prev = cells[cells.length - 1];
-    const gap = prev ? f.x0 - prev.x1 : 0;
-    const wide = gap > Math.max(f.h * CELL_GAP_RATIO, CELL_GAP_MIN);
-    const separated =
-      !!prev &&
-      line.frags.some((w) => w.blank && w.x1 - w.x0 > f.h * BLANK_SEP_RATIO && w.x0 >= prev.x1 - 1 && w.x0 <= f.x0 + 1);
-    if (prev && !wide && !separated) {
-      // 양쪽에 이미 공백이 있으면 더 넣지 않는다(낱말마다 조각을 내면서 공백까지 넣는 PDF가 있다)
-      const space = gap > f.h * WORD_GAP_RATIO && !/\s$/.test(prev.text) && !/^\s/.test(f.text);
-      prev.text += (space ? " " : "") + f.text;
-      prev.x1 = Math.max(prev.x1, f.x1);
-    } else {
-      cells.push({ x0: f.x0, x1: f.x1, text: f.text });
-    }
-  }
-  return cells.map((c) => ({ ...c, text: cleanPdfText(c.text).trim() })).filter((c) => c.text.length > 0);
-}
-
-/** 표 만드는 중인 상태(줄 단위로 모아 두고 마지막에 열을 정한다) */
-interface RawTable {
-  rows: LineCell[][];
-  /** 줄 사이 간격들 — 튀는 간격에서 표를 끊기 위해 */
-  gaps: number[];
-  lastY: number;
-}
-
-function median(xs: number[]): number {
-  const s = [...xs].sort((a, b) => a - b);
-  return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
-}
-
-function overlap(a: { x0: number; x1: number }, b: { x0: number; x1: number }): number {
-  return Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
-}
-
-/**
- * 열 경계. 칸 수가 가장 많은 줄들을 기준으로 열마다 x 범위를 잡는다.
- * 가운데 정렬·오른쪽 정렬이 섞여 있어도 열 개수는 이 줄들이 알려주고,
- * 칸이 모자란 줄(병합·빈 칸)은 x 범위로 어느 열인지 찾는다.
- */
-export function columnRanges(rows: LineCell[][]): { x0: number; x1: number }[] {
-  const max = Math.max(...rows.map((r) => r.length));
-  const cols: { x0: number; x1: number }[] = [];
-  for (const row of rows) {
-    if (row.length !== max) continue;
-    row.forEach((c, i) => {
-      const col = cols[i];
-      if (col) {
-        col.x0 = Math.min(col.x0, c.x0);
-        col.x1 = Math.max(col.x1, c.x1);
-      } else {
-        cols[i] = { x0: c.x0, x1: c.x1 };
-      }
-    });
-  }
-  return cols;
-}
-
-/** 칸이 들어갈 열 번호. 겹치는 폭이 가장 큰 열, 겹치는 열이 없으면 가장 가까운 열. */
-export function columnOf(cell: LineCell, cols: { x0: number; x1: number }[]): number {
-  let best = 0;
-  let bestOverlap = -Infinity;
-  cols.forEach((col, i) => {
-    const ov = overlap(cell, col);
-    const score = ov > 0 ? ov : -Math.min(Math.abs(cell.x0 - col.x1), Math.abs(col.x0 - cell.x1));
-    if (score > bestOverlap) {
-      bestOverlap = score;
-      best = i;
-    }
+/** 한 줄의 조각들을 한 문자열로. 벌어진 만큼만 공백을 넣는다(양쪽에 이미 공백이 있으면 넣지 않는다). */
+export function joinFrags(frags: TextFrag[]): string {
+  let out = "";
+  let prevX1 = 0;
+  frags.forEach((f, i) => {
+    const gap = f.x0 - prevX1;
+    const space = i > 0 && gap > f.h * WORD_GAP_RATIO && !/\s$/.test(out) && !/^\s/.test(f.text);
+    out += (space ? " " : "") + f.text;
+    prevX1 = Math.max(prevX1, f.x1);
   });
-  return best;
+  return cleanPdfText(out).trim();
 }
 
-/** 한 행의 칸마다 열 번호. 칸 수가 열 수와 같으면 순서대로, 모자라면 x 범위로 찾는다. */
-export function assignColumns(row: LineCell[], cols: { x0: number; x1: number }[]): { col: number; cell: LineCell }[] {
-  return row.map((cell, i) => ({ col: row.length === cols.length ? i : columnOf(cell, cols), cell }));
+/** 여러 줄 → 줄바꿈으로 이은 텍스트(빈 줄은 버린다) */
+function linesText(frags: TextFrag[]): string {
+  return groupLines(frags)
+    .map((l) => joinFrags(l.frags))
+    .filter((t) => t.length > 0)
+    .join("\n");
 }
 
-function toTable(raw: RawTable): Table {
-  const cols = columnRanges(raw.rows);
-  const cells: Cell[] = [];
-  raw.rows.forEach((row, r) => {
-    for (const { col, cell } of assignColumns(row, cols)) {
-      const existing = cells.find((x) => x.row === r && x.col === col);
-      // 같은 열에 두 칸이 잡히면(간격 판정이 어긋난 경우) 텍스트를 이어 붙인다 — 버리지는 않는다
-      if (existing) existing.text = `${existing.text} ${cell.text}`.trim();
-      else cells.push({ row: r, col, rowSpan: 1, colSpan: 1, text: cell.text, tables: [] });
+function unionLength(intervals: [number, number][]): number {
+  const sorted = [...intervals].filter(([a, b]) => b > a).sort((p, q) => p[0] - q[0]);
+  let total = 0;
+  let curStart = 0;
+  let curEnd = -Infinity;
+  for (const [a, b] of sorted) {
+    if (a > curEnd) {
+      total += Math.max(0, curEnd - curStart);
+      curStart = a;
+      curEnd = b;
+    } else if (b > curEnd) {
+      curEnd = b;
     }
-  });
-  return { type: "table", rows: raw.rows.length, cols: cols.length, cells };
-}
-
-/**
- * 줄들 → 문단·표 블록.
- * - 칸 2개 이상인 줄: 표의 새 행. 줄 간격이 튀면 다른 표로 끊는다.
- * - 칸 1개인 줄: 표를 만드는 중이고 첫 열보다 오른쪽에 있으면 앞 행의 그 열에 이어지는 줄,
- *   아니면 표를 끝내고 문단.
- */
-export function blocksFromLines(lines: TextLine[]): Block[] {
-  const out: Block[] = [];
-  let raw: RawTable | null = null;
-  const flush = () => {
-    if (raw) out.push(toTable(raw));
-    raw = null;
-  };
-
-  for (const line of lines) {
-    const cells = splitLineCells(line);
-    if (!cells.length) continue;
-    const gap = raw ? raw.lastY - line.y : 0;
-    const outlier =
-      !!raw && raw.gaps.length > 0 && gap > Math.max(median(raw.gaps) * ROW_GAP_OUTLIER_RATIO, median(raw.gaps) + ROW_GAP_OUTLIER_MIN);
-
-    if (cells.length >= 2) {
-      if (raw && outlier) flush();
-      if (raw) {
-        raw.gaps.push(gap);
-        raw.rows.push(cells);
-        raw.lastY = line.y;
-      } else {
-        raw = { rows: [cells], gaps: [], lastY: line.y };
-      }
-      continue;
-    }
-
-    // 칸 1개
-    const cell = cells[0];
-    const cur: RawTable | null = raw;
-    if (cur && !outlier) {
-      const cols = columnRanges(cur.rows);
-      const col = columnOf(cell, cols);
-      // 첫 열(라벨 열)에 걸리는 줄은 표의 이어지는 줄로 보지 않는다 — 표 사이의 제목 줄이 그렇다
-      if (col > 0 && overlap(cell, cols[col]) > 0) {
-        const last = cur.rows[cur.rows.length - 1];
-        const target = assignColumns(last, cols).find((x) => x.col === col)?.cell;
-        if (target) {
-          target.text = `${target.text}\n${cell.text}`;
-          target.x1 = Math.max(target.x1, cell.x1);
-        } else {
-          last.push(cell);
-        }
-        cur.lastY = line.y;
-        continue;
-      }
-    }
-    flush();
-    out.push({ type: "paragraph", text: cell.text });
   }
-  flush();
+  return total + Math.max(0, curEnd - curStart);
+}
+
+/** 좌표들을 가까운 것끼리 묶어 대표값 하나씩(오름차순) */
+export function snapValues(values: number[], tol = SNAP_TOL): number[] {
+  const sorted = [...values].sort((a, b) => a - b);
+  const out: number[] = [];
+  for (const v of sorted) if (!out.length || v - out[out.length - 1] > tol) out.push(v);
   return out;
 }
 
+function touches(a: Rect, b: Rect, tol: number): boolean {
+  return a.x0 - tol <= b.x1 && b.x0 - tol <= a.x1 && a.y0 - tol <= b.y1 && b.y0 - tol <= a.y1;
+}
+
+/** 서로 닿는 선끼리 묶은 덩어리. 가로·세로선이 각 2개 이상이면 표가 된다. */
+export function ruleClusters(rules: PageRules): PageRules[] {
+  const all = [
+    ...rules.horizontal.map((r) => ({ r, vertical: false })),
+    ...rules.vertical.map((r) => ({ r, vertical: true })),
+  ];
+  const parent = all.map((_, i) => i);
+  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  for (let i = 0; i < all.length; i++) {
+    for (let j = i + 1; j < all.length; j++) {
+      if (touches(all[i].r, all[j].r, JOIN_TOL)) parent[find(i)] = find(j);
+    }
+  }
+  const groups = new Map<number, PageRules>();
+  all.forEach((item, i) => {
+    const key = find(i);
+    const g = groups.get(key) ?? { horizontal: [], vertical: [] };
+    (item.vertical ? g.vertical : g.horizontal).push(item.r);
+    groups.set(key, g);
+  });
+  return [...groups.values()].filter((g) => g.horizontal.length >= 2 && g.vertical.length >= 2);
+}
+
+interface GridCell {
+  row: number;
+  col: number;
+  rowSpan: number;
+  colSpan: number;
+  rect: Rect;
+}
+
+/** 세로 경계 x가 [yLo, yHi] 구간을 막고 있는지(선이 여러 조각으로 나뉘어 있어도 합쳐 센다) */
+function vClosed(vs: Rect[], x: number, yLo: number, yHi: number): boolean {
+  const spans = vs
+    .filter((v) => Math.abs((v.x0 + v.x1) / 2 - x) <= SNAP_TOL)
+    .map((v) => [Math.max(v.y0, yLo), Math.min(v.y1, yHi)] as [number, number]);
+  return unionLength(spans) >= (yHi - yLo) * CLOSED_RATIO;
+}
+
+/** 가로 경계 y가 [xLo, xHi] 구간을 막고 있는지 */
+function hClosed(hs: Rect[], y: number, xLo: number, xHi: number): boolean {
+  const spans = hs
+    .filter((h) => Math.abs((h.y0 + h.y1) / 2 - y) <= SNAP_TOL)
+    .map((h) => [Math.max(h.x0, xLo), Math.min(h.x1, xHi)] as [number, number]);
+  return unionLength(spans) >= (xHi - xLo) * CLOSED_RATIO;
+}
+
+/**
+ * 선들이 공통으로 뻗어 있는 양 끝. 바깥 테두리를 그리지 않는 표(가로줄만 있고 좌우 테두리가 없는 양식)에서
+ * 가로선의 양 끝이 곧 첫 열의 왼쪽·마지막 열의 오른쪽 경계다. 두 줄 이상이 같은 끝에 닿을 때만 인정한다
+ * (표 위에 걸친 장식 선 하나 때문에 없는 열이 생기지 않도록).
+ */
+export function outerEdges(spans: [number, number][]): number[] {
+  if (spans.length < 2) return [];
+  const lo = Math.min(...spans.map((s) => s[0]));
+  const hi = Math.max(...spans.map((s) => s[1]));
+  const edges: number[] = [];
+  if (spans.filter((s) => Math.abs(s[0] - lo) <= SNAP_TOL).length >= 2) edges.push(lo);
+  if (spans.filter((s) => Math.abs(s[1] - hi) <= SNAP_TOL).length >= 2) edges.push(hi);
+  return edges;
+}
+
+/**
+ * 괘선 덩어리 → 격자. 세로선 x가 열 경계, 가로선 y가 행 경계이고,
+ * 경계에 선이 없으면 그만큼 셀이 이어진 것(병합)으로 본다.
+ */
+export function buildGrid(cluster: PageRules): { cells: GridCell[]; rows: number; cols: number; rect: Rect } | null {
+  const xs = snapValues([
+    ...cluster.vertical.map((v) => (v.x0 + v.x1) / 2),
+    ...outerEdges(cluster.horizontal.map((h) => [h.x0, h.x1])),
+  ]);
+  const ysAsc = snapValues([
+    ...cluster.horizontal.map((h) => (h.y0 + h.y1) / 2),
+    ...outerEdges(cluster.vertical.map((v) => [v.y0, v.y1])),
+  ]);
+  if (xs.length < 2 || ysAsc.length < 2) return null;
+  const ys = [...ysAsc].reverse(); // 위 → 아래
+  const cols = xs.length - 1;
+  const rows = ys.length - 1;
+  const taken = Array.from({ length: rows }, () => Array<boolean>(cols).fill(false));
+  const cells: GridCell[] = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (taken[r][c]) continue;
+      let colSpan = 1;
+      while (c + colSpan < cols && !vClosed(cluster.vertical, xs[c + colSpan], ys[r + 1], ys[r])) colSpan++;
+      let rowSpan = 1;
+      while (r + rowSpan < rows && !hClosed(cluster.horizontal, ys[r + rowSpan], xs[c], xs[c + colSpan])) rowSpan++;
+      for (let rr = r; rr < r + rowSpan; rr++) for (let cc = c; cc < c + colSpan; cc++) taken[rr][cc] = true;
+      cells.push({
+        row: r,
+        col: c,
+        rowSpan,
+        colSpan,
+        rect: { x0: xs[c], x1: xs[c + colSpan], y0: ys[r + rowSpan], y1: ys[r] },
+      });
+    }
+  }
+  return { cells, rows, cols, rect: { x0: xs[0], x1: xs[xs.length - 1], y0: ys[rows], y1: ys[0] } };
+}
+
+/** 글자 조각이 이 사각형 안에 있는지 — 시작점(왼쪽 아래)으로 판정해 칸을 넘겨 쓴 글자도 시작한 칸에 넣는다 */
+function inRect(f: TextFrag, rect: Rect): boolean {
+  const x = f.x0 + Math.min(1.5, Math.max(0, (f.x1 - f.x0) / 2));
+  const y = f.y + f.h * 0.25;
+  return x >= rect.x0 && x <= rect.x1 && y >= rect.y0 && y <= rect.y1;
+}
+
+/** 한 페이지의 글자·괘선 → 문단·표 블록(위에서 아래 순서) */
+export function blocksFromPage(frags: TextFrag[], rules: PageRules): Block[] {
+  const blocks: { top: number; block: Block }[] = [];
+  const consumed = new Set<TextFrag>();
+
+  for (const cluster of ruleClusters(rules)) {
+    const grid = buildGrid(cluster);
+    if (!grid) continue;
+    const cells: Cell[] = [];
+    for (const g of grid.cells) {
+      const inside = frags.filter((f) => !consumed.has(f) && inRect(f, g.rect));
+      const text = linesText(inside);
+      inside.forEach((f) => consumed.add(f));
+      if (!text) continue;
+      cells.push({ row: g.row, col: g.col, rowSpan: g.rowSpan, colSpan: g.colSpan, text, tables: [] });
+    }
+    if (!cells.length) continue;
+    blocks.push({ top: grid.rect.y1, block: { type: "table", rows: grid.rows, cols: grid.cols, cells } });
+  }
+
+  for (const line of groupLines(frags.filter((f) => !consumed.has(f)))) {
+    const text = joinFrags(line.frags);
+    if (text) blocks.push({ top: line.y, block: { type: "paragraph", text } });
+  }
+
+  return blocks.sort((a, b) => b.top - a.top).map((b) => b.block);
+}
+
 /** PDF 한 페이지의 텍스트 조각. 회전된 글자(가로쓰기가 아닌 것)는 줄 묶음을 망치므로 버린다. */
-function fragsOfPage(items: unknown[]): TextFrag[] {
+export function fragsOfPage(items: unknown[]): TextFrag[] {
   const frags: TextFrag[] = [];
   for (const raw of items) {
     const it = raw as { str?: string; width?: number; height?: number; transform?: number[] };
     if (typeof it.str !== "string" || !it.str.length || !it.transform) continue;
     const [a, b, c, d, e, f] = it.transform;
     if (Math.abs(b) > 0.01 || Math.abs(c) > 0.01) continue;
-    // 제어문자는 여기서 걷어낸다 — 그래야 "공백만 있는 조각"(칸 구분 신호) 판정도 맞는다
+    // 제어문자는 여기서 걷어낸다 — 그래야 빈 조각을 걸러내는 판정도 맞는다
     const text = cleanPdfText(it.str);
-    if (!text.length) continue;
+    if (!text.trim()) continue;
     const h = it.height || Math.abs(d) || Math.abs(a) || 10;
-    const w = it.width ?? 0;
-    frags.push({ x0: e, x1: e + w, y: f, h, text, blank: !text.trim() });
+    frags.push({ x0: e, x1: e + (it.width ?? 0), y: f, h, text });
   }
   return frags;
 }
 
+type Matrix = [number, number, number, number, number, number];
+
+function mul(m: Matrix, n: Matrix): Matrix {
+  return [
+    m[0] * n[0] + m[2] * n[1],
+    m[1] * n[0] + m[3] * n[1],
+    m[0] * n[2] + m[2] * n[3],
+    m[1] * n[2] + m[3] * n[3],
+    m[0] * n[4] + m[2] * n[5] + m[4],
+    m[1] * n[4] + m[3] * n[5] + m[5],
+  ];
+}
+
 /**
- * PDF → DocumentModel. 페이지마다 줄·표를 복원해 순서대로 이어 붙인다.
+ * 페이지 연산자 목록 → 괘선. 경로(path)마다 pdf.js가 함께 주는 경계 상자를 현재 변환행렬로 옮긴 뒤,
+ * 한쪽이 얇고 다른 쪽이 길면 선으로 본다(테두리를 얇은 사각형으로 채우는 PDF와 선으로 긋는 PDF 모두 걸린다).
+ * 변환행렬은 save/restore/transform을 따라가며 관리한다 — 문서마다 페이지 전체에 축척·뒤집기를 걸어 두기 때문.
+ */
+export function rulesFromOperatorList(
+  fnArray: ArrayLike<number>,
+  argsArray: ArrayLike<unknown>,
+  ops: { save: number; restore: number; transform: number; constructPath: number },
+): PageRules {
+  const rules: PageRules = { horizontal: [], vertical: [] };
+  let ctm: Matrix = [1, 0, 0, 1, 0, 0];
+  const stack: Matrix[] = [];
+  for (let i = 0; i < fnArray.length; i++) {
+    const fn = fnArray[i];
+    if (fn === ops.save) {
+      stack.push(ctm);
+    } else if (fn === ops.restore) {
+      ctm = stack.pop() ?? ctm;
+    } else if (fn === ops.transform) {
+      const a = argsArray[i] as ArrayLike<number> | undefined;
+      if (a && a.length >= 6) ctm = mul(ctm, [a[0], a[1], a[2], a[3], a[4], a[5]]);
+    } else if (fn === ops.constructPath) {
+      const args = argsArray[i] as ArrayLike<unknown> | undefined;
+      const box = args?.[2] as ArrayLike<number> | undefined;
+      if (!box || box.length < 4) continue;
+      const xs: number[] = [];
+      const ys: number[] = [];
+      for (const [px, py] of [
+        [box[0], box[1]],
+        [box[2], box[1]],
+        [box[0], box[3]],
+        [box[2], box[3]],
+      ]) {
+        xs.push(ctm[0] * px + ctm[2] * py + ctm[4]);
+        ys.push(ctm[1] * px + ctm[3] * py + ctm[5]);
+      }
+      const rect: Rect = { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+      const w = rect.x1 - rect.x0;
+      const h = rect.y1 - rect.y0;
+      if (h <= LINE_MAX_THICK && w >= LINE_MIN_LEN) rules.horizontal.push(rect);
+      else if (w <= LINE_MAX_THICK && h >= LINE_MIN_LEN) rules.vertical.push(rect);
+    }
+  }
+  return rules;
+}
+
+/**
+ * PDF → DocumentModel. 페이지마다 글자와 괘선을 읽어 표·문단을 복원하고 순서대로 이어 붙인다.
  * 텍스트가 전혀 없으면(스캔 이미지 PDF) UnsupportedDocumentError.
  */
 export async function parsePdf(buf: Buffer): Promise<DocumentModel> {
   // unpdf = 서버리스용으로 묶은 pdf.js(워커·canvas 없이 동작). 동적 import로 실제 PDF에서만 로드한다.
-  const { getDocumentProxy } = await import("unpdf");
+  const { getDocumentProxy, getResolvedPDFJS } = await import("unpdf");
   let pdf: Awaited<ReturnType<typeof getDocumentProxy>>;
   try {
     // 원본 Buffer를 그대로 넘기면 pdf.js가 내부에서 조각내며 손상시킬 수 있어 복사해서 넘긴다.
@@ -276,15 +373,17 @@ export async function parsePdf(buf: Buffer): Promise<DocumentModel> {
     if (name === "PasswordException") throw new UnsupportedDocumentError("암호가 걸린 PDF는 읽을 수 없습니다. 암호를 푼 파일을 올려주세요.");
     throw new UnsupportedDocumentError(`PDF를 열 수 없습니다: ${e instanceof Error ? e.message : "알 수 없는 오류"}`);
   }
+  const { OPS } = await getResolvedPDFJS();
+  const ops = { save: OPS.save, restore: OPS.restore, transform: OPS.transform, constructPath: OPS.constructPath };
 
   const blocks: Block[] = [];
   let fragCount = 0;
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
-    const content = await page.getTextContent();
+    const [content, opList] = await Promise.all([page.getTextContent(), page.getOperatorList()]);
     const frags = fragsOfPage(content.items);
-    fragCount += frags.filter((f) => !f.blank).length;
-    blocks.push(...blocksFromLines(groupLines(frags)));
+    fragCount += frags.length;
+    blocks.push(...blocksFromPage(frags, rulesFromOperatorList(opList.fnArray, opList.argsArray, ops)));
   }
   if (fragCount === 0) {
     throw new UnsupportedDocumentError(

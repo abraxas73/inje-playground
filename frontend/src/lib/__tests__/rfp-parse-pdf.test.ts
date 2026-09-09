@@ -2,33 +2,43 @@
 // pdf.js(unpdf)는 브라우저 흉내를 내는 jsdom에서 워커를 찾으려 하므로 node 환경에서 돈다.
 import { describe, expect, it } from "vitest";
 import {
-  blocksFromLines,
+  blocksFromPage,
+  buildGrid,
   cleanPdfText,
-  columnOf,
-  columnRanges,
+  fragsOfPage,
   groupLines,
+  joinFrags,
+  outerEdges,
   parsePdf,
-  splitLineCells,
+  ruleClusters,
+  rulesFromOperatorList,
+  snapValues,
+  type PageRules,
+  type Rect,
   type TextFrag,
 } from "@/lib/rfp/parse-pdf";
-import { cellAt, tableText, type Table } from "@/lib/rfp/document-model";
+import { cellAt, tableText, UnsupportedDocumentError, type Table } from "@/lib/rfp/document-model";
 import { detectFormat, parseDocumentAsync } from "@/lib/rfp/parse";
 import { extractStandard, isStandardFormat } from "@/lib/rfp/extract-standard";
-import { UnsupportedDocumentError } from "@/lib/rfp/document-model";
 
 const NUL = String.fromCharCode(0);
 
-/** 글자 폭 대신 글자 수 × 비율로 x1을 잡는 조각 만들기 도우미 */
+/** 글자 폭은 글자 수 × 높이 절반으로 어림한다(실제 폰트 대신) */
 function frag(x: number, y: number, text: string, h = 11): TextFrag {
-  return { x0: x, x1: x + text.length * h * 0.5, y, h, text, blank: !text.trim() };
+  return { x0: x, x1: x + text.length * h * 0.5, y, h, text };
 }
+const hLine = (x0: number, x1: number, y: number): Rect => ({ x0, x1, y0: y - 0.25, y1: y + 0.25 });
+const vLine = (x: number, y0: number, y1: number): Rect => ({ x0: x - 0.25, x1: x + 0.25, y0, y1 });
 
 /**
  * 최소 PDF 한 장(표준 폰트 Helvetica, 폰트 내장 없음).
- * unpdf 연동과 좌표 추출이 실제로 되는지 보기 위한 픽스처라 아스키만 쓴다.
+ * 괘선은 얇은 사각형 채우기(`re f`)로 그린다 — 한/글·크롬이 테두리를 그리는 방식과 같다.
  */
-function onePagePdf(items: { x: number; y: number; text: string }[]): Buffer {
-  const content = items.map((i) => `BT /F1 11 Tf 1 0 0 1 ${i.x} ${i.y} Tm (${i.text}) Tj ET`).join("\n");
+function onePagePdf(items: { x: number; y: number; text: string }[], rects: [number, number, number, number][] = []): Buffer {
+  const content = [
+    ...rects.map(([x, y, w, h]) => `${x} ${y} ${w} ${h} re f`),
+    ...items.map((i) => `BT /F1 11 Tf 1 0 0 1 ${i.x} ${i.y} Tm (${i.text}) Tj ET`),
+  ].join("\n");
   const objs = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
@@ -62,118 +72,192 @@ describe("cleanPdfText", () => {
   });
 });
 
-describe("groupLines", () => {
+describe("groupLines / joinFrags", () => {
   it("기준선 y가 비슷하면 한 줄로 묶고 x 순으로 정렬한다", () => {
     const lines = groupLines([frag(200, 700, "값"), frag(100, 700.4, "라벨"), frag(100, 680, "다음 줄")]);
     expect(lines.map((l) => l.frags.map((f) => f.text))).toEqual([["라벨", "값"], ["다음 줄"]]);
   });
-});
 
-describe("splitLineCells", () => {
-  it("가로로 크게 벌어지면 다른 칸으로 끊는다", () => {
-    const line = groupLines([frag(100, 700, "요구사항 분류"), frag(250, 700, "기능 요구사항")])[0];
-    expect(splitLineCells(line).map((c) => c.text)).toEqual(["요구사항 분류", "기능 요구사항"]);
-  });
-
-  it("붙어 있는 조각은 한 칸으로 이어 붙인다(글자마다 조각을 내는 PDF)", () => {
+  it("붙어 있는 조각은 그대로, 벌어진 조각 사이에는 공백 하나", () => {
     const a = frag(100, 700, "사용자");
-    const b = { ...frag(a.x1, 700, "관리"), x0: a.x1 };
-    expect(splitLineCells(groupLines([a, b])[0]).map((c) => c.text)).toEqual(["사용자관리"]);
-  });
-
-  it("낱말만큼 벌어진 조각 사이에는 공백을 넣는다", () => {
-    const a = frag(100, 700, "사용자");
-    const b = { ...frag(a.x1 + 4, 700, "관리"), x0: a.x1 + 4 };
-    expect(splitLineCells(groupLines([a, b])[0]).map((c) => c.text)).toEqual(["사용자 관리"]);
-  });
-
-  it("넓은 공백 조각은 칸 구분 신호로 쓰고 텍스트로는 쓰지 않는다", () => {
-    const a = frag(100, 700, "구분");
-    const gap: TextFrag = { x0: a.x1, x1: a.x1 + 20, y: 700, h: 11, text: " ", blank: true };
-    const b: TextFrag = { x0: a.x1 + 4, x1: a.x1 + 30, y: 700, h: 11, text: "용역", blank: false };
-    expect(splitLineCells(groupLines([a, gap, b])[0]).map((c) => c.text)).toEqual(["구분", "용역"]);
+    expect(joinFrags([a, { ...frag(a.x1, 700, "관리"), x0: a.x1 }])).toBe("사용자관리");
+    expect(joinFrags([a, { ...frag(a.x1 + 4, 700, "관리"), x0: a.x1 + 4 }])).toBe("사용자 관리");
   });
 });
 
-describe("columnRanges / columnOf", () => {
-  it("칸 수가 가장 많은 줄들로 열을 잡고, 칸이 모자란 줄은 x로 열을 찾는다", () => {
-    const rows = [
-      [{ x0: 60, x1: 120, text: "구분" }, { x0: 240, x1: 300, text: "부여규칙" }, { x0: 400, x1: 460, text: "건수" }],
-      [{ x0: 400, x1: 410, text: "3" }],
+describe("snapValues / outerEdges", () => {
+  it("가까운 좌표는 하나로 묶는다", () => {
+    expect(snapValues([100, 101, 300, 300.5, 99])).toEqual([99, 300]);
+  });
+
+  it("두 줄 이상이 같은 끝에 닿을 때만 바깥 경계로 인정한다", () => {
+    // 가로줄만 있고 좌우 테두리를 안 그린 표: 가로줄들의 양 끝이 첫·마지막 열 경계다
+    expect(outerEdges([[55, 543], [55, 543], [55, 543]])).toEqual([55, 543]);
+    // 표 위에 걸친 장식 선 하나 때문에 없는 열이 생기면 안 된다
+    expect(outerEdges([[10, 543], [55, 543], [55, 543]])).toEqual([543]);
+  });
+});
+
+describe("ruleClusters", () => {
+  it("서로 닿는 선끼리 묶고, 가로·세로선이 2개 이상인 덩어리만 표로 본다", () => {
+    const rules: PageRules = {
+      horizontal: [hLine(100, 400, 700), hLine(100, 400, 600), hLine(50, 200, 300)],
+      vertical: [vLine(100, 600, 700), vLine(400, 600, 700), vLine(60, 290, 310)],
+    };
+    const clusters = ruleClusters(rules);
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0].horizontal).toHaveLength(2);
+    expect(clusters[0].vertical).toHaveLength(2);
+  });
+});
+
+describe("buildGrid", () => {
+  it("경계에 선이 없으면 셀이 이어진 것(병합)으로 본다", () => {
+    // 위 행만 가운데 세로선이 있다 → 아래 행은 가로 병합, 첫 열은 가운데 가로선이 없어 세로 병합
+    const grid = buildGrid({
+      horizontal: [hLine(100, 400, 700), hLine(200, 400, 660), hLine(100, 400, 600)],
+      vertical: [vLine(100, 600, 700), vLine(200, 600, 700), vLine(400, 600, 700)],
+    })!;
+    expect([grid.rows, grid.cols]).toEqual([2, 3 - 1]);
+    const c00 = grid.cells.find((c) => c.row === 0 && c.col === 0)!;
+    expect([c00.rowSpan, c00.colSpan]).toEqual([2, 1]);
+    const c01 = grid.cells.find((c) => c.row === 0 && c.col === 1)!;
+    expect([c01.rowSpan, c01.colSpan]).toEqual([1, 1]);
+    expect(grid.cells.some((c) => c.row === 1 && c.col === 1)).toBe(true);
+  });
+
+  it("좌우 테두리를 안 그린 표도 가로선 끝으로 열을 잡는다", () => {
+    const grid = buildGrid({
+      horizontal: [hLine(55, 543, 663), hLine(55, 543, 637), hLine(55, 543, 581)],
+      vertical: [vLine(232, 581, 663), vLine(508, 581, 663)],
+    })!;
+    expect(grid.cols).toBe(3);
+    expect(grid.rows).toBe(2);
+  });
+});
+
+describe("blocksFromPage", () => {
+  it("괘선 안 글자는 셀, 밖 글자는 문단이고 위에서 아래 순서로 나온다", () => {
+    const frags = [
+      frag(110, 670, "요구사항 번호"),
+      frag(210, 670, "ECR-001"),
+      frag(110, 620, "이어진 칸"),
+      frag(100, 550, "본문 왼쪽"),
+      frag(300, 550, "본문 오른쪽"),
     ];
-    const cols = columnRanges(rows);
-    expect(cols.length).toBe(3);
-    // 병합·빈 칸으로 칸이 모자란 줄도 셋째 열로 들어간다(왼쪽으로 밀리지 않는다)
-    expect(columnOf(rows[1][0], cols)).toBe(2);
+    const rules: PageRules = {
+      horizontal: [hLine(100, 400, 700), hLine(100, 400, 650), hLine(100, 400, 600)],
+      // 가운데 세로선은 위 행에만 있다 → 아래 행은 두 열이 한 칸(가로 병합)
+      vertical: [vLine(100, 600, 700), vLine(200, 650, 700), vLine(400, 600, 700)],
+    };
+    const blocks = blocksFromPage(frags, rules);
+    expect(blocks.map((b) => b.type)).toEqual(["table", "paragraph"]);
+    const t = blocks[0] as Table;
+    expect(tableText(t)).toBe("| 요구사항 번호 | ECR-001 |\n| 이어진 칸 |  |");
+    // 자간·탭으로 벌어진 본문은 표가 아니라 한 문단이어야 한다(괘선이 없으므로)
+    expect(blocks[1]).toEqual({ type: "paragraph", text: "본문 왼쪽 본문 오른쪽" });
+  });
+
+  it("한 셀에 여러 줄이 있으면 줄바꿈으로 잇는다(세부 내용 글머리 유지)", () => {
+    const frags = [frag(110, 690, "○ 첫째 항목"), frag(110, 670, "○ 둘째 항목"), frag(120, 650, "- 하위 항목")];
+    const blocks = blocksFromPage(frags, {
+      horizontal: [hLine(100, 400, 700), hLine(100, 400, 600)],
+      vertical: [vLine(100, 600, 700), vLine(400, 600, 700)],
+    });
+    expect((blocks[0] as Table).cells[0].text).toBe("○ 첫째 항목\n○ 둘째 항목\n- 하위 항목");
+  });
+
+  it("괘선이 없으면 표를 만들지 않는다", () => {
+    const blocks = blocksFromPage([frag(100, 700, "사 업 명 : KEPCO형 AI 인프라 구축 사업")], { horizontal: [], vertical: [] });
+    expect(blocks).toEqual([{ type: "paragraph", text: "사 업 명 : KEPCO형 AI 인프라 구축 사업" }]);
   });
 });
 
-describe("blocksFromLines", () => {
-  const reqTableLines = (y0: number, reqId: string) =>
-    [
-      ["요구사항 분류", "기능 요구사항"],
-      ["요구사항 고유번호", reqId],
-      ["요구사항 명칭", "사용자 관리"],
-      ["정의", "계정을 관리한다."],
-      ["세부 내용", "○ 등록·수정·삭제"],
-      ["산출정보", "요구사항정의서"],
-      ["관련 요구사항", "-"],
-    ].flatMap((row, i) => [frag(100, y0 - i * 20, row[0]), frag(250, y0 - i * 20, row[1])]);
-
-  it("2칸 줄이 이어지면 표, 첫 열보다 오른쪽에 있는 1칸 줄은 앞 칸에 이어 붙인다", () => {
-    // 앞 5행(마지막이 y=620의 "세부 내용")까지 두고, 그 아래에 이어지는 줄을 붙인다
-    const lines = groupLines([
-      ...reqTableLines(700, "SFR-001").slice(0, 10),
-      frag(250, 607, "○ 둘째 항목"),
-      frag(250, 594, "○ 셋째 항목"),
-    ]);
-    const blocks = blocksFromLines(lines);
-    expect(blocks.length).toBe(1);
-    const t = blocks[0] as Table;
-    expect(t.type).toBe("table");
-    // 이어지는 줄은 줄바꿈으로 붙어야 세부 항목(글머리) 분해가 된다
-    expect(cellAt(t, 4, 1)?.text).toBe("○ 등록·수정·삭제\n○ 둘째 항목\n○ 셋째 항목");
+describe("rulesFromOperatorList", () => {
+  it("변환행렬(save·transform·restore)을 따라가며 얇고 긴 경로만 선으로 뽑는다", () => {
+    const ops = { save: 10, restore: 11, transform: 12, constructPath: 91 };
+    const fn = [ops.save, ops.transform, ops.constructPath, ops.constructPath, ops.restore, ops.constructPath];
+    const args = [
+      null,
+      [0.5, 0, 0, -0.5, 0, 800], // 페이지 전체에 축척·뒤집기를 걸어 둔 문서
+      [0, [], [100, 100, 500, 102]], // → 가로선 (x 50~250, 두께 1)
+      [0, [], [100, 100, 500, 600]], // → 큰 상자(그림 틀 등)는 버린다
+      null,
+      [0, [], [10, 10, 12, 200]], // restore 후 변환 없음 → 세로선
+    ];
+    const rules = rulesFromOperatorList(fn, args, ops);
+    expect(rules.horizontal).toHaveLength(1);
+    expect(rules.vertical).toHaveLength(1);
+    expect(rules.horizontal[0].x0).toBeCloseTo(50);
+    expect(rules.horizontal[0].y1).toBeCloseTo(750);
+    expect(rules.vertical[0].y1).toBeCloseTo(200);
   });
+});
 
-  it("줄 간격이 튀면 잇달아 붙은 두 표를 나눈다", () => {
-    // 표 사이에 제목 줄이 없어도 간격만으로 갈라야 한다 — 안 그러면 뒤 요구사항이 통째로 사라진다
-    const blocks = blocksFromLines(groupLines([...reqTableLines(700, "SFR-001"), ...reqTableLines(520, "SFR-002")]));
-    const tables = blocks.filter((b): b is Table => b.type === "table");
-    expect(tables.length).toBe(2);
-    expect(cellAt(tables[0], 1, 1)?.text).toBe("SFR-001");
-    expect(cellAt(tables[1], 1, 1)?.text).toBe("SFR-002");
-  });
-
-  it("첫 열에 걸리는 1칸 줄은 표를 끝내고 문단이 된다", () => {
-    const blocks = blocksFromLines(groupLines([...reqTableLines(700, "SFR-001"), frag(100, 540, "2. 보안 요구사항")]));
-    expect(blocks.map((b) => b.type)).toEqual(["table", "paragraph"]);
-  });
-
-  it("복원한 표에서 표준 7행 규칙 추출이 그대로 동작한다", () => {
-    const doc = { format: "pdf" as const, blocks: blocksFromLines(groupLines(reqTableLines(700, "SFR-001"))) };
-    expect(isStandardFormat(doc)).toBe(true);
-    const r = extractStandard(doc);
-    expect(r.method).toBe("standard");
-    expect(r.requirements.map((q) => [q.categoryCode, q.reqId, q.title])).toEqual([["SFR", "SFR-001", "사용자 관리"]]);
-    expect(r.requirements[0].details).toBe("○ 등록·수정·삭제");
+describe("fragsOfPage", () => {
+  it("회전된 글자와 빈 조각은 버린다", () => {
+    const items = [
+      { str: "정상", width: 20, height: 11, transform: [11, 0, 0, 11, 100, 700] },
+      { str: "회전", width: 20, height: 11, transform: [0, 11, -11, 0, 100, 700] },
+      { str: " ", width: 5, height: 11, transform: [11, 0, 0, 11, 130, 700] },
+    ];
+    expect(fragsOfPage(items).map((f) => f.text)).toEqual(["정상"]);
   });
 });
 
 describe("parsePdf", () => {
-  it("실제 PDF에서 좌표를 읽어 표를 복원한다", async () => {
-    const buf = onePagePdf([
-      { x: 100, y: 700, text: "Category" },
-      { x: 250, y: 700, text: "Functional" },
-      { x: 100, y: 680, text: "Number" },
-      { x: 250, y: 680, text: "SFR-001" },
-      { x: 100, y: 640, text: "Plain paragraph line" },
-    ]);
+  it("실제 PDF에서 괘선과 글자를 읽어 표를 복원한다", async () => {
+    const buf = onePagePdf(
+      [
+        { x: 110, y: 670, text: "Label" },
+        { x: 210, y: 670, text: "Value" },
+        { x: 110, y: 620, text: "Merged row" },
+        { x: 100, y: 500, text: "Body paragraph" },
+      ],
+      [
+        [100, 699.75, 300, 0.5], // 위 테두리
+        [100, 659.75, 300, 0.5], // 가운데 가로선
+        [100, 599.75, 300, 0.5], // 아래 테두리
+        [99.75, 600, 0.5, 100], // 왼쪽 테두리
+        [199.75, 660, 0.5, 40], // 가운데 세로선(위 행만 → 아래 행은 가로 병합)
+        [399.75, 600, 0.5, 100], // 오른쪽 테두리
+      ],
+    );
     expect(detectFormat(buf, "a.pdf")).toBe("pdf");
     const doc = await parseDocumentAsync(buf, "a.pdf");
     expect(doc.format).toBe("pdf");
     const t = doc.blocks[0] as Table;
-    expect(tableText(t)).toBe("| Category | Functional |\n| Number | SFR-001 |");
-    expect(doc.blocks[1]).toEqual({ type: "paragraph", text: "Plain paragraph line" });
+    expect([t.rows, t.cols]).toEqual([2, 2]);
+    expect(cellAt(t, 0, 0)?.text).toBe("Label");
+    expect(cellAt(t, 0, 1)?.text).toBe("Value");
+    // 아래 행은 가운데 세로선이 없어 두 열이 한 칸이다
+    expect(cellAt(t, 1, 1)?.text).toBe("Merged row");
+    expect(cellAt(t, 1, 1)?.colSpan).toBe(2);
+    expect(doc.blocks[1]).toEqual({ type: "paragraph", text: "Body paragraph" });
+  });
+
+  it("복원한 표로 표준 7행 규칙 추출이 동작한다", async () => {
+    // 라벨 | 값 2열 표 7행(요구사항 표) — 괘선을 모두 그린다
+    const rows = [
+      ["Category", "SFR"],
+      ["ReqId", "SFR-001"],
+      ["Title", "Login"],
+    ];
+    const rects: [number, number, number, number][] = [[99.75, 600, 0.5, 100], [199.75, 600, 0.5, 100], [399.75, 600, 0.5, 100]];
+    const items: { x: number; y: number; text: string }[] = [];
+    rows.forEach((row, i) => {
+      const top = 700 - i * 33;
+      rects.push([100, top - 0.25, 300, 0.5]);
+      items.push({ x: 110, y: top - 22, text: row[0] }, { x: 210, y: top - 22, text: row[1] });
+    });
+    rects.push([100, 599.75, 300, 0.5]);
+    const doc = await parsePdf(onePagePdf(items, rects));
+    const t = doc.blocks[0] as Table;
+    expect(t.rows).toBe(3);
+    expect(tableText(t).split("\n")[1]).toBe("| ReqId | SFR-001 |");
+    // 한글 라벨이 아니어서 표준 추출은 되지 않는다 — 격자 복원만 확인한다
+    expect(isStandardFormat(doc)).toBe(false);
+    expect(extractStandard(doc).requirements).toHaveLength(0);
   });
 
   it("글자가 없는 PDF(스캔본)는 안내와 함께 거절한다", async () => {

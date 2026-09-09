@@ -14,7 +14,7 @@ type Key = "name" | "agency" | "period" | "budget" | "bidMethod";
 
 /** 라벨 정규식(공백 제거 전 원문에 적용, 앞뒤 공백 없는 라벨 문자열) */
 const LABELS: { key: Key; re: RegExp }[] = [
-  { key: "name", re: /^(?:사업\s*명|과업\s*명|용역\s*명|사업\s*명칭)$/ },
+  { key: "name", re: /^(?:사업\s*명|과업\s*명|용역\s*명|사업\s*명칭|공고\s*명)$/ },
   { key: "period", re: /^(?:사업|용역|계약|과업|수행)\s*기간$/ },
   { key: "budget", re: /^(?:설계\s*금액|사업\s*금액|사업\s*예산|추정\s*가격|기초\s*금액|예산|총\s*사업비|사업비)$/ },
   { key: "bidMethod", re: /^(?:입찰\s*및\s*계약\s*방법|입찰\s*방법|계약\s*방법|입찰\s*방식|계약\s*방식|입찰\s*및\s*계약\s*방식)$/ },
@@ -30,7 +30,9 @@ const AGENCY_FALLBACK = /([가-힣A-Za-z0-9·]{2,30}?(?:공사|공단|청|부|�
 const QUOTED_TITLE = /[「｢“"]\s*([^」｣”"]{4,80}?)\s*[」｣”"]/;
 
 function matchLabel(raw: string): Key | null {
-  const label = raw.replace(BULLET, "").trim();
+  // 한글 문서는 `사 업 명 :`처럼 자간을 벌려 정렬하므로 공백을 모두 지운다.
+  // 표 라벨 칸은 `○ 공고명:`처럼 콜론까지 한 칸에 들어 있는 경우가 많아 끝 콜론도 떼어낸다.
+  const label = raw.replace(BULLET, "").replace(/\s+/g, "").replace(/[:：]$/, "");
   return LABELS.find((l) => l.re.test(label))?.key ?? null;
 }
 
@@ -64,7 +66,8 @@ export function extractOverview(doc: DocumentModel): Overview {
       const key = matchLabel(label.text);
       if (!key || out[key]) continue;
       const v = rightOf(t, label);
-      if (v && v.text.trim()) out[key] = collapseWhitespace(v.text);
+      // 값 칸이 또 다른 라벨이면 빈 서식(계약서 양식 등)의 머리글이다 — 값으로 쓰지 않는다
+      if (v && v.text.trim() && !matchLabel(v.text)) out[key] = collapseWhitespace(v.text);
     }
   }
 
