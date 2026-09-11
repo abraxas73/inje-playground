@@ -45,13 +45,13 @@ export async function GET(request: NextRequest) {
   if (!code) return back(returnTo, "ms_error", "인증 코드가 없습니다. 다시 시도하세요.");
 
   try {
-    const tok = await exchangeCode(app, { code, redirectUri: `${origin}/api/ms/callback` });
+    const tok = await exchangeCode(app, { code, redirectUri: `${origin}/api/ms/callback`, mail: returnTo === "/people-news" });
     if (!tok.refreshToken) return back(returnTo, "ms_error", "오프라인 접근 권한이 필요합니다. 동의 화면에서 모든 권한을 허용하세요.");
     const me = await fetchMe(tok.accessToken);
     await saveConnection(auth.admin, encKey, {
       userId: auth.userId,
       refreshToken: tok.refreshToken,
-      accountUpn: me.userPrincipalName || me.mail,
+      accountUpn: me.mail || me.userPrincipalName,
       accountName: me.displayName || null,
       scopes: tok.scope || MS_SCOPES.join(" "),
     });

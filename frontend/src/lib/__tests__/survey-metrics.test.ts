@@ -28,7 +28,6 @@ function summaryFixture(): SurveyResultSummary {
           n_pairwise: 30, before_mean: 2.5, after_mean: 4.3, delta_mean: 1.8,
           improvement_pct: 72, before_distribution: [], after_distribution: [],
         },
-        // @ts-expect-error runtime KPI meta from RPC
         analysis_metric: "pre_post_overall", target: 1,
       },
       // weekly_hours_saved (S2Q1)
@@ -39,7 +38,6 @@ function summaryFixture(): SurveyResultSummary {
           n: 30, mean: 5, median: 4, sum: 150, min: 0, max: 40,
           mean_trimmed: 4.5, zero_pct: 10, unit: "시간/주",
         },
-        // @ts-expect-error runtime KPI meta
         analysis_metric: "weekly_hours_saved", target: null,
       },
       // nps (S4Q1)
@@ -47,7 +45,6 @@ function summaryFixture(): SurveyResultSummary {
         question_id: "q3", section: "S4", order_index: 2, type: "nps",
         title: "추천의향", n: 30, masked: false,
         stats: { n: 30, score: 40, promoters_pct: 60, passives_pct: 20, detractors_pct: 20 },
-        // @ts-expect-error runtime KPI meta
         analysis_metric: "nps", target: 30,
       },
     ] as unknown as SurveyResultSummary["questions"],
@@ -72,7 +69,6 @@ function valueAndSupportFixture(): SurveyResultSummary {
           { value: "enough", label: "비용만큼", n: 12, pct: 40 },
           { value: "less", label: "비용 미만", n: 12, pct: 40 },
         ],
-        // @ts-expect-error runtime KPI meta from RPC
         analysis_metric: "value_ratio", target: 50, top_box: ["enough", "plenty"],
       },
       // license_support (S4Q2) — scale + top_box_pct
@@ -83,7 +79,6 @@ function valueAndSupportFixture(): SurveyResultSummary {
           n: 30, mean: 4.2, median: 4, sd: 0.8, min: 1, max: 5,
           distribution: [], top_box_pct: 70,
         },
-        // @ts-expect-error runtime KPI meta from RPC
         analysis_metric: "license_support", target: 60,
       },
       // s4q3_discontinue_impact (S4Q3) — 보조 메트릭, single_choice + top_box
@@ -95,7 +90,6 @@ function valueAndSupportFixture(): SurveyResultSummary {
           { value: "a_lot", label: "상당함", n: 9, pct: 30 },
           { value: "some", label: "약간", n: 15, pct: 50 },
         ],
-        // @ts-expect-error runtime KPI meta from RPC
         analysis_metric: "s4q3_discontinue_impact", top_box: ["a_lot", "severe"],
       },
     ] as unknown as SurveyResultSummary["questions"],
@@ -241,7 +235,6 @@ describe("buildKpiCards — masked(n<5) 경로", () => {
           question_id: "qm1", section: "S2", order_index: 0, type: "number",
           title: "절감시간", n: 3, masked: true,
           stats: { n: 3, mean: 8, median: 8, sum: 24, min: 5, max: 12, mean_trimmed: 8, zero_pct: 0, unit: "시간/주" },
-          // @ts-expect-error runtime KPI meta
           analysis_metric: "weekly_hours_saved",
         },
         // pre_post_overall 문항 — masked
@@ -249,7 +242,6 @@ describe("buildKpiCards — masked(n<5) 경로", () => {
           question_id: "qm2", section: "S1", order_index: 1, type: "pre_post_scale",
           title: "생산성", n: 3, masked: true,
           stats: { n_pairwise: 3, before_mean: 2, after_mean: 5, delta_mean: 3, improvement_pct: 150, before_distribution: [], after_distribution: [] },
-          // @ts-expect-error runtime KPI meta
           analysis_metric: "pre_post_overall", target: 1,
         },
       ] as unknown as SurveyResultSummary["questions"],
@@ -280,7 +272,6 @@ describe("buildKpiCards — masked(n<5) 경로", () => {
           question_id: "qm3", section: "S2", order_index: 0, type: "number",
           title: "절감시간", n: 4, masked: true,
           stats: { n: 4, mean: 10, median: 10, sum: 40, min: 5, max: 15, mean_trimmed: 10, zero_pct: 0, unit: "시간/주" },
-          // @ts-expect-error runtime KPI meta
           analysis_metric: "weekly_hours_saved",
         },
       ] as unknown as SurveyResultSummary["questions"],

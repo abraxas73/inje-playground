@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.98.0",
+    "fast-xml-parser": "npm:fast-xml-parser@5.11.1"
+  },
+  "tasks": {
+    "test": "deno test --allow-net feed_test.ts handler_test.ts"
+  }
+}

@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Dice5, LogOut, UtensilsCrossed, Coffee, Shield, User as UserIcon, Settings, BookOpen, ClipboardList, SquareTerminal, MessagesSquare, TrendingUp, FileSearch } from "lucide-react";
+import { Dice5, LogOut, UtensilsCrossed, Coffee, Shield, User as UserIcon, Settings, BookOpen, ClipboardList, SquareTerminal, MessagesSquare, TrendingUp, FileSearch, Newspaper } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/usage/chat", label: "Claude 채팅", icon: MessagesSquare, minRole: "user" },
   { href: "/usage/perf", label: "성과", icon: TrendingUp, minRole: "user" },
   { href: "/rfp", label: "RFP 분석", icon: FileSearch, minRole: "user" },
+  { href: "/people-news", label: "인사·부고", icon: Newspaper, minRole: "user" },
   { href: "/admin", label: "어드민", icon: Shield, minRole: "admin" },
 ];
 
@@ -98,7 +99,7 @@ export default function Navigation() {
             </Link>
 
             {/* Desktop nav items */}
-            <div className="hidden md:flex items-center gap-0.5 bg-muted/50 rounded-xl p-1">
+            <div className="hidden min-w-0 overflow-x-auto md:flex items-center gap-0.5 bg-muted/50 rounded-xl p-1">
               {visibleItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname.startsWith(item.href);
@@ -107,7 +108,7 @@ export default function Navigation() {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                      "flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200",
                       isActive
                         ? "bg-background text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
@@ -120,7 +121,7 @@ export default function Navigation() {
               })}
             </div>
 
-            <div className="ml-auto flex items-center">
+            <div className="ml-auto flex shrink-0 items-center">
               {user && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -169,10 +170,7 @@ export default function Navigation() {
 
       {/* Mobile bottom tab bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl safe-area-bottom">
-        <div className={cn(
-          "grid h-14 px-1",
-          mobileItems.length <= 3 ? "grid-cols-3" : mobileItems.length === 4 ? "grid-cols-4" : mobileItems.length === 5 ? "grid-cols-5" : mobileItems.length === 6 ? "grid-cols-6" : "grid-cols-7"
-        )}>
+        <div className="flex h-14 overflow-x-auto px-1">
           {mobileItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname.startsWith(item.href);
@@ -181,7 +179,7 @@ export default function Navigation() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors",
+                  "flex min-w-16 flex-1 shrink-0 flex-col items-center justify-center gap-0.5 whitespace-nowrap px-2 text-[10px] font-medium transition-colors",
                   isActive
                     ? "text-primary"
                     : "text-muted-foreground"
