@@ -1,0 +1,6 @@
+project_id = "inje-playground"
+
+[functions.yonhap-notices]
+# Cron uses a dedicated secret; manual runs verify a user/admin session in the handler.
+verify_jwt = false
+entrypoint = "./functions/yonhap-notices/index.ts"

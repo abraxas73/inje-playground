@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Dice5, Users, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch } from "lucide-react";
+import { Dice5, Users, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Newspaper } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { canAccess } from "@/lib/roles";
 
@@ -56,6 +56,16 @@ const FEATURES = [
     gradient: "from-violet-500 to-purple-600",
     bgAccent: "bg-violet-50",
     iconColor: "text-violet-600",
+    delay: "delay-[475ms]",
+  },
+  {
+    href: "/people-news",
+    title: "인사·부고",
+    description: "매일 오전 7시에 업데이트되는 연합뉴스 인사·부고 소식을 확인하세요.",
+    icon: Newspaper,
+    gradient: "from-sky-500 to-cyan-600",
+    bgAccent: "bg-sky-50",
+    iconColor: "text-sky-600",
     delay: "delay-[475ms]",
   },
   {

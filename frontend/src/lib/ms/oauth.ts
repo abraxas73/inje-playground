@@ -7,6 +7,7 @@ import { GRAPH_BASE } from "@/lib/teams-graph";
 
 export const MS_SCOPES = ["offline_access", "User.Read", "Files.ReadWrite.All", "Sites.Read.All"] as const;
 const SCOPE = MS_SCOPES.join(" ");
+const MAIL_SCOPE = `${SCOPE} Mail.Send`;
 const LOGIN_BASE = "https://login.microsoftonline.com";
 
 export interface MsAppConfig {
@@ -45,13 +46,13 @@ export function oauthErrorMessage(code: string): string {
   }
 }
 
-export function buildAuthorizeUrl(p: { tenantId: string; clientId: string; redirectUri: string; state: string }): string {
+export function buildAuthorizeUrl(p: { tenantId: string; clientId: string; redirectUri: string; state: string; mail?: boolean }): string {
   const q = new URLSearchParams({
     client_id: p.clientId,
     response_type: "code",
     redirect_uri: p.redirectUri,
     response_mode: "query",
-    scope: SCOPE,
+    scope: p.mail ? MAIL_SCOPE : SCOPE,
     state: p.state,
     prompt: "select_account",
   });
@@ -72,6 +73,7 @@ async function postToken(cfg: MsAppConfig, params: Record<string, string>, fetch
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
+    signal: AbortSignal.timeout(15_000),
   });
   const text = await res.text();
   let j: Record<string, unknown> = {};
@@ -95,12 +97,12 @@ async function postToken(cfg: MsAppConfig, params: Record<string, string>, fetch
   };
 }
 
-export function exchangeCode(cfg: MsAppConfig, p: { code: string; redirectUri: string }, fetchImpl: FetchLike = fetch): Promise<TokenResult> {
-  return postToken(cfg, { grant_type: "authorization_code", code: p.code, redirect_uri: p.redirectUri, scope: SCOPE }, fetchImpl);
+export function exchangeCode(cfg: MsAppConfig, p: { code: string; redirectUri: string; mail?: boolean }, fetchImpl: FetchLike = fetch): Promise<TokenResult> {
+  return postToken(cfg, { grant_type: "authorization_code", code: p.code, redirect_uri: p.redirectUri, scope: p.mail ? MAIL_SCOPE : SCOPE }, fetchImpl);
 }
 
-export function refreshAccessToken(cfg: MsAppConfig, refreshToken: string, fetchImpl: FetchLike = fetch): Promise<TokenResult> {
-  return postToken(cfg, { grant_type: "refresh_token", refresh_token: refreshToken, scope: SCOPE }, fetchImpl);
+export function refreshAccessToken(cfg: MsAppConfig, refreshToken: string, fetchImpl: FetchLike = fetch, mail = false): Promise<TokenResult> {
+  return postToken(cfg, { grant_type: "refresh_token", refresh_token: refreshToken, scope: mail ? MAIL_SCOPE : SCOPE }, fetchImpl);
 }
 
 export interface MsMe {

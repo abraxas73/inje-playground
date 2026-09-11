@@ -183,6 +183,11 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `CLAUDE_OFFICE_OTEL_TOKEN` — Office 추가 기능 트레이스 수신(`/api/otel/v1/traces`) 전용 토큰. claude.ai 조직 설정 Office Agents의 OTLP 헤더 `Authorization=Bearer <값>`에 넣는 값이라 Claude Code 토큰과 분리
 - `ANTHROPIC_API_KEY`, `RFP_LLM_MODEL`(기본 claude-opus-5) — RFP 비표준 문서 LLM 폴백 + 카탈로그 기능 추출 + 솔루션 매핑(선택 — 없으면 규칙 엔진만)
 - `ATLASSIAN_SITE`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN` — 카탈로그 Confluence 가져오기(기존 성과 지표와 공유)
+- `NEXT_PUBLIC_APP_URL` — 예약 메일의 HTTPS 앱 주소(예: `https://inje-playground.vercel.app`)
+- `YONHAP_EMAIL_CRON_SECRET` — Supabase pg_cron이 Vercel 예약 메일 라우트를 호출할 때 쓰는 전용 비밀값
+
+### 연합뉴스 인사·부고 메일
+`/people-news`에서 사용자가 인사·부고를 조회하고 즉시 수집하거나, 개인별 메일 수신 여부와 한국 시간 발송 시각을 설정한다. 수집은 Supabase Edge Function `yonhap-notices`가 매일 07:00 KST에 공식 RSS를 누적한다. 메일은 Supabase Cron이 매분 호출하는 `/api/cron/yonhap-notice-email`에서 사용자별 due 구독을 claim하여 Microsoft Graph `Mail.Send` 위임 권한으로 본인 주소에서 본인에게 발송한다. 메일 화면의 연결 흐름에서만 Mail.Send를 추가 요청하며 기존 파일 연결 스코프는 유지한다. 같은 계정의 메일 권한 동의가 있어야 구독을 켤 수 있다. 발송 직전에 Graph /me 주소를 로그인 이메일과 다시 비교한다. 운영·설정·검증 절차는 `docs/yonhap-notices.md`.
 
 ### Directory Layout (frontend/src/)
 - `components/` — Organized by feature: `ladder/`, `team/`, `food/`, `guide/`, `settings/`(+`MicrosoftAccountCard`), `shared/`, `layout/`, `admin/claude-usage/`(Claude 사용량 대시보드 탭·차트), `admin/directory/`(사내 조직도 표), `admin/rfp-catalog/`(솔루션·소스·기능 표), `rfp/`(업로드·개요·요구사항 표·`SharePointSection`)

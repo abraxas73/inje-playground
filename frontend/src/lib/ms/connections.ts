@@ -98,6 +98,7 @@ export interface TokenDeps {
   encKey: Buffer;
   fetchImpl?: FetchLike;
   now?: () => number;
+  mail?: boolean;
 }
 
 async function markError(admin: SupabaseClient, userId: string, code: string): Promise<void> {
@@ -120,7 +121,8 @@ export async function getAccessTokenForUser(admin: SupabaseClient, userId: strin
   if (!data) throw new NotConnectedError();
   const row = data as { refresh_token_enc: string; connected_at: string };
 
-  const cached = tokenCache.get(userId);
+  const cacheKey = deps.mail ? `${userId}:mail` : userId;
+  const cached = tokenCache.get(cacheKey);
   if (cached && cached.exp > now() && cached.connectedAt === row.connected_at) return cached.token;
 
   let refreshToken: string;
@@ -133,7 +135,7 @@ export async function getAccessTokenForUser(admin: SupabaseClient, userId: strin
 
   let tok;
   try {
-    tok = await refreshAccessToken(deps.app, refreshToken, fetchImpl);
+    tok = await refreshAccessToken(deps.app, refreshToken, fetchImpl, deps.mail);
   } catch (e) {
     if (e instanceof OAuthError && RECONNECT_CODES.has(e.code)) {
       await markError(admin, userId, e.code);
@@ -143,7 +145,7 @@ export async function getAccessTokenForUser(admin: SupabaseClient, userId: strin
   }
 
   const ttl = Math.max(0, Math.min(tok.expiresIn * 1000 - TOKEN_SKEW_MS, TOKEN_CACHE_MAX_MS));
-  tokenCache.set(userId, { token: tok.accessToken, exp: now() + ttl, connectedAt: row.connected_at });
+  tokenCache.set(cacheKey, { token: tok.accessToken, exp: now() + ttl, connectedAt: row.connected_at });
 
   const patch: Record<string, unknown> = { last_used_at: new Date(now()).toISOString(), last_error: null };
   if (tok.refreshToken && tok.refreshToken !== refreshToken) patch.refresh_token_enc = encryptSecret(tok.refreshToken, deps.encKey);
