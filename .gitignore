@@ -38,3 +38,6 @@ frontend/playwright-report/
 # Supabase CLI local project/cache state
 supabase/.temp/
 supabase/.branches/
+
+# Local design analysis and temporary drafts
+.superdesign/

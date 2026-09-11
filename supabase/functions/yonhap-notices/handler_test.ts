@@ -5,7 +5,7 @@ function assert(value: unknown, message = "assertion failed"): asserts value {
   if (!value) throw new Error(message);
 }
 
-function fixture(options: { role?: string; cooldown?: boolean; invalidToken?: boolean; failSave?: boolean; failCollect?: boolean; secret?: string } = {}) {
+function fixture(options: { role?: string; cooldown?: boolean; invalidToken?: boolean; failSave?: boolean; failCollect?: boolean; secret?: string; denied?: boolean; accessError?: boolean } = {}) {
   const writes: { path: string; method: string; body: unknown }[] = [];
   let collected = 0;
   const db = createClient("https://test.supabase.co", "service-key", {
@@ -14,6 +14,7 @@ function fixture(options: { role?: string; cooldown?: boolean; invalidToken?: bo
       const path = new URL(String(input)).pathname;
       if (path === "/auth/v1/user") return Response.json(options.invalidToken ? { message: "invalid token" } : { id: "user-1" }, { status: options.invalidToken ? 401 : 200 });
       if (path.endsWith("user_profiles")) return Response.json({ role: options.role ?? "user" });
+      if (path.endsWith("user_page_access")) return Response.json(options.accessError ? { message: "offline" } : { permissions: { people_news: !options.denied } }, { status: options.accessError ? 500 : 200 });
       if (path.endsWith("claim_yonhap_notice_manual_sync")) return Response.json(!options.cooldown);
       const method = init?.method ?? "GET";
       const body = init?.body ? JSON.parse(String(init.body)) : null;
@@ -43,6 +44,8 @@ for (const [name, options, token, status] of [
   ["missing credentials", {}, undefined, 401],
   ["invalid JWT", { invalidToken: true }, "bad-token", 401],
   ["guest", { role: "guest" }, "jwt", 403],
+  ["restricted page", { denied: true }, "jwt", 403],
+  ["permission lookup error", { accessError: true }, "jwt", 503],
   ["manual cooldown", { cooldown: true }, "jwt", 429],
 ] as const) {
   Deno.test(`blocks ${name} without collecting or saving`, async () => {

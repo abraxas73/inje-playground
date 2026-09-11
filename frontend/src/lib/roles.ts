@@ -1,3 +1,4 @@
+import { canOpenPage, type PagePermissions } from "./page-access";
 export type UserRole = "guest" | "user" | "admin";
 
 export interface UserRoleInfo {
@@ -12,17 +13,8 @@ export interface UserRoleInfo {
   updated_at: string;
 }
 
-/** Pages accessible by each role */
-const ROLE_ACCESS: Record<UserRole, string[]> = {
-  guest: ["/food", "/ladder", "/team", "/survey"],
-  user: ["/food", "/ladder", "/team", "/guide", "/survey", "/rfp", "/people-news"],
-  admin: ["/food", "/ladder", "/team", "/guide", "/survey", "/rfp", "/people-news", "/admin"],
-};
-
-export function canAccess(role: UserRole, pathname: string): boolean {
-  const allowed = ROLE_ACCESS[role] ?? ROLE_ACCESS.guest;
-  if (pathname === "/") return true;
-  return allowed.some((p) => pathname.startsWith(p));
+export function canAccess(role: UserRole, pathname: string, permissions: PagePermissions = {}): boolean {
+  return canOpenPage(role, pathname, permissions);
 }
 
 export function isAdmin(role: UserRole): boolean {

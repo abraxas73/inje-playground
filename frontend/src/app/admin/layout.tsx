@@ -9,6 +9,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 
 const ADMIN_NAV = [
   { href: "/admin/users", label: "사용자 관리", icon: Users },
+  { href: "/admin/page-permissions", label: "페이지 접근 권한", icon: ShieldAlert },
   { href: "/admin/settings", label: "시스템 설정", icon: Settings },
   { href: "/admin/guide", label: "가이드 관리", icon: HelpCircle },
   { href: "/admin/chat-history", label: "질의/응답 관리", icon: MessageSquare },

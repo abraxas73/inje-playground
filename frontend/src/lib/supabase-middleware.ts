@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { after, NextResponse, type NextRequest } from "next/server";
 import { auditProxyRequest } from "./audit-proxy";
+import { canUsePage, isPagePermissions, matchesPath, pagesForPath } from "./page-access";
+import type { UserRole } from "./roles";
 
 /**
  * 로그인 없이 열리는 경로. RFP 공유 링크(`/rfp/shared/…`)는 사외 공유용이라
@@ -26,6 +28,16 @@ const ROLE_PRIORITY: Record<string, number> = { guest: 0, user: 1, admin: 2 };
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
+  const pathname = request.nextUrl.pathname;
+  const pageKeys = pagesForPath(pathname);
+  const api = matchesPath(pathname, "/api");
+  const adminPath = matchesPath(pathname, "/admin") || matchesPath(pathname, "/guide/admin");
+  const publicSurvey = matchesPath(pathname, "/survey") || matchesPath(pathname, "/api/surveys");
+  function deny(status: number, message: string) {
+    const response = api ? NextResponse.json({ error: message }, { status }) : NextResponse.redirect(new URL(status === 401 ? "/login" : "/access-denied", request.url));
+    supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
+    return response;
+  }
 
   try {
     const supabase = createServerClient(
@@ -53,8 +65,6 @@ export async function updateSession(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const pathname = request.nextUrl.pathname;
-
     // 변경 요청(POST·PUT·PATCH·DELETE)은 응답을 보낸 뒤 감사 기록한다 — 응답을 늦추지 않는다.
     // 이 블록은 자체 try/catch로 격리한다: 감사 기록이 실패해도 아래 로그인·권한 검사를 건너뛰면 안 된다.
     if (user) {
@@ -72,9 +82,22 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Role-based route protection (공개 경로는 검사하지 않는다 — guest 계정도 공유 링크를 열 수 있어야 한다)
-    if (user && !isPublicPath(pathname)) {
-      const route = PROTECTED_ROUTES.find((r) => pathname.startsWith(r.prefix));
+    // Page permissions also cover feature APIs; anonymous public surveys keep their own access_mode checks.
+    if (!user && pageKeys.length && !publicSurvey) return deny(401, "로그인이 필요합니다.");
+    if (user && (pageKeys.length || adminPath)) {
+      const profile = await supabase.from("user_profiles").select("role").eq("user_id", user.id).single();
+      if (profile.error || !["guest", "user", "admin"].includes(profile.data?.role)) return deny(503, "접근 권한을 확인하지 못했습니다.");
+      const role = profile.data.role as UserRole;
+      if (adminPath && role !== "admin") return deny(403, "관리자 권한이 필요합니다.");
+      if (role !== "admin" && pageKeys.length) {
+        const access = await supabase.from("user_page_access").select("permissions").eq("user_id", user.id).maybeSingle();
+        if (access.error || (access.data && !isPagePermissions(access.data.permissions))) return deny(503, "접근 권한을 확인하지 못했습니다.");
+        if (!pageKeys.some((key) => canUsePage(role, key, access.data?.permissions ?? {}))) return deny(403, "이 페이지에 접근할 권한이 없습니다.");
+      }
+    }
+    // Legacy protected sections not listed in the page catalog.
+    if (user && !isPublicPath(pathname) && !pageKeys.length && !adminPath) {
+      const route = PROTECTED_ROUTES.find((r) => matchesPath(pathname, r.prefix));
       if (route) {
         const { data: roleData } = await supabase
           .from("user_profiles")
@@ -82,7 +105,7 @@ export async function updateSession(request: NextRequest) {
           .eq("user_id", user.id)
           .single();
 
-        const userRole = roleData?.role ?? "user";
+        const userRole = roleData?.role ?? "guest";
         const required = ROLE_PRIORITY[route.minRole] ?? 0;
         const actual = ROLE_PRIORITY[userRole] ?? 0;
 
@@ -96,6 +119,7 @@ export async function updateSession(request: NextRequest) {
 
     return supabaseResponse;
   } catch {
+    if (pageKeys.length || adminPath) return deny(503, "접근 권한을 확인하지 못했습니다.");
     return NextResponse.next({ request });
   }
 }

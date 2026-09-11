@@ -36,7 +36,7 @@ def main():
     if not args.project_ref.isalpha() or len(args.project_ref) != 20:
         parser.error("Invalid project ref")
     run(["supabase", "link", "--project-ref", args.project_ref])
-    for name in ["2026-09-11-yonhap-notices.sql", "2026-09-11-yonhap-notice-subscriptions.sql", "2026-09-11-yonhap-notice-send-now.sql"]:
+    for name in ["2026-09-11-yonhap-notices.sql", "2026-09-11-yonhap-notice-subscriptions.sql", "2026-09-11-yonhap-notice-send-now.sql", "2026-09-11-page-access.sql"]:
         query((ROOT / "docs/sql" / name).read_text())
     print("Collection and subscription schema applied.")
     rows = query("select decrypted_secret as value from vault.decrypted_secrets where name = 'yonhap_sync_secret';")

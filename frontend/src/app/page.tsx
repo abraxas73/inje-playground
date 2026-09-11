@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Dice5, Users, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Newspaper } from "lucide-react";
+import { Dice5, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Newspaper, SquareTerminal, MessagesSquare, TrendingUp } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
-import { canAccess } from "@/lib/roles";
 
 const FEATURES = [
+  { href: "/usage/code", title: "Claude Code", description: "개인과 담당 조직의 Claude Code 사용량을 확인하세요.", icon: SquareTerminal, gradient: "from-blue-500 to-indigo-600", bgAccent: "bg-blue-50", iconColor: "text-blue-600", delay: "delay-100" },
+  { href: "/usage/chat", title: "Claude 채팅", description: "Claude 채팅·Cowork와 Office 활동을 확인하세요.", icon: MessagesSquare, gradient: "from-sky-500 to-blue-600", bgAccent: "bg-sky-50", iconColor: "text-sky-600", delay: "delay-100" },
+  { href: "/usage/perf", title: "성과", description: "개인과 담당 조직의 업무 성과 지표를 확인하세요.", icon: TrendingUp, gradient: "from-emerald-500 to-teal-600", bgAccent: "bg-emerald-50", iconColor: "text-emerald-600", delay: "delay-100" },
   {
     href: "/food",
     title: "오늘 뭐 먹지?",
@@ -81,9 +83,9 @@ const FEATURES = [
 ];
 
 export default function HomePage() {
-  const { role } = useUserRole();
+  const { canAccessPage, loading, error } = useUserRole();
 
-  const visibleFeatures = FEATURES.filter((f) => canAccess(role, f.href));
+  const visibleFeatures = FEATURES.filter((f) => canAccessPage(f.href));
 
   return (
     <div className="py-8 md:py-16">
@@ -104,6 +106,9 @@ export default function HomePage() {
         </p>
       </div>
 
+      {loading && <p role="status" className="text-center text-sm text-muted-foreground">접근 권한을 확인하고 있습니다.</p>}
+      {error && <p role="alert" className="text-center text-sm text-destructive">접근 권한을 확인하지 못했습니다. 페이지를 새로고침해 주세요.</p>}
+      {!loading && !error && !visibleFeatures.length && <p className="text-center text-sm text-muted-foreground">표시할 서비스가 없습니다. 접근 권한은 관리자에게 문의해 주세요.</p>}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {visibleFeatures.map((feature) => {
           const Icon = feature.icon;
