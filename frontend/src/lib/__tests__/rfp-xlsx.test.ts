@@ -113,7 +113,7 @@ describe("buildWorkbook + mapping", () => {
   });
   it("상세 시트 번호는 그대로이고 마지막에 '{n}.솔루션_매핑' 시트가 붙는다(미매핑 포함, 수정 표시)", async () => {
     const wb = await loadWorkbook(await buildWorkbook(project, rows, mapping));
-    expect(wb.worksheets.map((w) => w.name)).toEqual(["0.개요", "1.요구사항_목록", "2.SER", "3.INRDTL", "4.솔루션_매핑"]);
+    expect(wb.worksheets.map((w) => w.name)).toEqual(["0.개요", "1.요구사항_목록", "2.SER", "3.INRDTL", "4.솔루션_매핑", "5.요구사항_대응표", "6.Gap_리포트"]);
     const ms = wb.getWorksheet("4.솔루션_매핑")!;
     expect(ms.getRow(3).values).toEqual([undefined, "연번", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "세부 항목", "솔루션", "기능", "판정", "매핑 설명", "근거 문장", "근거 URL", "비고", "수정"]);
     expect(ms.getRow(4).values).toEqual([undefined, 1, "서비스 요구사항", "SER-001", "제목 SER-001", "", "SECloudit", "IAM", "충족", "이유 m1", "", "https://c/iam", "", "수정"]);
@@ -219,5 +219,52 @@ describe("buildWorkbook + 세부 항목 단위 매핑", () => {
     expect(ms.getRow(5).getCell(12).value).toBe("메모 한 줄");
     expect(ms.getRow(6).getCell(12).value).toBe("");
     expect(ms.getRow(9).getCell(1).value).toBeNull();
+  });
+});
+
+describe("buildWorkbook + 대응표·Gap 리포트", () => {
+  const catalog: CatalogSolution[] = [
+    { code: "secloudit", name: "SECloudit", description: "", isActive: true, sortOrder: 1, features: [{ id: "f-iam", solutionCode: "secloudit", name: "IAM", description: "", evidenceUrl: null, isActive: true, keywords: [] }] },
+  ];
+  const base = { requirementId: "SER-010-uuid", edited: false, evidenceUrl: null as string | null };
+  const req = row("SER", "SER-010", 0, { details: "○ 첫째 항목\n○ 둘째 항목\n○ 셋째 항목" });
+  const other = row("INR-DTL", "INR-DTL-001", 1, { details: "한 덩어리" });
+  const mappingRows: MappingRow[] = [
+    // 항목 1: 확정(충족) + 남은 후보 → 충족
+    { ...base, id: "a1", verdict: "fulfilled", featureId: "f-iam", solutionCode: "secloudit", rationale: "자동 매칭 — 키워드 일치", evidenceText: "접근통제를 제공한다.", sortOrder: 0, detailKey: "1", detailText: "첫째 항목", edited: true, note: "확인 완료" },
+    { ...base, id: "a2", verdict: "candidate", featureId: "f-iam", solutionCode: "secloudit", rationale: "자동 매칭 — 후보", sortOrder: 1, detailKey: "1", detailText: "첫째 항목" },
+    // 항목 2: 후보만 → 검토 대기
+    { ...base, id: "b1", verdict: "candidate", featureId: "f-iam", solutionCode: "secloudit", rationale: "자동 매칭 — 후보", sortOrder: 2, detailKey: "2", detailText: "둘째 항목" },
+    // 항목 3: 없음 → 미매핑 / INR-DTL-001: 해당없음
+    { ...base, id: "c1", requirementId: "INR-DTL-001-uuid", verdict: "na", featureId: null, solutionCode: null, rationale: "우리 범위 아님", sortOrder: 0, detailKey: null, edited: true },
+  ];
+  const mapping = { rows: mappingRows, catalog, mappingAt: "2026-09-12T00:00:00.000Z" };
+
+  it("요구사항_대응표는 단위마다 한 줄이고 확정 판정만 담는다(후보는 검토 대기)", async () => {
+    const wb = await loadWorkbook(await buildWorkbook(project, [req, other], mapping));
+    expect(wb.worksheets.map((w) => w.name)).toEqual(["0.개요", "1.요구사항_목록", "2.SER", "3.INRDTL", "4.솔루션_매핑", "5.요구사항_대응표", "6.Gap_리포트"]);
+    const ws = wb.getWorksheet("5.요구사항_대응표")!;
+    expect(String(ws.getCell("A1").value)).toContain("단위 4개 중 확정 2개");
+    expect(ws.getRow(3).values).toEqual([undefined, "연번", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "세부 항목", "대응 여부", "대응 솔루션", "대응 기능", "대응 방안", "제안서 목차", "페이지", "비고"]);
+    const r4 = ws.getRow(4).values as unknown[];
+    expect(r4.slice(3, 10)).toEqual(["SER-010", "제목 SER-010", "1. 첫째 항목", "충족", "SECloudit", "IAM", "접근통제를 제공한다. — 키워드 일치"]);
+    expect(r4[12]).toBe("확인 완료");
+    expect((ws.getRow(5).values as unknown[])[6]).toBe("검토 대기");
+    expect((ws.getRow(6).values as unknown[])[6]).toBe("미매핑");
+    expect((ws.getRow(7).values as unknown[]).slice(3, 7)).toEqual(["INR-DTL-001", "제목 INR-DTL-001", "", "해당없음"]);
+  });
+
+  it("Gap_리포트는 충족이 아닌 단위만, 못 하는 것부터 나열하고 상태별 건수를 위에 둔다", async () => {
+    const wb = await loadWorkbook(await buildWorkbook(project, [req, other], mapping));
+    const ws = wb.getWorksheet("6.Gap_리포트")!;
+    expect(String(ws.getCell("A1").value)).toContain("충족이 아닌 단위 3개 / 전체 4개");
+    // 요약 줄: 설계·구축영역 0 · 해당없음 1 · 부분충족 0 · 검토 대기 1 · 미매핑 1
+    expect([ws.getCell("B2").value, ws.getCell("C2").value, ws.getCell("D2").value, ws.getCell("E2").value]).toEqual(["설계·구축영역", 0, "해당없음", 1]);
+    expect([ws.getCell("H2").value, ws.getCell("I2").value, ws.getCell("J2").value, ws.getCell("K2").value]).toEqual(["검토 대기", 1, "미매핑", 1]);
+    const statuses = [5, 6, 7].map((r) => (ws.getRow(r).values as unknown[])[2]);
+    expect(statuses).toEqual(["해당없음", "검토 대기", "미매핑"]);
+    // 후보만 있는 단위는 후보 수와 최고 후보를 사유에 적어 검토 우선순위를 잡을 수 있게 한다
+    expect((ws.getRow(6).values as unknown[])[7]).toBe("후보 1건 — 최고 SECloudit › IAM");
+    expect((ws.getRow(5).values as unknown[])[7]).toBe("우리 범위 아님");
   });
 });

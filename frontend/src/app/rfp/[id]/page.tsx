@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ListChecks } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import OverviewCard from "@/components/rfp/OverviewCard";
@@ -13,6 +13,7 @@ import SharePointSection from "@/components/rfp/SharePointSection";
 import ShareLinkSection from "@/components/rfp/ShareLinkSection";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toCatalog } from "@/lib/rfp/mapping/client-catalog";
+import { buildReviewUnits, reviewProgress } from "@/lib/rfp/mapping/review";
 import { MAPPING_CANDIDATES_DEFAULT, parseMaxCandidates } from "@/lib/rfp/mapping/settings";
 import type { MappingRunArgs } from "@/components/rfp/MappingRunDialog";
 import type { MappingRunTarget } from "@/lib/rfp/mapping/run-target";
@@ -176,13 +177,24 @@ export default function RfpProjectPage() {
         <div className="rounded-lg border p-10 text-center text-sm text-muted-foreground">요구사항을 추출하고 있습니다… 표준 양식·엑셀 요건표는 몇 초, LLM 추출은 수 분 걸릴 수 있습니다.</div>
       ) : (
         <>
-          <MappingSummary
-            requirementIds={project.requirements.map((r) => r.id)}
-            mappings={project.mappings}
-            catalog={catalog}
-            filter={verdictFilter}
-            onFilter={setVerdictFilter}
-          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <MappingSummary
+              requirementIds={project.requirements.map((r) => r.id)}
+              mappings={project.mappings}
+              catalog={catalog}
+              filter={verdictFilter}
+              onFilter={setVerdictFilter}
+            />
+            {/* 확정 작업(리뷰 큐): 후보를 하나씩 넘기며 확정한다 — 매핑이 있을 때만 */}
+            {(project.mappings.length > 0 || project.mappingStatus === "ready") && (
+              <Button size="sm" variant="outline" asChild title="매핑 단위를 하나씩 넘기며 후보를 확정하거나 단위를 닫습니다(키보드 지원)">
+                <Link href={`/rfp/${project.id}/review`}>
+                  <ListChecks className="mr-1 h-4 w-4" />확정 작업
+                  {(() => { const p = reviewProgress(buildReviewUnits(project.requirements, project.mappings)); return p.pending + p.unmapped > 0 ? <span className="ml-1 rounded bg-indigo-100 px-1.5 text-xs tabular-nums text-indigo-900">미결 {p.pending + p.unmapped}</span> : <span className="ml-1 text-xs text-muted-foreground">모두 확정</span>; })()}
+                </Link>
+              </Button>
+            )}
+          </div>
           <RequirementsTable
             projectId={project.id}
             requirements={project.requirements}

@@ -4,6 +4,7 @@ import { requiresFeature, UNMAPPED_LABEL, VERDICT_LABEL, VERDICT_ORDER, type Cat
 import { countBySolution, countByVerdict, groupByRequirement, indexCatalog, mappingRollup, mappingSummary, type CatalogIndex } from "./mapping/summary";
 import { groupRowsByDetail, isDetailScoped, type DetailGroup } from "./mapping/detail-groups";
 import { parseDetailUnits } from "./mapping/detail-items";
+import { buildReviewUnits, responseText, scoreOf, UNIT_STATUS_LABEL, type UnitStatus } from "./mapping/review";
 
 export interface XlsxProject {
   name: string;
@@ -101,6 +102,8 @@ const DETAIL_WIDTHS_MAPPED = [5, 14, 24, 32, 18, 18, 5, 58, 12, 14, 26, 38, 42, 
  *
  * 매핑은 요구사항 목록이 아니라 **상세 시트의 세부 항목마다** 붙는다(화면 매핑 편집기와 같은 단위) —
  * 목록 시트는 요약("당사 솔루션"·"세부 항목 매핑")만, 솔루션_매핑 시트는 병합 없는 한 줄 = 한 매핑 덤프.
+ * 그 뒤에 제안팀용 시트 둘: `{n+1}.요구사항_대응표`(제안서 부속 "요구사항 대응표" 초안 — 확정 판정만 담고 후보는 "검토 대기")와
+ * `{n+2}.Gap_리포트`(충족이 아닌 단위만 — Go/No-go 회의 자료).
  */
 export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[], mapping?: XlsxMapping): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
@@ -275,6 +278,59 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
         }
       }
     }
+  }
+
+  // {n+1}.요구사항_대응표 / {n+2}.Gap_리포트 — 확정 작업 결과를 제안팀이 그대로 쓰는 산출물
+  if (mapping && index) {
+    const units = buildReviewUnits(sorted, mapping.rows);
+    const nameOf = (rows: readonly MappingRow[], pick: "solution" | "feature") =>
+      [...new Set(rows.filter((r) => requiresFeature(r.verdict)).map((r) => names(r, index)[pick]).filter(Boolean))].join("; ");
+    const notesOf = (rows: readonly MappingRow[]) => rows.map((r) => r.note?.trim()).filter((n): n is string => !!n).join("\n");
+    const detailOf = (u: (typeof units)[number]) => (u.group.key ? `${u.group.key}. ${u.group.label}` : "");
+
+    // 대응표: 단위마다 한 줄. 판정은 확정 행만 — 후보는 "검토 대기"로 두어 제안서에 미확정 판정이 실리지 않게 한다.
+    const rs = wb.addWorksheet(`${codes.length + 3}.요구사항_대응표`);
+    [5, 18, 14, 36, 44, 12, 16, 28, 60, 18, 10, 30].forEach((w, i) => (rs.getColumn(i + 1).width = w));
+    const decided = units.filter((u) => u.status !== "pending" && u.status !== "unmapped").length;
+    rs.getCell("A1").value = `요구사항 대응표 (단위 ${units.length}개 중 확정 ${decided}개 — 제안서 목차·페이지는 제안서 작성 뒤 채우세요)`;
+    rs.getCell("A1").font = { ...FONT, size: 12, bold: true };
+    rs.getRow(3).values = ["연번", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "세부 항목", "대응 여부", "대응 솔루션", "대응 기능", "대응 방안", "제안서 목차", "페이지", "비고"];
+    styleHeader(rs.getRow(3));
+    units.forEach((u, i) => {
+      const row = rs.getRow(4 + i);
+      row.values = [
+        i + 1, u.requirement.categoryName, u.requirement.reqId, u.requirement.title, detailOf(u),
+        UNIT_STATUS_LABEL[u.status], nameOf(u.confirmed, "solution"), nameOf(u.confirmed, "feature"), responseText(u.confirmed), "", "", notesOf(u.group.rows),
+      ];
+      styleBody(row);
+    });
+
+    // Gap 리포트: 충족이 아닌 단위만, "우리가 못 하는 것"부터(설계·구축영역 → 해당없음 → 부분충족 → 검토 대기 → 미매핑)
+    const GAP_ORDER: readonly UnitStatus[] = ["build", "na", "partial", "pending", "unmapped"];
+    const gaps = GAP_ORDER.flatMap((st) => units.filter((u) => u.status === st));
+    const gs = wb.addWorksheet(`${codes.length + 4}.Gap_리포트`);
+    [5, 12, 18, 14, 36, 44, 70, 30].forEach((w, i) => (gs.getColumn(i + 1).width = w));
+    gs.getCell("A1").value = `Gap 리포트 (충족이 아닌 단위 ${gaps.length}개 / 전체 ${units.length}개)`;
+    gs.getCell("A1").font = { ...FONT, size: 12, bold: true };
+    GAP_ORDER.forEach((st, i) => {
+      gs.getCell(2, 2 + i * 2).value = UNIT_STATUS_LABEL[st];
+      gs.getCell(2, 2 + i * 2).font = { ...FONT, bold: true };
+      gs.getCell(2, 3 + i * 2).value = gaps.filter((u) => u.status === st).length;
+      gs.getCell(2, 3 + i * 2).font = FONT;
+    });
+    gs.getRow(4).values = ["연번", "상태", "요구사항 구분", "요구사항 ID", "요구사항 명칭", "세부 항목", "사유·현재 판단", "비고"];
+    styleHeader(gs.getRow(4));
+    gaps.forEach((u, i) => {
+      const row = gs.getRow(5 + i);
+      // 확정 행이 있으면 그 사유, 후보만 있으면 후보 수와 최고 점수 후보를 적어 검토 우선순위를 잡을 수 있게
+      const reason = u.confirmed.length
+        ? responseText(u.confirmed)
+        : u.candidates.length
+          ? `후보 ${u.candidates.length}건 — 최고 ${names(u.candidates[0], index).solution} › ${names(u.candidates[0], index).feature}${scoreOf(u.candidates[0]) ? ` (${scoreOf(u.candidates[0]).toFixed(2)})` : ""}`
+          : "매핑 없음";
+      row.values = [i + 1, UNIT_STATUS_LABEL[u.status], u.requirement.categoryName, u.requirement.reqId, u.requirement.title, detailOf(u), reason, notesOf(u.group.rows)];
+      styleBody(row);
+    });
   }
 
   return Buffer.from(await wb.xlsx.writeBuffer());

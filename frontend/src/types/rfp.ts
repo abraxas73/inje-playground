@@ -1,4 +1,5 @@
 import type { MappingEngineKind, MappingRow, Verdict } from "@/lib/rfp/mapping/types";
+import type { ReuseSuggestion } from "@/lib/rfp/mapping/reuse";
 import type { CategorySummaryRow } from "@/lib/rfp/category-summary";
 
 export type RfpMappingStatus = "none" | "running" | "ready" | "failed";
@@ -93,6 +94,28 @@ export interface RfpMapping extends MappingRow {
   score: number | null;
   updatedAt: string;
   updatedBy: string | null;
+}
+
+/**
+ * POST /api/rfp/projects/[id]/mapping/decide — 확정 작업 한 단위의 결정.
+ * confirm: 후보 하나를 충족/부분충족으로 확정(같은 단위의 다른 후보는 지운다)
+ * close: 단위를 설계·구축영역/해당없음으로 닫는다(후보 전부 삭제 후 행 하나 추가)
+ * reuse: 다른 요구사항에서 확정한 행을 이 단위에 복사한다(후보 전부 삭제)
+ */
+export type ReviewDecision =
+  | { action: "confirm"; requirementId: string; detailKey: string | null; mappingId: string; verdict: "fulfilled" | "partial" }
+  | { action: "close"; requirementId: string; detailKey: string | null; verdict: "build" | "na"; rationale?: string }
+  | { action: "reuse"; requirementId: string; detailKey: string | null; sourceMappingId: string };
+
+/** decide 응답 — 그 요구사항의 행 전체(단위 하나만 바뀌지만 화면이 요구사항 단위로 행을 교체한다) */
+export interface DecideResponse {
+  requirementId: string;
+  rows: RfpMapping[];
+}
+
+/** GET /api/rfp/projects/[id]/reuse?requirementId=&detailKey= */
+export interface ReuseResponse {
+  suggestions: ReuseSuggestion[];
 }
 
 /** GET /api/rfp/projects/[id]/mapping */
