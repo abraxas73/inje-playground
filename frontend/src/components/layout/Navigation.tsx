@@ -4,10 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Dice5, LogOut, UtensilsCrossed, Coffee, Shield, User as UserIcon, Settings, BookOpen, ClipboardList, SquareTerminal, MessagesSquare, TrendingUp, FileSearch, Newspaper } from "lucide-react";
+import { Dice5, LogOut, UtensilsCrossed, Coffee, Shield, User as UserIcon, Settings, BookOpen, ClipboardList, SquareTerminal, MessagesSquare, TrendingUp, FileSearch, Newspaper, ChevronDown, Users, BriefcaseBusiness, ChartNoAxesCombined } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,43 +17,20 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { logAction } from "@/lib/action-log";
 import { useUserRole } from "@/hooks/useUserRole";
-import type { UserRole } from "@/lib/roles";
-import { canAccess } from "@/lib/roles";
+import { PAGE_GROUPS, PAGES, matchesPath, pagesForPath, type PageKey } from "@/lib/page-access";
 
-interface NavItem {
-  href: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  minRole?: UserRole; // minimum role required (default: all)
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { href: "/food", label: "뭐 먹지", icon: UtensilsCrossed },
-  // 가이드(/guide)는 2026-08-29 사용자 요청으로 메뉴에서 숨김 — 경로·어드민 "가이드 관리"는 유지. 다시 보이려면 아래 줄 복원 + HelpCircle import.
-  // { href: "/guide", label: "가이드", icon: HelpCircle, minRole: "user" },
-  { href: "/ladder", label: "사다리", icon: Dice5 },
-  { href: "/team", label: "커피 타임", icon: Coffee },
-  { href: "/survey", label: "설문", icon: ClipboardList },
-  { href: "/usage/code", label: "Claude Code", icon: SquareTerminal, minRole: "user" },
-  { href: "/usage/chat", label: "Claude 채팅", icon: MessagesSquare, minRole: "user" },
-  { href: "/usage/perf", label: "성과", icon: TrendingUp, minRole: "user" },
-  { href: "/rfp", label: "RFP 분석", icon: FileSearch, minRole: "user" },
-  { href: "/people-news", label: "인사·부고", icon: Newspaper, minRole: "user" },
-  { href: "/admin", label: "어드민", icon: Shield, minRole: "admin" },
-];
-
-const ROLE_PRIORITY: Record<UserRole, number> = { guest: 0, user: 1, admin: 2 };
-
-function hasMinRole(userRole: UserRole, minRole?: UserRole): boolean {
-  if (!minRole) return true;
-  return ROLE_PRIORITY[userRole] >= ROLE_PRIORITY[minRole];
-}
+const PAGE_ICONS: Record<PageKey, typeof Coffee> = { food: UtensilsCrossed, ladder: Dice5, team: Coffee, survey: ClipboardList, usage_code: SquareTerminal, usage_chat: MessagesSquare, usage_perf: TrendingUp, rfp: FileSearch, people_news: Newspaper, guide: BookOpen };
+const GROUP_ICONS = { daily: Users, ai: ChartNoAxesCombined, work: BriefcaseBusiness };
 
 export default function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const { role } = useUserRole();
+  const { canAccessPage, isAdmin, loading, error, invalidate } = useUserRole();
+
+  useEffect(() => {
+    if (!loading && pagesForPath(pathname).length && !canAccessPage(pathname)) router.replace("/access-denied");
+  }, [pathname, loading, canAccessPage, router]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -76,8 +52,23 @@ export default function Navigation() {
   // 공유 링크 화면은 사외 열람용이라 사내 메뉴를 보여 주지 않는다(눌러도 로그인으로 튕긴다)
   if (pathname === "/login" || pathname === "/privacy" || pathname.startsWith("/rfp/shared/")) return null;
 
-  const visibleItems = NAV_ITEMS.filter((item) => hasMinRole(role, item.minRole));
-  const mobileItems = visibleItems.filter((item) => item.minRole !== "admin");
+  const groups = PAGE_GROUPS.map((group) => ({ ...group, pages: PAGES.filter((page) => page.group === group.id && !("hidden" in page && page.hidden) && canAccessPage(page.href)) })).filter((group) => group.pages.length > 0);
+  function groupMenu(group: typeof groups[number], mobile = false) {
+    const Icon = GROUP_ICONS[group.id];
+    const active = group.pages.some((page) => matchesPath(pathname, page.href));
+    return <DropdownMenu key={group.id}>
+      <DropdownMenuTrigger asChild>
+        <button className={cn(mobile ? "flex flex-1 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium" : "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium", active ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+          <Icon className={mobile ? "h-5 w-5" : "h-4 w-4"} /><span>{group.label}</span>{!mobile && <ChevronDown className="h-3 w-3" />}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side={mobile ? "top" : "bottom"} align="start" sideOffset={8} className="w-52">
+        {group.pages.map((page) => { const PageIcon = PAGE_ICONS[page.key]; return <DropdownMenuItem key={page.key} asChild>
+          <Link href={page.href} aria-current={matchesPath(pathname, page.href) ? "page" : undefined} className={cn("gap-2", matchesPath(pathname, page.href) && "bg-primary/10 text-primary")}><PageIcon className="h-4 w-4" />{page.label}</Link>
+        </DropdownMenuItem>; })}
+      </DropdownMenuContent>
+    </DropdownMenu>;
+  }
 
   return (
     <>
@@ -99,27 +90,11 @@ export default function Navigation() {
             </Link>
 
             {/* Desktop nav items */}
-            <div className="hidden min-w-0 overflow-x-auto md:flex items-center gap-0.5 bg-muted/50 rounded-xl p-1">
-              {visibleItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname.startsWith(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-                      isActive
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </Link>
-                );
-              })}
+            <div className="hidden min-w-0 md:flex items-center gap-0.5 bg-muted/50 rounded-xl p-1">
+              {groups.map((group) => groupMenu(group))}
+              {isAdmin && <Link href="/admin" className={cn("flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium", matchesPath(pathname, "/admin") ? "bg-background shadow-sm" : "text-muted-foreground")}><Shield className="h-4 w-4" />어드민</Link>}
             </div>
+            {error && <button className="text-xs text-destructive" onClick={() => void invalidate()}>권한 확인 재시도</button>}
 
             <div className="ml-auto flex shrink-0 items-center">
               {user && (
@@ -143,6 +118,7 @@ export default function Navigation() {
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-40">
+                    {isAdmin && <DropdownMenuItem asChild><Link href="/admin"><Shield className="h-4 w-4 mr-2" />어드민</Link></DropdownMenuItem>}
                     <DropdownMenuItem onClick={() => router.push("/profile")}>
                       <UserIcon className="h-4 w-4 mr-2" />
                       프로필
@@ -171,25 +147,7 @@ export default function Navigation() {
       {/* Mobile bottom tab bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl safe-area-bottom">
         <div className="flex h-14 overflow-x-auto px-1">
-          {mobileItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex min-w-16 flex-1 shrink-0 flex-col items-center justify-center gap-0.5 whitespace-nowrap px-2 text-[10px] font-medium transition-colors",
-                  isActive
-                    ? "text-primary"
-                    : "text-muted-foreground"
-                )}
-              >
-                <Icon className={cn("h-5 w-5", isActive && "text-primary")} />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+          {groups.map((group) => groupMenu(group, true))}
         </div>
       </nav>
     </>

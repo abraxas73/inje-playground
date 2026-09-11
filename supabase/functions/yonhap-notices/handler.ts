@@ -39,6 +39,11 @@ export function createHandler({ secret, createAdmin, collect = fetchNotices }: D
         if (profileError || !["user", "admin"].includes(profile?.role)) {
           return Response.json({ error: "사용자 권한이 필요합니다." }, { status: 403 });
         }
+        if (profile.role !== "admin") {
+          const access = await admin.from("user_page_access").select("permissions").eq("user_id", user.id).maybeSingle();
+          if (access.error) return Response.json({ error: "접근 권한을 확인하지 못했습니다." }, { status: 503 });
+          if (access.data?.permissions?.people_news === false) return Response.json({ error: "인사·부고 접근 권한이 없습니다." }, { status: 403 });
+        }
         const { data: claimed, error: claimError } = await admin.rpc("claim_yonhap_notice_manual_sync");
         if (claimError) throw new Error("수집 실행 상태 확인 실패");
         if (!claimed) {

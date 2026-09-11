@@ -78,6 +78,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 ## Architecture
 
 ### App Router Pages (`frontend/src/app/`)
+- `/admin/page-permissions` — 사용자별 페이지 접근 권한. `lib/page-access.ts` 공용 카탈로그로 사용자 메뉴 2단계 그룹·홈 카드·페이지/API 검사를 통합. 기존 역할 기본값 유지, admin 전체 허용, RLS와 버전 검사 RPC. 런북 `docs/page-access.md`.
 - `/` — Home with feature cards linking to sub-pages
 - `/ladder` — Ladder game: participants + results matched via animated canvas ladder
 - `/team` — Team divider: random team assignment with card holder distribution and min/max constraints
