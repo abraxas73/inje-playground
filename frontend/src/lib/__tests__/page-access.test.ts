@@ -3,7 +3,7 @@ import { PAGES, canOpenPage, canUsePage, isPagePermissions, pagesForPath } from 
 
 describe("page access catalog", () => {
   it("preserves role defaults and makes admins immune to individual restrictions", () => {
-    for (const page of PAGES) {
+    for (const page of PAGES.filter(p => p.key !== "marketing")) {
       expect(canUsePage("user", page.key)).toBe(true);
       expect(canUsePage("guest", page.key)).toBe(page.minRole === "guest");
       expect(canUsePage("admin", page.key, { [page.key]: false })).toBe(true);
@@ -38,4 +38,13 @@ describe("page access catalog", () => {
     expect(isPagePermissions({})).toBe(true);
     expect(isPagePermissions({ rfp: false, food: true })).toBe(true);
   });
+});
+
+it("marketing requires explicit server permission even for admins", () => {
+  for (const role of ["user", "admin"] as const) {
+    expect(canUsePage(role, "marketing")).toBe(false);
+    expect(canUsePage(role, "marketing", { marketing: false })).toBe(false);
+    expect(canUsePage(role, "marketing", { marketing: true })).toBe(true);
+  }
+  expect(canUsePage("guest", "marketing", { marketing: true })).toBe(false);
 });

@@ -89,7 +89,11 @@ export async function updateSession(request: NextRequest) {
       if (profile.error || !["guest", "user", "admin"].includes(profile.data?.role)) return deny(503, "접근 권한을 확인하지 못했습니다.");
       const role = profile.data.role as UserRole;
       if (adminPath && role !== "admin") return deny(403, "관리자 권한이 필요합니다.");
-      if (role !== "admin" && pageKeys.length) {
+      if (pageKeys.includes("marketing")) {
+        const access = await supabase.rpc("has_page_access", { p_page: "marketing" });
+        if (access.error) return deny(503, "접근 권한을 확인하지 못했습니다.");
+        if (access.data !== true) return deny(403, "마케팅 DB 접근 권한이 없습니다.");
+      } else if (role !== "admin" && pageKeys.length) {
         const access = await supabase.from("user_page_access").select("permissions").eq("user_id", user.id).maybeSingle();
         if (access.error || (access.data && !isPagePermissions(access.data.permissions))) return deny(503, "접근 권한을 확인하지 못했습니다.");
         if (!pageKeys.some((key) => canUsePage(role, key, access.data?.permissions ?? {}))) return deny(403, "이 페이지에 접근할 권한이 없습니다.");

@@ -18,5 +18,6 @@ export async function GET() {
 
   const access = await supabase.from("user_page_access").select("permissions").eq("user_id", user.id).maybeSingle();
   if (error || !data || access.error || (access.data && !isPagePermissions(access.data.permissions))) return NextResponse.json({ error: "접근 권한을 확인하지 못했습니다." }, { status: 503 });
-  return NextResponse.json({ role: data.role, userId: user.id, permissions: access.data?.permissions ?? {} }, { headers: { "Cache-Control": "private, no-store" } });
+  const marketing = await supabase.rpc("has_page_access", { p_page: "marketing" });
+  return NextResponse.json({ role: data.role, userId: user.id, permissions: { ...access.data?.permissions, marketing: !marketing.error && marketing.data === true } }, { headers: { "Cache-Control": "private, no-store" } });
 }

@@ -16,6 +16,7 @@ export const PAGES = [
   { key: "usage_perf", href: "/usage/perf", label: "성과", group: "ai", minRole: "user" },
   { key: "rfp", href: "/rfp", label: "RFP 분석", group: "work", minRole: "user" },
   { key: "people_news", href: "/people-news", label: "인사·부고", group: "work", minRole: "user" },
+  { key: "marketing", href: "/marketing", label: "마케팅 Master DB", group: "work", minRole: "user" },
   { key: "guide", href: "/guide", label: "가이드 (메뉴 숨김)", group: "work", minRole: "user", hidden: true },
 ] as const;
 export type PageKey = typeof PAGES[number]["key"];
@@ -25,6 +26,8 @@ export function isPagePermissions(value: unknown): value is PagePermissions {
   return !!value && typeof value === "object" && !Array.isArray(value) && Object.entries(value).every(([key, allowed]) => PAGES.some((p) => p.key === key) && typeof allowed === "boolean");
 }
 export function canUsePage(role: UserRole, key: PageKey, permissions: PagePermissions = {}): boolean {
+  // Marketing is a restricted pilot. This value is resolved by the server allowlist.
+  if (key === "marketing") return (role === "admin" || role === "user") && permissions.marketing === true;
   if (role === "admin") return true;
   const page = PAGES.find((p) => p.key === key);
   if (!page || (page.minRole === "user" && role !== "user")) return false;
@@ -43,6 +46,7 @@ export function pagesForPath(path: string): PageKey[] {
     ["/api/team-comments", ["team"]], ["/api/team-notify", ["team"]],
     ["/api/surveys", ["survey"]], ["/api/guide", ["guide"]],
     ["/api/rfp", ["rfp"]], ["/api/people-news", ["people_news"]],
+    ["/api/marketing", ["marketing"]],
     ["/api/usage/code", ["usage_code"]], ["/api/usage/tools", ["usage_code"]],
     ["/api/usage/hourly", ["usage_code"]], ["/api/usage/chat", ["usage_chat"]],
     ["/api/usage/office", ["usage_chat"]], ["/api/usage/perf", ["usage_perf"]],
