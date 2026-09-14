@@ -1,8 +1,9 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-const m = vi.hoisted(() => ({ user: true, role: "user", denied: {} as Record<string, boolean>, fail: false }));
+const m = vi.hoisted(() => ({ user: true, role: "user", denied: {} as Record<string, boolean>, fail: false, marketing: false }));
 vi.mock("@supabase/ssr", () => ({ createServerClient: () => ({
+  rpc: async () => ({ data: m.marketing, error: m.fail ? { message: "offline" } : null }),
   auth: { getUser: async () => ({ data: { user: m.user ? { id: "self" } : null } }) },
   from: (_table: string) => ({ select: () => ({ eq: () => ({
     single: async () => ({ data: { role: m.role } }),
@@ -12,7 +13,7 @@ vi.mock("@supabase/ssr", () => ({ createServerClient: () => ({
 vi.mock("@/lib/audit-proxy", () => ({ auditProxyRequest: vi.fn() }));
 vi.mock("next/server", async (original) => ({ ...await original<typeof import("next/server")>(), after: vi.fn() }));
 import { updateSession } from "@/lib/supabase-middleware";
-beforeEach(() => { m.user = true; m.role = "user"; m.denied = {}; m.fail = false; });
+beforeEach(() => { m.user = true; m.role = "user"; m.denied = {}; m.fail = false; m.marketing = false; });
 const visit = (path: string) => updateSession(new NextRequest(`https://app.test${path}`));
 it("blocks direct pages and their APIs", async () => {
   m.denied = { people_news: false };
@@ -43,4 +44,16 @@ it("handles shared usage APIs using any allowed consuming page", async () => {
   expect((await visit("/api/usage/scope")).status).toBe(200);
   m.denied.usage_perf = false;
   expect((await visit("/api/usage/scope")).status).toBe(403);
+});
+
+it.each(["user", "admin"])("blocks non-allowlisted %s on marketing page and APIs", async role => {
+  m.role = role; m.denied = { marketing: true };
+  expect((await visit("/marketing")).headers.get("location")).toBe("https://app.test/access-denied");
+  expect((await visit("/api/marketing")).status).toBe(403);
+  expect((await visit("/api/marketing/review")).status).toBe(403);
+  m.marketing = true;
+  expect((await visit("/marketing")).status).toBe(200);
+  expect((await visit("/api/marketing")).status).toBe(200);
+  m.fail = true;
+  expect((await visit("/api/marketing")).status).toBe(503);
 });

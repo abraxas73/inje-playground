@@ -1,0 +1,35 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import RuleManager from "@/components/marketing/RuleManager";
+afterEach(() => vi.unstubAllGlobals());
+it("saves a conditional allowed-value rule, retains failures for correction, and previews without submitting a Contact", async () => {
+  let fail = true;
+  const fetch = vi.fn(async (_url: string, options?: RequestInit) => {
+    const body = options?.body ? JSON.parse(String(options.body)) : null;
+    if (body?.action === "publish") return { ok: !fail, json: async () => fail ? { error: "다시 확인하세요" } : { draft: { id: body.draftId, revision: 1, published_version: 1 } } };
+    if (body?.action === "preview") return { ok: true, json: async () => ({ version: "current", rules: [], violations: [{ id: "r1", severity: "error", message: "허용되지 않은 값" }] }) };
+    return { ok: true, json: async () => ({ rules: [], history: [], editable: true }) };
+  });
+  vi.stubGlobal("fetch", fetch); render(<RuleManager onClose={() => {}} />);
+  fireEvent.click(await screen.findByRole("button", { name: "규칙 추가" }));
+  fireEvent.change(screen.getByLabelText("규칙 이름"), { target: { value: "Eco 구분 관리" } });
+  fireEvent.change(screen.getByLabelText("검증 방식"), { target: { value: "one_of" } });
+  fireEvent.change(screen.getByLabelText("검사할 항목"), { target: { value: "ecoType" } });
+  fireEvent.change(screen.getByLabelText(/값 목록/), { target: { value: "기술\n영업" } });
+  fireEvent.change(screen.getByLabelText("적용 조건"), { target: { value: "eco" } });
+  fireEvent.change(screen.getByLabelText(/특정 값일 때만/), { target: { value: "Y" } });
+  fireEvent.change(screen.getByLabelText("변경 사유"), { target: { value: "확정 분류 기준 추가" } });
+  fireEvent.click(screen.getByRole("button", { name: "저장 및 적용" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("다시 확인하세요");
+  expect(screen.getByLabelText("규칙 이름")).toHaveValue("Eco 구분 관리");
+  fail = false; fireEvent.click(screen.getByRole("button", { name: "저장 및 적용" }));
+  await screen.findByText(/다음 제출·재검증·승인부터/);
+  const saved = fetch.mock.calls.map(([, o]) => o?.body ? JSON.parse(String(o.body)) : null).find(b => b?.action === "publish");
+  expect(saved.definition).toMatchObject({ title: "Eco 구분 관리", config: { operator: "one_of", field: "ecoType", values: ["기술", "영업"], whenField: "eco", whenValue: "Y" } });
+  expect(saved.reason).toBe("확정 분류 기준 추가");
+  fireEvent.click(screen.getByText("저장된 규칙 시험 검증"));
+  fireEvent.change(screen.getByLabelText("시험 Eco 구분"), { target: { value: "미확정" } });
+  fireEvent.click(screen.getByRole("button", { name: "시험 검증" }));
+  await waitFor(() => expect(screen.getByText("· 허용되지 않은 값")).toBeInTheDocument());
+  expect(fetch.mock.calls.every(([url]) => url === "/api/marketing/rules")).toBe(true);
+});

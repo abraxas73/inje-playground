@@ -74,7 +74,7 @@ export default function PagePermissionsPage() {
 
   return <div className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><h2 className="text-xl font-semibold">페이지 접근 권한</h2><p className="mt-1 text-sm text-muted-foreground">사용자를 선택하고 접근할 수 있는 페이지를 설정하세요. 저장 전까지 기존 권한을 유지합니다.</p></div>
+      <div><h2 className="text-xl font-semibold">페이지 접근 권한</h2><p className="mt-1 text-sm text-muted-foreground">사용자를 선택하고 접근할 수 있는 페이지를 설정하세요. 마케팅 DB는 별도의 지정 계정 정책으로 관리합니다.</p></div>
       <Button variant="outline" size="sm" disabled={loading || saving} onClick={reloadUsers}><RotateCcw className="h-4 w-4" />목록 새로고침</Button>
     </div>
     {message && <p role={message.error ? "alert" : "status"} className={cn("rounded-lg border p-3 text-sm", message.error ? "border-destructive/30 text-destructive" : "border-primary/20 text-primary")}>{message.text}</p>}
@@ -95,11 +95,11 @@ export default function PagePermissionsPage() {
           <CardHeader className="border-b">
             <CardTitle className="flex flex-wrap items-center gap-2 text-lg">{selected.display_name || selected.email}<Badge variant="secondary">{roleLabels[selected.role]}</Badge></CardTitle>
             <p className="text-sm text-muted-foreground">{selected.email}</p>
-            <p className="text-xs text-muted-foreground">{selected.role === "admin" ? "관리자는 모든 페이지에 접근할 수 있으며 개별 제한을 적용하지 않습니다." : "차단하면 메뉴·홈 카드와 직접 주소·관련 API 접근이 제한됩니다. 기존 역할보다 높은 권한은 부여할 수 없습니다."}</p>
+            <p className="text-xs text-muted-foreground">{selected.role === "admin" ? "관리자는 일반 페이지의 개별 제한을 받지 않습니다. 마케팅 DB는 지정된 두 계정만 접근할 수 있습니다." : "차단하면 메뉴·홈 카드와 직접 주소·관련 API 접근이 제한됩니다. 기존 역할보다 높은 권한은 부여할 수 없습니다."}</p>
           </CardHeader>
           <CardContent className="space-y-6 pt-5">
             {PAGE_GROUPS.map((group) => {
-              const pages = PAGES.filter((p) => p.group === group.id);
+              const pages = PAGES.filter((p) => p.group === group.id && p.key !== "marketing");
               const editable = pages.filter((p) => canUsePage(selected.role, p.key));
               const allAllowed = editable.every((p) => canUsePage(selected.role, p.key, draft));
               return <section key={group.id} className="space-y-2">

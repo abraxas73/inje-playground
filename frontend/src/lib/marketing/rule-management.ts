@@ -1,0 +1,18 @@
+import { MASTER_SORT_FIELDS } from "./types";
+export const RULE_FIELDS = MASTER_SORT_FIELDS;
+export const OPERATORS = { required: "필수값", email: "이메일 형식", date: "날짜 형식", one_of: "허용값 목록", forbidden_values: "금지값 목록", max_length: "최대 글자 수", review: "담당자 확인", duplicates: "전체 Master 중복 비교", company_standard: "회사명 표준화", classification: "회사 분류 확인", organization: "회사 연결 검사", provenance: "원본 추적 검사", builtin: "운영 원칙 (자동 실행 안 함)" } as const;
+export type Operator = keyof typeof OPERATORS;
+export interface RuleConfig { operator: Operator; field?: keyof typeof RULE_FIELDS; values?: string[]; max?: number; whenField?: keyof typeof RULE_FIELDS; whenValue?: string; whenAnyFields?: (keyof typeof RULE_FIELDS)[] }
+export interface Rule { id: string; code: string; title: string; description: string; config: RuleConfig; severity: "error" | "warning"; enabled: boolean; protected: boolean; source: string; version: number; updated_at?: string }
+export interface RuleDraft { id: string; rule_id: string | null; base_version: number | null; revision: number; definition: Rule; reason: string; published_version: number | null }
+export interface RuleVersion { rule_id: string; version: number; definition: Rule; reason: string; actor_name: string; created_at: string }
+export interface RulesData { rules: Rule[]; drafts?: RuleDraft[]; versions?: RuleVersion[]; editable: boolean }
+export const OUTCOMES = { pass: "통과", fail: "미충족", review: "확인 필요", not_applicable: "대상 아님", error: "실행 오류", pending: "미처리" } as const;
+export const RUN_STATUSES = { queued: "대기", running: "실행 중", completed: "완료", completed_with_errors: "일부 실행 오류", cancel_requested: "취소 요청 중", cancelled: "취소됨", failed: "실패" } as const;
+export type Outcome = keyof typeof OUTCOMES;
+export interface ValidationRun { id: string; actor_name: string; scope: "all" | "filtered" | "selected"; filters: Record<string,string | boolean>; rules: Rule[]; trial: boolean; status: keyof typeof RUN_STATUSES; total: number; processed: number; created_at: string; finished_at: string | null; last_error: string | null; attempt: number }
+export interface BatchResult { id: number; rule_index: number; outcome: Outcome; severity: string; detail: { message: string; field?: string; actual?: string; related?: {id: string; dbId?: string; name?: string; category?: string}[] } }
+export interface ValidationTarget { contact_id: string; submission_request_key: string; ordinal: number; snapshot: import("./types").Contact; context: { companyContacts?: number }; processed: boolean; outcome: Outcome | null; severity: string | null; issue_count: number; stale: boolean; followup_status: string | null; followup_reason: string | null; followup_stale: boolean; submission_id: string | null; submission_status: string | null; current_version: number | null; current_organization_version: number | null; results: BatchResult[]; followups: {id:string; status:string; reason:string; actor_name:string; created_at:string}[] }
+export interface ValidationReport { exportToken?: string; run: ValidationRun | null; total: number; rulesChanged: boolean; comparisonChanged?: boolean; selectedIds?: string[]; counts: Partial<Record<Outcome,number>>; ruleCounts: {rule_index: number; outcome: Outcome; severity: string; count: number; companies: number}[]; rows: ValidationTarget[] }
+export const runInProgress = (s: ValidationRun["status"]) => ["queued", "running", "cancel_requested"].includes(s);
+export const blankRule = (): Rule => ({ id: "", code: "", title: "", description: "", config: { operator: "required", field: "phone" }, severity: "error", enabled: true, protected: false, source: "사용자 추가", version: 0 });
