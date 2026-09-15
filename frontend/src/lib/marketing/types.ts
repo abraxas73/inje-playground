@@ -20,8 +20,8 @@ export interface Validation {
   ai: { status: "not_needed" | "unavailable" | "success" | "failed"; reason: string; category?: string; organizationId?: string | null; model?: string };
   ruleVersion: string;
 }
-export interface Submission { id: string; data: ContactData; target_id: string | null; clear_fields: Field[]; validation: Validation; status: "validating" | "pending" | "approved" | "rejected" | "unchanged"; version: number; created_at: string; submitted_by: string; submitter: string; division: string; source: Record<string, unknown>; result_contact_id: string | null }
-export interface ReviewEvent { id: string; action: string; actor_name: string; created_at: string; reason: string; before_data: unknown; after_data: unknown; submission_id: string | null; contact_id?: string | null; organization_id?: string | null; submitter?: string | null; division?: string | null; source?: unknown; validation_snapshot?: unknown }
+export interface Submission { submitted_organization_id?: string | null; id: string; data: ContactData; target_id: string | null; clear_fields: Field[]; validation: Validation; status: "validating" | "pending" | "approved" | "rejected" | "unchanged"; version: number; created_at: string; submitted_by: string; submitter: string; division: string; source: Record<string, unknown>; result_contact_id: string | null }
+export interface ReviewEvent { email_result_id?: string | null; id: string; action: string; actor_name: string; created_at: string; reason: string; before_data: unknown; after_data: unknown; submission_id: string | null; contact_id?: string | null; organization_id?: string | null; submitter?: string | null; division?: string | null; source?: unknown; validation_snapshot?: unknown }
 export const visibleData = (c: Contact): ContactData => ({ ...emptyContact(), ...c.data, company: c.organization?.name ?? c.data.company });
 export const emailKey = (v: string) => v.trim().toLowerCase();
 export const companyKey = (v: string) => v.trim().toLowerCase().replace(/주식회사|\(주\)|㈜|\s/g, "");

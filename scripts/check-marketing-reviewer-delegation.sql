@@ -1,0 +1,58 @@
+-- LOCAL disposable DB only; all changes roll back.
+\set ON_ERROR_STOP on
+begin;
+create function pg_temp.assert_true(ok boolean,msg text) returns void language plpgsql as $$ begin if ok is distinct from true then raise exception 'ASSERT: %',msg; end if; end $$;
+create function pg_temp.expect_error(statement text,code text) returns void language plpgsql as $$ begin
+ begin execute statement; exception when others then if sqlstate=code then return; else raise; end if; end; raise exception 'Expected SQLSTATE %',code;
+end $$;
+insert into auth.users values('46a2400a-f04f-4b78-bd20-e3f75507b154'),('a4e1906d-b915-4e00-9b4e-657beeb396ae'),('00000000-0000-4000-8000-000000000003'),('00000000-0000-4000-8000-000000000004'),('00000000-0000-4000-8000-000000000005');
+insert into public.user_profiles values('46a2400a-f04f-4b78-bd20-e3f75507b154','admin','owner1@example.com','관리자1'),('a4e1906d-b915-4e00-9b4e-657beeb396ae','user','owner2@example.com','관리자2'),('00000000-0000-4000-8000-000000000003','user','candidate1@example.com','추가 후보'),('00000000-0000-4000-8000-000000000004','admin','candidate2@example.com','관리자 후보'),('00000000-0000-4000-8000-000000000005','guest','candidate3@example.com','미승인 후보');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000003',true);
+select pg_temp.assert_true(not has_page_access('marketing') and not marketing_can_review(),'unassigned user has no access');
+select pg_temp.expect_error($q$select marketing_set_reviewer('00000000-0000-4000-8000-000000000003',true)$q$,'42501');
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000004',true);
+select pg_temp.assert_true(not has_page_access('marketing') and not marketing_can_manage_reviewers(),'other global admins cannot self-enroll');
+select pg_temp.expect_error($q$select marketing_reviewer_candidates('candidate')$q$,'42501');
+select set_config('request.jwt.claim.sub','a4e1906d-b915-4e00-9b4e-657beeb396ae',true);
+select pg_temp.assert_true(has_page_access('marketing') and marketing_can_review() and marketing_can_manage_reviewers(),'Kim manages reviewers without global admin role or explicit assignment');
+select pg_temp.assert_true((marketing_reviewer_directory()->>'canManage')::boolean and not (marketing_reviewer_directory()->>'canImport')::boolean,'review management does not grant global admin import');
+select pg_temp.assert_true((marketing_reviewer_candidates('candidate')->>'total')::integer=2,'search includes approved users/admins but excludes guests');
+select pg_temp.expect_error($q$select marketing_reviewer_candidates('c')$q$,'22023');
+select set_config('test.delegate_version',(marketing_reviewer_candidates('candidate1')->'rows'->0->>'version'),true);
+select set_config('test.delegate_result',marketing_update_reviewer('00000000-0000-4000-8000-000000000003',true,current_setting('test.delegate_version'))::text,true);
+select pg_temp.assert_true((current_setting('test.delegate_result')::jsonb->'row'->>'pageAccess')::boolean and (current_setting('test.delegate_result')::jsonb->'row'->>'canReview')::boolean and not (current_setting('test.delegate_result')::jsonb->'row'->>'isManager')::boolean,'membership grants access/review only');
+select pg_temp.assert_true(current_setting('test.delegate_result')::jsonb->'row'->>'grantedBy'='관리자2','Kim recorded as actual grant actor');
+select pg_temp.expect_error(format('select marketing_update_reviewer(%L,false,%L)','00000000-0000-4000-8000-000000000003',current_setting('test.delegate_version')),'40001');
+select pg_temp.assert_true((marketing_reviewer_candidates('candidate')->>'total')::integer=1,'already assigned user excluded from add search');
+select pg_temp.expect_error($q$select marketing_set_reviewer('00000000-0000-4000-8000-000000000005',true)$q$,'42501');
+select pg_temp.expect_error($q$select marketing_set_reviewer('a4e1906d-b915-4e00-9b4e-657beeb396ae',false)$q$,'42501');
+select pg_temp.expect_error($q$select marketing_set_reviewer('46a2400a-f04f-4b78-bd20-e3f75507b154',false)$q$,'42501');
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000003',true);
+select pg_temp.assert_true(has_page_access('marketing') and marketing_can_review() and not marketing_can_manage_reviewers(),'new member can review but cannot manage');
+select pg_temp.assert_true(not (marketing_reviewer_directory()->>'canManage')::boolean,'new member roster is read-only');
+select pg_temp.expect_error($q$select marketing_set_reviewer('00000000-0000-4000-8000-000000000003',true)$q$,'42501');
+select pg_temp.expect_error($q$select marketing_set_reviewer('00000000-0000-4000-8000-000000000004',true)$q$,'42501');
+select pg_temp.expect_error($q$select marketing_reviewer_candidates('candidate')$q$,'42501');
+select pg_temp.expect_error($q$insert into marketing_reviewers values('00000000-0000-4000-8000-000000000004')$q$,'42501');
+select pg_temp.expect_error($q$select marketing_access_account('00000000-0000-4000-8000-000000000004')$q$,'42501');
+select set_config('request.jwt.claim.sub','46a2400a-f04f-4b78-bd20-e3f75507b154',true);
+select marketing_set_reviewer('00000000-0000-4000-8000-000000000004',true);
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000004',true);
+select pg_temp.assert_true(has_page_access('marketing') and not marketing_can_manage_reviewers(),'enrolled global admin does not become reviewer manager');
+select pg_temp.expect_error($q$select marketing_set_reviewer('00000000-0000-4000-8000-000000000003',false)$q$,'42501');
+select set_config('request.jwt.claim.sub','a4e1906d-b915-4e00-9b4e-657beeb396ae',true);
+select marketing_set_reviewer('00000000-0000-4000-8000-000000000003',false);
+select pg_temp.assert_true((marketing_reviewer_directory()->>'total')::integer=3,'grant and revoke audit events retained');
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000003',true);
+select pg_temp.assert_true(not has_page_access('marketing') and not marketing_can_review(),'revocation removes both access and review');
+select pg_temp.expect_error('select marketing_reviewer_directory()','42501');
+reset role;
+-- An audit failure cannot leave an access grant behind.
+create function pg_temp.reject_delegate_event() returns trigger language plpgsql as $$ begin raise exception 'audit failure' using errcode='P0001'; end $$;
+create trigger test_reject_delegate_event before insert on marketing_review_events for each row execute function pg_temp.reject_delegate_event();
+set local role authenticated;
+select set_config('request.jwt.claim.sub','a4e1906d-b915-4e00-9b4e-657beeb396ae',true);
+select pg_temp.expect_error($q$select marketing_set_reviewer('00000000-0000-4000-8000-000000000003',true)$q$,'P0001');
+select pg_temp.assert_true(not exists(select 1 from marketing_reviewers where user_id='00000000-0000-4000-8000-000000000003'),'audit failure rolls back membership');
+rollback;

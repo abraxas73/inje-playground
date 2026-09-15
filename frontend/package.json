@@ -25,6 +25,7 @@
     "fast-xml-parser": "^5.11.1",
     "fflate": "^0.8.3",
     "geist": "^1.7.0",
+    "ipaddr.js": "^2.5.0",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
     "radix-ui": "^1.4.3",
@@ -32,6 +33,7 @@
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
     "tailwind-merge": "^3.5.0",
+    "tldts": "^7.4.13",
     "unpdf": "^1.8.1",
     "zod": "^4.5.4"
   },

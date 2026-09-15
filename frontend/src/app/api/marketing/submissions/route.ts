@@ -23,10 +23,17 @@ export async function POST(req: NextRequest) {
         if (JSON.stringify(r.source ?? {}).length > 100000) throw new Error("원본 출처 정보가 너무 큽니다.");
         const target = r.dbId ? contacts.find(c => c.db_id === r.dbId) : r.targetId ? contacts.find(c => c.id === r.targetId) : null;
         if ((r.dbId || r.targetId) && !target) throw new Error("지정한 DB ID를 찾을 수 없습니다. 기존 ID를 확인해 주세요.");
+        const selectedOrganization = organizations.find(o => o.id === r.organizationId);
+        if ((body.mode === "form" || r.organizationId) && !selectedOrganization) throw new Error("등록된 회사·기관을 검색하여 선택해 주세요.");
+        if (selectedOrganization) {
+          if (r.organizationVersion !== selectedOrganization.version) throw new Error("회사 기준이 변경되었습니다. 다시 선택해 주세요.");
+          if (clearFields.includes("company")) throw new Error("회사·기관 선택은 삭제할 수 없습니다.");
+          data.company = selectedOrganization.name;
+        }
         const requestKey = r.requestKey || randomUUID();
         const validation = validateContact(data, contacts, organizations, target?.id ?? null, clearFields,
           body.rows.filter((_: unknown, i: number) => i !== index).map((x: { data: unknown }) => { try { return cleanData(x.data); } catch { return null; } }).filter(Boolean));
-        const initial = await db.rpc("marketing_submit", { p_rows: [{ data, targetId: target?.id ?? null, clearFields, requestKey, source: { ...r.source, submittedData: r.data, submittedDbId: r.dbId ?? null }, processing: true, validation: { ...validation, reasons: ["검증 중 · 중단된 경우 검수 화면에서 다시 검증할 수 있습니다."] } }] }); dbCheck(initial.error);
+        const initial = await db.rpc("marketing_submit", { p_rows: [{ data, targetId: target?.id ?? null, clearFields, requestKey, organizationId: selectedOrganization?.id ?? null, organizationVersion: selectedOrganization?.version ?? null, requireOrganization: body.mode === "form", source: { ...r.source, submittedData: r.data, submittedDbId: r.dbId ?? null }, processing: true, validation: { ...validation, reasons: ["검증 중 · 중단된 경우 검수 화면에서 다시 검증할 수 있습니다."] } }] }); dbCheck(initial.error);
         const id = initial.data[0] as string;
         // The check includes pending/processing rows but excludes this request itself.
         const checked = await applyRules(db, target ? mergeUpdate(visibleData(target), data, clearFields) : data, validation);

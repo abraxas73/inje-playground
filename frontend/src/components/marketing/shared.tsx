@@ -16,7 +16,7 @@ export function OrganizationPicker({ onPick }: { onPick: (o: Organization) => vo
   const [q, setQ] = useState(""); const [items, setItems] = useState<Organization[]>([]); const [error, setError] = useState("");
   useEffect(() => {
     const abort = new AbortController();
-    const timer = setTimeout(() => { if (!q.trim()) { setItems([]); return; } api<{ rows: Organization[] }>(`/api/marketing?view=organizations&q=${encodeURIComponent(q)}`, undefined, abort.signal).then(r => { setItems(r.rows); setError(""); }).catch(e => { if (!abort.signal.aborted) setError(errorMessage(e)); }); }, 250);
+    const timer = setTimeout(() => { if (!q.trim()) { setItems([]); return; } api<{ rows: Organization[] }>(`/api/marketing/organizations?q=${encodeURIComponent(q)}`, undefined, abort.signal).then(r => { if (!abort.signal.aborted) { setItems(r.rows); setError(""); } }).catch(e => { if (!abort.signal.aborted) setError(errorMessage(e)); }); }, 250);
     return () => { abort.abort(); clearTimeout(timer); };
   }, [q]);
   return <div className="space-y-2"><Input aria-label="기존 회사 검색" placeholder="기존 회사·기관 검색" value={q} onChange={e => setQ(e.target.value)} />{error && <p role="alert" className="text-destructive text-xs">{error}</p>}{q && <div className="max-h-40 overflow-auto">{items.map(o => <Button key={o.id} variant="ghost" className="w-full justify-start text-left" onClick={() => { onPick(o); setQ(""); setItems([]); }}>{o.name} · {o.category}</Button>)}{!items.length && <p className="text-xs text-muted-foreground">검색 결과가 없습니다.</p>}</div>}</div>;
