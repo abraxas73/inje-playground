@@ -1,6 +1,6 @@
 # 마케팅 Master DB 운영 및 검증
 
-> 최신 상태: [관리 규칙 수정·전체/일부 Master 검증](marketing-rule-management-v2.md)을 운영에 반영했다. 기존 접수·승인과 AI 유보 범위는 [AI 제외 1차 보완 구현](marketing-master-db-completion.md)을 참조한다. 아래 초기 배포 기록은 당시 기준이다.
+> 최신 기능: [등록된 회사·기관 검색·선택 및 선등록](marketing-registered-organizations.md). [검수자 목록·실제 권한·지정 이력](marketing-reviewer-management.md). [이메일 정합성 관리](marketing-email-integrity.md). [관리 규칙 수정·전체/일부 Master 검증](marketing-rule-management-v2.md)도 운영 중이다. 기존 접수·승인과 AI 유보 범위는 [AI 제외 1차 보완 구현](marketing-master-db-completion.md)을 참조한다. 아래 초기 배포 기록은 당시 기준이다.
 
 ## 구현 내용
 
@@ -104,3 +104,5 @@ SQL 검증은 별도 로컬 DB에서 Supabase 테스트 역할(`anon`, `authenti
 표 영역 안에서 가로·세로 스크롤할 수 있고, 두 줄 헤더 모두 세로 스크롤 시 상단에 고정된다. 컬럼별 고정 너비와 좌우 8px 여백으로 간격을 줄였으며 긴 데이터는 생략하지 않고 셀 안에서 줄바꿈한다. DB ID를 누르면 기존 상세·원본·변경 이력을 확인할 수 있다. 회사명과 분류는 현재 회사·기관 표준값을 표시하며 원본은 상세 화면에 보존된다. TypeScript·ESLint 검사 및 기본 탭/18개 컬럼·5개 그룹 범위/탭 응답 역전 회귀 테스트 2개를 통과했다.
 
 2026-09-14 운영 배포 후 `/marketing` 새로고침에서 Master DB 기본 선택, 상위 5개 그룹·하위 18개 컬럼과 25개 행 표시, 마지막 비고 컬럼까지 가로 이동, 두 줄 헤더의 세로 스크롤 고정을 확인했다. 전체 표 너비는 3,374px에서 2,100px로 약 38% 줄였다. 표시 영역 1,438px에서 표만 가로 스크롤되며 페이지 자체의 가로 넘침은 없다.
+
+이메일 검증 이력은 Master의 DB ID 상세에서 검사 당시 이메일·판정·근거·요청자·시각과 함께 조회한다. 재검사와 오류 재시도, 기존 검사도 보존하며 세부 구현은 [이메일 정합성 관리](marketing-email-integrity.md#master-레코드의-이메일-검증-이력)를 참고한다.

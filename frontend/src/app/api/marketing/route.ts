@@ -4,7 +4,7 @@ import { masterFilters } from "@/lib/marketing/search";
 
 export async function GET(req: NextRequest) {
   try {
-    const { db, reviewer, admin } = await marketingAuth();
+    const { db, reviewer, admin, reviewerManager } = await marketingAuth();
     const params = req.nextUrl.searchParams;
     const view = params.get("view") ?? "master";
     const page = Math.max(1, Math.min(100000, Number(params.get("page")) || 1));
@@ -13,19 +13,18 @@ export async function GET(req: NextRequest) {
     if (view === "meta") {
       const result = await db.rpc("marketing_stats"); dbCheck(result.error);
       const identity = await db.rpc("marketing_identity"); dbCheck(identity.error);
-      return response({ reviewer, admin, ...result.data, identity: identity.data });
+      return response({ reviewer, admin, reviewerManager, ...result.data, identity: identity.data });
     }
     if (view === "reviewers") {
-      if (!admin) return response({ rows: [] });
-      const result = await db.from("marketing_reviewers").select("user_id"); dbCheck(result.error);
-      return response({ rows: result.data });
+      const result = await db.rpc("marketing_reviewer_directory", { p_page: Math.trunc(page) }); dbCheck(result.error);
+      return response(result.data);
     }
     if (view === "contact") {
       const id = params.get("id");
       if (!id) throw new Error("Contact ID가 필요합니다.");
       const result = await db.from("marketing_contacts").select("*,organization:marketing_organizations(*)").eq("id", id).single(); dbCheck(result.error);
       const sources = await db.from("marketing_source_rows").select("sheet,row_number,raw,batch_id").eq("contact_id", id); dbCheck(sources.error);
-      const events = await db.from("marketing_review_events").select("*").or(`contact_id.eq.${result.data.id},organization_id.eq.${result.data.organization_id ?? result.data.id}`).order("created_at", { ascending: false }); dbCheck(events.error);
+      const events = await db.from("marketing_review_events").select("*").is("email_result_id", null).or(`contact_id.eq.${result.data.id},and(contact_id.is.null,organization_id.eq.${result.data.organization_id ?? result.data.id})`).order("created_at", { ascending: false }); dbCheck(events.error);
       return response({ contact: result.data, sources: sources.data, events: events.data });
     }
     if (view === "submission") {

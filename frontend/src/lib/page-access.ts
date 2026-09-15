@@ -26,7 +26,7 @@ export function isPagePermissions(value: unknown): value is PagePermissions {
   return !!value && typeof value === "object" && !Array.isArray(value) && Object.entries(value).every(([key, allowed]) => PAGES.some((p) => p.key === key) && typeof allowed === "boolean");
 }
 export function canUsePage(role: UserRole, key: PageKey, permissions: PagePermissions = {}): boolean {
-  // Marketing is a restricted pilot. This value is resolved by the server allowlist.
+  // Marketing membership is resolved by the server: fixed managers and their designated reviewers.
   if (key === "marketing") return (role === "admin" || role === "user") && permissions.marketing === true;
   if (role === "admin") return true;
   const page = PAGES.find((p) => p.key === key);

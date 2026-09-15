@@ -1,14 +1,14 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-const m = vi.hoisted(() => ({ rpc: vi.fn(), duplicate: false }));
-vi.mock("@/lib/marketing/server", async original => ({ ...await original<typeof import("@/lib/marketing/server")>(), marketingAuth: async () => ({ db: { rpc: m.rpc } }), snapshot: async () => ({ contacts: [], organizations: [] }) }));
+const m = vi.hoisted(() => ({ rpc: vi.fn(), duplicate: false, organizations: [] as {id:string;name:string;category:string;aliases:string[];version:number}[] }));
+vi.mock("@/lib/marketing/server", async original => ({ ...await original<typeof import("@/lib/marketing/server")>(), marketingAuth: async () => ({ db: { rpc: m.rpc } }), snapshot: async () => ({ contacts: [], organizations: m.organizations }) }));
 vi.mock("@/lib/marketing/ai", () => ({ recommendCompany: async () => ({ status: "unavailable", reason: "후속 단계" }) }));
 import { POST } from "@/app/api/marketing/submissions/route";
 const row = (name: string) => ({ data: { company: "한빛", name, email: `${name}@example.test` } });
 const req = (rows: unknown[], partial = true) => new NextRequest("https://test.local/api/marketing/submissions", { method: "POST", body: JSON.stringify({ rows, partial }) });
 beforeEach(() => {
-  m.duplicate = false;
+  m.duplicate = false; m.organizations = [];
   m.rpc.mockReset().mockImplementation(async (name: string, p: { p_rows?: { data: { name: string } }[] }) => {
     if (name === "marketing_validate_rules") return { data: { version: "test-rules", rules: [], violations: [{ id: "name", code: "BASE-NAME", version: 2, severity: "error", manual: false, message: "성명 누락" }, { id: "email", code: "BASE-EMAIL-FORMAT", version: 2, severity: "error", manual: false, message: "이메일 형식 오류" }] } };
     if (name === "marketing_submit") return p.p_rows?.[0].data.name === "dbfail" ? { error: { message: "저장 실패" } } : { data: ["submitted-id"] };
@@ -49,4 +49,14 @@ it("preserves supplied retry request keys and source metadata", async () => {
   const calls = m.rpc.mock.calls.filter(c => c[0] === "marketing_submit");
   expect(calls[0][1].p_rows[0]).toMatchObject({ requestKey: r.requestKey, source: r.source, processing: true });
   expect(calls[1][1].p_rows[0].requestKey).toBe(r.requestKey);
+});
+
+it("requires an existing organization for form submission and rejects stale selections", async () => {
+  const send = (organizationId?: string, organizationVersion?: number) => POST(new NextRequest("https://test.local/api/marketing/submissions", {method:"POST",body:JSON.stringify({mode:"form",rows:[{...row("one"),organizationId,organizationVersion}]})}));
+  expect((await send()).status).toBe(400); expect(m.rpc).not.toHaveBeenCalled();
+  expect((await send("missing",1)).status).toBe(400); expect(m.rpc).not.toHaveBeenCalled();
+  m.organizations = [{id:"registered",name:"표준 회사",category:"IT기업",aliases:[],version:2}];
+  expect((await send("registered",1)).status).toBe(400); expect(m.rpc).not.toHaveBeenCalled();
+  expect((await send("registered",2)).status).toBe(200);
+  expect(m.rpc.mock.calls.find(c=>c[0]==="marketing_submit")![1].p_rows[0]).toMatchObject({data:{company:"표준 회사"},organizationId:"registered",organizationVersion:2,requireOrganization:true,source:{submittedData:{company:"한빛"}}});
 });

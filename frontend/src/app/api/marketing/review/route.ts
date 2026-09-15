@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
         s = saved.data as Submission;
       }
       const candidateIds = [...new Set([...validation.candidates, ...(b.targetId ? [b.targetId] : [])])];
-      return response({ submission: s, validation, contacts: contacts.filter(c => candidateIds.includes(c.id)), organizations: organizations.filter(o => validation.organizationIds.includes(o.id) || validation.ai.organizationId === o.id || contacts.some(c => candidateIds.includes(c.id) && c.organization_id === o.id)) });
+      return response({ submission: s, validation, contacts: contacts.filter(c => candidateIds.includes(c.id)), organizations: organizations.filter(o => o.id === s.submitted_organization_id || validation.organizationIds.includes(o.id) || validation.ai.organizationId === o.id || contacts.some(c => candidateIds.includes(c.id) && c.organization_id === o.id)) });
     }
     const result = await db.rpc("marketing_review", { p_id: b.id, p_version: b.version, p_action: b.action, p_final: b.action === "reject" ? {} : cleanData(b.final), p_target: b.targetId || null, p_target_version: b.targetVersion ?? null, p_org: b.organizationId || null, p_org_version: b.organizationVersion ?? null, p_category: b.category || "확인 필요", p_reason: b.reason, p_resolution: b.resolution ?? null });
     dbCheck(result.error); return response({ contactId: result.data });

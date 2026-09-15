@@ -9,12 +9,12 @@ export async function marketingAuth(review = false, admin = false) {
   const access = await db.rpc("has_page_access", { p_page: "marketing" });
   if (access.error) throw new MarketingError("마케팅 DB 설정을 확인해 주세요. DB 마이그레이션 적용이 필요할 수 있습니다.", 503);
   if (!access.data) throw new MarketingError("마케팅 DB 접근 권한이 없습니다.", 403);
-  const [{ data: profile, error }, reviewer] = await Promise.all([
-    db.from("user_profiles").select("role,display_name,email").eq("user_id", user.id).single(), db.rpc("marketing_can_review"),
+  const [{ data: profile, error }, reviewer, manager] = await Promise.all([
+    db.from("user_profiles").select("role,display_name,email").eq("user_id", user.id).single(), db.rpc("marketing_can_review"), db.rpc("marketing_can_manage_reviewers"),
   ]);
-  if (error || reviewer.error) throw new MarketingError("마케팅 DB 설정 또는 권한을 확인하지 못했습니다.", 503);
+  if (error || reviewer.error || manager.error) throw new MarketingError("마케팅 DB 설정 또는 권한을 확인하지 못했습니다.", 503);
   if ((review && !reviewer.data) || (admin && profile.role !== "admin")) throw new MarketingError("담당자 권한이 필요합니다.", 403);
-  return { db, user, reviewer: !!reviewer.data, admin: profile.role === "admin" };
+  return { db, user, reviewer: !!reviewer.data, reviewerManager: !!manager.data, admin: profile.role === "admin" };
 }
 export class MarketingError extends Error { constructor(message: string, public status = 400) { super(message); } }
 export function dbCheck(error: { message: string; code?: string } | null) {

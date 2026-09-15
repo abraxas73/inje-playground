@@ -48,6 +48,17 @@ it("ignores an old request that completes after the current tab response", async
   expect(screen.getByText("테스트 기관")).toBeInTheDocument();
   expect(screen.queryByText("테스트 제출")).not.toBeInTheDocument();
 });
+it("opens the Master record with its own email history section", async () => {
+  render(<MarketingWorkspace/>); await tick(); await reply(0);
+  fireEvent.click(screen.getByRole("button", { name: "TEST-001" }));
+  const contactRequest = pending.find(p => p.view === "contact")!;
+  await act(async () => contactRequest.resolve({ ok: true, json: async () => ({ contact: rows.master[0], sources: [], events: [] }) }));
+  expect(screen.getByRole("region", { name: "이메일 검증 이력" })).toBeInTheDocument();
+  const historyRequest = pending.find(p => p.view === null)!;
+  await act(async () => historyRequest.resolve({ ok: true, json: async () => ({ rows: [], total: 0, pageSize: 20 }) }));
+  expect(screen.getByText("아직 이 레코드의 이메일 검증 이력이 없습니다.")).toBeInTheDocument();
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/email-checks/contacts/c1?page=1"))).toBe(true);
+});
 it("sorts on the server, resets pagination, preserves filters and table, and ignores an older sort response", async () => {
   render(<MarketingWorkspace />); await tick(); await reply(0, 51);
   fireEvent.change(screen.getByLabelText("회사 분류"), { target: { value: "IT기업" } }); await tick(); await reply(1, 51);
