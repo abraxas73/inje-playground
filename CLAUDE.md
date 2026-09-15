@@ -101,6 +101,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/marketing` — 마케팅 Master DB(user + 페이지 접근 `marketing`; **고정 관리자 강승억·김하연과 그들이 지정한 검수자만** — `has_page_access('marketing')`가 `marketing_reviewers` 멤버십을 조회, 일반 페이지 권한 설정으로 확대 불가): Master 표(엑셀 `01_Master_DB` 2줄 헤더 18컬럼·헤더 클릭 정렬·필터 결과 Excel 다운로드, DB ID 클릭 → 상세·원본·변경 이력·이메일 검증 이력) · Contact 단건/Excel 제출(회사·기관은 **등록된 것만 검색·선택** — `ContactOrganizationPicker`, 신규 회사는 회사·기관 탭에서 선등록) · 검수 큐(승인 차단 오류/담당자 확인 항목 구분, 남은 승인 조건 안내, 반려 사유) · 회사·기관 기준(표준명·분류·승인 별칭·홈페이지/이메일 도메인 기준) · 검수자 관리(고정 관리자만 추가/해제 — `ReviewerManagement`) · 이메일 정합성 검사 실행. AI 추천은 `MARKETING_AI_ENABLED`+`ANTHROPIC_API_KEY`가 있을 때만 활성. 런북 `docs/marketing-master-db.md`(최신 기능 문서 링크 포함)
 - `/marketing/rules`, `/marketing/validations`, `/marketing/validations/[id]` — DB 관리 규칙(버전·초안·이력) 편집, 선택 규칙으로 전체/일부 Master 검증 실행·결과·후속 조치. 런북 `docs/marketing-rule-management-v2.md`
 - `/marketing/email-checks`, `/marketing/email-checks/[id]` — 이메일 정합성 검사(형식·회사 도메인 연관성·MX·홈페이지 응답, **개별 메일함 존재는 항상 미확인**) 실행 이력·판정·근거·Excel 내보내기. 작업자는 `after()` + 5분 Cron `/api/cron/marketing-email`이 대기·만료 임대 회수. 런북 `docs/marketing-email-integrity.md`
+- `/media-directory` — 관리 매체·부서(조회는 `people_news` 접근자, 편집·엑셀 업로드·발송 이력은 admin): 부고 알림 매칭 기준 목록. 매체(별칭·**부서 무관**·활성)·부서. `/people-news`에는 "관리 매체·부서 부고 알림 받기" 카드(`MediaAlertCard`, 로그인 이메일로 수신, Microsoft 연결 불필요)와 부고 항목의 "매체 / 부서 일치" 배지. 런북 `docs/media-directory.md`
 
 ### API Routes (`frontend/src/app/api/`)
 - `GET /api/dooray/members?projectId=X` — Proxies Dooray API to fetch project members
@@ -134,6 +135,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `POST /api/rfp/projects/[id]/mapping/decide`({action confirm|close|reuse, requirementId, detailKey, mappingId?|verdict?|sourceMappingId?} → 그 요구사항의 행 전체) — 확정 작업 한 단위의 결정을 한 번에 적용(후보 삭제 + 확정/닫기/복사, 판정 조합 규칙은 `validateManualMapping` 공용). `GET /api/rfp/projects/[id]/reuse?requirementId&detailKey` — 다른 요구사항에서 사람이 확정한 매핑 중 문장이 비슷한 것(문자 bigram cosine ≥ 0.45, 최대 3) — `lib/rfp/mapping/reuse.ts`
 - `GET·POST /api/rfp/projects/[id]/shares`(공유 링크 목록·생성 — 등록자·admin, visibility public|private), `DELETE /api/rfp/shares/[shareId]`(폐기), `GET /api/rfp/shared/[token]`(**인증 없음** — private은 세션 필요, 응답에서 파일·SharePoint·소유자 제거, 공개는 근거 URL·비고까지 제거) — `lib/rfp/share.ts`
 - `/api/marketing/{(GET 목록·상세),submissions,review,reviewers,organizations,excel,export,rules,rules/[id]/versions,validation-runs/[id]/{export,followups},email-checks/[id]/export,email-checks/contacts/[id],email-checks/profiles}` — 마케팅 Master DB(페이지 접근 `marketing`). 사용자 세션 RPC 기반이라 서비스 역할 키는 이메일 검사 작업자·Cron만 사용. 로직 `lib/marketing/`(types·validation·rules·rule-management·search·excel·server·reviewers·ai, `email/` normalize·network·evaluate·worker), 화면 `components/marketing/`
+- `GET /api/media-directory?q=`, `POST …/outlets`, `POST …/departments`, `POST …/import/preview`(xlsx 2MB), `POST …/import`({rows}), `GET …/deliveries`(admin) — 매체·부서 관리(`lib/media-directory/`: normalize=SQL `media_norm` 미러·excel·preview·server). `GET·PUT /api/people-news/media-alerts` — 부고 알림 구독. `GET /api/people-news`는 `matches`(부고 source_id → 일치 라벨) 포함
 - `GET /api/rfp/projects/[id]/sharepoint`, `PUT·DELETE …/sharepoint/folder`({url} → Graph shares 해석 → `rfp_projects.sharepoint_folder`), `POST …/sharepoint/upload`(→ `{upload, notified, notifyError?}`, 오류 `code: no_folder|not_connected|reconnect`) — SharePoint 등록(user 이상). 업로드는 `uploadProjectXlsx`(xlsx 라우트와 같은 `buildProjectWorkbook`)
 
 ### Supabase Tables (guide feature)
@@ -166,6 +168,9 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `marketing_rules`, `marketing_rule_versions`, `marketing_rule_drafts`, `marketing_rule_history`, `marketing_validations`, `marketing_validation_{runs,targets,results,followups,reference,organizations}` — DB 관리 규칙(버전)·선택 규칙 Master 검증 — SQL `2026-09-14-marketing-rules.sql`, `-rule-management-v2.sql`, `-validation-snapshot-performance.sql`
 - `marketing_email_profiles`(회사별 홈페이지·이메일 도메인 기준, 버전)·`marketing_email_profile_history`, `marketing_email_{runs,targets,results}`(실행·임대 120초·결과 스냅샷), `marketing_email_probe_cache`, `marketing_review_events.email_result_id`(결과 확정 트리거로 Contact 이력 1건) — SQL `2026-09-15-marketing-email-integrity.sql`, `-email-contact-history.sql`
 
+### Supabase Tables (관리 매체·부서·부고 알림)
+- `media_outlets`(name_norm 유니크·aliases·any_department·active), `media_departments`(outlet별 name_norm 유니크), `media_obituary_matches`(부고 × 매체 × 부서, `notified_at`), `media_alert_subscriptions`(사용자별 on/off), `media_alert_deliveries`(run × 수신자 sent|failed) — SQL `docs/sql/2026-09-15-media-directory.sql`. RPC `media_directory_import`·`media_outlet_save`·`media_department_save`(admin), `set_media_alert_subscription`(people_news), `media_match_notices`·`media_alert_recipients`(service_role). 매칭·발송은 Edge Function `yonhap-notices`의 `alerts.ts`·`smtp.ts`(SMTPS 465, AUTH LOGIN — Supabase 런타임은 25·587 아웃바운드 차단)
+
 ### Key Patterns
 
 **Client-side state**: All pages are `"use client"`. State persisted via localStorage through `useLocalStorage` hook. Each feature uses its own storage key.
@@ -195,12 +200,13 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `CLAUDE_OFFICE_OTEL_TOKEN` — Office 추가 기능 트레이스 수신(`/api/otel/v1/traces`) 전용 토큰. claude.ai 조직 설정 Office Agents의 OTLP 헤더 `Authorization=Bearer <값>`에 넣는 값이라 Claude Code 토큰과 분리
 - `ANTHROPIC_API_KEY`, `RFP_LLM_MODEL`(기본 claude-opus-5) — RFP 비표준 문서 LLM 폴백 + 카탈로그 기능 추출 + 솔루션 매핑(선택 — 없으면 규칙 엔진만)
 - `MARKETING_AI_ENABLED`, `MARKETING_AI_MODEL` — 마케팅 Master DB AI 추천(선택). `ANTHROPIC_API_KEY`와 함께 있을 때만 활성, 없으면 규칙 검증·수동 검수만. 현재 운영 미설정
+- `MEDIA_SMTP_HOST`, `MEDIA_SMTP_PORT`, `MEDIA_SMTP_USER`, `MEDIA_SMTP_PASS`, `MEDIA_APP_URL` — **Edge Function secrets**(Vercel 아님). 부고 알림 SMTPS 발송. 비어 있으면 매칭만 하고 발송을 건너뛴다
 - `ATLASSIAN_SITE`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN` — 카탈로그 Confluence 가져오기(기존 성과 지표와 공유)
 - `NEXT_PUBLIC_APP_URL` — 예약 메일의 HTTPS 앱 주소(예: `https://inje-playground.vercel.app`)
 - `YONHAP_EMAIL_CRON_SECRET` — Supabase pg_cron이 Vercel 예약 메일 라우트를 호출할 때 쓰는 전용 비밀값
 
 ### 연합뉴스 인사·부고 메일
-`/people-news`에서 사용자가 인사·부고를 조회하고 즉시 수집하거나, 개인별 메일 수신 여부와 한국 시간 발송 시각을 설정한다. 수집은 Supabase Edge Function `yonhap-notices`가 매일 07:00 KST에 공식 RSS를 누적한다. 메일은 Supabase Cron이 매분 호출하는 `/api/cron/yonhap-notice-email`에서 사용자별 due 구독을 claim하여 Microsoft Graph `Mail.Send` 위임 권한으로 본인 주소에서 본인에게 발송한다. 메일 화면의 연결 흐름에서만 Mail.Send를 추가 요청하며 기존 파일 연결 스코프는 유지한다. 같은 계정의 메일 권한 동의가 있어야 구독을 켤 수 있다. 발송 직전에 Graph /me 주소를 로그인 이메일과 다시 비교한다. 운영·설정·검증 절차는 `docs/yonhap-notices.md`.
+`/people-news`에서 사용자가 인사·부고를 조회하고 즉시 수집하거나, 개인별 메일 수신 여부와 한국 시간 발송 시각을 설정한다. 수집은 Supabase Edge Function `yonhap-notices`가 매일 07:00 KST에 공식 RSS를 누적한다. 메일은 Supabase Cron이 매분 호출하는 `/api/cron/yonhap-notice-email`에서 사용자별 due 구독을 claim하여 Microsoft Graph `Mail.Send` 위임 권한으로 본인 주소에서 본인에게 발송한다. 메일 화면의 연결 흐름에서만 Mail.Send를 추가 요청하며 기존 파일 연결 스코프는 유지한다. 같은 계정의 메일 권한 동의가 있어야 구독을 켤 수 있다. 발송 직전에 Graph /me 주소를 로그인 이메일과 다시 비교한다. 운영·설정·검증 절차는 `docs/yonhap-notices.md`. 수집 직후 새 부고를 관리 매체·부서와 매칭해 알림 구독자에게 SMTP 릴레이로 묶음 메일을 보낸다(`docs/media-directory.md`).
 
 ### Directory Layout (frontend/src/)
 - `components/` — Organized by feature: `ladder/`, `team/`, `food/`, `guide/`, `settings/`(+`MicrosoftAccountCard`), `shared/`, `layout/`, `admin/claude-usage/`(Claude 사용량 대시보드 탭·차트), `admin/directory/`(사내 조직도 표), `admin/rfp-catalog/`(솔루션·소스·기능 표), `rfp/`(업로드·개요·요구사항 표·`SharePointSection`)
