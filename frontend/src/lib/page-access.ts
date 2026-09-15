@@ -20,13 +20,15 @@ export const PAGES = [
   { key: "guide", href: "/guide", label: "가이드 (메뉴 숨김)", group: "work", minRole: "user", hidden: true },
 ] as const;
 export type PageKey = typeof PAGES[number]["key"];
+/** Pages that are denied unless a permission explicitly allows them (or a page-specific designation applies). */
+export const DEFAULT_DENIED_PAGES: ReadonlySet<PageKey> = new Set<PageKey>(["marketing"]);
 export type PagePermissions = Partial<Record<PageKey, boolean>>;
 export const matchesPath = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
 export function isPagePermissions(value: unknown): value is PagePermissions {
   return !!value && typeof value === "object" && !Array.isArray(value) && Object.entries(value).every(([key, allowed]) => PAGES.some((p) => p.key === key) && typeof allowed === "boolean");
 }
 export function canUsePage(role: UserRole, key: PageKey, permissions: PagePermissions = {}): boolean {
-  // Marketing membership is resolved by the server: fixed managers and their designated reviewers.
+  // Marketing is denied by default: the server merges fixed managers, designated reviewers and an explicit permission into `permissions.marketing`.
   if (key === "marketing") return (role === "admin" || role === "user") && permissions.marketing === true;
   if (role === "admin") return true;
   const page = PAGES.find((p) => p.key === key);

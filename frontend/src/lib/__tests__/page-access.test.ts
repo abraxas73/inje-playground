@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PAGES, canOpenPage, canUsePage, isPagePermissions, pagesForPath } from "@/lib/page-access";
+import { DEFAULT_DENIED_PAGES, PAGES, canOpenPage, canUsePage, isPagePermissions, pagesForPath } from "@/lib/page-access";
 
 describe("page access catalog", () => {
   it("preserves role defaults and makes admins immune to individual restrictions", () => {
@@ -15,6 +15,16 @@ describe("page access catalog", () => {
     expect(pagesForPath("/api/media-directory/import/preview")).toEqual(["people_news"]);
     expect(canOpenPage("user", "/media-directory", { people_news: false })).toBe(false);
     expect(canOpenPage("user", "/media-directory")).toBe(true);
+  });
+  it("denies marketing by default and allows only an explicit permission", () => {
+    expect(DEFAULT_DENIED_PAGES.has("marketing")).toBe(true);
+    expect(canUsePage("user", "marketing")).toBe(false);
+    expect(canUsePage("admin", "marketing")).toBe(false);
+    expect(canUsePage("user", "marketing", { marketing: true })).toBe(true);
+    expect(canUsePage("admin", "marketing", { marketing: true })).toBe(true);
+    expect(canUsePage("guest", "marketing", { marketing: true })).toBe(false);
+    expect(canOpenPage("user", "/marketing", { marketing: true })).toBe(true);
+    expect(canOpenPage("user", "/api/marketing/submissions")).toBe(false);
   });
   it("cannot elevate a guest using a page override", () => {
     expect(canUsePage("guest", "rfp", { rfp: true })).toBe(false);

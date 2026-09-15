@@ -14,13 +14,19 @@ async function requireAdmin() {
 export async function GET() {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
-  const [profiles, access] = await Promise.all([
+  const [profiles, access, designated] = await Promise.all([
     auth.supabase.from("user_profiles").select("user_id,email,display_name,role").order("display_name"),
     auth.supabase.from("user_page_access").select("user_id,permissions,version,updated_at"),
+    // Fixed marketing managers and designated reviewers reach /marketing regardless of the permission map.
+    auth.supabase.rpc("marketing_designated_accounts"),
   ]);
   if (profiles.error || access.error) return NextResponse.json({ error: "접근 권한 목록을 불러오지 못했습니다." }, { status: 500 });
   const byUser = new Map((access.data ?? []).map((a) => [a.user_id, a]));
-  return NextResponse.json({ users: (profiles.data ?? []).map((p) => ({ ...p, permissions: byUser.get(p.user_id)?.permissions ?? {}, version: byUser.get(p.user_id)?.version ?? 0, updated_at: byUser.get(p.user_id)?.updated_at ?? null })) }, { headers: { "Cache-Control": "private, no-store" } });
+  const designatedIds = designated.error ? [] : ((designated.data ?? []) as string[]);
+  return NextResponse.json({
+    users: (profiles.data ?? []).map((p) => ({ ...p, permissions: byUser.get(p.user_id)?.permissions ?? {}, version: byUser.get(p.user_id)?.version ?? 0, updated_at: byUser.get(p.user_id)?.updated_at ?? null })),
+    designated: { marketing: designatedIds },
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 export async function PUT(request: Request) {
   const auth = await requireAdmin();
@@ -31,7 +37,7 @@ export async function PUT(request: Request) {
   const { data, error } = await auth.supabase.rpc("set_user_page_access", { p_user_id: body.userId, p_permissions: body.permissions, p_expected_version: body.version });
   if (error) {
     const status = error.code === "40001" ? 409 : error.code === "42501" ? 403 : error.code === "P0002" ? 404 : error.code === "22023" ? 400 : 500;
-    return NextResponse.json({ error: status === 409 ? "다른 관리자가 권한을 변경했습니다. 목록을 새로고침하고 다시 설정해 주세요." : status === 400 ? "관리자는 항상 전체 접근이 허용됩니다. 입력을 확인해 주세요." : "페이지 접근 권한을 저장하지 못했습니다." }, { status });
+    return NextResponse.json({ error: status === 409 ? "다른 관리자가 권한을 변경했습니다. 목록을 새로고침하고 다시 설정해 주세요." : status === 400 ? "관리자는 마케팅 Master DB 외 페이지를 개별 설정할 수 없습니다. 입력을 확인해 주세요." : "페이지 접근 권한을 저장하지 못했습니다." }, { status });
   }
   await logAudit(auth.supabase, request, { userId: auth.user.id, userEmail: auth.user.email, action: "페이지 접근 권한 변경", category: "users", detail: { targetUserId: body.userId, permissions: body.permissions } });
   return NextResponse.json({ access: Array.isArray(data) ? data[0] : data });
