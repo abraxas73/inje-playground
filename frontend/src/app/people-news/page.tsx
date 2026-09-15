@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarClock, ChevronLeft, ChevronRight, Download, ExternalLink, Loader2, Newspaper, RefreshCw, Search } from "lucide-react";
+import Link from "next/link";
+import { CalendarClock, ChevronLeft, ChevronRight, Download, ExternalLink, ListChecks, Loader2, Newspaper, RefreshCw, Search } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { PeopleNewsResponse } from "@/types/people-news";
 import SubscriptionCard from "@/components/people-news/SubscriptionCard";
+import MediaAlertCard from "@/components/people-news/MediaAlertCard";
 
 const dateTime = new Intl.DateTimeFormat("ko-KR", {
   timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
@@ -85,7 +87,8 @@ export default function PeopleNewsPage() {
             <p className="text-sm text-muted-foreground">연합뉴스에서 전하는 인사와 부고 소식을 확인하세요.</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm"><Link href="/media-directory"><ListChecks className="h-4 w-4" />관리 매체·부서</Link></Button>
           <Button variant="outline" size="sm" disabled={loading || syncing} onClick={() => { setLoading(true); setRevision((n) => n + 1); }}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />목록 새로고침
           </Button>
@@ -108,6 +111,7 @@ export default function PeopleNewsPage() {
       {syncMessage && <Alert variant={syncMessage.error ? "destructive" : "default"}><AlertDescription role="status">{syncMessage.text}</AlertDescription></Alert>}
 
       <SubscriptionCard />
+      <MediaAlertCard />
 
       <Card>
         <CardContent className="space-y-4 pt-5">
@@ -154,6 +158,7 @@ export default function PeopleNewsPage() {
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       <Badge variant={notice.category === "personnel" ? "secondary" : "outline"}>{notice.category === "personnel" ? "인사" : "부고"}</Badge>
                       <time dateTime={notice.published_at} className="text-xs text-muted-foreground">{dateTime.format(new Date(notice.published_at))}</time>
+                      {data.matches?.[notice.source_id]?.map((label) => <Badge key={label} className="bg-sky-100 text-sky-800 hover:bg-sky-100">{label} 일치</Badge>)}
                     </div>
                     <div className="flex items-start justify-between gap-3">
                       <h2 className="font-semibold leading-relaxed group-hover:text-primary">{notice.title}</h2>

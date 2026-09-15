@@ -1,10 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchNotices, type Notice } from "./feed.ts";
+import { runMediaAlerts, type AlertDeps, type AlertSummary } from "./alerts.ts";
+import type { SmtpConfig } from "./smtp.ts";
 
 interface Dependencies {
   secret: string | undefined;
   createAdmin: () => SupabaseClient;
   collect?: () => Promise<Notice[]>;
+  smtp: SmtpConfig | null;
+  appUrl: string;
+  alerts?: (deps: AlertDeps) => Promise<AlertSummary>;
 }
 
 /** Constant-time digest comparison; cron token is separate from Supabase API keys. */
@@ -18,7 +23,7 @@ export async function authorized(header: string | null, secret: string): Promise
   return different === 0;
 }
 
-export function createHandler({ secret, createAdmin, collect = fetchNotices }: Dependencies) {
+export function createHandler({ secret, createAdmin, collect = fetchNotices, smtp, appUrl, alerts = runMediaAlerts }: Dependencies) {
   return async (request: Request): Promise<Response> => {
     if (request.method !== "POST") {
       return Response.json({ error: "POST 요청이 필요합니다." }, { status: 405, headers: { Allow: "POST" } });
@@ -54,6 +59,15 @@ export function createHandler({ secret, createAdmin, collect = fetchNotices }: D
       if (started.error) throw new Error("수집 이력 생성 실패");
       runId = started.data.id;
       const notices = await collect();
+      // Only obituaries stored for the first time in this run are eligible for alerts.
+      const obituaryIds = notices.filter((notice) => notice.category === "obituary").map((notice) => notice.source_id);
+      let newObituaryIds: string[] = [];
+      if (obituaryIds.length) {
+        const existing = await admin.from("yonhap_notices").select("source_id").in("source_id", obituaryIds);
+        if (existing.error) throw new Error("기존 인사·부고 조회 실패");
+        const known = new Set((existing.data ?? []).map((row: { source_id: string }) => row.source_id));
+        newObituaryIds = obituaryIds.filter((id) => !known.has(id));
+      }
       if (notices.length) {
         const { error } = await admin.from("yonhap_notices").upsert(
           notices.map((notice) => ({ ...notice, fetched_at: new Date().toISOString() })),
@@ -65,7 +79,15 @@ export function createHandler({ secret, createAdmin, collect = fetchNotices }: D
         status: "success", item_count: notices.length, finished_at: new Date().toISOString(),
       }).eq("id", runId);
       if (error) throw new Error("수집 완료 이력 저장 실패");
-      return Response.json({ ok: true, count: notices.length, runId });
+      let alertSummary: AlertSummary | { error: "media-alerts-failed" };
+      try {
+        alertSummary = await alerts({ admin, runId: started.data.id as number, sourceIds: newObituaryIds, smtp, appUrl });
+      } catch (error) {
+        // Alerts are best-effort; the collection run above is already recorded as success.
+        console.error("[media-alerts]", error instanceof Error ? error.message.slice(0, 200) : "알림 실패");
+        alertSummary = { error: "media-alerts-failed" };
+      }
+      return Response.json({ ok: true, count: notices.length, runId, alerts: alertSummary });
     } catch (error) {
       // No response bodies, credentials, or article content in logs.
       const message = error instanceof Error ? error.message.slice(0, 300) : "수집 실패";

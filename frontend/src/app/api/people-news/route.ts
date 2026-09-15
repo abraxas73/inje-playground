@@ -33,10 +33,18 @@ export async function GET(request: NextRequest) {
     if (notices.error || success.error || latest.error) {
       throw new Error(notices.error?.message ?? success.error?.message ?? latest.error?.message);
     }
+    const obituaryIds = (notices.data ?? []).filter((n) => n.category === "obituary").map((n) => n.source_id);
+    const matches: Record<string, string[]> = {};
+    if (obituaryIds.length) {
+      const found = await supabase.from("media_obituary_matches").select("source_id,matched_text").in("source_id", obituaryIds).order("matched_text");
+      if (found.error) throw new Error(found.error.message);
+      for (const m of found.data ?? []) matches[m.source_id] = [...(matches[m.source_id] ?? []), m.matched_text];
+    }
     return NextResponse.json({
       notices: notices.data ?? [], total: notices.count ?? 0,
       page: params.page, pageSize: PAGE_SIZE,
       lastSyncedAt: success.data?.finished_at ?? null, latestSync: latest.data ?? null,
+      matches,
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (e) {
     console.error("[people-news] 조회 실패", e instanceof Error ? e.message : "unknown");
