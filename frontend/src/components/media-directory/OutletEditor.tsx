@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,19 @@ export default function OutletEditor({ outlet, onClose, onSaved }: { outlet: Med
     } catch (e) { setMessage({ text: e instanceof Error ? e.message : "저장하지 못했습니다.", error: true }); }
     finally { setBusy(false); }
   }
+  async function deleteDepartment(department: MediaDepartment) {
+    if (!outlet) return;
+    if (!window.confirm(`부서 ‘${department.name}’을 삭제할까요? 이 부서로 기록된 부고 매칭 배지도 함께 삭제됩니다. 잠시 숨기려면 비활성으로 두세요.`)) return;
+    setBusy(true); setMessage(null);
+    try {
+      const response = await fetch(`/api/media-directory/departments?id=${encodeURIComponent(department.id)}`, { method: "DELETE" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "삭제하지 못했습니다.");
+      setDepartments((list) => list.filter((d) => d.id !== department.id));
+      setMessage({ text: `부서 ‘${department.name}’을 삭제했습니다.`, error: false });
+    } catch (e) { setMessage({ text: e instanceof Error ? e.message : "삭제하지 못했습니다.", error: true }); }
+    finally { setBusy(false); }
+  }
   async function saveDepartment(department: Partial<MediaDepartment> & { name: string }) {
     if (!outlet) return;
     setBusy(true); setMessage(null);
@@ -49,7 +62,7 @@ export default function OutletEditor({ outlet, onClose, onSaved }: { outlet: Med
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-xl">
         <DialogTitle>{outlet ? "매체 수정" : "매체 추가"}</DialogTitle>
-        <DialogDescription>매체명·별칭은 부고 기사 제목·요약에서 찾는 문자열입니다. 2자 이상, 다른 매체와 겹칠 수 없습니다.</DialogDescription>
+        <DialogDescription>매체명·별칭은 부고 기사 제목·요약에서 찾는 문자열입니다. 2자 이상, 다른 매체와 겹칠 수 없습니다. 부서는 비활성(잠시 제외) 또는 삭제할 수 있습니다.</DialogDescription>
         <div className="space-y-4">
           <div className="space-y-1.5"><Label htmlFor="outlet-name">매체명</Label><Input id="outlet-name" value={name} maxLength={100} onChange={(e) => setName(e.target.value)} /></div>
           <div className="space-y-1.5"><Label htmlFor="outlet-aliases">별칭 (쉼표로 구분)</Label><Input id="outlet-aliases" value={aliases} placeholder="예: 헤럴드, ㈜헤럴드" onChange={(e) => setAliases(e.target.value)} /></div>
@@ -66,6 +79,7 @@ export default function OutletEditor({ outlet, onClose, onSaved }: { outlet: Med
                   <li key={d.id} className="flex items-center gap-2">
                     <Input aria-label={`부서명 ${d.name}`} defaultValue={d.name} maxLength={100} onBlur={(e) => { if (e.target.value.trim() !== d.name && e.target.value.trim().length >= 2) void saveDepartment({ ...d, name: e.target.value }); }} />
                     <Switch aria-label={`${d.name} 활성`} checked={d.active} disabled={busy} onCheckedChange={(checked) => void saveDepartment({ ...d, active: checked })} />
+                    <Button type="button" variant="ghost" size="icon" aria-label={`${d.name} 삭제`} disabled={busy} onClick={() => void deleteDepartment(d)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </li>
                 ))}
               </ul>

@@ -16,6 +16,7 @@ beforeEach(() => {
     if (url.startsWith("/api/media-directory/import/preview")) return { ok: true, json: async () => ({ filename: "list.xlsx", rows: [{ outlet: "전자신문", department: "미래부" }], total: 3, blank: 0, duplicates: 2, invalid: [], newOutlets: ["전자신문"], newDepartments: 1, existingPairs: 0, anyDepartmentOutlets: [] }) };
     if (url === "/api/media-directory/import") return { ok: true, json: async () => ({ outletsAdded: 1, outletsExisting: 0, departmentsAdded: 1, departmentsExisting: 0, anyDepartmentSet: 0, skipped: 0 }) };
     if (url === "/api/media-directory/departments") return { ok: true, json: async () => ({ department: { id: "d3", outlet_id: "o1", name: "산업부", active: true, updated_at: "" } }) };
+    if (url.startsWith("/api/media-directory/departments?id=")) return { ok: true, json: async () => ({ department: { id: "d2" } }) };
     if (url.startsWith("/api/media-directory?")) return { ok: true, json: async () => directory };
     return { ok: true, json: async () => ({}) };
   });
@@ -60,4 +61,22 @@ it("previews an upload and applies only the deduplicated rows", async () => {
   await waitFor(() => expect(done).toHaveBeenCalled());
   expect(JSON.parse(String(fetchMock.mock.calls.find(([u]) => u === "/api/media-directory/import")?.[1]?.body))).toEqual({ rows: [{ outlet: "전자신문", department: "미래부" }] });
   expect(await screen.findByText(/매체 1개, 부서 1개를 추가했습니다/)).toBeInTheDocument();
+});
+
+it("deletes a department after confirmation and removes it from the list", async () => {
+  role.isAdmin = true;
+  const confirmMock = vi.fn(() => true);
+  vi.stubGlobal("confirm", confirmMock);
+  render(<MediaDirectory />);
+  await screen.findByRole("row", { name: /조선일보/ });
+  fireEvent.click(within(screen.getByRole("row", { name: /조선일보/ })).getByRole("button", { name: "수정" }));
+  await screen.findByDisplayValue("조선일보");
+  fireEvent.click(screen.getByRole("button", { name: "구부서 삭제" }));
+  expect(confirmMock).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/media-directory/departments?id=d2", expect.objectContaining({ method: "DELETE" })));
+  await screen.findByText("부서 ‘구부서’을 삭제했습니다.");
+  expect(screen.queryByDisplayValue("구부서")).toBeNull();
+  confirmMock.mockReturnValue(false);
+  fireEvent.click(screen.getByRole("button", { name: "테크부 삭제" }));
+  expect(fetchMock.mock.calls.filter(([u]) => String(u).includes("id=d1"))).toHaveLength(0);
 });

@@ -24,7 +24,7 @@ vi.mock("@/lib/supabase-server", () => ({ createServerSupabase: async () => ({
 }) }));
 import { GET as list } from "@/app/api/media-directory/route";
 import { POST as saveOutlet } from "@/app/api/media-directory/outlets/route";
-import { POST as saveDepartment } from "@/app/api/media-directory/departments/route";
+import { DELETE as deleteDepartment, POST as saveDepartment } from "@/app/api/media-directory/departments/route";
 import { POST as applyImport } from "@/app/api/media-directory/import/route";
 import { GET as deliveries } from "@/app/api/media-directory/deliveries/route";
 
@@ -81,11 +81,21 @@ describe("admin writes", () => {
     expect((await applyImport(json("/api/media-directory/import", { rows: "nope" }))).status).toBe(400);
     expect((await applyImport(json("/api/media-directory/import", { rows: [{ outlet: 1 }] }))).status).toBe(400);
   });
+  it("deletes a department through the RPC and validates the id", async () => {
+    mock.rpc.mockResolvedValueOnce({ data: { id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", name: "구부서" }, error: null });
+    const ok = await deleteDepartment(new NextRequest("https://app.test/api/media-directory/departments?id=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"));
+    expect(ok.status).toBe(200);
+    expect(mock.rpc).toHaveBeenCalledWith("media_department_delete", { p_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" });
+    expect((await deleteDepartment(new NextRequest("https://app.test/api/media-directory/departments?id=nope"))).status).toBe(400);
+    mock.rpc.mockResolvedValueOnce({ data: null, error: { code: "P0002", message: "missing" } });
+    expect((await deleteDepartment(new NextRequest("https://app.test/api/media-directory/departments?id=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))).status).toBe(404);
+  });
   it("rejects non-admins for every write and for delivery history", async () => {
     mock.role = "user";
     expect((await saveOutlet(json("/api/media-directory/outlets", { name: "조선일보" }))).status).toBe(403);
     expect((await saveDepartment(json("/api/media-directory/departments", { outletId: "o1", name: "산업부" }))).status).toBe(403);
     expect((await applyImport(json("/api/media-directory/import", { rows: [] }))).status).toBe(403);
+    expect((await deleteDepartment(new NextRequest("https://app.test/api/media-directory/departments?id=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))).status).toBe(403);
     expect((await deliveries()).status).toBe(403);
     expect(mock.rpc).not.toHaveBeenCalled();
   });

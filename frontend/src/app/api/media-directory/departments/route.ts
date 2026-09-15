@@ -18,3 +18,14 @@ export async function POST(request: NextRequest) {
   if (error) return rpcErrorResponse(error);
   return NextResponse.json({ department: data }, noStore);
 }
+
+export async function DELETE(request: NextRequest) {
+  const admin = await requireAdmin();
+  if (!admin.ok) return admin.response;
+  const id = request.nextUrl.searchParams.get("id");
+  if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return NextResponse.json({ error: "삭제할 부서를 확인해 주세요." }, { status: 400 });
+  const supabase = await createServerSupabase();
+  const { data, error } = await supabase.rpc("media_department_delete", { p_id: id });
+  if (error) return rpcErrorResponse(error);
+  return NextResponse.json({ department: data }, noStore);
+}
