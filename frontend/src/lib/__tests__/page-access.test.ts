@@ -10,6 +10,12 @@ describe("page access catalog", () => {
       expect(canUsePage("user", page.key, { [page.key]: false })).toBe(false);
     }
   });
+  it("maps the media directory page and API to the people_news permission", () => {
+    expect(pagesForPath("/media-directory")).toEqual(["people_news"]);
+    expect(pagesForPath("/api/media-directory/import/preview")).toEqual(["people_news"]);
+    expect(canOpenPage("user", "/media-directory", { people_news: false })).toBe(false);
+    expect(canOpenPage("user", "/media-directory")).toBe(true);
+  });
   it("cannot elevate a guest using a page override", () => {
     expect(canUsePage("guest", "rfp", { rfp: true })).toBe(false);
     expect(canOpenPage("user", "/admin/page-permissions")).toBe(false);

@@ -47,6 +47,7 @@ export function pagesForPath(path: string): PageKey[] {
     ["/api/surveys", ["survey"]], ["/api/guide", ["guide"]],
     ["/api/rfp", ["rfp"]], ["/api/people-news", ["people_news"]],
     ["/api/marketing", ["marketing"]],
+    ["/media-directory", ["people_news"]], ["/api/media-directory", ["people_news"]],
     ["/api/usage/code", ["usage_code"]], ["/api/usage/tools", ["usage_code"]],
     ["/api/usage/hourly", ["usage_code"]], ["/api/usage/chat", ["usage_chat"]],
     ["/api/usage/office", ["usage_chat"]], ["/api/usage/perf", ["usage_perf"]],
