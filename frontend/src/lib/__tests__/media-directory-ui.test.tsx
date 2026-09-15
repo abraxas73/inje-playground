@@ -11,7 +11,7 @@ const directory = { outlets: [
 ], totals: { outlets: 2, activeOutlets: 2, departments: 2 } };
 let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
-  fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+  fetchMock = vi.fn(async (url: string) => {
     if (url.startsWith("/api/media-directory/deliveries")) return { ok: true, json: async () => ({ deliveries: [] }) };
     if (url.startsWith("/api/media-directory/import/preview")) return { ok: true, json: async () => ({ filename: "list.xlsx", rows: [{ outlet: "전자신문", department: "미래부" }], total: 3, blank: 0, duplicates: 2, invalid: [], newOutlets: ["전자신문"], newDepartments: 1, existingPairs: 0, anyDepartmentOutlets: [] }) };
     if (url === "/api/media-directory/import") return { ok: true, json: async () => ({ outletsAdded: 1, outletsExisting: 0, departmentsAdded: 1, departmentsExisting: 0, anyDepartmentSet: 0, skipped: 0 }) };
