@@ -2,7 +2,7 @@
 begin;
 do $$
 declare
-  admin_id uuid; member_id uuid; o public.media_outlets; r jsonb; s public.media_alert_subscriptions; n integer;
+  admin_id uuid; member_id uuid; o public.media_outlets; d public.media_departments; r jsonb; s public.media_alert_subscriptions; n integer;
 begin
   select p.user_id into admin_id from public.user_profiles p join auth.users u on u.id = p.user_id where p.role = 'admin' limit 1;
   select p.user_id into member_id from public.user_profiles p join auth.users u on u.id = p.user_id and u.email_confirmed_at is not null where p.role = 'user' limit 1;
@@ -30,6 +30,16 @@ begin
   exception when unique_violation then null; end;
   begin perform public.media_department_save(null, o.id, '산업부', true); raise exception 'duplicate department accepted';
   exception when unique_violation then null; end;
+  -- Department delete: admin only, cascades to matches recorded for that department.
+  d := public.media_department_save(null, o.id, '삭제부', true);
+  perform set_config('request.jwt.claims', json_build_object('sub', member_id, 'role', 'authenticated')::text, true);
+  begin perform public.media_department_delete(d.id); raise exception 'user deleted department';
+  exception when insufficient_privilege then null; end;
+  perform set_config('request.jwt.claims', json_build_object('sub', admin_id, 'role', 'authenticated')::text, true);
+  d := public.media_department_delete(d.id);
+  if exists (select 1 from public.media_departments where id = d.id) then raise exception 'department not deleted'; end if;
+  begin perform public.media_department_delete(d.id); raise exception 'deleting missing department succeeded';
+  exception when no_data_found then null; end;
 
   -- Matching: outlet+department required unless any_department.
   insert into public.yonhap_notices (source_id, category, title, summary, source_url, published_at) values
