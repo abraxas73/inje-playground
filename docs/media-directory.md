@@ -30,3 +30,10 @@
 - 프런트: `cd frontend && npm test && npm run build`, 배포 `NODE_OPTIONS= vercel --prod --yes --scope seunguk-kangs-projects`(반드시 `frontend/`에서).
 - 기존 부고에 배지를 채우려면(메일 없음) service role로 `select public.media_match_notices(array(select source_id from public.yonhap_notices where category='obituary'), null);`를 실행한다. 새 부고만 메일 대상이므로 과거 매칭은 발송되지 않는다.
 - 문제 시: 알림만 멈추려면 `supabase secrets unset MEDIA_SMTP_PASS --project-ref avooqcxehfeurjhqqgui`(발송 생략, 매칭·배지는 유지). 수집 자체는 영향 없음.
+
+## 운영 검증 (2026-09-15)
+
+- 엑셀 적재: 매체 73·부서 70·부서 무관 24, 규칙 없는 매체 0. 과거 부고 56건 백필 매칭 1건(중앙일보, 부서 무관).
+- 수동 "지금 가져오기"(run 7): 신규 부고 7건 중 등록 매체+부서 일치 0 → 발송 0(`skipped: no-matches`).
+- End-to-end: RSS에 남아 있던 중앙일보 부고 1건(`AKR20260914143700505`)을 DB에서 지우고 크론 경로(`invoke_yonhap_notices_sync`)로 재수집(run 8, 21:19 KST) → 새 부고로 저장 → 매칭 1건(`notified_at` 기록) → `media_alert_deliveries` sent 1건(운영자). 수집·매칭·SMTPS 발송·이력 기록이 한 run에서 모두 동작함을 확인했다.
+- 익명 API(`/api/media-directory`, `/api/people-news/media-alerts`, `…/deliveries`, `POST …/import`) 401, `/media-directory` 비로그인은 `/login` 리다이렉트.
