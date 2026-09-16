@@ -9,7 +9,14 @@ export async function storeMetrics(admin: SupabaseClient, parsed: MetricsParsed)
   if (parsed.daily.length === 0 && parsed.model.length === 0) return { rows: 0 };
   const { error } = await admin.rpc("claude_code_ingest", { p_daily: parsed.daily, p_model: parsed.model });
   if (error) throw new Error(`claude_code_ingest: ${error.message}`);
-  return { rows: parsed.daily.length + parsed.model.length };
+  let rows = parsed.daily.length + parsed.model.length;
+  if (parsed.env.length > 0) {
+    // 실행 환경(os/arch/version/terminal)은 best-effort — 마이그레이션(claude_code_env_ingest) 전이면 건너뛴다
+    const env = await admin.rpc("claude_code_env_ingest", { p_rows: parsed.env });
+    if (env.error) console.warn("[claude-usage] env ingest skipped:", env.error.message);
+    else rows += parsed.env.length;
+  }
+  return { rows };
 }
 
 /** 로그 → api_request 이벤트 insert + user_prompt 카운트 RPC */

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500, isYmd, numify } from "@/lib/claude-usage/require-admin";
 import { dateRangePreset, summarize } from "@/lib/claude-usage/aggregate";
-import type { ClaudeOrg, DailyRow, ModelRow } from "@/types/claude-usage";
+import { applyOrgFilter, resolveOrgIds } from "@/lib/claude-usage/org-filter";
+import type { ClaudeOrg, DailyRow, EnvDailyRow, ModelRow } from "@/types/claude-usage";
 
 const MAX_DAYS = 366;
 
@@ -39,18 +40,14 @@ export async function GET(request: NextRequest) {
   const org = sp.get("org");
 
   try {
-    const [dailyRows, modelRows, orgs, imports] = await Promise.all([
-      fetchAll<DailyRow>((a, b) => {
-        let q = admin.from("claude_code_daily").select("*").gte("day", from).lte("day", to).order("day").order("user_email");
-        if (org && org !== "all") q = q.eq("org_id", org);
-        return q.range(a, b);
-      }),
-      fetchAll<ModelRow>((a, b) => {
-        let q = admin.from("claude_code_daily_model").select("*").gte("day", from).lte("day", to).order("day").order("user_email").order("model");
-        if (org && org !== "all") q = q.eq("org_id", org);
-        return q.range(a, b);
-      }),
-      admin.from("claude_orgs").select("id, name, seats_total, sort_order").order("sort_order").order("name"),
+    // org=all | personal(자동 등록된 개인 조직 전체) | <id>
+    const orgIds = await resolveOrgIds(admin, org);
+    const [dailyRows, modelRows, envRows, orgs, imports] = await Promise.all([
+      fetchAll<DailyRow>((a, b) => applyOrgFilter(admin.from("claude_code_daily").select("*").gte("day", from).lte("day", to).order("day").order("user_email"), orgIds).range(a, b)),
+      fetchAll<ModelRow>((a, b) => applyOrgFilter(admin.from("claude_code_daily_model").select("*").gte("day", from).lte("day", to).order("day").order("user_email").order("model"), orgIds).range(a, b)),
+      // 실행 환경은 2026-09-16 마이그레이션 이후 수집분만 있고, 테이블이 없어도 요약은 내려준다
+      fetchAll<EnvDailyRow>((a, b) => applyOrgFilter(admin.from("claude_code_env_daily").select("*").gte("day", from).lte("day", to).order("day").order("user_email").order("os_type").order("host_arch").order("app_version").order("terminal_type"), orgIds).range(a, b)).catch((e) => { console.warn("[claude-usage] env summary skipped:", e instanceof Error ? e.message : e); return [] as EnvDailyRow[]; }),
+      admin.from("claude_orgs").select("id, name, seats_total, sort_order, category").order("sort_order").order("name"),
       admin.from("claude_csv_imports").select("id, org_id, period_end").order("period_end", { ascending: false }).order("created_at", { ascending: false }),
     ]);
     const err = orgs.error ?? imports.error;
@@ -70,6 +67,7 @@ export async function GET(request: NextRequest) {
     const summary = summarize({
       rows: dailyRows.map((r) => numify(r as unknown as Record<string, unknown>)) as unknown as DailyRow[],
       models: modelRows.map((r) => numify(r as unknown as Record<string, unknown>)) as unknown as ModelRow[],
+      env: envRows.map((r) => numify(r as unknown as Record<string, unknown>)) as unknown as EnvDailyRow[],
       orgs: (orgs.data ?? []) as ClaudeOrg[],
       members: (members.data ?? []) as { email: string; name: string; seat_tier: string }[],
       directory: directory.error ? [] : ((directory.data ?? []) as { email: string; name: string | null; team: string | null; headquarters: string | null; division: string | null }[]),

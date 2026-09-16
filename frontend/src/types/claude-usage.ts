@@ -64,12 +64,30 @@ export interface ApiRequestEvent {
   request_id: string | null;
 }
 
+/** team = 우리 Team 조직(CSV 업로드로 생성) · personal = OTel이 자동 등록한 개인 Claude 계정 조직 · system = unknown·test-org */
+export type OrgCategory = "team" | "personal" | "system";
+
 export interface ClaudeOrg {
   id: string;
   name: string;
   seats_total: number | null;
   sort_order: number;
+  /** 2026-09-16 SQL 이전 응답에는 없을 수 있다 — org-options.ts의 orgCategory()로 보정 */
+  category?: OrgCategory;
 }
+
+/** claude_code_env_daily 한 행 — 실행 환경(리소스 os.type·host.arch·service.version, 포인트 terminal.type)별 데이터 포인트 수 */
+export interface EnvDailyRow {
+  day: string;
+  org_id: string;
+  user_email: string;
+  os_type: string;
+  host_arch: string;
+  app_version: string;
+  terminal_type: string;
+  points: number;
+}
+export type UserEnv = Pick<EnvDailyRow, "os_type" | "host_arch" | "app_version" | "terminal_type" | "points">;
 
 /** members-analytics CSV 한 행 */
 export interface MemberActivityRow {
@@ -115,6 +133,8 @@ export interface UserUsageRow extends DailyMetrics {
   team: string | null;
   headquarters: string | null;
   division: string | null;
+  /** 기간 내 실행 환경, 데이터 포인트 많은 순 상위 5개(2026-09-16 이후 수집분만) */
+  env: UserEnv[];
 }
 
 export interface UsageSummary {

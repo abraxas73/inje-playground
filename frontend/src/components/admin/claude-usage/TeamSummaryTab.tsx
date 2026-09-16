@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import OrgSelect from "@/components/admin/claude-usage/OrgSelect";
 import { Download, Loader2 } from "lucide-react";
 import SortableTable, { sumBy, type Column } from "./SortableTable";
 import { acceptRate, dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
@@ -78,13 +78,7 @@ export default function TeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
           <Button key={p.key} size="sm" variant={preset === p.key ? "default" : "outline"} onClick={() => { setPreset(p.key); setRange(dateRangePreset(p.key)); }}>{p.label}</Button>
         ))}
         <span className="text-xs text-muted-foreground">{range.from} ~ {range.to}</span>
-        <Select value={org} onValueChange={setOrg}>
-          <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="Claude 조직" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">전체 Claude 조직</SelectItem>
-            {orgs.filter((o) => o.id !== "unknown" && o.id !== "test-org").map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <OrgSelect orgs={orgs} value={org} onChange={setOrg} personal unknown />
         <Button size="sm" variant="outline" onClick={exportCsv} disabled={rows.length === 0}><Download className="mr-1 h-3.5 w-3.5" />CSV</Button>
         {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
       </div>

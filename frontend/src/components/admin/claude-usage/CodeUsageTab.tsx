@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import OrgSelect from "@/components/admin/claude-usage/OrgSelect";
+import { displayUser, formatEnv, looksHeadlessLinux, orgBadgeLabel } from "@/lib/claude-usage/org-options";
 import UnitFilter, { matchUnit } from "@/components/admin/claude-usage/UnitFilter";
 import { Loader2, Download } from "lucide-react";
 import HBar from "@/components/admin/surveys/charts/HBar";
@@ -16,18 +17,12 @@ import { acceptRate, dateRangePreset, hasSeat, type RangePreset } from "@/lib/cl
 import { usd, int, hours } from "./format";
 import type { UsageSummary, UserUsageRow } from "@/types/claude-usage";
 
+const ENV_HINT = "실행 환경 — OS/CPU · 터미널 · Claude Code 버전(데이터 포인트 많은 순, 여러 환경이면 +N). Linux인데 터미널이 없으면 컨테이너·웹 세션일 가능성이 큽니다. 2026-09-16 이후 수집분만 있습니다.";
+
 const PRESETS: { key: RangePreset; label: string }[] = [
   { key: "7d", label: "7일" }, { key: "30d", label: "30일" }, { key: "90d", label: "90일" },
   { key: "thisMonth", label: "이번 달" }, { key: "lastMonth", label: "지난 달" },
 ];
-
-/** 식별 불가 사용자 표기 — API 키(Console) 인증 프로세스는 이메일·조직 속성이 없어 unknown / uuid: / id: 로 들어온다 */
-function displayUser(email: string): string {
-  if (email === "unknown") return "식별 불가 (API 키 인증)";
-  if (email.startsWith("id:")) return `API 키 사용자 ${email.slice(3, 11)}…`;
-  if (email.startsWith("uuid:")) return `계정 ${email.slice(5, 13)}…`;
-  return email;
-}
 
 export default function CodeUsageTab() {
   const [preset, setPreset] = useState<RangePreset>("30d");
@@ -61,7 +56,7 @@ export default function CodeUsageTab() {
     };
   }, [key, range.from, range.to, org]);
 
-  const orgName = useMemo(() => new Map((data?.orgs ?? []).map((o) => [o.id, o.name])), [data]);
+  const orgById = useMemo(() => new Map((data?.orgs ?? []).map((o) => [o.id, o])), [data]);
   const users = useMemo(() => {
     const s = q.trim().toLowerCase();
     return (data?.users ?? []).filter((u) => matchUnit(u, unit) && (!s || u.user_email.includes(s) || (u.name ?? "").toLowerCase().includes(s) || (u.employee_name ?? "").toLowerCase().includes(s) || (u.team ?? "").toLowerCase().includes(s)));
@@ -72,11 +67,14 @@ export default function CodeUsageTab() {
       <div><div className="font-medium">{u.name || displayUser(u.user_email)}</div>{u.name && <div className="text-muted-foreground">{u.user_email}</div>}</div>) },
     { key: "employee", header: "이름", value: (u) => u.employee_name ?? "", render: (u) => (u.employee_name ? <span title="사내 조직도(아마란스) 이름">{u.employee_name}</span> : <span className="text-muted-foreground">—</span>) },
     { key: "orgs", header: "Claude 조직", value: (u) => u.orgs.join(","), render: (u) => (
-      <div className="flex flex-wrap gap-1">{u.orgs.map((o) => <Badge key={o} variant="outline" className="text-[10px]">{o === "unknown" ? "조직 미확인" : orgName.get(o) ?? o.slice(0, 8)}</Badge>)}</div>) },
+      <div className="flex flex-wrap gap-1">{u.orgs.map((o) => <Badge key={o} variant="outline" className="text-[10px]">{orgBadgeLabel(o, orgById)}</Badge>)}</div>) },
     { key: "team", header: "조직 / 팀", value: (u) => `${u.headquarters ?? u.division ?? ""} ${u.team ?? ""}`.trim(), render: (u) => (u.team
       ? <div title={[u.division, u.headquarters, u.team].filter(Boolean).join(" > ")}><div>{u.team}</div>{(u.headquarters ?? u.division) && (u.headquarters ?? u.division) !== u.team && <div className="text-muted-foreground">{u.headquarters ?? u.division}</div>}</div>
       : <span className="text-muted-foreground">—</span>) },
     { key: "seat", header: "시트", value: (u) => u.seat_tier ?? "", render: (u) => (hasSeat(u.seat_tier) ? u.seat_tier : "—") },
+    { key: "env", header: "환경", hint: ENV_HINT, value: (u) => formatEnv(u.env[0]), render: (u) => (u.env.length
+      ? <span title={u.env.map((e) => `${formatEnv(e)} (${int(e.points)})`).join("\n")} className={looksHeadlessLinux(u.env[0]) ? "text-amber-700" : undefined}>{formatEnv(u.env[0])}{u.env.length > 1 && <span className="text-muted-foreground"> +{u.env.length - 1}</span>}</span>
+      : <span className="text-muted-foreground" title="2026-09-16 이후 수집분부터 표시됩니다">—</span>) },
     { key: "cost", header: "비용", align: "right", value: (u) => u.cost_usd, render: (u) => usd(u.cost_usd) , total: (rows) => usd(sumBy(rows, (u) => u.cost_usd)) },
     { key: "sessions", header: "세션", align: "right", value: (u) => u.sessions, render: (u) => int(u.sessions) , total: "sum" },
     { key: "prompts", header: "프롬프트\n(사람 / 자동)", align: "right", value: (u) => u.prompts - u.prompts_auto, render: (u) => <span title="사람이 친 프롬프트 / 플러그인·스크립트 자동화(claude-mem 관찰자 등) 프롬프트. 내용 수집이 없는 사용자는 전부 사람으로 잡힘">{`${int(u.prompts - u.prompts_auto)} / ${int(u.prompts_auto)}`}</span>, total: (rows) => `${int(sumBy(rows, (u) => u.prompts) - sumBy(rows, (u) => u.prompts_auto))} / ${int(sumBy(rows, (u) => u.prompts_auto))}` },
@@ -94,8 +92,8 @@ export default function CodeUsageTab() {
 
   const exportCsv = () => {
     if (!data) return;
-    const head = ["email", "name", "employee_name", "orgs", "team", "headquarters", "division", "seat_tier", "cost_usd", "sessions", "prompts", "active_days", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens", "loc_added", "loc_removed", "edits_accepted", "edits_rejected", "commits", "pull_requests", "active_user_seconds"];
-    const lines = users.map((u) => [u.user_email, u.name ?? "", u.employee_name ?? "", u.orgs.map((o) => orgName.get(o) ?? o).join("|"), u.team ?? "", u.headquarters ?? "", u.division ?? "", u.seat_tier ?? "", u.cost_usd.toFixed(4), u.sessions, u.prompts, u.active_days, u.input_tokens, u.output_tokens, u.cache_read_tokens, u.cache_creation_tokens, u.loc_added, u.loc_removed, u.edits_accepted, u.edits_rejected, u.commits, u.pull_requests, Math.round(u.active_user_seconds)]
+    const head = ["email", "name", "employee_name", "orgs", "team", "headquarters", "division", "seat_tier", "env", "cost_usd", "sessions", "prompts", "active_days", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens", "loc_added", "loc_removed", "edits_accepted", "edits_rejected", "commits", "pull_requests", "active_user_seconds"];
+    const lines = users.map((u) => [u.user_email, u.name ?? "", u.employee_name ?? "", u.orgs.map((o) => orgBadgeLabel(o, orgById)).join("|"), u.team ?? "", u.headquarters ?? "", u.division ?? "", u.seat_tier ?? "", u.env.map(formatEnv).join("|"), u.cost_usd.toFixed(4), u.sessions, u.prompts, u.active_days, u.input_tokens, u.output_tokens, u.cache_read_tokens, u.cache_creation_tokens, u.loc_added, u.loc_removed, u.edits_accepted, u.edits_rejected, u.commits, u.pull_requests, Math.round(u.active_user_seconds)]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
     const blob = new Blob(["﻿" + [head.join(","), ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
@@ -113,13 +111,7 @@ export default function CodeUsageTab() {
           <Button key={p.key} size="sm" variant={preset === p.key ? "default" : "outline"} onClick={() => { setPreset(p.key); setRange(dateRangePreset(p.key)); }}>{p.label}</Button>
         ))}
         <span className="text-xs text-muted-foreground">{range.from} ~ {range.to}</span>
-        <Select value={org} onValueChange={setOrg}>
-          <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="Claude 조직" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">전체 Claude 조직</SelectItem>
-            {(data?.orgs ?? []).map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <OrgSelect orgs={data?.orgs ?? []} value={org} onChange={setOrg} personal unknown />
         <UnitFilter value={unit} onChange={setUnit} rows={data?.users ?? []} />
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="이메일/이름 검색" className="h-8 w-[200px] text-xs" />
         <Button size="sm" variant="outline" onClick={exportCsv} disabled={!data}><Download className="mr-1 h-3.5 w-3.5" />CSV</Button>

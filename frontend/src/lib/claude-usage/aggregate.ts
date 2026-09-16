@@ -1,14 +1,5 @@
 /** 일별 행 → 대시보드 요약. 순수 함수. */
-import {
-  DAILY_NUMERIC_FIELDS,
-  emptyDailyMetrics,
-  type ClaudeOrg,
-  type DailyRow,
-  type MemberActivityRow,
-  type ModelRow,
-  type UsageSummary,
-  type UserUsageRow,
-} from "@/types/claude-usage";
+import { DAILY_NUMERIC_FIELDS, emptyDailyMetrics, type ClaudeOrg, type DailyRow, type MemberActivityRow, type ModelRow, type UsageSummary, type UserUsageRow, type EnvDailyRow, type UserEnv } from "@/types/claude-usage";
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -70,6 +61,22 @@ function isActive(r: DailyRow): boolean {
   return r.sessions > 0 || r.prompts > 0 || r.cost_usd > 0;
 }
 
+/** 사용자별 실행 환경 — 같은 (os, arch, version, terminal)을 합치고 포인트 많은 순 상위 5개 */
+export function summarizeEnv(rows: EnvDailyRow[], top = 5): Map<string, UserEnv[]> {
+  const byUser = new Map<string, Map<string, UserEnv>>();
+  for (const r of rows) {
+    const key = `${r.os_type}|${r.host_arch}|${r.app_version}|${r.terminal_type}`;
+    let m = byUser.get(r.user_email);
+    if (!m) { m = new Map(); byUser.set(r.user_email, m); }
+    const e = m.get(key) ?? { os_type: r.os_type, host_arch: r.host_arch, app_version: r.app_version, terminal_type: r.terminal_type, points: 0 };
+    e.points += Number(r.points) || 0;
+    m.set(key, e);
+  }
+  const out = new Map<string, UserEnv[]>();
+  for (const [email, m] of byUser) out.set(email, [...m.values()].sort((a, b) => b.points - a.points || a.app_version.localeCompare(b.app_version)).slice(0, top));
+  return out;
+}
+
 export function summarize(input: {
   rows: DailyRow[];
   models: ModelRow[];
@@ -77,9 +84,12 @@ export function summarize(input: {
   members: Pick<MemberActivityRow, "email" | "name" | "seat_tier">[];
   /** 사내 조직도 명부(선택) — 이메일로 소속(team/division) 조인 */
   directory?: { email: string; name?: string | null; team: string | null; headquarters: string | null; division: string | null }[];
+  /** 실행 환경 일 집계(선택, claude_code_env_daily) — 사용자별 포인트 많은 순 상위 5개를 env로 붙인다 */
+  env?: EnvDailyRow[];
   from: string;
   to: string;
 }): UsageSummary {
+  const envByUser = summarizeEnv(input.env ?? []);
   const memberByEmail = new Map(input.members.map((m) => [m.email.toLowerCase(), m]));
   const dirByEmail = new Map((input.directory ?? []).map((d) => [d.email.toLowerCase(), d]));
 
@@ -93,7 +103,7 @@ export function summarize(input: {
     if (!u) {
       const m = memberByEmail.get(r.user_email.toLowerCase());
       const d = dirByEmail.get(r.user_email.toLowerCase());
-      u = { ...emptyDailyMetrics(), user_email: r.user_email, orgs: [], active_days: 0, name: m?.name?.trim() || null, seat_tier: m?.seat_tier ?? null, employee_name: d?.name ?? null, team: d?.team ?? null, headquarters: d?.headquarters ?? null, division: d?.division ?? null, _days: new Set(), _orgs: new Set() };
+      u = { ...emptyDailyMetrics(), user_email: r.user_email, orgs: [], active_days: 0, name: m?.name?.trim() || null, seat_tier: m?.seat_tier ?? null, employee_name: d?.name ?? null, team: d?.team ?? null, headquarters: d?.headquarters ?? null, division: d?.division ?? null, env: envByUser.get(r.user_email) ?? [], _days: new Set(), _orgs: new Set() };
       users.set(r.user_email, u);
     }
     u._orgs.add(r.org_id);

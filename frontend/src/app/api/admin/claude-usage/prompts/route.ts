@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500, isYmd } from "@/lib/claude-usage/require-admin";
 import { dateRangePreset } from "@/lib/claude-usage/aggregate";
+import { applyOrgFilter, resolveOrgIds } from "@/lib/claude-usage/org-filter";
 
 export const runtime = "nodejs";
 
@@ -29,13 +30,15 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(500, Math.max(1, Number(sp.get("limit")) || 200));
   const fromTs = `${from}T00:00:00+09:00`;
   const toTs = `${to}T23:59:59.999+09:00`;
+  // org=all | personal(개인 조직 전체) | <id>
+  const orgIds = await resolveOrgIds(admin, org);
 
   const build = (head: boolean) => {
     let query = head
       ? admin.from("claude_code_prompts").select("*", { count: "exact", head: true })
       : admin.from("claude_code_prompts").select("*").order("ts", { ascending: false }).limit(limit);
     query = query.gte("ts", fromTs).lte("ts", toTs);
-    if (org && org !== "all") query = query.eq("org_id", org);
+    query = applyOrgFilter(query, orgIds);
     if (q) query = query.ilike("prompt", `%${q.replace(/[%_]/g, "\\$&")}%`);
     if (email) query = query.ilike("user_email", `%${email.replace(/[%_]/g, "\\$&")}%`);
     if (kind === "human" || kind === "automation") query = query.eq("kind", kind);

@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, RefreshCw } from "lucide-react";
 import { buildManagedSettings } from "@/lib/claude-usage/managed-settings";
-import type { ClaudeOrg } from "@/types/claude-usage";
+import { orgCategory } from "@/lib/claude-usage/org-options";
+import type { ClaudeOrg, OrgCategory } from "@/types/claude-usage";
 
 interface Health {
   tokenConfigured: boolean;
@@ -33,7 +34,7 @@ function fmtDateTime(iso: string | null | undefined): string {
 export default function OrgSettingsTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg[]; onOrgsChange: () => void }) {
   const [health, setHealth] = useState<Health | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
-  const [edit, setEdit] = useState<Record<string, { name: string; seats: string }>>({});
+  const [edit, setEdit] = useState<Record<string, { name: string; seats: string; category: OrgCategory }>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const origin = typeof window !== "undefined" ? window.location.origin : "https://inje-playground.vercel.app";
@@ -62,7 +63,7 @@ export default function OrgSettingsTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg
       return;
     }
     const seats = e.seats.trim() === "" ? null : Number(e.seats);
-    const r = await fetch("/api/admin/claude-usage/orgs", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: o.id, name: e.name, seats_total: seats }) });
+    const r = await fetch("/api/admin/claude-usage/orgs", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: o.id, name: e.name, seats_total: seats, category: e.category }) });
     const j = await r.json().catch(() => ({}) as { error?: string });
     if (!r.ok) {
       setSaveError(j.error ?? `HTTP ${r.status}`);
@@ -99,16 +100,17 @@ export default function OrgSettingsTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm">조직 ({orgs.length})</CardTitle></CardHeader>
         <CardContent>
-          <p className="mb-2 text-xs text-muted-foreground">조직 ID는 OTel(`organization.id`)·CSV 파일명에서 자동 등록됩니다. 표시 이름과 총 시트 수(결제 페이지 기준)를 입력하세요.</p>
+          <p className="mb-2 text-xs text-muted-foreground">조직 ID는 OTel(`organization.id`)·CSV 파일명에서 자동 등록됩니다. 표시 이름과 총 시트 수(결제 페이지 기준)를 입력하세요. 분류: Team = 우리 Team 조직(개별 선택), 개인 계정 = OTel이 자동 등록한 개인 Claude 조직(드롭다운에서 ‘기타(개인 계정)’으로 묶임), 시스템 = unknown·test-org.</p>
           <table className="w-full text-xs">
-            <thead className="bg-muted/50"><tr><th className="px-2 py-1 text-left">조직 ID</th><th className="px-2 py-1 text-left">이름</th><th className="px-2 py-1 text-right">총 시트</th><th className="px-2 py-1 text-left">Claude Code 마지막 일자</th><th className="px-2 py-1 text-left">CSV 최신(수집 시각)</th><th className="px-2 py-1"></th></tr></thead>
+            <thead className="bg-muted/50"><tr><th className="px-2 py-1 text-left">조직 ID</th><th className="px-2 py-1 text-left">이름</th><th className="px-2 py-1 text-left">분류</th><th className="px-2 py-1 text-right">총 시트</th><th className="px-2 py-1 text-left">Claude Code 마지막 일자</th><th className="px-2 py-1 text-left">CSV 최신(수집 시각)</th><th className="px-2 py-1"></th></tr></thead>
             <tbody>
               {orgs.map((o) => {
-                const e = edit[o.id] ?? { name: o.name, seats: o.seats_total?.toString() ?? "" };
+                const e = edit[o.id] ?? { name: o.name, seats: o.seats_total?.toString() ?? "", category: orgCategory(o) };
                 return (
                   <tr key={o.id} className="border-t">
                     <td className="px-2 py-1 font-mono text-[10px]">{o.id}</td>
                     <td className="px-2 py-1"><Input className="h-7 text-xs" value={e.name} onChange={(ev) => setEdit((s) => ({ ...s, [o.id]: { ...e, name: ev.target.value } }))} /></td>
+                    <td className="px-2 py-1"><select aria-label={`${o.name} 분류`} className="h-7 rounded-md border bg-background px-1 text-xs" value={e.category} onChange={(ev) => setEdit((s) => ({ ...s, [o.id]: { ...e, category: ev.target.value as OrgCategory } }))}><option value="team">Team</option><option value="personal">개인 계정</option><option value="system">시스템</option></select></td>
                     <td className="px-2 py-1"><Input className="h-7 w-20 text-right text-xs" inputMode="numeric" value={e.seats} onChange={(ev) => setEdit((s) => ({ ...s, [o.id]: { ...e, seats: ev.target.value } }))} /></td>
                     <td className="px-2 py-1">{lastDay.get(o.id) ?? "—"}</td>
                     <td className="px-2 py-1">{csvLatest.get(o.id) ? `~${csvLatest.get(o.id)!.period_end} (${fmtDateTime(csvLatest.get(o.id)!.created_at)})` : "—"}</td>
@@ -116,7 +118,7 @@ export default function OrgSettingsTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg
                   </tr>
                 );
               })}
-              {orgs.length === 0 && <tr><td colSpan={6} className="px-2 py-4 text-center text-muted-foreground">아직 등록된 조직이 없습니다. 관리형 설정을 적용하거나 CSV를 업로드하면 자동 등록됩니다.</td></tr>}
+              {orgs.length === 0 && <tr><td colSpan={7} className="px-2 py-4 text-center text-muted-foreground">아직 등록된 조직이 없습니다. 관리형 설정을 적용하거나 CSV를 업로드하면 자동 등록됩니다.</td></tr>}
             </tbody>
           </table>
           {saveError && <p className="mt-2 text-xs text-destructive">{saveError}</p>}

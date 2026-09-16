@@ -58,7 +58,8 @@ export async function POST(request: NextRequest) {
       const byEmail = new Map(rows.map((r) => [r.email, r])); // 같은 이메일 중복 시 마지막 행
       const dedupedRows = [...byEmail.values()];
 
-      const orgUp = await admin.from("claude_orgs").upsert({ id: meta.orgId, name: meta.orgId.slice(0, 8) }, { onConflict: "id", ignoreDuplicates: true });
+      // CSV(claude.ai Team 관리자 내보내기)로 생기는 조직은 우리 Team 조직이다
+      const orgUp = await admin.from("claude_orgs").upsert({ id: meta.orgId, name: meta.orgId.slice(0, 8), category: "team" }, { onConflict: "id", ignoreDuplicates: true });
       if (orgUp.error) throw new Error(orgUp.error.message);
 
       const del = await admin.from("claude_csv_imports").delete().eq("org_id", meta.orgId).eq("period_start", meta.periodStart).eq("period_end", meta.periodEnd);

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import OrgSelect from "@/components/admin/claude-usage/OrgSelect";
 import UnitFilter, { matchUnit } from "@/components/admin/claude-usage/UnitFilter";
 import { Loader2, Trash2 } from "lucide-react";
 import SortableTable, { sumBy, type Column } from "./SortableTable";
@@ -119,13 +119,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={org} onValueChange={(v) => { setOrg(v); setPeriodEnd("latest"); }}>
-          <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="Claude 조직" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">전체 Claude 조직</SelectItem>
-            {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <OrgSelect orgs={orgs} value={org} onChange={(v) => { setOrg(v); setPeriodEnd("latest"); }} />
         <PeriodSelect value={periodEnd} onChange={setPeriodEnd} imports={data?.imports ?? []} />
         {data?.period && <Badge variant="secondary" title="선택한 기간의 CSV 중 조직별 최신 업로드 기준">데이터 기간 {data.period.start} ~ {data.period.end}</Badge>}
         <UnitFilter value={unit} onChange={setUnit} rows={data?.rows ?? []} />
