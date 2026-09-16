@@ -24,7 +24,8 @@ describe("orgCategory", () => {
 describe("orgSelectOptions", () => {
   it("Team 조직은 개별, 개인 조직은 하나로 묶고 unknown·test-org는 항목으로 나열하지 않는다", () => {
     const opts = orgSelectOptions(orgs, { personal: true, unknown: true });
-    expect(opts.map((o) => o.label)).toEqual(["전체 Claude 조직", "Innogrid_S1", "Innogrid-ax", "기타(개인 계정) 2개", "계정 정보 없는 세션"]);
+    expect(opts.map((o) => o.label)).toEqual(["전체 Claude 조직", "Team 조직 전체 2개", "Innogrid_S1", "Innogrid-ax", "기타(개인 계정) 2개", "계정 정보 없는 세션"]);
+    expect(opts[1].value).toBe("team");
     expect(opts.find((o) => o.label.startsWith("기타"))?.value).toBe("personal");
     expect(opts.at(-1)?.value).toBe("unknown");
   });
@@ -32,7 +33,12 @@ describe("orgSelectOptions", () => {
     expect(orgSelectOptions(orgs).map((o) => o.value)).toEqual(["all", "3723fca1-9084-4ade-9a98-0674ce5cbd86", "4ad6b3e9-552f-4b67-bb96-25b51d1852f4"]);
   });
   it("개인 조직이 없으면 묶음 항목을 만들지 않는다", () => {
-    expect(orgSelectOptions(orgs.slice(0, 2), { personal: true, unknown: true })).toHaveLength(3);
+    const opts = orgSelectOptions(orgs.slice(0, 2), { personal: true, unknown: true });
+    expect(opts.map((o) => o.value)).toEqual(["all", "team", "3723fca1-9084-4ade-9a98-0674ce5cbd86", "4ad6b3e9-552f-4b67-bb96-25b51d1852f4"]);
+  });
+  it("Team 조직이 하나뿐이면 'Team 조직 전체'를 넣지 않는다", () => {
+    const one = [orgs[0], orgs[2]];
+    expect(orgSelectOptions(one, { personal: true }).map((o) => o.value)).toEqual(["all", "4ad6b3e9-552f-4b67-bb96-25b51d1852f4", "personal"]);
   });
 });
 
