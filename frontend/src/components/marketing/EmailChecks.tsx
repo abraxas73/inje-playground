@@ -49,7 +49,7 @@ export default function EmailChecks({ runId }: { runId?: string }) {
     setBusy(true); setError(""); try { const r = await api<{ contact: Contact }>(`/api/marketing?view=contact&id=${row.contact_id}`); setDetail(undefined); setForm(r.contact); } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
   const run = report?.run; const running = run && ["queued", "running"].includes(run.status);
-  return <main className="mx-auto max-w-[1440px] space-y-5">
+  return <main className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-semibold">이메일 정합성 {runId ? "검사 결과" : "관리"}</h1><p className="mt-1 text-sm text-muted-foreground">회사 연관성·홈페이지·메일 수신 설정을 근거와 함께 관리합니다.</p></div><div className="flex gap-2">{runId && <Button asChild variant="outline"><Link href="/marketing/email-checks">검사 이력</Link></Button>}<Button asChild variant="outline"><Link href="/marketing">Master DB로</Link></Button>{!runId && editable && <Button onClick={() => setStart(true)}>새 이메일 검사</Button>}</div></div>
     <p className="rounded-lg border bg-muted/30 p-4 text-sm">‘근거 확인’은 회사 기준과 기술 설정이 확인됐다는 뜻입니다. <strong>개별 메일함의 실제 존재·수신 성공은 미확인</strong>이며 검사 메일은 발송하지 않습니다. Master 변경은 기존 검수·승인을 거칩니다.</p>
     {error && <p role="alert" className="rounded border border-destructive/30 p-3 text-sm text-destructive">{error}<Button size="sm" variant="ghost" onClick={() => setRevision(x => x + 1)}>새로고침</Button></p>}{notice && <p role="status" className="rounded border bg-primary/5 p-3 text-sm">{notice}</p>}
