@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deploy collection and subscription schema; keep all secrets out of logs/argv."""
+"""Deploy collection, subscription and SMTP digest mail schema; keep all secrets out of logs/argv. Edge Function secrets MEDIA_SMTP_* are set separately."""
 import argparse
 import json
 from pathlib import Path
@@ -57,6 +57,8 @@ def main():
     print("Collection function deployed.")
     query((ROOT / "docs/sql/2026-09-11-yonhap-notices-cron.sql").read_text())
     print("Daily collection scheduled for 07:00 Asia/Seoul.")
+    query((ROOT / "docs/sql/2026-09-16-yonhap-notice-smtp.sql").read_text())
+    print("Digest mail (SMTP via Edge Function) scheduled every minute.")
     print("Initial collection queued:", query("select public.invoke_yonhap_notices_sync() as request_id;"))
 
 

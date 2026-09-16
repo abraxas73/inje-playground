@@ -1,52 +1,23 @@
 import { NextResponse } from "next/server";
 import { requireNewsUser } from "@/lib/people-news/auth";
-import { createAdminClient } from "@/lib/supabase-admin";
-import { digestAppUrl, loadDigest } from "@/lib/people-news/load-digest";
-import { loadMsConfig } from "@/lib/ms/config";
-import { getAccessTokenForUser } from "@/lib/ms/connections";
-import { sendUserDigest } from "@/lib/people-news/mail";
+import { callYonhapFunction } from "@/lib/people-news/edge";
 
 export const maxDuration = 90;
 const headers = { "Cache-Control": "private, no-store" };
 
-/** Read-only preview uses the exact production template; it does not send or claim a slot. */
+/** 읽기 전용 미리보기: Edge Function이 실제 발송과 같은 양식으로 최근 24시간 수집분을 만든다. 발송·슬롯 소비 없음. */
 export async function GET() {
   const auth = await requireNewsUser();
   if (!auth.ok) return auth.response;
-  try {
-    const to = new Date().toISOString();
-    const from = new Date(Date.parse(to) - 86_400_000).toISOString();
-    const { digest, count } = await loadDigest(createAdminClient(), from, to, digestAppUrl());
-    return NextResponse.json({ ...digest, count, from, to }, { headers });
-  } catch {
-    return NextResponse.json({ error: "메일 미리보기를 불러오지 못했습니다." }, { status: 500, headers });
-  }
+  const result = await callYonhapFunction(auth.supabase, "preview", { timeoutMs: 30_000, failureMessage: "메일 미리보기를 불러오지 못했습니다." });
+  return NextResponse.json(result.body, { status: result.status, headers });
 }
 
-/** Always sends to the verified caller, regardless of any client-provided body. */
+/** 지금 수신: Edge Function이 본인 세션으로 claim(1분 쿨다운)하고 SMTP 릴레이로 로그인 이메일에 보낸다. 본문은 무시한다. */
 export async function POST() {
   const auth = await requireNewsUser();
   if (!auth.ok) return auth.response;
-  if (!auth.user.email || !auth.user.email_confirmed_at) return NextResponse.json({ error: "계정 이메일 인증이 필요합니다." }, { status: 400 });
-  let deliveryId: string | undefined;
-  const admin = createAdminClient();
-  try {
-    const appUrl = digestAppUrl();
-    const config = await loadMsConfig(admin);
-    if (!config.ok) throw new Error("Microsoft 메일 발송 설정이 필요합니다.");
-    const claim = await auth.supabase.rpc("claim_yonhap_notice_send_now");
-    if (claim.error) return NextResponse.json({ error: claim.error.code === "55000" ? "본인 Microsoft 계정을 연결하고 메일 발송 권한에 동의해 주세요." : "즉시 수신 요청을 처리하지 못했습니다." }, { status: claim.error.code === "55000" ? 409 : 500 });
-    const job = claim.data?.[0];
-    if (!job) return NextResponse.json({ error: "1분 후 다시 수신할 수 있습니다." }, { status: 429, headers: { "Retry-After": "60" } });
-    deliveryId = job.delivery_id;
-    const { digest, count } = await loadDigest(admin, job.period_from, job.period_to, appUrl);
-    const token = await getAccessTokenForUser(admin, auth.user.id, { ...config.config, mail: true });
-    const providerId = await sendUserDigest(token, auth.user.email, digest);
-    const saved = await admin.from("yonhap_notice_manual_deliveries").update({ status: "sent", finished_at: new Date().toISOString(), item_count: count, provider_id: providerId }).eq("id", deliveryId);
-    if (saved.error) throw new Error("메일 발송 결과 저장 실패");
-    return NextResponse.json({ count, from: job.period_from, to: job.period_to }, { headers });
-  } catch (error) {
-    if (deliveryId) await admin.from("yonhap_notice_manual_deliveries").update({ status: "failed", finished_at: new Date().toISOString(), error_message: error instanceof Error ? error.message.slice(0, 200) : "발송 실패" }).eq("id", deliveryId);
-    return NextResponse.json({ error: "메일 발송을 확인하지 못했습니다. 받은편지함을 확인하고 Microsoft 연결 상태를 확인해 주세요." }, { status: 502, headers });
-  }
+  if (!auth.user.email || !auth.user.email_confirmed_at) return NextResponse.json({ error: "계정 이메일 인증이 필요합니다." }, { status: 400, headers });
+  const result = await callYonhapFunction(auth.supabase, "send-now", { timeoutMs: 80_000, failureMessage: "메일 발송을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요." });
+  return NextResponse.json(result.body, { status: result.status, headers: result.retryAfter ? { ...headers, "Retry-After": result.retryAfter } : headers });
 }

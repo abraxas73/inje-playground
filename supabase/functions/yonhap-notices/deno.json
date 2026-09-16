@@ -4,6 +4,6 @@
     "fast-xml-parser": "npm:fast-xml-parser@5.11.1"
   },
   "tasks": {
-    "test": "deno test --allow-net feed_test.ts handler_test.ts smtp_test.ts alerts_test.ts"
+    "test": "deno test --allow-net feed_test.ts handler_test.ts smtp_test.ts alerts_test.ts digest_test.ts digest-mail_test.ts"
   }
 }

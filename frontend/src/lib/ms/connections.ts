@@ -98,7 +98,6 @@ export interface TokenDeps {
   encKey: Buffer;
   fetchImpl?: FetchLike;
   now?: () => number;
-  mail?: boolean;
 }
 
 async function markError(admin: SupabaseClient, userId: string, code: string): Promise<void> {
@@ -121,7 +120,7 @@ export async function getAccessTokenForUser(admin: SupabaseClient, userId: strin
   if (!data) throw new NotConnectedError();
   const row = data as { refresh_token_enc: string; connected_at: string };
 
-  const cacheKey = deps.mail ? `${userId}:mail` : userId;
+  const cacheKey = userId;
   const cached = tokenCache.get(cacheKey);
   if (cached && cached.exp > now() && cached.connectedAt === row.connected_at) return cached.token;
 
@@ -135,7 +134,7 @@ export async function getAccessTokenForUser(admin: SupabaseClient, userId: strin
 
   let tok;
   try {
-    tok = await refreshAccessToken(deps.app, refreshToken, fetchImpl, deps.mail);
+    tok = await refreshAccessToken(deps.app, refreshToken, fetchImpl);
   } catch (e) {
     if (e instanceof OAuthError && RECONNECT_CODES.has(e.code)) {
       await markError(admin, userId, e.code);
