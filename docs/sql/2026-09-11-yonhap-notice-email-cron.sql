@@ -1,3 +1,4 @@
+-- [대체됨] 2026-09-16-yonhap-notice-smtp.sql이 invoke_yonhap_notice_email()을 Edge Function 호출로 바꿨다. 이 파일은 이력용.
 -- Mail delivery is driven by Supabase pg_cron every minute. The claim RPC
 -- selects each user's configured KST time, so this also supports arbitrary minutes.
 -- Vault secrets: yonhap_app_url (deployed HTTPS app URL), yonhap_cron_secret (same as Vercel YONHAP_EMAIL_CRON_SECRET).
