@@ -117,7 +117,11 @@ delete from claude_orgs            where id = 'test-org';
 
 ## 8. 계정 정보 없는 세션 · 개인 조직 · 실행 환경 (2026-09-16)
 
-- **계정 정보 없는 세션**: 텔레메트리에 `user.email`·`user.account_uuid`·`organization.id`·`session.id`가 모두 없고 `user.id`만 있는 행(org `unknown`, user `id:…`). 2026-09-16 조사에서 144개 식별자 중 134개가 하루만 나타나고 터미널 활성 시간이 0인데 프롬프트는 사람이 친 한국어였다 → 세션마다 새 컨테이너가 뜨는 환경(Claude Code 웹·Cowork·원격 세션)으로 추정. API 키 사용의 증거는 아니어서 라벨을 "API 키 사용자"에서 바꿨다. 며칠 이상 반복되는 식별자는 API 키·비로그인 하네스를 쓰는 고정 PC일 수 있다.
+- **계정 정보 없는 세션**(정의 확정 2026-09-16): 텔레메트리에 `user.email`·`user.account_uuid`·`organization.id`·`session.id`가 모두 없고 `user.id`(설치 식별자)만 있는 실행. 저장 키는 org `unknown` + user `id:<hash>`.
+  - **정체**: `claude_code_requests`의 `query_source`가 **100% `sdk`**(9,202건 중 8,992 sdk + 210 generate_session_title, `repl_main_thread` 0건)다. 즉 Claude Agent SDK·headless(`claude -p`)·CI 실행이다. 같은 `sdk`라도 계정 인증으로 돌리면 속성이 붙는다(Team 조직 sdk 191,421건) — 계정 속성이 빠지는 것은 실행·인증 경로 차이다.
+  - **특징**: `active_user_seconds`는 0인데 `active_cli_seconds`는 수 시간, 세션 수가 프롬프트 수보다 훨씬 많다(호출마다 새 세션). 실행 환경은 대부분 `linux/amd64` + `non-interactive`(컨테이너), 일부 macOS. 프롬프트 1,028건이 사람이 친 한국어라 **실제 구성원의 작업**이다.
+  - **규모**(2026-09-16): 식별자 145개, 누적 $1,094 = 전체 $173,012의 0.63%. 비용 $10 이상은 9개뿐이고 나머지는 컨테이너가 매번 새로 떠서 하루만 나타난다.
+  - **처리**: ① 조직·설정 탭 **"계정 미식별 세션 귀속"** 카드에서 식별자를 이메일에 매핑하면(`claude_code_identity_map`) 요약·프롬프트 화면에서 그 사람 사용량으로 합쳐진다(조직 배지는 "조직 미확인" 유지 — 어느 시트로 결제됐는지는 알 수 없다). ② 드롭다운 **"Team 조직 전체"**(`org=team`)를 고르면 개인 계정·미식별을 뺀 합계를 본다. ③ 근본 해결은 SDK를 띄우는 쪽에서 `OTEL_RESOURCE_ATTRIBUTES`에 사용자 속성을 넣는 것이다.
 - **조직 분류** `claude_orgs.category`: `team`(우리 Team 조직, CSV 업로드로 생성) · `personal`(OTel이 자동 등록한 개인 Claude 계정 조직 — UUID 앞 8자가 이름, 기본값) · `system`(`unknown`·`test-org`). 조직·설정 탭에서 바꿀 수 있다. OTel 탭(Claude Code·팀별·도구·시간대·프롬프트) 드롭다운은 Team 조직 개별 + "기타(개인 계정) N개"(`org=personal`) + "계정 정보 없는 세션"(`org=unknown`)이고, CSV·Office 탭은 Team 조직만 보인다. RPC `claude_code_tool_summary`·`claude_code_hourly`는 `p_org='personal'`을 category 조인으로 해석한다.
 - **실행 환경** `claude_code_env_daily`: 메트릭 데이터 포인트마다 리소스 속성 `os.type`·`host.arch`·`service.version`(없으면 `app.version`)과 포인트 속성 `terminal.type`을 (일·조직·사용자·환경)별 포인트 수로 더한다(RPC `claude_code_env_ingest`, best-effort). Claude Code 탭 "환경" 컬럼에 포인트 많은 순 첫 환경(+N)을 보여주고, Linux에 터미널이 없으면 컨테이너·웹 세션 추정으로 주황색 표시. 과거 데이터는 소급되지 않는다.
-- SQL: `docs/sql/2026-09-16-claude-usage-env-org-category.sql`(멱등). 확인: `select category, count(*) from claude_orgs group by 1;`, `select os_type, host_arch, count(*) from claude_code_env_daily group by 1,2;`.
+- SQL: `docs/sql/2026-09-16-claude-usage-env-org-category.sql`, `2026-09-16-claude-usage-identity-map.sql`(둘 다 멱등). 확인: `select category, count(*) from claude_orgs group by 1;`, `select os_type, host_arch, count(*) from claude_code_env_daily group by 1,2;`.

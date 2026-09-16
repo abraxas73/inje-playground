@@ -1,9 +1,13 @@
 import type { ClaudeOrg, OrgCategory, UserEnv } from "@/types/claude-usage";
 
-/** 조직 필터 값 — 개인 조직 전체 묶음 */
+/** 조직 필터 값 — 분류 전체 묶음 */
+export const TEAM_ORGS = "team";
 export const PERSONAL_ORGS = "personal";
 export const PERSONAL_LABEL = "기타(개인 계정)";
 export const UNKNOWN_LABEL = "계정 정보 없는 세션";
+/** 화면 곳곳에서 쓰는 정의 — 2026-09-16 조사 근거 */
+export const ACCOUNTLESS_HINT =
+  "계정 정보 없는 세션: Claude Agent SDK·headless(claude -p)·CI로 돌린 실행입니다. 텔레메트리에 이메일·조직이 없고 설치 식별자(user.id)만 있어 사람에게 자동으로 붙지 않습니다. 조직·설정 탭의 '계정 미식별 세션 귀속'에서 식별자를 사람에게 매핑하면 그 사람 사용량으로 합쳐집니다.";
 
 /** category가 아직 없는 응답(2026-09-16 SQL 이전)은 이름 규칙으로 보정: unknown·test-org=system, UUID 앞 8자 이름=personal, 그 외 team */
 export function orgCategory(o: Pick<ClaudeOrg, "id" | "name" | "category">): OrgCategory {
@@ -20,7 +24,10 @@ export interface OrgOption { value: string; label: string }
  */
 export function orgSelectOptions(orgs: ClaudeOrg[], include: { personal?: boolean; unknown?: boolean } = {}): OrgOption[] {
   const team = orgs.filter((o) => orgCategory(o) === "team").sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, "ko"));
-  const out: OrgOption[] = [{ value: "all", label: "전체 Claude 조직" }, ...team.map((o) => ({ value: o.id, label: o.name }))];
+  const out: OrgOption[] = [{ value: "all", label: "전체 Claude 조직" }];
+  // 개인·미식별을 보여주는 탭에서만 "Team 조직 전체"가 의미가 있다(다른 탭은 전체가 곧 Team 전체)
+  if (include.personal && team.length > 1) out.push({ value: TEAM_ORGS, label: `Team 조직 전체 ${team.length}개` });
+  out.push(...team.map((o) => ({ value: o.id, label: o.name })));
   const personal = orgs.filter((o) => orgCategory(o) === "personal").length;
   if (include.personal && personal) out.push({ value: PERSONAL_ORGS, label: `${PERSONAL_LABEL} ${personal}개` });
   if (include.unknown && orgs.some((o) => o.id === "unknown")) out.push({ value: "unknown", label: UNKNOWN_LABEL });

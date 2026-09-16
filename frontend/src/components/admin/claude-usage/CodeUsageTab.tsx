@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import OrgSelect from "@/components/admin/claude-usage/OrgSelect";
-import { displayUser, formatEnv, looksHeadlessLinux, orgBadgeLabel } from "@/lib/claude-usage/org-options";
+import { ACCOUNTLESS_HINT, displayUser, formatEnv, looksHeadlessLinux, orgBadgeLabel } from "@/lib/claude-usage/org-options";
 import UnitFilter, { matchUnit } from "@/components/admin/claude-usage/UnitFilter";
 import { Loader2, Download } from "lucide-react";
 import HBar from "@/components/admin/surveys/charts/HBar";
@@ -63,8 +63,13 @@ export default function CodeUsageTab() {
   }, [data, q, unit]);
 
   const columns: Column<UserUsageRow>[] = [
-    { key: "user", header: "사용자 (Claude)", value: (u) => u.user_email, render: (u) => (
-      <div><div className="font-medium">{u.name || displayUser(u.user_email)}</div>{u.name && <div className="text-muted-foreground">{u.user_email}</div>}</div>) },
+    { key: "user", header: "사용자 (Claude)", value: (u) => u.user_email, render: (u) => {
+      const anon = u.user_email === "unknown" || u.user_email.startsWith("id:");
+      return <div title={anon ? `${ACCOUNTLESS_HINT}\n\n식별자: ${u.user_email}` : undefined}>
+        <div className={`font-medium ${anon ? "decoration-dotted underline-offset-4 [text-decoration-line:underline]" : ""}`}>{u.name || displayUser(u.user_email)}</div>
+        {u.name && <div className="text-muted-foreground">{u.user_email}</div>}
+      </div>;
+    } },
     { key: "employee", header: "이름", value: (u) => u.employee_name ?? "", render: (u) => (u.employee_name ? <span title="사내 조직도(아마란스) 이름">{u.employee_name}</span> : <span className="text-muted-foreground">—</span>) },
     { key: "orgs", header: "Claude 조직", value: (u) => u.orgs.join(","), render: (u) => (
       <div className="flex flex-wrap gap-1">{u.orgs.map((o) => <Badge key={o} variant="outline" className="text-[10px]">{orgBadgeLabel(o, orgById)}</Badge>)}</div>) },

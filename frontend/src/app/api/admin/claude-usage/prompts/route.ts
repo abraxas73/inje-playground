@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500, isYmd } from "@/lib/claude-usage/require-admin";
 import { dateRangePreset } from "@/lib/claude-usage/aggregate";
 import { applyOrgFilter, resolveOrgIds } from "@/lib/claude-usage/org-filter";
+import { applyIdentityMap, loadIdentityMap } from "@/lib/claude-usage/identity-map";
 
 export const runtime = "nodejs";
 
@@ -61,7 +62,8 @@ export async function GET(request: NextRequest) {
     ((directory.error ? [] : directory.data ?? []) as { email: string; name: string | null; team: string | null; headquarters: string | null }[])
       .map((d) => [d.email.toLowerCase(), d])
   );
-  const rows = (rowsRes.data ?? []).map((r) => {
+  const identities = await loadIdentityMap(admin);
+  const rows = applyIdentityMap((rowsRes.data ?? []) as { user_email: string }[], identities).map((r) => {
     const d = dirByEmail.get(String(r.user_email).toLowerCase());
     return { ...r, employee_name: d?.name ?? null, team: d?.team ?? null, headquarters: d?.headquarters ?? null };
   });

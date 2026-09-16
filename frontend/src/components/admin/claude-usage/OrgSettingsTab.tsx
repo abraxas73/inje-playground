@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, RefreshCw } from "lucide-react";
 import { buildManagedSettings } from "@/lib/claude-usage/managed-settings";
+import IdentityMapCard from "@/components/admin/claude-usage/IdentityMapCard";
 import { orgCategory } from "@/lib/claude-usage/org-options";
 import type { ClaudeOrg, OrgCategory } from "@/types/claude-usage";
 
@@ -139,6 +140,7 @@ export default function OrgSettingsTab({ orgs, onOrgsChange }: { orgs: ClaudeOrg
           </div>
         </CardContent>
       </Card>
+      <IdentityMapCard />
     </div>
   );
 }

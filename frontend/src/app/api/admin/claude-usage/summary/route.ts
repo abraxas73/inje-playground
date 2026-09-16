@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500, isYmd, numify } from "@/lib/claude-usage/require-admin";
 import { dateRangePreset, summarize } from "@/lib/claude-usage/aggregate";
 import { applyOrgFilter, resolveOrgIds } from "@/lib/claude-usage/org-filter";
+import { applyIdentityMap, loadIdentityMap } from "@/lib/claude-usage/identity-map";
 import type { ClaudeOrg, DailyRow, EnvDailyRow, ModelRow } from "@/types/claude-usage";
 
 const MAX_DAYS = 366;
@@ -42,6 +43,8 @@ export async function GET(request: NextRequest) {
   try {
     // org=all | personal(자동 등록된 개인 조직 전체) | <id>
     const orgIds = await resolveOrgIds(admin, org);
+    // 계정 미식별(SDK) 식별자 → 사람 이메일 매핑. 등록된 것만 그 사람의 사용량으로 합쳐진다.
+    const identities = await loadIdentityMap(admin);
     const [dailyRows, modelRows, envRows, orgs, imports] = await Promise.all([
       fetchAll<DailyRow>((a, b) => applyOrgFilter(admin.from("claude_code_daily").select("*").gte("day", from).lte("day", to).order("day").order("user_email"), orgIds).range(a, b)),
       fetchAll<ModelRow>((a, b) => applyOrgFilter(admin.from("claude_code_daily_model").select("*").gte("day", from).lte("day", to).order("day").order("user_email").order("model"), orgIds).range(a, b)),
@@ -65,9 +68,9 @@ export async function GET(request: NextRequest) {
     const directory = await admin.from("company_directory").select("email, name, team, headquarters, division").eq("active", true).limit(1000);
 
     const summary = summarize({
-      rows: dailyRows.map((r) => numify(r as unknown as Record<string, unknown>)) as unknown as DailyRow[],
-      models: modelRows.map((r) => numify(r as unknown as Record<string, unknown>)) as unknown as ModelRow[],
-      env: envRows.map((r) => numify(r as unknown as Record<string, unknown>)) as unknown as EnvDailyRow[],
+      rows: applyIdentityMap(dailyRows.map((r) => numify(r as unknown as Record<string, unknown>)) as unknown as DailyRow[], identities),
+      models: applyIdentityMap(modelRows.map((r) => numify(r as unknown as Record<string, unknown>)) as unknown as ModelRow[], identities),
+      env: applyIdentityMap(envRows.map((r) => numify(r as unknown as Record<string, unknown>)) as unknown as EnvDailyRow[], identities),
       orgs: (orgs.data ?? []) as ClaudeOrg[],
       members: (members.data ?? []) as { email: string; name: string; seat_tier: string }[],
       directory: directory.error ? [] : ((directory.data ?? []) as { email: string; name: string | null; team: string | null; headquarters: string | null; division: string | null }[]),
