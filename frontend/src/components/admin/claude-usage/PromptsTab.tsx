@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import OrgSelect from "@/components/admin/claude-usage/OrgSelect";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
 import { int } from "./format";
@@ -80,13 +81,7 @@ export default function PromptsTab({ orgs }: { orgs: ClaudeOrg[] }) {
           <Button key={p.key} size="sm" variant={preset === p.key ? "default" : "outline"} onClick={() => { setPreset(p.key); setRange(dateRangePreset(p.key)); }}>{p.label}</Button>
         ))}
         <span className="text-xs text-muted-foreground">{range.from} ~ {range.to}</span>
-        <Select value={org} onValueChange={setOrg}>
-          <SelectTrigger className="h-8 w-[190px] text-xs"><SelectValue placeholder="Claude 조직" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">전체 Claude 조직</SelectItem>
-            {orgs.filter((o) => o.id !== "unknown" && o.id !== "test-org").map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <OrgSelect orgs={orgs} value={org} onChange={setOrg} personal unknown className="w-[190px]" />
         <Select value={kind} onValueChange={setKind}>
           <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="구분" /></SelectTrigger>
           <SelectContent>

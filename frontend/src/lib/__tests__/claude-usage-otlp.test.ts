@@ -121,8 +121,8 @@ describe("parseMetricsPayload", () => {
   });
 
   it("형식이 아니면 빈 결과", () => {
-    expect(parseMetricsPayload(null)).toEqual({ daily: [], model: [], dropped: 0 });
-    expect(parseMetricsPayload({ resourceMetrics: "x" })).toEqual({ daily: [], model: [], dropped: 0 });
+    expect(parseMetricsPayload(null)).toEqual({ daily: [], model: [], env: [], dropped: 0 });
+    expect(parseMetricsPayload({ resourceMetrics: "x" })).toEqual({ daily: [], model: [], env: [], dropped: 0 });
   });
 });
 
@@ -209,5 +209,39 @@ describe("parseLogsPayload", () => {
 
   it("형식이 아니면 빈 결과", () => {
     expect(parseLogsPayload({})).toEqual({ requests: [], promptDaily: [], dropped: 0, ignored: {}, toolDaily: [], promptEvents: [] });
+  });
+});
+
+describe("parseMetricsPayload — 실행 환경", () => {
+  const RES_ENV = { attributes: [
+    { key: "service.name", value: { stringValue: "claude-code" } },
+    { key: "service.version", value: { stringValue: "2.1.32" } },
+    { key: "os.type", value: { stringValue: "Darwin" } },
+    { key: "host.arch", value: { stringValue: "arm64" } },
+  ] };
+  it("리소스 os/arch/version과 포인트 terminal.type을 (일·조직·사용자·환경)별 포인트 수로 센다", () => {
+    const term = { key: "terminal.type", value: { stringValue: "iTerm.app" } };
+    const body = { resourceMetrics: [{ resource: RES_ENV, scopeMetrics: [{ metrics: [
+      sum("claude_code.session.count", [point(1, [term])]),
+      sum("claude_code.cost.usage", [point(0.5, [term, { key: "model", value: { stringValue: "claude-opus-5" } }])]),
+      sum("claude_code.token.usage", [point(10, [{ key: "type", value: { stringValue: "input" } }])]),
+    ] }] }] };
+    const { env } = parseMetricsPayload(body);
+    expect(env).toHaveLength(2);
+    const withTerm = env.find((e) => e.terminal_type === "iTerm.app")!;
+    expect(withTerm).toMatchObject({ day: "2026-08-26", org_id: "org-a", user_email: "dev1@example.com", os_type: "darwin", host_arch: "arm64", app_version: "2.1.32", points: 2 });
+    expect(env.find((e) => e.terminal_type === "")).toMatchObject({ os_type: "darwin", points: 1 });
+  });
+  it("속성이 없으면 빈 문자열 환경 1행으로 모이고 누적(cumulative) 포인트는 세지 않는다", () => {
+    const body = metricsBody([sum("claude_code.session.count", [point(1)]), sum("claude_code.cost.usage", [point(1)], 2)]);
+    const { env } = parseMetricsPayload(body);
+    expect(env).toEqual([{ day: "2026-08-26", org_id: "org-a", user_email: "dev1@example.com", os_type: "", host_arch: "", app_version: "", terminal_type: "", points: 1 }]);
+  });
+  it("계정 속성이 없는 포인트도 id: 사용자·unknown 조직으로 환경이 남는다", () => {
+    const body = { resourceMetrics: [{ resource: { attributes: [{ key: "os.type", value: { stringValue: "linux" } }, { key: "host.arch", value: { stringValue: "x64" } }] }, scopeMetrics: [{ metrics: [
+      { name: "claude_code.cost.usage", sum: { dataPoints: [{ attributes: [{ key: "user.id", value: { stringValue: "abc123" } }], timeUnixNano: T, asDouble: 1 }], aggregationTemporality: 1 } },
+    ] }] }] };
+    const { env } = parseMetricsPayload(body);
+    expect(env).toEqual([expect.objectContaining({ org_id: "unknown", user_email: "id:abc123", os_type: "linux", host_arch: "x64", terminal_type: "" })]);
   });
 });

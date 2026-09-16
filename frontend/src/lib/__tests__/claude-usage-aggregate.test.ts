@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { summarize, acceptRate, isIdleSeat, hasSeat, dateRangePreset } from "@/lib/claude-usage/aggregate";
+import { summarizeEnv, summarize, acceptRate, isIdleSeat, hasSeat, dateRangePreset } from "@/lib/claude-usage/aggregate";
 import { emptyDailyMetrics, type DailyRow, type ModelRow } from "@/types/claude-usage";
 
 const row = (p: Partial<DailyRow> & Pick<DailyRow, "day" | "org_id" | "user_email">): DailyRow => ({
@@ -84,5 +84,25 @@ describe("dateRangePreset", () => {
     expect(dateRangePreset("lastMonth", today)).toEqual({ from: "2026-07-01", to: "2026-07-31" });
     // 1월 → 전년 12월 (KST 2026-01-15 10:00 = 2026-01-15T01:00:00Z)
     expect(dateRangePreset("lastMonth", new Date("2026-01-15T01:00:00Z"))).toEqual({ from: "2025-12-01", to: "2025-12-31" });
+  });
+});
+
+describe("summarizeEnv", () => {
+  const row = (user_email: string, over: Partial<{ os_type: string; host_arch: string; app_version: string; terminal_type: string; points: number; day: string }> = {}) => ({
+    day: "2026-09-16", org_id: "org-a", user_email, os_type: "darwin", host_arch: "arm64", app_version: "2.1.32", terminal_type: "iTerm.app", points: 1, ...over,
+  });
+  it("같은 환경을 날짜에 걸쳐 합치고 포인트 많은 순으로 상위만 남긴다", () => {
+    const m = summarizeEnv([
+      row("a@x.test", { points: 3 }), row("a@x.test", { day: "2026-09-15", points: 4 }),
+      row("a@x.test", { os_type: "linux", host_arch: "x64", terminal_type: "", points: 10 }),
+      row("id:abc", { os_type: "linux", host_arch: "x64", terminal_type: "", app_version: "", points: 2 }),
+    ], 1);
+    expect(m.get("a@x.test")).toEqual([{ os_type: "linux", host_arch: "x64", app_version: "2.1.32", terminal_type: "", points: 10 }]);
+    expect(m.get("id:abc")).toEqual([{ os_type: "linux", host_arch: "x64", app_version: "", terminal_type: "", points: 2 }]);
+    expect(m.get("nobody")).toBeUndefined();
+  });
+  it("문자열 points도 숫자로 더한다", () => {
+    const m = summarizeEnv([row("a@x.test", { points: "2" as unknown as number }), row("a@x.test", { points: "3" as unknown as number })]);
+    expect(m.get("a@x.test")?.[0].points).toBe(5);
   });
 });

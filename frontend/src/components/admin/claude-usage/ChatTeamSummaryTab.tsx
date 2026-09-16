@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import OrgSelect from "@/components/admin/claude-usage/OrgSelect";
 import { Download, Loader2 } from "lucide-react";
 import SortableTable, { sumBy, type Column } from "./SortableTable";
 import PeriodSelect from "./PeriodSelect";
@@ -75,13 +75,7 @@ export default function ChatTeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={org} onValueChange={(v) => { setOrg(v); setPeriodEnd("latest"); }}>
-          <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="Claude 조직" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">전체 Claude 조직</SelectItem>
-            {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <OrgSelect orgs={orgs} value={org} onChange={(v) => { setOrg(v); setPeriodEnd("latest"); }} />
         <PeriodSelect value={periodEnd} onChange={setPeriodEnd} imports={data?.imports ?? []} />
         {period && <span className="text-xs text-muted-foreground" title="선택한 기간의 CSV 중 조직별 최신 업로드 기준">데이터 기간 {period.start} ~ {period.end}</span>}
         <Button size="sm" variant="outline" onClick={exportCsv} disabled={rows.length === 0}><Download className="mr-1 h-3.5 w-3.5" />CSV</Button>

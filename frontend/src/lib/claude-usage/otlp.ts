@@ -8,6 +8,7 @@ import {
   emptyDailyMetrics,
   type ApiRequestEvent,
   type DailyRow,
+  type EnvDailyRow,
   type ModelRow,
 } from "@/types/claude-usage";
 import { classifyPrompt, type PromptKind } from "./prompt-kind";
@@ -85,6 +86,34 @@ function identity(point: Attrs, resource: Attrs): Identity {
   };
 }
 
+/** 실행 환경 — 리소스 속성(os.type·host.arch·service.version) + 포인트 속성(terminal.type). 없으면 '' 로 두어 키에 쓴다. */
+export interface EnvAttrs { os_type: string; host_arch: string; app_version: string; terminal_type: string }
+function environment(point: Attrs, resource: Attrs): EnvAttrs {
+  const pick = (k: string) => str(point, k) ?? str(resource, k);
+  return {
+    os_type: (pick("os.type") ?? "").toLowerCase().slice(0, 40),
+    host_arch: (pick("host.arch") ?? "").toLowerCase().slice(0, 40),
+    app_version: (pick("service.version") ?? pick("app.version") ?? "").slice(0, 40),
+    terminal_type: (pick("terminal.type") ?? "").slice(0, 60),
+  };
+}
+
+class EnvAcc {
+  private map = new Map<string, EnvDailyRow>();
+  add(day: string, id: Identity, env: EnvAttrs) {
+    const key = `${day}|${id.org_id}|${id.user_email}|${env.os_type}|${env.host_arch}|${env.app_version}|${env.terminal_type}`;
+    let row = this.map.get(key);
+    if (!row) {
+      row = { day, org_id: id.org_id, user_email: id.user_email, ...env, points: 0 };
+      this.map.set(key, row);
+    }
+    row.points += 1;
+  }
+  rows(): EnvDailyRow[] {
+    return [...this.map.values()];
+  }
+}
+
 function isCumulative(t: unknown): boolean {
   if (t === 2) return true;
   return typeof t === "string" && t.toUpperCase().includes("CUMULATIVE");
@@ -141,12 +170,13 @@ const TOKEN_TYPE_FIELD: Record<string, "input_tokens" | "output_tokens" | "cache
   cache_creation: "cache_creation_tokens",
 };
 
-export function parseMetricsPayload(body: unknown): { daily: DailyRow[]; model: ModelRow[]; dropped: number } {
+export function parseMetricsPayload(body: unknown): { daily: DailyRow[]; model: ModelRow[]; env: EnvDailyRow[]; dropped: number } {
   const daily = new DailyAcc();
   const model = new ModelAcc();
+  const env = new EnvAcc();
   let dropped = 0;
   const rms = (body as { resourceMetrics?: unknown })?.resourceMetrics;
-  if (!Array.isArray(rms)) return { daily: [], model: [], dropped: 0 };
+  if (!Array.isArray(rms)) return { daily: [], model: [], env: [], dropped: 0 };
 
   for (const rm of rms as { resource?: { attributes?: unknown }; scopeMetrics?: unknown }[]) {
     const resource = attrsToRecord(rm?.resource?.attributes);
@@ -171,6 +201,8 @@ export function parseMetricsPayload(body: unknown): { daily: DailyRow[]; model: 
           const a = attrsToRecord(p.attributes);
           const id = identity(a, resource);
           const day = kstDay(ms);
+          // 실행 환경은 어떤 메트릭이든 포인트마다 한 번씩 센다(어느 환경에서 얼마나 왔는지 가중치)
+          env.add(day, id, environment(a, resource));
           const type = (str(a, "type") ?? "").replace(/[\s-]/g, "").toLowerCase();
           switch (name) {
             case "claude_code.session.count":
@@ -224,7 +256,7 @@ export function parseMetricsPayload(body: unknown): { daily: DailyRow[]; model: 
       }
     }
   }
-  return { daily: daily.rows(), model: model.rows(), dropped };
+  return { daily: daily.rows(), model: model.rows(), env: env.rows(), dropped };
 }
 
 /**

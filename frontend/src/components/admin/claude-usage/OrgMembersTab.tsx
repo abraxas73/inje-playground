@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import OrgSelect from "@/components/admin/claude-usage/OrgSelect";
 import { Download, Loader2 } from "lucide-react";
 import SortableTable, { type Column } from "@/components/admin/claude-usage/SortableTable";
 import UnitFilter, { matchUnit } from "@/components/admin/claude-usage/UnitFilter";
@@ -112,13 +113,7 @@ export default function OrgMembersTab({ orgs }: { orgs: ClaudeOrg[] }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={org} onValueChange={setOrg}>
-          <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="Claude 조직" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">전체 Claude 조직</SelectItem>
-            {orgs.filter((o) => o.id !== "unknown" && o.id !== "test-org").map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <OrgSelect orgs={orgs} value={org} onChange={setOrg} />
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="상태" /></SelectTrigger>
           <SelectContent>

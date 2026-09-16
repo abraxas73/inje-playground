@@ -53,7 +53,7 @@
 | CSV 업로드 "필수 칼럼 누락" | Anthropic이 헤더를 바꿈 | `frontend/src/lib/claude-usage/members-csv.ts`의 `MEMBERS_CSV_COLUMNS`에 새 헤더 추가 |
 | 503 `store failed` (Retry-After) | 일시적 DB 오류 — OTel 익스포터가 자동 재시도함 | 반복되면 조직·설정 탭 "마지막 오류" 확인, DB 상태 점검 |
 | 승인 창을 통과한 세션인데 데이터가 안 옴 | 승인 직후 세션은 `OTEL_*` env가 아직 미적용(`CLAUDE_CODE_ENABLE_TELEMETRY`만 있음) | 정상 동작 — Claude Code를 한 번 더 재시작하면 그 세션부터 내보냄. 서버 관리형 설정 캐시 `~/.claude/remote-settings.json`, 승인 기록 `~/.claude/remote-settings-consent.json` |
-| 사용자 `식별 불가 (API 키 인증)` / `API 키 사용자 id:…` / 조직 `조직 미확인` 행 | `claude_code_requests`에서 해당 행의 `query_source`가 `sdk`, `account_uuid`·`org_id` 없음 | Agent SDK 등이 claude.ai 로그인 대신 **API 키(Console) 인증**으로 실행된 것 — Team 시트 사용량이 아니라 Console 과금분이며 개인 귀속 불가. `user.id`가 있으면 `id:…`로 사용자별 구분만 된다. 필요하면 해당 머신의 관리형 설정 캐시(`~/.claude/remote-settings.json`)와 `ANTHROPIC_API_KEY` 사용 여부 확인 |
+| 사용자 `계정 정보 없는 세션 (식별자 없음)` / `계정 정보 없는 세션 id:…` / 조직 `조직 미확인` 행 | `claude_code_requests`에서 해당 행의 `query_source`가 `sdk`, `account_uuid`·`org_id` 없음 | Agent SDK 등이 claude.ai 로그인 대신 **API 키(Console) 인증**으로 실행된 것 — Team 시트 사용량이 아니라 Console 과금분이며 개인 귀속 불가. `user.id`가 있으면 `id:…`로 사용자별 구분만 된다. 필요하면 해당 머신의 관리형 설정 캐시(`~/.claude/remote-settings.json`)와 `ANTHROPIC_API_KEY` 사용 여부 확인 |
 | 사용자 칸이 비어 있음 | CSV `Name`이 빈 문자열인 멤버(claude.ai 표시 이름 미설정) | 2026-08-27 수정(빈 이름은 null로 정규화 → 이메일 표시). 이름을 보고 싶으면 본인이 claude.ai 프로필에 표시 이름 설정 |
 | metrics는 오는데 프롬프트 수·요청 표가 0 | `claude_ingest_log`에서 `signal='logs'` 행의 `bytes`>0인데 `rows=0` → 이벤트 이름 불일치 | 2026-08-27 수정(89ed70c: `event.name` 접두어 유무 모두 인식). 재발 시 Vercel 함수 로그의 `[claude-usage] logs: … 무시한 이벤트` 경고에서 실제 이벤트 이름 확인 후 `otlp.ts` `eventNames()` 조정 |
 - 데이터 보존: `claude_code_requests`는 요청 단위라 커짐 → 필요 시 `delete from claude_code_requests where ts < now() - interval '180 days'`.
@@ -114,3 +114,10 @@ delete from claude_orgs            where id = 'test-org';
 - 0으로 남는 경우: ① MCP·SDK 자동화 워크플로(예: 세션 1,125·프롬프트 991·$1,107인데 도구는 MCP 3,460·Bash 65뿐) ② Bash(sed·heredoc·스크립트)로 파일을 고치는 습관 ③ 읽기·질문 전용 ④ API 키 직접 호출(이름·조직이 안 붙는 27명, 전부 sdk). 요청 종류로 보면 라인 0 그룹은 89.5%가 `sdk`·대화형 CLI 6.6%, 라인 > 0 그룹은 대화형 CLI 44.9%.
 - 화면에는 이 조건을 툴팁으로 붙였다(`lib/claude-usage/metric-hints.ts` `LOC_HINT` — 어드민 Claude Code 표·"수락 라인/수락률" 카드, 개인 `/usage/code` 표·지표 카드, 성과 지표 표 `LOC(Claude)`). 헤더에 점선 밑줄이 보이면 툴팁이 있다는 뜻.
 - **라인 0을 미사용으로 읽지 말 것** — 비용 상위권에도 라인 0인 사용자가 있다.
+
+## 8. 계정 정보 없는 세션 · 개인 조직 · 실행 환경 (2026-09-16)
+
+- **계정 정보 없는 세션**: 텔레메트리에 `user.email`·`user.account_uuid`·`organization.id`·`session.id`가 모두 없고 `user.id`만 있는 행(org `unknown`, user `id:…`). 2026-09-16 조사에서 144개 식별자 중 134개가 하루만 나타나고 터미널 활성 시간이 0인데 프롬프트는 사람이 친 한국어였다 → 세션마다 새 컨테이너가 뜨는 환경(Claude Code 웹·Cowork·원격 세션)으로 추정. API 키 사용의 증거는 아니어서 라벨을 "API 키 사용자"에서 바꿨다. 며칠 이상 반복되는 식별자는 API 키·비로그인 하네스를 쓰는 고정 PC일 수 있다.
+- **조직 분류** `claude_orgs.category`: `team`(우리 Team 조직, CSV 업로드로 생성) · `personal`(OTel이 자동 등록한 개인 Claude 계정 조직 — UUID 앞 8자가 이름, 기본값) · `system`(`unknown`·`test-org`). 조직·설정 탭에서 바꿀 수 있다. OTel 탭(Claude Code·팀별·도구·시간대·프롬프트) 드롭다운은 Team 조직 개별 + "기타(개인 계정) N개"(`org=personal`) + "계정 정보 없는 세션"(`org=unknown`)이고, CSV·Office 탭은 Team 조직만 보인다. RPC `claude_code_tool_summary`·`claude_code_hourly`는 `p_org='personal'`을 category 조인으로 해석한다.
+- **실행 환경** `claude_code_env_daily`: 메트릭 데이터 포인트마다 리소스 속성 `os.type`·`host.arch`·`service.version`(없으면 `app.version`)과 포인트 속성 `terminal.type`을 (일·조직·사용자·환경)별 포인트 수로 더한다(RPC `claude_code_env_ingest`, best-effort). Claude Code 탭 "환경" 컬럼에 포인트 많은 순 첫 환경(+N)을 보여주고, Linux에 터미널이 없으면 컨테이너·웹 세션 추정으로 주황색 표시. 과거 데이터는 소급되지 않는다.
+- SQL: `docs/sql/2026-09-16-claude-usage-env-org-category.sql`(멱등). 확인: `select category, count(*) from claude_orgs group by 1;`, `select os_type, host_arch, count(*) from claude_code_env_daily group by 1,2;`.
