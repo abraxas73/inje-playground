@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Mail } from "lucide-react";
+import { ChevronDown, Loader2, Mail } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ export default function SubscriptionCard() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [retry, setRetry] = useState(0);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -106,27 +107,37 @@ export default function SubscriptionCard() {
             </Button>
           </div>
         </div>
-        {settings?.subscription.enabled && settings.subscription.next_send_at && <p className="text-xs text-muted-foreground">다음 발송 예정: {format(settings.subscription.next_send_at)}</p>}
-        {settings?.latestDelivery?.status === "sent" && settings.latestDelivery.finished_at && <p className="text-xs text-muted-foreground">최근 발송: {format(settings.latestDelivery.finished_at)}</p>}
-        {settings?.latestDelivery?.status === "failed" && <p className="text-xs text-destructive">최근 메일 발송에 실패했습니다. 관리자에게 문의해 주세요.</p>}
-        {settings && !settings.emailVerified && <p className="text-xs text-destructive">계정 이메일 인증이 필요합니다.</p>}
-        {message && <p role="status" className={`text-xs ${message.error ? "text-destructive" : "text-muted-foreground"}`}>{message.text}{!settings && <button className="ml-2 underline" onClick={() => setRetry((n) => n + 1)}>다시 시도</button>}</p>}
-        <div className="space-y-1 text-xs text-muted-foreground">
-          <p>예약 수신: 첫 메일은 최근 24시간, 이후에는 마지막 예약 발송 성공 이후 새로 수집된 소식을 보냅니다. 기사 송고일이 아닌 수집 시각 기준이며, 화면의 검색·필터와 무관합니다.</p>
-          <p>매일 오전 7시에 소식을 수집하며 기본 수신 시간은 오전 7시 10분입니다. 설정한 시간부터 순차적으로 발송합니다.</p>
-          <p>지금 수신: 계정 이메일로 바로 보냅니다. 최신 소식이 필요하면 먼저 ‘지금 가져오기’를 눌러 주세요.</p>
-          <p>이전 발송 내역 제외: 예약·지금 수신으로 이미 보낸 소식 다음부터만 담습니다. 끄면 지금 수신이 항상 최근 24시간을 보내 같은 소식이 다시 포함됩니다. 켠 상태에서 새 소식이 없으면 메일을 보내지 않습니다.</p>
-        </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="mr-2 flex items-center gap-2">
-            <Switch id="notice-exclude-sent" checked={excludeSent} onCheckedChange={setExcludeSent} disabled={!settings || saving} />
-            <Label htmlFor="notice-exclude-sent" className="text-xs">이전 발송 내역 제외</Label>
-          </div>
           <Button size="sm" onClick={sendNow} disabled={sending || !settings?.emailVerified}>
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}지금 수신
           </Button>
           <Button size="sm" variant="outline" onClick={showPreview}>메일 미리보기</Button>
+          <div className="flex items-center gap-2">
+            <Switch id="notice-exclude-sent" checked={excludeSent} onCheckedChange={setExcludeSent} disabled={!settings || saving} />
+            <Label htmlFor="notice-exclude-sent" className="text-xs">이전 발송 내역 제외</Label>
+          </div>
+          <Button size="sm" variant="ghost" className="ml-auto text-xs" aria-expanded={detailOpen} onClick={() => setDetailOpen((open) => !open)}>
+            상세 설명<ChevronDown className={`h-4 w-4 transition-transform ${detailOpen ? "rotate-180" : ""}`} />
+          </Button>
         </div>
+        {settings && (() => {
+          const parts = [
+            settings.subscription.enabled && settings.subscription.next_send_at ? `다음 발송 예정 ${format(settings.subscription.next_send_at)}` : "예약 수신 꺼짐",
+            settings.latestDelivery?.status === "sent" && settings.latestDelivery.finished_at ? `최근 발송 ${format(settings.latestDelivery.finished_at)}` : null,
+          ].filter(Boolean);
+          return <p className="text-xs text-muted-foreground">{parts.join(" · ")}</p>;
+        })()}
+        {settings?.latestDelivery?.status === "failed" && <p className="text-xs text-destructive">최근 메일 발송에 실패했습니다. 관리자에게 문의해 주세요.</p>}
+        {settings && !settings.emailVerified && <p className="text-xs text-destructive">계정 이메일 인증이 필요합니다.</p>}
+        {message && <p role="status" className={`text-xs ${message.error ? "text-destructive" : "text-muted-foreground"}`}>{message.text}{!settings && <button className="ml-2 underline" onClick={() => setRetry((n) => n + 1)}>다시 시도</button>}</p>}
+        {detailOpen && (
+          <div className="space-y-1 border-t pt-3 text-xs text-muted-foreground">
+            <p>예약 수신: 첫 메일은 최근 24시간, 이후에는 마지막 예약 발송 성공 이후 새로 수집된 소식을 보냅니다. 기사 송고일이 아닌 수집 시각 기준이며, 화면의 검색·필터와 무관합니다.</p>
+            <p>매일 오전 7시에 소식을 수집하며 기본 수신 시간은 오전 7시 10분입니다. 설정한 시간부터 순차적으로 발송합니다.</p>
+            <p>지금 수신: 계정 이메일로 바로 보냅니다. 최신 소식이 필요하면 먼저 ‘지금 가져오기’를 눌러 주세요.</p>
+            <p>이전 발송 내역 제외: 예약·지금 수신으로 이미 보낸 소식 다음부터만 담습니다. 끄면 지금 수신이 항상 최근 24시간을 보내 같은 소식이 다시 포함됩니다. 켠 상태에서 새 소식이 없으면 메일을 보내지 않습니다.</p>
+          </div>
+        )}
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
           <DialogContent className="sm:max-w-3xl">
             <DialogTitle>메일 미리보기</DialogTitle>
