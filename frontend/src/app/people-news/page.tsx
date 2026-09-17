@@ -19,6 +19,22 @@ const dateTime = new Intl.DateTimeFormat("ko-KR", {
 });
 const INITIAL_FILTERS = { category: "all", q: "", from: "", to: "", page: 1 };
 
+/** 인사 기사는 소제목·항목이 여러 줄이라, 기본은 두 줄만 보여 주고 필요할 때 펼친다. */
+function NoticeSummary({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.includes("\n") || text.length > 120;
+  return (
+    <div className="mt-1">
+      <p className={`whitespace-pre-line text-sm leading-relaxed text-muted-foreground ${long && !open ? "line-clamp-2" : ""}`}>{text}</p>
+      {long && (
+        <button type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="mt-1 text-xs font-medium text-sky-700 hover:underline">
+          {open ? "접기" : "전체 보기"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function PeopleNewsPage() {
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [data, setData] = useState<PeopleNewsResponse | null>(null);
@@ -153,19 +169,17 @@ export default function PeopleNewsPage() {
             <p className="mb-3 text-sm text-muted-foreground" role="status">총 {data.total.toLocaleString()}건 · 최신순</p>
             <ul className="divide-y rounded-xl border bg-card">
               {data.notices.map((notice) => (
-                <li key={notice.source_id}>
-                  <a href={notice.source_url} target="_blank" rel="noopener noreferrer" className="group block rounded-xl p-4 transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-primary sm:p-5">
-                    <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <Badge variant={notice.category === "personnel" ? "secondary" : "outline"}>{notice.category === "personnel" ? "인사" : "부고"}</Badge>
-                      <time dateTime={notice.published_at} className="text-xs text-muted-foreground">{dateTime.format(new Date(notice.published_at))}</time>
-                      {data.matches?.[notice.source_id]?.map((label) => <Badge key={label} className="bg-sky-100 text-sky-800 hover:bg-sky-100">{label} 일치</Badge>)}
-                    </div>
-                    <div className="flex items-start justify-between gap-3">
-                      <h2 className="font-semibold leading-relaxed group-hover:text-primary">{notice.title}</h2>
-                      <span className="mt-1 flex shrink-0 items-center gap-1 text-xs text-muted-foreground">원문<ExternalLink className="h-3.5 w-3.5" /><span className="sr-only"> 새 창</span></span>
-                    </div>
-                    {notice.summary && <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-muted-foreground">{notice.summary}</p>}
+                <li key={notice.source_id} className="rounded-xl p-4 transition-colors hover:bg-muted/40 sm:p-5">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <Badge variant={notice.category === "personnel" ? "secondary" : "outline"}>{notice.category === "personnel" ? "인사" : "부고"}</Badge>
+                    <time dateTime={notice.published_at} className="text-xs text-muted-foreground">{dateTime.format(new Date(notice.published_at))}</time>
+                    {data.matches?.[notice.source_id]?.map((label) => <Badge key={label} className="bg-sky-100 text-sky-800 hover:bg-sky-100">{label} 일치</Badge>)}
+                  </div>
+                  <a href={notice.source_url} target="_blank" rel="noopener noreferrer" className="group flex items-start justify-between gap-3 rounded focus-visible:outline-2 focus-visible:outline-primary">
+                    <h2 className="font-semibold leading-relaxed group-hover:text-primary">{notice.title}</h2>
+                    <span className="mt-1 flex shrink-0 items-center gap-1 text-xs text-muted-foreground">원문<ExternalLink className="h-3.5 w-3.5" /><span className="sr-only"> 새 창</span></span>
                   </a>
+                  {notice.summary && <NoticeSummary text={notice.summary} />}
                 </li>
               ))}
             </ul>
@@ -185,7 +199,7 @@ export default function PeopleNewsPage() {
           </div>
         ) : null}
       </section>
-      <p className="text-xs leading-relaxed text-muted-foreground">연합뉴스 RSS에서 제공하는 제목과 요약입니다. 자세한 내용과 정정 사항은 원문에서 확인해 주세요.</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">연합뉴스 RSS의 제목과 요약이며, 요약이 기사 중간에서 끊기면 원문 본문으로 채웁니다. 자세한 내용과 정정 사항은 원문에서 확인해 주세요.</p>
     </div>
   );
 }

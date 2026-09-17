@@ -203,7 +203,7 @@ Deno.test("send-now·preview는 본문의 excludeSent를 그대로 전달하고,
   assert(p.digestCalls[0].kind === "preview" && p.digestCalls[0].excludeSent === true && p.digestCalls[0].userId === "user-1");
 });
 
-Deno.test("새 기사와 아직 머리글뿐인 저장분만 원문 보강 대상으로 넘긴다", async () => {
+Deno.test("새 기사와 아직 기사 끝까지 오지 않은 저장분만 원문 보강 대상으로 넘긴다", async () => {
   const fresh = fixture();
   await fresh.handler(request("cron-secret"));
   assert(fresh.enrichCalls.length === 1 && fresh.enrichCalls[0].length === 1, JSON.stringify(fresh.enrichCalls));
@@ -213,7 +213,7 @@ Deno.test("새 기사와 아직 머리글뿐인 저장분만 원문 보강 대�
   await done.handler(request("cron-secret"));
   assert(done.enrichCalls[0].length === 0, JSON.stringify(done.enrichCalls));
 
-  // 저장된 요약이 여전히 머리글뿐이면 다시 시도(과거분 보강)
+  // 저장된 요약이 여전히 기사 끝까지 오지 않았으면 다시 시도(과거분 보강)
   const retry = fixture({ existingIds: ["AKR20260911000100001"], storedSummary: "◇ 과장급 전보" });
   await retry.handler(request("cron-secret"));
   assert(retry.enrichCalls[0].length === 1, JSON.stringify(retry.enrichCalls));
@@ -230,14 +230,14 @@ Deno.test("보강 건수를 응답에 담고, 보강이 실패해도 수집은 �
   assert((broken.writes.at(-1)?.body as { status: string }).status === "success");
 });
 
-Deno.test("이미 보강된 저장 요약을 RSS 머리글로 되돌리지 않는다", async () => {
+Deno.test("이미 보강된 저장 요약을 더 짧은 RSS 요약으로 되돌리지 않는다", async () => {
   const f = fixture({ headerOnly: true, existingIds: ["AKR20260911000100001"], storedSummary: "◇ 과장급 전보 ▲ 요양보험운영과장 박지혜" });
   await f.handler(request("cron-secret"));
   const upsert = f.writes.find((w) => w.path.endsWith("yonhap_notices") && w.method === "POST")!;
   const saved = (upsert.body as { source_id: string; summary: string }[]).find((n) => n.source_id === "AKR20260911000100001")!;
   assert(saved.summary === "◇ 과장급 전보 ▲ 요양보험운영과장 박지혜", saved.summary);
 
-  // 저장분도 머리글뿐이면 이번에 보강한 값을 그대로 저장한다
+  // 저장분이 더 짧으면 이번에 보강한 값을 그대로 저장한다
   const retry = fixture({ headerOnly: true, existingIds: ["AKR20260911000100001"], storedSummary: "◇ 과장급 전보" });
   await retry.handler(request("cron-secret"));
   const body = (retry.writes.find((w) => w.path.endsWith("yonhap_notices") && w.method === "POST")!.body as { source_id: string; summary: string }[]);
