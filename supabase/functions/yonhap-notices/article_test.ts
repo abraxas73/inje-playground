@@ -111,3 +111,7 @@ Deno.test("시간 예산을 넘기면 남은 기사는 다음 수집으로 넘�
   });
   assert(hits.length < 5, `${hits.length}`);
 });
+
+Deno.test("발신지 표기 뒤에 안내 한 줄이 더 있어도 완결로 본다", () => {
+  assert(!needsArticleText("▲ 김귀조씨 별세 ☎ 02-2227-7500 (서울=연합뉴스)\n※ 조의금은 정중히 사양합니다."));
+});
