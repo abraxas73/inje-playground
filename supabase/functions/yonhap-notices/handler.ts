@@ -18,6 +18,8 @@ interface Dependencies {
 }
 const ACTIONS = ["collect", "send-digests", "send-now", "preview"] as const;
 export type Action = (typeof ACTIONS)[number];
+/** send-now·preview 요청 옵션 — "이전 발송 내역 제외"(null이면 사용자의 저장된 설정을 따른다) */
+export interface RequestOptions { excludeSent: boolean | null }
 const noStore = { "Cache-Control": "no-store" };
 
 /** Constant-time digest comparison; cron token is separate from Supabase API keys. */
@@ -32,12 +34,14 @@ export async function authorized(header: string | null, secret: string): Promise
 }
 
 /** 본문이 비었거나 `{}`면 collect(기존 cron·'지금 가져오기' 호환). 알 수 없는 action·깨진 JSON은 null. */
-export async function readAction(request: Request): Promise<Action | null> {
+export async function readAction(request: Request): Promise<{ action: Action; options: RequestOptions } | null> {
   const text = await request.text();
-  if (!text.trim()) return "collect";
+  if (!text.trim()) return { action: "collect", options: { excludeSent: null } };
   try {
-    const action = JSON.parse(text)?.action ?? "collect";
-    return (ACTIONS as readonly string[]).includes(action) ? action as Action : null;
+    const body = JSON.parse(text) ?? {};
+    const action = body.action ?? "collect";
+    if (!(ACTIONS as readonly string[]).includes(action)) return null;
+    return { action: action as Action, options: { excludeSent: typeof body.excludeSent === "boolean" ? body.excludeSent : null } };
   } catch { return null; }
 }
 
@@ -118,8 +122,9 @@ export function createHandler({ secret, createAdmin, createUserClient, collect =
     if (!secret) return Response.json({ error: "수집 인증이 설정되지 않았습니다." }, { status: 503 });
     const header = request.headers.get("authorization");
     if (!header?.startsWith("Bearer ")) return Response.json({ error: "인증이 필요합니다." }, { status: 401 });
-    const action = await readAction(request);
-    if (!action) return Response.json({ error: "지원하지 않는 요청입니다." }, { status: 400 });
+    const parsed = await readAction(request);
+    if (!parsed) return Response.json({ error: "지원하지 않는 요청입니다." }, { status: 400 });
+    const { action, options } = parsed;
     const scheduled = await authorized(header, secret);
     let admin: SupabaseClient;
     try {
@@ -134,10 +139,10 @@ export function createHandler({ secret, createAdmin, createUserClient, collect =
         const jwt = header.slice(7);
         const verified = await verifyUser(admin, jwt);
         if (!verified.ok) return verified.response;
-        if (action === "preview") return Response.json(await digests.preview({ admin, appUrl }), { headers: noStore });
+        if (action === "preview") return Response.json(await digests.preview({ admin, appUrl, userId: verified.user.id, excludeSent: options.excludeSent }), { headers: noStore });
         if (action === "send-now") {
           const { user } = verified;
-          const result = await digests.sendNow({ admin, smtp, appUrl, user: { client: createUserClient(jwt), id: user.id, email: user.email ?? null, emailConfirmed: !!user.email_confirmed_at } });
+          const result = await digests.sendNow({ admin, smtp, appUrl, excludeSent: options.excludeSent, user: { client: createUserClient(jwt), id: user.id, email: user.email ?? null, emailConfirmed: !!user.email_confirmed_at } });
           return Response.json(result.body, { status: result.status, headers: { ...noStore, ...result.headers } });
         }
         const { data: claimed, error: claimError } = await admin.rpc("claim_yonhap_notice_manual_sync");

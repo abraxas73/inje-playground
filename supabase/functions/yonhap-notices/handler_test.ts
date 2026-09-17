@@ -8,7 +8,7 @@ function assert(value: unknown, message = "assertion failed"): asserts value {
 function fixture(options: { role?: string; cooldown?: boolean; invalidToken?: boolean; failSave?: boolean; failCollect?: boolean; secret?: string; denied?: boolean; accessError?: boolean; existingIds?: string[]; alertsThrow?: boolean; obituary?: boolean } = {}) {
   const writes: { path: string; method: string; body: unknown }[] = [];
   const alertCalls: { runId: number; sourceIds: string[] }[] = [];
-  const digestCalls: { kind: string; userId?: string; email?: string | null; userAuth?: string | null }[] = [];
+  const digestCalls: { kind: string; userId?: string; email?: string | null; userAuth?: string | null; excludeSent?: boolean | null }[] = [];
   let collected = 0;
   const db = createClient("https://test.supabase.co", "service-key", {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -38,8 +38,8 @@ function fixture(options: { role?: string; cooldown?: boolean; invalidToken?: bo
       appUrl: "https://app.test",
       digests: {
         scheduled: async () => { digestCalls.push({ kind: "scheduled" }); return { claimed: 2, sent: 1, failed: 0, cancelled: 1 }; },
-        sendNow: async ({ user }) => { digestCalls.push({ kind: "send-now", userId: user.id, email: user.email, userAuth: (user.client as unknown as { jwt: string }).jwt }); return { status: 429, body: { error: "wait" }, headers: { "Retry-After": "60" } }; },
-        preview: async () => { digestCalls.push({ kind: "preview" }); return { subject: "s", html: "<p></p>", text: "t", count: 0, from: "a", to: "b" }; },
+        sendNow: async ({ user, excludeSent }) => { digestCalls.push({ kind: "send-now", userId: user.id, email: user.email, userAuth: (user.client as unknown as { jwt: string }).jwt, excludeSent }); return { status: 429, body: { error: "wait" }, headers: { "Retry-After": "60" } }; },
+        preview: async ({ userId, excludeSent }) => { digestCalls.push({ kind: "preview", userId, excludeSent }); return { subject: "s", html: "<p></p>", text: "t", count: 0, from: "a", to: "b" }; },
       },
       alerts: async ({ runId, sourceIds }) => {
         alertCalls.push({ runId, sourceIds });
@@ -184,4 +184,15 @@ Deno.test("preview returns the digest without collecting or claiming", async () 
   const body = await response.json();
   assert(response.status === 200 && body.subject === "s" && body.count === 0);
   assert(f.digestCalls[0].kind === "preview" && f.collected() === 0 && f.writes.length === 0);
+});
+
+Deno.test("send-now·preview는 본문의 excludeSent를 그대로 전달하고, 없으면 null(저장된 설정)이다", async () => {
+  for (const [body, expected] of [['{"action":"send-now","excludeSent":true}', true], ['{"action":"send-now","excludeSent":false}', false], ['{"action":"send-now"}', null]] as const) {
+    const f = fixture();
+    await f.handler(withBody("user-jwt", body));
+    assert(f.digestCalls[0].excludeSent === expected, `${body} → ${f.digestCalls[0].excludeSent}`);
+  }
+  const p = fixture();
+  await p.handler(withBody("user-jwt", '{"action":"preview","excludeSent":true}'));
+  assert(p.digestCalls[0].kind === "preview" && p.digestCalls[0].excludeSent === true && p.digestCalls[0].userId === "user-1");
 });
