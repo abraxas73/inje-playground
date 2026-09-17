@@ -8,13 +8,13 @@ export async function GET() {
   if (!auth.ok) return auth.response;
   const { supabase, user } = auth;
   const [subscription, delivery] = await Promise.all([
-    supabase.from("yonhap_notice_subscriptions").select("enabled,send_time,next_send_at").eq("user_id", user.id).maybeSingle(),
+    supabase.from("yonhap_notice_subscriptions").select("enabled,send_time,next_send_at,exclude_sent").eq("user_id", user.id).maybeSingle(),
     supabase.from("yonhap_notice_email_deliveries").select("status,finished_at,started_at,item_count").eq("user_id", user.id).order("started_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (subscription.error || delivery.error) return NextResponse.json({ error: "수신 설정을 불러오지 못했습니다." }, { status: 500 });
   return NextResponse.json({
     email: user.email ?? null, emailVerified: !!user.email_confirmed_at,
-    subscription: subscription.data ?? { enabled: false, send_time: "07:10:00", next_send_at: null },
+    subscription: subscription.data ?? { enabled: false, send_time: "07:10:00", next_send_at: null, exclude_sent: true },
     latestDelivery: delivery.data,
   }, { headers });
 }
@@ -30,7 +30,10 @@ export async function PUT(request: NextRequest) {
   if (body.enabled && (!auth.user.email || !auth.user.email_confirmed_at)) {
     return NextResponse.json({ error: "계정 이메일 인증 후 수신을 설정할 수 있습니다." }, { status: 400 });
   }
-  const { data, error } = await auth.supabase.rpc("set_yonhap_notice_subscription", { p_enabled: body.enabled, p_send_time: body.sendTime });
+  const { data, error } = await auth.supabase.rpc("set_yonhap_notice_subscription", {
+    p_enabled: body.enabled, p_send_time: body.sendTime,
+    p_exclude_sent: typeof body.excludeSent === "boolean" ? body.excludeSent : null,
+  });
   if (error) return NextResponse.json({ error: error.code === "22023" ? "계정 이메일 인증 후 수신을 설정할 수 있습니다." : "수신 설정을 저장하지 못했습니다." }, { status: error.code === "22023" ? 400 : 500 });
   return NextResponse.json({ subscription: Array.isArray(data) ? data[0] : data }, { headers });
 }

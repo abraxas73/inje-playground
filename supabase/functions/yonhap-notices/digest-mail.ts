@@ -9,7 +9,8 @@ export interface ScheduledSummary { claimed: number; sent: number; failed: numbe
 export interface ActionResult { status: number; body: Record<string, unknown>; headers?: Record<string, string> }
 export interface SendNowUser { client: SupabaseClient; id: string; email: string | null; emailConfirmed: boolean }
 interface ScheduledJob { delivery_id: string; recipient_id: string; recipient_email: string; period_from: string; period_to: string }
-interface ManualJob { delivery_id: string; period_from: string; period_to: string }
+/** excluded = 이번 claim에 "이전 발송 내역 제외"가 적용됐는지(사용자 저장 설정 또는 요청값) */
+interface ManualJob { delivery_id: string; period_from: string; period_to: string; excluded: boolean }
 
 function failureMessage(error: unknown): string {
   return error instanceof SmtpError ? error.message : sanitize(error instanceof Error ? error.message : "발송 실패");
@@ -58,10 +59,10 @@ export async function runScheduledDigests({ admin, smtp, appUrl, send = sendMail
 }
 
 /** 사용자 요청: 본인 세션 클라이언트로 claim(auth.uid 기준 1분 쿨다운) 후 최근 24시간 수집분을 로그인 이메일로 보낸다. */
-export async function runSendNow({ admin, smtp, appUrl, user, send = sendMail, now = () => new Date() }: DigestMailDeps & { user: SendNowUser }): Promise<ActionResult> {
+export async function runSendNow({ admin, smtp, appUrl, user, excludeSent = null, send = sendMail, now = () => new Date() }: DigestMailDeps & { user: SendNowUser; excludeSent?: boolean | null }): Promise<ActionResult> {
   if (!user.email || !user.emailConfirmed) return { status: 400, body: { error: "계정 이메일 인증이 필요합니다." } };
   if (!smtp) return { status: 503, body: { error: "메일 발송 서버가 설정되지 않았습니다. 관리자에게 문의해 주세요." } };
-  const claim = await user.client.rpc("claim_yonhap_notice_send_now");
+  const claim = await user.client.rpc("claim_yonhap_notice_send_now", { p_exclude_sent: excludeSent });
   if (claim.error) {
     if (claim.error.code === "42501") return { status: 403, body: { error: "사용자 권한이 필요합니다." } };
     if (claim.error.code === "22023") return { status: 400, body: { error: "계정 이메일 인증이 필요합니다." } };
@@ -72,6 +73,12 @@ export async function runSendNow({ admin, smtp, appUrl, user, send = sendMail, n
   const finish = (patch: Record<string, unknown>) => admin.from("yonhap_notice_manual_deliveries").update({ ...patch, finished_at: now().toISOString() }).eq("id", job.delivery_id);
   try {
     const { digest, count } = await loadDigest(admin, job.period_from, job.period_to, appUrl);
+    // "이전 발송 내역 제외"로 보낼 것이 없으면 빈 메일을 만들지 않고 건너뛴다(예약 발송은 종전대로 '없음' 메일을 보낸다).
+    if (job.excluded && count === 0) {
+      const skipped = await finish({ status: "skipped", item_count: 0 });
+      if (skipped.error) throw new Error("발송 생략 기록 실패");
+      return { status: 200, body: { count: 0, skipped: true, from: job.period_from, to: job.period_to } };
+    }
     const messageId = await deliver(send, smtp, user.email, digest);
     const saved = await finish({ status: "sent", item_count: count, provider_id: messageId });
     if (saved.error) throw new Error("메일 발송 결과 저장 실패");
@@ -86,9 +93,16 @@ export async function runSendNow({ admin, smtp, appUrl, user, send = sendMail, n
 }
 
 /** 읽기 전용 미리보기: 최근 24시간 수집분을 실제 발송과 같은 양식으로 돌려준다. 발송·이력 기록 없음. */
-export async function previewDigest({ admin, appUrl, now = () => new Date() }: { admin: SupabaseClient; appUrl: string; now?: () => Date }): Promise<Record<string, unknown>> {
-  const to = now().toISOString();
-  const from = new Date(Date.parse(to) - 86_400_000).toISOString();
+export async function previewDigest({ admin, appUrl, userId, excludeSent = null, now = () => new Date() }: { admin: SupabaseClient; appUrl: string; userId?: string; excludeSent?: boolean | null; now?: () => Date }): Promise<Record<string, unknown>> {
+  let to = now().toISOString();
+  let from = new Date(Date.parse(to) - 86_400_000).toISOString();
+  // 실제 '지금 수신'과 같은 구간을 보여준다. 함수가 없거나 실패하면 최근 24시간으로 되돌린다.
+  if (userId) {
+    const window = await admin.rpc("yonhap_notice_digest_window", { p_user: userId, p_exclude_sent: excludeSent });
+    const row = (window.data ?? [])[0] as { period_from: string; period_to: string } | undefined;
+    if (window.error) console.warn("[yonhap-digest] preview window fallback:", window.error.message);
+    else if (row) { from = new Date(row.period_from).toISOString(); to = new Date(row.period_to).toISOString(); }
+  }
   const { digest, count } = await loadDigest(admin, from, to, appUrl);
   return { ...digest, count, from, to };
 }

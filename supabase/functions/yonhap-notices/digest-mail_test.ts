@@ -7,7 +7,7 @@ const smtp = { host: "relay.test", port: 465, user: "relay@example.test", pass: 
 const notice = { title: "[부고] 홍길동씨 부친상", summary: "▲ 홍길순씨 별세", source_url: "https://www.yna.co.kr/view/AKR20260915000000001", published_at: "2026-09-15T10:02:49Z" };
 const job = (id: string, user: string) => ({ delivery_id: id, recipient_id: user, recipient_email: `${user}@example.test`, period_from: "2026-09-14T23:10:00Z", period_to: "2026-09-15T23:10:00Z" });
 
-function fixture(options: { jobs?: unknown[]; manual?: unknown[] | { code: string }; disabled?: string[]; sendResult?: Partial<SendResult>; sendError?: Error } = {}) {
+function fixture(options: { jobs?: unknown[]; manual?: unknown[] | { code: string }; disabled?: string[]; sendResult?: Partial<SendResult>; sendError?: Error; noNotices?: boolean; window?: { period_from: string; period_to: string } } = {}) {
   const calls: { path: string; method: string; body: unknown; auth: string | null }[] = [];
   const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input)); const method = init?.method ?? "GET"; const headers = new Headers(init?.headers);
@@ -19,7 +19,10 @@ function fixture(options: { jobs?: unknown[]; manual?: unknown[] | { code: strin
       return Response.json(options.manual ?? []);
     }
     if (url.pathname.endsWith("/yonhap_notice_subscriptions")) { const user = url.searchParams.get("user_id")!.replace("eq.", ""); return Response.json({ enabled: !(options.disabled ?? []).includes(user) }); }
-    if (url.pathname.endsWith("/yonhap_notices")) return new Response(JSON.stringify([notice]), { status: 200, headers: { "Content-Type": "application/json", "Content-Range": "0-0/13" } });
+    if (url.pathname.endsWith("/rpc/yonhap_notice_digest_window")) return Response.json(options.window ? [options.window] : []);
+    if (url.pathname.endsWith("/yonhap_notices")) return options.noNotices
+      ? new Response("[]", { status: 200, headers: { "Content-Type": "application/json", "Content-Range": "*/0" } })
+      : new Response(JSON.stringify([notice]), { status: 200, headers: { "Content-Type": "application/json", "Content-Range": "0-0/13" } });
     if (url.pathname.endsWith("/yonhap_notice_sync_runs")) return Response.json({ finished_at: "2026-09-15T22:00:02Z" });
     if (url.pathname.endsWith("/yonhap_notice_email_deliveries") || url.pathname.endsWith("/yonhap_notice_manual_deliveries")) return new Response(null, { status: 204 });
     return Response.json({ message: `unexpected ${url.pathname}` }, { status: 500 });
@@ -38,7 +41,7 @@ function fixture(options: { jobs?: unknown[]; manual?: unknown[] | { code: strin
     calls, sends, patches,
     scheduled: (over: Record<string, unknown> = {}) => runScheduledDigests({ admin, smtp, appUrl: "https://app.test", send: send as never, now, ...over }),
     sendNow: (over: Record<string, unknown> = {}) => runSendNow({ admin, smtp, appUrl: "https://app.test", send: send as never, now, user: { client: client("anon-key", "user-jwt"), id: "u1", email: "u1@example.test", emailConfirmed: true }, ...over }),
-    preview: () => previewDigest({ admin, appUrl: "https://app.test", now }),
+    preview: (over: Record<string, unknown> = {}) => previewDigest({ admin, appUrl: "https://app.test", now, ...over }),
   };
 }
 
@@ -117,4 +120,44 @@ Deno.test("preview: last 24 hours, read-only", async () => {
   const body = await f.preview();
   assert(body.count === 13 && body.to === "2026-09-15T23:49:22.000Z" && body.from === "2026-09-14T23:49:22.000Z" && typeof body.html === "string");
   assert(f.sends.length === 0 && f.calls.every((c) => c.method === "GET"));
+});
+
+const manualJob = (excluded: boolean) => [{ delivery_id: "m1", period_from: "2026-09-15T22:10:00Z", period_to: "2026-09-15T23:49:22Z", excluded }];
+
+Deno.test("send-now: 이전 발송 내역 제외 값을 claim RPC로 그대로 넘긴다", async () => {
+  for (const value of [true, false, null]) {
+    const f = fixture({ manual: manualJob(value === true) });
+    await f.sendNow({ excludeSent: value });
+    const claim = f.calls.find((c) => c.path.endsWith("claim_yonhap_notice_send_now"))!;
+    assert((claim.body as { p_exclude_sent: boolean | null }).p_exclude_sent === value, `expected ${value}`);
+  }
+});
+
+Deno.test("send-now: 제외 옵션에서 보낼 것이 없으면 메일을 만들지 않고 skipped로 기록한다", async () => {
+  const f = fixture({ manual: manualJob(true), noNotices: true });
+  const result = await f.sendNow();
+  assert(result.status === 200 && result.body.count === 0 && result.body.skipped === true, JSON.stringify(result));
+  assert(f.sends.length === 0, "메일을 보내지 않는다");
+  const patch = f.patches("yonhap_notice_manual_deliveries")[0];
+  assert(patch.status === "skipped" && patch.item_count === 0 && patch.finished_at === "2026-09-15T23:49:22.000Z", JSON.stringify(patch));
+});
+
+Deno.test("send-now: 제외 옵션이 아니면 0건이어도 예전처럼 보낸다", async () => {
+  const f = fixture({ manual: manualJob(false), noNotices: true });
+  const result = await f.sendNow();
+  assert(result.status === 200 && result.body.count === 0 && !result.body.skipped);
+  assert(f.sends.length === 1 && f.patches("yonhap_notice_manual_deliveries")[0].status === "sent");
+});
+
+Deno.test("preview: 사용자 구간 RPC 결과를 쓰고, 실패하면 최근 24시간으로 되돌린다", async () => {
+  const withWindow = fixture({ window: { period_from: "2026-09-15T22:10:00Z", period_to: "2026-09-15T23:49:22Z" } });
+  const body = await withWindow.preview({ userId: "u1", excludeSent: true });
+  assert(body.from === "2026-09-15T22:10:00.000Z" && body.to === "2026-09-15T23:49:22.000Z", JSON.stringify(body));
+  const rpc = withWindow.calls.find((c) => c.path.endsWith("yonhap_notice_digest_window"))!;
+  assert((rpc.body as { p_user: string; p_exclude_sent: boolean }).p_user === "u1" && (rpc.body as { p_exclude_sent: boolean }).p_exclude_sent === true);
+  const noWindow = fixture();
+  const fallback = await noWindow.preview({ userId: "u1" });
+  assert(fallback.from === "2026-09-14T23:49:22.000Z" && fallback.to === "2026-09-15T23:49:22.000Z", JSON.stringify(fallback));
+  const anonymous = await fixture().preview();
+  assert(anonymous.from === "2026-09-14T23:49:22.000Z");
 });

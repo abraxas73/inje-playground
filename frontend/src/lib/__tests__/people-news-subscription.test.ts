@@ -27,7 +27,15 @@ describe("personal email subscription", () => {
   it("saves only the caller's schedule, ignoring client-supplied recipients or user IDs", async () => {
     const response = await PUT(request({ enabled: true, sendTime: "08:30", userId: "other-user", email: "other@example.test", next_send_at: "2000-01-01" }));
     expect(response.status).toBe(200);
-    expect(mock.rpc).toHaveBeenCalledWith("set_yonhap_notice_subscription", { p_enabled: true, p_send_time: "08:30" });
+    expect(mock.rpc).toHaveBeenCalledWith("set_yonhap_notice_subscription", { p_enabled: true, p_send_time: "08:30", p_exclude_sent: null });
+  });
+  it("이전 발송 내역 제외 값을 그대로 넘기고, 없으면 null(기존 설정 유지)", async () => {
+    await PUT(request({ enabled: true, sendTime: "08:30", excludeSent: false }));
+    expect(mock.rpc).toHaveBeenCalledWith("set_yonhap_notice_subscription", { p_enabled: true, p_send_time: "08:30", p_exclude_sent: false });
+    await PUT(request({ enabled: true, sendTime: "08:30", excludeSent: true }));
+    expect(mock.rpc).toHaveBeenLastCalledWith("set_yonhap_notice_subscription", { p_enabled: true, p_send_time: "08:30", p_exclude_sent: true });
+    await PUT(request({ enabled: true, sendTime: "08:30", excludeSent: "nope" }));
+    expect(mock.rpc).toHaveBeenLastCalledWith("set_yonhap_notice_subscription", { p_enabled: true, p_send_time: "08:30", p_exclude_sent: null });
   });
   it("allows opting out even if the email has become unverified", async () => {
     mock.user!.email_confirmed_at = null;
