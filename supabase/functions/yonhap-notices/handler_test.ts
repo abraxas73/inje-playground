@@ -5,9 +5,10 @@ function assert(value: unknown, message = "assertion failed"): asserts value {
   if (!value) throw new Error(message);
 }
 
-function fixture(options: { role?: string; cooldown?: boolean; invalidToken?: boolean; failSave?: boolean; failCollect?: boolean; secret?: string; denied?: boolean; accessError?: boolean; existingIds?: string[]; alertsThrow?: boolean; obituary?: boolean } = {}) {
+function fixture(options: { role?: string; cooldown?: boolean; invalidToken?: boolean; failSave?: boolean; failCollect?: boolean; secret?: string; denied?: boolean; accessError?: boolean; existingIds?: string[]; alertsThrow?: boolean; obituary?: boolean; storedSummary?: string; enrichThrow?: boolean; headerOnly?: boolean } = {}) {
   const writes: { path: string; method: string; body: unknown }[] = [];
   const alertCalls: { runId: number; sourceIds: string[] }[] = [];
+  const enrichCalls: string[][] = [];
   const digestCalls: { kind: string; userId?: string; email?: string | null; userAuth?: string | null; excludeSent?: boolean | null }[] = [];
   let collected = 0;
   const db = createClient("https://test.supabase.co", "service-key", {
@@ -19,7 +20,7 @@ function fixture(options: { role?: string; cooldown?: boolean; invalidToken?: bo
       if (path.endsWith("user_profiles")) return Response.json({ role: options.role ?? "user" });
       if (path.endsWith("user_page_access")) return Response.json(options.accessError ? { message: "offline" } : { permissions: { people_news: !options.denied } }, { status: options.accessError ? 500 : 200 });
       if (path.endsWith("claim_yonhap_notice_manual_sync")) return Response.json(!options.cooldown);
-      if (path.endsWith("yonhap_notices") && method === "GET") return Response.json((options.existingIds ?? []).map((source_id) => ({ source_id })));
+      if (path.endsWith("yonhap_notices") && method === "GET") return Response.json((options.existingIds ?? []).map((source_id) => ({ source_id, summary: options.storedSummary ?? "▲ 이미 보강됨 (서울=연합뉴스)" })));
       const body = init?.body ? JSON.parse(String(init.body)) : null;
       writes.push({ path, method, body });
       if (path.endsWith("yonhap_notice_sync_runs") && method === "POST") return Response.json({ id: 1 });
@@ -28,12 +29,17 @@ function fixture(options: { role?: string; cooldown?: boolean; invalidToken?: bo
     } },
   });
   return {
-    writes, alertCalls, digestCalls,
+    writes, alertCalls, digestCalls, enrichCalls,
     collected: () => collected,
     handler: createHandler({
       secret: options.secret ?? "cron-secret",
       createAdmin: () => db,
       createUserClient: (jwt) => ({ jwt } as unknown as ReturnType<typeof createClient>),
+      enrich: (notices) => {
+        enrichCalls.push(notices.map((n) => n.source_id));
+        if (options.enrichThrow) throw new Error("원문 서버 장애");
+        return Promise.resolve({ enriched: notices.length, failed: 0 });
+      },
       smtp: null,
       appUrl: "https://app.test",
       digests: {
@@ -49,7 +55,7 @@ function fixture(options: { role?: string; cooldown?: boolean; invalidToken?: bo
       collect: async () => {
         collected++;
         if (options.failCollect) throw new Error("RSS HTTP 503");
-        const personnel = { source_id: "AKR20260911000100001", category: "personnel" as const, title: "[인사] 기관", summary: "요약", source_url: "https://www.yna.co.kr/view/AKR20260911000100001", published_at: "2026-09-10T22:00:00Z" };
+        const personnel = { source_id: "AKR20260911000100001", category: "personnel" as const, title: "[인사] 기관", summary: options.headerOnly ? "◇ 과장급 전보" : "요약", source_url: "https://www.yna.co.kr/view/AKR20260911000100001", published_at: "2026-09-10T22:00:00Z" };
         if (!options.obituary) return [personnel];
         return [personnel,
           { source_id: "AKR20260915000200001", category: "obituary" as const, title: "[부고] 새 부고", summary: "요약", source_url: "https://www.yna.co.kr/view/AKR20260915000200001", published_at: "2026-09-15T00:00:00Z" },
@@ -195,4 +201,45 @@ Deno.test("send-now·preview는 본문의 excludeSent를 그대로 전달하고,
   const p = fixture();
   await p.handler(withBody("user-jwt", '{"action":"preview","excludeSent":true}'));
   assert(p.digestCalls[0].kind === "preview" && p.digestCalls[0].excludeSent === true && p.digestCalls[0].userId === "user-1");
+});
+
+Deno.test("새 기사와 아직 머리글뿐인 저장분만 원문 보강 대상으로 넘긴다", async () => {
+  const fresh = fixture();
+  await fresh.handler(request("cron-secret"));
+  assert(fresh.enrichCalls.length === 1 && fresh.enrichCalls[0].length === 1, JSON.stringify(fresh.enrichCalls));
+
+  // 이미 보강된 저장분은 제외
+  const done = fixture({ existingIds: ["AKR20260911000100001"] });
+  await done.handler(request("cron-secret"));
+  assert(done.enrichCalls[0].length === 0, JSON.stringify(done.enrichCalls));
+
+  // 저장된 요약이 여전히 머리글뿐이면 다시 시도(과거분 보강)
+  const retry = fixture({ existingIds: ["AKR20260911000100001"], storedSummary: "◇ 과장급 전보" });
+  await retry.handler(request("cron-secret"));
+  assert(retry.enrichCalls[0].length === 1, JSON.stringify(retry.enrichCalls));
+});
+
+Deno.test("보강 건수를 응답에 담고, 보강이 실패해도 수집은 성공한다", async () => {
+  const ok = fixture({ headerOnly: true });
+  const body = await (await ok.handler(request("cron-secret"))).json();
+  assert(body.enriched === 1, JSON.stringify(body));
+  const broken = fixture({ enrichThrow: true });
+  const response = await broken.handler(request("cron-secret"));
+  const failed = await response.json();
+  assert(response.status === 200 && failed.ok === true && failed.enriched === 0, JSON.stringify(failed));
+  assert((broken.writes.at(-1)?.body as { status: string }).status === "success");
+});
+
+Deno.test("이미 보강된 저장 요약을 RSS 머리글로 되돌리지 않는다", async () => {
+  const f = fixture({ headerOnly: true, existingIds: ["AKR20260911000100001"], storedSummary: "◇ 과장급 전보 ▲ 요양보험운영과장 박지혜" });
+  await f.handler(request("cron-secret"));
+  const upsert = f.writes.find((w) => w.path.endsWith("yonhap_notices") && w.method === "POST")!;
+  const saved = (upsert.body as { source_id: string; summary: string }[]).find((n) => n.source_id === "AKR20260911000100001")!;
+  assert(saved.summary === "◇ 과장급 전보 ▲ 요양보험운영과장 박지혜", saved.summary);
+
+  // 저장분도 머리글뿐이면 이번에 보강한 값을 그대로 저장한다
+  const retry = fixture({ headerOnly: true, existingIds: ["AKR20260911000100001"], storedSummary: "◇ 과장급 전보" });
+  await retry.handler(request("cron-secret"));
+  const body = (retry.writes.find((w) => w.path.endsWith("yonhap_notices") && w.method === "POST")!.body as { source_id: string; summary: string }[]);
+  assert(body.find((n) => n.source_id === "AKR20260911000100001")!.summary === "◇ 과장급 전보", "enrich 스텁은 내용을 바꾸지 않는다");
 });

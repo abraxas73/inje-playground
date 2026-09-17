@@ -1,6 +1,7 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { fetchNotices, type Notice } from "./feed.ts";
 import { runMediaAlerts, type AlertDeps, type AlertSummary } from "./alerts.ts";
+import { enrichSummaries, needsArticleText } from "./article.ts";
 import { previewDigest, runScheduledDigests, runSendNow } from "./digest-mail.ts";
 import type { SmtpConfig } from "./smtp.ts";
 
@@ -14,6 +15,8 @@ interface Dependencies {
   smtp: SmtpConfig | null;
   appUrl: string;
   alerts?: (deps: AlertDeps) => Promise<AlertSummary>;
+  /** 요약이 머리글뿐인 기사에 원문 한 줄을 붙인다(article.ts) */
+  enrich?: typeof enrichSummaries;
   digests?: DigestRunners;
 }
 const ACTIONS = ["collect", "send-digests", "send-now", "preview"] as const;
@@ -62,7 +65,7 @@ export async function verifyUser(admin: SupabaseClient, jwt: string): Promise<{ 
 
 const defaultDigests: DigestRunners = { scheduled: runScheduledDigests, sendNow: runSendNow, preview: previewDigest };
 
-export function createHandler({ secret, createAdmin, createUserClient, collect = fetchNotices, smtp, appUrl, alerts = runMediaAlerts, digests = defaultDigests }: Dependencies) {
+export function createHandler({ secret, createAdmin, createUserClient, collect = fetchNotices, smtp, appUrl, alerts = runMediaAlerts, enrich = enrichSummaries, digests = defaultDigests }: Dependencies) {
   async function collectRun(admin: SupabaseClient, scheduled: boolean): Promise<Response> {
     let runId: number | undefined;
     try {
@@ -70,14 +73,28 @@ export function createHandler({ secret, createAdmin, createUserClient, collect =
       if (started.error) throw new Error("수집 이력 생성 실패");
       runId = started.data.id;
       const notices = await collect();
-      // Only obituaries stored for the first time in this run are eligible for alerts.
-      const obituaryIds = notices.filter((notice) => notice.category === "obituary").map((notice) => notice.source_id);
-      let newObituaryIds: string[] = [];
-      if (obituaryIds.length) {
-        const existing = await admin.from("yonhap_notices").select("source_id").in("source_id", obituaryIds);
+      // 저장된 요약까지 함께 읽어 (1) 알림 대상 새 부고와 (2) 원문 보강이 필요한 기사를 가린다.
+      const known = new Map<string, string>();
+      if (notices.length) {
+        const existing = await admin.from("yonhap_notices").select("source_id, summary").in("source_id", notices.map((notice) => notice.source_id));
         if (existing.error) throw new Error("기존 인사·부고 조회 실패");
-        const known = new Set((existing.data ?? []).map((row: { source_id: string }) => row.source_id));
-        newObituaryIds = obituaryIds.filter((id) => !known.has(id));
+        for (const row of (existing.data ?? []) as { source_id: string; summary: string | null }[]) known.set(row.source_id, row.summary ?? "");
+      }
+      // Only obituaries stored for the first time in this run are eligible for alerts.
+      const newObituaryIds = notices.filter((notice) => notice.category === "obituary" && !known.has(notice.source_id)).map((notice) => notice.source_id);
+      // 새 기사이거나 저장된 요약이 아직 머리글뿐인 기사만 원문을 읽는다 — 한 번 보강되면 다시 읽지 않는다.
+      const pending = notices.filter((notice) => !known.has(notice.source_id) || needsArticleText(known.get(notice.source_id)!));
+      let enriched = 0;
+      try {
+        ({ enriched } = await enrich(pending));
+      } catch (error) {
+        // 보강은 부가 기능이라 수집을 실패시키지 않는다.
+        console.error("[yonhap-notices] 원문 보강 실패", error instanceof Error ? error.message.slice(0, 200) : "unknown");
+      }
+      // RSS 요약은 매번 머리글뿐이라, 이미 보강해 둔 저장분을 upsert가 되돌리지 않도록 지킨다.
+      for (const notice of notices) {
+        const stored = known.get(notice.source_id);
+        if (stored && needsArticleText(notice.summary) && !needsArticleText(stored)) notice.summary = stored;
       }
       if (notices.length) {
         const { error } = await admin.from("yonhap_notices").upsert(
@@ -98,7 +115,7 @@ export function createHandler({ secret, createAdmin, createUserClient, collect =
         console.error("[media-alerts]", error instanceof Error ? error.message.slice(0, 200) : "알림 실패");
         alertSummary = { error: "media-alerts-failed" };
       }
-      return Response.json({ ok: true, count: notices.length, runId, alerts: alertSummary });
+      return Response.json({ ok: true, count: notices.length, runId, enriched, alerts: alertSummary });
     } catch (error) {
       // No response bodies, credentials, or article content in logs.
       const message = error instanceof Error ? error.message.slice(0, 300) : "수집 실패";

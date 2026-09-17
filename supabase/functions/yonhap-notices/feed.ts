@@ -12,8 +12,8 @@ export interface Notice {
   published_at: string;
 }
 
-/** RSS descriptions are plain text excerpts, never trusted HTML. */
-function plainText(value: unknown): string {
+/** RSS·기사 본문은 신뢰하지 않는 HTML로 보고 태그를 제거한 평문만 쓴다. */
+export function plainText(value: unknown): string {
   if (typeof value !== "string") return "";
   return value
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
