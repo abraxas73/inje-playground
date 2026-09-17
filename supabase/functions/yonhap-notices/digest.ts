@@ -18,7 +18,7 @@ export function buildDigest(notices: DigestNotice[], total: number, asOf: string
   const rows = notices.map((n) => {
     const url = /^https:\/\/www\.yna\.co\.kr\/view\/AKR\d+$/.test(n.source_url) ? n.source_url : pageUrl;
     return {
-      html: `<li style="padding:16px 0;border-bottom:1px solid #e2e8f0"><a href="${escape(url)}" style="color:#0369a1;font-size:16px;font-weight:600">${escape(n.title)}</a><p style="color:#64748b;font-size:12px">${escape(format(n.published_at))}</p><p style="font-size:14px;line-height:1.6">${escape(n.summary)}</p></li>`,
+      html: `<li style="padding:16px 0;border-bottom:1px solid #e2e8f0"><a href="${escape(url)}" style="color:#0369a1;font-size:16px;font-weight:600">${escape(n.title)}</a><p style="color:#64748b;font-size:12px">${escape(format(n.published_at))}</p><p style="font-size:14px;line-height:1.6;white-space:pre-line">${escape(n.summary)}</p></li>`,
       text: `${n.title}\n${format(n.published_at)}\n${n.summary}\n${url}`,
     };
   });

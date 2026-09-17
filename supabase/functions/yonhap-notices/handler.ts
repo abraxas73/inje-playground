@@ -82,7 +82,7 @@ export function createHandler({ secret, createAdmin, createUserClient, collect =
       }
       // Only obituaries stored for the first time in this run are eligible for alerts.
       const newObituaryIds = notices.filter((notice) => notice.category === "obituary" && !known.has(notice.source_id)).map((notice) => notice.source_id);
-      // 새 기사이거나 저장된 요약이 아직 머리글뿐인 기사만 원문을 읽는다 — 한 번 보강되면 다시 읽지 않는다.
+      // 새 기사이거나 저장된 요약이 아직 기사 끝까지 오지 않은 기사만 원문을 읽는다 — 한 번 채워지면 다시 읽지 않는다.
       const pending = notices.filter((notice) => !known.has(notice.source_id) || needsArticleText(known.get(notice.source_id)!));
       let enriched = 0;
       try {
@@ -91,10 +91,11 @@ export function createHandler({ secret, createAdmin, createUserClient, collect =
         // 보강은 부가 기능이라 수집을 실패시키지 않는다.
         console.error("[yonhap-notices] 원문 보강 실패", error instanceof Error ? error.message.slice(0, 200) : "unknown");
       }
-      // RSS 요약은 매번 머리글뿐이라, 이미 보강해 둔 저장분을 upsert가 되돌리지 않도록 지킨다.
+      // RSS 요약은 매번 기사 앞부분뿐이라, 원문으로 채워 둔 저장분을 upsert가 되돌리지 않도록 지킨다.
+      // 보강본은 같은 기사의 본문 전체라 언제나 RSS 요약보다 길다 — 길이로 가린다.
       for (const notice of notices) {
         const stored = known.get(notice.source_id);
-        if (stored && needsArticleText(notice.summary) && !needsArticleText(stored)) notice.summary = stored;
+        if (stored && stored.length > notice.summary.length) notice.summary = stored;
       }
       if (notices.length) {
         const { error } = await admin.from("yonhap_notices").upsert(

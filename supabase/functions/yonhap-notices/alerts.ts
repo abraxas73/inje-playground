@@ -25,7 +25,7 @@ export function buildAlertDigest(matches: AlertMatch[], appUrl: string, now: Dat
   const items = matches.map((m) =>
     `<li style="margin:0 0 16px"><div style="font-size:12px;color:#0369a1;font-weight:600">${escapeHtml(label(m))}</div>` +
     `<div style="font-weight:600;margin:2px 0"><a href="${escapeHtml(m.url)}" style="color:#111">${escapeHtml(m.title)}</a></div>` +
-    `<div style="color:#444;font-size:14px;line-height:1.5">${escapeHtml(m.summary)}</div>` +
+    `<div style="color:#444;font-size:14px;line-height:1.5;white-space:pre-line">${escapeHtml(m.summary)}</div>` +
     `<div style="color:#888;font-size:12px">송고 ${escapeHtml(kst.format(new Date(m.publishedAt)))} KST · <a href="${escapeHtml(m.url)}">원문 보기</a></div></li>`).join("");
   const html = `<!doctype html><html lang="ko"><body style="font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#111">` +
     `<h1 style="font-size:18px;margin:0 0 4px">관리 매체·부서 부고 알림</h1><p style="margin:0 0 20px;color:#555">관리 매체·부서와 일치하는 연합뉴스 부고 ${matches.length}건입니다.</p>` +
