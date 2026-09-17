@@ -24,12 +24,26 @@ begin
   if claimed <> 0 then raise exception 'Duplicate daily delivery'; end if;
   result := public.set_yonhap_notice_subscription(false, '07:10');
   if result.enabled or result.next_send_at is not null then raise exception 'Opt out failed'; end if;
+  -- 이전 발송 내역 제외: 저장·유지(null이면 기존 값 유지)
+  result := public.set_yonhap_notice_subscription(false, '07:10', false);
+  if result.exclude_sent then raise exception 'exclude_sent not saved'; end if;
+  result := public.set_yonhap_notice_subscription(false, '07:10');
+  if result.exclude_sent then raise exception 'exclude_sent must be kept when omitted'; end if;
+  result := public.set_yonhap_notice_subscription(false, '07:10', true);
+  if not result.exclude_sent then raise exception 'exclude_sent not restored'; end if;
+  -- 지금 수신: 제외 옵션을 끄면 항상 최근 24시간, 켜면 마지막 성공 발송 이후. 구독 여부와 무관하다.
   delete from public.yonhap_notice_manual_deliveries where user_id=caller;
-  select count(*) into claimed from public.claim_yonhap_notice_send_now()
-    where period_to-period_from=interval '24 hours';
-  if claimed <> 1 then raise exception 'Manual send must claim 24 hours even when unsubscribed'; end if;
-  select count(*) into claimed from public.claim_yonhap_notice_send_now();
+  select count(*) into claimed from public.claim_yonhap_notice_send_now(false)
+    where period_to-period_from=interval '24 hours' and not excluded;
+  if claimed <> 1 then raise exception 'Manual send must claim 24 hours when the option is off'; end if;
+  select count(*) into claimed from public.claim_yonhap_notice_send_now(false);
   if claimed <> 0 then raise exception 'Manual cooldown failed'; end if;
+  update public.yonhap_notice_manual_deliveries set status='sent', period_to=now()-interval '2 minutes',
+    period_from=now()-interval '26 hours' where user_id=caller;
+  select count(*) into claimed from public.claim_yonhap_notice_send_now(true)
+    where excluded and period_from >= now()-interval '3 minutes';
+  if claimed <> 1 then raise exception 'Manual send with exclude must start after the last sent delivery'; end if;
+  delete from public.yonhap_notice_manual_deliveries where user_id=caller;
   select * into result from public.yonhap_notice_subscriptions where user_id=caller;
   if result.enabled or result.next_send_at is not null then raise exception 'Manual send changed subscription'; end if;
   -- The email cron must target the Edge Function with the sync secret, not the retired Vercel route.
