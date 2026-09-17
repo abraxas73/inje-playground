@@ -10,8 +10,11 @@ const ARTICLE_HOST = "https://www.yna.co.kr/view/";
 const MAX_ARTICLE_BYTES = 1024 * 1024;
 /** 저작권·제보·부고 접수 안내 등 본문이 끝난 뒤의 상용구 — 이 문단부터는 기사 내용이 아니다. */
 const BOILERPLATE = /제보는|저작권자|무단\s*전재|AI\s*학습|부고 요청|jebo@yna\.co\.kr|송고$|^\(끝\)$/;
-/** 기사 마지막 줄의 발신지 표기(`(서울=연합뉴스)`) — 여기까지 왔으면 본문을 끝까지 담은 것이다. */
-const DATELINE = /\([^()]{0,20}=연합뉴스\)\s*$/;
+/**
+ * 기사 본문 끝의 발신지 표기(`(서울=연합뉴스)`) — 이게 있으면 본문을 끝까지 담은 것이다.
+ * 뒤에 `※ 조의금은 정중히 사양합니다.` 같은 한 줄이 더 붙는 기사가 있어 끝에 고정하지 않는다.
+ */
+const DATELINE = /\([^()]{0,20}=연합뉴스\)/;
 /** RSS가 잘라내면서 붙이는 말줄임 */
 const TRUNCATED = /(\.\.\.|…)\s*$/;
 /** 본문 문단 수와 저장 길이 상한 — 가장 긴 인사 기사(전 부서 승진 명단)가 4천 자 남짓이다. */
@@ -25,10 +28,14 @@ export function needsArticleText(summary: string): boolean {
   return TRUNCATED.test(text) || !DATELINE.test(text);
 }
 
-/** 기사 HTML → 본문 문단 목록. 상용구가 나오면 본문이 끝난 것으로 보고 멈춘다. */
+/**
+ * 기사 HTML → 본문 문단 목록. 상용구가 나오면 본문이 끝난 것으로 보고 멈춘다.
+ * 본문 영역을 못 찾으면 빈 목록을 돌려준다 — 지면 구조가 바뀌었을 때 추천 기사·안내를 본문으로 삼지 않기 위해서다.
+ */
 export function extractArticleLines(html: string): string[] {
   const start = html.indexOf('class="story-news article"');
-  const body = start === -1 ? html : html.slice(start);
+  if (start === -1) return [];
+  const body = html.slice(start);
   const lines: string[] = [];
   for (const [, raw] of body.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/g)) {
     const text = plainText(raw);
@@ -49,8 +56,6 @@ function clamp(text: string, maxLength: number): string {
   return `${(boundary > maxLength * 0.6 ? cut.slice(0, boundary) : cut).trimEnd()} …`;
 }
 
-const flatten = (text: string) => text.replace(/\s+/g, "");
-
 /** 발신지 표기만 있는 문단은 앞 줄에 붙인다 — 기사에서도 같은 문장의 꼬리다. */
 function joinBody(lines: string[]): string {
   const out: string[] = [];
@@ -63,17 +68,13 @@ function joinBody(lines: string[]): string {
 
 /**
  * 원문 본문으로 요약을 갈음한다.
- * RSS 요약은 본문 앞부분을 잘라낸 것이라, 원문을 읽었으면 본문이 곧 정답이다.
+ * RSS 요약은 본문 앞부분을 잘라낸 것이라, 본문을 읽었으면 본문이 곧 정답이다.
  * 빠진 항목만 골라 붙이면 `◇ 보건대학원` 같은 소제목이 어긋나 다음 사람이 앞 소제목에 딸린 것처럼 읽힌다.
- * 다만 기사 본문을 제대로 읽었는지 확인한다 — 끝에 발신지 표기가 있거나, 요약 앞부분을 그대로 품고 있어야 한다.
- * 확인에 실패하면(지면 구조 변경 등) 기존 요약을 그대로 둔다.
+ * 본문을 못 읽었으면(`extractArticleLines`가 빈 목록) 기존 요약을 그대로 둔다.
  */
 export function mergeSummary(summary: string, lines: string[], maxLength = MAX_SUMMARY): string {
-  const base = summary.trim();
   const body = joinBody(lines);
-  const opening = flatten(base).replace(TRUNCATED, "").slice(0, 30);
-  const isArticle = !!body && (!base || DATELINE.test(body) || flatten(body).includes(opening));
-  return clamp(isArticle ? body : base, maxLength);
+  return clamp(body || summary, maxLength);
 }
 
 export async function fetchArticleLines(sourceId: string, fetcher: typeof fetch = fetch): Promise<string[]> {

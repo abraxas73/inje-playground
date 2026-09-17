@@ -47,10 +47,16 @@ Deno.test("발신지 표기만 있는 문단은 앞 줄에 붙인다", () => {
   assert(merged === "◇ 승진\n▲ 경마본부장 배영필 (서울=연합뉴스)", merged);
 });
 
-Deno.test("기사 본문으로 보이지 않으면 기존 요약을 그대로 둔다", () => {
-  const junk = ["연합뉴스 주요 뉴스", "많이 본 기사"];
-  assert(mergeSummary("▲ 예전 형식 요약", junk) === "▲ 예전 형식 요약", "지면 구조가 바뀌어도 요약을 덮어쓰지 않는다");
-  assert(mergeSummary("◇ 인사", ["◇ 인사 ▲ 홍길동"]) === "◇ 인사 ▲ 홍길동", "요약 앞부분을 품고 있으면 본문으로 본다");
+Deno.test("본문 영역을 못 찾으면 다른 문단을 긁지 않는다", () => {
+  const changed = '<html><body><div class="news-view"><p>◇ 인사</p><p>▲ 홍길동</p></div><p>많이 본 기사</p></body></html>';
+  assert(extractArticleLines(changed).length === 0, "지면 구조가 바뀌면 빈 목록");
+  assert(mergeSummary("◇ 인사", extractArticleLines(changed)) === "◇ 인사", "기존 요약을 덮어쓰지 않는다");
+});
+
+Deno.test("발신지 표기가 없는 기사도 본문 그대로 담는다", () => {
+  // 국세청·방송미디어통신위 인사처럼 발신지 표기 없이 끝나는 기사가 있다.
+  const merged = mergeSummary("◇ 고위공무원 승진 ▲ 윤순상 ▲ 오주희", ["◇ 고위공무원 승진", "▲ 윤순상", "◇ 과장급 전보", "▲ 오주희"]);
+  assert(merged === "◇ 고위공무원 승진\n▲ 윤순상\n◇ 과장급 전보\n▲ 오주희", merged);
 });
 
 Deno.test("상한을 넘으면 항목 경계에서 자르고 말줄임을 남긴다", () => {
@@ -110,4 +116,8 @@ Deno.test("시간 예산을 넘기면 남은 기사는 다음 수집으로 넘�
     fetchLines: async (id) => { hits.push(id); await new Promise((r) => setTimeout(r, 20)); return ["▲ 내용 (서울=연합뉴스)"]; },
   });
   assert(hits.length < 5, `${hits.length}`);
+});
+
+Deno.test("발신지 표기 뒤에 안내 한 줄이 더 있어도 완결로 본다", () => {
+  assert(!needsArticleText("▲ 김귀조씨 별세 ☎ 02-2227-7500 (서울=연합뉴스)\n※ 조의금은 정중히 사양합니다."));
 });
