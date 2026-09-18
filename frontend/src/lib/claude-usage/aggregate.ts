@@ -57,7 +57,7 @@ export function isIdleSeat(m: MemberActivityRow): boolean {
   return m.chats + m.code_sessions + m.cowork_sessions === 0;
 }
 
-function isActive(r: DailyRow): boolean {
+export function isActive(r: DailyRow): boolean {
   return r.sessions > 0 || r.prompts > 0 || r.cost_usd > 0;
 }
 
