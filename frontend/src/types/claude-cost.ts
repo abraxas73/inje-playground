@@ -78,11 +78,25 @@ export interface ApiCostRow {
   currency: string;
 }
 
+/** 월 배정 기준 — issued: 발행일의 달력 월(기본, 카드 청구와 같음) · period: 서비스 기간 일수 비례 배분 */
+export type MonthBasis = "issued" | "period";
+
+/** 한 인보이스가 그 달에 기여한 금액. issued 기준은 전액(fraction 1), period 기준은 겹친 일수 비례 */
+export interface InvoiceAllocation {
+  invoiceId: string;
+  cents: number;
+  /** 그 달과 겹친 일수 / 서비스 기간 전체 일수 (기간 없는 장은 null) */
+  days: number | null;
+  totalDays: number | null;
+}
+
 export interface MonthlyOrgCost {
   /** null = Bill to가 어느 조직과도 맞지 않아 미배정 */
   orgId: string | null;
   name: string;
+  /** 그 달에 기여한 인보이스(issued: 그 달 발행, period: 기간이 그 달과 겹침) */
   invoices: InvoiceRow[];
+  allocations: InvoiceAllocation[];
   totalCents: number;
   seats: number | null;
   plan: string | null;
@@ -94,10 +108,11 @@ export interface MonthlyOrgCost {
 export interface MonthlyCost {
   /** YYYY-MM */
   month: string;
+  basis: MonthBasis;
   invoices: number;
   billed: { subtotalCents: number; taxCents: number; totalCents: number };
   seats: number | null;
-  /** 이 달 인보이스가 없는 Team 조직 이름 */
+  /** 이 달을 서비스 기간이 덮는 인보이스가 하나도 없는 Team 조직 이름(기간이 없는 장은 발행 월로 판정). 기준(basis)과 무관 */
   missingOrgs: string[];
   unassignedCents: number;
   /** Admin API 비용(센트, 소수 가능). 키가 없으면 null */

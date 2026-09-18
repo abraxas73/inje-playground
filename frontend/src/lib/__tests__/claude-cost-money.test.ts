@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatCents, lastMonths, monthOf, monthRange, parseEnglishDate, parseMoneyCents, parsePeriod } from "@/lib/claude-cost/money";
+import { daysBetween, formatCents, lastMonths, monthOf, monthRange, monthsCovering, overlapDays, parseEnglishDate, parseMoneyCents, parsePeriod } from "@/lib/claude-cost/money";
 
 describe("parseMoneyCents", () => {
   it("달러 문자열을 센트 정수로 바꾼다(천 단위 구분·음수·US$ 접두)", () => {
@@ -60,5 +60,25 @@ describe("월 유틸", () => {
     // 2026-09-30 23:30 UTC = 2026-10-01 08:30 KST → 10월이 이번 달
     expect(lastMonths(3, new Date("2026-09-30T23:30:00Z"))).toEqual(["2026-08", "2026-09", "2026-10"]);
     expect(lastMonths(1, new Date("2026-01-15T00:00:00Z"))).toEqual(["2026-01"]);
+  });
+});
+
+describe("서비스 기간 일수", () => {
+  it("daysBetween은 끝 미포함", () => {
+    expect(daysBetween("2026-08-23", "2026-09-23")).toBe(31);
+    expect(daysBetween("2026-05-17", "2027-05-17")).toBe(365);
+  });
+  it("overlapDays: 8/23~9/23은 8월 9일·9월 22일·10월 0일", () => {
+    expect(overlapDays("2026-08-23", "2026-09-23", "2026-08")).toBe(9);
+    expect(overlapDays("2026-08-23", "2026-09-23", "2026-09")).toBe(22);
+    expect(overlapDays("2026-08-23", "2026-09-23", "2026-10")).toBe(0);
+    expect(overlapDays("2026-08-23", "2026-09-23", "2026-07")).toBe(0);
+  });
+  it("monthsCovering: 연간은 12개월, 끝이 다음 달 1일이면 그 달은 빠진다", () => {
+    expect(monthsCovering("2026-05-17", "2027-05-17")).toHaveLength(13);
+    expect(monthsCovering("2026-05-17", "2027-05-17")[0]).toBe("2026-05");
+    expect(monthsCovering("2026-05-17", "2027-05-17")[12]).toBe("2027-05");
+    expect(monthsCovering("2026-09-01", "2026-10-01")).toEqual(["2026-09"]);
+    expect(monthsCovering("2026-08-23", "2026-09-23")).toEqual(["2026-08", "2026-09"]);
   });
 });

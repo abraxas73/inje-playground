@@ -11,13 +11,15 @@ import OrgSelect from "@/components/admin/claude-usage/OrgSelect";
 import { usd, int } from "@/components/admin/claude-usage/format";
 import { downloadCsv } from "@/lib/claude-usage/csv-download";
 import { formatCents } from "@/lib/claude-cost/money";
-import { ACTIVE_USERS_HINT, API_COST_HINT, BILLED_HINT, CSV_ACTIVE_HINT, EST_COST_HINT, PER_SEAT_HINT, PER_USER_HINT, SEATS_HINT } from "@/lib/claude-cost/hints";
+import { ACTIVE_USERS_HINT, API_COST_HINT, BASIS_ISSUED_HINT, BASIS_PERIOD_HINT, BILLED_HINT, CSV_ACTIVE_HINT, EST_COST_HINT, MISSING_HINT, PER_SEAT_HINT, PER_USER_HINT, SEATS_HINT } from "@/lib/claude-cost/hints";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import MonthlyBars from "./MonthlyBars";
 import MonthOrgDetail from "./MonthOrgDetail";
 import type { ClaudeOrg } from "@/types/claude-usage";
-import type { MonthlyCost } from "@/types/claude-cost";
+import type { MonthBasis, MonthlyCost } from "@/types/claude-cost";
 
-interface MonthlyResponse { months: MonthlyCost[]; apiCostAvailable: boolean; orgs: ClaudeOrg[] }
+interface MonthlyResponse { months: MonthlyCost[]; basis: MonthBasis; apiCostAvailable: boolean; orgs: ClaudeOrg[] }
+const BASIS_LABEL: Record<MonthBasis, string> = { issued: "발행일 기준", period: "서비스 기간 일할" };
 
 // 인보이스가 없는 달은 청구가 0이 아니라 "모름"이라 파생 지표를 비운다
 const perSeat = (m: MonthlyCost): number | null => (m.invoices && m.seats ? m.billed.totalCents / m.seats : null);
@@ -28,8 +30,10 @@ const centsCell = (v: number | null): string => (v === null ? "—" : formatCent
 export default function CostOverviewTab({ onMeta }: { onMeta: (m: { apiCostAvailable: boolean; orgs: ClaudeOrg[] }) => void }) {
   const [months, setMonths] = useState("12");
   const [org, setOrg] = useState("all");
+  // 월 배정 기준은 사람마다 보는 목적이 달라(재무 대조 vs 월별 비교) 브라우저에 기억한다
+  const [basis, setBasis] = useLocalStorage<MonthBasis>("claude-cost-basis", "issued");
   const [selected, setSelected] = useState<string | null>(null);
-  const key = `${months}|${org}`;
+  const key = `${months}|${org}|${basis}`;
   const [result, setResult] = useState<{ key: string; data?: MonthlyResponse; error?: string } | null>(null);
   const loading = result?.key !== key;
   const data = result?.key === key ? result.data ?? null : null;
@@ -37,12 +41,12 @@ export default function CostOverviewTab({ onMeta }: { onMeta: (m: { apiCostAvail
 
   useEffect(() => {
     let alive = true;
-    fetch(`/api/admin/claude-cost/monthly?months=${months}&org=${encodeURIComponent(org)}`)
+    fetch(`/api/admin/claude-cost/monthly?months=${months}&org=${encodeURIComponent(org)}&basis=${basis}`)
       .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`); return j as MonthlyResponse; })
       .then((j) => { if (alive) { setResult({ key, data: j }); onMeta({ apiCostAvailable: j.apiCostAvailable, orgs: j.orgs }); } })
       .catch((e) => { if (alive) setResult({ key, error: e instanceof Error ? e.message : String(e) }); });
     return () => { alive = false; };
-  }, [key, months, org, onMeta]);
+  }, [key, months, org, basis, onMeta]);
 
   const rows = useMemo(() => (data?.months ?? []).slice().reverse(), [data]); // 표는 최신 달이 위
   const showApi = !!data?.apiCostAvailable;
@@ -53,7 +57,7 @@ export default function CostOverviewTab({ onMeta }: { onMeta: (m: { apiCostAvail
     { key: "month", header: "월", value: (m) => m.month, render: (m) => (
       <button type="button" className="underline-offset-2 hover:underline font-medium" onClick={() => setSelected(m.month)}>{m.month}</button>) },
     { key: "invoices", header: "인보이스", value: (m) => m.invoices, align: "right", render: (m) => (
-      <span className="inline-flex items-center gap-1">{int(m.invoices)}{m.missingOrgs.length > 0 && m.invoices > 0 && <Badge variant="outline" className="text-destructive border-destructive/40 text-[10px]">누락 {m.missingOrgs.length}</Badge>}{m.unassignedCents > 0 && <Badge variant="destructive" className="text-[10px]">미배정</Badge>}</span>) },
+      <span className="inline-flex items-center gap-1">{int(m.invoices)}{m.missingOrgs.length > 0 && m.invoices > 0 && <Badge variant="outline" className="text-destructive border-destructive/40 text-[10px]" title={`${MISSING_HINT}\n${m.missingOrgs.join(", ")}`}>누락 {m.missingOrgs.length}</Badge>}{m.unassignedCents > 0 && <Badge variant="destructive" className="text-[10px]">미배정</Badge>}</span>) },
     { key: "seats", header: "좌석", hint: SEATS_HINT, value: (m) => m.seats, align: "right" },
     { key: "subtotal", header: "청구 세전", value: (m) => m.billed.subtotalCents / 100, align: "right", render: (m) => formatCents(m.billed.subtotalCents), total: (rs) => formatCents(rs.reduce((a, r) => a + r.billed.subtotalCents, 0)) },
     { key: "tax", header: "VAT", value: (m) => m.billed.taxCents / 100, align: "right", render: (m) => formatCents(m.billed.taxCents), total: (rs) => formatCents(rs.reduce((a, r) => a + r.billed.taxCents, 0)) },
@@ -70,7 +74,7 @@ export default function CostOverviewTab({ onMeta }: { onMeta: (m: { apiCostAvail
 
   const exportCsv = () => {
     const head = ["month", "invoices", "seats", "subtotal_usd", "vat_usd", "total_usd", ...(showApi ? ["api_cost_usd"] : []), "est_cost_usd", "code_active_users", "csv_active_members", "sessions", "prompts_human", "per_seat_usd", "per_user_usd", "missing_orgs"];
-    downloadCsv(`claude-cost-monthly-${months}m.csv`, head, rows.map((m) => [m.month, m.invoices, m.seats ?? "", (m.billed.subtotalCents / 100).toFixed(2), (m.billed.taxCents / 100).toFixed(2), (m.billed.totalCents / 100).toFixed(2), ...(showApi ? [((m.apiCostCents ?? 0) / 100).toFixed(2)] : []), m.usage.estCostUsd.toFixed(2), m.usage.activeUsers, m.csvActiveMembers ?? "", m.usage.sessions, m.usage.promptsHuman, perSeat(m) === null ? "" : ((perSeat(m) as number) / 100).toFixed(2), perUser(m) === null ? "" : ((perUser(m) as number) / 100).toFixed(2), m.missingOrgs.join("; ")]));
+    downloadCsv(`claude-cost-monthly-${months}m-${basis}.csv`, head, rows.map((m) => [m.month, m.invoices, m.seats ?? "", (m.billed.subtotalCents / 100).toFixed(2), (m.billed.taxCents / 100).toFixed(2), (m.billed.totalCents / 100).toFixed(2), ...(showApi ? [((m.apiCostCents ?? 0) / 100).toFixed(2)] : []), m.usage.estCostUsd.toFixed(2), m.usage.activeUsers, m.csvActiveMembers ?? "", m.usage.sessions, m.usage.promptsHuman, perSeat(m) === null ? "" : ((perSeat(m) as number) / 100).toFixed(2), perUser(m) === null ? "" : ((perUser(m) as number) / 100).toFixed(2), m.missingOrgs.join("; ")]));
   };
 
   return (
@@ -81,6 +85,13 @@ export default function CostOverviewTab({ onMeta }: { onMeta: (m: { apiCostAvail
           <SelectContent>{["6", "12", "24"].map((n) => <SelectItem key={n} value={n}>최근 {n}개월</SelectItem>)}</SelectContent>
         </Select>
         <OrgSelect orgs={data?.orgs ?? []} value={org} onChange={setOrg} />
+        <Select value={basis} onValueChange={(v) => setBasis(v as MonthBasis)}>
+          <SelectTrigger className="h-8 w-[160px] text-xs" title={basis === "period" ? BASIS_PERIOD_HINT : BASIS_ISSUED_HINT}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="issued" title={BASIS_ISSUED_HINT}>{BASIS_LABEL.issued}</SelectItem>
+            <SelectItem value="period" title={BASIS_PERIOD_HINT}>{BASIS_LABEL.period}</SelectItem>
+          </SelectContent>
+        </Select>
         <Button variant="outline" size="sm" className="h-8" onClick={exportCsv} disabled={!rows.length}><Download className="h-3.5 w-3.5 mr-1" />CSV</Button>
         {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
         {error && <span className="text-sm text-destructive">{error}</span>}
@@ -95,6 +106,7 @@ export default function CostOverviewTab({ onMeta }: { onMeta: (m: { apiCostAvail
         </div>
       )}
 
+      <p className="text-xs text-muted-foreground">{basis === "period" ? BASIS_PERIOD_HINT : BASIS_ISSUED_HINT} 누락 배지는 기준과 무관하게 서비스 기간이 그 달을 덮는 인보이스가 없는 조직입니다.</p>
       {data && <MonthlyBars data={data.months} showApi={showApi} />}
       <SortableTable rows={rows} columns={columns} rowKey={(m) => m.month} defaultSort={{ key: "month", dir: "desc" }} totalLabel={`총계 (${rows.length}개월)`} emptyText={loading ? "불러오는 중..." : "데이터가 없습니다. 인보이스 등록 탭에서 Stripe 링크를 등록하세요."} />
       {selectedMonth && <MonthOrgDetail month={selectedMonth} />}

@@ -82,3 +82,31 @@ export function lastMonths(n: number, today: Date = new Date()): string[] {
   }
   return out;
 }
+
+/** a → b 일수(b 미포함). "2026-08-23" → "2026-09-23" = 31 */
+export function daysBetween(a: string, b: string): number {
+  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+}
+
+/** 서비스 기간 [start, endExclusive) 가 그 달과 겹치는 일수. 안 겹치면 0 */
+export function overlapDays(start: string, endExclusive: string, month: string): number {
+  const { from, to } = monthRange(month);
+  const monthEnd = addDaysUtc(to, 1);
+  const s = start > from ? start : from;
+  const e = endExclusive < monthEnd ? endExclusive : monthEnd;
+  return e > s ? daysBetween(s, e) : 0;
+}
+
+function addDaysUtc(day: string, n: number): string {
+  const t = new Date(`${day}T00:00:00Z`);
+  t.setUTCDate(t.getUTCDate() + n);
+  return t.toISOString().slice(0, 10);
+}
+
+/** 인보이스 서비스 기간이 걸치는 달 목록(오래된 → 최신). 끝 미포함이라 "…~09-23"이면 9월까지, "…~10-01"이면 9월까지 */
+export function monthsCovering(start: string, endExclusive: string): string[] {
+  const out: string[] = [];
+  const last = monthOf(addDaysUtc(endExclusive, -1));
+  for (let m = monthOf(start); m <= last; m = monthOf(addDaysUtc(monthRange(m).to, 1))) out.push(m);
+  return out;
+}

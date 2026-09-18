@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { summarizeMonthly, type MonthlyInput } from "@/lib/claude-cost/monthly";
+import { allocateByDays, coversMonth, summarizeMonthly, type MonthlyInput } from "@/lib/claude-cost/monthly";
 import { emptyDailyMetrics, type DailyRow } from "@/types/claude-usage";
 import type { InvoiceRow } from "@/types/claude-cost";
 
@@ -90,5 +90,79 @@ describe("summarizeMonthly", () => {
     const r = summarizeMonthly({ ...base, orgs: [orgs[1], orgs[0]], invoices: [inv({ id: "3", invoice_number: "U-1", org_id: null, issued_on: "2026-08-25", total_cents: 11000 })] });
     expect(r[1].perOrg.map((o) => o.orgId)).toEqual(["ax", "bx", null]);
     expect(r[0].perOrg.map((o) => o.orgId)).toEqual(["ax", "bx"]);
+  });
+});
+
+describe("서비스 기간 커버리지 기반 누락 판정", () => {
+  const annual = inv({ id: "y", invoice_number: "Y-1", org_id: "ax", issued_on: "2026-05-17", total_cents: 1080000, subtotal_cents: 1080000, tax_cents: 0, seats: 9, period_start: "2026-05-17", period_end: "2027-05-17" });
+  const monthly = inv({ id: "m", invoice_number: "M-1", org_id: "bx", issued_on: "2026-08-24", total_cents: 5500, seats: 2, period_start: "2026-08-24", period_end: "2026-09-24" });
+  it("연간 조직은 기간 12개월 동안 누락이 아니고, 월 갱신 조직은 다음 장이 없는 달부터 누락", () => {
+    const r = summarizeMonthly({ ...base, months: ["2026-05", "2026-06", "2026-08", "2026-09", "2026-10"], invoices: [annual, monthly] });
+    expect(r.map((m) => m.missingOrgs)).toEqual([
+      ["Innogrid-bx"],               // 5월: ax 연간 시작, bx 없음
+      ["Innogrid-bx"],               // 6월: ax 연간 덮음
+      [],                            // 8월: 둘 다
+      [],                            // 9월: bx 8/24~9/24가 9월을 덮음
+      ["Innogrid-bx"],               // 10월: bx 다음 장 없음
+    ]);
+    expect(coversMonth(monthly, "2026-09")).toBe(true);
+    expect(coversMonth(monthly, "2026-10")).toBe(false);
+  });
+  it("기간이 없는 장은 발행 월만 덮는다", () => {
+    const noPeriod = inv({ id: "n", invoice_number: "N-1", org_id: "ax", issued_on: "2026-08-23", total_cents: 110 });
+    expect(coversMonth(noPeriod, "2026-08")).toBe(true);
+    expect(coversMonth(noPeriod, "2026-09")).toBe(false);
+  });
+  it("issued 기준에서도 누락은 커버리지로 판정하되 금액은 발행 월에만 잡힌다", () => {
+    const r = summarizeMonthly({ ...base, months: ["2026-05", "2026-06"], invoices: [annual] });
+    expect(r[0].billed.totalCents).toBe(1080000);
+    expect(r[1].billed.totalCents).toBe(0);
+    expect(r[1].missingOrgs).toEqual(["Innogrid-bx"]);
+    expect(r[1].invoices).toBe(0);
+  });
+});
+
+describe("서비스 기간 일할 배분(basis: period)", () => {
+  const annual = inv({ id: "y", invoice_number: "Y-1", org_id: "ax", issued_on: "2026-05-17", total_cents: 1080000, subtotal_cents: 1080000, tax_cents: 0, seats: 9, plan: "Team plan - Premium", period_start: "2026-05-17", period_end: "2027-05-17" });
+  const prorated = inv({ id: "p", invoice_number: "P-1", org_id: "bx", issued_on: "2026-08-23", total_cents: 780338, subtotal_cents: 709398, tax_cents: 70940, seats: 97, period_start: "2026-08-23", period_end: "2026-09-23" });
+  it("allocateByDays: 일수 비례, 잔여는 마지막 달, 합은 총액", () => {
+    const a = allocateByDays(prorated, prorated.total_cents);
+    expect(a.get("2026-08")).toEqual({ cents: Math.round((780338 * 9) / 31), days: 9, totalDays: 31 });
+    expect(a.get("2026-09")!.days).toBe(22);
+    expect([...a.values()].reduce((s, v) => s + v.cents, 0)).toBe(780338);
+    const y = allocateByDays(annual, annual.total_cents);
+    expect(y.size).toBe(13);
+    expect([...y.values()].reduce((s, v) => s + v.cents, 0)).toBe(1080000);
+    expect(y.get("2026-06")).toEqual({ cents: Math.round((1080000 * 30) / 365), days: 30, totalDays: 365 });
+  });
+  it("월별 합·VAT·좌석·배분 상세가 기간 기준으로 나온다", () => {
+    const r = summarizeMonthly({ ...base, months: ["2026-08", "2026-09"], invoices: [annual, prorated] }, { basis: "period" });
+    const aug = r[0];
+    expect(aug.basis).toBe("period");
+    expect(aug.invoices).toBe(2);
+    const augAnnual = Math.round((1080000 * 31) / 365);
+    const augPro = Math.round((780338 * 9) / 31);
+    expect(aug.billed.totalCents).toBe(augAnnual + augPro);
+    expect(aug.billed.subtotalCents).toBe(augAnnual + Math.round((709398 * 9) / 31));
+    expect(aug.billed.taxCents).toBe(aug.billed.totalCents - aug.billed.subtotalCents);
+    expect(aug.seats).toBe(9 + 97);
+    expect(aug.missingOrgs).toEqual([]);
+    const bx = aug.perOrg.find((o) => o.orgId === "bx")!;
+    expect(bx.allocations).toEqual([{ invoiceId: "p", cents: augPro, days: 9, totalDays: 31 }]);
+    const sep = r[1];
+    expect(sep.perOrg.find((o) => o.orgId === "bx")!.totalCents).toBe(780338 - augPro);
+    expect(sep.seats).toBe(9 + 97);
+  });
+  it("기간이 없는 장은 period 기준에서도 발행 월 전액", () => {
+    const noPeriod = inv({ id: "n", invoice_number: "N-1", org_id: "ax", issued_on: "2026-08-23", total_cents: 110, subtotal_cents: 100, tax_cents: 10 });
+    const r = summarizeMonthly({ ...base, months: ["2026-08", "2026-09"], invoices: [noPeriod] }, { basis: "period" });
+    expect(r[0].billed).toEqual({ subtotalCents: 100, taxCents: 10, totalCents: 110 });
+    expect(r[0].perOrg[0].allocations[0]).toEqual({ invoiceId: "n", cents: 110, days: null, totalDays: null });
+    expect(r[1].billed.totalCents).toBe(0);
+  });
+  it("issued 기준(기본)은 basis 필드와 전액 배분(days null)을 낸다", () => {
+    const r = summarizeMonthly({ ...base, months: ["2026-08"], invoices: [prorated] });
+    expect(r[0].basis).toBe("issued");
+    expect(r[0].perOrg.find((o) => o.orgId === "bx")!.allocations).toEqual([{ invoiceId: "p", cents: 780338, days: null, totalDays: null }]);
   });
 });
