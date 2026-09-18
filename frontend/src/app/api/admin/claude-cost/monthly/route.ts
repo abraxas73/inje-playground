@@ -8,11 +8,12 @@ import { summarizeMonthly } from "@/lib/claude-cost/monthly";
 import { isApiCostAvailable } from "@/lib/claude-cost/anthropic-cost-report";
 import { INVOICE_COLUMNS } from "@/lib/claude-cost/invoice-ingest";
 import type { ClaudeOrg, DailyRow } from "@/types/claude-usage";
-import type { ApiCostRow, InvoiceRow } from "@/types/claude-cost";
+import type { ApiCostRow, InvoiceRow, MonthBasis } from "@/types/claude-cost";
 
 /**
- * GET /api/admin/claude-cost/monthly?months=12&org=all|<id>
+ * GET /api/admin/claude-cost/monthly?months=12&org=all|<id>&basis=issued|period
  * 조직은 Team 조직만(개인 조직은 인보이스가 없다). org=<id>면 그 조직 하나.
+ * basis=period(서비스 기간 일할)면 기간이 조회 범위와 겹치는 인보이스까지 읽는다(연간 인보이스가 발행 월 밖의 달에도 기여).
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin();
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
   const from = `${months[0]}-01`;
   const to = monthRange(months[months.length - 1]).to;
   const orgParam = sp.get("org") || "all";
+  const basis: MonthBasis = sp.get("basis") === "period" ? "period" : "issued";
 
   try {
     const orgsRes = await admin.from("claude_orgs").select("id, name, seats_total, sort_order, category").order("sort_order").order("name");
@@ -37,7 +39,8 @@ export async function GET(request: NextRequest) {
     const orgIn = orgIds.length ? orgIds : ["__none__"];
     const apiAvailable = isApiCostAvailable();
 
-    const invQ = admin.from("claude_invoices").select(INVOICE_COLUMNS).gte("issued_on", from).lte("issued_on", to).order("issued_on");
+    // 누락 판정은 기준과 무관하게 서비스 기간 커버리지라, 기간이 범위와 겹치는 장(연간 포함)은 항상 함께 읽는다
+    const invQ = admin.from("claude_invoices").select(INVOICE_COLUMNS).lte("issued_on", to).or(`issued_on.gte.${from},period_end.gte.${from}`).order("issued_on");
     const [invoices, identities, apiCost, dailyRes, importsRes] = await Promise.all([
       orgParam === "all" ? invQ : invQ.eq("org_id", orgParam),
       loadIdentityMap(admin),
@@ -74,8 +77,8 @@ export async function GET(request: NextRequest) {
       apiCost: apiAvailable ? (apiCost.data ?? []).map((r) => ({ ...r, amount_cents: String(r.amount_cents) })) : null,
       daily,
       csv,
-    });
-    return NextResponse.json({ months: result, apiCostAvailable: apiAvailable, orgs: teamOrgs });
+    }, { basis });
+    return NextResponse.json({ months: result, basis, apiCostAvailable: apiAvailable, orgs: teamOrgs });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
