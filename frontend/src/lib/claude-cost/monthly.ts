@@ -10,7 +10,7 @@
 import { isActive } from "@/lib/claude-usage/aggregate";
 import { daysBetween, monthOf, monthsCovering, overlapDays } from "./money";
 import type { ClaudeOrg, DailyRow } from "@/types/claude-usage";
-import type { ApiCostRow, InvoiceAllocation, InvoiceRow, MonthBasis, MonthlyCost, MonthlyOrgCost } from "@/types/claude-cost";
+import type { ApiCostRow, InvoiceAllocation, InvoiceRow, MonthBasis, MonthlyCost, MonthlyOrgCost, MonthlyTier } from "@/types/claude-cost";
 
 export interface MonthlyInput {
   months: string[];
@@ -28,6 +28,32 @@ export interface MonthlyOptions {
 }
 
 const UNASSIGNED_NAME = "미배정";
+export const NO_TIER = "(티어 없음)";
+
+/**
+ * 티어별 집계. 금액은 그 달에 기여한 인보이스를 헤더 티어로 묶고(조직마다 티어가 하나라 헤더로 충분),
+ * 좌석은 조직별 대표 장(orgCost의 seats/plan)을 티어로 묶는다 — Standard($25대)와 Premium($125대)을 섞어 나눈 좌석당 비용은 뜻이 없어서다.
+ */
+function tierSummary(contribs: Contribution[], perOrg: MonthlyOrgCost[]): MonthlyTier[] {
+  const byPlan = new Map<string, MonthlyTier>();
+  const get = (plan: string): MonthlyTier => {
+    let t = byPlan.get(plan);
+    if (!t) { t = { plan, seats: null, subtotalCents: 0, totalCents: 0, invoices: 0 }; byPlan.set(plan, t); }
+    return t;
+  };
+  for (const c of contribs) {
+    const t = get(c.invoice.plan ?? NO_TIER);
+    t.totalCents += c.totalCents;
+    t.subtotalCents += c.subtotalCents;
+    t.invoices += 1;
+  }
+  for (const o of perOrg) {
+    if (o.seats === null) continue;
+    const t = get(o.plan ?? NO_TIER);
+    t.seats = (t.seats ?? 0) + o.seats;
+  }
+  return [...byPlan.values()].sort((a, b) => b.totalCents - a.totalCents || a.plan.localeCompare(b.plan));
+}
 
 function servicePeriod(i: InvoiceRow): { start: string; end: string } | null {
   return i.period_start && i.period_end && i.period_end > i.period_start ? { start: i.period_start, end: i.period_end } : null;
@@ -149,6 +175,7 @@ export function summarizeMonthly(input: MonthlyInput, opts: MonthlyOptions = {})
       month,
       basis,
       invoices: contribs.length,
+      tiers: tierSummary(contribs, perOrg),
       billed: { subtotalCents, taxCents: totalCents - subtotalCents, totalCents },
       seats: seatOrgs.length ? seatOrgs.reduce((a, o) => a + (o.seats ?? 0), 0) : null,
       missingOrgs: orgs.filter((o) => !input.invoices.some((i) => i.org_id === o.id && coversMonth(i, month))).map((o) => o.name),

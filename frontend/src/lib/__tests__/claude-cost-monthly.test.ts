@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { allocateByDays, coversMonth, summarizeMonthly, type MonthlyInput } from "@/lib/claude-cost/monthly";
+import { allocateByDays, coversMonth, NO_TIER, summarizeMonthly, type MonthlyInput } from "@/lib/claude-cost/monthly";
 import { emptyDailyMetrics, type DailyRow } from "@/types/claude-usage";
 import type { InvoiceRow } from "@/types/claude-cost";
 
@@ -164,5 +164,34 @@ describe("서비스 기간 일할 배분(basis: period)", () => {
     const r = summarizeMonthly({ ...base, months: ["2026-08"], invoices: [prorated] });
     expect(r[0].basis).toBe("issued");
     expect(r[0].perOrg.find((o) => o.orgId === "bx")!.allocations).toEqual([{ invoiceId: "p", cents: 780338, days: null, totalDays: null }]);
+  });
+});
+
+describe("티어별 좌석·금액", () => {
+  const orgs3 = [...orgs, { id: "cx", name: "Innogrid-cx", sort_order: 2 }];
+  const premium = inv({ id: "p1", invoice_number: "P-1", org_id: "ax", issued_on: "2026-08-23", total_cents: 780338, subtotal_cents: 709398, tax_cents: 70940, seats: 97, plan: "Team plan - Premium" });
+  const standard = inv({ id: "s1", invoice_number: "S-1", org_id: "bx", issued_on: "2026-08-24", total_cents: 306148, subtotal_cents: 278316, tax_cents: 27832, seats: 114, plan: "Team plan - Standard" });
+  const noTier = inv({ id: "n1", invoice_number: "N-1", org_id: "cx", issued_on: "2026-08-25", total_cents: 5500, subtotal_cents: 5000, tax_cents: 500 });
+  it("금액은 인보이스 티어로, 좌석은 조직 대표 장의 티어로 묶고 금액 큰 순", () => {
+    const r = summarizeMonthly({ ...base, months: ["2026-08"], orgs: orgs3, invoices: [premium, standard, noTier] });
+    expect(r[0].tiers).toEqual([
+      { plan: "Team plan - Premium", seats: 97, subtotalCents: 709398, totalCents: 780338, invoices: 1 },
+      { plan: "Team plan - Standard", seats: 114, subtotalCents: 278316, totalCents: 306148, invoices: 1 },
+      { plan: NO_TIER, seats: null, subtotalCents: 5000, totalCents: 5500, invoices: 1 },
+    ]);
+    expect(r[0].seats).toBe(97 + 114);
+  });
+  it("같은 조직의 여러 장은 좌석은 마지막 장 하나, 금액은 전부 그 티어에", () => {
+    const early = inv({ id: "p0", invoice_number: "P-0", org_id: "ax", issued_on: "2026-08-23", total_cents: 68750, subtotal_cents: 62500, tax_cents: 6250, seats: 5, plan: "Team plan - Premium" });
+    const r = summarizeMonthly({ ...base, months: ["2026-08"], invoices: [early, premium] });
+    expect(r[0].tiers).toEqual([{ plan: "Team plan - Premium", seats: 97, subtotalCents: 709398 + 62500, totalCents: 780338 + 68750, invoices: 2 }]);
+  });
+  it("period 기준에서는 배분액으로 묶인다", () => {
+    const annual = inv({ id: "y", invoice_number: "Y-1", org_id: "ax", issued_on: "2026-05-17", total_cents: 1080000, subtotal_cents: 1080000, tax_cents: 0, seats: 9, plan: "Team plan - Premium", period_start: "2026-05-17", period_end: "2027-05-17" });
+    const r = summarizeMonthly({ ...base, months: ["2026-06"], invoices: [annual] }, { basis: "period" });
+    expect(r[0].tiers).toEqual([{ plan: "Team plan - Premium", seats: 9, subtotalCents: Math.round((1080000 * 30) / 365), totalCents: Math.round((1080000 * 30) / 365), invoices: 1 }]);
+  });
+  it("인보이스가 없는 달은 tiers 빈 배열", () => {
+    expect(summarizeMonthly(base)[0].tiers).toEqual([]);
   });
 });
