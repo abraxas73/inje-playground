@@ -19,7 +19,14 @@ export type IngestResult =
   | { ok: false; duplicate: { id: string; org_id: string | null; issued_on: string; invoice_number: string } }
   | { ok: false; errors: string[] };
 
-/** Stripe 링크 → PDF 바이트. 허용 호스트만, 리디렉션 미추적, 10초·2MB 상한. 오류 문구에 URL을 넣지 않는다 */
+/**
+ * 리디렉션을 따라갈 수 있는 호스트. `pay.stripe.com/…/pdf`는 302로 S3 프리사인 URL(stripe-upload-api.s3.us-west-1.amazonaws.com)을 돌려주므로
+ * (2026-09-18 확인) Stripe와 그 버킷만 허용하고 다른 곳으로 넘어가면 멈춘다(SSRF 방지).
+ */
+const REDIRECT_HOST_RE = /^(pay\.stripe\.com|invoice\.stripe\.com|files\.stripe\.com|stripe-upload-api\.s3(\.[a-z0-9-]+)?\.amazonaws\.com)$/;
+const MAX_REDIRECTS = 2;
+
+/** Stripe 링크 → PDF 바이트. 허용 호스트만, 리디렉션은 허용 호스트로 최대 2홉, 10초·2MB 상한. 오류 문구에 URL을 넣지 않는다 */
 export async function fetchInvoicePdf(
   url: string,
   fetchImpl: typeof fetch = fetch,
@@ -29,14 +36,25 @@ export async function fetchInvoicePdf(
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetchImpl(pdfUrl, { redirect: "manual", signal: ctl.signal, headers: { "User-Agent": "inje-playground/1.0 (+https://inje-playground.vercel.app)" } });
-    if (!res.ok) return { ok: false, error: `PDF를 받지 못했습니다(HTTP ${res.status}) — PDF 파일로 올려 주세요.` };
-    const len = Number(res.headers.get("content-length") ?? 0);
-    if (len > MAX_INVOICE_BYTES) return { ok: false, error: "PDF가 2MB를 초과합니다." };
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    if (bytes.length > MAX_INVOICE_BYTES) return { ok: false, error: "PDF가 2MB를 초과합니다." };
-    if (!isPdf(bytes)) return { ok: false, error: "받은 파일이 PDF가 아닙니다 — 링크가 만료됐거나 형식이 바뀌었을 수 있습니다. PDF 파일로 올려 주세요." };
-    return { ok: true, bytes, pdfUrl };
+    let current = pdfUrl;
+    for (let hop = 0; ; hop++) {
+      const res = await fetchImpl(current, { redirect: "manual", signal: ctl.signal, headers: { "User-Agent": "inje-playground/1.0 (+https://inje-playground.vercel.app)" } });
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get("location");
+        if (!loc || hop >= MAX_REDIRECTS) return { ok: false, error: `PDF를 받지 못했습니다(HTTP ${res.status}) — PDF 파일로 올려 주세요.` };
+        const next = new URL(loc, current);
+        if (next.protocol !== "https:" || !REDIRECT_HOST_RE.test(next.hostname)) return { ok: false, error: "PDF 링크가 허용되지 않은 주소로 넘어갑니다 — PDF 파일로 올려 주세요." };
+        current = next.toString();
+        continue;
+      }
+      if (!res.ok) return { ok: false, error: `PDF를 받지 못했습니다(HTTP ${res.status}) — PDF 파일로 올려 주세요.` };
+      const len = Number(res.headers.get("content-length") ?? 0);
+      if (len > MAX_INVOICE_BYTES) return { ok: false, error: "PDF가 2MB를 초과합니다." };
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytes.length > MAX_INVOICE_BYTES) return { ok: false, error: "PDF가 2MB를 초과합니다." };
+      if (!isPdf(bytes)) return { ok: false, error: "받은 파일이 PDF가 아닙니다 — 링크가 만료됐거나 형식이 바뀌었을 수 있습니다. PDF 파일로 올려 주세요." };
+      return { ok: true, bytes, pdfUrl };
+    }
   } catch (e) {
     const timeout = e instanceof Error && e.name === "AbortError";
     return { ok: false, error: timeout ? "PDF 받기가 10초를 넘겨 중단했습니다." : "PDF를 받지 못했습니다 — PDF 파일로 올려 주세요." };

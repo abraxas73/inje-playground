@@ -7,7 +7,8 @@ import type { MonthlyCost } from "@/types/claude-cost";
  * 월별 막대 — 세전·VAT를 한 막대에 쌓고, API 비용은 옆에 가는 막대로 따로 그린다(합계에 더하지 않는다는 규칙을 그림으로도 지킨다).
  */
 export default function MonthlyBars({ data, showApi }: { data: MonthlyCost[]; showApi: boolean }) {
-  const max = Math.max(1, ...data.map((m) => Math.max(m.billed.totalCents, m.apiCostCents ?? 0)));
+  const peak = Math.max(0, ...data.map((m) => Math.max(m.billed.totalCents, m.apiCostCents ?? 0)));
+  const max = Math.max(1, peak); // 0으로 나누지 않기 위한 눈금 기준(라벨은 실제 최대값)
   const w = 720;
   const h = 150;
   const pad = 8;
@@ -18,7 +19,7 @@ export default function MonthlyBars({ data, showApi }: { data: MonthlyCost[]; sh
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>월별 청구(세전 + VAT){showApi ? " · API 비용(별도)" : ""}</span>
-        <span>최대 {formatCents(max)}</span>
+        <span>최대 {formatCents(peak)}</span>
       </div>
       <svg viewBox={`0 0 ${w} ${h + 18}`} className="w-full h-44" role="img" aria-label="월별 청구 금액">
         {data.map((m, i) => {
