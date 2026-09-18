@@ -105,11 +105,22 @@ export interface MonthlyOrgCost {
   estCostUsd: number;
 }
 
+/** 티어(Team plan - Premium / Standard)별 좌석·금액. 좌석은 조직별 마지막 장의 티어로, 금액은 인보이스 헤더의 티어로 묶는다 */
+export interface MonthlyTier {
+  /** 인보이스 헤더 plan 그대로("Team plan - Premium"). 티어를 못 읽은 장은 "(티어 없음)" */
+  plan: string;
+  seats: number | null;
+  subtotalCents: number;
+  totalCents: number;
+  invoices: number;
+}
+
 export interface MonthlyCost {
   /** YYYY-MM */
   month: string;
   basis: MonthBasis;
   invoices: number;
+  tiers: MonthlyTier[];
   billed: { subtotalCents: number; taxCents: number; totalCents: number };
   seats: number | null;
   /** 이 달을 서비스 기간이 덮는 인보이스가 하나도 없는 Team 조직 이름(기간이 없는 장은 발행 월로 판정). 기준(basis)과 무관 */
