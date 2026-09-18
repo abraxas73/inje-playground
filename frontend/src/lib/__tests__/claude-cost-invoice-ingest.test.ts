@@ -4,7 +4,7 @@ import { fetchInvoicePdf, MAX_INVOICE_BYTES } from "@/lib/claude-cost/invoice-in
 // jsdom과 Node 영역의 Uint8Array가 달라 바이트는 Array.from으로 값 비교한다
 const pdfBytes = new TextEncoder().encode("%PDF-1.4 fake");
 const okResponse = (body: Uint8Array, headers: Record<string, string> = { "content-type": "application/pdf" }, status = 200) =>
-  new Response(body, { status, headers });
+  new Response(body as unknown as BodyInit, { status, headers }); // TS 5.9: Uint8Array<ArrayBufferLike>는 BodyInit에 바로 안 맞는다
 
 describe("fetchInvoicePdf", () => {
   it("호스팅 링크를 PDF 링크로 바꿔 받고 바이트를 돌려준다", async () => {
