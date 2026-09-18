@@ -90,6 +90,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/manual` — User manual with Playwright-captured screenshots (8 sections)
 - `/admin/claude-usage` — Claude Code 사용량(admin, OTel 실시간): Claude Code·팀별 집계·도구 사용·시간대 패턴·프롬프트 탭
 - `/admin/claude-chat` — Claude 사용량 Chat/Cowork(admin, 월간 CSV): 채팅·Cowork 멤버 활동(같은 기간의 Claude Code 프롬프트·**Office 턴** 컬럼 포함) + 팀별 집계 + **Office Agents** 탭(Excel·Word·PowerPoint·Outlook 추가 기능, 조직 설정 Office Agents에 우리 OTLP 수집기를 등록한 Claude 조직 — 7개 모두 등록 2026-09-07), 데이터 기간 선택. CSV 업로드는 웹 UI 없이 `/claude-usage-csv` 스킬·`scripts/claude-usage-upload.sh`가 `POST /api/admin/claude-usage/imports`로 처리
+- `/admin/claude-cost` — 비용 관리(admin): 월별 **실제 청구 금액**(Anthropic Stripe 인보이스 — 결제 메일 링크 붙여넣기 → 서버가 `pay.stripe.com/…/pdf`로 PDF를 받아 파싱, PDF 업로드는 보조) + Admin API `cost_report`(Console API 사용분, `CLAUDE_ADMIN_API_KEY` 있을 때만 탭 표시) + 사용량(OTel 활성 사용자·세션·추정 비용, CSV 활성 멤버) 나란히. 월 = 발행일 기준, 청구 합계는 인보이스만(API 비용은 대조용). 조직별 상세·인보이스 등록/배정/삭제·PDF. 파서는 pdf.js 글리프 손실(하이픈·대시·마이너스→공백)에 의존하지 않게 설계. 런북 `docs/claude-cost.md`
 - `/admin/perf` — 성과 지표 전체 조회(admin): 개인용 `/usage/perf`와 같은 5탭 + 팀 필터 + 개인(이름/이메일) 검색. API `GET /api/admin/work-metrics/perf?from&to&team&q`, 집계는 `lib/work-metrics/perf-report.ts` 공용, UI는 `components/usage/PerfDashboard.tsx` 공용
 - `/admin/audit` — Audit 로그(admin): 로그인 이력 + 액션 이력 통합 조회(구분 로그인 성공/**로그인 실패**/**로그인 시도**/액션/API 호출, 카테고리, KST 기간, 검색 — 사용자·액션·IP·상세, 페이지 CSV). 뷰 `audit_log`는 service_role만 읽는다. 런북 `docs/audit-log.md`
 - `/admin/directory` — 조직/팀(admin): 사내 조직도(그룹웨어 아마란스, inno-creed MCP — Claude 사용량 표 "소속" 컬럼의 출처)·Claude 멤버·초대·조직·설정(관리형 설정 JSON) 탭
@@ -120,6 +121,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `POST /api/otel/v1/metrics`, `POST /api/otel/v1/logs` — Claude Code OTLP/HTTP JSON 수신(Bearer `CLAUDE_OTEL_INGEST_TOKEN`), RPC `claude_code_ingest`로 일 단위 합산
 - `POST /api/otel/v1/traces` — Claude for M365 추가 기능(pivot.claude.ai) 커스텀 OTel 수집기(CORS preflight 처리, Bearer `CLAUDE_OFFICE_OTEL_TOKEN` — 모든 멤버 브라우저에 배포되는 저권한 토큰). 파서 `lib/claude-usage/otlp-traces.ts`가 집계 속성만 읽어 `claude_office_trace_log`에 스팬을 남기고 프롬프트·도구 입출력·문서 URL은 버린다. 집계는 RPC `claude_office_usage`(턴=agent.query, 자식 스팬은 trace_id로 귀속) → `GET /api/admin/claude-usage/office`, `GET /api/usage/office`(개인, 스코프 이메일만)
 - `/api/admin/claude-usage/{summary,members,imports,imports/[id],orgs,health,org-members,tools,hourly,prompts,office}` — Claude 사용량 대시보드(admin). 런북 `docs/claude-usage.md`
+- `/api/admin/claude-cost/{invoices, invoices/[id], invoices/[id]/pdf, monthly, api-cost, api-cost/sync}`, `GET /api/cron/claude-cost`(매일 08:00 KST 최근 3일 재수집) — 비용 관리(admin). 파서·집계 `lib/claude-cost/`(money·stripe-invoice·invoice-ingest·anthropic-cost-report·monthly, 순수 함수는 vitest)
 - `GET·PUT·DELETE /api/users/sharepoint-folder` — 개인 SharePoint 업로드 기본 폴더(링크를 본인 Graph 권한으로 해석해 저장, `lib/rfp/user-folder.ts`·`lib/ms/folder-route.ts` 공용)
 - `GET·PUT·DELETE·POST /api/users/notify-channel` — 개인 채널 알림 웹훅(POST는 테스트 1건 발송). https 공개 주소만(`lib/notify/url-guard.ts`), 감사 로그에는 호스트만 남긴다
 - `GET /api/users/[id]`, `DELETE /api/users/[id]` — 관리자용 사용자 상세(프로필·설정·로그인 이력·조직도 소속·활동 요약)/삭제(개인 데이터 → 프로필 → auth.users; 자기 자신·관리자 역할 거부). `/admin/users` 행 클릭 → `components/admin/users/UserDetailSheet`
@@ -145,6 +147,9 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 
 ### Supabase Tables (Claude usage feature)
 - `claude_orgs, claude_code_daily(prompts·prompts_auto=자동화 프롬프트, 사람 = prompts−prompts_auto), claude_code_daily_model, claude_code_requests, claude_ingest_log, claude_csv_imports, claude_member_activity, claude_org_members(멤버·초대 상태 active|pending), claude_code_tool_daily(도구별 일 집계), claude_code_prompts(프롬프트 내용, OTEL_LOG_USER_PROMPTS=1), claude_office_trace_log(Office 추가 기능 스팬 집계 속성 — SQL `2026-09-04-claude-office-traces.sql`, RPC `claude_office_usage` `2026-09-07-claude-office-daily.sql`), claude_orgs.category(team|personal|system — OTel 자동 등록 조직은 personal, 드롭다운 "기타(개인 계정)"·`org=personal`), claude_code_env_daily(실행 환경 os.type·host.arch·service.version·terminal.type 포인트 집계, RPC `claude_code_env_ingest` — SQL `2026-09-16-claude-usage-env-org-category.sql`)` — Claude Code 사용량 대시보드 데이터(OTLP 수신 + 월간 CSV 업로드). claude_code_identity_map(계정 미식별 세션 귀속 — `user.id` → 이메일, RPC `claude_code_accountless_candidates`, SQL `2026-09-16-claude-usage-identity-map.sql`). 계정 속성 없는 텔레메트리는 org `unknown`·user `id:…` = 화면 "계정 정보 없는 세션"(query_source 100% `sdk` — Agent SDK·headless·CI, 조직·설정 탭에서 사람에게 매핑, `org=team`으로 제외). 런북 `docs/claude-usage.md`
+
+### Supabase Tables (Claude 비용 관리)
+- `claude_invoices`(invoice_number 유니크·org_id null 허용=미배정·issued_on·subtotal/tax/total_cents 정수·seats·plan·source link|pdf·source_url·storage_path·raw_text), `claude_invoice_lines`(라인·프로레이션 음수·기간·seats/plan), `claude_api_cost_daily`(pk day·workspace_id·description, amount_cents numeric 소수 센트) — RLS 정책 없음 = service role 전용. Storage 버킷 `claude-invoices`(비공개). SQL `docs/sql/2026-09-18-claude-cost.sql`
 
 ### Supabase Tables (work metrics — 성과 측정)
 - `jira_issue_daily, atlassian_account_map, confluence_daily, gitlab_daily(commits·claude_commits=Co-Authored-By: Claude 커밋·MR), gitlab_email_map(커미터 이메일 수동 매핑), work_metrics_sync` — Jira/Confluence/GitLab 일 집계(성과 분모·사이클타임). SQL `docs/sql/2026-08-31-work-metrics.sql`, `docs/sql/2026-09-03-gitlab-claude-commits.sql`, 수집 `lib/work-metrics/`. GitLab은 사내망 로컬 스크립트 `frontend/scripts/gitlab-metrics-sync.py`(launchd)가 `/api/admin/work-metrics/sync`로 푸시. Supabase 조회는 1000행 상한이 있어 대량 조회는 `selectAll`(`lib/work-metrics/common.ts`)로 페이지네이션
@@ -199,6 +204,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `CLAUDE_OTEL_INGEST_TOKEN` — Claude Code OTLP 수신 엔드포인트(`/api/otel/v1/metrics|logs`) Bearer 인증 토큰(`openssl rand -hex 32`)
 - `CLAUDE_OFFICE_OTEL_TOKEN` — Office 추가 기능 트레이스 수신(`/api/otel/v1/traces`) 전용 토큰. claude.ai 조직 설정 Office Agents의 OTLP 헤더 `Authorization=Bearer <값>`에 넣는 값이라 Claude Code 토큰과 분리
 - `ANTHROPIC_API_KEY`, `RFP_LLM_MODEL`(기본 claude-opus-5) — RFP 비표준 문서 LLM 폴백 + 카탈로그 기능 추출 + 솔루션 매핑(선택 — 없으면 규칙 엔진만)
+- `CLAUDE_ADMIN_API_KEY` — (선택) Anthropic Admin API 키(`sk-ant-admin01-…`, Console > Admin keys). 비용 관리의 API 비용 수집(`cost_report`)에만 쓰고, 없으면 그 탭을 숨긴다. settings 저장 금지
 - `MARKETING_AI_ENABLED`, `MARKETING_AI_MODEL` — 마케팅 Master DB AI 추천(선택). `ANTHROPIC_API_KEY`와 함께 있을 때만 활성, 없으면 규칙 검증·수동 검수만. 현재 운영 미설정
 - `MEDIA_SMTP_HOST`, `MEDIA_SMTP_PORT`, `MEDIA_SMTP_USER`, `MEDIA_SMTP_PASS`, `MEDIA_APP_URL` — **Edge Function secrets**(Vercel 아님). 부고 알림과 인사·부고 소식 메일(예약·지금 수신) SMTPS 발송. 비어 있으면 매칭만 하고 발송·예약 claim을 건너뛴다
 - `ATLASSIAN_SITE`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN` — 카탈로그 Confluence 가져오기(기존 성과 지표와 공유)
