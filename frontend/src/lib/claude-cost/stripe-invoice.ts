@@ -105,7 +105,10 @@ export function parseStripeInvoice(lines: InvoiceTextLine[]): InvoiceParseResult
       const signed = /^Unused time on /.test(m[1]) && amountCents > 0 ? -amountCents : amountCents;
       const period = i + 1 < subtotalIdx ? parsePeriod(texts[i + 1]) : null;
       if (period) i++;
+      // 갱신·연간 인보이스는 설명이 "Team plan - Premium"뿐이고 좌석 수는 수량 열에 있다(실물 7장 확인, 2026-09-18).
+      // 프로레이션("97 × Team plan …")은 설명의 N을, 그 외 plan이 든 설명은 수량을 좌석으로 본다.
       const s = SEATS_RE.exec(m[1]);
+      const isPlan = /\bplan\b/i.test(m[1]);
       items.push({
         position: items.length,
         description: m[1],
@@ -114,8 +117,8 @@ export function parseStripeInvoice(lines: InvoiceTextLine[]): InvoiceParseResult
         taxRate: m[4] ?? null,
         periodStart: period?.start ?? null,
         periodEnd: period?.end ?? null,
-        seats: s ? Number(s[1]) : null,
-        plan: s ? s[2] : null,
+        seats: s ? Number(s[1]) : isPlan ? Number(m[2]) : null,
+        plan: s ? s[2] : isPlan ? m[1] : null,
       });
     }
     if (items.length === 0) errors.push("라인 아이템이 없습니다.");

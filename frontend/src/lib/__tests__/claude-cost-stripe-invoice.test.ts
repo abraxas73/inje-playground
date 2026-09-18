@@ -146,6 +146,52 @@ describe("parseStripeInvoice — pdf.js가 하이픈·대시·마이너스·괄�
   });
 });
 
+describe("parseStripeInvoice — 갱신·연간 인보이스(설명에 N × 가 없고 수량 열이 좌석)", () => {
+  it("월 갱신: 'Team plan - Premium 5 $125.00 10% $625.00' → 좌석 5", () => {
+    const lines = [
+      ...PRORATED.slice(0, 9),
+      L("Team plan - Premium 5 $125.00 10% $625.00"),
+      L("Aug 23–Sep 23, 2026"),
+      L("Subtotal $625.00"),
+      L("Total excluding tax $625.00"),
+      L("VAT - South Korea (10% on $625.00) $62.50"),
+      L("Total $687.50"),
+      L("Amount due $687.50 USD"),
+    ];
+    const r = parseStripeInvoice(lines);
+    expect(r.ok).toBe(true);
+    if (r.ok) { expect(r.invoice.seats).toBe(5); expect(r.invoice.plan).toBe("Team plan - Premium"); expect(r.invoice.lines[0].quantity).toBe(5); }
+  });
+  it("연간(세금 없음·기간 1년): 'Team plan - Premium 9 $1,200.00 $10,800.00' → 좌석 9, 기간 12개월", () => {
+    const lines = [
+      ...PRORATED.slice(0, 9),
+      L("Team plan - Premium 9 $1,200.00 $10,800.00"),
+      L("May 17, 2026–May 17, 2027"),
+      L("Subtotal $10,800.00"),
+      L("Total $10,800.00"),
+      L("Amount due $10,800.00 USD"),
+    ];
+    const r = parseStripeInvoice(lines);
+    expect(r.ok).toBe(true);
+    if (r.ok) { expect(r.invoice.seats).toBe(9); expect(r.invoice.taxCents).toBe(0); expect(r.invoice.periodStart).toBe("2026-05-17"); expect(r.invoice.periodEnd).toBe("2027-05-17"); }
+  });
+  it("plan이 아닌 라인(예: 크레딧 조정)은 좌석에 넣지 않는다", () => {
+    const lines = [
+      ...PRORATED.slice(0, 9),
+      L("Team plan - Standard 2 $25.00 10% $50.00"),
+      L("Aug 24–Sep 24, 2026"),
+      L("Account credit adjustment 1 -$10.00"),
+      L("Subtotal $40.00"),
+      L("VAT - South Korea (10% on $40.00) $4.00"),
+      L("Total $44.00"),
+      L("Amount due $44.00 USD"),
+    ];
+    const r = parseStripeInvoice(lines);
+    expect(r.ok).toBe(true);
+    if (r.ok) { expect(r.invoice.seats).toBe(2); expect(r.invoice.lines[1].seats).toBeNull(); }
+  });
+});
+
 describe("invoiceLinkToPdfUrl", () => {
   it("호스팅 페이지 링크 → pay.stripe.com PDF 링크(쿼리 유지)", () => {
     expect(invoiceLinkToPdfUrl("https://invoice.stripe.com/i/acct_1AbC/live_XyZ_0200?s=ap")).toBe("https://pay.stripe.com/invoice/acct_1AbC/live_XyZ_0200/pdf?s=ap");
