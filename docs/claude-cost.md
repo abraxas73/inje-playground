@@ -29,7 +29,7 @@
 ## 5. 장애 대응
 - `Anthropic 인보이스가 아닙니다` / `라인 아이템 표를 찾을 수 없습니다`: Stripe가 PDF 레이아웃을 바꿨을 수 있다. `frontend/src/lib/claude-cost/stripe-invoice.ts`의 정규식과 테스트 픽스처를 새 레이아웃으로 맞춘다. 저장된 `raw_text`(service role로만 조회)나 실물 PDF로 줄 모양을 확인한다 — `extractInvoiceLines` 결과를 찍어 보면 된다.
 - `라인 합이 소계와 다릅니다`: 라인 한 줄이 정규식에 안 걸렸거나 크레딧 판정이 빠진 것. 위와 같이 처리.
-- `PDF를 받지 못했습니다`: 링크 만료·리디렉션. PDF 업로드로 대체.
+- `PDF를 받지 못했습니다`: 링크 만료. `pay.stripe.com/…/pdf`는 302로 S3 프리사인 URL(`stripe-upload-api.s3.us-west-1.amazonaws.com`)을 돌려주며 서버는 Stripe·그 버킷으로의 리디렉션만 최대 2홉 따른다 — 다른 호스트로 넘어가면 `허용되지 않은 주소` 오류. PDF 업로드로 대체.
 - `관리자 키가 거부되었습니다`: 키가 회수됐거나 워크스페이스 키를 넣은 것. Admin 키(`sk-ant-admin01-`)여야 한다.
 - cost_report 값은 30일간 사후 보정된다 — cron이 매일 최근 3일을 다시 받는다. 더 과거는 "지금 수집"으로 기간을 지정한다(최대 93일).
 

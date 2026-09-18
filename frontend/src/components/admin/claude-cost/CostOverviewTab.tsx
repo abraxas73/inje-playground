@@ -19,8 +19,9 @@ import type { MonthlyCost } from "@/types/claude-cost";
 
 interface MonthlyResponse { months: MonthlyCost[]; apiCostAvailable: boolean; orgs: ClaudeOrg[] }
 
-const perSeat = (m: MonthlyCost): number | null => (m.seats ? m.billed.totalCents / m.seats : null);
-const perUser = (m: MonthlyCost): number | null => (m.usage.activeUsers ? m.billed.totalCents / m.usage.activeUsers : null);
+// 인보이스가 없는 달은 청구가 0이 아니라 "모름"이라 파생 지표를 비운다
+const perSeat = (m: MonthlyCost): number | null => (m.invoices && m.seats ? m.billed.totalCents / m.seats : null);
+const perUser = (m: MonthlyCost): number | null => (m.invoices && m.usage.activeUsers ? m.billed.totalCents / m.usage.activeUsers : null);
 const centsCell = (v: number | null): string => (v === null ? "—" : formatCents(v));
 
 /** 월별 청구(인보이스) vs 사용량(OTel·CSV). 기간·조직을 고르고, 월 행을 누르면 조직별 상세 */
