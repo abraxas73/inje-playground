@@ -36,6 +36,7 @@ describe("parsePeriod", () => {
   it("연도가 뒤에 하나만 있으면 앞 날짜도 그 연도", () => {
     expect(parsePeriod("Aug 23–Sep 23, 2026")).toEqual({ start: "2026-08-23", end: "2026-09-23" });
     expect(parsePeriod("Aug 23 - Sep 23, 2026")).toEqual({ start: "2026-08-23", end: "2026-09-23" });
+    expect(parsePeriod("Aug 23 Sep 23, 2026")).toEqual({ start: "2026-08-23", end: "2026-09-23" }); // 대시가 NUL로 사라진 경우
   });
   it("연말을 걸치면 앞 날짜 연도를 하나 뺀다", () => {
     expect(parsePeriod("Dec 23–Jan 23, 2027")).toEqual({ start: "2026-12-23", end: "2027-01-23" });

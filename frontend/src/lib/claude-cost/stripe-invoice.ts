@@ -6,6 +6,10 @@
  * "Description Qty Unit price Tax Amount" 표 → 라인 줄 + 다음 줄 기간 "Aug 23–Sep 23, 2026" → Subtotal · VAT · Total · Amount due.
  * 좌석 변경 시 프로레이션 2줄("Remaining time on 97 ×" +, "Unused time on 40 ×" −)이 들어온다.
  * 합계 검증(Σ라인 = 소계, 소계+세액 = 총액)에 어긋나면 라인을 놓친 것이므로 저장을 거절한다.
+ *
+ * 실물 확인(2026-09-18): pdf.js는 이 PDF 폰트의 하이픈·대시·괄호·마이너스 글리프를 NUL로 돌려주고(ToUnicode 없음)
+ * `cleanPdfText`가 공백으로 바꾼다 — "RB6YCIF0 0003", "Aug 23 Sep 23, 2026", "$4,978.24"(마이너스 사라짐).
+ * 그래서 이 문자들에 의존하지 않는다: 번호는 공백→하이픈, 기간은 공백 구분자 허용, 크레딧은 "Unused time on" 설명으로 판정.
  */
 import { fragsOfPage, groupLines, joinFrags } from "@/lib/rfp/parse-pdf";
 import { parseEnglishDate, parseMoneyCents, parsePeriod, formatCents } from "./money";
@@ -73,7 +77,9 @@ export function parseStripeInvoice(lines: InvoiceTextLine[]): InvoiceParseResult
   const texts = lines.map((l) => l.text.trim());
 
   if (!texts.some((t) => t.includes("Anthropic"))) errors.push("Anthropic 인보이스가 아닙니다.");
-  const invoiceNumber = firstMatch(texts, /^Invoice number\s+(\S+)/);
+  // pdf.js가 이 폰트의 하이픈을 NUL→공백으로 돌려줘 "RB6YCIF0 0003"처럼 온다. Stripe 번호에 공백은 없으니 하이픈으로 되돌린다
+  const invoiceRaw = firstMatch(texts, /^Invoice number\s+(.+)$/);
+  const invoiceNumber = invoiceRaw ? invoiceRaw.trim().replace(/\s+/g, "-") : null;
   if (!invoiceNumber) errors.push("인보이스 번호를 찾을 수 없습니다.");
   const issuedRaw = firstMatch(texts, /^Date of issue\s+(.+)$/);
   const issuedOn = issuedRaw ? parseEnglishDate(issuedRaw) : null;
@@ -95,6 +101,8 @@ export function parseStripeInvoice(lines: InvoiceTextLine[]): InvoiceParseResult
         errors.push(`금액을 읽을 수 없습니다: ${texts[i]}`);
         continue;
       }
+      // 프로레이션 크레딧("Unused time on …")의 마이너스 기호도 같은 이유로 사라진다 — 설명으로 크레딧을 판정한다
+      const signed = /^Unused time on /.test(m[1]) && amountCents > 0 ? -amountCents : amountCents;
       const period = i + 1 < subtotalIdx ? parsePeriod(texts[i + 1]) : null;
       if (period) i++;
       const s = SEATS_RE.exec(m[1]);
@@ -102,7 +110,7 @@ export function parseStripeInvoice(lines: InvoiceTextLine[]): InvoiceParseResult
         position: items.length,
         description: m[1],
         quantity: Number(m[2]),
-        amountCents,
+        amountCents: signed,
         taxRate: m[4] ?? null,
         periodStart: period?.start ?? null,
         periodEnd: period?.end ?? null,

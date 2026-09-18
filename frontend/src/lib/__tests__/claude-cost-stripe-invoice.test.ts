@@ -124,6 +124,28 @@ describe("parseStripeInvoice", () => {
   });
 });
 
+describe("parseStripeInvoice — pdf.js가 하이픈·대시·마이너스·괄호를 잃은 실물 모양", () => {
+  /** 실물 PDF에서 unpdf가 돌려준 줄 모양(값은 가공): 번호의 하이픈, 기간의 대시, 크레딧의 마이너스, VAT 괄호가 공백으로 바뀐다 */
+  const LOSSY = PRORATED.map((l) => {
+    if (l.text === "Invoice number TEST0001-0003") return L("Invoice number TEST0001 0003");
+    if (l.text === "Aug 23–Sep 23, 2026") return L("Aug 23 Sep 23, 2026");
+    if (l.text.startsWith("Unused time on")) return L("Unused time on 40 × Team plan - Premium after 24 Aug 2026 40 10% $4,000.00");
+    if (l.text.startsWith("VAT")) return L("VAT - South Korea 10% on $6,000.00 $600.00");
+    return l;
+  });
+  it("번호는 하이픈으로 되돌리고, 기간을 읽고, Unused time on 라인은 크레딧(음수)으로 본다", () => {
+    const r = parseStripeInvoice(LOSSY);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.invoice.invoiceNumber).toBe("TEST0001-0003");
+    expect(r.invoice.lines[1].amountCents).toBe(-400000);
+    expect(r.invoice.periodStart).toBe("2026-08-23");
+    expect(r.invoice.periodEnd).toBe("2026-09-23");
+    expect(r.invoice.taxCents).toBe(60000);
+    expect(r.invoice.seats).toBe(97);
+  });
+});
+
 describe("invoiceLinkToPdfUrl", () => {
   it("호스팅 페이지 링크 → pay.stripe.com PDF 링크(쿼리 유지)", () => {
     expect(invoiceLinkToPdfUrl("https://invoice.stripe.com/i/acct_1AbC/live_XyZ_0200?s=ap")).toBe("https://pay.stripe.com/invoice/acct_1AbC/live_XyZ_0200/pdf?s=ap");

@@ -37,7 +37,8 @@ export function parseEnglishDate(s: string): string | null {
 }
 
 const DATE_PART = String.raw`([A-Za-z]{3,9})\s+(\d{1,2})(?:,\s*(\d{4}))?`;
-const PERIOD_RE = new RegExp(String.raw`^${DATE_PART}\s*[–—-]\s*${DATE_PART}$`);
+/** 구분자는 대시이지만 pdf.js가 이 폰트의 대시를 NUL→공백으로 돌려주므로 공백만 있어도 기간으로 본다 */
+const PERIOD_RE = new RegExp(String.raw`^${DATE_PART}(?:\s*[–—-]\s*|\s+)${DATE_PART}$`);
 
 /**
  * Stripe 라인 아이템 기간 "Aug 23–Sep 23, 2026". 연도는 뒤에만 있는 게 보통이라 앞 날짜에 보정하고,
