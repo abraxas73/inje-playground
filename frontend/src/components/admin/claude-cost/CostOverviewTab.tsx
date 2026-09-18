@@ -118,7 +118,7 @@ export default function CostOverviewTab({ onMeta }: { onMeta: (m: { apiCostAvail
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">{basis === "period" ? BASIS_PERIOD_HINT : BASIS_ISSUED_HINT} 누락 배지는 기준과 무관하게 서비스 기간이 그 달을 덮는 인보이스가 없는 조직입니다.</p>
+      <p className="text-xs text-muted-foreground">{basis === "period" ? BASIS_PERIOD_HINT : BASIS_ISSUED_HINT} 누락 배지는 기준과 무관하게, 그 달까지 시작한 조직 중 서비스 기간이 그 달을 덮는 인보이스가 없는 조직입니다.</p>
       {data && <MonthlyBars data={data.months} showApi={showApi} />}
       <SortableTable rows={rows} columns={columns} rowKey={(m) => m.month} defaultSort={{ key: "month", dir: "desc" }} totalLabel={`총계 (${rows.length}개월)`} emptyText={loading ? "불러오는 중..." : "데이터가 없습니다. 인보이스 등록 탭에서 Stripe 링크를 등록하세요."} />
       {selectedMonth && <MonthOrgDetail month={selectedMonth} />}

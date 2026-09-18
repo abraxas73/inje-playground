@@ -4,7 +4,8 @@
  * - period: 서비스 기간 [period_start, period_end) 을 겹치는 일수 비례로 달마다 배분(연간 인보이스를 12개월로 나눠 보는 용도).
  *   반올림 잔여는 그 인보이스의 마지막 달에 붙여 합계를 보존하고, VAT = 총액 − 세전으로 맞춘다. 기간이 없는 장은 발행 월에 전액.
  * 청구 합계는 인보이스만. Admin API 비용은 대조용 별도 값이라 합계에 더하지 않는다.
- * "누락 조직"은 기준과 무관하게 서비스 기간이 그 달을 덮는 인보이스가 없는 Team 조직이다 — 연간 플랜 조직이 매달 누락으로 보이지 않게.
+ * "누락 조직"은 기준과 무관하게, 그 달 말까지 시작한 조직 중 서비스 기간이 그 달을 덮는 인보이스가 없는 Team 조직이다
+ * — 연간 플랜 조직이 매달 누락으로 보이지 않고, 8월에 시작한 조직이 그 전 달에 누락으로 보이지 않게.
  * 사용량은 OTel(claude_code_daily, KST day)을 같은 달로 묶고, CSV 활성 멤버는 그 달에 끝나는 CSV 중 조직별 최신 것만 쓴다.
  */
 import { isActive } from "@/lib/claude-usage/aggregate";
@@ -57,6 +58,15 @@ function tierSummary(contribs: Contribution[], perOrg: MonthlyOrgCost[]): Monthl
 
 function servicePeriod(i: InvoiceRow): { start: string; end: string } | null {
   return i.period_start && i.period_end && i.period_end > i.period_start ? { start: i.period_start, end: i.period_end } : null;
+}
+
+/**
+ * 조직이 그 달 말까지 시작했는가 — 첫 인보이스의 서비스 기간 시작(없으면 발행일)이 그 달 안이거나 그 전이면 true.
+ * 8월에 시작한 조직(ax·S1·S2)이 5~7월에 "누락"으로 보이지 않게 한다. 인보이스가 한 장도 없는 조직은 아직 시작 전으로 본다.
+ */
+export function orgStartedBy(invoices: InvoiceRow[], orgId: string, month: string): boolean {
+  const monthEnd = `${month}-31`;
+  return invoices.some((i) => i.org_id === orgId && (i.period_start ?? i.issued_on) <= monthEnd);
 }
 
 /** 서비스 기간이 그 달을 덮는가(기간이 없으면 발행 월) */
@@ -178,7 +188,7 @@ export function summarizeMonthly(input: MonthlyInput, opts: MonthlyOptions = {})
       tiers: tierSummary(contribs, perOrg),
       billed: { subtotalCents, taxCents: totalCents - subtotalCents, totalCents },
       seats: seatOrgs.length ? seatOrgs.reduce((a, o) => a + (o.seats ?? 0), 0) : null,
-      missingOrgs: orgs.filter((o) => !input.invoices.some((i) => i.org_id === o.id && coversMonth(i, month))).map((o) => o.name),
+      missingOrgs: orgs.filter((o) => orgStartedBy(input.invoices, o.id, month) && !input.invoices.some((i) => i.org_id === o.id && coversMonth(i, month))).map((o) => o.name),
       unassignedCents: unassigned.reduce((a, c) => a + c.totalCents, 0),
       apiCostCents,
       usage,

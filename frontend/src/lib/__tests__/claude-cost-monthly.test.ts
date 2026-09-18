@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { allocateByDays, coversMonth, NO_TIER, summarizeMonthly, type MonthlyInput } from "@/lib/claude-cost/monthly";
+import { allocateByDays, coversMonth, NO_TIER, orgStartedBy, summarizeMonthly, type MonthlyInput } from "@/lib/claude-cost/monthly";
 import { emptyDailyMetrics, type DailyRow } from "@/types/claude-usage";
 import type { InvoiceRow } from "@/types/claude-cost";
 
@@ -35,13 +35,13 @@ describe("summarizeMonthly", () => {
     expect(aug.perOrg.find((o) => o.orgId === null)?.totalCents).toBe(11000);
     const jul = r.find((m) => m.month === "2026-07")!;
     expect(jul.seats).toBe(10);
-    expect(jul.missingOrgs).toEqual(["Innogrid-ax"]);
+    expect(jul.missingOrgs).toEqual([]); // ax는 8월에 시작 → 7월은 시작 전이라 누락이 아니다
     expect(jul.unassignedCents).toBe(0);
   });
 
   it("인보이스가 없는 달은 seats null·합 0, 모든 조직 누락", () => {
     const r = summarizeMonthly(base);
-    expect(r[0]).toMatchObject({ month: "2026-07", invoices: 0, seats: null, billed: { totalCents: 0 }, missingOrgs: ["Innogrid-ax", "Innogrid-bx"], apiCostCents: null, csvActiveMembers: null });
+    expect(r[0]).toMatchObject({ month: "2026-07", invoices: 0, seats: null, billed: { totalCents: 0 }, missingOrgs: [], apiCostCents: null, csvActiveMembers: null }); // 인보이스가 한 장도 없으면 시작 전
   });
 
   it("좌석이 없는 인보이스(seats null)는 좌석 계산에서 건너뛰고 직전 좌석을 쓴다", () => {
@@ -99,11 +99,11 @@ describe("서비스 기간 커버리지 기반 누락 판정", () => {
   it("연간 조직은 기간 12개월 동안 누락이 아니고, 월 갱신 조직은 다음 장이 없는 달부터 누락", () => {
     const r = summarizeMonthly({ ...base, months: ["2026-05", "2026-06", "2026-08", "2026-09", "2026-10"], invoices: [annual, monthly] });
     expect(r.map((m) => m.missingOrgs)).toEqual([
-      ["Innogrid-bx"],               // 5월: ax 연간 시작, bx 없음
-      ["Innogrid-bx"],               // 6월: ax 연간 덮음
+      [],                            // 5월: ax 연간 시작, bx는 8월 시작이라 아직 대상 아님
+      [],                            // 6월: ax 연간 덮음
       [],                            // 8월: 둘 다
       [],                            // 9월: bx 8/24~9/24가 9월을 덮음
-      ["Innogrid-bx"],               // 10월: bx 다음 장 없음
+      ["Innogrid-bx"],               // 10월: bx 다음 장 없음 → 누락
     ]);
     expect(coversMonth(monthly, "2026-09")).toBe(true);
     expect(coversMonth(monthly, "2026-10")).toBe(false);
@@ -117,7 +117,7 @@ describe("서비스 기간 커버리지 기반 누락 판정", () => {
     const r = summarizeMonthly({ ...base, months: ["2026-05", "2026-06"], invoices: [annual] });
     expect(r[0].billed.totalCents).toBe(1080000);
     expect(r[1].billed.totalCents).toBe(0);
-    expect(r[1].missingOrgs).toEqual(["Innogrid-bx"]);
+    expect(r[1].missingOrgs).toEqual([]); // bx는 인보이스가 없어 시작 전
     expect(r[1].invoices).toBe(0);
   });
 });
@@ -193,5 +193,29 @@ describe("티어별 좌석·금액", () => {
   });
   it("인보이스가 없는 달은 tiers 빈 배열", () => {
     expect(summarizeMonthly(base)[0].tiers).toEqual([]);
+  });
+});
+
+describe("조직 시작 시점 — 첫 인보이스 전 달은 누락이 아니다", () => {
+  const ax = inv({ id: "a1", invoice_number: "A-1", org_id: "ax", issued_on: "2026-08-23", total_cents: 110, period_start: "2026-08-23", period_end: "2026-09-23" });
+  const bxApr = inv({ id: "b1", invoice_number: "B-1", org_id: "bx", issued_on: "2026-04-07", total_cents: 110, period_start: "2026-04-07", period_end: "2026-05-07" });
+  it("orgStartedBy: 서비스 기간 시작(없으면 발행일)이 그 달 말 이전이면 시작", () => {
+    expect(orgStartedBy([ax], "ax", "2026-07")).toBe(false);
+    expect(orgStartedBy([ax], "ax", "2026-08")).toBe(true);
+    expect(orgStartedBy([ax], "ax", "2026-12")).toBe(true);
+    expect(orgStartedBy([ax], "bx", "2026-12")).toBe(false);
+    const noPeriod = inv({ id: "n", invoice_number: "N-1", org_id: "ax", issued_on: "2026-06-15", total_cents: 110 });
+    expect(orgStartedBy([noPeriod], "ax", "2026-06")).toBe(true);
+    expect(orgStartedBy([noPeriod], "ax", "2026-05")).toBe(false);
+  });
+  it("8월 시작 조직은 5~7월 누락 없음, 4월 시작 조직은 6월부터(다음 장 없음) 누락", () => {
+    const r = summarizeMonthly({ ...base, months: ["2026-05", "2026-06", "2026-07", "2026-08", "2026-10"], invoices: [ax, bxApr] });
+    expect(r.map((m) => [m.month, m.missingOrgs])).toEqual([
+      ["2026-05", []],                 // bx 4/7~5/7이 5월을 덮음, ax 시작 전
+      ["2026-06", ["Innogrid-bx"]],    // bx 다음 장 없음
+      ["2026-07", ["Innogrid-bx"]],
+      ["2026-08", ["Innogrid-bx"]],    // ax 8월 시작·덮음
+      ["2026-10", ["Innogrid-ax", "Innogrid-bx"]],
+    ]);
   });
 });
