@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { ACCOUNTLESS_HINT, formatEnv } from "@/lib/claude-usage/org-options";
-import { usd, int } from "./format";
+import { int } from "./format";
+import { useMoney } from "@/components/shared/currency-context";
 
 interface Mapping { user_id: string; email: string; note: string | null; updated_at: string }
 interface Candidate {
@@ -16,6 +17,7 @@ interface Candidate {
 
 /** 계정 미식별(SDK) 세션을 사람에게 귀속 — 설치 식별자(user.id)를 이메일에 매핑한다. */
 export default function IdentityMapCard() {
+  const { usd } = useMoney();
   const [data, setData] = useState<{ mappings: Mapping[]; candidates: Candidate[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});

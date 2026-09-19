@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import OrgSelect from "@/components/admin/claude-usage/OrgSelect";
 import { Loader2 } from "lucide-react";
 import { dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
-import { int, usd } from "./format";
+import { int } from "./format";
+import { useMoney } from "@/components/shared/currency-context";
 import type { ClaudeOrg } from "@/types/claude-usage";
 
 const PRESETS: { key: RangePreset; label: string }[] = [
@@ -19,6 +20,7 @@ interface Cell { dow: number; hour: number; requests: number; cost_usd: number; 
 interface Resp { range: { from: string; to: string }; cells: Cell[]; notReady: boolean }
 
 export default function HourlyPatternTab({ orgs }: { orgs: ClaudeOrg[] }) {
+  const { usd } = useMoney();
   const [preset, setPreset] = useState<RangePreset>("30d");
   const [range, setRange] = useState(() => dateRangePreset("30d"));
   const [org, setOrg] = useState("all");

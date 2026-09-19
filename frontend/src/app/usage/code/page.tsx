@@ -11,7 +11,8 @@ import HBar from "@/components/admin/surveys/charts/HBar";
 import SortableTable, { sumBy, type Column } from "@/components/admin/claude-usage/SortableTable";
 import DailyBars from "@/components/admin/claude-usage/DailyBars";
 import UnitFilter, { matchUnit } from "@/components/admin/claude-usage/UnitFilter";
-import { usd, int, hours } from "@/components/admin/claude-usage/format";
+import { int, hours } from "@/components/admin/claude-usage/format";
+import { CurrencyProvider, CurrencyToggle, useMoney } from "@/components/shared/currency-context";
 import { acceptRate, dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
 import { aggregateCodeTeams, type CodeTeamRow } from "@/lib/claude-usage/code-team-summary";
 import { downloadCsv } from "@/lib/claude-usage/csv-download";
@@ -67,6 +68,7 @@ function unitCell(r: { team: string | null; parent_unit: string | null; headquar
 }
 
 export default function MyCodeUsagePage() {
+  const { usd } = useMoney();
   const [preset, setPreset] = useState<RangePreset>("30d");
   const [range, setRange] = useState(() => dateRangePreset("30d"));
   const [unit, setUnit] = useState("all");
@@ -198,13 +200,17 @@ export default function MyCodeUsagePage() {
   };
 
   return (
+    <CurrencyProvider>
     <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold">
           <SquareTerminal className="h-5 w-5" />내 Claude Code 사용량
           {data && <Badge variant="secondary" className="ml-1">{data.scope.scopeLabel}</Badge>}
         </h1>
         <p className="text-sm text-muted-foreground">관리형 설정 OTel로 수집된 본인{isTeamView ? "·조직" : ""} 사용량입니다. 조직장(팀장·센터장·본부장)은 소속 구성원까지 보입니다. 프롬프트 내용은 다루지 않습니다.</p>
+      </div>
+      <CurrencyToggle />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -348,5 +354,6 @@ export default function MyCodeUsagePage() {
         <p className="text-sm text-muted-foreground">기간 내 수집된 사용량이 없습니다. Claude Code에서 관리형 설정을 승인하고 재시작한 뒤부터 집계됩니다.</p>
       )}
     </div>
+    </CurrencyProvider>
   );
 }

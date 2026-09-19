@@ -6,7 +6,7 @@ import { Receipt } from "lucide-react";
 import CostOverviewTab from "@/components/admin/claude-cost/CostOverviewTab";
 import InvoiceImportTab from "@/components/admin/claude-cost/InvoiceImportTab";
 import ApiCostTab from "@/components/admin/claude-cost/ApiCostTab";
-import { CurrencyProvider, CurrencyToggle } from "@/components/admin/claude-cost/currency-context";
+import { CurrencyProvider, CurrencyToggle } from "@/components/shared/currency-context";
 import type { ClaudeOrg } from "@/types/claude-usage";
 
 export default function ClaudeCostPage() {

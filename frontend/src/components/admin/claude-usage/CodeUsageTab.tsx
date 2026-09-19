@@ -14,7 +14,8 @@ import HBar from "@/components/admin/surveys/charts/HBar";
 import SortableTable, { sumBy, type Column } from "./SortableTable";
 import DailyBars from "./DailyBars";
 import { acceptRate, dateRangePreset, hasSeat, type RangePreset } from "@/lib/claude-usage/aggregate";
-import { usd, int, hours } from "./format";
+import { int, hours } from "./format";
+import { useMoney } from "@/components/shared/currency-context";
 import type { UsageSummary, UserUsageRow } from "@/types/claude-usage";
 
 const ENV_HINT = "실행 환경 — OS/CPU · 터미널 · Claude Code 버전(데이터 포인트 많은 순, 여러 환경이면 +N). Linux인데 터미널이 없으면 컨테이너·웹 세션일 가능성이 큽니다. 2026-09-16 이후 수집분만 있습니다.";
@@ -25,6 +26,7 @@ const PRESETS: { key: RangePreset; label: string }[] = [
 ];
 
 export default function CodeUsageTab() {
+  const { usd } = useMoney();
   const [preset, setPreset] = useState<RangePreset>("30d");
   const [range, setRange] = useState(() => dateRangePreset("30d"));
   const [org, setOrg] = useState("all");

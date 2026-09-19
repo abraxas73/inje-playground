@@ -10,7 +10,8 @@ import SearchableSelect from "@/components/shared/SearchableSelect";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import SortableTable, { sumBy, type Column } from "@/components/admin/claude-usage/SortableTable";
-import { usd, int } from "@/components/admin/claude-usage/format";
+import { int } from "@/components/admin/claude-usage/format";
+import { useMoney } from "@/components/shared/currency-context";
 import { dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
 
 /**
@@ -117,6 +118,7 @@ const userCell: Column<UserPerf> = {
 };
 
 export default function PerfDashboard({ apiPath }: { apiPath: string }) {
+  const { usd } = useMoney();
   const [preset, setPreset] = useState<RangePreset>("30d");
   const [range, setRange] = useState(() => dateRangePreset("30d"));
   const [team, setTeam] = useState("all");

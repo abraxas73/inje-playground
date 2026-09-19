@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import SortableTable, { type Column } from "@/components/admin/claude-usage/SortableTable";
 import { int } from "@/components/admin/claude-usage/format";
-import { useCurrency } from "./currency-context";
+import { useCurrency } from "@/components/shared/currency-context";
 import { SEATS_HINT, ACTIVE_USERS_HINT, EST_COST_HINT, MISSING_HINT } from "@/lib/claude-cost/hints";
 import type { MonthlyCost, MonthlyOrgCost } from "@/types/claude-cost";
 

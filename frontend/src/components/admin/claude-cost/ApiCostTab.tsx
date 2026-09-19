@@ -8,7 +8,7 @@ import DailyBars from "@/components/admin/claude-usage/DailyBars";
 import SortableTable, { type Column } from "@/components/admin/claude-usage/SortableTable";
 import { fmtDateTime } from "@/components/admin/claude-usage/format";
 import { dateRangePreset } from "@/lib/claude-usage/aggregate";
-import { useCurrency } from "./currency-context";
+import { useCurrency } from "@/components/shared/currency-context";
 import { API_COST_HINT } from "@/lib/claude-cost/hints";
 import type { ApiCostRow } from "@/types/claude-cost";
 

@@ -9,6 +9,7 @@ import ToolUsageTab from "@/components/admin/claude-usage/ToolUsageTab";
 import HourlyPatternTab from "@/components/admin/claude-usage/HourlyPatternTab";
 import PromptsTab from "@/components/admin/claude-usage/PromptsTab";
 import type { ClaudeOrg } from "@/types/claude-usage";
+import { CurrencyProvider, CurrencyToggle } from "@/components/shared/currency-context";
 
 export default function ClaudeUsagePage() {
   const [orgs, setOrgs] = useState<ClaudeOrg[]>([]);
@@ -29,11 +30,15 @@ export default function ClaudeUsagePage() {
   useEffect(() => { loadOrgs(); }, [loadOrgs]);
 
   return (
+    <CurrencyProvider>
     <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold"><SquareTerminal className="h-5 w-5" />Claude Code 사용량</h1>
         <p className="text-sm text-muted-foreground">Team 조직 7개의 사용자별 Claude Code 사용량 — 관리형 설정 OTel로 실시간 수집. 채팅 · Cowork 활동(CSV)과 Excel·Word·PowerPoint 추가 기능(Office Agents)은 &quot;Claude 사용량 (Chat/Cowork)&quot; 메뉴, 멤버 · 초대와 조직 · 설정은 &quot;조직/팀&quot; 메뉴로 이동했습니다.</p>
         {orgsError && <p className="text-sm text-destructive">{orgsError}</p>}
+      </div>
+      <CurrencyToggle />
       </div>
       <Tabs defaultValue="code">
         <TabsList>
@@ -50,5 +55,6 @@ export default function ClaudeUsagePage() {
         <TabsContent value="prompts"><PromptsTab orgs={orgs} /></TabsContent>
       </Tabs>
     </div>
+    </CurrencyProvider>
   );
 }
