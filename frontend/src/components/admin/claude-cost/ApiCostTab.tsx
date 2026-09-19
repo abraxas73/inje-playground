@@ -8,7 +8,7 @@ import DailyBars from "@/components/admin/claude-usage/DailyBars";
 import SortableTable, { type Column } from "@/components/admin/claude-usage/SortableTable";
 import { fmtDateTime } from "@/components/admin/claude-usage/format";
 import { dateRangePreset } from "@/lib/claude-usage/aggregate";
-import { formatCents } from "@/lib/claude-cost/money";
+import { useCurrency } from "./currency-context";
 import { API_COST_HINT } from "@/lib/claude-cost/hints";
 import type { ApiCostRow } from "@/types/claude-cost";
 
@@ -17,6 +17,7 @@ interface DescRow { description: string; cost_type: string | null; model: string
 
 /** Admin API cost_report(Console API 사용분). 이 탭은 CLAUDE_ADMIN_API_KEY가 있을 때만 그려진다 */
 export default function ApiCostTab() {
+  const { fmt } = useCurrency();
   const preset = useMemo(() => dateRangePreset("30d"), []);
   const [from, setFrom] = useState(preset.from);
   const [to, setTo] = useState(preset.to);
@@ -75,7 +76,7 @@ export default function ApiCostTab() {
     { key: "description", header: "항목", value: (r) => r.description },
     { key: "model", header: "모델", value: (r) => r.model ?? "", render: (r) => r.model ?? "—" },
     { key: "type", header: "종류", value: (r) => r.cost_type ?? "", render: (r) => r.cost_type ?? "—" },
-    { key: "cents", header: "비용", hint: API_COST_HINT, value: (r) => r.cents / 100, align: "right", render: (r) => formatCents(r.cents), total: (rows) => formatCents(rows.reduce((a, r) => a + r.cents, 0)) },
+    { key: "cents", header: "비용", hint: API_COST_HINT, value: (r) => r.cents / 100, align: "right", render: (r) => fmt(r.cents), total: (rows) => fmt(rows.reduce((a, r) => a + r.cents, 0)) },
     { key: "share", header: "비중", value: (r) => (total ? (r.cents / total) * 100 : 0), align: "right", render: (r) => (total ? `${((r.cents / total) * 100).toFixed(1)}%` : "—") },
   ];
 
@@ -92,7 +93,7 @@ export default function ApiCostTab() {
         <span className="ml-auto text-xs text-muted-foreground">마지막 수집 {data?.lastSyncedAt ? fmtDateTime(data.lastSyncedAt) : "—"} · 매일 08:00 KST 최근 3일 재수집</span>
       </div>
       <p className="text-xs text-muted-foreground">{API_COST_HINT}</p>
-      <DailyBars data={daily} valueKey="usd" label="일별 API 비용(USD)" format={(v) => formatCents(v * 100)} />
+      <DailyBars data={daily} valueKey="usd" label="일별 API 비용(USD)" format={(v) => fmt(v * 100)} />
       <SortableTable rows={byDesc} columns={columns} rowKey={(r) => r.description} defaultSort={{ key: "cents", dir: "desc" }} totalLabel={`총계 (${byDesc.length}항목)`} emptyText={loading ? "불러오는 중..." : "이 기간에 수집된 API 비용이 없습니다. '지금 수집'을 누르세요."} />
     </div>
   );
