@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Trash2, Upload, Link2 } from "lucide-react";
 import SortableTable, { type Column } from "@/components/admin/claude-usage/SortableTable";
-import { formatCents } from "@/lib/claude-cost/money";
+import { useCurrency } from "./currency-context";
 import type { ClaudeOrg } from "@/types/claude-usage";
 import type { InvoiceRow } from "@/types/claude-cost";
 
@@ -21,6 +21,7 @@ const UNASSIGNED = "__unassigned__";
  * 등록된 인보이스 표에서 Bill to 자동 매칭이 안 된 장을 조직에 배정하거나 삭제한다.
  */
 export default function InvoiceImportTab({ orgs }: { orgs: ClaudeOrg[] }) {
+  const { fmt } = useCurrency();
   const [urls, setUrls] = useState("");
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<ImportResult[] | null>(null);
@@ -74,7 +75,7 @@ export default function InvoiceImportTab({ orgs }: { orgs: ClaudeOrg[] }) {
     reload();
   };
   const remove = async (inv: InvoiceRow) => {
-    if (!window.confirm(`${inv.invoice_number} (${inv.bill_to}, ${formatCents(inv.total_cents)}) 인보이스를 삭제할까요? 원본 PDF도 함께 지워집니다.`)) return;
+    if (!window.confirm(`${inv.invoice_number} (${inv.bill_to}, ${fmt(inv.total_cents)}) 인보이스를 삭제할까요? 원본 PDF도 함께 지워집니다.`)) return;
     setRowError(null);
     const r = await fetch(`/api/admin/claude-cost/invoices/${inv.id}`, { method: "DELETE" });
     if (!r.ok) { const j = await r.json().catch(() => ({})); setRowError((j as { error?: string }).error ?? `HTTP ${r.status}`); return; }
@@ -96,9 +97,9 @@ export default function InvoiceImportTab({ orgs }: { orgs: ClaudeOrg[] }) {
     { key: "period", header: "서비스 기간", value: (i) => i.period_start ?? "", render: (i) => (i.period_start && i.period_end ? `${i.period_start} ~ ${i.period_end}` : "—") },
     { key: "plan", header: "티어", value: (i) => i.plan ?? "", render: (i) => i.plan ?? "—" },
     { key: "seats", header: "좌석", value: (i) => i.seats, align: "right" },
-    { key: "subtotal", header: "세전", value: (i) => i.subtotal_cents / 100, align: "right", render: (i) => formatCents(i.subtotal_cents) },
-    { key: "tax", header: "VAT", value: (i) => i.tax_cents / 100, align: "right", render: (i) => formatCents(i.tax_cents) },
-    { key: "total", header: "총액", value: (i) => i.total_cents / 100, align: "right", className: "font-semibold", render: (i) => formatCents(i.total_cents), total: (rows) => formatCents(rows.reduce((a, r) => a + r.total_cents, 0)) },
+    { key: "subtotal", header: "세전", value: (i) => i.subtotal_cents / 100, align: "right", render: (i) => fmt(i.subtotal_cents) },
+    { key: "tax", header: "VAT", value: (i) => i.tax_cents / 100, align: "right", render: (i) => fmt(i.tax_cents) },
+    { key: "total", header: "총액", value: (i) => i.total_cents / 100, align: "right", className: "font-semibold", render: (i) => fmt(i.total_cents), total: (rows) => fmt(rows.reduce((a, r) => a + r.total_cents, 0)) },
     { key: "source", header: "원본", value: (i) => i.source, render: (i) => (
       <span className="inline-flex items-center gap-2 text-xs">
         <a className="underline" href={`/api/admin/claude-cost/invoices/${i.id}/pdf`} target="_blank" rel="noreferrer">PDF</a>
@@ -127,7 +128,7 @@ export default function InvoiceImportTab({ orgs }: { orgs: ClaudeOrg[] }) {
                 <li key={i} className="flex flex-wrap items-start gap-2">
                   {r.ok ? <Badge>등록</Badge> : r.duplicate ? <Badge variant="outline">이미 등록됨</Badge> : <Badge variant="destructive">실패</Badge>}
                   <span className="font-mono break-all text-muted-foreground">{r.input.length > 70 ? `${r.input.slice(0, 70)}…` : r.input}</span>
-                  {r.ok && r.invoice && <span>{r.invoice.invoice_number} · {r.invoice.bill_to} · {r.invoice.issued_on} · {formatCents(r.invoice.total_cents)}{r.invoice.org_id ? "" : " · 조직 미배정"}</span>}
+                  {r.ok && r.invoice && <span>{r.invoice.invoice_number} · {r.invoice.bill_to} · {r.invoice.issued_on} · {fmt(r.invoice.total_cents)}{r.invoice.org_id ? "" : " · 조직 미배정"}</span>}
                   {r.duplicate && <span>{r.duplicate.invoice_number} ({r.duplicate.issued_on})</span>}
                   {r.errors && <span className="text-destructive">{r.errors.join(" / ")}</span>}
                 </li>

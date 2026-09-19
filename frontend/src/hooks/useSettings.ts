@@ -23,6 +23,8 @@ export const SETTING_KEYS = [
   "teams_graph_client_id",
   "teams_tenant_id",
   "teams_group_id",
+  // 비용 관리 — 1달러당 원(표시 전환용, 비밀 아님)
+  "usd_krw_rate",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];

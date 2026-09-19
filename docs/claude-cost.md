@@ -6,6 +6,7 @@
 1. SQL `docs/sql/2026-09-18-claude-cost.sql` 실행 — 테이블 `claude_invoices`·`claude_invoice_lines`·`claude_api_cost_daily`, Storage 버킷 `claude-invoices`(비공개 2MB).
 2. (선택) Claude Console > Settings > Admin keys에서 Admin API 키(`sk-ant-admin01-…`) 발급 → Vercel env `CLAUDE_ADMIN_API_KEY`. 없으면 "API 비용" 탭이 보이지 않는다. Admin API는 Console 조직의 **API 사용분**만 준다 — claude.ai Team 좌석 구독료는 어떤 API에도 없다(인보이스로만).
 3. `vercel.json` cron `/api/cron/claude-cost`(23:00 UTC = 08:00 KST)은 배포와 함께 등록된다. `CRON_SECRET`은 기존 값을 쓴다.
+4. (선택) 어드민 > 시스템 설정 > **환율 (USD → KRW)** 에 1달러당 원(예: 1380)을 넣으면 비용 관리 화면에서 `₩ 원` 표시를 켤 수 있다(전역 settings 키 `usd_krw_rate`). 비어 있으면 원을 골라도 달러로 보이고 화면이 안내한다.
 
 ## 2. 매달 인보이스 등록 (조직 7개, 1분)
 1. 결제 메일(Anthropic, PBC / Stripe)의 "View invoice" 링크 7개를 복사한다 — `https://invoice.stripe.com/i/acct_…/live_…?s=ap`. 서버는 이 링크를 `https://pay.stripe.com/invoice/…/pdf`로 바꿔 PDF를 인증 없이 받는다.
@@ -20,7 +21,7 @@
 - 좌석 = 그 달에 기여한 인보이스(발행일 기준: 그 달 발행 / 기간 기준: 그 달을 덮는) 중 좌석이 적힌 마지막 장의 좌석. 프로레이션(Remaining/Unused) 인보이스는 + 라인의 수량, 갱신·연간 인보이스는 수량(Qty) 열.
 - **티어별**(Team plan - Premium / Standard): 좌석·좌석당 비용은 티어별로 따로 보인다(좌석 칸 아래 작은 글씨, 좌석당 칸은 티어별 값 + 평균, 카드 "좌석당 월 비용 (티어별)"). 금액은 인보이스 헤더 티어로, 좌석은 조직 대표 장의 티어로 묶는다. Standard(≈$25)와 Premium(≈$125)을 섞은 평균은 참고용. CSV에 `seats_by_tier`·`total_by_tier_usd`·`per_seat_by_tier_usd` 열.
 - 활성 사용자(OTel)는 Claude Code 사용자만. 채팅 포함 활성은 "활성 멤버(CSV)" 열(그 달에 끝나는 CSV 회차가 있을 때).
-- 금액은 USD. 원화 카드 청구액(은행 환율)은 범위 밖.
+- **표시 통화 토글**(화면 우상단 `$ 달러` / `₩ 원`, 브라우저에 기억): 저장·집계는 언제나 USD 센트이고, 원화는 시스템 설정의 환율(`usd_krw_rate`)을 곱해 표시할 때만 만든다(원 단위 반올림). 카드·표·조직별 상세·인보이스 표·API 비용·CSV(`_usd`/`_krw` 접미)까지 같이 바뀐다. 은행 환율로 청구된 실제 원화 카드 금액과는 다를 수 있다.
 
 ## 4. 파서가 아는 인보이스 모양 (2026-09 실물)
 - `Invoice number X` / `Date of issue Month D, YYYY` / 왼쪽 발행자 주소·오른쪽 `Bill to` 열 / `Description Qty Unit price Tax Amount` 표 / `Subtotal` · `VAT - South Korea (10% on $…)` · `Total` · `Amount due $… USD`.

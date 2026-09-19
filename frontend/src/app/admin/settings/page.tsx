@@ -4,10 +4,11 @@ import DooraySettings from "@/components/settings/DooraySettings";
 import KakaoSettings from "@/components/settings/KakaoSettings";
 import ProviderSettings from "@/components/settings/ProviderSettings";
 import TeamsSettings from "@/components/settings/TeamsSettings";
+import ExchangeRateSettings from "@/components/settings/ExchangeRateSettings";
 import { useSettings } from "@/hooks/useSettings";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Link2, MapPin, MessageSquare, Loader2, Save, Check, Route, Users } from "lucide-react";
+import { Link2, MapPin, MessageSquare, Loader2, Save, Check, Route, Users, Coins } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -108,6 +109,18 @@ export default function AdminSettingsPage() {
         </CardHeader>
         <CardContent>
           <TeamsSettings settingsHook={settingsHook} />
+        </CardContent>
+      </Card>
+
+      <Card className="animate-fade-up delay-300 mt-6">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Coins className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">환율 (USD → KRW)</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ExchangeRateSettings settingsHook={settingsHook} />
         </CardContent>
       </Card>
 
