@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Trash2, Upload, Link2 } from "lucide-react";
 import SortableTable, { type Column } from "@/components/admin/claude-usage/SortableTable";
-import { useCurrency } from "./currency-context";
+import { useCurrency } from "@/components/shared/currency-context";
 import type { ClaudeOrg } from "@/types/claude-usage";
 import type { InvoiceRow } from "@/types/claude-cost";
 

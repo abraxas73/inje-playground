@@ -9,7 +9,8 @@ import { Download, Loader2, MessagesSquare } from "lucide-react";
 import SortableTable, { sumBy, type Column } from "@/components/admin/claude-usage/SortableTable";
 import PeriodSelect from "@/components/admin/claude-usage/PeriodSelect";
 import UnitFilter, { matchUnit } from "@/components/admin/claude-usage/UnitFilter";
-import { usd, int, fmtDateTime } from "@/components/admin/claude-usage/format";
+import { int, fmtDateTime } from "@/components/admin/claude-usage/format";
+import { CurrencyProvider, CurrencyToggle, useMoney } from "@/components/shared/currency-context";
 import { hasSeat, isIdleSeat } from "@/lib/claude-usage/aggregate";
 import { aggregateChatTeams, type ChatTeamRow } from "@/lib/claude-usage/chat-team-summary";
 import { mergeMembersByEmail } from "@/lib/claude-usage/chat-member-merge";
@@ -53,6 +54,7 @@ function unitCell(r: { team: string | null; parent_unit: string | null; headquar
 }
 
 export default function MyChatUsagePage() {
+  const { usd } = useMoney();
   const [periodEnd, setPeriodEnd] = useState("latest");
   const [unit, setUnit] = useState("all");
   const [q, setQ] = useState("");
@@ -166,7 +168,9 @@ export default function MyChatUsagePage() {
   };
 
   return (
+    <CurrencyProvider>
     <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold">
           <MessagesSquare className="h-5 w-5" />내 Claude 사용량 (Chat/Cowork)
@@ -176,6 +180,8 @@ export default function MyChatUsagePage() {
           claude.ai 채팅 · Cowork 활동(30일 롤링, 매일 수집되는 멤버 활동 CSV 스냅샷). 조직장(팀장·센터장·본부장)은 소속 구성원까지 보입니다.
           Claude in Chrome(사이드 패널) 사용은 Cowork 세션·메시지에 포함되고 따로 구분되지 않습니다. Excel·Word·PowerPoint 추가 기능 사용은 여기 없고 &quot;Claude Code&quot; 화면의 Office 추가 기능 카드에서 봅니다(조직 설정에 수집기를 등록한 조직만).
         </p>
+      </div>
+      <CurrencyToggle />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -254,5 +260,6 @@ export default function MyChatUsagePage() {
         </p>
       )}
     </div>
+    </CurrencyProvider>
   );
 }

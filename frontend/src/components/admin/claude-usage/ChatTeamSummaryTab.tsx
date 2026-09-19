@@ -7,7 +7,8 @@ import OrgSelect from "@/components/admin/claude-usage/OrgSelect";
 import { Download, Loader2 } from "lucide-react";
 import SortableTable, { sumBy, type Column } from "./SortableTable";
 import PeriodSelect from "./PeriodSelect";
-import { usd, int } from "./format";
+import { int } from "./format";
+import { useMoney } from "@/components/shared/currency-context";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
 import { aggregateChatTeams, type ChatTeamRow } from "@/lib/claude-usage/chat-team-summary";
 
@@ -17,6 +18,7 @@ interface MembersResponse { imports: CsvImport[]; rows: Row[]; period: { start: 
 type TeamRow = ChatTeamRow;
 
 export default function ChatTeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
+  const { usd } = useMoney();
   const [org, setOrg] = useState("all");
   const [periodEnd, setPeriodEnd] = useState("latest");
   const [result, setResult] = useState<{ key: string; data?: MembersResponse; error?: string } | null>(null);

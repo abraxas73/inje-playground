@@ -14,7 +14,7 @@ import { ACTIVE_USERS_HINT, API_COST_HINT, BASIS_ISSUED_HINT, BASIS_PERIOD_HINT,
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import MonthlyBars from "./MonthlyBars";
 import MonthOrgDetail from "./MonthOrgDetail";
-import { useCurrency } from "./currency-context";
+import { useCurrency } from "@/components/shared/currency-context";
 import type { ClaudeOrg } from "@/types/claude-usage";
 import type { MonthBasis, MonthlyCost, MonthlyTier } from "@/types/claude-cost";
 

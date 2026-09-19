@@ -7,6 +7,7 @@ import MembersCsvTab from "@/components/admin/claude-usage/MembersCsvTab";
 import ChatTeamSummaryTab from "@/components/admin/claude-usage/ChatTeamSummaryTab";
 import OfficeUsageTab from "@/components/admin/claude-usage/OfficeUsageTab";
 import type { ClaudeOrg } from "@/types/claude-usage";
+import { CurrencyProvider, CurrencyToggle } from "@/components/shared/currency-context";
 
 export default function ClaudeChatUsagePage() {
   const [orgs, setOrgs] = useState<ClaudeOrg[]>([]);
@@ -27,12 +28,16 @@ export default function ClaudeChatUsagePage() {
   useEffect(() => { loadOrgs(); }, [loadOrgs]);
 
   return (
+    <CurrencyProvider>
     <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold"><MessagesSquare className="h-5 w-5" />Claude 사용량 (Chat/Cowork)</h1>
         <p className="text-sm text-muted-foreground">claude.ai 채팅 · Cowork 멤버 활동(분석 대시보드 월간 CSV, 30일 롤링)과 Excel·Word·PowerPoint·Outlook 추가 기능(Office Agents, OTel 수집). Claude Code 실시간 사용량은 &quot;Claude Code 사용량&quot; 메뉴에서 봅니다.</p>
         <p className="text-xs text-muted-foreground">Claude in Chrome(사이드 패널)은 Cowork 세션으로 실행되어 Cowork 세션·메시지에 합산되고 별도 구분은 없습니다. Excel·Word·PowerPoint 추가 기능(Office Agents)은 CSV가 아니라 조직 설정의 OTel 수집기로 받으며, 멤버 표의 &quot;Office 턴&quot; 컬럼과 &quot;Office Agents&quot; 탭에서 봅니다(7개 조직 등록, 2026-09-07).</p>
         {orgsError && <p className="text-sm text-destructive">{orgsError}</p>}
+      </div>
+      <CurrencyToggle />
       </div>
       <Tabs defaultValue="members">
         <TabsList>
@@ -45,5 +50,6 @@ export default function ClaudeChatUsagePage() {
         <TabsContent value="office"><OfficeUsageTab orgs={orgs} /></TabsContent>
       </Tabs>
     </div>
+    </CurrencyProvider>
   );
 }

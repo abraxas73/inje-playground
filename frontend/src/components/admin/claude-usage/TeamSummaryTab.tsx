@@ -7,7 +7,8 @@ import OrgSelect from "@/components/admin/claude-usage/OrgSelect";
 import { Download, Loader2 } from "lucide-react";
 import SortableTable, { sumBy, type Column } from "./SortableTable";
 import { acceptRate, dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
-import { usd, int } from "./format";
+import { int } from "./format";
+import { useMoney } from "@/components/shared/currency-context";
 import type { ClaudeOrg, UsageSummary } from "@/types/claude-usage";
 import { aggregateCodeTeams, type CodeTeamRow } from "@/lib/claude-usage/code-team-summary";
 
@@ -20,6 +21,7 @@ const PRESETS: { key: RangePreset; label: string }[] = [
 type TeamRow = CodeTeamRow;
 
 export default function TeamSummaryTab({ orgs }: { orgs: ClaudeOrg[] }) {
+  const { usd } = useMoney();
   const [preset, setPreset] = useState<RangePreset>("30d");
   const [range, setRange] = useState(() => dateRangePreset("30d"));
   const [org, setOrg] = useState("all");

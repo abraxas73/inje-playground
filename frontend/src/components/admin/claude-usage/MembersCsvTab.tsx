@@ -11,7 +11,8 @@ import { Loader2, Trash2 } from "lucide-react";
 import SortableTable, { sumBy, type Column } from "./SortableTable";
 import PeriodSelect from "./PeriodSelect";
 import { hasSeat, isIdleSeat } from "@/lib/claude-usage/aggregate";
-import { usd, int, fmtDateTime } from "./format";
+import { int, fmtDateTime } from "./format";
+import { useMoney } from "@/components/shared/currency-context";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
 
 type Row = MemberActivityRow & { org_id: string; import_id: string; employee_name?: string | null; team?: string | null; parent_unit?: string | null; headquarters?: string | null; division?: string | null; code_prompts?: number; code_prompts_auto?: number; office_turns?: number };
@@ -22,6 +23,7 @@ interface MembersResponse { imports: CsvImport[]; rows: Row[]; period: { start: 
  * scripts/claude-usage-upload.sh → POST /api/admin/claude-usage/imports 로 처리하므로 여기서는 수집 상태·이력만 보여준다.
  */
 export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
+  const { usd } = useMoney();
   const [org, setOrg] = useState("all");
   const [periodEnd, setPeriodEnd] = useState("latest");
   const [tick, setTick] = useState(0);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCurrency } from "./currency-context";
+import { useCurrency } from "@/components/shared/currency-context";
 import type { MonthlyCost } from "@/types/claude-cost";
 
 /**
