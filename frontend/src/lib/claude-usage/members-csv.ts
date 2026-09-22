@@ -81,17 +81,27 @@ function toNumber(v: string | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function parseMembersCsv(text: string): { rows: MemberActivityRow[]; missing: string[] } {
+/**
+ * unknownHeaders = MEMBERS_CSV_COLUMNS에 없는 칼럼의 원래 이름. Anthropic이 CSV에 칼럼을 추가하면
+ * (예: 디자인 관련 지표) 파서는 그대로 버리므로, 버린 사실을 호출자가 기록·경고할 수 있게 돌려준다.
+ */
+export function parseMembersCsv(text: string): { rows: MemberActivityRow[]; missing: string[]; unknownHeaders: string[] } {
   const table = parseCsv(text);
-  if (table.length === 0) return { rows: [], missing: [...REQUIRED_HEADERS] };
+  if (table.length === 0) return { rows: [], missing: [...REQUIRED_HEADERS], unknownHeaders: [] };
   const header = table[0].map(normalize);
   const index = new Map<keyof MemberActivityRow, number>();
+  const unknown = new Map<string, string>(); // 정규화 이름 → 원래 헤더(중복 제거)
   header.forEach((h, i) => {
     const field = MEMBERS_CSV_COLUMNS[h];
-    if (field && !index.has(field)) index.set(field, i);
+    if (field) {
+      if (!index.has(field)) index.set(field, i);
+      return;
+    }
+    if (h && !unknown.has(h)) unknown.set(h, table[0][i].replace(/^\ufeff/, "").trim());
   });
+  const unknownHeaders = [...unknown.values()];
   const missing = REQUIRED_HEADERS.filter((h) => !index.has(MEMBERS_CSV_COLUMNS[normalize(h)]));
-  if (missing.length > 0) return { rows: [], missing };
+  if (missing.length > 0) return { rows: [], missing, unknownHeaders };
 
   const cell = (r: string[], f: keyof MemberActivityRow): string | undefined => {
     const i = index.get(f);
@@ -115,7 +125,7 @@ export function parseMembersCsv(text: string): { rows: MemberActivityRow[]; miss
     for (const f of NUMERIC_FIELDS) row[f] = toNumber(cell(r, f));
     rows.push(row);
   }
-  return { rows, missing: [] };
+  return { rows, missing: [], unknownHeaders };
 }
 
 const FILENAME_RE = /members-analytics-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-(\d{4}-\d{2}-\d{2})-to-(\d{4}-\d{2}-\d{2})/i;

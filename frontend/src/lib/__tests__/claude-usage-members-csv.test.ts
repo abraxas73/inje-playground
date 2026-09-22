@@ -44,6 +44,24 @@ describe("parseMembersCsv", () => {
     expect(r.rows[0]).toMatchObject({ email: "dev3@example.com", chats: 2, seat_tier: "Standard", cowork_sessions: 1, code_sessions: 0, name: "" });
   });
 
+  it("매핑되지 않은 칼럼은 원래 이름으로 알려 준다(새 칼럼 감지용)", () => {
+    const text = `Email,Chats,Seat Tier,Cowork Sessions,Code sessions,Design Sessions,Design Artifacts,Chats\ndev3@example.com,2,Standard,1,0,7,3,2\n`;
+    const r = parseMembersCsv(text);
+    expect(r.unknownHeaders).toEqual(["Design Sessions", "Design Artifacts"]);
+    expect(r.rows[0]).toMatchObject({ email: "dev3@example.com", chats: 2 });
+  });
+
+  it("알려진 칼럼만 있으면 미매핑 목록이 비어 있고, 빈 헤더는 무시한다", () => {
+    const r = parseMembersCsv(`Email,Seat Tier,Chats,Code sessions,Cowork Sessions,\ndev@example.com,Premium,1,0,0,\n`);
+    expect(r.unknownHeaders).toEqual([]);
+  });
+
+  it("필수 칼럼이 없어도 미매핑 칼럼은 알려 준다", () => {
+    const r = parseMembersCsv(`Name,Email,Chats,Design Sessions\nA,dev@example.com,1,2\n`);
+    expect(r.missing).toEqual(["Seat Tier", "Code sessions", "Cowork Sessions"]);
+    expect(r.unknownHeaders).toEqual(["Design Sessions"]);
+  });
+
   it("필수 칼럼이 없으면 거부한다", () => {
     const r = parseMembersCsv(`Name,Email,Chats\nA,dev@example.com,1\n`);
     expect(r.rows).toEqual([]);

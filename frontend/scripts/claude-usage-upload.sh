@@ -29,7 +29,10 @@ except (json.JSONDecodeError, ValueError):
 if \"error\" in d: print(\"실패:\", d[\"error\"]); sys.exit(1)
 ok=0
 for r in d[\"results\"]:
-    if r[\"ok\"]: ok+=1; print(f\"✓ {r['filename']} → {r['org_id'][:8]} {r['period_start']}~{r['period_end']} {r['row_count']}명\")
+    if r[\"ok\"]:
+        ok+=1; print(f\"✓ {r['filename']} → {r['org_id'][:8]} {r['period_start']}~{r['period_end']} {r['row_count']}명\")
+        uh=r.get(\"unknown_headers\") or []
+        if uh: print(f\"  ⚠ 저장하지 않은 칼럼 {len(uh)}개: {', '.join(uh)} (파서에 매핑 추가 필요)\")
     else: print(f\"✗ {r['filename']}: {r['error']}\")
 print(f\"{ok}/{len(d['results'])} 성공\")
 sys.exit(0 if ok==len(d[\"results\"]) else 2)" || STATUS=$?

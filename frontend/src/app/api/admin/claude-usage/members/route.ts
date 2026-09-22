@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
   let importsQ = admin
     .from("claude_csv_imports")
-    .select("id, org_id, period_start, period_end, filename, row_count, created_at")
+    .select("id, org_id, period_start, period_end, filename, row_count, unknown_headers, created_at")
     .order("period_end", { ascending: false })
     .order("created_at", { ascending: false });
   if (org !== "all") importsQ = importsQ.eq("org_id", org);

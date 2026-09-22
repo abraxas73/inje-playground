@@ -81,6 +81,12 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
     const vals = [...latest.values()];
     return { at: vals.map((v) => v.created_at).sort().at(-1)!, orgs: latest.size, periodStart: vals.map((v) => v.period_start).sort()[0], periodEnd: vals.map((v) => v.period_end).sort().at(-1)! };
   }, [data]);
+  /** 업로드 때 버려진 칼럼 — Anthropic이 CSV에 지표를 추가하면 여기에 뜬다(파서에 매핑 추가 필요) */
+  const unknownHeaders = useMemo(() => {
+    const set = new Set<string>();
+    for (const i of data?.imports ?? []) for (const h of i.unknown_headers ?? []) set.add(h);
+    return [...set];
+  }, [data]);
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
     return (data?.rows ?? []).filter((r) => matchUnit(r, unit) && (!s || r.email.includes(s) || r.name.toLowerCase().includes(s) || (r.employee_name ?? "").toLowerCase().includes(s) || (r.team ?? "").toLowerCase().includes(s)) && (!idleOnly || isIdleSeat(r)));
@@ -131,6 +137,13 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
 
+      {unknownHeaders.length > 0 && (
+        <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+          CSV에 모르는 칼럼이 있어 저장하지 않았습니다: <span className="font-medium">{unknownHeaders.join(", ")}</span>
+          {" "}— Anthropic이 지표를 추가한 것일 수 있습니다. 필요하면 파서(<code>lib/claude-usage/members-csv.ts</code>)에 칼럼을 추가하세요.
+        </p>
+      )}
+
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm">멤버 활동 ({rows.length}명) — 노는 시트는 붉게 표시{data?.period && lastCollected && <span className="ml-2 font-normal text-muted-foreground">· 데이터 {data.period.start} ~ {data.period.end}, 수집 {fmtDateTime(lastCollected.at)}</span>}</CardTitle>
           <p className="text-xs text-muted-foreground">Cowork 세션·메시지에는 Claude in Chrome(사이드 패널) 세션이 포함됩니다(구분 없음). Excel·Word·PowerPoint 추가 기능은 CSV에 없어 OTel 수집기로 받은 턴 수를 &quot;Office 턴&quot; 컬럼에 붙였습니다(상세는 Office Agents 탭).</p>
@@ -151,7 +164,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
             <ul className="space-y-1 text-xs">
               {(data?.imports ?? []).map((i) => (
                 <li key={i.id} className="flex items-center justify-between gap-2 border-b py-1 last:border-0">
-                  <span>{orgName.get(i.org_id) ?? i.org_id.slice(0, 8)} · {i.period_start} ~ {i.period_end} · {i.row_count}명 · 수집 {fmtDateTime(i.created_at)} · <span className="text-muted-foreground">{i.filename}</span></span>
+                  <span>{orgName.get(i.org_id) ?? i.org_id.slice(0, 8)} · {i.period_start} ~ {i.period_end} · {i.row_count}명 · 수집 {fmtDateTime(i.created_at)} · <span className="text-muted-foreground">{i.filename}</span>{(i.unknown_headers?.length ?? 0) > 0 && <Badge variant="outline" className="ml-2 border-amber-400 text-amber-700 dark:text-amber-300" title={`저장하지 않은 칼럼: ${i.unknown_headers!.join(", ")}`}>미매핑 칼럼 {i.unknown_headers!.length}</Badge>}</span>
                   <Button size="sm" variant="ghost" onClick={() => remove(i.id)} aria-label="삭제"><Trash2 className="h-3.5 w-3.5" /></Button>
                 </li>
               ))}
