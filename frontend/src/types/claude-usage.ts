@@ -119,6 +119,8 @@ export interface CsvImport {
   period_end: string;
   filename: string | null;
   row_count: number;
+  /** CSV에 있었지만 파서가 매핑하지 못해 저장하지 않은 칼럼 이름 */
+  unknown_headers?: string[] | null;
   created_at: string;
 }
 

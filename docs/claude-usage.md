@@ -40,6 +40,7 @@
 2. 7개 파일을 `./frontend/scripts/claude-usage-upload.sh 1`(수집 토큰으로 `POST /api/admin/claude-usage/imports`)로 한 번에 업로드. 결과 줄이 전부 ✓인지 확인. 평소에는 `/claude-usage-csv` 스킬(launchd 매일 09:05)이 내보내기·업로드를 무인으로 처리하며, 웹 화면에는 업로드 UI가 없고(2026-09-03 제거) "마지막 CSV 수집"·수집 이력(삭제)만 있다. **팀별 집계** 탭에서 사내 조직도 기준 팀별 채팅·Cowork 활동을 볼 수 있다(여러 Claude 조직에 속한 계정은 인원 1명으로, 상위 조직은 팀 바로 위 단위 표기).
 3. "노는 시트만" 버튼으로 Premium 시트인데 활동 0인 사용자를 확인 → 시트 회수 검토.
 - 기간 60/90일 CSV도 업로드 가능(다른 기간 키로 별도 저장). 같은 조직·기간 재업로드는 교체.
+- **모르는 칼럼 감지(2026-09-22)**: 파서는 `MEMBERS_CSV_COLUMNS`에 없는 칼럼을 버린다. 버린 칼럼 이름을 `claude_csv_imports.unknown_headers`에 남기고, 업로드 스크립트는 `⚠ 저장하지 않은 칼럼 …` 줄을, 채팅·Cowork 탭은 노란 경고 줄과 수집 이력의 "미매핑 칼럼 N" 배지를 띄우며, 감사 로그에 `claude_csv_unknown_headers`(category `usage`)가 남는다. Anthropic이 지표를 추가하면(예: 디자인 관련) 이 경고로 알아채고 `MEMBERS_CSV_COLUMNS`·`MemberActivityRow`·테이블 칼럼을 늘린다.
 - **마지막 수집 시각**: 업로드마다 `claude_csv_imports.created_at`에 기록되며, 채팅·Cowork 탭 "업로드 이력" 상단("마지막 CSV 수집 … · N개 조직")과 조직·설정 탭 "수집 상태"(전체) 및 조직 표 "CSV 최신(수집 시각)"(조직별)에 표시된다. 표시는 조직별 최신 import 기준이라 재업로드로 중복 집계되지 않는다.
 
 ## 4. 장애 대응
@@ -51,6 +52,7 @@
 | 사용자 승인 창에서 거부 | Claude Code 종료됨 | 재실행 후 승인. 승인은 조직당 1회 기록됨 |
 | 특정 사용자 데이터 없음 | Bedrock/Vertex/`ANTHROPIC_BASE_URL` 사용자는 관리형 설정을 받지 않음 | 해당 사용자는 OTel 대상 아님(문서상 제약) |
 | CSV 업로드 "필수 칼럼 누락" | Anthropic이 헤더를 바꿈 | `frontend/src/lib/claude-usage/members-csv.ts`의 `MEMBERS_CSV_COLUMNS`에 새 헤더 추가 |
+| 채팅·Cowork 탭에 "CSV에 모르는 칼럼이 있어 저장하지 않았습니다" | Anthropic이 CSV에 칼럼을 추가함(감사 로그 `claude_csv_unknown_headers`) | 새 지표가 필요하면 `MEMBERS_CSV_COLUMNS`·`MemberActivityRow`·`claude_member_activity` 칼럼 추가 후 해당 기간 CSV 재업로드. 필요 없으면 그대로 두면 된다(데이터는 정상) |
 | 503 `store failed` (Retry-After) | 일시적 DB 오류 — OTel 익스포터가 자동 재시도함 | 반복되면 조직·설정 탭 "마지막 오류" 확인, DB 상태 점검 |
 | 승인 창을 통과한 세션인데 데이터가 안 옴 | 승인 직후 세션은 `OTEL_*` env가 아직 미적용(`CLAUDE_CODE_ENABLE_TELEMETRY`만 있음) | 정상 동작 — Claude Code를 한 번 더 재시작하면 그 세션부터 내보냄. 서버 관리형 설정 캐시 `~/.claude/remote-settings.json`, 승인 기록 `~/.claude/remote-settings-consent.json` |
 | 사용자 `계정 정보 없는 세션 (식별자 없음)` / `계정 정보 없는 세션 id:…` / 조직 `조직 미확인` 행 | `claude_code_requests`에서 해당 행의 `query_source`가 `sdk`, `account_uuid`·`org_id` 없음 | Agent SDK 등이 claude.ai 로그인 대신 **API 키(Console) 인증**으로 실행된 것 — Team 시트 사용량이 아니라 Console 과금분이며 개인 귀속 불가. `user.id`가 있으면 `id:…`로 사용자별 구분만 된다. 필요하면 해당 머신의 관리형 설정 캐시(`~/.claude/remote-settings.json`)와 `ANTHROPIC_API_KEY` 사용 여부 확인 |
@@ -81,6 +83,7 @@ delete from claude_orgs            where id = 'test-org';
 ## 7. 수집 범위 — Chrome 확장·Office 추가 기능 (2026-09-04~07 확인)
 
 - **Claude in Chrome(사이드 패널)**: Cowork 세션으로 실행되어 CSV의 Cowork 세션·메시지에 합산된다. Team 플랜 분석(Cowork 탭·CSV)에는 출처(웹/데스크톱/Chrome) 구분이 없고, 제품 `claude_in_chrome` 구분은 Enterprise Analytics API에만 있다. 분석 개요의 커넥터 카드 "claude-in-chrome N명"은 Cowork·채팅에서 Chrome 확장을 도구로 쓴 인원이며 사이드 패널 대화량이 아니다. 화면(어드민 Chat/Cowork 두 탭, 개인 `/usage/chat`)에 이 안내를 붙였다.
+- **Claude Design(데스크톱 앱·웹)**: claude.ai 조직 분석 화면에는 제품 필터로 존재하지만(2026-08-26 조사 시점에는 데이터 없음), 우리가 내려받는 `members-analytics` CSV에는 디자인 칼럼이 없어 **우리 DB로는 들어오지 않는다**. 토큰은 어느 경로로도 안 들어온다(CSV에 토큰 칼럼 자체가 없음). Claude Code 안에서 만든 디자인·아티팩트는 예외로, 그 턴의 토큰이 OTel `claude_code.token.usage`에 일반 작업과 섞여 집계되고 도구 호출 수는 도구 사용 탭의 `Artifact`·`DesignSync` 행으로 보인다. CSV에 디자인 칼럼이 생기면 위 "모르는 칼럼 감지"가 알려 준다.
 - **Excel·Word·PowerPoint(Outlook) 추가 기능**: Team 플랜의 분석 화면·CSV·Analytics API 어디에도 없다(제품 필터는 Claude.ai/Claude Code/Claude Design/Cowork 넷, 대화 기록은 사용자 기기 IndexedDB에만 저장, 시트 한도는 소모). 대신 **커스텀 OpenTelemetry 수집기**로 받는다(아래).
 
 ### Office 추가 기능 OTel 수집 (운영 중, 2026-09-04 Innogrid-ax 등록)

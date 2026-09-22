@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500, isYmd } from "@/lib/claude-usage/require-admin";
 import { parseMembersCsv, parseMembersFilename } from "@/lib/claude-usage/members-csv";
 import { verifyIngestToken } from "@/lib/claude-usage/ingest-auth";
+import { logAudit } from "@/lib/audit";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -12,7 +13,7 @@ export async function GET() {
   if (!c.ok) return c.response;
   const { data, error } = await c.admin
     .from("claude_csv_imports")
-    .select("id, org_id, period_start, period_end, filename, row_count, created_at")
+    .select("id, org_id, period_start, period_end, filename, row_count, unknown_headers, created_at")
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ imports: data ?? [] });
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
       ? { orgId: orgIdField, periodStart: ps as string, periodEnd: pe as string }
       : null;
 
-  const results: { filename: string; ok: boolean; org_id?: string; period_start?: string; period_end?: string; row_count?: number; error?: string }[] = [];
+  const results: { filename: string; ok: boolean; org_id?: string; period_start?: string; period_end?: string; row_count?: number; unknown_headers?: string[]; error?: string }[] = [];
 
   for (const file of files) {
     const filename = file.name;
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
       const meta = parseMembersFilename(filename) ?? override;
       if (!meta) throw new Error("파일명에서 조직/기간을 읽을 수 없습니다. members-analytics-<조직ID>-<시작>-to-<끝>.csv 형식이거나 조직·기간을 직접 지정하세요.");
       if (meta.periodStart > meta.periodEnd) throw new Error("기간 시작이 끝보다 늦습니다.");
-      const { rows, missing } = parseMembersCsv(await file.text());
+      const { rows, missing, unknownHeaders } = parseMembersCsv(await file.text());
       if (missing.length > 0) throw new Error(`필수 칼럼 누락: ${missing.join(", ")}`);
       if (rows.length === 0) throw new Error("데이터 행이 없습니다.");
 
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
 
       const ins = await admin
         .from("claude_csv_imports")
-        .insert({ org_id: meta.orgId, period_start: meta.periodStart, period_end: meta.periodEnd, filename, uploaded_by: uploadedBy, row_count: dedupedRows.length })
+        .insert({ org_id: meta.orgId, period_start: meta.periodStart, period_end: meta.periodEnd, filename, uploaded_by: uploadedBy, row_count: dedupedRows.length, unknown_headers: unknownHeaders })
         .select("id")
         .single();
       if (ins.error) throw new Error(ins.error.message);
@@ -82,7 +83,18 @@ export async function POST(request: NextRequest) {
           throw new Error(`${chunk.error.message}${cleanupSuffix}`);
         }
       }
-      results.push({ filename, ok: true, org_id: meta.orgId, period_start: meta.periodStart, period_end: meta.periodEnd, row_count: payload.length });
+      // 모르는 칼럼이 생겼다 = Anthropic이 CSV에 지표를 추가했다는 신호. 조용히 버리지 않고 남긴다.
+      if (unknownHeaders.length > 0) {
+        console.warn(`[claude-csv] 매핑되지 않은 칼럼 ${unknownHeaders.length}개 (${filename}): ${unknownHeaders.join(", ")}`);
+        await logAudit(admin, request, {
+          userId: uploadedBy,
+          action: "claude_csv_unknown_headers",
+          category: "usage",
+          detail: { filename, org_id: meta.orgId, period_end: meta.periodEnd, headers: unknownHeaders },
+          source: uploadedBy ? "app" : "api",
+        });
+      }
+      results.push({ filename, ok: true, org_id: meta.orgId, period_start: meta.periodStart, period_end: meta.periodEnd, row_count: payload.length, unknown_headers: unknownHeaders });
     } catch (e) {
       results.push({ filename, ok: false, error: e instanceof Error ? e.message : String(e) });
     }
