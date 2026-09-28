@@ -13,6 +13,10 @@ import SortableTable, { sumBy, type Column } from "@/components/admin/claude-usa
 import { int } from "@/components/admin/claude-usage/format";
 import { useMoney } from "@/components/shared/currency-context";
 import { dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
+import PerfHourlyTab from "@/components/usage/PerfHourlyTab";
+import { DIST_LABELS, pickStat, weightedP50 } from "@/lib/work-metrics/durations-view";
+import { totalsOf, delta, avgOf } from "@/lib/work-metrics/totals";
+import type { PerfResponse, UserPerf, Weekly, JiraProjectPerf as JiraProject, RepoPerf as Repo, SpacePerf as Space, Freshness, FreshnessSource, CompareBlock, Totals, TimeStatRow } from "@/types/work-metrics";
 
 /**
  * 성과 지표 대시보드 — 개인용(/usage/perf)과 어드민(/admin/perf) 공용.
@@ -24,8 +28,6 @@ const PRESETS: { key: RangePreset; label: string }[] = [
   { key: "thisMonth", label: "이번 달" }, { key: "lastMonth", label: "지난 달" },
 ];
 
-import { totalsOf, delta, avgOf } from "@/lib/work-metrics/totals";
-import type { PerfResponse, UserPerf, Weekly, JiraProjectPerf as JiraProject, RepoPerf as Repo, SpacePerf as Space, Freshness, FreshnessSource, CompareBlock, Totals } from "@/types/work-metrics";
 type Resp = PerfResponse;
 
 const h = (sum: number, count: number) => (count > 0 ? `${(sum / count).toFixed(1)}h` : "—");
@@ -103,6 +105,28 @@ function AdoptionCard({ c }: { c: CompareBlock["adoption"] }) {
             ))}
           </tbody>
         </table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DistBars({ row, title }: { row: TimeStatRow | undefined; title: string }) {
+  if (!row || !row.n) return null;
+  const vals = [row.b1, row.b2, row.b3, row.b4, row.b5];
+  const max = Math.max(1, ...vals);
+  return (
+    <Card>
+      <CardHeader className="pb-2"><CardTitle className="text-sm">{title} 분포 (n={int(row.n)} · p50 {row.p50.toFixed(1)}h · p90 {row.p90.toFixed(1)}h · 평균 {row.avg.toFixed(1)}h)</CardTitle></CardHeader>
+      <CardContent>
+        <div className="space-y-1">
+          {vals.map((v, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs">
+              <span className="w-10 text-right text-muted-foreground">{DIST_LABELS[i]}</span>
+              <div className="h-4 flex-1 rounded-sm bg-muted"><div className="h-4 rounded-sm bg-primary/60" style={{ width: `${Math.round((v / max) * 100)}%` }} /></div>
+              <span className="w-20 tabular-nums">{int(v)}건 ({Math.round((v / row.n) * 100)}%)</span>
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );
@@ -191,6 +215,10 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
   const teams = result?.data?.teams ?? null;
 
   const t: Totals = useMemo(() => totalsOf(data?.users ?? []), [data]);
+  const dur = useMemo(() => (data?.durationsReady ? data.durations : []), [data]);
+  const stat = (grp: string, kind: "issue" | "mr", metric: "lead" | "cycle" | "wait") => pickStat(dur, grp, kind, metric);
+  const p50 = (grp: string, kind: "issue" | "mr", metric: "lead" | "cycle" | "wait") => stat(grp, kind, metric)?.p50 ?? null;
+  const p50Sort = (v: number | null) => (v === null ? -1 : v);
   // Claude 경유 비중 = GitLab 커밋 중 Co-Authored-By: Claude 커밋. 같은 모집단이라 항상 0~100%
   const claudeShare = t.commits > 0 ? Math.round((t.glClaude / t.commits) * 100) : null;
   const isTeamView = (data?.users.length ?? 0) > 1;
@@ -220,9 +248,11 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
         commits: sum((u) => u.commits) / n,
         merged: sum((u) => u.mrs_merged) / n,
         pages: sum((u) => u.pages_created + u.pages_updated) / n,
+        cycleP50: weightedP50(us.map((u) => pickStat(dur, `user:${u.email}`, "issue", "cycle")).filter((r): r is TimeStatRow => !!r)),
+        mrP50: weightedP50(us.map((u) => pickStat(dur, `user:${u.email}`, "mr", "lead")).filter((r): r is TimeStatRow => !!r)),
       };
     });
-  }, [data, isTeamView]);
+  }, [data, isTeamView, dur]);
 
   const scatter = useMemo(() => {
     if (!data || !isTeamView) return null;
@@ -240,6 +270,8 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
     { key: "created", header: "생성", align: "right", value: (r) => r.issues_created, render: (r) => int(r.issues_created) , total: "sum" },
     { key: "sp", header: "SP", align: "right", value: (r) => r.story_points, render: (r) => int(Math.round(r.story_points)) , total: (rows) => int(Math.round(sumBy(rows, (r) => r.story_points))) },
     { key: "cycle", header: "사이클(평균)", align: "right", value: (r) => (r.cycle_count ? r.cycle_hours_sum / r.cycle_count : -1), render: (r) => h(r.cycle_hours_sum, r.cycle_count) , total: (rows) => h(sumBy(rows, (r) => r.cycle_hours_sum), sumBy(rows, (r) => r.cycle_count)) },
+    { key: "cyclep50", header: "사이클 p50", align: "right", value: (r) => p50Sort(p50(`user:${r.email}`, "issue", "cycle")), render: (r) => hOf(p50(`user:${r.email}`, "issue", "cycle")) },
+    { key: "leadp50", header: "리드 p50", align: "right", value: (r) => p50Sort(p50(`user:${r.email}`, "issue", "lead")), render: (r) => hOf(p50(`user:${r.email}`, "issue", "lead")) },
     { key: "lead", header: "리드(평균)", align: "right", value: (r) => (r.issues_resolved ? r.lead_hours_sum / r.issues_resolved : -1), render: (r) => h(r.lead_hours_sum, r.issues_resolved) , total: (rows) => h(sumBy(rows, (r) => r.lead_hours_sum), sumBy(rows, (r) => r.issues_resolved)) },
     { key: "cdays", header: "Claude 활동일", align: "right", value: (r) => r.claude_days, render: (r) => int(r.claude_days) , total: "sum" },
   ];
@@ -253,6 +285,7 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
     { key: "opened", header: "MR 오픈", align: "right", value: (r) => r.mrs_opened, render: (r) => int(r.mrs_opened) , total: "sum" },
     { key: "merged", header: "MR 머지", align: "right", value: (r) => r.mrs_merged, render: (r) => int(r.mrs_merged) , total: "sum" },
     { key: "mrlead", header: "MR 리드(평균)", align: "right", value: (r) => (r.mrs_merged ? r.mr_lead_hours_sum / r.mrs_merged : -1), render: (r) => h(r.mr_lead_hours_sum, r.mrs_merged) , total: (rows) => h(sumBy(rows, (r) => r.mr_lead_hours_sum), sumBy(rows, (r) => r.mrs_merged)) },
+    { key: "mrp50", header: "MR 리드 p50", align: "right", value: (r) => p50Sort(p50(`user:${r.email}`, "mr", "lead")), render: (r) => hOf(p50(`user:${r.email}`, "mr", "lead")) },
     { key: "loc", header: "LOC(Claude)", hint: LOC_HINT, align: "right", value: (r) => r.loc_added, render: (r) => `+${int(r.loc_added)}/-${int(r.loc_removed)}` , total: (rows) => `+${int(sumBy(rows, (r) => r.loc_added))}/-${int(sumBy(rows, (r) => r.loc_removed))}` },
   ];
   const docUserCols: Column<UserPerf>[] = [
@@ -268,6 +301,7 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
     { key: "created", header: "생성", align: "right", value: (r) => r.issues_created, render: (r) => int(r.issues_created) , total: "sum" },
     { key: "sp", header: "SP", align: "right", value: (r) => r.story_points, render: (r) => int(Math.round(r.story_points)) , total: (rows) => int(Math.round(sumBy(rows, (r) => r.story_points))) },
     { key: "cycle", header: "사이클(평균)", align: "right", value: (r) => (r.cycle_count ? r.cycle_hours_sum / r.cycle_count : -1), render: (r) => h(r.cycle_hours_sum, r.cycle_count) , total: (rows) => h(sumBy(rows, (r) => r.cycle_hours_sum), sumBy(rows, (r) => r.cycle_count)) },
+    { key: "cyclep50", header: "사이클 p50", align: "right", value: (r) => p50Sort(p50(`scope:${r.key}`, "issue", "cycle")), render: (r) => hOf(p50(`scope:${r.key}`, "issue", "cycle")) },
   ];
   const repoCols: Column<Repo>[] = [
     { key: "key", header: "저장소", value: (r) => r.key, render: (r) => <span className="font-medium">{r.key}</span> },
@@ -276,6 +310,7 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
     { key: "opened", header: "MR 오픈", align: "right", value: (r) => r.mrs_opened, render: (r) => int(r.mrs_opened) , total: "sum" },
     { key: "merged", header: "MR 머지", align: "right", value: (r) => r.mrs_merged, render: (r) => int(r.mrs_merged) , total: "sum" },
     { key: "lead", header: "MR 리드(평균)", align: "right", value: (r) => (r.mrs_merged ? r.mr_lead_hours_sum / r.mrs_merged : -1), render: (r) => h(r.mr_lead_hours_sum, r.mrs_merged) , total: (rows) => h(sumBy(rows, (r) => r.mr_lead_hours_sum), sumBy(rows, (r) => r.mrs_merged)) },
+    { key: "mrp50", header: "MR 리드 p50", align: "right", value: (r) => p50Sort(p50(`scope:${r.key}`, "mr", "lead")), render: (r) => hOf(p50(`scope:${r.key}`, "mr", "lead")) },
   ];
   const spaceCols: Column<Space>[] = [
     { key: "key", header: "스페이스", value: (r) => r.key, render: (r) => <span className="font-medium">{r.key}</span> },
@@ -322,6 +357,7 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
           <TabsTrigger value="jira">Jira 이슈</TabsTrigger>
           <TabsTrigger value="code">코드 (GitLab)</TabsTrigger>
           <TabsTrigger value="docs">문서 (Confluence)</TabsTrigger>
+          <TabsTrigger value="hourly">시간대</TabsTrigger>
           <TabsTrigger value="analysis">분석</TabsTrigger>
         </TabsList>
 
@@ -336,7 +372,10 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
             return (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <Stat label="이슈 해결" value={int(t.resolved)} sub={`생성 ${int(t.created)} · SP ${int(Math.round(t.sp))}`} delta={d(t.resolved, p?.resolved)} />
-                <Stat label="사이클 타임(평균)" value={hOf(cycleAvg)} sub={`리드 ${h(t.leadSum, t.resolved)} (생성→해결)`} delta={cycleAvg !== null && prevCycleAvg !== null ? delta(cycleAvg, prevCycleAvg, true) : null} />
+                <Stat label={data.durationsReady ? "사이클 타임(p50)" : "사이클 타임(평균)"}
+                  value={data.durationsReady ? hOf(p50("all", "issue", "cycle")) : hOf(cycleAvg)}
+                  sub={data.durationsReady ? `평균 ${hOf(cycleAvg)} · p90 ${hOf(stat("all", "issue", "cycle")?.p90 ?? null)} · 대기 p50 ${hOf(p50("all", "issue", "wait"))}` : `리드 ${h(t.leadSum, t.resolved)} (생성→해결)`}
+                  delta={cycleAvg !== null && prevCycleAvg !== null ? delta(cycleAvg, prevCycleAvg, true) : null} />
                 <Stat label="커밋 (GitLab)" value={int(t.commits)} sub={claudeShare === null ? "Claude 경유 —" : `Claude 경유 ${claudeShare}% · Claude Code 커밋 ${int(t.claudeCommits)}`} delta={d(t.commits, p?.commits)} />
                 <Stat label="MR" value={`${int(t.merged)} 머지`} sub={`오픈 ${int(t.opened)} · 리드 ${hOf(mrAvg)}`} delta={mrAvg !== null && prevMrAvg !== null ? delta(mrAvg, prevMrAvg, true) : d(t.merged, p?.merged)} />
                 <Stat label="문서" value={`${int(t.pc)}+${int(t.pu)}`} sub="생성+수정 (Confluence)" delta={d(t.pc + t.pu, p ? p.pc + p.pu : undefined)} />
@@ -358,9 +397,17 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
             { label: "해결", cls: "bg-primary/70", value: (w) => w.issues_resolved, scale: "issues" },
             { label: "생성", cls: "bg-muted-foreground/40", value: (w) => w.issues_created, scale: "issues" },
           ]} />
-          <WeekBars weeks={weeks} title="주별 사이클 타임(평균 h)" highlightFrom={data?.compare?.adoption.date} series={[
-            { label: "사이클 h", cls: "bg-amber-500/60", value: (w) => (w.cycle_count ? Math.round((w.cycle_hours_sum / w.cycle_count) * 10) / 10 : 0) },
+          <WeekBars weeks={weeks} title={data?.durationsReady ? "주별 사이클 타임(p50 h)" : "주별 사이클 타임(평균 h)"} highlightFrom={data?.compare?.adoption.date} series={[
+            { label: "사이클 h", cls: "bg-amber-500/60", value: (w) => (data?.durationsReady ? Math.round((p50(`week:${w.week}`, "issue", "cycle") ?? 0) * 10) / 10 : w.cycle_count ? Math.round((w.cycle_hours_sum / w.cycle_count) * 10) / 10 : 0) },
           ]} />
+          {data?.durationsReady && (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Stat label="대기 p50 (생성→진행)" value={hOf(p50("all", "issue", "wait"))} sub={`n=${int(stat("all", "issue", "wait")?.n ?? 0)}`} />
+              <Stat label="진행 p50 (진행→해결)" value={hOf(p50("all", "issue", "cycle"))} sub={`n=${int(stat("all", "issue", "cycle")?.n ?? 0)}`} />
+              <Stat label="리드 p50 (생성→해결)" value={hOf(p50("all", "issue", "lead"))} sub={`p90 ${hOf(stat("all", "issue", "lead")?.p90 ?? null)}`} />
+            </div>
+          )}
+          <DistBars row={stat("all", "issue", "cycle")} title="사이클 타임" />
           {(data?.jiraProjects.length ?? 0) > 0 && (
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">프로젝트별 ({data!.jiraProjects.length})</CardTitle></CardHeader>
@@ -381,6 +428,12 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
             { label: "Claude 경유", cls: "bg-emerald-500/60", value: (w) => w.gitlab_claude_commits, scale: "commits" },
             { label: "MR 머지", cls: "bg-muted-foreground/40", value: (w) => w.mrs_merged },
           ]} />
+          {data?.durationsReady && (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Stat label="MR 리드 p50 (오픈→머지)" value={hOf(p50("all", "mr", "lead"))} sub={`p90 ${hOf(stat("all", "mr", "lead")?.p90 ?? null)} · n=${int(stat("all", "mr", "lead")?.n ?? 0)}`} />
+            </div>
+          )}
+          <DistBars row={stat("all", "mr", "lead")} title="MR 리드타임" />
           <p className="text-xs text-muted-foreground">
             커밋(GitLab)은 사내 GitLab 전 브랜치의 커밋(author 날짜 기준, 리베이스 중복 제거)이고, Claude 경유는 그중 <code>Co-Authored-By: Claude</code> 트레일러가 있는 커밋입니다(트레일러를 끈 사용자는 잡히지 않아 하한값).
             같은 단위인 두 막대는 같은 축, MR 머지는 별도 축입니다. 구성원별 표의 &quot;Claude Code 커밋&quot;은 Claude Code가 실행한 git commit 수(OTel)로 GitHub·로컬 저장소까지 포함하므로 GitLab 커밋과 모집단이 다릅니다.
@@ -418,13 +471,18 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
           )}
         </TabsContent>
 
+        <TabsContent value="hourly">
+          {q && <p className="text-xs text-muted-foreground">시간대는 이름 검색을 적용하지 않습니다(팀·조직 합계).</p>}
+          {data && <PerfHourlyTab apiPath={apiPath} from={range.from} to={range.to} team={team} isSelf={data.scope.scope === "self"} />}
+        </TabsContent>
+
         <TabsContent value="analysis" className="space-y-4">
           {!isTeamView && <p className="text-sm text-muted-foreground">코호트·상관 분석은 조직장 화면(구성원 2명 이상)에서 제공됩니다. 본인 데이터는 요약·Jira·코드·문서 탭에서 확인하세요.</p>}
           {cohorts && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Claude 사용 강도별 코호트 (1인 평균)</CardTitle>
-                <p className="text-xs text-muted-foreground">같은 조직 안에서 Claude Code 활동일 기준으로 나눈 평균 비교입니다. 인원이 적은 코호트는 개인 편차의 영향이 큽니다.</p>
+                <p className="text-xs text-muted-foreground">같은 조직 안에서 Claude Code 활동일 기준으로 나눈 평균 비교입니다. 인원이 적은 코호트는 개인 편차의 영향이 큽니다. p50 열은 구성원별 p50의 건수 가중 근사입니다.</p>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -433,7 +491,7 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
                       <th className="px-2 py-1 text-left">코호트</th><th className="px-2 py-1 text-right">인원</th>
                       <th className="px-2 py-1 text-right">이슈 해결</th><th className="px-2 py-1 text-right">SP</th>
                       <th className="px-2 py-1 text-right">사이클(평균)</th><th className="px-2 py-1 text-right">커밋</th>
-                      <th className="px-2 py-1 text-right">MR 머지</th><th className="px-2 py-1 text-right">문서</th>
+                      <th className="px-2 py-1 text-right">MR 머지</th><th className="px-2 py-1 text-right">문서</th><th className="px-2 py-1 text-right">사이클 p50</th><th className="px-2 py-1 text-right">MR 리드 p50</th>
                     </tr></thead>
                     <tbody>
                       {cohorts.map((c) => (
@@ -446,6 +504,8 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
                           <td className="px-2 py-1.5 text-right tabular-nums">{c.n ? c.commits.toFixed(1) : "—"}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{c.n ? c.merged.toFixed(1) : "—"}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{c.n ? c.pages.toFixed(1) : "—"}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{hOf(c.cycleP50)}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{hOf(c.mrP50)}</td>
                         </tr>
                       ))}
                     </tbody>
