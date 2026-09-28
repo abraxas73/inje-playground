@@ -6,31 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **NHN Injeinc Workshop** — NHN 인재아이엔씨 구성원을 위한 팀 워크샵 유틸리티 앱 (Korean UI). Monorepo with Next.js frontend + FastAPI backend (nlm-service). Features ladder games (사다리 게임), team divider (팀 나누기), food finder (뭐 먹지), and guide Q&A (이럴때는 어떻게 하지?) with Dooray/Microsoft Teams integration (관리자 선택) and Google NotebookLM integration. Supabase DB for persistent data storage.
 
-## Repository Structure
-
-```
-inje-playground/
-├── frontend/              # Next.js 16 App Router (React 19)
-│   ├── src/               # App source code
-│   ├── public/            # Static assets
-│   ├── scripts/
-│   │   ├── restart-frontend.sh   # 프론트엔드 재시작 (포트 인자 지원)
-│   │   └── deploy-frontend.sh    # Vercel 배포 (preview/prod)
-│   ├── package.json       # Node dependencies
-│   └── ...                # Next.js config files
-├── nlm-service/           # FastAPI backend for NotebookLM Q&A
-│   ├── src/               # Python source (main.py, auth.py)
-│   ├── scripts/
-│   │   ├── restart-nlm-service.sh  # NLM 서비스 재시작 (venv 자동 관리)
-│   │   └── nlm-login.sh            # NotebookLM Playwright 브라우저 로그인
-│   ├── Dockerfile         # Docker build
-│   ├── fly.toml           # fly.io deployment config
-│   └── requirements.txt
-├── docs/plans/            # Design docs and implementation plans
-├── CLAUDE.md              # This file
-└── .mcp.json              # MCP server config (Supabase)
-```
-
 ## Commands
 
 ### Frontend
@@ -40,10 +15,6 @@ inje-playground/
 ./frontend/scripts/restart-frontend.sh 3000   # 포트 지정
 ./frontend/scripts/deploy-frontend.sh         # Vercel Preview 배포
 ./frontend/scripts/deploy-frontend.sh prod    # Vercel Production 배포
-
-cd frontend
-npm run build    # Production build
-npm run lint     # ESLint (flat config, ESLint 9)
 ```
 
 ### nlm-service
@@ -54,7 +25,7 @@ npm run lint     # ESLint (flat config, ESLint 9)
 ./nlm-service/scripts/nlm-login.sh                  # NotebookLM 브라우저 로그인 → storage_state.json 저장
 ```
 
-No test framework is configured.
+테스트: `cd frontend && npm test`(vitest, `src/lib/__tests__`), E2E `npm run test:e2e`(Playwright).
 
 ### 로컬 launchd 자동화 (운영자 Mac)
 
@@ -62,20 +33,9 @@ No test framework is configured.
 claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사용량 CSV 09:05 — 일정·마지막 종료 코드·로그 (런북 docs/launchd-jobs.md)
 ```
 
-## Tech Stack
-
-### Frontend
-- **Next.js 16** with App Router (React 19)
-- **Tailwind CSS 4** (PostCSS plugin, not legacy config)
-- **TypeScript** (strict mode, `@/*` path alias maps to `./src/*`)
-- **shadcn/ui** components
-
-### Backend (nlm-service)
-- **FastAPI** with uvicorn (Python 3.9+)
-- **notebooklm-py** for Google NotebookLM API
-- **fly.io** deployment with persistent volume for auth cookies
-
 ## Architecture
+
+기능별 상세(페이지·API·테이블·패턴)는 `.claude/rules/` 아래 규칙 파일에 있고, 해당 경로의 파일을 다룰 때 자동으로 로드된다: `rfp.md`(RFP 분석·솔루션 카탈로그·SharePoint·Microsoft 연결), `claude-usage-cost.md`(Claude 사용량·비용·성과 지표), `marketing.md`(마케팅 Master DB), `media-news.md`(관리 매체·부고 알림·인사·부고 메일). 그 기능을 작업할 때는 먼저 해당 파일을 읽는다.
 
 ### App Router Pages (`frontend/src/app/`)
 - `/admin/page-permissions` — 사용자별 페이지 접근 권한. `lib/page-access.ts` 공용 카탈로그로 사용자 메뉴 2단계 그룹·홈 카드·페이지/API 검사를 통합. 기존 역할 기본값 유지, admin 전체 허용, RLS와 버전 검사 RPC. 런북 `docs/page-access.md`.
@@ -88,21 +48,8 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/admin/chat-history` — Admin: all users' guide Q&A history viewer with filters
 - `/settings` — Dooray API token and project ID configuration (stored in localStorage) + Microsoft 계정 연결 카드(`MicrosoftAccountCard`: SharePoint 업로드용 위임 OAuth, refresh 토큰은 서버가 암호화 보관) + **SharePoint 업로드 기본 폴더**(`SharepointFolderCard` — 프로젝트에 폴더가 없을 때 쓰는 개인 폴더, user_settings `rfp_sharepoint_folder`) + **알림 채널 개인 워크플로우 URL**(`NotifyChannelCard` — 내 알림만 이 채널로, user_settings `teams_notify_webhook_url`, 테스트 전송 버튼)
 - `/manual` — User manual with Playwright-captured screenshots (8 sections)
-- `/admin/claude-usage` — Claude Code 사용량(admin, OTel 실시간): Claude Code·팀별 집계·도구 사용·시간대 패턴·프롬프트 탭. 우상단 `$`/`₩` 표시 통화 토글(공용 `components/shared/currency-context.tsx`, 시스템 설정 `usd_krw_rate` 환율 — 비용 관리·Chat/Cowork·개인용 `/usage/code|chat`과 같은 토글, 선택은 브라우저에 기억)
-- `/admin/claude-chat` — Claude 사용량 Chat/Cowork(admin, 월간 CSV): 채팅·Cowork 멤버 활동(같은 기간의 Claude Code 프롬프트·**Office 턴** 컬럼 포함) + 팀별 집계 + **Office Agents** 탭(Excel·Word·PowerPoint·Outlook 추가 기능, 조직 설정 Office Agents에 우리 OTLP 수집기를 등록한 Claude 조직 — 7개 모두 등록 2026-09-07), 데이터 기간 선택. CSV 업로드는 웹 UI 없이 `/claude-usage-csv` 스킬·`scripts/claude-usage-upload.sh`가 `POST /api/admin/claude-usage/imports`로 처리
-- `/admin/claude-cost` — 비용 관리(admin): 월별 **실제 청구 금액**(Anthropic Stripe 인보이스 — 결제 메일 링크 붙여넣기 → 서버가 `pay.stripe.com/…/pdf`로 PDF를 받아 파싱, PDF 업로드는 보조) + Admin API `cost_report`(Console API 사용분, `CLAUDE_ADMIN_API_KEY` 있을 때만 탭 표시) + 사용량(OTel 활성 사용자·세션·추정 비용, CSV 활성 멤버) 나란히. 월 기준 토글 `발행일 기준`(기본)/`서비스 기간 일할`(일수 비례 배분, 연간 인보이스 12개월 분산 — `?basis=issued|period`), 누락 배지는 서비스 기간 커버리지로 판정, 좌석·좌석당 비용은 티어(Premium/Standard)별 내역 표시, 표시 통화 `$`/`₩` 토글(전역 설정 `usd_krw_rate` 환율 — 시스템 설정 카드 "환율 (USD → KRW)", 저장은 USD 센트·원화는 표시 시 환산; 같은 토글이 Claude Code 사용량·Chat/Cowork·개인용 사용량 화면에도 있음), 청구 합계는 인보이스만(API 비용은 대조용). 조직별 상세(배분액·일수)·인보이스 등록/배정/삭제·PDF. 파서는 pdf.js 글리프 손실(하이픈·대시·마이너스→공백)에 의존하지 않게 설계. 런북 `docs/claude-cost.md`
-- `/admin/perf` — 성과 지표 전체 조회(admin): 개인용 `/usage/perf`와 같은 5탭 + 팀 필터 + 개인(이름/이메일) 검색. API `GET /api/admin/work-metrics/perf?from&to&team&q`, 집계는 `lib/work-metrics/perf-report.ts` 공용, UI는 `components/usage/PerfDashboard.tsx` 공용
 - `/admin/audit` — Audit 로그(admin): 로그인 이력 + 액션 이력 통합 조회(구분 로그인 성공/**로그인 실패**/**로그인 시도**/액션/API 호출, 카테고리, KST 기간, 검색 — 사용자·액션·IP·상세, 페이지 CSV). 뷰 `audit_log`는 service_role만 읽는다. 런북 `docs/audit-log.md`
 - `/admin/directory` — 조직/팀(admin): 사내 조직도(그룹웨어 아마란스, inno-creed MCP — Claude 사용량 표 "소속" 컬럼의 출처)·Claude 멤버·초대·조직·설정(관리형 설정 JSON) 탭
-- `/usage/code`, `/usage/chat`, `/usage/perf` — 개인용 Claude 사용량·성과(user): 본인 것만, 조직장은 자기 말단 조직 전체(units[] 포함 비교 — 팀장→팀, 센터장→센터 산하 전체, 본부장→본부). 조직장 = `company_directory.is_leader`(어드민 조직/팀 탭 체크박스, null이면 duty 자동 판정). `lib/usage-scope.ts`. 어드민과 같은 지표·표(모델별 비용, 토큰/프롬프트, 프롬프트 사람/자동, 팀별 집계, 조직/팀 검색 필터, 총계 행, 도구·시간대, CSV 데이터 기간 선택, 노는 시트, CSV 내려받기, `/usage/chat`의 Office 턴 컬럼·Office Agents 카드)를 허용 범위 안에서만 보여주고, **프롬프트 내용 탭은 개인용에 없다**. 팀별 집계는 `lib/claude-usage/code-team-summary.ts`·`chat-team-summary.ts` 공용
-- `/rfp/shared/[token]` — 공유된 RFP 분석 결과(**로그인 불필요**, 읽기 전용): 개요·판정 요약·요구사항 목록·세부 항목별 매핑. 공개 링크는 근거 URL·비고를 감추고, 사내 링크는 로그인 후 열린다
-- `/rfp/[id]/review` — **확정 작업**(리뷰 큐, user): 매핑 단위(요구사항 × 세부 항목)를 하나씩 넘기며 후보 중 하나를 충족/부분충족으로 확정하거나 설계·구축영역/해당없음으로 닫는다(키보드 j/k·1/2·b/n·←/→). 진행률 = 확정 단위/전체 단위. "이전 확정 제안" 카드가 다른 요구사항에서 사람이 확정한 매핑 중 문장이 비슷한 것을 보여주고 한 번에 적용한다. `components/rfp/ReviewQueue.tsx`, 단위·상태 정의는 `lib/rfp/mapping/review.ts`
-- `/rfp`, `/rfp/[id]` — RFP 분석(user): 목록 10건 페이징 + 하단 "동작 방식과 매핑 정보 소스" 안내(`components/rfp/HowItWorks.tsx`, 카탈로그 규모·후보 상한은 `/api/rfp/catalog`에서), 제안요청서(hwp·hwpx·docx·**pdf** — PDF는 표 구조가 없어 괘선으로 표를 복원, 스캔 이미지 PDF는 거절) 또는 엑셀 요건표(xlsx — 견적요청서·기술검토표처럼 한 행 = 한 요구사항) 업로드 → 프로젝트 등록(중복 판단) → 요구사항 표(TanStack Table 셀 편집·행 추가/삭제; 구분 탭에 총괄표 분류명 표시·검색 — `lib/rfp/category-summary.ts`; 매핑 후 요구사항 ID는 판정 색 버튼 → 클릭 시 행 펼침, ID 편집은 펼친 패널 헤더) → xlsx 다운로드(매핑은 요구사항 목록이 아니라 **구분별 상세 시트의 세부 항목 행**에 붙고 요구사항·항목 칸은 세로 병합 — 화면과 같은 단위, 목록 시트는 "당사 솔루션"·"세부 항목 매핑 3/5" 요약, 마지막 솔루션_매핑 시트는 병합 없는 한 줄 = 한 매핑, 그 뒤 **요구사항_대응표**(제안서 부속 초안 — 단위마다 확정 판정·대응 솔루션/기능/방안, 후보는 "검토 대기")·**Gap_리포트**(충족이 아닌 단위만, 설계·구축영역→해당없음→부분충족→검토 대기→미매핑 순 + 상태별 건수) 시트) → 솔루션 매핑(공용 실행 레이어 `MappingRunDialog` — 대상 솔루션 체크박스(기본 모두)·후보 상한 1~5(어드민 값 기본)·엔진 규칙(키워드, 기본)/Claude 선택, 스코프는 프로젝트 전체/요구사항/세부 항목, **세부 항목(세부 내용 1단 리스트, 2depth는 1단으로 묶음)마다** 판정 충족/부분충족/후보/설계·구축영역/해당없음, 행 펼침 편집은 세부 항목별 카드(왼쪽 강조선 = 그 항목의 최상 판정 색, 판정 선택도 같은 색) — 근거는 근거 문장(`evidence_text`)을 앞세우고 소스 문서 제목·기능명은 보조색 + 바로가기, 행마다 메모(`note`, 📝 버튼 → 엑셀 "비고" 열)) → 공유 링크(등록자·admin이 공개/사내 범위를 골라 생성·폐기, `components/rfp/ShareLinkSection.tsx`) → SharePoint 등록(3단계: 상세 "SharePoint 등록" 섹션에서 폴더 '링크 복사' 값 지정, **없으면 개인 설정의 기본 폴더**로 올라간다(섹션에 어디로 가는지 표시) → 같은 xlsx를 **각 사용자의 위임 권한**으로 업로드(같은 날 덮어쓰기 — SharePoint 수정자도 그 사용자) → 이력·Teams 채널 알림(개인 워크플로우 URL이 있으면 그 채널)). 런북 `docs/rfp-analyzer.md`, 아키텍처 `docs/rfp-analyzer-architecture.md`
-- `/admin/rfp-catalog` — RFP 솔루션 카탈로그(admin): 솔루션(SECloudit·Devopsit·AICubeit·TabCloudit·Openstackit) · 소스 등록(Confluence 페이지 URL 또는 SharePoint xlsx 링크, "Confluence에서 찾기" 제목·본문 검색 + "미등록 모두 등록"(`POST …/sources/bulk`)·등록 후 전체 가져오기, 소스 표 "원본 대비" 열이 Confluence 페이지 버전·xlsx 수정 시각을 비교해 최신/갱신 필요 자동 표시 — `GET …/sources/freshness`, `lib/rfp/catalog/freshness.ts`) · 가져오기(규칙 파서 기본, `ANTHROPIC_API_KEY` 있으면 "Claude로 보강"; ✎ 편집 항목 보존) · 기능 표 인라인 편집(키워드 열·↻ 재생성) · "솔루션 매핑 설정" 카드(요구사항당 최대 후보 1~5, 기본 5 — 전역 settings 키 `rfp_mapping_max_candidates`, `lib/rfp/mapping/settings.ts`)
-- `/marketing` — 마케팅 Master DB(user + 페이지 접근 `marketing`; **기본 차단** — 고정 관리자 강승억·김하연, 마케팅 화면에서 지정한 검수자(`marketing_reviewers`), 또는 `/admin/page-permissions`에서 개별 허용한 사용자(`permissions.marketing=true`, 조회·제출만 — 승인은 검수자 지정 필요, 관리자도 마케팅 키만 개별 설정 가능) — SQL `2026-09-16-marketing-page-permission.sql`): Master 표(엑셀 `01_Master_DB` 2줄 헤더 18컬럼·헤더 클릭 정렬·필터 결과 Excel 다운로드, DB ID 클릭 → 상세·원본·변경 이력·이메일 검증 이력) · Contact 단건/Excel 제출(회사·기관은 **등록된 것만 검색·선택** — `ContactOrganizationPicker`, 신규 회사는 회사·기관 탭에서 선등록) · 검수 큐(승인 차단 오류/담당자 확인 항목 구분, 남은 승인 조건 안내, 반려 사유) · 회사·기관 기준(표준명·분류·승인 별칭·홈페이지/이메일 도메인 기준) · 검수자 관리(고정 관리자만 추가/해제 — `ReviewerManagement`) · 이메일 정합성 검사 실행. AI 추천은 `MARKETING_AI_ENABLED`+`ANTHROPIC_API_KEY`가 있을 때만 활성. 런북 `docs/marketing-master-db.md`(최신 기능 문서 링크 포함)
-- `/marketing/rules`, `/marketing/validations`, `/marketing/validations/[id]` — DB 관리 규칙(버전·초안·이력) 편집, 선택 규칙으로 전체/일부 Master 검증 실행·결과·후속 조치. 런북 `docs/marketing-rule-management-v2.md`
-- `/marketing/email-checks`, `/marketing/email-checks/[id]` — 이메일 정합성 검사(형식·회사 도메인 연관성·MX·홈페이지 응답, **개별 메일함 존재는 항상 미확인**) 실행 이력·판정·근거·Excel 내보내기. 작업자는 `after()` + 5분 Cron `/api/cron/marketing-email`이 대기·만료 임대 회수. 런북 `docs/marketing-email-integrity.md`
-- `/media-directory` — 관리 매체·부서(조회는 `people_news` 접근자, 편집·엑셀 업로드·발송 이력은 admin): 부고 알림 매칭 기준 목록. 매체(별칭·**부서 무관**·활성)·부서. `/people-news`에는 "관리 매체·부서 부고 알림 받기" 카드(`MediaAlertCard`, 로그인 이메일로 수신, Microsoft 연결 불필요)와 부고 항목의 "매체 / 부서 일치" 배지. 런북 `docs/media-directory.md`
 
 ### API Routes (`frontend/src/app/api/`)
 - `GET /api/dooray/members?projectId=X` — Proxies Dooray API to fetch project members
@@ -118,43 +65,17 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `GET /api/teams/members` — Microsoft Graph(app-only) 또는 멤버 목록 웹훅으로 `settings.teams_group_id` 그룹 멤버 조회 (`{id, name, email}`)
 - `GET /api/members/users` — 앱 사용자 명단(user_profiles, guest 제외) → `{id, name, email}` (멤버 소스 provider `users`)
 - `/api/users/members` — 내 팀(user_members: name, email, external_id, dooray_member_id, is_card_holder) GET/POST(교체)/PATCH(법카)/DELETE
-- `POST /api/otel/v1/metrics`, `POST /api/otel/v1/logs` — Claude Code OTLP/HTTP JSON 수신(Bearer `CLAUDE_OTEL_INGEST_TOKEN`), RPC `claude_code_ingest`로 일 단위 합산
-- `POST /api/otel/v1/traces` — Claude for M365 추가 기능(pivot.claude.ai) 커스텀 OTel 수집기(CORS preflight 처리, Bearer `CLAUDE_OFFICE_OTEL_TOKEN` — 모든 멤버 브라우저에 배포되는 저권한 토큰). 파서 `lib/claude-usage/otlp-traces.ts`가 집계 속성만 읽어 `claude_office_trace_log`에 스팬을 남기고 프롬프트·도구 입출력·문서 URL은 버린다. 집계는 RPC `claude_office_usage`(턴=agent.query, 자식 스팬은 trace_id로 귀속) → `GET /api/admin/claude-usage/office`, `GET /api/usage/office`(개인, 스코프 이메일만)
-- `/api/admin/claude-usage/{summary,members,imports,imports/[id],orgs,health,org-members,tools,hourly,prompts,office}` — Claude 사용량 대시보드(admin). 런북 `docs/claude-usage.md`
-- `/api/admin/claude-cost/{invoices, invoices/[id], invoices/[id]/pdf, monthly, api-cost, api-cost/sync}`, `GET /api/cron/claude-cost`(매일 08:00 KST 최근 3일 재수집) — 비용 관리(admin). 파서·집계 `lib/claude-cost/`(money·stripe-invoice·invoice-ingest·anthropic-cost-report·monthly, 순수 함수는 vitest)
 - `GET·PUT·DELETE /api/users/sharepoint-folder` — 개인 SharePoint 업로드 기본 폴더(링크를 본인 Graph 권한으로 해석해 저장, `lib/rfp/user-folder.ts`·`lib/ms/folder-route.ts` 공용)
 - `GET·PUT·DELETE·POST /api/users/notify-channel` — 개인 채널 알림 웹훅(POST는 테스트 1건 발송). https 공개 주소만(`lib/notify/url-guard.ts`), 감사 로그에는 호스트만 남긴다
 - `GET /api/users/[id]`, `DELETE /api/users/[id]` — 관리자용 사용자 상세(프로필·설정·로그인 이력·조직도 소속·활동 요약)/삭제(개인 데이터 → 프로필 → auth.users; 자기 자신·관리자 역할 거부). `/admin/users` 행 클릭 → `components/admin/users/UserDetailSheet`
 - `GET /api/admin/audit?kind&category&q&from&to&page&pageSize` — Audit 로그 조회(admin, 뷰 `audit_log`). 기록은 `lib/audit.ts`(`logAudit`·`logLogin`·`logAuthEvent`)·`lib/audit-proxy.ts`(proxy가 변경 요청 자동 기록), 조건 해석은 `lib/audit-query.ts`. 런북 `docs/audit-log.md`
 - `POST /api/auth/events` — 로그인 전(익명) 감사 기록: 로그인 시도·실패·차단만(event·provider 화이트리스트, IP당 5분 30건 상한). 성공 로그인은 `/auth/callback`이 `login_history`에 남긴다
 - `GET /api/admin/directory`, `POST /api/admin/directory/sync` — 사내 조직도 명부 조회/동기화(동기화는 관리자 세션 또는 수집 토큰; 로컬 `frontend/scripts/company-directory-sync.py`가 inno-creed MCP `find_person` 전사 명부를 밀어 넣음). 런북 `docs/company-directory.md`
-- `GET /api/usage/{scope,code,chat,perf,tools,hourly,office}` — 개인용 사용량·성과(로그인 사용자, guest 제외). 서버가 usage-scope로 허용 이메일 계산(본인/조직장은 말단 조직 전체) — `chat?periodEnd=`·`perf?team&q`는 그 범위 안에서만 좁히는 필터. code는 totals·users·daily·models(어드민 summary와 같은 구성), chat은 행마다 같은 기간의 Claude Code 프롬프트(사람/자동)·조직도 소속(parent_unit)을 붙인다. 대량 조회는 `selectAll`. hourly는 RPC `claude_code_hourly_emails`(SQL `2026-08-31-usage-scope.sql` → `2026-09-03-usage-hourly-users.sql`에서 users 컬럼 추가, isodow 1=월)
-- `GET /api/cron/work-metrics?source=all|jira|confluence|gitlab&from&to` — 성과 지표 일 수집(Vercel Cron 07:30 KST, `CRON_SECRET` 또는 관리자 세션). env `ATLASSIAN_*`/`GITLAB_*` 미설정 소스는 스킵. 설계 `docs/superpowers/specs/2026-08-31-claude-roi-integrations-design.md`
-- `/api/rfp/{uploads,projects,projects/[id],projects/[id]/{reextract,xlsx,file,requirements},requirements/[requirementId]}` — RFP 분석(user 이상, `lib/rfp/require-user.ts`). 파일은 Storage 버킷 `rfp`에 브라우저 직접 업로드, 추출은 `after()`(maxDuration 300)
-- `/api/admin/rfp-catalog/{solutions,solutions/[code],solutions/[code]/{sources,import,features},sources/[sourceId],features/[featureId],confluence-search}` — 카탈로그 관리(admin). 가져오기는 `after()`+`runImport`(engine rules|llm, xlsx 소스는 세션 사용자 Graph 토큰)
-- `GET /api/rfp/catalog`(`llmAvailable` 포함), `/api/rfp/projects/[id]/mapping`(GET·POST {mode all|missing, engine rules|llm, confirm, solutions[], maxCandidates, requirementIds[], detailKey}), `POST /api/rfp/projects/[id]/mapping/rows`, `/api/rfp/mappings/[mappingId]`(PATCH {verdict, solutionCode, featureId, rationale, evidenceUrl, note}·DELETE — 무엇을 고쳐도 edited=true라 재매핑에 지워지지 않는다) — 솔루션 매핑(user 이상). 실행은 `after()`+`runMapping`(엔진 팩토리 주입, 20건 청크·동시 3·청크별 저장, 행에 engine·score)
-- `GET /api/ms/connect?returnTo=`(Azure authorize 302), `GET /api/ms/callback`(state 검증·코드 교환·`ms_connections` 저장 → `returnTo?ms_connected=1|ms_error=`), `GET·DELETE /api/ms/connection` — Microsoft 계정 연결(user 이상, `lib/ms/`). 오리진은 `MS_ALLOWED_ORIGINS` 허용 목록만
-- `POST /api/rfp/projects/[id]/mapping/decide`({action confirm|close|reuse, requirementId, detailKey, mappingId?|verdict?|sourceMappingId?} → 그 요구사항의 행 전체) — 확정 작업 한 단위의 결정을 한 번에 적용(후보 삭제 + 확정/닫기/복사, 판정 조합 규칙은 `validateManualMapping` 공용). `GET /api/rfp/projects/[id]/reuse?requirementId&detailKey` — 다른 요구사항에서 사람이 확정한 매핑 중 문장이 비슷한 것(문자 bigram cosine ≥ 0.45, 최대 3) — `lib/rfp/mapping/reuse.ts`
-- `GET·POST /api/rfp/projects/[id]/shares`(공유 링크 목록·생성 — 등록자·admin, visibility public|private), `DELETE /api/rfp/shares/[shareId]`(폐기), `GET /api/rfp/shared/[token]`(**인증 없음** — private은 세션 필요, 응답에서 파일·SharePoint·소유자 제거, 공개는 근거 URL·비고까지 제거) — `lib/rfp/share.ts`
-- `/api/marketing/{(GET 목록·상세),submissions,review,reviewers,organizations,excel,export,rules,rules/[id]/versions,validation-runs/[id]/{export,followups},email-checks/[id]/export,email-checks/contacts/[id],email-checks/profiles}` — 마케팅 Master DB(페이지 접근 `marketing`). 사용자 세션 RPC 기반이라 서비스 역할 키는 이메일 검사 작업자·Cron만 사용. 로직 `lib/marketing/`(types·validation·rules·rule-management·search·excel·server·reviewers·ai, `email/` normalize·network·evaluate·worker), 화면 `components/marketing/`
-- `GET /api/media-directory?q=`, `POST …/outlets`, `POST·DELETE(?id=) …/departments`, `POST …/import/preview`(xlsx 2MB), `POST …/import`({rows}), `GET …/deliveries`(admin) — 매체·부서 관리(`lib/media-directory/`: normalize=SQL `media_norm` 미러·excel·preview·server). `GET·PUT /api/people-news/media-alerts` — 부고 알림 구독. `GET /api/people-news`는 `matches`(부고 source_id → 일치 라벨) 포함
-- `GET /api/rfp/projects/[id]/sharepoint`, `PUT·DELETE …/sharepoint/folder`({url} → Graph shares 해석 → `rfp_projects.sharepoint_folder`), `POST …/sharepoint/upload`(→ `{upload, notified, notifyError?}`, 오류 `code: no_folder|not_connected|reconnect`) — SharePoint 등록(user 이상). 업로드는 `uploadProjectXlsx`(xlsx 라우트와 같은 `buildProjectWorkbook`)
 
 ### Supabase Tables (guide feature)
 - `nlm_notebooks` — Notebook metadata with `is_visible`, `sort_order`
 - `nlm_chat_messages` — Per-user chat history with `citations` JSONB
 - `nlm_sources` — Source metadata cache per notebook (includes `storage_path`, `original_filename`)
-
-### Supabase Tables (Claude usage feature)
-- `claude_orgs, claude_code_daily(prompts·prompts_auto=자동화 프롬프트, 사람 = prompts−prompts_auto), claude_code_daily_model, claude_code_requests, claude_ingest_log, claude_csv_imports(unknown_headers = 파서가 매핑하지 못해 버린 CSV 칼럼 — 새 지표 감지용, 경고·감사 로그 `claude_csv_unknown_headers`, SQL `2026-09-22-claude-csv-unknown-headers.sql`), claude_member_activity, claude_org_members(멤버·초대 상태 active|pending), claude_code_tool_daily(도구별 일 집계), claude_code_prompts(프롬프트 내용, OTEL_LOG_USER_PROMPTS=1), claude_office_trace_log(Office 추가 기능 스팬 집계 속성 — SQL `2026-09-04-claude-office-traces.sql`, RPC `claude_office_usage` `2026-09-07-claude-office-daily.sql`), claude_orgs.category(team|personal|system — OTel 자동 등록 조직은 personal, 드롭다운 "기타(개인 계정)"·`org=personal`), claude_code_env_daily(실행 환경 os.type·host.arch·service.version·terminal.type 포인트 집계, RPC `claude_code_env_ingest` — SQL `2026-09-16-claude-usage-env-org-category.sql`)` — Claude Code 사용량 대시보드 데이터(OTLP 수신 + 월간 CSV 업로드). claude_code_identity_map(계정 미식별 세션 귀속 — `user.id` → 이메일, RPC `claude_code_accountless_candidates`, SQL `2026-09-16-claude-usage-identity-map.sql`). 계정 속성 없는 텔레메트리는 org `unknown`·user `id:…` = 화면 "계정 정보 없는 세션"(query_source 100% `sdk` — Agent SDK·headless·CI, 조직·설정 탭에서 사람에게 매핑, `org=team`으로 제외). 런북 `docs/claude-usage.md`
-
-### Supabase Tables (Claude 비용 관리)
-- `claude_invoices`(invoice_number 유니크·org_id null 허용=미배정·issued_on·subtotal/tax/total_cents 정수·seats·plan·source link|pdf·source_url·storage_path·raw_text), `claude_invoice_lines`(라인·프로레이션 음수·기간·seats/plan), `claude_api_cost_daily`(pk day·workspace_id·description, amount_cents numeric 소수 센트) — RLS 정책 없음 = service role 전용. Storage 버킷 `claude-invoices`(비공개). SQL `docs/sql/2026-09-18-claude-cost.sql`
-
-### Supabase Tables (work metrics — 성과 측정)
-- `jira_issue_daily, atlassian_account_map, confluence_daily, gitlab_daily(commits·claude_commits=Co-Authored-By: Claude 커밋·MR), gitlab_email_map(커미터 이메일 수동 매핑), work_metrics_sync` — Jira/Confluence/GitLab 일 집계(성과 분모·사이클타임). SQL `docs/sql/2026-08-31-work-metrics.sql`, `docs/sql/2026-09-03-gitlab-claude-commits.sql`, 수집 `lib/work-metrics/`. GitLab은 사내망 로컬 스크립트 `frontend/scripts/gitlab-metrics-sync.py`(launchd)가 `/api/admin/work-metrics/sync`로 푸시. Supabase 조회는 1000행 상한이 있어 대량 조회는 `selectAll`(`lib/work-metrics/common.ts`)로 페이지네이션
-
-- `rfp_share_links`(project_id·token 유니크·visibility public|private·view_count·last_viewed_at, RLS 정책 없음 = service role만), RPC `rfp_share_link_viewed` — 공유 링크. SQL `docs/sql/2026-09-09-rfp-share-links.sql`
 
 ### Supabase Tables (audit)
 - `login_history`(user_id, logged_in_at, ip_address, user_agent), `action_history`(user_id·user_email·action·category·detail jsonb + `ip_address`/`user_agent`/`source` app|api), 조회 뷰 `audit_log`(둘의 union, service_role 전용, kind는 `source`와 `detail.result`로 login|login_failed|login_attempt|action|api 구분) — SQL `docs/sql/2026-09-07-audit-log.sql`. 익명 설문 응답과 OTel 수집은 기록하지 않는다
@@ -162,37 +83,13 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 ### Supabase Tables (company directory)
 - `company_directory`(email PK, units[], division/headquarters/team, duty, position, active, synced_at), `company_directory_sync` — 사내 조직도 명부(아마란스). SQL `docs/sql/2026-08-29-company-directory.sql`
 
-### Supabase Tables (RFP 분석)
-- `rfp_projects`(사업 개요·상태·정규화 키, `category_summary` jsonb = 요구사항 총괄표 행 — SQL `2026-09-07-rfp-category-summary.sql`; `extraction_method`·`rfp_files.format`에 xlsx 허용 — SQL `2026-09-07-rfp-xlsx-source.sql`; `rfp_files.format`에 pdf 허용 — SQL `2026-09-09-rfp-pdf-source.sql`), `rfp_files`(원본, sha256 유니크), `rfp_requirements`(구분 코드·ID·7필드·solution) — SQL `docs/sql/2026-09-03-rfp-analyzer.sql`
-- `rfp_solutions`, `rfp_solution_sources`(Confluence 페이지·import_status), `rfp_solution_features`(name_norm 유니크·edited), `rfp_requirement_mappings`(요구사항·세부 항목별 0~N행·verdict·edited·`detail_key`/`detail_text`/`evidence_text` — SQL `2026-09-07-rfp-mapping-detail.sql`, 사람이 적는 메모 `note`(엑셀 "비고") — SQL `2026-09-07-rfp-mapping-note.sql`), `rfp_projects.mapping_status|mapping_error|mapping_warnings|mapping_at` — SQL `docs/sql/2026-09-04-rfp-solution-mapping.sql`
-- `rfp_solution_features.keywords`(text[]), `rfp_solution_sources.kind|drive_id`(confluence|xlsx), `rfp_requirement_mappings.verdict`에 candidate·`engine`(rules|llm|manual)·`score` — SQL `docs/sql/2026-09-06-rfp-rules-mapping.sql`
-- `ms_connections`(사용자당 1행, `refresh_token_enc` AES-256-GCM `v1.iv.tag.cipher`, RLS 정책 없음 = service role만), `rfp_projects.sharepoint_folder`(jsonb {url, driveId, itemId, name, webUrl, setBy, setAt}), `rfp_sharepoint_uploads`(업로드 이력) — SQL `docs/sql/2026-09-05-rfp-sharepoint.sql`
-
-### Supabase Tables (마케팅 Master DB)
-- `marketing_contacts`(Master, 원본 18필드·버전), `marketing_source_rows`(최초 이관 원본 행), `marketing_import_batches`, `marketing_organizations`(회사·기관 표준명·분류·승인 별칭·버전), `marketing_submissions`(부문별 신규/변경 제출 + `submitted_organization_id`), `marketing_review_events`(승인·반려·회사 등록·검수자 지정·이메일 검증 감사 이력), `marketing_reviewers`(지정 검수자 = 마케팅 접근 근거) — SQL `docs/sql/2026-09-14-marketing-master.sql` → `-pilot-access` → `-completion` → `-reviewer-kim` → `-sort` → `-export` → `2026-09-15-marketing-reviewer-directory` → `-reviewer-delegation` → `-registered-organizations`. 클라이언트 직접 쓰기 없음, 모두 security definer RPC
-- `marketing_rules`, `marketing_rule_versions`, `marketing_rule_drafts`, `marketing_rule_history`, `marketing_validations`, `marketing_validation_{runs,targets,results,followups,reference,organizations}` — DB 관리 규칙(버전)·선택 규칙 Master 검증 — SQL `2026-09-14-marketing-rules.sql`, `-rule-management-v2.sql`, `-validation-snapshot-performance.sql`
-- `marketing_email_profiles`(회사별 홈페이지·이메일 도메인 기준, 버전)·`marketing_email_profile_history`, `marketing_email_{runs,targets,results}`(실행·임대 120초·결과 스냅샷), `marketing_email_probe_cache`, `marketing_review_events.email_result_id`(결과 확정 트리거로 Contact 이력 1건) — SQL `2026-09-15-marketing-email-integrity.sql`, `-email-contact-history.sql`
-
-### Supabase Tables (관리 매체·부서·부고 알림)
-- `media_outlets`(name_norm 유니크·aliases·any_department·active), `media_departments`(outlet별 name_norm 유니크), `media_obituary_matches`(부고 × 매체 × 부서, `notified_at`), `media_alert_subscriptions`(사용자별 on/off), `media_alert_deliveries`(run × 수신자 sent|failed) — SQL `docs/sql/2026-09-15-media-directory.sql`. RPC `media_directory_import`·`media_outlet_save`·`media_department_save`·`media_department_delete`(admin, 매칭 cascade), `set_media_alert_subscription`(people_news), `media_match_notices`·`media_alert_recipients`(service_role). 매칭·발송은 Edge Function `yonhap-notices`의 `alerts.ts`·`smtp.ts`(SMTPS 465, AUTH LOGIN — Supabase 런타임은 25·587 아웃바운드 차단)
-
 ### Key Patterns
 
-**Client-side state**: All pages are `"use client"`. State persisted via localStorage through `useLocalStorage` hook. Each feature uses its own storage key.
-
-**Shared participant flow**: `useParticipants` hook provides add/remove/clear/setAll. Shared components reused across ladder and team pages.
-
 **내 팀 구성(개인별)**: 멤버 소스는 후보 명단, 실제 내 팀은 사용자가 `MyTeamPicker`(`lib/my-team.ts` 매칭 로직)로 골라 `user_members`에 저장. `/settings` 카드·`/ladder`·`/team` 버튼에서 진입, `/food`는 내 팀이 기본 목록.
-
-**Guide Q&A**: Frontend proxies to FastAPI nlm-service via `nlmFetch()` helper (`frontend/src/lib/nlm-service.ts`). Notebook metadata and chat history stored in Supabase. NLM service handles NotebookLM API calls. Admin manages notebooks/sources, controls visibility for user page.
 
 **Provider 선택(Dooray/Teams)**: 채널 알림·멤버 소스·개인 DM을 관리자 설정(`notify_provider`/`member_source_provider`/`dm_provider`)으로 축별 선택. 채널 알림은 개인 설정(`user_settings.teams_notify_webhook_url`)이 있으면 그 사람의 알림만 Teams 워크플로우로 보낸다(`personalNotifyOverrides`). 멤버 소스는 `dooray`/`users`(앱 사용자 명단 = `user_profiles`, 권장)/`teams`. Teams 알림·DM은 표준 라이선스용 Teams 웹후크 트리거 규격(Adaptive Card 봉투)으로 보낸다. 서버는 `lib/notify`(Notifier), 클라이언트는 `lib/members`(MemberSource)를 통해서만 provider를 다룬다. 런북: `docs/teams-integration.md`.
 
 **사내 조직도 명부**: `lib/directory/parse.ts`가 아마란스 `deptPath`(회사>회사>부문>본부>센터>팀)를 `units[]`·division/headquarters/team으로 분해. 동기화는 서버가 아니라 **로컬 스크립트**가 inno-creed MCP(stdio, 그룹웨어 로그인 필요)를 호출해 API로 밀어 넣는 푸시형. Claude 사용량 `summary`/`members` API가 이메일로 조인해 `team`/`division`을 붙인다.
-
-**Claude 사용량 대시보드**: `lib/claude-usage/`가 OTLP 페이로드 파싱(`otlp.ts`)·수집 인증(`ingest-auth.ts`)·저장(`ingest-handler.ts`/`ingest-store.ts`)·CSV 파싱(`members-csv.ts`)·집계(`aggregate.ts`)·관리자 권한 체크(`require-admin.ts`)·관리형 설정 JSON 생성(`managed-settings.ts`)·지표 툴팁 문구(`metric-hints.ts` — 라인 수는 Edit·Write 도구 변경만 집계해 Bash·MCP·SDK 사용자는 0)을 담당. 런북: `docs/claude-usage.md`, 아키텍처: `docs/claude-usage-architecture.md`.
-
-**RFP 분석**: `lib/rfp/` — 파서 5종(`parse-hwp.ts` cfb+zlib 레코드 파서, `parse-hwpx.ts`, `parse-docx.ts`, `parse-xlsx.ts` exceljs·병합셀 보존, `parse-pdf.ts` unpdf(pdf.js) **괘선으로 표 복원**(세로선=열·가로선=행·선 없으면 병합, 글자 간격 추측 금지), xlsx·pdf는 비동기 `parseDocumentAsync`) → 공통 `DocumentModel` → `overview.ts`(개요·정규화) → `dedupe.ts` → `extract-standard.ts`(표준 7행 표 규칙) / `extract-xlsx.ts`(엑셀 요건표: 한 행 = 한 요구사항, 헤더 점수 선택·구분 병합 채움·답변/비고→산출정보) / `extract-llm.ts`(Claude 폴백) → `xlsx.ts`(exceljs). 라우트는 `pipeline.ts`의 `registerProject`·`runExtraction`만 호출. 2단계: `lib/rfp/catalog/`(Confluence URL→페이지 id·storage XHTML→텍스트·Claude 기능 추출·이름 정규화 병합·`runImport`) · `lib/rfp/mapping/`(판정 상수 `types.ts`·S/F 별칭 프롬프트·20건 청크·출력 검증·요약/건수·`runMapping`). 라우트는 `runImport`·`runMapping`만 호출. `rfp_requirements.solution`은 더는 편집하지 않고 화면·xlsx의 "당사 솔루션"은 `mappingSummary`로 만든다. 3단계: `lib/ms/`(crypto AES-GCM·HMAC state / oauth 위임 토큰 / config settings+env / origin 허용 오리진·returnTo / connections `ms_connections`+access 토큰 5분 캐시 / graph-drive shares 해석·업로드) + `lib/rfp/sharepoint.ts`(`buildProjectWorkbook` xlsx 라우트 공용·`uploadProjectXlsx`·`buildUploadNotice`·`loadUploads`). 파일명 날짜는 KST(`kstYmd`). 토큰·시크릿은 어떤 로그·응답에도 쓰지 않는다. 4단계: 카탈로그 적재·매핑이 엔진 주입형 — `catalog/{source-kind,extract-rules,xlsx-features,keywords,confluence-search}.ts`, `mapping/{tokenize,rules,engine}.ts`. 규칙 엔진은 "후보"만 내고 확정은 사람 또는 Claude. 매핑 단위는 `mapping/detail-items.ts`의 세부 항목(요구사항 세부 내용 1단 리스트)이며 판정 조합·후보 상한을 단위마다 적용한다. 요구사항당 후보 상한은 어드민 설정(1~5, 기본 5)이며 매핑 라우트가 settings에서 읽어 `runMapping` → 엔진 팩토리로 넘긴다(잡은 순수 유지). Graph 토큰은 라우트가 발급해 `runImport` 인자로만 넘긴다(`lib/ms/route-token.ts`).
 
 **Environment Variables**:
 - `NLM_SERVICE_URL` — NLM service endpoint (default: `http://localhost:8090`, prod: `https://inje-nlm-service.fly.dev`)
@@ -209,12 +106,3 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `MEDIA_SMTP_HOST`, `MEDIA_SMTP_PORT`, `MEDIA_SMTP_USER`, `MEDIA_SMTP_PASS`, `MEDIA_APP_URL` — **Edge Function secrets**(Vercel 아님). 부고 알림과 인사·부고 소식 메일(예약·지금 수신) SMTPS 발송. 비어 있으면 매칭만 하고 발송·예약 claim을 건너뛴다
 - `ATLASSIAN_SITE`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN` — 카탈로그 Confluence 가져오기(기존 성과 지표와 공유)
 - `NEXT_PUBLIC_APP_URL` — 예약 메일의 HTTPS 앱 주소(예: `https://inje-playground.vercel.app`)
-
-### 연합뉴스 인사·부고 메일
-`/people-news`에서 사용자가 인사·부고를 조회하고 즉시 수집하거나, 개인별 메일 수신 여부·한국 시간 발송 시각과 **이전 발송 내역 제외**(`yonhap_notice_subscriptions.exclude_sent`, 기본 켬 — 예약·즉시 통틀어 이미 보낸 소식 다음부터만, 새 소식이 없으면 즉시 수신은 `skipped`)를 설정한다. 수집·메일 발송은 모두 Supabase Edge Function `yonhap-notices`가 맡는다. RSS 요약은 기사 앞부분(대개 80자)만 담아 중간에서 끊기므로, 요약에 본문 끝의 발신지 표기 `(서울=연합뉴스)`가 없거나 말줄임으로 끝나면 원문 본문으로 갈음한다(`article.ts`, 기사 영역 앵커 안에서 상용구 앞까지 최대 60문단·4,000자, 1회 60건·동시 6건, 실패·앵커 없음이면 RSS 요약 유지). 항목만 붙이면 소제목이 어긋나 오귀속된다. 채워 둔 저장분은 이후 수집이 더 짧은 RSS 요약으로 되돌리지 않는다. 요청 본문 `action`(요청 본문 `action`: `collect`|`send-digests`|`send-now`|`preview`). 매일 07:00 KST 수집, 매분 pg_cron `invoke_yonhap_notice_email()`이 `send-digests`로 due 구독을 claim해 **사내 SMTP 릴레이(465, `MEDIA_SMTP_*`)**로 로그인 이메일에 보낸다. "지금 수신"·"메일 미리보기"는 Vercel `/api/people-news/email`이 세션 JWT를 붙여 Edge Function에 위임한다(`lib/people-news/edge.ts`, `sync`도 같은 헬퍼). Microsoft 계정 연결·Mail.Send는 더 쓰지 않는다(Graph 발송은 Exchange Online에만 남고 아마란스 메일함에 오지 않았음 — SQL `2026-09-16-yonhap-notice-smtp.sql`). 운영·설정·검증 절차는 `docs/yonhap-notices.md`. 수집 직후 새 부고를 관리 매체·부서와 매칭해 알림 구독자에게 묶음 메일을 보낸다(`docs/media-directory.md`).
-
-### Directory Layout (frontend/src/)
-- `components/` — Organized by feature: `ladder/`, `team/`, `food/`, `guide/`, `settings/`(+`MicrosoftAccountCard`), `shared/`, `layout/`, `admin/claude-usage/`(Claude 사용량 대시보드 탭·차트), `admin/directory/`(사내 조직도 표), `admin/rfp-catalog/`(솔루션·소스·기능 표), `rfp/`(업로드·개요·요구사항 표·`SharePointSection`)
-- `hooks/` — `useLocalStorage`, `useParticipants`, `useBgm`, `useTts`, `useSettings`(관리자 전역 설정), `useProviderSettings`(provider 3축), `useMsCallbackQuery`(Microsoft 연결 콜백 쿼리 처리)
-- `lib/` — Pure logic: `ladder.ts`, `team-divider.ts`, `dooray.ts`, `nlm-service.ts`, `providers.ts`(provider 상수/파서), `settings-server.ts`(서버 settings 로더), `teams-graph.ts`(Graph app-only), `ms/`(Microsoft 위임 OAuth·토큰 암호화·연결 저장·Graph 드라이브), `notify/`(Notifier: dooray/teams/messages/recipients), `members/`(MemberSource: dooray/teams), `claude-usage/`(OTLP 파서·CSV 파서·집계·인증), `rfp/`(파서·개요·중복·추출·xlsx·catalog/·mapping/·sharepoint.ts)
-- `types/` — TypeScript interfaces: `ladder.ts`, `team.ts`, `dooray.ts`, `guide.ts`, `claude-usage.ts`, `rfp.ts`, `ms.ts`
