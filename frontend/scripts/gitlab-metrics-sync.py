@@ -14,6 +14,7 @@
   - claude_commits = 메시지에 "Co-Authored-By: Claude" 트레일러가 있는 커밋(commits의 부분집합, 하한값).
   - 이메일 정규화(조직도·오타 도메인·gitlab_email_map)와 같은 사람 행 합산은 서버(sync API)가 한다.
   - 기간의 기존 행을 지우고 다시 넣는다(replace) — 사라진 커밋·이전 규칙 행 정리. 매일 3일 창으로 돌려 자가 복구.
+  - 항목(work_items): 커밋은 md5(email|authored|title) 키, MR은 <path>!<iid>. gitlab_items 소스로 따로 보낸다(서버 lib/work-metrics/items.ts와 같은 규칙).
 
 사용:
   python3 frontend/scripts/gitlab-metrics-sync.py                  # 어제(KST) 하루
@@ -26,6 +27,7 @@
 """
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import re
@@ -157,6 +159,7 @@ def main() -> None:
     print(f"프로젝트 {len(projects)}개 (활동 {args.date_from}~ 기준)")
 
     agg: dict[tuple, dict] = {}
+    items: list[dict] = []
 
     def bump(day: str, email: str, project: str) -> dict:
         k = (day, email, project)
@@ -186,14 +189,22 @@ def main() -> None:
                 v["commits"] += 1
                 if CLAUDE_TRAILER.search(cm.get("message") or ""):
                     v["claude_commits"] += 1
+                key = hashlib.md5(f"{email}|{when}|{cm.get('title') or ''}".encode()).hexdigest()
+                items.append({"kind": "commit", "item_key": key, "user_email": email, "scope_key": path, "created_at": when,
+                              "is_claude": bool(CLAUDE_TRAILER.search(cm.get("message") or ""))})
             mrs = gl_get_all(gitlab_url, token, f"/projects/{pid}/merge_requests?updated_after={q_from}&scope=all")
             for mr in mrs:
                 email = normalize_email((mr.get("author") or {}).get("username"))
                 if not email:
                     continue
+                created_day = kst_day(mr["created_at"])
+                merged_at = mr.get("merged_at")
+                merged_day = kst_day(merged_at) if merged_at else None
+                if args.date_from <= created_day <= args.date_to or (merged_day and args.date_from <= merged_day <= args.date_to):
+                    items.append({"kind": "mr", "item_key": f"{path}!{mr['iid']}", "user_email": email, "scope_key": path,
+                                  "created_at": mr["created_at"], "done_at": merged_at})
                 if args.date_from <= kst_day(mr["created_at"]) <= args.date_to:
                     bump(kst_day(mr["created_at"]), email, path)["mrs_opened"] += 1
-                merged_at = mr.get("merged_at")
                 if merged_at and args.date_from <= kst_day(merged_at) <= args.date_to:
                     v = bump(kst_day(merged_at), email, path)
                     v["mrs_merged"] += 1
@@ -204,25 +215,31 @@ def main() -> None:
             print(f"  … {i}/{len(projects)}")
 
     rows = [r for r in agg.values() if args.date_from <= r["day"] <= args.date_to]
-    print(f"집계 {len(rows)}행 ({args.date_from} ~ {args.date_to})")
+    print(f"집계 {len(rows)}행, 항목 {len(items)}건 ({args.date_from} ~ {args.date_to})")
     if args.dry_run:
         for r in rows[:10]:
             print(" ", r)
+        for it in items[:5]:
+            print("  item", it)
         return
 
-    chunks = [rows[i : i + 5000] for i in range(0, len(rows), 5000)] or [[]]  # 행이 없어도 replace로 기간을 비운다
-    for idx, chunk in enumerate(chunks):
-        body: dict = {"source": "gitlab", "rows": chunk}
-        if idx == 0:
-            body["replace"] = {"from": args.date_from, "to": args.date_to}
-        req = urllib.request.Request(
-            f"{app_url}/api/admin/work-metrics/sync",
-            data=json.dumps(body).encode(),
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {ingest}"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=120) as r:
-            print("→", json.load(r))
+    def post(source: str, payload_rows: list, chunk: int) -> None:
+        chunks = [payload_rows[i : i + chunk] for i in range(0, len(payload_rows), chunk)] or [[]]  # 행이 없어도 replace로 기간을 비운다
+        for idx, part in enumerate(chunks):
+            body: dict = {"source": source, "rows": part}
+            if idx == 0:
+                body["replace"] = {"from": args.date_from, "to": args.date_to}
+            req = urllib.request.Request(
+                f"{app_url}/api/admin/work-metrics/sync",
+                data=json.dumps(body).encode(),
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {ingest}"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=120) as r:
+                print(f"→ {source}", json.load(r))
+
+    post("gitlab", rows, 5000)
+    post("gitlab_items", items, 5000)
 
 
 if __name__ == "__main__":
