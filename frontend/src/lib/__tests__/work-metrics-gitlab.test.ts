@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { fetchCommitsWindowed, isClaudeCommit, summarizeCommits } from "@/lib/work-metrics/gitlab";
+import { commitItems, fetchCommitsWindowed, isClaudeCommit, mrItems, summarizeCommits } from "@/lib/work-metrics/gitlab";
+import { commitItemKey } from "@/lib/work-metrics/items";
 
 describe("isClaudeCommit", () => {
   it("Claude Code 공동 저자 트레일러를 인식한다", () => {
@@ -64,5 +65,25 @@ describe("fetchCommitsWindowed", () => {
     const out = await fetchCommitsWindowed(fakeFetch, "2026-08-01T00:00:00Z", "2026-08-02T00:00:00Z");
     expect(out).toHaveLength(25);
     expect(calls).toHaveLength(1);
+  });
+});
+
+describe("commitItems", () => {
+  it("중복 제거 규칙을 통과한 커밋마다 항목 하나, 키는 commitItemKey", () => {
+    const base = { author_email: "kim@innogrid.com", authored_date: "2026-08-20T01:00:00.000Z", title: "fix: same", message: "fix: same\n\nCo-Authored-By: Claude <noreply@anthropic.com>" };
+    const out = commitItems([{ id: "old", ...base }, { id: "rebased", ...base, committed_date: "2026-08-28T05:00:00.000Z" }], "grp/app");
+    expect(out).toEqual([{ source: "gitlab", kind: "commit", item_key: commitItemKey("kim@innogrid.com", "2026-08-20T01:00:00.000Z", "fix: same"), user_email: "kim@innogrid.com", scope_key: "grp/app", created_at: "2026-08-20T01:00:00.000Z", started_at: null, done_at: null, story_points: null, is_claude: true }]);
+  });
+});
+
+describe("mrItems", () => {
+  const range = ["2026-09-01T00:00:00.000Z", "2026-09-03T00:00:00.000Z"] as const;
+  it("오픈 또는 머지가 기간 안인 MR만, 미머지는 done_at null", () => {
+    const out = mrItems([
+      { iid: 1, author: { username: "kim" }, created_at: "2026-09-01T01:00:00.000Z", merged_at: null, state: "opened" },
+      { iid: 2, author: { username: "lee" }, created_at: "2026-08-20T01:00:00.000Z", merged_at: "2026-09-02T01:00:00.000Z", state: "merged" },
+      { iid: 3, author: { username: "park" }, created_at: "2026-08-20T01:00:00.000Z", merged_at: null, state: "opened" },
+    ], "grp/app", range[0], range[1]);
+    expect(out.map((i) => [i.item_key, i.user_email, i.done_at])).toEqual([["grp/app!1", "kim@innogrid.com", null], ["grp/app!2", "lee@innogrid.com", "2026-09-02T01:00:00.000Z"]]);
   });
 });

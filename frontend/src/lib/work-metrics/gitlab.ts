@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeEmail, kstDay, kstDayBoundsUtc, hoursBetween, dayList, upsertChunked, deleteDayRange, type CollectResult } from "./common";
 import { loadEmailResolver, resolveAndMergeGitlabRows, resolveCommitterEmail } from "./email-resolve";
+import { commitItemKey, mrItemKey, upsertItems, type WorkItem } from "./items";
 
 /**
  * GitLab(self-managed, https://rnd-app.innogrid.com) 일 집계 — 전체 커밋·Claude 경유 커밋·MR.
@@ -22,7 +23,7 @@ import { loadEmailResolver, resolveAndMergeGitlabRows, resolveCommitterEmail } f
 
 export interface GlCommit { id?: string; author_email?: string; authored_date?: string; committed_date?: string; title?: string; message?: string }
 interface GlProject { id: number; path_with_namespace: string; last_activity_at: string }
-interface GlMr { author?: { username?: string }; created_at: string; merged_at?: string | null; state: string }
+interface GlMr { iid: number; author?: { username?: string }; created_at: string; merged_at?: string | null; state: string }
 
 /** Claude Code가 남기는 공동 저자 트레일러 */
 export const CLAUDE_TRAILER = /co-authored-by:[^\n]*(claude|anthropic)|noreply@anthropic\.com/i;
@@ -49,6 +50,34 @@ export function summarizeCommits(commits: GlCommit[]): CommitSummary[] {
     if (isClaudeCommit(c.message)) v.claude_commits += 1;
   }
   return [...out.values()];
+}
+
+/** 커밋 → work_items 항목. summarizeCommits와 같은 중복 제거(이메일·authored·제목) */
+export function commitItems(commits: GlCommit[], projectPath: string): WorkItem[] {
+  const seen = new Set<string>();
+  const out: WorkItem[] = [];
+  for (const c of commits) {
+    const email = normalizeEmail(c.author_email);
+    const when = c.authored_date ?? c.committed_date;
+    if (!email || !when) continue;
+    const dedupe = `${email}|${when}|${c.title ?? ""}`;
+    if (seen.has(dedupe)) continue;
+    seen.add(dedupe);
+    out.push({ source: "gitlab", kind: "commit", item_key: commitItemKey(email, when, c.title ?? ""), user_email: email, scope_key: projectPath, created_at: new Date(when).toISOString(), started_at: null, done_at: null, story_points: null, is_claude: isClaudeCommit(c.message) });
+  }
+  return out;
+}
+
+/** MR → 항목. 오픈 또는 머지가 [fromIso, toIso) 안인 것만. 미머지는 done_at null(나중에 머지되면 PK upsert로 채워진다) */
+export function mrItems(mrs: GlMr[], projectPath: string, fromIso: string, toIso: string): WorkItem[] {
+  const inRange = (iso: string | null | undefined) => !!iso && iso >= fromIso && iso < toIso;
+  const out: WorkItem[] = [];
+  for (const mr of mrs) {
+    const email = normalizeEmail(mr.author?.username);
+    if (!email || !(inRange(mr.created_at) || inRange(mr.merged_at))) continue;
+    out.push({ source: "gitlab", kind: "mr", item_key: mrItemKey(projectPath, mr.iid), user_email: email, scope_key: projectPath, created_at: new Date(mr.created_at).toISOString(), started_at: null, done_at: mr.merged_at ? new Date(mr.merged_at).toISOString() : null, story_points: null, is_claude: false });
+  }
+  return out;
 }
 
 /**
@@ -145,6 +174,7 @@ export async function collectGitlab(admin: SupabaseClient, from: string, to: str
     return v;
   };
 
+  const items: WorkItem[] = [];
   for (const p of projects) {
     // since/until은 committed_date 기준 창(git log). 창 밖에서 authored된 리베이스 커밋은 아래 days 필터에서 빠진다.
     const commits = await fetchCommitsWindowed(
@@ -156,6 +186,7 @@ export async function collectGitlab(admin: SupabaseClient, from: string, to: str
       v.commits += s.commits;
       v.claude_commits += s.claude_commits;
     }
+    items.push(...commitItems(commits, p.path_with_namespace));
     const mrs = await glFetchAll<GlMr>(`/projects/${p.id}/merge_requests?updated_after=${encodeURIComponent(fromIso)}&scope=all`);
     for (const mr of mrs) {
       const email = normalizeEmail(mr.author?.username);
@@ -167,6 +198,7 @@ export async function collectGitlab(admin: SupabaseClient, from: string, to: str
         v.mr_lead_hours_sum += hoursBetween(mr.created_at, mr.merged_at);
       }
     }
+    items.push(...mrItems(mrs, p.path_with_namespace, fromIso, toIso));
   }
 
   const days = new Set(dayList(from, to));
@@ -174,5 +206,9 @@ export async function collectGitlab(admin: SupabaseClient, from: string, to: str
   const rows = resolveAndMergeGitlabRows([...agg.values()].filter((r) => days.has(r.day)), (e) => resolveCommitterEmail(e, resolver));
   await deleteDayRange(admin, "gitlab_daily", from, to);
   await upsertChunked(admin, "gitlab_daily", rows, "day,user_email,project_path");
-  return { source: "gitlab", rows: rows.length, notes: `프로젝트 ${projects.length}개 순회` };
+  // 항목: 기간 커밋은 지우고 다시(force-push 정리), MR은 PK upsert
+  const { error: delErr } = await admin.from("work_items").delete().eq("source", "gitlab").eq("kind", "commit").gte("created_at", fromIso).lt("created_at", toIso);
+  if (delErr) throw new Error(`work_items 삭제 실패: ${delErr.message}`);
+  await upsertItems(admin, items.map((it) => ({ ...it, user_email: resolveCommitterEmail(it.user_email, resolver) })));
+  return { source: "gitlab", rows: rows.length, notes: `프로젝트 ${projects.length}개 순회, items ${items.length}건` };
 }
