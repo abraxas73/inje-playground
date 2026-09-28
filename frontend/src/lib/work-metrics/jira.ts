@@ -123,10 +123,9 @@ export async function collectJira(admin: SupabaseClient, from: string, to: strin
     const cs = cycleStart(is);
     if (cs) { v.cycle_hours_sum += hoursBetween(cs, rd); v.cycle_count += 1; }
     let sp: number | null = null;
-    if (spField) {
-      const n = Number(is.fields[spField]);
-      if (Number.isFinite(n)) { v.story_points += n; sp = n; }
-    }
+    const rawSp = spField ? is.fields[spField] : null;
+    const n = rawSp == null ? NaN : Number(rawSp);
+    if (Number.isFinite(n)) { v.story_points += n; sp = n; }
     if (is.fields.created) items.push(jiraIssueItem({ key: is.key, project, email, created: is.fields.created, started: cs, resolved: rd, storyPoints: sp }));
   }
 

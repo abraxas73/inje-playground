@@ -91,7 +91,7 @@ create index if not exists work_items_email_idx   on public.work_items (user_ema
 1. SQL 적용 → 수집기·sync API·스크립트 배포.
 2. Jira: 관리자 세션으로 `GET /api/cron/work-metrics?source=jira&from=2026-05-01&to=2026-05-31`을 월 단위로 어제까지(라우트 maxDuration 300초).
 3. GitLab: 사내망에서 `python3 frontend/scripts/gitlab-metrics-sync.py --from 2026-05-04 --to <어제>`.
-4. 대조: 같은 날짜 범위에서 `count(work_items where kind='issue' and done_at in range)` = `sum(jira_issue_daily.issues_resolved)`, `count(kind='commit')` = `sum(gitlab_daily.commits)`, `count(kind='mr' and done_at in range)` = `sum(mrs_merged)`. 이메일 정규화 전후 차이는 없어야 한다(둘 다 서버 정규화).
+4. 대조: 같은 날짜 범위에서 `count(work_items where kind='issue' and done_at in range)` = `sum(jira_issue_daily.issues_resolved)`, `count(kind='commit')` = `sum(gitlab_daily.commits)`, `count(kind='mr' and done_at in range)` = `sum(mrs_merged)`. 이메일 정규화 전후 차이는 없어야 한다(둘 다 서버 정규화). 커밋은 정확히 일치하지 않을 수 있다: 항목은 authored 날짜로 기간을 자르지 않아 리베이스된 커밋이 더 들어갈 수 있고(items ≥ daily), 여러 프로젝트에 미러된 같은 커밋은 내용 키로 합쳐진다(items ≤ daily). 이슈는 jira_issue_daily가 upsert만 하므로 재오픈·재해결된 이슈만큼 daily가 더 클 수 있다(items = 현재 해결 상태). 수십 건 차이는 정상이다.
 
 ## 5. 집계와 API
 

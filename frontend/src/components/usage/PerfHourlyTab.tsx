@@ -42,7 +42,7 @@ export default function PerfHourlyTab({ apiPath, from, to, team, isSelf }: { api
       </div>
       {result?.error && result.key === key && <p className="text-sm text-destructive">{result.error}</p>}
       {data?.notReady && <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">시간대 집계 함수가 아직 없습니다 — docs/sql/2026-09-28-work-items.sql을 적용하세요.</p>}
-      {data?.suppressed && <p className="rounded-md border p-2 text-xs text-muted-foreground">대상이 3명 미만이라 시간대는 표시하지 않습니다.</p>}
+      {data?.suppressed && <p className="rounded-md border p-2 text-xs text-muted-foreground">대상이 3명 미만이거나 활동한 사람이 3명 미만이라 시간대는 표시하지 않습니다.</p>}
       {data && !data.suppressed && !data.notReady && (
         <>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

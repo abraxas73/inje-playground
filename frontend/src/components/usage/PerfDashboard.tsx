@@ -32,17 +32,17 @@ type Resp = PerfResponse;
 
 const h = (sum: number, count: number) => (count > 0 ? `${(sum / count).toFixed(1)}h` : "—");
 
-function DeltaTag({ d }: { d: { pct: number; good: boolean } | null | undefined }) {
+function DeltaTag({ d, title = "직전 같은 길이 기간 대비" }: { d: { pct: number; good: boolean } | null | undefined; title?: string }) {
   if (!d) return null;
   const sign = d.pct > 0 ? "+" : "";
-  return <span className={`ml-1 text-[11px] tabular-nums ${d.good ? "text-emerald-600" : "text-red-600"}`} title="직전 같은 길이 기간 대비">{sign}{d.pct}%</span>;
+  return <span className={`ml-1 text-[11px] tabular-nums ${d.good ? "text-emerald-600" : "text-red-600"}`} title={title}>{sign}{d.pct}%</span>;
 }
 
-function Stat({ label, value, sub, delta: d }: { label: string; value: string; sub?: string; delta?: { pct: number; good: boolean } | null }) {
+function Stat({ label, value, sub, delta: d, deltaTitle }: { label: string; value: string; sub?: string; delta?: { pct: number; good: boolean } | null; deltaTitle?: string }) {
   return (
     <div className="rounded-lg border p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-lg font-semibold tabular-nums">{value}<DeltaTag d={d} /></div>
+      <div className="mt-1 text-lg font-semibold tabular-nums">{value}<DeltaTag d={d} title={deltaTitle} /></div>
       {sub && <div className="text-[11px] text-muted-foreground">{sub}</div>}
     </div>
   );
@@ -375,9 +375,10 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
                 <Stat label={data.durationsReady ? "사이클 타임(p50)" : "사이클 타임(평균)"}
                   value={data.durationsReady ? hOf(p50("all", "issue", "cycle")) : hOf(cycleAvg)}
                   sub={data.durationsReady ? `평균 ${hOf(cycleAvg)} · p90 ${hOf(stat("all", "issue", "cycle")?.p90 ?? null)} · 대기 p50 ${hOf(p50("all", "issue", "wait"))}` : `리드 ${h(t.leadSum, t.resolved)} (생성→해결)`}
-                  delta={cycleAvg !== null && prevCycleAvg !== null ? delta(cycleAvg, prevCycleAvg, true) : null} />
+                  delta={cycleAvg !== null && prevCycleAvg !== null ? delta(cycleAvg, prevCycleAvg, true) : null}
+                  deltaTitle="사이클 평균 기준, 직전 기간 대비" />
                 <Stat label="커밋 (GitLab)" value={int(t.commits)} sub={claudeShare === null ? "Claude 경유 —" : `Claude 경유 ${claudeShare}% · Claude Code 커밋 ${int(t.claudeCommits)}`} delta={d(t.commits, p?.commits)} />
-                <Stat label="MR" value={`${int(t.merged)} 머지`} sub={`오픈 ${int(t.opened)} · 리드 ${hOf(mrAvg)}`} delta={mrAvg !== null && prevMrAvg !== null ? delta(mrAvg, prevMrAvg, true) : d(t.merged, p?.merged)} />
+                <Stat label="MR" value={`${int(t.merged)} 머지`} sub={`오픈 ${int(t.opened)} · 리드 ${hOf(mrAvg)}`} delta={mrAvg !== null && prevMrAvg !== null ? delta(mrAvg, prevMrAvg, true) : d(t.merged, p?.merged)} deltaTitle="MR 리드 평균 기준(없으면 머지 건수), 직전 기간 대비" />
                 <Stat label="문서" value={`${int(t.pc)}+${int(t.pu)}`} sub="생성+수정 (Confluence)" delta={d(t.pc + t.pu, p ? p.pc + p.pu : undefined)} />
                 <Stat label="코드 라인(Claude 세션)" value={`+${int(t.locA)}`} sub={`-${int(t.locR)} 삭제`} delta={d(t.locA, p?.locA)} />
                 <Stat label="Claude 투입" value={usd(t.cost)} sub={`세션 ${int(t.sessions)} · 프롬프트(사람) ${int(t.prompts)}`} delta={d(t.cost, p?.cost)} />

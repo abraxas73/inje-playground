@@ -85,3 +85,22 @@ language sql security definer set search_path = public as $$
 $$;
 revoke execute on function public.work_items_hourly(date, date, text[], text[]) from public, anon, authenticated;
 grant  execute on function public.work_items_hourly(date, date, text[], text[]) to service_role;
+
+-- 시간대 k-익명성: 기간·종류·대상 안에서 실제 활동한 사람 수(구성원 수가 아니라 기여자 수). 3명 미만이면 라우트가 숨긴다
+drop function if exists public.work_items_contributors(date, date, text[], text[]);
+create function public.work_items_contributors(p_from date, p_to date, p_emails text[], p_kinds text[])
+returns bigint
+language sql security definer set search_path = public as $$
+  select count(distinct lower(user_email))::bigint
+  from (
+    select kind, user_email, case when kind = 'commit' then created_at else done_at end as ts
+    from work_items
+  ) x
+  where ts is not null
+    and ts >= (p_from::text || ' 00:00:00+09')::timestamptz
+    and ts <  ((p_to + 1)::text || ' 00:00:00+09')::timestamptz
+    and kind = any (p_kinds)
+    and (p_emails is null or lower(user_email) = any (p_emails))
+$$;
+revoke execute on function public.work_items_contributors(date, date, text[], text[]) from public, anon, authenticated;
+grant  execute on function public.work_items_contributors(date, date, text[], text[]) to service_role;

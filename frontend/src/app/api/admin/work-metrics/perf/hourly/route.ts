@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500, isYmd } from "@/lib/claude-usage/require-admin";
 import { dateRangePreset } from "@/lib/claude-usage/aggregate";
-import { hourlyTargets, loadHourly, parseKinds } from "@/lib/work-metrics/hourly";
+import { contributorsSuppressed, hourlyTargets, loadContributors, loadHourly, parseKinds } from "@/lib/work-metrics/hourly";
 import type { HourlyResponse } from "@/types/work-metrics";
 
 export const runtime = "nodejs";
 
 /**
  * GET /api/admin/work-metrics/perf/hourly?from&to&team&kinds=commit,issue,mr — 활동 시간대(admin).
- * 팀 필터까지만 받고 이름 검색(q)은 받지 않는다. 팀이 3명 미만이면 suppressed. 개인별 값은 내려가지 않는다(RPC에 사용자 차원 없음).
+ * 팀 필터까지만 받고 이름 검색(q)은 받지 않는다. 팀 구성원이나 기간 내 활동한 사람이 3명 미만이면 suppressed. 개인별 값은 내려가지 않는다(RPC에 사용자 차원 없음).
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin();
@@ -36,6 +36,10 @@ export async function GET(request: NextRequest) {
   const headers = { "Cache-Control": "no-store" };
   const base = { range: { from, to }, scope: { scopeLabel }, kinds };
   if (suppressed) return NextResponse.json({ ...base, cells: [], suppressed: true, notReady: false } satisfies HourlyResponse, { headers });
+  const contrib = await loadContributors(admin, { from, to, emails, kinds });
+  if ("error" in contrib) return NextResponse.json({ error: contrib.error }, { status: 500 });
+  if (contrib.notReady) return NextResponse.json({ ...base, cells: [], suppressed: false, notReady: true } satisfies HourlyResponse, { headers });
+  if (contributorsSuppressed(contrib.contributors, false)) return NextResponse.json({ ...base, cells: [], suppressed: true, notReady: false } satisfies HourlyResponse, { headers });
   const res = await loadHourly(admin, { from, to, emails, kinds });
   if ("error" in res) return NextResponse.json({ error: res.error }, { status: 500 });
   return NextResponse.json({ ...base, cells: res.cells, suppressed: false, notReady: res.notReady } satisfies HourlyResponse, { headers });

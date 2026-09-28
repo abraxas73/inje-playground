@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hourlyTargets, offHoursShare, parseKinds } from "@/lib/work-metrics/hourly";
+import { contributorsSuppressed, hourlyTargets, offHoursShare, parseKinds } from "@/lib/work-metrics/hourly";
 
 describe("parseKinds", () => {
   it("허용 종류만, 비면 커밋 기본", () => {
@@ -15,6 +15,15 @@ describe("hourlyTargets", () => {
     expect(hourlyTargets(m(1), { self: true })).toEqual({ emails: ["u0@innogrid.com"], suppressed: false });
     expect(hourlyTargets(m(2), { self: false })).toEqual({ emails: null, suppressed: true });
     expect(hourlyTargets(m(3), { self: false }).suppressed).toBe(false);
+  });
+});
+
+describe("contributorsSuppressed", () => {
+  it("구성원 수가 아니라 실제 활동한 사람이 3명 미만이면 숨긴다(본인 화면은 예외)", () => {
+    expect(contributorsSuppressed(0, false)).toBe(true);
+    expect(contributorsSuppressed(2, false)).toBe(true);
+    expect(contributorsSuppressed(3, false)).toBe(false);
+    expect(contributorsSuppressed(1, true)).toBe(false);
   });
 });
 

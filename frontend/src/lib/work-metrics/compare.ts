@@ -29,7 +29,7 @@ export async function loadCompare(
 ): Promise<CompareBlock | { error: string }> {
   const win = adoptionWindows();
   const run = async (range: DateRange): Promise<Block | { error: string }> => {
-    const res = await buildPerfReport(admin, { from: range.from, to: range.to, members: opts.members, filterEmails: opts.filterEmails });
+    const res = await buildPerfReport(admin, { from: range.from, to: range.to, members: opts.members, filterEmails: opts.filterEmails, skipDurations: true });
     return res.ok ? { range, totals: totalsOf(res.report.users) } : { error: res.error };
   };
   const [previous, before, after] = await Promise.all([run(prevRange({ from: opts.from, to: opts.to })), run(win.before), run(win.after)]);

@@ -29,21 +29,26 @@ function weekOf(day: string): string {
   return new Date(d.getTime() - dow * 86400_000).toISOString().slice(0, 10);
 }
 
-/** work_items_time_stats — RPC가 아직 없으면(2단계 SQL 미적용) 빈 목록 + durationsReady=false. 화면은 평균으로 폴백한다 */
+/**
+ * work_items_time_stats — 사람×지표 + 주×종류 + 프로젝트 + 저장소 행이라 90일 전사 범위는 1000행 상한을 넘을 수 있어 selectAll로 끝까지 읽는다.
+ * RPC가 아직 없으면(2단계 SQL 미적용) 빈 목록 + durationsReady=false. 그 밖 오류도 페이지 전체를 깨지 않고 경고만 남긴다. 화면은 평균으로 폴백한다
+ */
 export async function loadDurations(
   admin: SupabaseClient, from: string, to: string, filterEmails: string[] | null
-): Promise<{ durations: TimeStatRow[]; durationsReady: boolean } | { error: string }> {
-  const res = await admin.rpc("work_items_time_stats", { p_from: from, p_to: to, p_emails: filterEmails });
+): Promise<{ durations: TimeStatRow[]; durationsReady: boolean }> {
+  const res = await selectAll<Record<string, unknown>>(() =>
+    admin.rpc("work_items_time_stats", { p_from: from, p_to: to, p_emails: filterEmails }, { count: "exact" }).order("grp").order("kind").order("metric")
+  );
   if (res.error) {
-    if (/could not find|does not exist|schema cache/i.test(res.error.message)) return { durations: [], durationsReady: false };
-    return { error: `durations: ${res.error.message}` };
+    if (!/could not find|does not exist|schema cache/i.test(res.error.message)) console.warn(`[work-metrics] durations 조회 실패: ${res.error.message}`);
+    return { durations: [], durationsReady: false };
   }
-  return { durations: ((res.data ?? []) as Record<string, unknown>[]).map((r) => numify(r) as unknown as TimeStatRow), durationsReady: true };
+  return { durations: res.data.map((r) => numify(r) as unknown as TimeStatRow), durationsReady: true };
 }
 
 export async function buildPerfReport(
   admin: SupabaseClient,
-  opts: { from: string; to: string; members: PerfMember[]; filterEmails: string[] | null }
+  opts: { from: string; to: string; members: PerfMember[]; filterEmails: string[] | null; skipDurations?: boolean }
 ): Promise<{ ok: true; report: PerfReport } | { ok: false; error: string }> {
   const { from, to, members, filterEmails } = opts;
 
@@ -60,7 +65,7 @@ export async function buildPerfReport(
     q("jira_issue_daily", "day, user_email, project_key, issues_created, issues_resolved, story_points, cycle_hours_sum, cycle_count, lead_hours_sum", ["day", "user_email", "project_key"]),
     q("gitlab_daily", "day, user_email, project_path, commits, claude_commits, mrs_opened, mrs_merged, mr_lead_hours_sum", ["day", "user_email", "project_path"]),
     q("confluence_daily", "day, user_email, space_key, pages_created, pages_updated", ["day", "user_email", "space_key"]),
-    loadDurations(admin, from, to, filterEmails),
+    opts.skipDurations ? { durations: [], durationsReady: false } : loadDurations(admin, from, to, filterEmails),
   ]);
   const missing = [jira, gitlab, conf].some((x) => x.error && /does not exist|schema cache/i.test(x.error.message));
   for (const [name, res] of [["claude", code], ["jira", jira], ["gitlab", gitlab], ["confluence", conf]] as const) {
@@ -68,7 +73,6 @@ export async function buildPerfReport(
       return { ok: false, error: `${name}: ${res.error.message}` };
     }
   }
-  if ("error" in dur) return { ok: false, error: dur.error };
 
   const memberMap = new Map(members.map((m) => [m.email, m]));
   const byUser = new Map<string, UserPerf>();

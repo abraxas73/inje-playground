@@ -3,7 +3,7 @@ import type { HourlyCell, HourlyKind } from "@/types/work-metrics";
 
 /**
  * 활동 시간대 — work_items_hourly RPC. 공개 범위: 팀·조직 합계만, 개인별은 본인 화면(self)에서만.
- * 대상이 3명 미만이면 숨긴다(k-익명성). RPC에 사용자 차원이 없어 개인을 되짚을 수 없다.
+ * 대상(구성원)이나 실제 활동한 사람(기여자)이 3명 미만이면 숨긴다(k-익명성). RPC에 사용자 차원이 없어 개인을 되짚을 수 없다.
  */
 export const HOURLY_KINDS: HourlyKind[] = ["commit", "issue", "mr"];
 export const MIN_HOURLY_PEOPLE = 3;
@@ -19,6 +19,23 @@ export function hourlyTargets(members: { email: string }[], opts: { self: boolea
   const emails = members.map((m) => m.email.toLowerCase());
   if (!opts.self && emails.length < MIN_HOURLY_PEOPLE) return { emails: null, suppressed: true };
   return { emails, suppressed: false };
+}
+
+/** 기여자 기준 k-익명성: 본인 화면이 아니면 실제 활동한 사람이 3명 미만일 때 숨긴다 */
+export function contributorsSuppressed(contributors: number, self: boolean): boolean {
+  return !self && contributors < MIN_HOURLY_PEOPLE;
+}
+
+/** 기간·종류·대상 안에서 실제 활동한 사람 수 — RPC work_items_contributors */
+export async function loadContributors(
+  admin: SupabaseClient, opts: { from: string; to: string; emails: string[] | null; kinds: HourlyKind[] }
+): Promise<{ contributors: number; notReady: boolean } | { error: string }> {
+  const res = await admin.rpc("work_items_contributors", { p_from: opts.from, p_to: opts.to, p_emails: opts.emails, p_kinds: opts.kinds });
+  if (res.error) {
+    if (/could not find|does not exist|schema cache/i.test(res.error.message)) return { contributors: 0, notReady: true };
+    return { error: res.error.message };
+  }
+  return { contributors: Number(res.data ?? 0), notReady: false };
 }
 
 export async function loadHourly(
