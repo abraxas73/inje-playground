@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeEmail, kstDay, hoursBetween, dayList, upsertChunked, type CollectResult } from "./common";
+import { jiraIssueItem, upsertItems, type WorkItem } from "./items";
 
 /**
  * Jira Cloud 일 집계 수집기 — 이슈 생성(보고자)·해결(담당자)·리드/사이클타임·스토리포인트.
@@ -108,26 +109,31 @@ export async function collectJira(admin: SupabaseClient, from: string, to: strin
     bump(kstDay(is.fields.created), email, is.fields.project?.key ?? "?").issues_created += 1;
   }
 
-  // 해결(담당자 기준) + 리드/사이클타임 + 스토리포인트
+  // 해결(담당자 기준) + 리드/사이클타임 + 스토리포인트 — 일 집계와 work_items 항목을 같은 루프에서 만든다
+  const items: WorkItem[] = [];
   const resolved = await searchAll(`resolutiondate >= "${from}" AND resolutiondate <= "${to} 23:59"${projJql}`, fields, true);
   for (const is of resolved) {
     const email = await resolveUserEmail(admin, is.fields.assignee ?? is.fields.reporter, mapCache);
     const rd = is.fields.resolutiondate;
     if (!email || !rd) continue;
-    const v = bump(kstDay(rd), email, is.fields.project?.key ?? "?");
+    const project = is.fields.project?.key ?? "?";
+    const v = bump(kstDay(rd), email, project);
     v.issues_resolved += 1;
     if (is.fields.created) v.lead_hours_sum += hoursBetween(is.fields.created, rd);
     const cs = cycleStart(is);
     if (cs) { v.cycle_hours_sum += hoursBetween(cs, rd); v.cycle_count += 1; }
+    let sp: number | null = null;
     if (spField) {
-      const sp = Number(is.fields[spField]);
-      if (Number.isFinite(sp)) v.story_points += sp;
+      const n = Number(is.fields[spField]);
+      if (Number.isFinite(n)) { v.story_points += n; sp = n; }
     }
+    if (is.fields.created) items.push(jiraIssueItem({ key: is.key, project, email, created: is.fields.created, started: cs, resolved: rd, storyPoints: sp }));
   }
 
   // 기간 내 날짜만 남기고(계정 타임존 여유분 컷) upsert
   const days = new Set(dayList(from, to));
   const rows = [...agg.values()].filter((r) => days.has(r.day));
   await upsertChunked(admin, "jira_issue_daily", rows, "day,user_email,project_key");
-  return { source: "jira", rows: rows.length, notes: `created ${created.length}건, resolved ${resolved.length}건` };
+  await upsertItems(admin, items);
+  return { source: "jira", rows: rows.length, notes: `created ${created.length}건, resolved ${resolved.length}건, items ${items.length}건` };
 }
