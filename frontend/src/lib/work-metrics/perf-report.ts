@@ -18,7 +18,7 @@ export interface PerfMember {
   team: string | null;
 }
 
-import type { JiraProjectPerf, PerfReport, RepoPerf, SpacePerf, UserPerf, Weekly } from "@/types/work-metrics";
+import type { PerfReport, UserPerf, Weekly } from "@/types/work-metrics";
 export type { UserPerf, Weekly, PerfReport } from "@/types/work-metrics";
 
 /** KST 날짜 → 그 주 월요일(주 키) */
