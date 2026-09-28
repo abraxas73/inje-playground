@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** 성과 측정 수집기 공통 — 이메일 정규화·KST 날짜·upsert. 설계: docs/superpowers/specs/2026-08-31-claude-roi-integrations-design.md */
+/** 성과 측정 수집기 공통 — 이메일 정규화·KST 날짜·upsert. 설계: docs/superpowers/specs/2026-08-31-claude-roi-integrations-design.md, 시간 정보: docs/superpowers/specs/2026-09-28-perf-time-metrics-design.md */
 
 const COMPANY_DOMAIN = "innogrid.com";
 
