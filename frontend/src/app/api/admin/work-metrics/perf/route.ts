@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500, isYmd } from "@/lib/claude-usage/require-admin";
 import { dateRangePreset } from "@/lib/claude-usage/aggregate";
 import { buildPerfReport, type PerfMember } from "@/lib/work-metrics/perf-report";
+import { loadFreshness } from "@/lib/work-metrics/freshness";
+import { loadCompare } from "@/lib/work-metrics/compare";
+import type { PerfResponse } from "@/types/work-metrics";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -43,16 +46,23 @@ export async function GET(request: NextRequest) {
   // 검색 결과 0명이어도 400 대신 빈 결과(타이핑 중 UX) — 매칭 불가 센티널로 무필터 폴백 방지
   const filterEmails = team || q ? (members.length ? members.map((m) => m.email) : ["__no_match__"]) : null;
 
-  const result = await buildPerfReport(admin, { from, to, members, filterEmails });
+  const wantCompare = sp.get("compare") === "1";
+  const [result, freshness, compare] = await Promise.all([
+    buildPerfReport(admin, { from, to, members, filterEmails }),
+    loadFreshness(admin),
+    wantCompare ? loadCompare(admin, { from, to, members, filterEmails }) : Promise.resolve(null),
+  ]);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 });
+  if (compare && "error" in compare) console.warn(`[work-metrics] compare 실패: ${compare.error}`);
 
-  return NextResponse.json({
+  const label = [team, q ? `"${q}"` : null].filter(Boolean).join(" · ");
+  const body: PerfResponse = {
     range: { from, to },
-    scope: { scope: "org", scopeLabel: (() => {
-      const label = [team, q ? `"${q}"` : null].filter(Boolean).join(" · ");
-      return label ? `${label} (${members.length}명)` : `전체 (${members.length}명)`;
-    })() },
+    scope: { scope: "org", scopeLabel: label ? `${label} (${members.length}명)` : `전체 (${members.length}명)` },
     teams,
+    freshness,
+    ...(compare && !("error" in compare) ? { compare } : {}),
     ...result.report,
-  });
+  };
+  return NextResponse.json(body);
 }

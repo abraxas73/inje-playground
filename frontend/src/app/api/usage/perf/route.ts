@@ -3,6 +3,9 @@ import { resolveUsageScope } from "@/lib/usage-scope";
 import { isYmd } from "@/lib/claude-usage/require-admin";
 import { dateRangePreset } from "@/lib/claude-usage/aggregate";
 import { buildPerfReport, type PerfMember } from "@/lib/work-metrics/perf-report";
+import { loadFreshness } from "@/lib/work-metrics/freshness";
+import { loadCompare } from "@/lib/work-metrics/compare";
+import type { PerfResponse } from "@/types/work-metrics";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -32,14 +35,23 @@ export async function GET(request: NextRequest) {
   // 필터 결과 0명이면 빈 결과(무필터 폴백으로 범위가 넓어지지 않도록 매칭 불가 센티널)
   const filterEmails = members.length ? members.map((m) => m.email) : ["__no_match__"];
 
-  const result = await buildPerfReport(admin, { from, to, members, filterEmails });
+  const wantCompare = sp.get("compare") === "1";
+  const [result, freshness, compare] = await Promise.all([
+    buildPerfReport(admin, { from, to, members, filterEmails }),
+    loadFreshness(admin),
+    wantCompare ? loadCompare(admin, { from, to, members, filterEmails }) : Promise.resolve(null),
+  ]);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 });
+  if (compare && "error" in compare) console.warn(`[work-metrics] compare 실패: ${compare.error}`);
 
   const filterLabel = [team, q ? `"${q}"` : null].filter(Boolean).join(" · ");
-  return NextResponse.json({
+  const body: PerfResponse = {
     range: { from, to },
     scope: { scope: scope.scope, scopeLabel: filterLabel ? `${filterLabel} (${members.length}명)` : scope.scopeLabel },
     ...(scope.scope === "org" && teams.length > 1 ? { teams } : {}),
+    freshness,
+    ...(compare && !("error" in compare) ? { compare } : {}),
     ...result.report,
-  });
+  };
+  return NextResponse.json(body);
 }
