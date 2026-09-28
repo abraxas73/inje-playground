@@ -24,50 +24,93 @@ const PRESETS: { key: RangePreset; label: string }[] = [
   { key: "thisMonth", label: "이번 달" }, { key: "lastMonth", label: "지난 달" },
 ];
 
-interface UserPerf {
-  email: string; name: string | null; team: string | null;
-  claude_cost: number; claude_sessions: number; claude_days: number; claude_commits: number; claude_prompts: number;
-  active_hours: number; loc_added: number; loc_removed: number;
-  issues_created: number; issues_resolved: number; story_points: number;
-  cycle_hours_sum: number; cycle_count: number; lead_hours_sum: number;
-  commits: number; gitlab_claude_commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number;
-  pages_created: number; pages_updated: number;
-}
-interface Weekly {
-  week: string; claude_sessions: number; claude_cost: number; claude_commits: number; claude_prompts: number;
-  issues_created: number; issues_resolved: number; story_points: number; cycle_hours_sum: number; cycle_count: number;
-  commits: number; gitlab_claude_commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number; pages_created: number; pages_updated: number;
-}
-interface JiraProject { key: string; issues_created: number; issues_resolved: number; story_points: number; cycle_hours_sum: number; cycle_count: number }
-interface Repo { key: string; commits: number; gitlab_claude_commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number }
-interface Space { key: string; pages_created: number; pages_updated: number }
-interface Resp {
-  range: { from: string; to: string };
-  scope: { scope: "self" | "org"; scopeLabel: string };
-  teams?: string[];
-  notReady: boolean;
-  users: UserPerf[];
-  weekly: Weekly[];
-  jiraProjects: JiraProject[];
-  repos: Repo[];
-  spaces: Space[];
-}
+import { totalsOf, delta, avgOf } from "@/lib/work-metrics/totals";
+import type { PerfResponse, UserPerf, Weekly, JiraProjectPerf as JiraProject, RepoPerf as Repo, SpacePerf as Space, Freshness, FreshnessSource, CompareBlock, Totals } from "@/types/work-metrics";
+type Resp = PerfResponse;
 
 const h = (sum: number, count: number) => (count > 0 ? `${(sum / count).toFixed(1)}h` : "—");
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function DeltaTag({ d }: { d: { pct: number; good: boolean } | null | undefined }) {
+  if (!d) return null;
+  const sign = d.pct > 0 ? "+" : "";
+  return <span className={`ml-1 text-[11px] tabular-nums ${d.good ? "text-emerald-600" : "text-red-600"}`} title="직전 같은 길이 기간 대비">{sign}{d.pct}%</span>;
+}
+
+function Stat({ label, value, sub, delta: d }: { label: string; value: string; sub?: string; delta?: { pct: number; good: boolean } | null }) {
   return (
     <div className="rounded-lg border p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
+      <div className="mt-1 text-lg font-semibold tabular-nums">{value}<DeltaTag d={d} /></div>
       {sub && <div className="text-[11px] text-muted-foreground">{sub}</div>}
     </div>
   );
 }
 
+const SRC_LABEL: Record<FreshnessSource, string> = { jira: "Jira", gitlab: "GitLab", confluence: "Confluence" };
+/** ISO → KST "MM-DD HH:mm" */
+function fmtKst(iso: string): string {
+  const k = new Date(new Date(iso).getTime() + 9 * 3600_000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(k.getUTCMonth() + 1)}-${p(k.getUTCDate())} ${p(k.getUTCHours())}:${p(k.getUTCMinutes())}`;
+}
+
+function FreshnessBadges({ freshness }: { freshness: Freshness }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1 text-[11px]">
+      <span className="text-muted-foreground">데이터 기준</span>
+      {(Object.keys(SRC_LABEL) as FreshnessSource[]).map((s) => {
+        const f = freshness[s];
+        const warn = f.stale || !!f.lastError;
+        const title = f.lastError ? `마지막 수집 실패: ${f.lastError}` : f.rangeTo ? `수집 범위 ~${f.rangeTo}` : "수집 기록 없음";
+        return (
+          <span key={s} title={title} className={`rounded border px-1.5 py-0.5 ${warn ? "border-amber-300 bg-amber-50 text-amber-800" : "text-muted-foreground"}`}>
+            {SRC_LABEL[s]} {f.lastOkAt ? fmtKst(f.lastOkAt) : "없음"}{f.lastError ? " · 실패" : f.stale ? " · 오래됨" : ""}
+          </span>
+        );
+      })}
+      <span className="rounded border px-1.5 py-0.5 text-muted-foreground" title="OTel 수신 즉시 반영">Claude 실시간</span>
+    </div>
+  );
+}
+
+const hOf = (v: number | null) => (v === null ? "—" : `${v.toFixed(1)}h`);
+
+function AdoptionCard({ c }: { c: CompareBlock["adoption"] }) {
+  const rows: { label: string; before: number | null; after: number | null; fmt: (v: number | null) => string; lower?: boolean }[] = [
+    { label: "이슈 해결", before: c.before.totals.resolved, after: c.after.totals.resolved, fmt: (v) => (v === null ? "—" : int(v)) },
+    { label: "사이클 타임(평균)", before: avgOf(c.before.totals.cycleSum, c.before.totals.cycleN), after: avgOf(c.after.totals.cycleSum, c.after.totals.cycleN), fmt: hOf, lower: true },
+    { label: "MR 리드(평균)", before: avgOf(c.before.totals.mrLead, c.before.totals.merged), after: avgOf(c.after.totals.mrLead, c.after.totals.merged), fmt: hOf, lower: true },
+    { label: "커밋(GitLab)", before: c.before.totals.commits, after: c.after.totals.commits, fmt: (v) => (v === null ? "—" : int(v)) },
+    { label: "MR 머지", before: c.before.totals.merged, after: c.after.totals.merged, fmt: (v) => (v === null ? "—" : int(v)) },
+  ];
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm">도입 전후 4주 — {c.date} 기준</CardTitle>
+        <p className="text-xs text-muted-foreground">전 {c.before.range.from}~{c.before.range.to} vs 후 {c.after.range.from}~{c.after.range.to}. 선택한 기간과 무관한 고정 창입니다. 상관이며 인과가 아닙니다.</p>
+      </CardHeader>
+      <CardContent>
+        <table className="w-full text-xs">
+          <thead className="bg-muted/50"><tr><th className="px-2 py-1 text-left">지표</th><th className="px-2 py-1 text-right">도입 전</th><th className="px-2 py-1 text-right">도입 후</th><th className="px-2 py-1 text-right">변화</th></tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.label} className="border-t">
+                <td className="px-2 py-1.5 font-medium">{r.label}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums">{r.fmt(r.before)}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums">{r.fmt(r.after)}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums"><DeltaTag d={r.before !== null && r.after !== null ? delta(r.after, r.before, r.lower) : null} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </CardContent>
+    </Card>
+  );
+}
+
 /** 주별 묶음 막대 — 시리즈별 상대 스케일(각자 max 기준) */
 /** 시리즈는 기본적으로 각자 최대값으로 정규화한다(단위가 다른 지표 비교용). 같은 scale 키를 준 시리즈는 축을 공유해 높이를 서로 비교할 수 있다. */
-function WeekBars({ weeks, series, title }: { weeks: Weekly[]; series: { label: string; cls: string; value: (w: Weekly) => number; scale?: string }[]; title: string }) {
+function WeekBars({ weeks, series, title, highlightFrom }: { weeks: Weekly[]; series: { label: string; cls: string; value: (w: Weekly) => number; scale?: string }[]; title: string; highlightFrom?: string }) {
   if (weeks.length < 2) return null;
   const groupMax = new Map<string, number>();
   series.forEach((s, i) => {
@@ -90,12 +133,12 @@ function WeekBars({ weeks, series, title }: { weeks: Weekly[]; series: { label: 
             // 컬럼 h-full 필수 — 없으면 자식 퍼센트 높이가 0으로 붕괴해 막대가 안 보임
             <div key={w.week} className="flex h-full flex-1 items-end justify-center gap-[2px]" title={`${w.week} 주 · ${series.map((s) => `${s.label} ${Math.round(s.value(w) * 10) / 10}`).join(" · ")}`}>
               {series.map((s, i) => (
-                <div key={i} className={`rounded-t ${s.cls}`} style={{ width: `${Math.floor(80 / series.length)}%`, height: `${Math.max(2, Math.round((s.value(w) / maxes[i]) * 100))}%` }} />
+                <div key={i} className={`rounded-t ${s.cls}${highlightFrom && w.week >= highlightFrom ? " ring-1 ring-emerald-500/70" : ""}`} style={{ width: `${Math.floor(80 / series.length)}%`, height: `${Math.max(2, Math.round((s.value(w) / maxes[i]) * 100))}%` }} />
               ))}
             </div>
           ))}
         </div>
-        <div className="mt-1 flex justify-between text-[10px] text-muted-foreground"><span>{weeks[0]?.week} 주</span><span>{weeks.at(-1)?.week} 주</span></div>
+        <div className="mt-1 flex justify-between text-[10px] text-muted-foreground"><span>{weeks[0]?.week} 주</span>{highlightFrom && <span>테두리 = 도입일({highlightFrom}) 이후</span>}<span>{weeks.at(-1)?.week} 주</span></div>
       </CardContent>
     </Card>
   );
@@ -135,7 +178,7 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
     let cancelled = false;
     const teamQs = team !== "all" ? `&team=${encodeURIComponent(team)}` : "";
     const qQs = q ? `&q=${encodeURIComponent(q)}` : "";
-    fetch(`${apiPath}?from=${range.from}&to=${range.to}${teamQs}${qQs}`)
+    fetch(`${apiPath}?from=${range.from}&to=${range.to}&compare=1${teamQs}${qQs}`)
       .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`); return j as Resp; })
       .then((j) => { if (!cancelled) setResult({ key: requestKey, data: j }); })
       .catch((e) => { if (!cancelled) setResult({ key: requestKey, error: e instanceof Error ? e.message : String(e) }); });
@@ -147,18 +190,7 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
   // teams는 응답이 갈려도 흔들리지 않게 마지막으로 받은 목록을 유지
   const teams = result?.data?.teams ?? null;
 
-  const t = useMemo(() => (data?.users ?? []).reduce(
-    (a, u) => ({
-      resolved: a.resolved + u.issues_resolved, created: a.created + u.issues_created, sp: a.sp + u.story_points,
-      cycleSum: a.cycleSum + u.cycle_hours_sum, cycleN: a.cycleN + u.cycle_count, leadSum: a.leadSum + u.lead_hours_sum,
-      commits: a.commits + u.commits, glClaude: a.glClaude + u.gitlab_claude_commits, claudeCommits: a.claudeCommits + u.claude_commits,
-      opened: a.opened + u.mrs_opened, merged: a.merged + u.mrs_merged, mrLead: a.mrLead + u.mr_lead_hours_sum,
-      pc: a.pc + u.pages_created, pu: a.pu + u.pages_updated,
-      locA: a.locA + u.loc_added, locR: a.locR + u.loc_removed,
-      cost: a.cost + u.claude_cost, sessions: a.sessions + u.claude_sessions, prompts: a.prompts + u.claude_prompts, hours: a.hours + u.active_hours,
-    }),
-    { resolved: 0, created: 0, sp: 0, cycleSum: 0, cycleN: 0, leadSum: 0, commits: 0, glClaude: 0, claudeCommits: 0, opened: 0, merged: 0, mrLead: 0, pc: 0, pu: 0, locA: 0, locR: 0, cost: 0, sessions: 0, prompts: 0, hours: 0 }
-  ), [data]);
+  const t: Totals = useMemo(() => totalsOf(data?.users ?? []), [data]);
   // Claude 경유 비중 = GitLab 커밋 중 Co-Authored-By: Claude 커밋. 같은 모집단이라 항상 0~100%
   const claudeShare = t.commits > 0 ? Math.round((t.glClaude / t.commits) * 100) : null;
   const isTeamView = (data?.users.length ?? 0) > 1;
@@ -279,6 +311,8 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
         <span className="text-xs text-muted-foreground">{range.from} ~ {range.to}</span>
         {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
       </div>
+      {data && <FreshnessBadges freshness={data.freshness} />}
+      {data?.compare && <p className="text-[11px] text-muted-foreground">증감(%)은 직전 기간 {data.compare.previous.range.from}~{data.compare.previous.range.to} 대비</p>}
       {error && <p className="text-sm text-destructive">{error}</p>}
       {data?.notReady && <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">성과 테이블이 아직 없습니다 — 관리자에게 문의하세요(docs/sql/2026-08-31-work-metrics.sql).</p>}
 
@@ -292,30 +326,39 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
         </TabsList>
 
         <TabsContent value="summary" className="space-y-4">
-          {data && (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Stat label="이슈 해결" value={int(t.resolved)} sub={`생성 ${int(t.created)} · SP ${int(Math.round(t.sp))}`} />
-              <Stat label="사이클 타임(평균)" value={h(t.cycleSum, t.cycleN)} sub={`리드 ${h(t.leadSum, t.resolved)} (생성→해결)`} />
-              <Stat label="커밋 (GitLab)" value={int(t.commits)} sub={claudeShare === null ? "Claude 경유 —" : `Claude 경유 ${claudeShare}% · Claude Code 커밋 ${int(t.claudeCommits)}`} />
-              <Stat label="MR" value={`${int(t.merged)} 머지`} sub={`오픈 ${int(t.opened)} · 리드 ${h(t.mrLead, t.merged)}`} />
-              <Stat label="문서" value={`${int(t.pc)}+${int(t.pu)}`} sub="생성+수정 (Confluence)" />
-              <Stat label="코드 라인(Claude 세션)" value={`+${int(t.locA)}`} sub={`-${int(t.locR)} 삭제`} />
-              <Stat label="Claude 투입" value={usd(t.cost)} sub={`세션 ${int(t.sessions)} · 프롬프트(사람) ${int(t.prompts)}`} />
-              <Stat label="Claude 활동 시간" value={`${int(Math.round(t.hours))}h`} sub="active time 합" />
-            </div>
-          )}
-          <WeekBars weeks={weeks} title="주별 추이" series={[
+          {data && (() => {
+            const p = data.compare?.previous.totals ?? null;
+            const d = (cur: number, prev: number | undefined, lower = false) => (p && prev !== undefined ? delta(cur, prev, lower) : null);
+            const cycleAvg = avgOf(t.cycleSum, t.cycleN);
+            const prevCycleAvg = p ? avgOf(p.cycleSum, p.cycleN) : null;
+            const mrAvg = avgOf(t.mrLead, t.merged);
+            const prevMrAvg = p ? avgOf(p.mrLead, p.merged) : null;
+            return (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <Stat label="이슈 해결" value={int(t.resolved)} sub={`생성 ${int(t.created)} · SP ${int(Math.round(t.sp))}`} delta={d(t.resolved, p?.resolved)} />
+                <Stat label="사이클 타임(평균)" value={hOf(cycleAvg)} sub={`리드 ${h(t.leadSum, t.resolved)} (생성→해결)`} delta={cycleAvg !== null && prevCycleAvg !== null ? delta(cycleAvg, prevCycleAvg, true) : null} />
+                <Stat label="커밋 (GitLab)" value={int(t.commits)} sub={claudeShare === null ? "Claude 경유 —" : `Claude 경유 ${claudeShare}% · Claude Code 커밋 ${int(t.claudeCommits)}`} delta={d(t.commits, p?.commits)} />
+                <Stat label="MR" value={`${int(t.merged)} 머지`} sub={`오픈 ${int(t.opened)} · 리드 ${hOf(mrAvg)}`} delta={mrAvg !== null && prevMrAvg !== null ? delta(mrAvg, prevMrAvg, true) : d(t.merged, p?.merged)} />
+                <Stat label="문서" value={`${int(t.pc)}+${int(t.pu)}`} sub="생성+수정 (Confluence)" delta={d(t.pc + t.pu, p ? p.pc + p.pu : undefined)} />
+                <Stat label="코드 라인(Claude 세션)" value={`+${int(t.locA)}`} sub={`-${int(t.locR)} 삭제`} delta={d(t.locA, p?.locA)} />
+                <Stat label="Claude 투입" value={usd(t.cost)} sub={`세션 ${int(t.sessions)} · 프롬프트(사람) ${int(t.prompts)}`} delta={d(t.cost, p?.cost)} />
+                <Stat label="Claude 활동 시간" value={`${int(Math.round(t.hours))}h`} sub="active time 합" delta={d(t.hours, p?.hours)} />
+              </div>
+            );
+          })()}
+          {data?.compare && <AdoptionCard c={data.compare.adoption} />}
+          <WeekBars weeks={weeks} title="주별 추이" highlightFrom={data?.compare?.adoption.date} series={[
             { label: "이슈 해결", cls: "bg-primary/70", value: (w) => w.issues_resolved },
             { label: "Claude 세션", cls: "bg-muted-foreground/40", value: (w) => w.claude_sessions },
           ]} />
         </TabsContent>
 
         <TabsContent value="jira" className="space-y-4">
-          <WeekBars weeks={weeks} title="주별 이슈" series={[
+          <WeekBars weeks={weeks} title="주별 이슈" highlightFrom={data?.compare?.adoption.date} series={[
             { label: "해결", cls: "bg-primary/70", value: (w) => w.issues_resolved, scale: "issues" },
             { label: "생성", cls: "bg-muted-foreground/40", value: (w) => w.issues_created, scale: "issues" },
           ]} />
-          <WeekBars weeks={weeks} title="주별 사이클 타임(평균 h)" series={[
+          <WeekBars weeks={weeks} title="주별 사이클 타임(평균 h)" highlightFrom={data?.compare?.adoption.date} series={[
             { label: "사이클 h", cls: "bg-amber-500/60", value: (w) => (w.cycle_count ? Math.round((w.cycle_hours_sum / w.cycle_count) * 10) / 10 : 0) },
           ]} />
           {(data?.jiraProjects.length ?? 0) > 0 && (
@@ -333,7 +376,7 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
         </TabsContent>
 
         <TabsContent value="code" className="space-y-4">
-          <WeekBars weeks={weeks} title="주별 코드 산출" series={[
+          <WeekBars weeks={weeks} title="주별 코드 산출" highlightFrom={data?.compare?.adoption.date} series={[
             { label: "커밋(GitLab)", cls: "bg-primary/70", value: (w) => w.commits, scale: "commits" },
             { label: "Claude 경유", cls: "bg-emerald-500/60", value: (w) => w.gitlab_claude_commits, scale: "commits" },
             { label: "MR 머지", cls: "bg-muted-foreground/40", value: (w) => w.mrs_merged },
@@ -357,7 +400,7 @@ export default function PerfDashboard({ apiPath }: { apiPath: string }) {
         </TabsContent>
 
         <TabsContent value="docs" className="space-y-4">
-          <WeekBars weeks={weeks} title="주별 문서" series={[
+          <WeekBars weeks={weeks} title="주별 문서" highlightFrom={data?.compare?.adoption.date} series={[
             { label: "생성", cls: "bg-primary/70", value: (w) => w.pages_created, scale: "pages" },
             { label: "수정", cls: "bg-muted-foreground/40", value: (w) => w.pages_updated, scale: "pages" },
           ]} />
