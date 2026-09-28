@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { numify } from "@/lib/claude-usage/require-admin";
 import { selectAll } from "./common";
+import type { TimeStatRow } from "@/types/work-metrics";
 
 /**
  * 성과 지표 리포트 집계 — 개인용(/api/usage/perf)과 어드민(/api/admin/work-metrics/perf) 공용.
@@ -28,6 +29,18 @@ function weekOf(day: string): string {
   return new Date(d.getTime() - dow * 86400_000).toISOString().slice(0, 10);
 }
 
+/** work_items_time_stats — RPC가 아직 없으면(2단계 SQL 미적용) 빈 목록 + durationsReady=false. 화면은 평균으로 폴백한다 */
+export async function loadDurations(
+  admin: SupabaseClient, from: string, to: string, filterEmails: string[] | null
+): Promise<{ durations: TimeStatRow[]; durationsReady: boolean } | { error: string }> {
+  const res = await admin.rpc("work_items_time_stats", { p_from: from, p_to: to, p_emails: filterEmails });
+  if (res.error) {
+    if (/could not find|does not exist|schema cache/i.test(res.error.message)) return { durations: [], durationsReady: false };
+    return { error: `durations: ${res.error.message}` };
+  }
+  return { durations: ((res.data ?? []) as Record<string, unknown>[]).map((r) => numify(r) as unknown as TimeStatRow), durationsReady: true };
+}
+
 export async function buildPerfReport(
   admin: SupabaseClient,
   opts: { from: string; to: string; members: PerfMember[]; filterEmails: string[] | null }
@@ -42,11 +55,12 @@ export async function buildPerfReport(
       for (const k of orderBy) b = b.order(k);
       return b;
     });
-  const [code, jira, gitlab, conf] = await Promise.all([
+  const [code, jira, gitlab, conf, dur] = await Promise.all([
     q("claude_code_daily", "day, user_email, cost_usd, sessions, prompts, prompts_auto, commits, pull_requests, loc_added, loc_removed, active_user_seconds", ["day", "org_id", "user_email"]),
     q("jira_issue_daily", "day, user_email, project_key, issues_created, issues_resolved, story_points, cycle_hours_sum, cycle_count, lead_hours_sum", ["day", "user_email", "project_key"]),
     q("gitlab_daily", "day, user_email, project_path, commits, claude_commits, mrs_opened, mrs_merged, mr_lead_hours_sum", ["day", "user_email", "project_path"]),
     q("confluence_daily", "day, user_email, space_key, pages_created, pages_updated", ["day", "user_email", "space_key"]),
+    loadDurations(admin, from, to, filterEmails),
   ]);
   const missing = [jira, gitlab, conf].some((x) => x.error && /does not exist|schema cache/i.test(x.error.message));
   for (const [name, res] of [["claude", code], ["jira", jira], ["gitlab", gitlab], ["confluence", conf]] as const) {
@@ -54,6 +68,7 @@ export async function buildPerfReport(
       return { ok: false, error: `${name}: ${res.error.message}` };
     }
   }
+  if ("error" in dur) return { ok: false, error: dur.error };
 
   const memberMap = new Map(members.map((m) => [m.email, m]));
   const byUser = new Map<string, UserPerf>();
@@ -138,8 +153,8 @@ export async function buildPerfReport(
       jiraProjects: top(jiraProjects, (v) => v.issues_resolved),
       repos: top(repos, (v) => v.commits),
       spaces: top(spaces, (v) => v.pages_created + v.pages_updated),
-      durations: [],
-      durationsReady: false,
+      durations: dur.durations,
+      durationsReady: dur.durationsReady,
     },
   };
 }
