@@ -41,4 +41,9 @@ describe("normalizeGitlabItem", () => {
     const c = normalizeGitlabItem({ kind: "commit", item_key: "abc", user_email: "kim@innogrid.com", scope_key: "grp/app", created_at: "2026-09-01T00:00:00Z", is_claude: "yes" }, id);
     expect(c).toMatchObject({ kind: "commit", is_claude: false, done_at: null, started_at: null });
   });
+  it("객체가 아닌 행(null·문자열·배열)은 예외 없이 null", () => {
+    expect(normalizeGitlabItem(null, id)).toBeNull();
+    expect(normalizeGitlabItem("x", id)).toBeNull();
+    expect(normalizeGitlabItem([base], id)).toBeNull();
+  });
 });
