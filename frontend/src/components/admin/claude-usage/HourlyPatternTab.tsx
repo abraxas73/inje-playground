@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { dateRangePreset, type RangePreset } from "@/lib/claude-usage/aggregate";
 import { int } from "./format";
 import { useMoney } from "@/components/shared/currency-context";
+import HourHeatmap from "@/components/shared/HourHeatmap";
 import type { ClaudeOrg } from "@/types/claude-usage";
 
 const PRESETS: { key: RangePreset; label: string }[] = [
@@ -39,21 +40,11 @@ export default function HourlyPatternTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const data = result?.data ?? null;
   const error = result?.key === requestKey ? result.error ?? null : null;
 
-  const { grid, max, total, hourTotals } = useMemo(() => {
-    const grid = new Map<string, Cell>();
-    let max = 0;
-    let total = 0;
-    const hourTotals = Array.from({ length: 24 }, () => 0);
-    for (const c of data?.cells ?? []) {
-      const cell = { ...c, requests: Number(c.requests), cost_usd: Number(c.cost_usd), users: Number(c.users) };
-      grid.set(`${cell.dow}:${cell.hour}`, cell);
-      max = Math.max(max, cell.requests);
-      total += cell.requests;
-      hourTotals[cell.hour] += cell.requests;
-    }
-    return { grid, max: Math.max(1, max), total, hourTotals };
-  }, [data]);
-  const maxHourTotal = Math.max(1, ...hourTotals);
+  const total = useMemo(() => (data?.cells ?? []).reduce((a, c) => a + Number(c.requests), 0), [data]);
+  const heat = useMemo(() => (data?.cells ?? []).map((c) => {
+    const dow = Number(c.dow) === 0 ? 7 : Number(c.dow); // RPC는 dow 0=일 → isodow
+    return { dow, hour: Number(c.hour), value: Number(c.requests), title: `${DOW[Number(c.dow)]} ${c.hour}시 — 요청 ${int(Number(c.requests))}건 · ${usd(Number(c.cost_usd))} · 사용자 ${int(Number(c.users))}명` };
+  }), [data, usd]);
 
   return (
     <div className="space-y-4">
@@ -78,49 +69,7 @@ export default function HourlyPatternTab({ orgs }: { orgs: ClaudeOrg[] }) {
           <p className="text-xs text-muted-foreground">Claude Code API 요청(claude_code_requests) 발생 시각 기준. 진할수록 요청이 많은 시간대입니다.</p>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="border-separate" style={{ borderSpacing: 2 }}>
-              <thead>
-                <tr>
-                  <th className="pr-1 text-right text-[10px] font-normal text-muted-foreground">시</th>
-                  {Array.from({ length: 24 }, (_, h) => (
-                    <th key={h} className="w-7 text-center text-[10px] font-normal text-muted-foreground">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[1, 2, 3, 4, 5, 6, 0].map((dow) => (
-                  <tr key={dow}>
-                    <td className={`pr-1 text-right text-[11px] ${dow === 0 || dow === 6 ? "text-red-500" : "text-muted-foreground"}`}>{DOW[dow]}</td>
-                    {Array.from({ length: 24 }, (_, h) => {
-                      const cell = grid.get(`${dow}:${h}`);
-                      const v = cell?.requests ?? 0;
-                      const alpha = v === 0 ? 0 : 0.15 + 0.85 * (v / max);
-                      return (
-                        <td
-                          key={h}
-                          className="h-7 w-7 rounded-sm text-center align-middle text-[9px]"
-                          style={{ backgroundColor: v === 0 ? "var(--muted)" : `rgba(79, 70, 229, ${alpha.toFixed(2)})`, color: alpha > 0.55 ? "#fff" : undefined }}
-                          title={cell ? `${DOW[dow]} ${h}시 — 요청 ${int(v)}건 · ${usd(cell.cost_usd)} · 사용자 ${int(cell.users)}명` : `${DOW[dow]} ${h}시 — 없음`}
-                        >
-                          {v > 0 && v >= max * 0.5 ? int(v) : ""}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-                <tr>
-                  <td className="pr-1 pt-1 text-right text-[10px] text-muted-foreground">합계</td>
-                  {hourTotals.map((v, h) => (
-                    <td key={h} className="pt-1 text-center align-bottom" title={`${h}시 합계 ${int(v)}건`}>
-                      <div className="mx-auto w-4 rounded-sm bg-primary/30" style={{ height: `${Math.max(2, Math.round((v / maxHourTotal) * 28))}px` }} />
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">색 농도 = 해당 요일·시각의 요청 수(최대 {int(max)}건 기준). 셀에 마우스를 올리면 요청·비용·사용자 수가 보입니다. 마지막 줄은 시각별 합계입니다.</p>
+          <HourHeatmap cells={heat} unit="건" footnote="색 농도 = 해당 요일·시각의 요청 수. 셀에 마우스를 올리면 요청·비용·사용자 수가 보입니다. 마지막 줄은 시각별 합계입니다." />
         </CardContent>
       </Card>
     </div>
