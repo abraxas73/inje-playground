@@ -18,64 +18,8 @@ export interface PerfMember {
   team: string | null;
 }
 
-export interface UserPerf {
-  email: string;
-  name: string | null;
-  team: string | null;
-  claude_cost: number;
-  claude_sessions: number;
-  claude_days: number;
-  claude_commits: number;
-  /** 사람이 친 Claude Code 프롬프트(자동화 제외) */
-  claude_prompts: number;
-  active_hours: number;
-  loc_added: number;
-  loc_removed: number;
-  issues_created: number;
-  issues_resolved: number;
-  story_points: number;
-  cycle_hours_sum: number;
-  cycle_count: number;
-  lead_hours_sum: number;
-  /** GitLab 커밋(authored 기준, 리베이스 중복 제거) */
-  commits: number;
-  /** GitLab 커밋 중 Co-Authored-By: Claude 트레일러가 있는 커밋 — commits의 부분집합(하한값) */
-  gitlab_claude_commits: number;
-  mrs_opened: number;
-  mrs_merged: number;
-  mr_lead_hours_sum: number;
-  pages_created: number;
-  pages_updated: number;
-}
-
-export interface Weekly {
-  week: string;
-  claude_sessions: number;
-  claude_cost: number;
-  claude_commits: number;
-  claude_prompts: number;
-  issues_created: number;
-  issues_resolved: number;
-  story_points: number;
-  cycle_hours_sum: number;
-  cycle_count: number;
-  commits: number;
-  gitlab_claude_commits: number;
-  mrs_opened: number;
-  mrs_merged: number;
-  mr_lead_hours_sum: number;
-  pages_created: number;
-  pages_updated: number;
-}
-
-export interface PerfReport {
-  notReady: boolean;
-  users: UserPerf[];
-  weekly: Weekly[];
-  jiraProjects: Array<{ key: string; issues_created: number; issues_resolved: number; story_points: number; cycle_hours_sum: number; cycle_count: number }>;
-  repos: Array<{ key: string; commits: number; gitlab_claude_commits: number; mrs_opened: number; mrs_merged: number; mr_lead_hours_sum: number }>;
-  spaces: Array<{ key: string; pages_created: number; pages_updated: number }>;
-}
+import type { JiraProjectPerf, PerfReport, RepoPerf, SpacePerf, UserPerf, Weekly } from "@/types/work-metrics";
+export type { UserPerf, Weekly, PerfReport } from "@/types/work-metrics";
 
 /** KST 날짜 → 그 주 월요일(주 키) */
 function weekOf(day: string): string {
@@ -194,6 +138,8 @@ export async function buildPerfReport(
       jiraProjects: top(jiraProjects, (v) => v.issues_resolved),
       repos: top(repos, (v) => v.commits),
       spaces: top(spaces, (v) => v.pages_created + v.pages_updated),
+      durations: [],
+      durationsReady: false,
     },
   };
 }
