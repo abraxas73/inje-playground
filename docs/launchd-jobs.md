@@ -10,7 +10,7 @@ Vercel Cron으로 돌릴 수 없는 작업(로컬 Chrome 세션·사내망·개�
 | `com.innogrid.gitlab-metrics-sync` | 매일 07:45 | 사내 GitLab 커밋·MR 일 집계(최근 3일 창) → `POST /api/admin/work-metrics/sync` (Vercel IP 차단 우회) | `~/.claude/hooks/gitlab-metrics-sync-daily.sh` → `frontend/scripts/gitlab-metrics-sync.py` | `~/Library/Logs/gitlab-metrics-sync.log` |
 | `com.claude.teams-daily-quote` | 매일 08:00 | Teams 채널 오늘의 격언(claude -p 생성, 웹훅 전송) | `~/.claude/hooks/teams-daily-quote.sh` | `~/.claude/logs/teams-daily-quote.log` |
 | `com.innogrid.claude-usage-csv` | 매일 09:05 | Claude 사용량 CSV·멤버·초대·시트 수집 — `/claude-usage-csv` 스킬을 `claude -p --chrome`으로 헤드리스 실행 | `~/.claude/hooks/claude-usage-csv-daily.sh` | `~/.claude/logs/claude-usage-csv.log`, 회차별 `~/.claude/logs/claude-usage-csv/YYYY-MM-DD.json` |
-| `com.innogrid.claude-seat-executor` | 상시(KeepAlive) | Claude 시트 할당·해제 요청을 claude.ai에 반영(전용 브라우저 프로필, 15초 폴링). 런북 `docs/claude-usage.md` §9 | `~/.claude/hooks/claude-seat-executor.sh` → `frontend/scripts/claude-seat-executor.mjs` | `~/Library/Logs/claude-seat-executor.log` |
+| `com.innogrid.claude-seat-executor` | 상시(KeepAlive) | Claude 시트 할당·해제 요청을 claude.ai에 반영(전용 프로필 Chrome 창 상시, 15초 폴링 — 헤드리스는 Cloudflare에 막힘). 런북 `docs/claude-usage.md` §9 | `~/.claude/hooks/claude-seat-executor.sh` → `frontend/scripts/claude-seat-executor.mjs` | `~/Library/Logs/claude-seat-executor.log` |
 
 plist는 모두 `~/Library/LaunchAgents/<라벨>.plist`. 전제: Mac이 깨어 있어야 하고(잠자기 중 놓친 일정은 깨어난 뒤 실행, 꺼져 있으면 실행 안 됨), `claude-usage-csv`는 Chrome 실행 + claude.ai 7개 조직 소유자 로그인 + Claude in Chrome 확장 연동이 필요하다.
 

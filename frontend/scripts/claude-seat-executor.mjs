@@ -81,11 +81,13 @@ async function claudeFetch(page, url, init) {
 
 async function ensureClaudePage(ctx) {
   const page = ctx.pages()[0] ?? (await ctx.newPage());
+  // Cloudflare 확인은 실제 창(headed)에서만 풀린다(2026-09-29: 헤드리스는 API 경로까지 403 challenge) — 래퍼는 SEAT_HEADLESS=0
   if (!page.url().startsWith("https://claude.ai")) await page.goto("https://claude.ai/", { waitUntil: "domcontentloaded", timeout: 60_000 });
   if (Date.now() - loginAt > 60_000) { // 로그인 확인은 60초 캐시 — 매 15초 루프마다 호출하지 않는다
     const r = await claudeFetch(page, "/api/organizations");
     loginAt = Date.now();
     loginOk = r.status === 200;
+    if (!loginOk) log({ login_check: r.status, url: page.url().slice(0, 60), head: String(r.text ?? "").slice(0, 80) });
   }
   return { page, loggedIn: loginOk };
 }
