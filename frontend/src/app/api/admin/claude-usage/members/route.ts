@@ -93,17 +93,27 @@ export async function GET(request: NextRequest) {
   // 시트 작업: claude_org_members 티어로 덮고(CSV는 최대 하루 낡음), 요청 요약·실행기 상태를 붙인다. 표가 없거나 실패해도 표는 내려준다
   const orgIds = [...new Set(withTeam.map((r) => String((r as Record<string, unknown>).org_id)))];
   const since = new Date(Date.now() - 86_400_000).toISOString();
-  const [om, acts, ex] = orgIds.length
-    ? await Promise.all([
-        admin.from("claude_org_members").select("org_id, email, seat_tier").in("org_id", orgIds).eq("status", "active").limit(2000),
-        admin.from("claude_seat_actions").select("*").in("org_id", orgIds).or(`status.in.(requested,running),requested_at.gte.${since}`).order("requested_at", { ascending: false }).limit(2000),
-        admin.from("claude_seat_executor").select("*").eq("id", "default").maybeSingle(),
-      ])
-    : [
-        { data: [] as { org_id: string; email: string; seat_tier: string | null }[], error: null as { message: string } | null },
-        { data: [] as SeatAction[], error: null as { message: string } | null },
-        { data: null as SeatExecutor | null, error: null as { message: string } | null },
-      ];
+  const [om, acts, ex] = await Promise.all([
+    orgIds.length
+      ? selectAll<{ org_id: string; email: string; seat_tier: string | null }>(() =>
+          admin.from("claude_org_members").select("org_id, email, seat_tier", { count: "exact" }).in("org_id", orgIds).eq("status", "active").order("org_id").order("email")
+        )
+      : Promise.resolve({ data: [] as { org_id: string; email: string; seat_tier: string | null }[], error: null }),
+    orgIds.length
+      ? selectAll<SeatAction>(() =>
+          admin
+            .from("claude_seat_actions")
+            .select("*", { count: "exact" })
+            .in("org_id", orgIds)
+            .or(`status.in.(requested,running),requested_at.gte.${since}`)
+            .order("requested_at", { ascending: false })
+            .order("id")
+        )
+      : Promise.resolve({ data: [] as SeatAction[], error: null }),
+    orgIds.length
+      ? admin.from("claude_seat_executor").select("*").eq("id", "default").maybeSingle()
+      : Promise.resolve({ data: null as SeatExecutor | null, error: null as { message: string } | null }),
+  ]);
   if (om.error) console.warn("[claude-usage] org_members 조인 실패:", om.error.message);
   if (acts.error) console.warn("[claude-usage] seat_actions 조인 실패:", acts.error.message);
   type SeatRow = { org_id: string; email: string; seat_tier: string };
