@@ -144,11 +144,12 @@ async function main() {
     await new Promise((r) => ctx.on("close", r));
     return;
   }
-  ctx.on("close", () => { log({ browser_closed: true }); process.exit(1); });
+  ctx.on("close", () => { if (stopping) return; log({ browser_closed: true }); process.exit(1); });
   log({ start: VERSION, host: HOST, app: APP_URL, headless: HEADLESS });
   const stop = async () => { log({ stop: true }); stopping = true; if (!busy) { await ctx.close().catch(() => {}); process.exit(0); } };
   process.on("SIGTERM", stop); process.on("SIGINT", stop);
   await loop(ctx, once);
+  stopping = true;
   await ctx.close().catch(() => {});
 }
 
