@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500, numify } from "@/lib/claude-usage/require-admin";
 import { selectAll } from "@/lib/work-metrics/common";
+import { overlaySeat, summarize } from "@/lib/claude-usage/seat-actions";
+import type { SeatAction, SeatExecutor } from "@/types/claude-seat";
 
 /**
  * GET /api/admin/claude-usage/members?org=all|<id>&importId=latest|<uuid>&periodEnd=latest|YYYY-MM-DD — CSV 멤버 활동
@@ -9,6 +11,7 @@ import { selectAll } from "@/lib/work-metrics/common";
  * 응답 imports는 선택과 무관하게 org 범위의 전체 업로드 목록(기간 옵션용), period는 선택된 CSV들의 데이터 기간.
  * 각 행에 code_prompts(같은 데이터 기간의 Claude Code 프롬프트 수, OTel claude_code_daily, Claude 조직 무관 이메일 합)와
  * office_turns(같은 기간의 Excel·Word·PowerPoint 추가 기능 턴 수, RPC claude_office_usage)를 붙인다 — 채팅은 0이어도 다른 제품을 쓰는 시트를 구분하기 위함.
+ * 행의 seat_tier는 claude_org_members(active, 매일 갱신 + 시트 작업 완료 시 즉시 갱신)가 있으면 그 값으로 덮고, seat_action(대기·실행 중 또는 24시간 안의 마지막 요청)과 executor(실행기 하트비트)를 붙인다.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin();
@@ -87,5 +90,28 @@ export async function GET(request: NextRequest) {
     const d = dirByEmail.get(email);
     return { ...rec, employee_name: d?.name ?? null, team: d?.team ?? null, parent_unit: parentUnit(d), headquarters: d?.headquarters ?? null, division: d?.division ?? null, code_prompts: codePrompts.get(email)?.human ?? 0, code_prompts_auto: codePrompts.get(email)?.auto ?? 0, office_turns: officeTurns.get(email) ?? 0 };
   });
-  return NextResponse.json({ imports: all, rows: withTeam, period });
+  // 시트 작업: claude_org_members 티어로 덮고(CSV는 최대 하루 낡음), 요청 요약·실행기 상태를 붙인다. 표가 없거나 실패해도 표는 내려준다
+  const orgIds = [...new Set(withTeam.map((r) => String((r as Record<string, unknown>).org_id)))];
+  const since = new Date(Date.now() - 86_400_000).toISOString();
+  const [om, acts, ex] = orgIds.length
+    ? await Promise.all([
+        admin.from("claude_org_members").select("org_id, email, seat_tier").in("org_id", orgIds).eq("status", "active").limit(2000),
+        admin.from("claude_seat_actions").select("*").in("org_id", orgIds).or(`status.in.(requested,running),requested_at.gte.${since}`).order("requested_at", { ascending: false }).limit(2000),
+        admin.from("claude_seat_executor").select("*").eq("id", "default").maybeSingle(),
+      ])
+    : [
+        { data: [] as { org_id: string; email: string; seat_tier: string | null }[], error: null as { message: string } | null },
+        { data: [] as SeatAction[], error: null as { message: string } | null },
+        { data: null as SeatExecutor | null, error: null as { message: string } | null },
+      ];
+  if (om.error) console.warn("[claude-usage] org_members 조인 실패:", om.error.message);
+  if (acts.error) console.warn("[claude-usage] seat_actions 조인 실패:", acts.error.message);
+  type SeatRow = { org_id: string; email: string; seat_tier: string };
+  const rowsOut = overlaySeat(
+    withTeam as unknown as SeatRow[],
+    (om.error ? [] : om.data ?? []) as { org_id: string; email: string; seat_tier: string | null }[],
+    summarize((acts.error ? [] : acts.data ?? []) as SeatAction[], new Date()),
+  );
+  const executor = (ex.error ? null : ex.data ?? null) as SeatExecutor | null;
+  return NextResponse.json({ imports: all, rows: rowsOut, period, executor });
 }
