@@ -9,18 +9,20 @@ import OrgSelect from "@/components/admin/claude-usage/OrgSelect";
 import UnitFilter, { matchUnit } from "@/components/admin/claude-usage/UnitFilter";
 import { Loader2, Trash2, History } from "lucide-react";
 import SortableTable, { sumBy, type Column } from "./SortableTable";
-import PeriodSelect from "./PeriodSelect";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SeatActionCell from "./SeatActionCell";
 import SeatHistorySheet from "./SeatHistorySheet";
 import SeatExecutorChip from "./SeatExecutorChip";
 import { hasSeat, isIdleSeat } from "@/lib/claude-usage/aggregate";
+import { normalizeTier } from "@/lib/claude-usage/seat-tier";
 import { int, fmtDateTime } from "./format";
 import { useMoney } from "@/components/shared/currency-context";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
 import type { SeatActionSummary, SeatExecutor } from "@/types/claude-seat";
 
 type Row = MemberActivityRow & { org_id: string; import_id: string; employee_name?: string | null; team?: string | null; parent_unit?: string | null; headquarters?: string | null; division?: string | null; code_prompts?: number; code_prompts_auto?: number; office_turns?: number; seat_action?: SeatActionSummary | null };
-interface MembersResponse { imports: CsvImport[]; rows: Row[]; period: { start: string; end: string } | null; executor?: SeatExecutor | null }
+interface MembersResponse { imports: CsvImport[]; rows: Row[]; period: { start: string; end: string } | null; executor?: SeatExecutor | null; windows?: { target: string; orgs: number; period_start: string | null; period_end: string | null }[] }
+const SEAT_FILTERS = [["all", "시트: 전체"], ["Premium", "시트: Premium"], ["Standard", "시트: Standard"], ["Unassigned", "시트: 미할당"]] as const;
 
 /**
  * 채팅·Cowork(CSV) 멤버 활동 표. CSV 수집·업로드는 웹 UI가 아니라 /claude-usage-csv 스킬(launchd 매일 09:05)이
@@ -35,10 +37,13 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const [q, setQ] = useState("");
   const [unit, setUnit] = useState("all");
   const [idleOnly, setIdleOnly] = useState(false);
+  const [seatFilter, setSeatFilter] = useState<(typeof SEAT_FILTERS)[number][0]>("all");
+  const [windows, setWindows] = useState(1); // 30일 창 개수(1·2·3 = 30·60·90일)
+  const [executorLive, setExecutorLive] = useState<SeatExecutor | null | undefined>(undefined); // 30초마다 하트비트만 다시 읽는다
   const [history, setHistory] = useState<{ open: boolean; email: string | null }>({ open: false, email: null });
   const pollUntil = useRef(0);
 
-  const key = `${org}|${periodEnd}|${tick}`;
+  const key = `${org}|${periodEnd}|${windows}|${tick}`;
   const [result, setResult] = useState<{ key: string; data?: MembersResponse; error?: string } | null>(null);
   const loading = result?.key !== key;
   const data = result?.data ?? null; // 폴링 중에도 이전 데이터를 유지(키가 바뀌어도 result는 아직 이전 응답)
@@ -46,7 +51,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
 
   useEffect(() => {
     let alive = true;
-    fetch(`/api/admin/claude-usage/members?org=${encodeURIComponent(org)}&periodEnd=${encodeURIComponent(periodEnd)}`)
+    fetch(`/api/admin/claude-usage/members?org=${encodeURIComponent(org)}&periodEnd=${encodeURIComponent(periodEnd)}&windows=${windows}`)
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
@@ -61,7 +66,18 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
     return () => {
       alive = false;
     };
-  }, [key, org, periodEnd, tick]);
+  }, [key, org, periodEnd, windows, tick]);
+
+  // 실행기 칩은 표와 따로 30초마다 갱신 — 페이지를 열어 둔 채 시간이 흘러도 "꺼짐"으로 굳지 않게
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const r = await fetch("/api/admin/claude-usage/seat-actions?limit=1");
+        if (r.ok) { const j = (await r.json()) as { executor?: SeatExecutor | null }; setExecutorLive(j.executor ?? null); }
+      } catch { /* 다음 주기에 다시 */ }
+    }, 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   /** 요청·취소 직후 5초 간격으로 다시 읽는다(대기·실행 중이 남아 있고 2분이 안 지났으면) */
   const onSeatChanged = () => { pollUntil.current = Date.now() + 120_000; setTick((t) => t + 1); };
@@ -106,8 +122,12 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
   }, [data]);
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return (data?.rows ?? []).filter((r) => matchUnit(r, unit) && (!s || r.email.includes(s) || r.name.toLowerCase().includes(s) || (r.employee_name ?? "").toLowerCase().includes(s) || (r.team ?? "").toLowerCase().includes(s)) && (!idleOnly || isIdleSeat(r)));
-  }, [data, q, unit, idleOnly]);
+    const seatOk = (r: Row) => seatFilter === "all" || (seatFilter === "Unassigned" ? !hasSeat(r.seat_tier) : normalizeTier(r.seat_tier) === seatFilter);
+    return (data?.rows ?? []).filter((r) => matchUnit(r, unit) && seatOk(r) && (!s || r.email.includes(s) || r.name.toLowerCase().includes(s) || (r.employee_name ?? "").toLowerCase().includes(s) || (r.team ?? "").toLowerCase().includes(s)) && (!idleOnly || isIdleSeat(r)));
+  }, [data, q, unit, idleOnly, seatFilter]);
+  /** 날짜 입력의 범위 — 업로드된 CSV의 종료일 최소·최대 */
+  const endRange = useMemo(() => { const ends = (data?.imports ?? []).map((i) => i.period_end).sort(); return { min: ends[0], max: ends.at(-1) }; }, [data]);
+  const missingWindows = (data?.windows ?? []).filter((w) => w.orgs === 0);
   const idleCount = useMemo(() => (data?.rows ?? []).filter(isIdleSeat).length, [data]);
 
   const columns: Column<Row>[] = [
@@ -143,15 +163,25 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
           : <span className="text-muted-foreground">마지막 CSV 수집: 없음</span>}
         <span className="ml-2 text-xs text-muted-foreground">— 수집·업로드는 /claude-usage-csv 스킬(매일 09:05 launchd)이 처리합니다</span>
         <span className="ml-2 inline-flex items-center gap-2 align-middle">
-          <SeatExecutorChip executor={data?.executor} />
+          <SeatExecutorChip executor={executorLive === undefined ? data?.executor : executorLive} />
           <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setHistory({ open: true, email: null })}><History className="mr-1 h-3.5 w-3.5" />시트 작업 이력</Button>
         </span>
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
         <OrgSelect orgs={orgs} value={org} onChange={(v) => { setOrg(v); setPeriodEnd("latest"); }} />
-        <PeriodSelect value={periodEnd} onChange={setPeriodEnd} imports={data?.imports ?? []} />
-        {data?.period && <Badge variant="secondary" title="선택한 기간의 CSV 중 조직별 최신 업로드 기준">데이터 기간 {data.period.start} ~ {data.period.end}</Badge>}
+        <label className="flex items-center gap-1 text-xs text-muted-foreground" title="이 날짜로 끝나는 30일 스냅샷(가장 가까운 수집, ±3일). 비우면 최신">
+          종료일
+          <input type="date" className="h-8 rounded-md border bg-background px-2 text-xs" value={periodEnd === "latest" ? "" : periodEnd} min={endRange.min} max={endRange.max} onChange={(e) => setPeriodEnd(e.target.value || "latest")} />
+        </label>
+        <div className="flex items-center gap-1" title="30일 창을 이어 붙인 합계 — CSV는 30일 합계 스냅샷이라 일별로는 자를 수 없습니다">
+          {[1, 2, 3].map((n) => <Button key={n} size="sm" variant={windows === n ? "default" : "outline"} className="h-8 px-2 text-xs" onClick={() => setWindows(n)}>{n * 30}일</Button>)}
+        </div>
+        {data?.period && <Badge variant="secondary" title={(data.windows ?? []).map((w) => `${w.target} 기준: ${w.orgs ? `${w.period_start} ~ ${w.period_end} (${w.orgs}개 조직)` : "미수집"}`).join("\n")}>데이터 기간 {data.period.start} ~ {data.period.end}{windows > 1 && <> · 창 {(data.windows ?? []).filter((w) => w.orgs > 0).length}/{windows}{missingWindows.length > 0 && <span className="text-amber-700 dark:text-amber-300"> (미수집 {missingWindows.length})</span>}</>}</Badge>}
+        <Select value={seatFilter} onValueChange={(v) => setSeatFilter(v as typeof seatFilter)}>
+          <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>{SEAT_FILTERS.map(([v, label]) => <SelectItem key={v} value={v}>{label}</SelectItem>)}</SelectContent>
+        </Select>
         <UnitFilter value={unit} onChange={setUnit} rows={data?.rows ?? []} />
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="이메일/이름 검색" className="h-8 w-[200px] text-xs" />
         <Button size="sm" variant={idleOnly ? "default" : "outline"} onClick={() => setIdleOnly((v) => !v)}>노는 시트만 ({idleCount})</Button>

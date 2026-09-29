@@ -35,6 +35,8 @@
 5. 나머지 조직 6개에 같은 JSON 적용(조직 ID는 `organization.id`로 자동 구분·자동 등록되므로 조직·설정 탭에서 이름만 지정).
 
 ## 3. 월간 CSV 절차 (매월 1일, 조직당 1분)
+
+> 2026-09-29: 채팅·Cowork 탭의 기간은 **종료일 달력 + 30/60/90일** 버튼이다. CSV가 30일 합계 스냅샷이라 일별로는 못 자르고, 60·90일은 종료일에서 30일씩 거슬러 간 창(조직별 ±3일 안의 수집)을 멤버별 합계로 이어 붙인다(`members?windows=2|3`, 없는 창은 배지에 "미수집"). "시트" 필터(Premium/Standard/미할당)는 멤버 스냅샷 티어 기준.
 가장 쉬운 방법: Claude Code에서 `/claude-usage-csv` 실행(Chrome 확장 연결 필요) → 7개 조직 CSV 내보내기 + 업로드가 자동 진행. 수동으로 받았다면 `./frontend/scripts/claude-usage-upload.sh 3`으로 최근 3일 파일을 일괄 업로드.
 1. claude.ai에서 조직 전환 → 분석 → 개요 → 멤버 **모두 보기** → 기간 **30일** → **CSV 내보내기**(`members-analytics-<조직ID>-<시작>-to-<끝>.csv`).
 2. 7개 파일을 `./frontend/scripts/claude-usage-upload.sh 1`(수집 토큰으로 `POST /api/admin/claude-usage/imports`)로 한 번에 업로드. 결과 줄이 전부 ✓인지 확인. 평소에는 `/claude-usage-csv` 스킬(launchd 매일 09:05)이 내보내기·업로드를 무인으로 처리하며, 웹 화면에는 업로드 UI가 없고(2026-09-03 제거) "마지막 CSV 수집"·수집 이력(삭제)만 있다. **팀별 집계** 탭에서 사내 조직도 기준 팀별 채팅·Cowork 활동을 볼 수 있다(여러 Claude 조직에 속한 계정은 인원 1명으로, 상위 조직은 팀 바로 위 단위 표기).

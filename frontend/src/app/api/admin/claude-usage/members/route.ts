@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500, numify } from "@/lib/claude-usage/require-admin";
 import { selectAll } from "@/lib/work-metrics/common";
 import { overlaySeat, summarize } from "@/lib/claude-usage/seat-actions";
+import { mergeWindowRows, pickWindowImports } from "@/lib/claude-usage/csv-windows";
 import type { SeatAction, SeatExecutor } from "@/types/claude-seat";
+import type { MemberActivityRow } from "@/types/claude-usage";
 
 /**
  * GET /api/admin/claude-usage/members?org=all|<id>&importId=latest|<uuid>&periodEnd=latest|YYYY-MM-DD — CSV 멤버 활동
  * - periodEnd(YYYY-MM-DD): 데이터 기간 종료일이 그 날짜인 CSV 중 조직별 최신 업로드를 고른다(화면의 "데이터 기간" 선택).
  * - importId(uuid): 특정 업로드 하나. 둘 다 없으면 조직별 최신 업로드.
+ * - windows(1|2|3, 기본 1): 종료일에서 30일씩 거슬러 간 창을 조직별로 골라(±3일) 멤버별 합계로 이어 붙인다(60·90일). 응답 windows에 창별 수집 조직 수.
  * 응답 imports는 선택과 무관하게 org 범위의 전체 업로드 목록(기간 옵션용), period는 선택된 CSV들의 데이터 기간.
  * 각 행에 code_prompts(같은 데이터 기간의 Claude Code 프롬프트 수, OTel claude_code_daily, Claude 조직 무관 이메일 합)와
  * office_turns(같은 기간의 Excel·Word·PowerPoint 추가 기능 턴 수, RPC claude_office_usage)를 붙인다 — 채팅은 0이어도 다른 제품을 쓰는 시트를 구분하기 위함.
@@ -24,6 +27,7 @@ export async function GET(request: NextRequest) {
   const org = sp.get("org") ?? "all";
   const importId = sp.get("importId") ?? "latest";
   const periodEnd = /^\d{4}-\d{2}-\d{2}$/.test(sp.get("periodEnd") ?? "") ? (sp.get("periodEnd") as string) : null;
+  const windows = Math.min(3, Math.max(1, Number(sp.get("windows") ?? 1) || 1));
 
   let importsQ = admin
     .from("claude_csv_imports")
@@ -37,16 +41,22 @@ export async function GET(request: NextRequest) {
   type Imp = { id: string; org_id: string; period_start: string; period_end: string };
   const all = (imports.data ?? []) as Imp[];
   let selected: Imp[];
+  const windowOf = new Map<string, number>(); // import id → 창 번호(0 = 최신)
+  let picks: { target: string; imports: Imp[] }[] = [];
   if (importId !== "latest") {
     selected = all.filter((i) => i.id === importId);
   } else {
-    // period_end desc, created_at desc 정렬이라 조직별 첫 항목이 최신 업로드
-    const pool = periodEnd ? all.filter((i) => i.period_end === periodEnd) : all;
-    const seen = new Map<string, Imp>();
-    for (const i of pool) if (!seen.has(i.org_id)) seen.set(i.org_id, i);
-    selected = [...seen.values()];
+    // period_end desc, created_at desc 정렬이라 같은 period_end 안에서는 먼저 온 것이 최신 업로드. 종료일 없으면 가장 최근 종료일
+    const end = periodEnd ?? all[0]?.period_end ?? null;
+    picks = end ? pickWindowImports(all, end, windows) : [];
+    selected = picks.flatMap((p, w) => { for (const i of p.imports) windowOf.set(i.id, w); return p.imports; });
   }
   const ids = selected.map((i) => i.id);
+  const windowInfo = picks.map((p) => ({
+    target: p.target, orgs: p.imports.length,
+    period_start: p.imports.length ? p.imports.map((i) => i.period_start).sort()[0] : null,
+    period_end: p.imports.length ? p.imports.map((i) => i.period_end).sort().at(-1)! : null,
+  }));
   const period = selected.length
     ? { start: selected.map((i) => i.period_start).sort()[0], end: selected.map((i) => i.period_end).sort().at(-1)! }
     : null;
@@ -54,6 +64,11 @@ export async function GET(request: NextRequest) {
     ? await admin.from("claude_member_activity").select("*").in("import_id", ids).order("chats", { ascending: false })
     : { data: [] as Record<string, unknown>[], error: null };
   if (rows.error) return NextResponse.json({ error: rows.error.message }, { status: 500 });
+  // 창이 여러 개면 창별로 나눠 조직·이메일별 합계로 이어 붙인다(숫자는 합, 이름·티어는 최신 창)
+  type ActRow = MemberActivityRow & { org_id: string; import_id: string };
+  const rowsByWindow: ActRow[][] = Array.from({ length: Math.max(1, picks.length) }, () => []);
+  for (const r of (rows.data ?? []) as ActRow[]) rowsByWindow[windowOf.get(r.import_id) ?? 0].push(r);
+  const activity = mergeWindowRows(rowsByWindow);
 
   // 사내 조직도 명부(재직자)로 소속(team/division) 조인 — 실패해도 표는 내려준다
   const directory = await admin.from("company_directory").select("email, name, team, headquarters, division, units").eq("active", true).limit(1000);
@@ -84,8 +99,8 @@ export async function GET(request: NextRequest) {
       officeTurns.set(k, (officeTurns.get(k) ?? 0) + Number(r.turns));
     }
   }
-  const withTeam = (rows.data ?? []).map((r) => {
-    const rec = numify(r as Record<string, unknown>) as Record<string, unknown>;
+  const withTeam = activity.map((r) => {
+    const rec = numify(r as unknown as Record<string, unknown>);
     const email = String(rec.email ?? "").toLowerCase();
     const d = dirByEmail.get(email);
     return { ...rec, employee_name: d?.name ?? null, team: d?.team ?? null, parent_unit: parentUnit(d), headquarters: d?.headquarters ?? null, division: d?.division ?? null, code_prompts: codePrompts.get(email)?.human ?? 0, code_prompts_auto: codePrompts.get(email)?.auto ?? 0, office_turns: officeTurns.get(email) ?? 0 };
@@ -123,5 +138,5 @@ export async function GET(request: NextRequest) {
     summarize((acts.error ? [] : acts.data ?? []) as SeatAction[], new Date()),
   );
   const executor = (ex.error ? null : ex.data ?? null) as SeatExecutor | null;
-  return NextResponse.json({ imports: all, rows: rowsOut, period, executor });
+  return NextResponse.json({ imports: all, rows: rowsOut, period, executor, windows: windowInfo });
 }
