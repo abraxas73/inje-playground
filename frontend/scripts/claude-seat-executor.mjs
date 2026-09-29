@@ -3,7 +3,7 @@
 // Claude 시트 할당·해제 실행기 — 관리자 Mac에서 상시 실행(launchd com.innogrid.claude-seat-executor).
 //   node scripts/claude-seat-executor.mjs            # 15초마다 대기 요청을 claim해 claude.ai에 반영
 //   node scripts/claude-seat-executor.mjs --login    # 창을 띄워 소유자 계정으로 직접 로그인(1회). 창을 닫으면 끝
-//   node scripts/claude-seat-executor.mjs --once     # 한 바퀴만(점검용)
+//   node scripts/claude-seat-executor.mjs --once     # 한 행만 처리하고 종료(점검용)
 // 환경: CLAUDE_OTEL_INGEST_TOKEN(없으면 frontend/.env.local → ~/.config/inje-playground/work-metrics.env),
 //       APP_URL(기본 프로덕션), SEAT_PROFILE_DIR(기본 ~/.claude-seat/profile), SEAT_HEADLESS(기본 1)
 // 서버 계약: GET ?claim=1 → {row}, PATCH {id,status,before_tier,after_tier,error,executor}, PUT heartbeat — src/app/api/admin/claude-usage/seat-actions
@@ -23,6 +23,8 @@ const HEADLESS = process.env.SEAT_HEADLESS !== "0";
 const POLL_MS = 15_000;
 const HOST = os.hostname();
 const API = `${APP_URL}/api/admin/claude-usage/seat-actions`;
+let busy = false;
+let stopping = false;
 
 const log = (obj) => console.log(JSON.stringify({ t: new Date().toISOString(), ...obj }));
 
@@ -38,6 +40,19 @@ async function api(method, url, body) {
   return json;
 }
 const heartbeat = (logged_in, note) => api("PUT", `${API}/heartbeat`, { logged_in, note: note ?? null, host: HOST, version: VERSION }).catch((e) => log({ heartbeat_error: e.message }));
+
+/** PATCH를 최대 5번 더(총 6회) 재시도 — 5s·15s·30s·60s·120s 간격. claude.ai에는 이미 반영된 뒤 결과 보고만 실패하는 상황(일시적 5xx·네트워크 오류)에 결과가 유실되지 않게 한다 */
+async function patchWithRetry(body) {
+  const waits = [5_000, 15_000, 30_000, 60_000, 120_000];
+  for (let n = 0; ; n++) {
+    try { return await api("PATCH", API, body); }
+    catch (e) {
+      log({ patch_retry: n, error: e.message });
+      if (n >= waits.length) throw e;
+      await sleep(waits[n]);
+    }
+  }
+}
 
 async function launch(headless) {
   fs.mkdirSync(PROFILE, { recursive: true, mode: 0o700 });
@@ -68,21 +83,30 @@ async function process1(page, row) {
   const org = row.org_id;
   const target = row.action === "unassign" ? "unassigned" : TIER_TO_API[row.target_tier];
   if (!target) return { status: "failed", error: `모르는 목표 티어: ${row.target_tier}` };
-  const before = await claudeFetch(page, `/api/organizations/${org}/members?limit=500`);
-  if (before.status !== 200) return { status: "failed", error: `claude.ai members ${before.status}: ${before.text}` };
-  const m = findMember(before.json, row.email);
-  if (!m || !m.uuid) return { status: "failed", error: "조직에서 멤버를 찾지 못했습니다" };
-  const put = await claudeFetch(page, `/api/organizations/${org}/members/${m.uuid}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ seat_tier: target }) });
-  if (put.status < 200 || put.status >= 300) return { status: "failed", before_tier: m.seat_tier, error: `claude.ai ${put.status}: ${put.text}` };
-  const after = await claudeFetch(page, `/api/organizations/${org}/members?limit=500`);
-  const m2 = after.status === 200 ? findMember(after.json, row.email) : null;
-  if (!m2) return { status: "failed", before_tier: m.seat_tier, error: "적용 뒤 멤버를 다시 읽지 못했습니다" };
-  if (m2.seat_tier !== target) return { status: "failed", before_tier: m.seat_tier, after_tier: m2.seat_tier, error: `적용 후 티어가 ${m2.seat_tier}입니다` };
-  return { status: "done", before_tier: m.seat_tier, after_tier: m2.seat_tier };
+  let putOk = false;
+  let before = null;
+  try {
+    const beforeRes = await claudeFetch(page, `/api/organizations/${org}/members?limit=500`);
+    if (beforeRes.status !== 200) return { status: "failed", error: `claude.ai members ${beforeRes.status}: ${beforeRes.text}` };
+    const m = findMember(beforeRes.json, row.email);
+    if (!m || !m.uuid) return { status: "failed", error: "조직에서 멤버를 찾지 못했습니다" };
+    before = m.seat_tier;
+    const put = await claudeFetch(page, `/api/organizations/${org}/members/${m.uuid}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ seat_tier: target }) });
+    if (put.status < 200 || put.status >= 300) return { status: "failed", before_tier: before, error: `claude.ai ${put.status}: ${put.text}` };
+    putOk = true;
+    const after = await claudeFetch(page, `/api/organizations/${org}/members?limit=500`);
+    const m2 = after.status === 200 ? findMember(after.json, row.email) : null;
+    if (!m2) return { status: "failed", before_tier: before, error: `${putOk ? "claude.ai에는 이미 반영됨(PUT 2xx) — " : ""}적용 뒤 멤버를 다시 읽지 못했습니다` };
+    if (m2.seat_tier !== target) return { status: "failed", before_tier: before, after_tier: m2.seat_tier, error: `${putOk ? "claude.ai에는 이미 반영됨(PUT 2xx) — " : ""}적용 후 티어가 ${m2.seat_tier}입니다` };
+    return { status: "done", before_tier: before, after_tier: m2.seat_tier };
+  } catch (e) {
+    return { status: "failed", before_tier: before, error: `${putOk ? "claude.ai에는 이미 반영됨(PUT 2xx) — " : ""}실행기 예외: ${e.message.slice(0, 200)}` };
+  }
 }
 
 async function loop(ctx, once) {
   for (;;) {
+    if (stopping) { await ctx.close().catch(() => {}); process.exit(0); }
     let page, loggedIn;
     try { ({ page, loggedIn } = await ensureClaudePage(ctx)); }
     catch (e) { log({ page_error: e.message }); await heartbeat(false, `페이지 오류: ${e.message.slice(0, 120)}`); if (once) return; await sleep(POLL_MS); continue; }
@@ -93,11 +117,14 @@ async function loop(ctx, once) {
     catch (e) { log({ claim_error: e.message }); if (once) return; await sleep(POLL_MS); continue; }
     const row = claimed?.row;
     if (row) {
+      busy = true;
       log({ claim: row.id, org: row.org_id, email: row.email, action: row.action, target: row.target_tier });
-      let result;
-      try { result = await process1(page, row); } catch (e) { result = { status: "failed", error: `실행기 예외: ${e.message.slice(0, 200)}` }; }
-      try { await api("PATCH", API, { id: row.id, executor: HOST, ...result }); } catch (e) { log({ patch_error: e.message }); }
+      const result = await process1(page, row);
+      try { await patchWithRetry({ id: row.id, executor: HOST, ...result }); } catch (e) { log({ patch_error: e.message }); }
       log({ done: row.id, ...result });
+      busy = false;
+      if (stopping) { await ctx.close().catch(() => {}); process.exit(0); }
+      if (once) return;
       continue; // 대기 요청이 더 있을 수 있으니 바로 다음 claim
     }
     if (once) return;
@@ -117,8 +144,9 @@ async function main() {
     await new Promise((r) => ctx.on("close", r));
     return;
   }
+  ctx.on("close", () => { log({ browser_closed: true }); process.exit(1); });
   log({ start: VERSION, host: HOST, app: APP_URL, headless: HEADLESS });
-  const stop = async () => { log({ stop: true }); await ctx.close().catch(() => {}); process.exit(0); };
+  const stop = async () => { log({ stop: true }); stopping = true; if (!busy) { await ctx.close().catch(() => {}); process.exit(0); } };
   process.on("SIGTERM", stop); process.on("SIGINT", stop);
   await loop(ctx, once);
   await ctx.close().catch(() => {});

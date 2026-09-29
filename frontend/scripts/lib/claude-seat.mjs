@@ -12,7 +12,7 @@ export function findMember(payload, email) {
   for (const m of list) {
     const a = m?.account ?? m;
     const got = String(a?.email_address ?? a?.email ?? "").trim().toLowerCase();
-    if (got && got === want) return { uuid: String(a?.uuid ?? m?.uuid ?? m?.id ?? ""), seat_tier: String(m?.seat_tier ?? ""), role: String(m?.role ?? "") };
+    if (got && got === want) return { uuid: String(a?.uuid ?? m?.uuid ?? m?.id ?? ""), seat_tier: String(m?.seat_tier ?? "") || "unassigned", role: String(m?.role ?? "") };
   }
   return null;
 }

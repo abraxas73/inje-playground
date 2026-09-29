@@ -15,6 +15,7 @@ describe("claude-seat.mjs", () => {
     expect(findMember([{ role: "user" }], "kim@innogrid.com")).toBeNull();
     expect(findMember(null, "kim@innogrid.com")).toBeNull();
     expect(findMember("oops", "kim@innogrid.com")).toBeNull();
+    expect(findMember([{ account: { uuid: "u-2", email_address: "lee@innogrid.com" }, seat_tier: null }], "lee@innogrid.com")).toEqual({ uuid: "u-2", seat_tier: "unassigned", role: "" });
   });
   it("env 파일에서 따옴표·주석을 벗기고 키를 읽는다", () => {
     expect(parseEnv('# c\nCLAUDE_OTEL_INGEST_TOKEN="abc"\nAPP_URL=https://x\n\nBAD\n')).toEqual({ CLAUDE_OTEL_INGEST_TOKEN: "abc", APP_URL: "https://x" });
