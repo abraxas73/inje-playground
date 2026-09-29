@@ -1,22 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import OrgSelect from "@/components/admin/claude-usage/OrgSelect";
 import UnitFilter, { matchUnit } from "@/components/admin/claude-usage/UnitFilter";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, History } from "lucide-react";
 import SortableTable, { sumBy, type Column } from "./SortableTable";
 import PeriodSelect from "./PeriodSelect";
+import SeatActionCell from "./SeatActionCell";
+import SeatHistorySheet from "./SeatHistorySheet";
+import SeatExecutorChip from "./SeatExecutorChip";
 import { hasSeat, isIdleSeat } from "@/lib/claude-usage/aggregate";
 import { int, fmtDateTime } from "./format";
 import { useMoney } from "@/components/shared/currency-context";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
+import type { SeatActionSummary, SeatExecutor } from "@/types/claude-seat";
 
-type Row = MemberActivityRow & { org_id: string; import_id: string; employee_name?: string | null; team?: string | null; parent_unit?: string | null; headquarters?: string | null; division?: string | null; code_prompts?: number; code_prompts_auto?: number; office_turns?: number };
-interface MembersResponse { imports: CsvImport[]; rows: Row[]; period: { start: string; end: string } | null }
+type Row = MemberActivityRow & { org_id: string; import_id: string; employee_name?: string | null; team?: string | null; parent_unit?: string | null; headquarters?: string | null; division?: string | null; code_prompts?: number; code_prompts_auto?: number; office_turns?: number; seat_action?: SeatActionSummary | null };
+interface MembersResponse { imports: CsvImport[]; rows: Row[]; period: { start: string; end: string } | null; executor?: SeatExecutor | null }
 
 /**
  * 채팅·Cowork(CSV) 멤버 활동 표. CSV 수집·업로드는 웹 UI가 아니라 /claude-usage-csv 스킬(launchd 매일 09:05)이
@@ -31,6 +35,8 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const [q, setQ] = useState("");
   const [unit, setUnit] = useState("all");
   const [idleOnly, setIdleOnly] = useState(false);
+  const [history, setHistory] = useState<{ open: boolean; email: string | null }>({ open: false, email: null });
+  const pollUntil = useRef(0);
 
   const key = `${org}|${periodEnd}|${tick}`;
   const [result, setResult] = useState<{ key: string; data?: MembersResponse; error?: string } | null>(null);
@@ -56,6 +62,15 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
       alive = false;
     };
   }, [key, org, periodEnd, tick]);
+
+  /** 요청·취소 직후 5초 간격으로 다시 읽는다(대기·실행 중이 남아 있고 2분이 안 지났으면) */
+  const onSeatChanged = () => { pollUntil.current = Date.now() + 120_000; setTick((t) => t + 1); };
+  useEffect(() => {
+    const pending = (data?.rows ?? []).some((r) => r.seat_action && (r.seat_action.status === "requested" || r.seat_action.status === "running"));
+    if (!pending || Date.now() > pollUntil.current) return;
+    const id = setTimeout(() => setTick((t) => t + 1), 5_000);
+    return () => clearTimeout(id);
+  }, [data]);
 
   const remove = async (id: string) => {
     setRemoveError(null);
@@ -94,14 +109,14 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const idleCount = useMemo(() => (data?.rows ?? []).filter(isIdleSeat).length, [data]);
 
   const columns: Column<Row>[] = [
-    { key: "user", header: "사용자 (Claude)", value: (r) => r.email, render: (r) => (<div><div className="font-medium">{r.name || r.email}</div>{r.name && <div className="text-muted-foreground">{r.email}</div>}</div>) },
+    { key: "user", header: "사용자 (Claude)", value: (r) => r.email, render: (r) => (<div><div className="font-medium">{r.name || r.email}</div>{r.name && <div className="text-muted-foreground">{r.email}</div>}<button type="button" className="text-[10px] text-muted-foreground underline-offset-2 hover:underline" onClick={() => setHistory({ open: true, email: r.email })}>이력</button></div>) },
     { key: "employee", header: "이름", value: (r) => r.employee_name ?? "", render: (r) => (r.employee_name ? <span title="사내 조직도(아마란스) 이름">{r.employee_name}</span> : <span className="text-muted-foreground">—</span>) },
     { key: "org", header: "Claude 조직", value: (r) => orgName.get(r.org_id) ?? r.org_id, render: (r) => <Badge variant="outline" className="text-[10px]">{orgName.get(r.org_id) ?? r.org_id.slice(0, 8)}</Badge> },
     { key: "team", header: "조직 / 팀", value: (r) => `${r.headquarters ?? r.division ?? ""} ${r.team ?? ""}`.trim(), render: (r) => (r.team
       ? <div title={[r.division, r.headquarters, r.parent_unit, r.team].filter((v, i, arr) => v && arr.indexOf(v) === i).join(" > ")}><div>{r.team}</div>{(() => { const p = r.parent_unit ?? r.headquarters ?? r.division; return p && p !== r.team ? <div className="text-muted-foreground">{p}</div> : null; })()}</div>
       : <span className="text-muted-foreground">—</span>) },
     { key: "role", header: "역할", value: (r) => r.role },
-    { key: "tier", header: "시트", value: (r) => r.seat_tier, render: (r) => (hasSeat(r.seat_tier) ? r.seat_tier : <span className="text-muted-foreground">미할당</span>) },
+    { key: "tier", header: "시트", hint: "claude.ai 멤버 스냅샷(매일 09:05, 시트 작업 완료 시 즉시)의 티어. 없으면 CSV의 티어", value: (r) => r.seat_tier, render: (r) => (hasSeat(r.seat_tier) ? r.seat_tier : <span className="text-muted-foreground">미할당</span>) },
     { key: "last", header: "마지막 활동", value: (r) => r.last_active ?? "" },
     { key: "days", header: "활동일", align: "right", value: (r) => r.days_active, total: "sum" },
     { key: "codep", header: "Claude Code 프롬프트\n(사람 / 자동)", align: "right", value: (r) => r.code_prompts ?? 0, render: (r) => <span title="같은 데이터 기간의 Claude Code 프롬프트 수(OTel, Claude 조직 무관) — 사람이 친 것 / 플러그인·스크립트 자동화. 채팅 0이어도 Claude Code를 쓰는 시트 구분용">{`${int(r.code_prompts ?? 0)} / ${int(r.code_prompts_auto ?? 0)}`}</span>, total: (rows) => `${int(sumBy(rows, (r) => r.code_prompts ?? 0))} / ${int(sumBy(rows, (r) => r.code_prompts_auto ?? 0))}` },
@@ -115,6 +130,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
     { key: "proj", header: "프로젝트", align: "right", value: (r) => r.projects_used , total: "sum" },
     { key: "art", header: "아티팩트", align: "right", value: (r) => r.artifacts_created , total: "sum" },
     { key: "spend", header: "초과 지출", align: "right", value: (r) => r.estimated_spend_usd, render: (r) => usd(r.estimated_spend_usd) , total: (rows) => usd(sumBy(rows, (r) => r.estimated_spend_usd)) },
+    { key: "seat_action", header: "시트 작업", align: "right", value: (r) => r.seat_action?.status ?? "", render: (r) => <SeatActionCell row={{ org_id: r.org_id, email: r.email, name: r.name, seat_tier: r.seat_tier, seat_action: r.seat_action ?? null }} orgName={orgName.get(r.org_id) ?? r.org_id.slice(0, 8)} onChanged={onSeatChanged} /> },
   ];
 
   return (
@@ -124,6 +140,10 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
           ? <>마지막 CSV 수집: <b>{fmtDateTime(lastCollected.at)}</b> <span className="text-muted-foreground">· {lastCollected.orgs}개 조직 · 데이터 기간 {lastCollected.periodStart} ~ {lastCollected.periodEnd}</span></>
           : <span className="text-muted-foreground">마지막 CSV 수집: 없음</span>}
         <span className="ml-2 text-xs text-muted-foreground">— 수집·업로드는 /claude-usage-csv 스킬(매일 09:05 launchd)이 처리합니다</span>
+        <span className="ml-2 inline-flex items-center gap-2 align-middle">
+          <SeatExecutorChip executor={data?.executor} />
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setHistory({ open: true, email: null })}><History className="mr-1 h-3.5 w-3.5" />시트 작업 이력</Button>
+        </span>
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -172,6 +192,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
           </CardContent>
         </Card>
       )}
+      <SeatHistorySheet open={history.open} onOpenChange={(o) => setHistory((h) => ({ ...h, open: o }))} email={history.email} orgName={orgName} />
     </div>
   );
 }
