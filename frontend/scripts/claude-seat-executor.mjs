@@ -152,7 +152,11 @@ async function main() {
     const page = ctx.pages()[0] ?? (await ctx.newPage());
     await page.goto("https://claude.ai/login", { waitUntil: "domcontentloaded" });
     console.log("브라우저에서 소유자 계정으로 로그인(Cloudflare 확인 포함)한 뒤 창을 닫으세요. 프로필:", PROFILE);
-    await new Promise((r) => ctx.on("close", r));
+    // Chrome은 창을 다 닫아도 프로세스가 남아 close 이벤트가 안 올 수 있다 — 열린 탭이 0개가 되면 우리가 닫는다(쿠키 flush)
+    await new Promise((r) => { ctx.on("close", r); const t = setInterval(() => { if (ctx.pages().length === 0) { clearInterval(t); r(); } }, 1000); });
+    stopping = true;
+    await ctx.close().catch(() => {});
+    console.log("로그인 세션을 저장했습니다. 프로필:", PROFILE);
     return;
   }
   ctx.on("close", () => { if (stopping) return; log({ browser_closed: true }); process.exit(1); });
