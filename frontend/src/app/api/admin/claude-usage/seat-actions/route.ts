@@ -71,6 +71,9 @@ export async function POST(request: NextRequest) {
     admin.from("claude_org_members").select("status, seat_tier").eq("org_id", input.org_id).eq("email", input.email).maybeSingle(),
     admin.from("claude_seat_actions").select("id").eq("org_id", input.org_id).eq("email", input.email).in("status", ["requested", "running"]).limit(1),
   ]);
+  if (org.error) return NextResponse.json({ error: org.error.message }, { status: 500 });
+  if (member.error) return NextResponse.json({ error: member.error.message }, { status: 500 });
+  if (open.error) return NextResponse.json({ error: open.error.message }, { status: 500 });
   if (!org.data) return NextResponse.json({ error: "모르는 Claude 조직입니다." }, { status: 404 });
   const problem = checkRequest(input, member.data ?? null, (open.data?.length ?? 0) > 0);
   if (problem) return NextResponse.json({ error: problem.error }, { status: problem.status });
@@ -95,6 +98,7 @@ export async function DELETE(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id") ?? "";
   if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
   const cur = await admin.from("claude_seat_actions").select("*").eq("id", id).maybeSingle();
+  if (cur.error) return NextResponse.json({ error: cur.error.message }, { status: 500 });
   if (!cur.data) return NextResponse.json({ error: "요청이 없습니다." }, { status: 404 });
   const row = cur.data as SeatAction;
   if (!canTransition(row.status, "cancelled")) return NextResponse.json({ error: `취소할 수 없는 상태입니다(${row.status}).` }, { status: 409 });
@@ -116,6 +120,7 @@ export async function PATCH(request: NextRequest) {
   if (!id || !status) return NextResponse.json({ error: "id와 status(done|failed)가 필요합니다." }, { status: 400, headers: NO_STORE });
 
   const cur = await admin.from("claude_seat_actions").select("*").eq("id", id).maybeSingle();
+  if (cur.error) return NextResponse.json({ error: cur.error.message }, { status: 500, headers: NO_STORE });
   if (!cur.data) return NextResponse.json({ error: "요청이 없습니다." }, { status: 404, headers: NO_STORE });
   const row = cur.data as SeatAction;
   if (!canTransition(row.status, status)) return NextResponse.json({ error: `${row.status}에서 ${status}로 바꿀 수 없습니다.` }, { status: 409, headers: NO_STORE });
@@ -123,6 +128,7 @@ export async function PATCH(request: NextRequest) {
   const s = (v: unknown, n: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : null);
   const before = b?.before_tier == null ? null : normalizeTier(b.before_tier);
   const after = b?.after_tier == null ? null : normalizeTier(b.after_tier);
+  if (status === "done" && after == null) return NextResponse.json({ error: "done에는 after_tier가 필요합니다." }, { status: 400, headers: NO_STORE });
   const upd = await admin.from("claude_seat_actions")
     .update({ status, finished_at: new Date().toISOString(), before_tier: before, after_tier: after, error: status === "failed" ? s(b?.error, 500) ?? "실패" : null, executor: s(b?.executor, 80) })
     .eq("id", id).eq("status", "running").select("*").maybeSingle();
@@ -130,7 +136,9 @@ export async function PATCH(request: NextRequest) {
   if (!upd.data) return NextResponse.json({ error: "이미 끝난 요청입니다." }, { status: 409, headers: NO_STORE });
 
   if (status === "done" && after) {
-    await admin.from("claude_org_members").update({ seat_tier: after }).eq("org_id", row.org_id).eq("email", row.email);
+    // claude_org_members는 09:05 일 배치로도 새로고침되는 캐시 — 갱신 실패해도 PATCH 자체는 성공시킨다(이미 claude.ai 쪽은 바뀐 뒤). 매치되는 행이 없어도(퇴사 등) 정상
+    const memberUpd = await admin.from("claude_org_members").update({ seat_tier: after }).eq("org_id", row.org_id).eq("email", row.email);
+    if (memberUpd.error) console.warn(`[claude-usage] claude_org_members 티어 갱신 실패: ${memberUpd.error.message}`);
   }
   const what = row.action === "unassign" ? "시트 해제" : "시트 할당";
   await logAudit(admin, request, {
