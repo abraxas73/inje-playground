@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { commitItemKey, jiraIssueItem, mrItemKey, normalizeGitlabItem } from "@/lib/work-metrics/items";
+import { commitItemKey, dedupeItems, jiraIssueItem, mrItemKey, normalizeGitlabItem, type WorkItem } from "@/lib/work-metrics/items";
 
 const id = (e: string) => e;
 
@@ -45,5 +45,15 @@ describe("normalizeGitlabItem", () => {
     expect(normalizeGitlabItem(null, id)).toBeNull();
     expect(normalizeGitlabItem("x", id)).toBeNull();
     expect(normalizeGitlabItem([base], id)).toBeNull();
+  });
+});
+
+describe("dedupeItems", () => {
+  it("같은 PK(source·kind·item_key)는 마지막 행만 남긴다 — 미러 커밋이 한 배치에 두 번 오면 upsert가 거부하므로", () => {
+    const commit: WorkItem = { source: "gitlab", kind: "commit", item_key: "abc", user_email: "kim@innogrid.com", scope_key: "grp/a", created_at: "2026-09-01T00:00:00.000Z", started_at: null, done_at: null, story_points: null, is_claude: false };
+    const mirrored = { ...commit, scope_key: "grp/b" };
+    const mr = { ...commit, kind: "mr" as const, item_key: "grp/a!1", done_at: "2026-09-02T00:00:00.000Z" };
+    expect(dedupeItems([commit, mr, mirrored])).toEqual([mirrored, mr]);
+    expect(dedupeItems([])).toEqual([]);
   });
 });

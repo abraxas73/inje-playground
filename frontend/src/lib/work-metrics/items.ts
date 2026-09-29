@@ -66,6 +66,13 @@ export function normalizeGitlabItem(raw: unknown, resolveEmail: (email: string) 
   };
 }
 
+/** PK(source·kind·item_key) 중복은 마지막 행만 남긴다 — 미러·체리픽 커밋은 키가 같아 한 배치에 두 번 오면 Postgres upsert가 "cannot affect row a second time"로 거부한다 */
+export function dedupeItems(items: WorkItem[]): WorkItem[] {
+  const byKey = new Map<string, WorkItem>();
+  for (const it of items) byKey.set(`${it.source}|${it.kind}|${it.item_key}`, it);
+  return [...byKey.values()];
+}
+
 export async function upsertItems(admin: SupabaseClient, items: WorkItem[]): Promise<number> {
-  return upsertChunked(admin, "work_items", items as unknown as Record<string, unknown>[], "source,kind,item_key");
+  return upsertChunked(admin, "work_items", dedupeItems(items) as unknown as Record<string, unknown>[], "source,kind,item_key");
 }
