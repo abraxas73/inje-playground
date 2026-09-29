@@ -8,6 +8,8 @@
 3. 토큰: `CLAUDE_OTEL_INGEST_TOKEN`(환경변수 또는 `frontend/.env.local`, Vercel과 동일 값) — 동기화 API가 관리자 세션 대신 이 토큰도 받는다.
 
 ## 2. 동기화 (수동, 1분)
+
+> 2026-09-29: inno-creed 9월 16일 빌드부터 `find_person`이 기본 `limit=20`으로 잘라 보낸다(`truncated:true`). 스크립트는 `no_limit:true`로 호출한다. "명부가 N명으로 너무 적습니다(최소 50)" 400이 나오면 이 상한이 먼저 의심 대상. 화면의 "표 새로고침" 버튼은 DB 재조회일 뿐 동기화를 트리거하지 않는다(서버는 inno-creed에 닿지 않는 푸시형).
 ```bash
 ./frontend/scripts/company-directory-sync.py --dry-run   # 명부 인원·부문별 분포만 확인
 ./frontend/scripts/company-directory-sync.py             # 프로덕션에 반영

@@ -114,7 +114,7 @@ def main():
     mcp = Mcp(MCP_BIN)
     try:
         mcp.initialize()
-        result = mcp.tool("find_person", {"query": QUERY}, timeout=120)
+        result = mcp.tool("find_person", {"query": QUERY, "no_limit": True}, timeout=120)  # 2026-09-16 inno-creed부터 기본 limit=20(truncated) — 전사 명부는 상한 없이
     except (RuntimeError, ValueError) as e:
         print("MCP 실패:", e)
         mcp.close()
