@@ -50,7 +50,7 @@ as $$
    )
   returning a.*;
 $$;
-revoke all on function public.claude_seat_action_claim(text) from public;
+revoke execute on function public.claude_seat_action_claim(text) from public, anon, authenticated;
 grant execute on function public.claude_seat_action_claim(text) to service_role;
 
 -- RLS: 읽기는 admin만, 쓰기 정책 없음(service role) — claude_org_members와 같은 규칙
@@ -67,3 +67,4 @@ end $$;
 -- 확인:
 -- select column_name, data_type from information_schema.columns where table_name = 'claude_seat_actions' order by ordinal_position;
 -- select proname from pg_proc where proname = 'claude_seat_action_claim';
+-- select grantee, privilege_type from information_schema.routine_privileges where routine_name = 'claude_seat_action_claim';  -- service_role·postgres만
