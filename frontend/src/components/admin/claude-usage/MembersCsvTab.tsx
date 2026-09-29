@@ -41,7 +41,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const key = `${org}|${periodEnd}|${tick}`;
   const [result, setResult] = useState<{ key: string; data?: MembersResponse; error?: string } | null>(null);
   const loading = result?.key !== key;
-  const data = result?.key === key ? result.data ?? null : null;
+  const data = result?.data ?? null; // 폴링 중에도 이전 데이터를 유지(키가 바뀌어도 result는 아직 이전 응답)
   const error = result?.key === key ? result.error ?? null : null;
 
   useEffect(() => {
@@ -67,7 +67,9 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const onSeatChanged = () => { pollUntil.current = Date.now() + 120_000; setTick((t) => t + 1); };
   useEffect(() => {
     const pending = (data?.rows ?? []).some((r) => r.seat_action && (r.seat_action.status === "requested" || r.seat_action.status === "running"));
-    if (!pending || Date.now() > pollUntil.current) return;
+    if (!pending) return;
+    if (!pollUntil.current) pollUntil.current = Date.now() + 120_000; // 로드 시 이미 대기·실행 중이면 여기서 폴링 시작
+    if (Date.now() > pollUntil.current) return;
     const id = setTimeout(() => setTick((t) => t + 1), 5_000);
     return () => clearTimeout(id);
   }, [data]);

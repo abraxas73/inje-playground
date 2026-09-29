@@ -36,9 +36,9 @@ export default function SeatActionCell({ row, orgName, onChanged }: { row: SeatA
   const cancel = async () => {
     if (!a) return;
     setBusy(true);
-    const r = await fetch(`/api/admin/claude-usage/seat-actions?id=${encodeURIComponent(a.id)}`, { method: "DELETE" });
+    await fetch(`/api/admin/claude-usage/seat-actions?id=${encodeURIComponent(a.id)}`, { method: "DELETE" });
     setBusy(false);
-    if (r.ok) onChanged();
+    onChanged(); // 409(실행기가 이미 claim) 등 실패해도 다시 조회해 최신 상태를 반영
   };
 
   const open = a && (a.status === "requested" || a.status === "running");

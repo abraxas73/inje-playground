@@ -25,6 +25,8 @@ const HOST = os.hostname();
 const API = `${APP_URL}/api/admin/claude-usage/seat-actions`;
 let busy = false;
 let stopping = false;
+let loginAt = 0;
+let loginOk = false;
 
 const log = (obj) => console.log(JSON.stringify({ t: new Date().toISOString(), ...obj }));
 
@@ -32,11 +34,15 @@ const token = readToken([path.join(HERE, "..", ".env.local"), path.join(os.homed
 if (!token) { console.error("CLAUDE_OTEL_INGEST_TOKEN이 없습니다(env 또는 frontend/.env.local)"); process.exit(1); }
 
 async function api(method, url, body) {
-  const r = await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const r = await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30_000) });
   const text = await r.text();
   let json = null;
   try { json = JSON.parse(text); } catch { /* 본문이 JSON이 아님 */ }
-  if (!r.ok) throw new Error(`${method} ${url} → ${r.status} ${json?.error ?? text.slice(0, 200)}`);
+  if (!r.ok) {
+    const err = new Error(`${method} ${url} → ${r.status} ${json?.error ?? text.slice(0, 200)}`);
+    err.status = r.status;
+    throw err;
+  }
   return json;
 }
 const heartbeat = (logged_in, note) => api("PUT", `${API}/heartbeat`, { logged_in, note: note ?? null, host: HOST, version: VERSION }).catch((e) => log({ heartbeat_error: e.message }));
@@ -47,6 +53,7 @@ async function patchWithRetry(body) {
   for (let n = 0; ; n++) {
     try { return await api("PATCH", API, body); }
     catch (e) {
+      if (e.status && e.status < 500) throw e; // 4xx(이미 끝난 요청 등)는 재시도해도 안 바뀜
       log({ patch_retry: n, error: e.message });
       if (n >= waits.length) throw e;
       await sleep(waits[n]);
@@ -75,8 +82,12 @@ async function claudeFetch(page, url, init) {
 async function ensureClaudePage(ctx) {
   const page = ctx.pages()[0] ?? (await ctx.newPage());
   if (!page.url().startsWith("https://claude.ai")) await page.goto("https://claude.ai/", { waitUntil: "domcontentloaded", timeout: 60_000 });
-  const r = await claudeFetch(page, "/api/organizations");
-  return { page, loggedIn: r.status === 200 };
+  if (Date.now() - loginAt > 60_000) { // 로그인 확인은 60초 캐시 — 매 15초 루프마다 호출하지 않는다
+    const r = await claudeFetch(page, "/api/organizations");
+    loginAt = Date.now();
+    loginOk = r.status === 200;
+  }
+  return { page, loggedIn: loginOk };
 }
 
 async function process1(page, row) {
@@ -153,6 +164,12 @@ async function main() {
   await ctx.close().catch(() => {});
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  try { return fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url); }
+  catch { return path.resolve(process.argv[1]) === fileURLToPath(import.meta.url); } // symlink가 아직 없을 때 등의 폴백
+}
+
+if (isMainModule()) {
   main().catch((e) => { console.error(e); process.exit(1); });
 }
