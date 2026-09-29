@@ -128,3 +128,13 @@ delete from claude_orgs            where id = 'test-org';
 - **조직 분류** `claude_orgs.category`: `team`(우리 Team 조직, CSV 업로드로 생성) · `personal`(OTel이 자동 등록한 개인 Claude 계정 조직 — UUID 앞 8자가 이름, 기본값) · `system`(`unknown`·`test-org`). 조직·설정 탭에서 바꿀 수 있다. OTel 탭(Claude Code·팀별·도구·시간대·프롬프트) 드롭다운은 Team 조직 개별 + "기타(개인 계정) N개"(`org=personal`) + "계정 정보 없는 세션"(`org=unknown`)이고, CSV·Office 탭은 Team 조직만 보인다. RPC `claude_code_tool_summary`·`claude_code_hourly`는 `p_org='personal'`을 category 조인으로 해석한다.
 - **실행 환경** `claude_code_env_daily`: 메트릭 데이터 포인트마다 리소스 속성 `os.type`·`host.arch`·`service.version`(없으면 `app.version`)과 포인트 속성 `terminal.type`을 (일·조직·사용자·환경)별 포인트 수로 더한다(RPC `claude_code_env_ingest`, best-effort). Claude Code 탭 "환경" 컬럼에 포인트 많은 순 첫 환경(+N)을 보여주고, Linux에 터미널이 없으면 컨테이너·웹 세션 추정으로 주황색 표시. 과거 데이터는 소급되지 않는다.
 - SQL: `docs/sql/2026-09-16-claude-usage-env-org-category.sql`, `2026-09-16-claude-usage-identity-map.sql`(둘 다 멱등). 확인: `select category, count(*) from claude_orgs group by 1;`, `select os_type, host_arch, count(*) from claude_code_env_daily group by 1,2;`.
+
+## 9. 시트 할당·해제 (2026-09-29)
+
+채팅·Cowork 탭 멤버 표에서 관리자가 **해제**(시트 → Unassigned, 멤버는 남음)·**할당**(Standard/Premium)을 누르면 `claude_seat_actions`에 요청이 남고, 관리자 Mac의 실행기가 15초 안에 claim해 claude.ai 내부 API(`PUT /api/organizations/<org>/members/<uuid>` `{seat_tier}`)로 반영한다. 공식 API는 없다(도움말은 화면 조작만 안내). 스펙 `docs/superpowers/specs/2026-09-29-claude-seat-actions-design.md`.
+
+- **설치(1회)**: SQL `docs/sql/2026-09-29-claude-seat-actions.sql` → 실행기가 돌고 있으면 먼저 `claude-jobs disable seat`(같은 프로필 잠금) → `./frontend/scripts/claude-seat-login.sh`로 소유자 로그인(창에서 직접, Cloudflare 확인 포함; 프로필 `~/.claude-seat/profile`) → `claude-jobs enable seat`(launchd `com.innogrid.claude-seat-executor`, `~/.claude/hooks/claude-seat-executor.sh`, KeepAlive). 상태는 `claude-jobs status`, 로그 `~/Library/Logs/claude-seat-executor.log`(한 줄 JSON). 점검은 `cd frontend && node scripts/claude-seat-executor.mjs --once`.
+- **화면**: 행의 해제/할당 → 확인 → 배지 대기 → 적용 중 → 완료/실패(사유는 title). 상단 칩: 실행기 정상 / 꺼짐(하트비트 60초 초과) / 로그인 필요. "시트 작업 이력" 버튼 = 전체, 행의 "이력" = 그 사람. 완료되면 `claude_org_members.seat_tier`가 바로 바뀌고 다음 09:05 스냅샷이 claude.ai 원본으로 덮는다.
+- **이력·감사**: `claude_seat_actions`는 삭제하지 않는다. 감사 로그(category usage): 시트 해제/할당 요청, 취소, 완료, 실패(완료·실패도 요청자 명의).
+- **장애**: "로그인 필요" → 실행기 중지 후 로그인 스크립트 다시 실행(세션 만료). 실행기 꺼짐 → `claude-jobs enable seat` 또는 Mac 깨우기; 대기 요청은 켜지면 처리된다. `running`이 10분 넘으면 서버가 "실행기 재시작(10분 초과)"로 실패 처리. PATCH 실패는 5·15·30·60·120초 간격으로 재시도하고, SIGTERM은 처리 중인 행의 결과 기록까지 마치고 종료한다. 실패 사유가 "claude.ai에는 이미 반영됨(PUT 2xx) — …"으로 시작하면 claude.ai 쪽은 바뀐 것이니 멤버 화면에서 확인만 한다(재요청은 같은 목표 티어를 다시 넣는 것이라 안전). PATCH 재시도 중에는 하트비트가 멈춰 칩이 몇 분 "꺼짐"으로 보일 수 있다. 헤드리스에서 Cloudflare에 걸리면 래퍼에 `SEAT_HEADLESS=0`. 구매 좌석 수는 바뀌지 않는다 — claude.ai 결제 설정에서 조정.
+
