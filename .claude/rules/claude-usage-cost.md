@@ -61,7 +61,7 @@ paths:
 
 ### Supabase Tables (work metrics — 성과 측정)
 - `jira_issue_daily, atlassian_account_map, confluence_daily, gitlab_daily(commits·claude_commits=Co-Authored-By: Claude 커밋·MR), gitlab_email_map(커미터 이메일 수동 매핑), work_metrics_sync` — Jira/Confluence/GitLab 일 집계(성과 분모·사이클타임). SQL `docs/sql/2026-08-31-work-metrics.sql`, `docs/sql/2026-09-03-gitlab-claude-commits.sql`, 수집 `lib/work-metrics/`. GitLab은 사내망 로컬 스크립트 `frontend/scripts/gitlab-metrics-sync.py`(launchd)가 `/api/admin/work-metrics/sync`로 푸시. Supabase 조회는 1000행 상한이 있어 대량 조회는 `selectAll`(`lib/work-metrics/common.ts`)로 페이지네이션
-- `work_items`(source·kind·item_key PK, 이슈·MR·커밋 한 행, created_at/started_at/done_at, is_claude — SQL `docs/sql/2026-09-28-work-items.sql`) + RPC `work_items_time_stats`·`work_items_hourly`(service_role). Jira 수집기와 GitLab 로컬 스크립트(`gitlab_items` 소스, 커밋은 기간 replace·MR은 PK upsert)가 일 집계와 함께 쓴다. 백필·대조는 스펙 `2026-09-28-perf-time-metrics-design.md` §4.3
+- `work_items`(source·kind·item_key PK, 이슈·MR·커밋 한 행, created_at/started_at/done_at, is_claude — SQL `docs/sql/2026-09-28-work-items.sql`) + RPC `work_items_time_stats`·`work_items_hourly`(service_role). Jira 수집기와 GitLab 로컬 스크립트(`gitlab_items` 소스, 커밋은 기간 replace·MR은 PK upsert, `upsertItems`가 배치 내 PK 중복 제거)가 일 집계와 함께 쓴다. 커밋 항목은 포크 중복을 합쳐 일 집계보다 약 20% 적다(정상, 스펙 §4.3). 백필·대조는 스펙 `2026-09-28-perf-time-metrics-design.md` §4.3
 
 ## 패턴
 **Claude 사용량 대시보드**: `lib/claude-usage/`가 OTLP 페이로드 파싱(`otlp.ts`)·수집 인증(`ingest-auth.ts`)·저장(`ingest-handler.ts`/`ingest-store.ts`)·CSV 파싱(`members-csv.ts`)·집계(`aggregate.ts`)·관리자 권한 체크(`require-admin.ts`)·관리형 설정 JSON 생성(`managed-settings.ts`)·지표 툴팁 문구(`metric-hints.ts` — 라인 수는 Edit·Write 도구 변경만 집계해 Bash·MCP·SDK 사용자는 0)을 담당. 런북: `docs/claude-usage.md`, 아키텍처: `docs/claude-usage-architecture.md`.
