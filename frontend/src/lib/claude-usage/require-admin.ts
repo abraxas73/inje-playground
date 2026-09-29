@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase-admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** 세션 사용자가 admin인지 확인. 기존 /api/admin/* 라우트와 같은 401/403 메시지. */
-export async function requireAdmin(): Promise<{ ok: true; userId: string } | { ok: false; response: NextResponse }> {
+export async function requireAdmin(): Promise<{ ok: true; userId: string; email: string | null } | { ok: false; response: NextResponse }> {
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -14,7 +14,7 @@ export async function requireAdmin(): Promise<{ ok: true; userId: string } | { o
   if (caller?.role !== "admin") {
     return { ok: false, response: NextResponse.json({ error: "관리자 권한이 필요합니다." }, { status: 403 }) };
   }
-  return { ok: true, userId: user.id };
+  return { ok: true, userId: user.id, email: user.email ?? null };
 }
 
 /** service role 클라이언트 또는 500 응답 */
