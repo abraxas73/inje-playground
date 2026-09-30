@@ -73,3 +73,8 @@ export interface PptCreateRequest {
 }
 
 export type PptActionErrorCode = "not_connected" | "reconnect" | "no_folder" | "no_channel";
+
+export const SOURCE_MAX_CHARS = 60_000;
+export const PPT_SOURCE_EXTENSIONS = ["docx", "pdf", "hwp", "hwpx", "pptx", "md", "txt"] as const;
+export const PPT_SOURCE_EXTENSIONS_TEXT = "docx·pdf·hwp·hwpx·pptx·md·txt";
+export const SOURCE_KIND_LABEL: Record<PptSourceKind, string> = { text: "텍스트", file: "문서 파일", pptx: "PPT 원고" };

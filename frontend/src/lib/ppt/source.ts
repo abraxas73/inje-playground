@@ -1,13 +1,11 @@
 /** 원고 정리 — 텍스트·문서 파일·PPT 원고를 LLM에 넣을 텍스트로. 파서는 RFP 것을 재사용한다. */
 import { parseDocumentAsync } from "@/lib/rfp/parse";
 import { documentText, UnsupportedDocumentError } from "@/lib/rfp/document-model";
+import { PPT_SOURCE_EXTENSIONS_TEXT, SOURCE_MAX_CHARS } from "@/types/ppt";
 import type { PptSourceKind } from "@/types/ppt";
 import type { PptExtractSlide } from "./service";
 
-export const SOURCE_MAX_CHARS = 60_000;
-export const PPT_SOURCE_EXTENSIONS = ["docx", "pdf", "hwp", "hwpx", "pptx", "md", "txt"] as const;
-export const PPT_SOURCE_EXTENSIONS_TEXT = "docx·pdf·hwp·hwpx·pptx·md·txt";
-export const SOURCE_KIND_LABEL: Record<PptSourceKind, string> = { text: "텍스트", file: "문서 파일", pptx: "PPT 원고" };
+export { SOURCE_MAX_CHARS, PPT_SOURCE_EXTENSIONS, PPT_SOURCE_EXTENSIONS_TEXT, SOURCE_KIND_LABEL } from "@/types/ppt";
 
 export function extensionOf(fileName: string): string {
   const i = fileName.lastIndexOf(".");
