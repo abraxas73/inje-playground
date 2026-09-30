@@ -42,17 +42,17 @@ export default function ShareTeamsSharePoint({ deck, currentDone, sharepointUrl,
       <CardHeader><CardTitle className="text-base">공유</CardTitle></CardHeader>
       <CardContent className="space-y-3 text-sm">
         <div className="flex items-center justify-between">
-          <Label htmlFor="ppt-share" className="flex flex-col gap-0.5"><span>공유 링크</span><span className="text-xs font-normal text-muted-foreground">로그인한 사내 사용자만 열 수 있습니다</span></Label>
+          <Label htmlFor="ppt-share" className="flex flex-col items-start gap-0.5 text-left"><span>공유 링크</span><span className="text-xs font-normal text-muted-foreground">로그인한 사내 사용자만 열 수 있습니다</span></Label>
           <Switch id="ppt-share" checked={deck.shareEnabled} disabled={busy !== null} onCheckedChange={toggleShare} />
         </div>
         {deck.shareUrl && (
           <div className="flex items-center gap-2 rounded bg-muted/50 px-2 py-1 text-xs"><span className="truncate">{deck.shareUrl}</span>
             <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={copy} aria-label="복사">{copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}</Button></div>
         )}
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" disabled={!currentDone || busy !== null} onClick={() => (deck.shareEnabled ? sendTeams(false) : setAskShare(true))}>
+        <div className="grid gap-2">
+          <Button size="sm" variant="outline" className="justify-start" disabled={!currentDone || busy !== null} onClick={() => (deck.shareEnabled ? sendTeams(false) : setAskShare(true))}>
             {busy === "teams" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <MessageSquareShare className="mr-1 h-4 w-4" />}Teams로 공유</Button>
-          <Button size="sm" variant="outline" disabled={!currentDone || busy !== null} onClick={uploadSp}>
+          <Button size="sm" variant="outline" className="justify-start" disabled={!currentDone || busy !== null} onClick={uploadSp}>
             {busy === "sp" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CloudUpload className="mr-1 h-4 w-4" />}SharePoint 업로드</Button>
         </div>
         {sharepointUrl && <div className="text-xs text-muted-foreground">SharePoint: <a className="underline" href={sharepointUrl} target="_blank" rel="noreferrer">{sharepointUrl}</a></div>}
