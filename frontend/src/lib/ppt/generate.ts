@@ -1,6 +1,6 @@
 /**
  * 생성 파이프라인. generateDeck()은 DB를 모른다(테스트 대상). runGeneration()이 버전 행을 읽고 결과를 쓴다(after()에서 호출).
- * 스펙 §7.4·§7.6: LLM → parse → build → 오류 장표만 수정(최대 2회) / 재생성은 keep 패치, 안 맞으면 keep 없이 한 번 더.
+ * 스펙 §7.4·§7.6: LLM → parse → build → 오류 장표만 수정(최대 4회) / 재생성은 keep 패치, 안 맞으면 keep 없이 한 번 더.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Anthropic from "@anthropic-ai/sdk";
@@ -12,7 +12,8 @@ import type { PptBuildOk, PptExtractSlide, PptServiceClient } from "./service";
 import { extractionText, sourceLengthError, textFromDocument } from "./source";
 import { ACTIVE_STATUSES, deckPaths, loadDeck, loadVersionWithSource, PPT_BUCKET, type VersionSourceRow } from "./store";
 
-export const MAX_FIX_ROUNDS = 2;
+/** 빌드는 첫 오류에서 멈추므로 장표마다 한 회가 든다 — 30장 원고에서 2회는 모자랐다(2026-10-01). */
+export const MAX_FIX_ROUNDS = 4;
 
 export interface GenerateInput {
   source: SourceInput;
@@ -35,12 +36,14 @@ export interface GenerateDeps { llm: DeckLlm; service: PptServiceClient }
 export interface GenerateOutcome { deck: DeckJson; build: PptBuildOk; usage: LlmUsage; calls: number; model: string }
 
 export class GenerationError extends Error {
-  constructor(message: string, public readonly usage: LlmUsage, public readonly calls: number) { super(message); this.name = "GenerationError"; }
+  /** deck: 마지막으로 빌드를 시도한 덱(실패 원인 추적용, 버전 행 deck_json에 남긴다) */
+  constructor(message: string, public readonly usage: LlmUsage, public readonly calls: number, public readonly deck?: DeckJson) { super(message); this.name = "GenerationError"; }
 }
 
 export async function generateDeck(input: GenerateInput, deps: GenerateDeps): Promise<GenerateOutcome> {
   let usage = ZERO_USAGE;
   let calls = 0;
+  let lastDeck: DeckJson | undefined;
   const ask = async (system: Anthropic.TextBlockParam[], messages: Anthropic.MessageParam[]) => {
     const r = await deps.llm.complete(system, messages);
     usage = addUsage(usage, r.usage);
@@ -81,11 +84,13 @@ export async function generateDeck(input: GenerateInput, deps: GenerateDeps): Pr
 
     await input.onBuild?.();
     for (let round = 0; ; round += 1) {
+      lastDeck = deck;
       const upload = await input.uploads();
       const result = await deps.service.build({ spec: deck, sourceUrl: input.sourceUrl, extract: input.extract, upload });
       if (result.ok) return { deck, build: result, usage, calls, model: deps.llm.model };
       if (round >= MAX_FIX_ROUNDS || (result.kind !== "spec" && result.kind !== "overflow")) throw new Error(result.message);
-      const fix = await ask(system, fixMessages({ prior, deck, error: result }));
+      console.warn(`[ppt] 빌드 오류 수정 ${round + 1}/${MAX_FIX_ROUNDS} (${result.kind}, 섹션 ${result.section}, 장표 ${result.slide}): ${result.message.split("\n")[0]}`);
+      const fix = await ask(system, fixMessages({ prior, deck, error: result, catalog }));
       if (result.section !== null && result.slide !== null) {
         try { deck = replaceSlide(deck, result.section, result.slide, parseSlidePatch(fix.text)); }
         catch (e) {
@@ -96,7 +101,7 @@ export async function generateDeck(input: GenerateInput, deps: GenerateDeps): Pr
     }
   } catch (e) {
     if (e instanceof GenerationError) throw e;
-    throw new GenerationError(e instanceof Error ? e.message : String(e), usage, calls);
+    throw new GenerationError(e instanceof Error ? e.message : String(e), usage, calls, lastDeck);
   }
 }
 
@@ -209,7 +214,7 @@ async function runLoaded(admin: SupabaseClient, versionId: string, deps: RunDeps
     const g = e instanceof GenerationError ? e : null;
     const message = e instanceof Error ? e.message : String(e);
     console.error(`[ppt] 생성 실패 deck=${deck.id} v${v.no}:`, message);
-    await finish({ status: "failed", error: message, llm_calls: g?.calls ?? 0, tokens_in: g?.usage.in ?? 0, tokens_out: g?.usage.out ?? 0, tokens_cache_read: g?.usage.cacheRead ?? 0, tokens_cache_write: g?.usage.cacheWrite ?? 0 });
+    await finish({ status: "failed", error: message, deck_json: g?.deck ?? null, llm_calls: g?.calls ?? 0, tokens_in: g?.usage.in ?? 0, tokens_out: g?.usage.out ?? 0, tokens_cache_read: g?.usage.cacheRead ?? 0, tokens_cache_write: g?.usage.cacheWrite ?? 0 });
     await logAudit(admin, null, { userId: deck.owner_id, userEmail: deck.owner_email, action: "PPT 생성 실패", category: "ppt", detail: { deckId: deck.id, no: v.no, error: message.slice(0, 300) } });
   }
 }

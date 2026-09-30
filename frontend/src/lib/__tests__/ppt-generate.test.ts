@@ -55,10 +55,15 @@ describe("generateDeck", () => {
     expect(out.deck.meta.title).toEqual(["x", "y."]);
     expect(out.calls).toBe(2);
   });
-  it("gives up after 2 fix rounds with the package message", async () => {
-    const llm = llmOf([JSON.stringify(deck), JSON.stringify({ slide: { layout: "x" } }), JSON.stringify({ slide: { layout: "y" } })]);
+  it("gives up after 4 fix rounds with the package message and the last deck", async () => {
+    const fixes = ["x", "y", "z", "w"].map((l) => JSON.stringify({ slide: { layout: l } }));
+    const llm = llmOf([JSON.stringify(deck), ...fixes]);
     const fail: PptBuildResult = { ok: false, kind: "overflow", message: "'body' 슬롯이 넘친다", section: 0, slide: 0 };
-    await expect(generateDeck(base, { llm, service: serviceOf([fail, fail, fail]) })).rejects.toMatchObject({ message: "'body' 슬롯이 넘친다", calls: 3 } satisfies Partial<GenerationError>);
+    const svc = serviceOf([fail, fail, fail, fail, fail]);
+    const err = await generateDeck(base, { llm, service: svc }).catch((e: GenerationError) => e);
+    expect(err).toMatchObject({ message: "'body' 슬롯이 넘친다", calls: 5 } satisfies Partial<GenerationError>);
+    expect(svc.built).toHaveLength(5);
+    expect(err.deck?.sections[0].slides[0]).toEqual({ layout: "w" }); // 마지막으로 빌드한 덱이 실패 행에 남는다
   });
   it("regeneration: applies keep, falls back to a full request when keep does not fit", async () => {
     const next = { ...deck, sections: [{ name: "s", slides: [{ keep: true }] }] };

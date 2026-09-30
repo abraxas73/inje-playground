@@ -22,6 +22,9 @@ def test_catalog_shape(client, auth):
     assert card4["arity"] == 4 and card4["closing"] == {"required": True, "maxLines": 2}
     assert card4["example"]["layout"] == "card-4" and len(card4["example"]["cards"]) == 4
     assert card4["example"]["cards"][0]["title"] == "…" and card4["example"]["closing"] == "…"
+    assert card4["capacity"]["title"] == [9, 2] and card4["capacity"]["body"] == [17, 4] and "page_title" not in card4["capacity"]
+    assert cat["capacityCommon"] == {"page_title": [47, 2], "section_label": [20, 1]}
+    assert cat["message"]["capacity"] == {}  # message는 패키지가 용량 검사 대신 권고만 낸다
     image4 = next(e for e in cat["layouts"] if e["name"] == "image-4")
     assert image4["example"]["images"] == ["src:장:번호"] * 4
     free = next(e for e in cat["layouts"] if e["name"] == "free-title")

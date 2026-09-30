@@ -6,7 +6,7 @@
 
 - **대상**: 로그인한 사내 사용자(user 이상). 제안·보고·소개 자료를 표준 디자인으로 빨리 만들고 싶은 사람.
 - **성공 기준**: 원고와 프롬프트를 넣고 생성을 누르면 3분 안에 브랜드 검사(`check.py`)를 통과한 PPTX를 내려받을 수 있고, "3장을 표로 바꿔줘" 같은 피드백으로 다시 만들 수 있으며, 링크·Teams·SharePoint로 동료에게 전달할 수 있다. 모든 생성·재생성은 버전으로 남는다.
-- **확정된 값**: 원고 60,000자 상한 · 파일 50MB · 사용자당 동시 생성 1건 · 빌드 오류 자동 수정 최대 2회 · 상태 폴링 3초 · 14분 넘게 `generating`이면 "멈춘 것 같습니다" 안내(stale 정리 15분, 라우트 maxDuration 800초) · 기본 모델 `claude-sonnet-5-5`(`PPT_LLM_MODEL`로 교체) · 출력 `max_tokens` 64,000(2026-10-01 상향) · 공유 링크는 로그인 필요.
+- **확정된 값**: 원고 60,000자 상한 · 파일 50MB · 사용자당 동시 생성 1건 · 빌드 오류 자동 수정 최대 4회(2026-10-01, 2회에서 상향 — 빌드가 첫 오류에서 멈춰 장표마다 한 회가 든다) · 상태 폴링 3초 · 14분 넘게 `generating`이면 "멈춘 것 같습니다" 안내(stale 정리 15분, 라우트 maxDuration 800초) · 기본 모델 `claude-sonnet-5-5`(`PPT_LLM_MODEL`로 교체) · 출력 `max_tokens` 64,000(2026-10-01 상향) · 공유 링크는 로그인 필요.
 - **비목표**: 슬라이드 이미지 미리보기, HTML 내보내기, 템플릿 파일 편집, 원고 PPT의 장표 순서 변경(패키지 규칙상 금지).
 
 ## 2. 범위
@@ -14,7 +14,7 @@
 포함:
 1. 원고 입력 — 텍스트/마크다운 붙여넣기, 문서 파일(docx·pdf·hwp·hwpx·md·txt), **PPT 원고**(장표별 텍스트·그림 추출, 도식 이식).
 2. LLM이 원고 → **deck JSON**(패키지의 deck.yaml과 같은 구조) → ppt-service가 빌드·브랜드 검사 → Storage 저장.
-3. 빌드 오류(넘침·항목 수 불일치·마무리 문구 누락) 시 **오류난 장표만** 다시 요청(최대 2회).
+3. 빌드 오류(넘침·항목 수 불일치·마무리 문구 누락) 시 **오류난 장표만** 다시 요청(최대 4회, 카탈로그의 그 장표 슬롯 용량표를 붙여서).
 4. 피드백 재생성 — 바꾸지 않는 장표는 `{"keep": true}`로 돌려받아 이전 버전에서 채움.
 5. 화면 `/ppt`(내 덱), `/ppt/[id]`(버전·구성 보기·다운로드·피드백·공유·Teams·SharePoint), `/ppt/s/[token]`(공유 뷰).
 6. 다운로드 PPTX · deck.yaml. 공유 링크(켜기/끄기), Teams 채널 공유, SharePoint 기본 폴더 업로드.
@@ -158,7 +158,7 @@ zod는 이 골격만 검사한다(`layout` 문자열, `sections` 1~8개, 각 `sl
 
 1. `POST /api/ppt/decks` → `requireUser()` → 동시 생성 검사(`status in ('generating','building')`인 내 버전이 있으면 409) → `ppt_decks` + `ppt_deck_versions(no=1, status=generating)` insert → 201 `{deckId}` → `after(run)`.
 2. `run`: 원고 정리(§7.1) → LLM 호출 → JSON 파싱·zod → `status=building` → `/build`(서명 업로드 URL 2개는 Next.js가 `createSignedUploadUrl`로 발급).
-3. `/build`가 422 `spec`·`overflow`를 돌려주면 **수정 호출**: 같은 캐시 프리픽스 + `assistant`(이전 JSON) + `user`("섹션 i 장표 j에서 빌드 오류: <message>. 이 장표만 고쳐 `{\"slide\": {...}}`로 답하라. 항목 수를 바꿔야 하면 카탈로그의 같은 계열 다른 단 수 장표를 쓰라") → 해당 위치만 교체 → 다시 `/build`. 최대 2회, 그래도 실패면 `status=failed, error=message`.
+3. `/build`가 422 `spec`·`overflow`를 돌려주면 **수정 호출**: 같은 캐시 프리픽스 + `assistant`(이전 JSON) + `user`("섹션 i 장표 j에서 빌드 오류: <message>. 이 장표만 고쳐 `{\"slide\": {...}}`로 답하라. 항목 수를 바꿔야 하면 카탈로그의 같은 계열 다른 단 수 장표를 쓰라") → 해당 위치만 교체 → 다시 `/build`. 최대 4회, 그래도 실패면 `status=failed, error=message`, 마지막 덱은 `deck_json`에 남긴다.
 4. 성공: `deck_json`·경로·`slide_count`·`advisories`·`check_issues`·토큰·`duration_ms` 저장, `status=done`, `ppt_decks.title`·`current_version` 갱신, 감사 "PPT 생성"(detail: deckId, no, slides, tokens).
 5. 예외는 모두 `status=failed, error`로 남기고 감사 "PPT 생성 실패".
 
@@ -227,7 +227,7 @@ zod는 이 골격만 검사한다(`layout` 문자열, `sections` 1~8개, 각 `sl
 | `ANTHROPIC_API_KEY` 없음 | `GET /api/ppt/decks`가 `llmAvailable:false` → 화면은 생성 카드 대신 "관리자에게 문의" 안내(기존 규칙: 비활성 버튼 금지) |
 | ppt-service 미응답·5xx | 버전 `failed`, error "PPT 서비스에 연결할 수 없습니다" ; 30초 타임아웃(`AbortSignal.timeout`) |
 | LLM 응답이 JSON이 아님·`stop_reason=max_tokens` | 1회 재요청("JSON만"), 다시 실패면 `failed` |
-| 빌드 오류 2회 수정 후에도 실패 | `failed`, error = 패키지 메시지 원문 → 사용자는 피드백으로 재생성(예: "3장을 card-3으로") |
+| 빌드 오류 4회 수정 후에도 실패 | `failed`, error = 패키지 메시지 원문 → 사용자는 피드백으로 재생성(예: "3장을 card-3으로") |
 | 원고 pptx가 106장 템플릿 원본 | 그대로 진행(원고일 뿐). 산출물 템플릿 검증은 패키지가 함 |
 | 동시 생성 | 409 "진행 중인 생성이 끝난 뒤 다시 시도하세요" |
 | Storage 서명 URL 발급 실패 | 500, 버전 `failed` |

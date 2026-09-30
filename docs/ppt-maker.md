@@ -19,13 +19,13 @@
 ## 3. 배포
 - 프론트: 평소처럼 `frontend/`에서 `NODE_OPTIONS= vercel deploy --prod --yes`.
 - ppt-service(Python이 바뀔 때만): `cd ppt-service && vercel deploy --prod --yes`, 이어서 `curl -H "x-ppt-token: $TOKEN" https://innogrid-ppt-service.vercel.app/health`가 `{"ok":true,"templateSlides":106,"layouts":69,…}`.
-- 템플릿 갱신: `ppt-service/template/`의 pptx 교체 → `python tools/measure.py` → `pytest` → 배포. `/catalog`는 프로세스 캐시라 프론트 재배포 없이 새 인스턴스부터 반영된다.
+- 템플릿 갱신: `ppt-service/template/`의 pptx 교체 → `python tools/measure.py` → `pytest` → 배포. `/catalog`는 프로세스 캐시라 프론트 재배포 없이 새 인스턴스부터 반영된다. 카탈로그의 `capacity`(장표별 슬롯 용량)는 `capacity.py`에서 나오므로 measure.py를 돌리면 프롬프트도 같이 바뀐다.
 
 ## 4. 생성이 실패하면
 | 화면 오류 | 원인·조치 |
 |---|---|
 | `PPT 서비스에 연결할 수 없습니다` | ppt-service 배포·`PPT_SERVICE_URL`·토큰 확인(`/health`) |
-| `'…'는 항목 N개 고정인데 …` / `슬롯이 넘친다` | LLM이 2회 수정 뒤에도 실패. 피드백으로 "N장을 card-3으로", "불릿을 줄여" 등 지시해 재생성 |
+| `'…'는 항목 N개 고정인데 …` / `슬롯이 넘친다` | LLM이 카탈로그 용량표(글자/줄)를 보고도 4회 수정 뒤 실패. 빌드는 첫 오류에서 멈춰 장표마다 한 회가 든다. 실패 버전 행 `deck_json`에 마지막 덱이 남고 Vercel 로그에 `[ppt] 빌드 오류 수정 n/4 …`가 회차별로 찍힌다. 완료된 버전이 있으면 피드백("N장을 card-3으로", "제목을 짧게")으로 재생성, 없으면 프롬프트에 "카드 제목·수치는 짧게"를 넣어 새로 만든다 |
 | `템플릿이 106장이어야 하는데` | ppt-service 템플릿 파일 손상·교체 오류. `template/` 확인 |
 | `시간 초과(15분)` | Vercel 함수 800초 초과(원고가 매우 길 때). 원고를 줄이거나 나눠서 |
 | 생성 실패(v1 포함) | '같은 입력으로 다시 시도' 버튼이 같은 원고·프롬프트로 새 버전을 만든다 |

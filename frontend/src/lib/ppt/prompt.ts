@@ -4,7 +4,7 @@
  */
 import type Anthropic from "@anthropic-ai/sdk";
 import type { PptSourceKind } from "@/types/ppt";
-import type { DeckJson } from "./deck-json";
+import { isKeep, type DeckJson } from "./deck-json";
 import type { PptBuildFail, PptCatalog, PptCatalogEntry } from "./service";
 import { SOURCE_KIND_LABEL } from "./source";
 
@@ -36,6 +36,7 @@ export const RULES_TEXT = `당신은 이노그리드 표준 PPT 템플릿(v1.0 �
 - 차트 항목은 5개까지, 비율은 합이 100.
 - [[ ]]로 감싼 부분만 강조색이 된다.
 - 원고가 4문장 넘는 서술이면 불릿으로 요약하되 원고 내용을 최대한 지킨다.
+- 카탈로그의 용량(글자/줄)을 넘기지 않는다. 글자 수는 한글·한자 1, 영문·숫자·기호 0.55, 공백 0.35로 세고 [[ ]] 표시도 약 2자로 센다. 모든 문자열을 용량의 90% 안에 맞춘다 — 특히 카드·항목 제목(title)과 KPI 수치(value)는 한 줄 상자라 짧아야 한다.
 - 부서명은 원고에서 파악되면 meta.dept에, 아니면 생략한다(표지에 "부서명"으로 표기된다). 날짜는 지시에 준 오늘 날짜.
 
 # 수정·재생성 규약
@@ -48,13 +49,21 @@ function entryLine(e: PptCatalogEntry): string {
   if (e.closing) bits.push(e.closing.required ? `마무리 문구 필수·${e.closing.maxLines}줄까지` : `마무리 문구 선택·${e.closing.maxLines}줄까지`);
   if (e.chips) bits.push(`키워드 칩 ${e.chips}개`);
   if (e.required.length) bits.push(`필수: ${e.required.join(", ")}`);
-  return `- ${e.name} (${bits.join(", ")}) — ${e.desc}. ${e.use}\n  ${JSON.stringify(e.example)}`;
+  const cap = capacityLine(e.capacity);
+  return `- ${e.name} (${bits.join(", ")}) — ${e.desc}. ${e.use}\n  ${JSON.stringify(e.example)}${cap ? `\n  용량: ${cap}` : ""}`;
+}
+
+/** "title 15/1 · body 24/4" — 역할 줄당글자/줄수. 없으면 null */
+export function capacityLine(cap: Record<string, [number, number]> | undefined): string | null {
+  const entries = Object.entries(cap ?? {});
+  return entries.length ? entries.map(([role, [cpl, lines]]) => `${role} ${cpl}/${lines}`).join(" · ") : null;
 }
 
 export function catalogText(catalog: PptCatalog): string {
   const lines = [
     `# 장표 카탈로그 (템플릿 ${catalog.templateSlides}장 · 본문 ${catalog.layouts.length}종 · 패키지 ${catalog.package})`,
     "각 장표의 예제는 키와 개수만 남긴 골격이다. 문자열 자리 \"…\"를 원고 내용으로 채우고, 리스트 길이는 그대로 지킨다.",
+    `용량은 "역할 줄당글자/줄수"(title 15/1 = 한 줄 15자). 역할 title/body/num은 카드·항목의 제목/불릿/번호, desc/value는 KPI 설명/수치, chip은 키워드 칩, closing/summary는 마무리 문구. 모든 장표 공통: ${capacityLine(catalog.capacityCommon) ?? "page_title 47/2 · section_label 20/1"} (page_title = 장표 타이틀 각 행, section_label은 자동).`,
     ...catalog.layouts.map(entryLine),
     entryLine(catalog.message),
     `- product / product-features (제품 소개, 텍스트 없음) — product 값: ${catalog.products.join(", ")} / 개요형: ${catalog.overview.join(", ")}`,
@@ -98,11 +107,15 @@ export function jsonOnlyRetryMessages(prior: Anthropic.MessageParam[], badText: 
   return [...prior, { role: "assistant", content: badText.slice(0, 4000) || "(빈 응답)" }, { role: "user", content: "설명 없이 deck JSON 객체 하나만 다시 출력한다. 마크다운 펜스도 쓰지 않는다." }];
 }
 
-export function fixMessages(p: { prior: Anthropic.MessageParam[]; deck: DeckJson; error: PptBuildFail }): Anthropic.MessageParam[] {
+export function fixMessages(p: { prior: Anthropic.MessageParam[]; deck: DeckJson; error: PptBuildFail; catalog?: PptCatalog }): Anthropic.MessageParam[] {
   const where = p.error.section !== null && p.error.slide !== null ? { s: p.error.section, j: p.error.slide } : null;
+  const slide = where ? p.deck.sections[where.s]?.slides[where.j] : undefined;
+  const layout = slide && !isKeep(slide) ? String(slide.layout) : null;
+  const entry = layout ? p.catalog?.layouts.find((e) => e.name === layout) ?? (layout === "message" ? p.catalog?.message : undefined) : undefined;
+  const cap = capacityLine({ ...(entry?.capacity ?? {}), ...(entry?.capacity && p.catalog?.capacityCommon ? p.catalog.capacityCommon : {}) });
   const ask = where
-    ? `섹션 ${where.s + 1} 장표 ${where.j + 1}에서 빌드 오류가 났다:\n${p.error.message}\n\n이 장표만 고쳐 {"slide": {…}} 형식으로 답한다. 항목 수를 바꿔야 하면 카탈로그의 같은 계열 다른 단 수 장표를 쓴다. 넘침이면 불릿을 줄이거나 문장을 짧게 한다. 다른 장표는 건드리지 않는다.`
-    : `빌드 오류가 났다:\n${p.error.message}\n\n오류를 고친 덱 전체 JSON을 다시 출력한다(keep 금지).`;
+    ? `섹션 ${where.s + 1} 장표 ${where.j + 1}${layout ? `(${layout})` : ""}에서 빌드 오류가 났다:\n${p.error.message}\n\n이 장표만 고쳐 {"slide": {…}} 형식으로 답한다. 항목 수를 바꿔야 하면 카탈로그의 같은 계열 다른 단 수 장표를 쓴다. 넘침이면 넘친 슬롯만이 아니라 이 장표의 모든 문자열을 용량의 90% 안으로 줄인다(글자 수 세는 법은 규칙과 같다). 다른 장표는 건드리지 않는다.${cap ? `\n이 장표의 용량(역할 줄당글자/줄수): ${cap}` : ""}`
+    : `빌드 오류가 났다:\n${p.error.message}\n\n오류를 고친 덱 전체 JSON을 다시 출력한다(keep 금지). 넘침이면 카탈로그 용량의 90% 안으로 줄인다.`;
   return [...p.prior, { role: "assistant", content: JSON.stringify(p.deck) }, { role: "user", content: ask }];
 }
 

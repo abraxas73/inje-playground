@@ -6,10 +6,14 @@ export interface PptCatalogEntry {
   name: string; slide: number | null; arity: number | null; desc: string; use: string;
   closing: { required: boolean; maxLines: number } | null; chips: number | null; required: string[];
   example: Record<string, unknown>;
+  /** 슬롯 용량 {역할: [줄당 글자, 줄 수]} — 패키지 capacity.py 실측값(구버전 서비스에는 없다) */
+  capacity?: Record<string, [number, number]>;
 }
 export interface PptCatalog {
   layouts: PptCatalogEntry[]; message: PptCatalogEntry; products: string[]; overview: string[];
   productExample: Record<string, unknown>[]; templateSlides: number; package: string;
+  /** 모든 장표 공통 슬롯(page_title·section_label) 용량 */
+  capacityCommon?: Record<string, [number, number]>;
 }
 export interface PptExtractSlide {
   no: number; title: string | null; texts: string[]; pictures: number; hasTable: boolean; hasChart: boolean; titleBottomCm: number | null;
