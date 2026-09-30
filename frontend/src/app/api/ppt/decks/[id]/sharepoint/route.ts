@@ -35,13 +35,15 @@ export async function POST(request: NextRequest, { params }: Params) {
   const { data: blob, error } = await admin.storage.from(PPT_BUCKET).download(v.pptx_path);
   if (error || !blob) return NextResponse.json({ error: `파일을 읽지 못했습니다: ${error?.message ?? ""}` }, { status: 500 });
   const fileName = pptxFileName(r.deck.title, no);
+  let item: Awaited<ReturnType<typeof uploadFile>>;
   try {
-    const item = await uploadFile(token.token, { driveId: folder.driveId, itemId: folder.itemId, fileName, buffer: Buffer.from(await blob.arrayBuffer()), contentType: PPTX_MIME });
-    await admin.from("ppt_deck_versions").update({ sharepoint_url: item.webUrl, sharepoint_at: new Date().toISOString() }).eq("id", v.id);
-    await logAudit(admin, request, { userId, action: "PPT SharePoint 업로드", category: "ppt", detail: { deckId: id, no, fileName, folder: folder.name } });
-    return NextResponse.json({ webUrl: item.webUrl, name: item.name, folderName: folder.name });
+    item = await uploadFile(token.token, { driveId: folder.driveId, itemId: folder.itemId, fileName, buffer: Buffer.from(await blob.arrayBuffer()), contentType: PPTX_MIME });
   } catch (e) {
     const f = mapGraphUploadError(e);
     return NextResponse.json({ error: f.message }, { status: f.status });
   }
+  const { error: saveError } = await admin.from("ppt_deck_versions").update({ sharepoint_url: item.webUrl, sharepoint_at: new Date().toISOString() }).eq("id", v.id);
+  if (saveError) console.error("[ppt] SharePoint 링크 저장 실패:", saveError.message);
+  await logAudit(admin, request, { userId, action: "PPT SharePoint 업로드", category: "ppt", detail: { deckId: id, no, fileName, folder: folder.name } });
+  return NextResponse.json({ webUrl: item.webUrl, name: item.name, folderName: folder.name, ...(saveError ? { warning: "업로드는 됐지만 링크 저장에 실패했습니다." } : {}) });
 }
