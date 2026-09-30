@@ -5,7 +5,7 @@ import type { DeckJson } from "./deck-json";
 import { safeFileName } from "./deck-json";
 
 export const PPT_BUCKET = "ppt";
-export const STALE_MS = 6 * 60 * 1000;
+export const STALE_MS = 15 * 60 * 1000; // 라우트 maxDuration 800초보다 길게
 export const ACTIVE_STATUSES: PptVersionStatus[] = ["generating", "building"];
 
 export const DECK_COLUMNS = "id, owner_id, owner_email, title, share_token, share_enabled, current_version, created_at, updated_at";
@@ -67,11 +67,11 @@ export async function loadVersionWithSource(admin: SupabaseClient, id: string): 
   return (data as VersionSourceRow | null) ?? null;
 }
 
-/** 6분 넘게 generating/building인 버전을 실패로 정리한다(after()가 시간 제한에 걸린 경우). */
+/** 15분 넘게 generating/building인 버전을 실패로 정리한다(after()가 시간 제한에 걸린 경우). */
 export async function failStaleVersions(admin: SupabaseClient, now: number = Date.now()): Promise<void> {
   const cutoff = new Date(now - STALE_MS).toISOString();
   const { error } = await admin.from("ppt_deck_versions")
-    .update({ status: "failed", error: "시간 초과(6분) — 다시 시도하세요.", finished_at: new Date(now).toISOString() })
+    .update({ status: "failed", error: "시간 초과(15분) — 다시 시도하세요.", finished_at: new Date(now).toISOString() })
     .in("status", ACTIVE_STATUSES).lt("created_at", cutoff);
   if (error) console.error("[ppt] stale 정리 실패:", error.message);
 }

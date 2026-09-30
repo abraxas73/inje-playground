@@ -10,7 +10,7 @@ import { DECK_COLUMNS, failStaleVersions, hasActiveVersion, mapDeck, type DeckRo
 import type { PptListResponse } from "@/types/ppt";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 800; // Pro + Fluid 상한. 긴 원고는 LLM 출력만 수 분 걸린다
 
 /** GET /api/ppt/decks?all=1 — 내 덱(admin은 all=1로 전체). 최신 버전 요약 포함. */
 export async function GET(request: NextRequest) {

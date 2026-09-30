@@ -111,7 +111,7 @@ async function downloadBuffer(admin: SupabaseClient, path: string): Promise<Buff
 }
 
 async function signedDownload(admin: SupabaseClient, path: string): Promise<string> {
-  const { data, error } = await admin.storage.from(PPT_BUCKET).createSignedUrl(path, 300);
+  const { data, error } = await admin.storage.from(PPT_BUCKET).createSignedUrl(path, 900);
   if (error || !data) throw new Error(`서명 URL을 만들지 못했습니다: ${error?.message ?? ""}`);
   return data.signedUrl;
 }

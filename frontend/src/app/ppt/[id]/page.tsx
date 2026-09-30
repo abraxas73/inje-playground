@@ -16,7 +16,7 @@ import { storyboard } from "@/lib/ppt/storyboard";
 import type { PptDeckDetail, PptStatusResponse } from "@/types/ppt";
 
 const POLL_MS = 3000;
-const STUCK_MS = 6 * 60 * 1000;
+const STUCK_MS = 14 * 60 * 1000;
 
 export default function PptDeckPage() {
   const { id } = useParams<{ id: string }>();
@@ -49,7 +49,7 @@ export default function PptDeckPage() {
       if (!stillActive) { setNotice(null); await load(); return; }
       if (Date.now() - startedAt > STUCK_MS && !stuckRef.current) {
         stuckRef.current = true;
-        setNotice("생성이 6분 넘게 진행 중입니다. 서버 시간 제한에 걸리면 실패로 표시되며, 그때 '같은 입력으로 다시 시도'하거나 피드백으로 다시 만들 수 있습니다.");
+        setNotice("생성이 14분 넘게 진행 중입니다. 서버 시간 제한(약 13분)에 걸리면 실패로 표시되며, 그때 '같은 입력으로 다시 시도'하거나 피드백으로 다시 만들 수 있습니다.");
       }
     }, POLL_MS);
     return () => clearInterval(t);

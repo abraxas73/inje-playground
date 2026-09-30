@@ -7,7 +7,7 @@ import { createPptServiceClient, PptServiceError, type PptServiceClient } from "
 import { failStaleVersions, hasActiveVersion, loadVersions, loadVersionWithSource } from "@/lib/ppt/store";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 800;
 type Params = { params: Promise<{ id: string }> };
 
 /** POST /api/ppt/decks/[id]/regenerate {feedback, baseVersion?} | {retry:true} → 201 {no}. 소유자만. */
