@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as { fileName?: string; size?: number } | null;
-  const fileName = body?.fileName?.trim();
+  const fileName = typeof body?.fileName === "string" ? body.fileName.trim() : "";
   const size = Number(body?.size);
   if (!fileName || !Number.isFinite(size)) return NextResponse.json({ error: "fileName과 size가 필요합니다." }, { status: 400 });
   const ext = extensionOf(fileName);

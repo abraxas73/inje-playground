@@ -62,7 +62,11 @@ export async function POST(request: NextRequest) {
   const { data: version, error: versionError } = await auth.admin.from("ppt_deck_versions")
     .insert({ deck_id: deckId, no: 1, status: "generating", source_kind: parsed.kind, source_text: parsed.text, source_path: parsed.storagePath, source_name: parsed.fileName, prompt: parsed.prompt })
     .select("id").single();
-  if (versionError || !version) return NextResponse.json({ error: versionError?.message ?? "버전을 만들지 못했습니다." }, { status: 500 });
+  if (versionError || !version) {
+    const { error: cleanupError } = await auth.admin.from("ppt_decks").delete().eq("id", deckId);
+    if (cleanupError) console.error("[ppt] 덱 정리 실패:", cleanupError.message);
+    return NextResponse.json({ error: versionError?.message ?? "버전을 만들지 못했습니다." }, { status: 500 });
+  }
 
   const admin = auth.admin;
   const versionId = (version as { id: string }).id;
