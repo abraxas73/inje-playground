@@ -29,3 +29,56 @@ def test_catalog_shape(client, auth):
     assert cat["message"]["example"] == {"layout": "message", "headline": "…", "detail": "…"}
     assert cat["products"] == ["aicubeit", "devopsit", "openstackit", "secloudit", "tabcloudit"]
     assert cat["overview"] == ["lineup", "tafa", "tafa-layers"]
+
+
+from pathlib import Path
+
+
+def make_source_pptx(path: Path):
+    from pptx import Presentation
+    from pptx.util import Cm, Pt
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Cm(33.867), Cm(19.05)
+    blank = prs.slide_layouts[6]
+    s1 = prs.slides.add_slide(blank)
+    tb = s1.shapes.add_textbox(Cm(1), Cm(1), Cm(20), Cm(2))
+    tb.text_frame.text = "클라우드 전환 배경"
+    tb.text_frame.paragraphs[0].runs[0].font.size = Pt(28)
+    body = s1.shapes.add_textbox(Cm(1), Cm(5), Cm(20), Cm(5))
+    body.text_frame.text = "첫 문단\n둘째 문단"
+    s2 = prs.slides.add_slide(blank)
+    from PIL import Image  # Pillow는 python-pptx 의존성으로 함께 설치된다
+    img = path.parent / "pic.png"
+    Image.new("RGB", (40, 30), "blue").save(img)
+    s2.shapes.add_picture(str(img), Cm(2), Cm(2), Cm(10), Cm(6))
+    prs.save(str(path))
+
+
+def test_extract_slides(tmp_path):
+    from service.extract import extract_slides
+    src = tmp_path / "src.pptx"
+    make_source_pptx(src)
+    slides = extract_slides(str(src))
+    assert [s["no"] for s in slides] == [1, 2]
+    assert slides[0]["title"] == "클라우드 전환 배경"
+    assert slides[0]["texts"] == ["클라우드 전환 배경", "첫 문단\n둘째 문단"]
+    assert slides[0]["pictures"] == 0 and slides[0]["titleBottomCm"] == 3.0
+    assert slides[1]["texts"] == [] and slides[1]["pictures"] == 1 and slides[1]["title"] is None
+
+
+def test_extract_endpoint(client, auth, tmp_path, monkeypatch):
+    import service.storage as S
+    src = tmp_path / "src.pptx"
+    make_source_pptx(src)
+    def fake_download(url, dest):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(src.read_bytes())
+        return dest
+    monkeypatch.setattr(S, "download", fake_download)
+    r = client.post("/extract", headers=auth, json={"sourceUrl": "https://example.supabase.co/storage/v1/object/sign/ppt/source/a.pptx?token=x"})
+    assert r.status_code == 200 and len(r.json()["slides"]) == 2
+
+
+def test_extract_rejects_foreign_host(client, auth):
+    r = client.post("/extract", headers=auth, json={"sourceUrl": "https://evil.example.com/a.pptx"})
+    assert r.status_code == 400
