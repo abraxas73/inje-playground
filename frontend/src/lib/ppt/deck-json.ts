@@ -46,15 +46,14 @@ export function parseDeckJson(text: string, today: string): DeckJson {
   return normalizeMeta(r.data, today);
 }
 
-const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const DATE_PARTS = /(\d{4})\D+(\d{1,2})\D+(\d{1,2})/;
 
 export function normalizeMeta(raw: RawDeck, today: string): DeckJson {
   const m = raw.meta;
   const title = Array.isArray(m.title) ? m.title : [m.title];
   const ver = m.ver === undefined ? "01" : String(m.ver).padStart(2, "0");
-  let date = (m.date ?? "").trim() || today;
-  const iso = ISO_DATE.exec(date);
-  if (iso) date = `${iso[1]}. ${iso[2]}. ${iso[3]}`;
+  const dm = DATE_PARTS.exec(m.date ?? "");
+  const date = dm ? `${dm[1]}. ${dm[2].padStart(2, "0")}. ${dm[3].padStart(2, "0")}` : today;
   const meta: DeckMeta = { ...m, title, ver, date };
   return { meta, sections: raw.sections as SectionJson[] };
 }

@@ -24,6 +24,13 @@ describe("parseDeckJson", () => {
     const iso = parseDeckJson(JSON.stringify({ meta: { title: ["a"], date: "2026-10-01" }, sections: base.sections }), TODAY);
     expect(iso.meta.date).toBe("2026. 10. 01");
   });
+  it("normalizes loose date formats and falls back to today for unparsable ones", () => {
+    const d = (date: string) => parseDeckJson(JSON.stringify({ meta: { title: ["a"], date }, sections: base.sections }), TODAY).meta.date;
+    expect(d("2026.10.01")).toBe("2026. 10. 01");
+    expect(d("2026년 10월 1일")).toBe("2026. 10. 01");
+    expect(d("2026. 10. 1")).toBe("2026. 10. 01");
+    expect(d("다음 주")).toBe(TODAY);
+  });
   it("rejects non-JSON, 0 sections and 9 sections", () => {
     expect(() => parseDeckJson("no json here", TODAY)).toThrow(DeckParseError);
     expect(() => parseDeckJson(JSON.stringify({ meta: { title: ["a"] }, sections: [] }), TODAY)).toThrow(DeckParseError);

@@ -32,6 +32,12 @@ export interface PptServiceClient {
 }
 
 let catalogCache: PptCatalog | null = null;
+function detailText(body: { detail?: unknown; message?: string }, status: number): string {
+  if (typeof body.detail === "string") return body.detail;
+  if (body.detail !== undefined && body.detail !== null) return JSON.stringify(body.detail);
+  return body.message ?? `PPT 서비스 오류(${status})`;
+}
+
 export function resetCatalogCache() { catalogCache = null; }
 
 const CATALOG_TIMEOUT_MS = 30_000;
@@ -55,9 +61,15 @@ export function createPptServiceClient(opts: { baseUrl?: string; token?: string;
     } catch (e) {
       throw new PptServiceError(503, `PPT 서비스에 연결할 수 없습니다(${e instanceof Error ? e.name : "error"}).`);
     }
-    if (res.ok || (init.accept422 && res.status === 422)) return (await res.json()) as T;
-    const body = (await res.json().catch(() => ({}))) as { detail?: string; message?: string };
-    throw new PptServiceError(res.status, body.detail ?? body.message ?? `PPT 서비스 오류(${res.status})`);
+    if (res.ok || (init.accept422 && res.status === 422)) {
+      let body: unknown;
+      try { body = await res.json(); } catch { throw new PptServiceError(res.status, "PPT 서비스 응답이 JSON이 아닙니다."); }
+      // 빌드 실패 본문은 ok:boolean을 갖는다. FastAPI 요청 검증 422({detail})는 실패로 취급한다.
+      if (!res.ok && typeof (body as { ok?: unknown })?.ok !== "boolean") throw new PptServiceError(422, detailText((body ?? {}) as { detail?: unknown }, 422));
+      return body as T;
+    }
+    const body = (await res.json().catch(() => ({}))) as { detail?: unknown; message?: string };
+    throw new PptServiceError(res.status, detailText(body, res.status));
   }
 
   return {

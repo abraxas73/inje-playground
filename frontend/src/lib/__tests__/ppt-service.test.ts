@@ -30,6 +30,17 @@ describe("createPptServiceClient", () => {
     expect(r).toEqual({ ok: false, kind: "spec", message: "card-4는 4개", section: 0, slide: 1 });
     await expect(c.extract("https://x/y")).rejects.toBeInstanceOf(PptServiceError);
   });
+  it("treats a FastAPI validation 422 on /build as an error, not a build result", async () => {
+    const c = createPptServiceClient({ baseUrl: "http://svc", token: "t", fetchImpl: fetchMock(() => ({ status: 422, body: { detail: [{ loc: ["body", "spec"], msg: "field required" }] } })) });
+    const p = c.build({ spec: {}, upload: { pptxUrl: "u1", yamlUrl: "u2" } });
+    await expect(p).rejects.toBeInstanceOf(PptServiceError);
+    await expect(p).rejects.toThrow(/field required/);
+  });
+  it("throws PptServiceError when a 2xx body is not JSON", async () => {
+    const f = vi.fn(async () => new Response("<html>", { status: 200 })) as unknown as typeof fetch;
+    const c = createPptServiceClient({ baseUrl: "http://svc", token: "t", fetchImpl: f });
+    await expect(c.extract("https://x/y")).rejects.toBeInstanceOf(PptServiceError);
+  });
   it("fails clearly when env is missing", () => {
     expect(() => createPptServiceClient({ baseUrl: "", token: "" })).toThrow(PptServiceError);
   });
