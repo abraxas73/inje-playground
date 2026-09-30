@@ -55,7 +55,7 @@
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | id | uuid PK default gen_random_uuid() | |
-| owner_id | uuid not null | auth.users id |
+| owner_id | uuid → auth.users(id) on delete set null | 사용자 삭제 뒤에도 덱·버전은 남는다(소유자 없음 → admin만 관리) |
 | owner_email | text not null | 목록·공유 화면 표시용 |
 | title | text not null | `meta.title` 줄을 공백으로 이은 값. 재생성으로 바뀌면 갱신 |
 | share_token | text not null unique | `newShareToken()` — 생성 시 부여 |

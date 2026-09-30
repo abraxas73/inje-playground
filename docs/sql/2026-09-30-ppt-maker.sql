@@ -4,7 +4,7 @@
 
 create table if not exists public.ppt_decks (
   id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null references auth.users(id) on delete cascade,
+  owner_id uuid references auth.users(id) on delete set null,
   owner_email text not null,
   title text not null default '',
   share_token text not null unique,
@@ -50,7 +50,6 @@ create table if not exists public.ppt_deck_versions (
 comment on table public.ppt_deck_versions is 'PPT 만들기 버전. 생성·재생성마다 1행, 토큰 사용량 포함, 삭제하지 않음';
 
 create index if not exists ppt_decks_owner_idx on public.ppt_decks (owner_id, updated_at desc);
-create index if not exists ppt_deck_versions_deck_idx on public.ppt_deck_versions (deck_id, no desc);
 create index if not exists ppt_deck_versions_active_idx on public.ppt_deck_versions (status, created_at) where status in ('generating','building');
 
 do $$

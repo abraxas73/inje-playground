@@ -32,7 +32,7 @@ export interface PptVersion {
 export interface PptDeckSummary {
   id: string;
   title: string;
-  ownerId: string;
+  ownerId: string | null;
   ownerEmail: string;
   currentVersion: number;
   shareEnabled: boolean;
