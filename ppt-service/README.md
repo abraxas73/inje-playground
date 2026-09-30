@@ -1,7 +1,7 @@
 # ppt-service — 이노그리드 표준 PPT 생성 서비스 (Vercel FastAPI)
 
 디자인센터 패키지 `innogrid_ppt`(python-pptx, 도구 v3.1 · 템플릿 v1.0 최신본 106장)를 그대로 싸서
-Next.js(`frontend/`)가 호출하는 3개 엔드포인트만 제공한다. 패키지 원본·템플릿은 수정하지 않는다(문서: `docs/AGENT_GUIDE.md`).
+Next.js(`frontend/`)가 호출하는 4개 엔드포인트만 제공한다. 패키지 원본·템플릿은 수정하지 않는다(문서: `docs/AGENT_GUIDE.md`).
 
 | 엔드포인트 | 용도 |
 |---|---|

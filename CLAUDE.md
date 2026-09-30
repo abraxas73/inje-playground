@@ -27,6 +27,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 테스트: `cd frontend && npm test`(vitest, `src/lib/__tests__`), E2E `npm run test:e2e`(Playwright).
 
+### ppt-service
+
+```bash
+cd ppt-service && .venv/bin/uvicorn main:app --port 8091   # 로컬 실행
+cd ppt-service && .venv/bin/pytest -q                       # 테스트
+cd ppt-service && vercel deploy --prod --yes                # 배포 (ppt-service/README.md 참고)
+```
+
 ### 로컬 launchd 자동화 (운영자 Mac)
 
 ```bash
@@ -35,7 +43,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 
 ## Architecture
 
-기능별 상세(페이지·API·테이블·패턴)는 `.claude/rules/` 아래 규칙 파일에 있고, 해당 경로의 파일을 다룰 때 자동으로 로드된다: `rfp.md`(RFP 분석·솔루션 카탈로그·SharePoint·Microsoft 연결), `claude-usage-cost.md`(Claude 사용량·비용·성과 지표), `marketing.md`(마케팅 Master DB), `media-news.md`(관리 매체·부고 알림·인사·부고 메일). 그 기능을 작업할 때는 먼저 해당 파일을 읽는다.
+기능별 상세(페이지·API·테이블·패턴)는 `.claude/rules/` 아래 규칙 파일에 있고, 해당 경로의 파일을 다룰 때 자동으로 로드된다: `rfp.md`(RFP 분석·솔루션 카탈로그·SharePoint·Microsoft 연결), `claude-usage-cost.md`(Claude 사용량·비용·성과 지표), `marketing.md`(마케팅 Master DB), `media-news.md`(관리 매체·부고 알림·인사·부고 메일), `ppt-maker.md`(PPT 만들기). 그 기능을 작업할 때는 먼저 해당 파일을 읽는다.
 
 ### App Router Pages (`frontend/src/app/`)
 - `/admin/page-permissions` — 사용자별 페이지 접근 권한. `lib/page-access.ts` 공용 카탈로그로 사용자 메뉴 2단계 그룹·홈 카드·페이지/API 검사를 통합. 기존 역할 기본값 유지, admin 전체 허용, RLS와 버전 검사 RPC. 런북 `docs/page-access.md`.
@@ -50,6 +58,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/manual` — User manual with Playwright-captured screenshots (8 sections)
 - `/admin/audit` — Audit 로그(admin): 로그인 이력 + 액션 이력 통합 조회(구분 로그인 성공/**로그인 실패**/**로그인 시도**/액션/API 호출, 카테고리, KST 기간, 검색 — 사용자·액션·IP·상세, 페이지 CSV). 뷰 `audit_log`는 service_role만 읽는다. 런북 `docs/audit-log.md`
 - `/admin/directory` — 조직/팀(admin): 사내 조직도(그룹웨어 아마란스, inno-creed MCP — Claude 사용량 표 "소속" 컬럼의 출처)·Claude 멤버·초대·조직·설정(관리형 설정 JSON) 탭
+- `/ppt` — PPT 만들기: 원고·프롬프트 → 이노그리드 표준 템플릿 PPTX(ppt-service). /ppt/[id] 버전·구성 보기·피드백 재생성·공유·Teams·SharePoint, /ppt/s/[token] 로그인 필요 공유 뷰. 런북 `docs/ppt-maker.md`
 
 ### API Routes (`frontend/src/app/api/`)
 - `GET /api/dooray/members?projectId=X` — Proxies Dooray API to fetch project members
@@ -71,6 +80,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `GET /api/admin/audit?kind&category&q&from&to&page&pageSize` — Audit 로그 조회(admin, 뷰 `audit_log`). 기록은 `lib/audit.ts`(`logAudit`·`logLogin`·`logAuthEvent`)·`lib/audit-proxy.ts`(proxy가 변경 요청 자동 기록), 조건 해석은 `lib/audit-query.ts`. 런북 `docs/audit-log.md`
 - `POST /api/auth/events` — 로그인 전(익명) 감사 기록: 로그인 시도·실패·차단만(event·provider 화이트리스트, IP당 5분 30건 상한). 성공 로그인은 `/auth/callback`이 `login_history`에 남긴다
 - `GET /api/admin/directory`, `POST /api/admin/directory/sync` — 사내 조직도 명부 조회/동기화(동기화는 관리자 세션 또는 수집 토큰; 로컬 `frontend/scripts/company-directory-sync.py`가 inno-creed MCP `find_person` 전사 명부를 밀어 넣음). 런북 `docs/company-directory.md`
+- `/api/ppt/uploads`, `/api/ppt/decks[/[id]/(regenerate|versions/[no]/file|share|teams|sharepoint)]`, `/api/ppt/shared/[token][/file]` — PPT 만들기(규칙 `.claude/rules/ppt-maker.md`)
 
 ### Supabase Tables (guide feature)
 - `nlm_notebooks` — Notebook metadata with `is_visible`, `sort_order`
@@ -82,6 +92,9 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 
 ### Supabase Tables (company directory)
 - `company_directory`(email PK, units[], division/headquarters/team, duty, position, active, synced_at), `company_directory_sync` — 사내 조직도 명부(아마란스). SQL `docs/sql/2026-08-29-company-directory.sql`
+
+### Supabase Tables (ppt)
+- `ppt_decks`, `ppt_deck_versions`(삭제 없음), 버킷 `ppt` — SQL `docs/sql/2026-09-30-ppt-maker.sql`
 
 ### Key Patterns
 
@@ -101,6 +114,9 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `CLAUDE_OTEL_INGEST_TOKEN` — Claude Code OTLP 수신 엔드포인트(`/api/otel/v1/metrics|logs`) Bearer 인증 토큰(`openssl rand -hex 32`)
 - `CLAUDE_OFFICE_OTEL_TOKEN` — Office 추가 기능 트레이스 수신(`/api/otel/v1/traces`) 전용 토큰. claude.ai 조직 설정 Office Agents의 OTLP 헤더 `Authorization=Bearer <값>`에 넣는 값이라 Claude Code 토큰과 분리
 - `ANTHROPIC_API_KEY`, `RFP_LLM_MODEL`(기본 claude-opus-5) — RFP 비표준 문서 LLM 폴백 + 카탈로그 기능 추출 + 솔루션 매핑(선택 — 없으면 규칙 엔진만)
+- `PPT_SERVICE_URL` — ppt-service 주소(`https://innogrid-ppt-service.vercel.app`)
+- `PPT_SERVICE_TOKEN` — 프론트·ppt-service 공통 토큰(`openssl rand -hex 32`, 두 프로젝트 같은 값)
+- `PPT_LLM_MODEL` — (선택) PPT 생성 모델, 기본 `claude-sonnet-5-5`. `ANTHROPIC_API_KEY`가 없으면 /ppt는 안내문만 보인다
 - `CLAUDE_ADMIN_API_KEY` — (선택) Anthropic Admin API 키(`sk-ant-admin01-…`, Console > Admin keys). 비용 관리의 API 비용 수집(`cost_report`)에만 쓰고, 없으면 그 탭을 숨긴다. settings 저장 금지
 - `MARKETING_AI_ENABLED`, `MARKETING_AI_MODEL` — 마케팅 Master DB AI 추천(선택). `ANTHROPIC_API_KEY`와 함께 있을 때만 활성, 없으면 규칙 검증·수동 검수만. 현재 운영 미설정
 - `MEDIA_SMTP_HOST`, `MEDIA_SMTP_PORT`, `MEDIA_SMTP_USER`, `MEDIA_SMTP_PASS`, `MEDIA_APP_URL` — **Edge Function secrets**(Vercel 아님). 부고 알림과 인사·부고 소식 메일(예약·지금 수신) SMTPS 발송. 비어 있으면 매칭만 하고 발송·예약 claim을 건너뛴다
