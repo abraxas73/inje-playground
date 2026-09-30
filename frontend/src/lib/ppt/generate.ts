@@ -1,0 +1,177 @@
+/**
+ * 생성 파이프라인. generateDeck()은 DB를 모른다(테스트 대상). runGeneration()이 버전 행을 읽고 결과를 쓴다(after()에서 호출).
+ * 스펙 §7.4·§7.6: LLM → parse → build → 오류 장표만 수정(최대 2회) / 재생성은 keep 패치, 안 맞으면 keep 없이 한 번 더.
+ */
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type Anthropic from "@anthropic-ai/sdk";
+import { logAudit } from "@/lib/audit";
+import { applyKeep, DeckParseError, deckTitle, hasKeep, parseDeckJson, parseSlidePatch, replaceSlide, todayLabel, type DeckJson } from "./deck-json";
+import { addUsage, ZERO_USAGE, type DeckLlm, type LlmUsage } from "./llm";
+import { fixMessages, generateMessages, jsonOnlyRetryMessages, regenerateMessages, systemBlocks, type SourceInput } from "./prompt";
+import type { PptBuildOk, PptExtractSlide, PptServiceClient } from "./service";
+import { extractionText, sourceLengthError, textFromDocument } from "./source";
+import { deckPaths, loadDeck, loadVersionWithSource, PPT_BUCKET, type VersionSourceRow } from "./store";
+
+export const MAX_FIX_ROUNDS = 2;
+
+export interface GenerateInput {
+  source: SourceInput;
+  prompt: string;
+  title?: string | null;
+  dept?: string | null;
+  today: string;
+  /** 재생성이면 기준 덱과 피드백 */
+  baseDeck?: DeckJson;
+  feedback?: string;
+  /** 빌드 시도마다 새 서명 업로드 URL */
+  uploads: () => Promise<{ pptxUrl: string; yamlUrl: string }>;
+  /** pptx 원고면 서명 다운로드 URL과 /extract 결과 */
+  sourceUrl?: string;
+  extract?: PptExtractSlide[];
+}
+export interface GenerateDeps { llm: DeckLlm; service: PptServiceClient }
+export interface GenerateOutcome { deck: DeckJson; build: PptBuildOk; usage: LlmUsage; calls: number; model: string }
+
+export class GenerationError extends Error {
+  constructor(message: string, public readonly usage: LlmUsage, public readonly calls: number) { super(message); this.name = "GenerationError"; }
+}
+
+export async function generateDeck(input: GenerateInput, deps: GenerateDeps): Promise<GenerateOutcome> {
+  let usage = ZERO_USAGE;
+  let calls = 0;
+  const ask = async (system: Anthropic.TextBlockParam[], messages: Anthropic.MessageParam[]) => {
+    const r = await deps.llm.complete(system, messages);
+    usage = addUsage(usage, r.usage);
+    calls += 1;
+    return r;
+  };
+  try {
+    const catalog = await deps.service.catalog();
+    const system = systemBlocks(catalog);
+    let deck: DeckJson;
+    let prior: Anthropic.MessageParam[];
+
+    if (input.baseDeck && input.feedback) {
+      prior = regenerateMessages({ source: input.source, baseDeck: input.baseDeck, feedback: input.feedback, today: input.today, withKeep: true });
+      let parsed = parseDeckJson((await ask(system, prior)).text, input.today);
+      let merged = hasKeep(parsed) ? applyKeep(parsed, input.baseDeck) : { ok: true as const, deck: parsed };
+      if (!merged.ok) {
+        prior = regenerateMessages({ source: input.source, baseDeck: input.baseDeck, feedback: input.feedback, today: input.today, withKeep: false });
+        parsed = parseDeckJson((await ask(system, prior)).text, input.today);
+        if (hasKeep(parsed)) throw new DeckParseError("재생성 응답에 keep이 남아 있습니다.");
+        merged = { ok: true as const, deck: parsed };
+      }
+      deck = merged.deck;
+    } else {
+      prior = generateMessages({ source: input.source, prompt: input.prompt, title: input.title, dept: input.dept, today: input.today });
+      const first = await ask(system, prior);
+      try {
+        deck = parseDeckJson(first.text, input.today);
+      } catch (e) {
+        if (!(e instanceof DeckParseError)) throw e;
+        const retry = await ask(system, jsonOnlyRetryMessages(prior, first.text));
+        deck = parseDeckJson(retry.text, input.today);
+      }
+    }
+
+    for (let round = 0; ; round += 1) {
+      const upload = await input.uploads();
+      const result = await deps.service.build({ spec: deck, sourceUrl: input.sourceUrl, extract: input.extract, upload });
+      if (result.ok) return { deck, build: result, usage, calls, model: deps.llm.model };
+      if (round >= MAX_FIX_ROUNDS || (result.kind !== "spec" && result.kind !== "overflow")) throw new Error(result.message);
+      const fix = await ask(system, fixMessages({ prior, deck, error: result }));
+      if (result.section !== null && result.slide !== null) deck = replaceSlide(deck, result.section, result.slide, parseSlidePatch(fix.text));
+      else deck = parseDeckJson(fix.text, input.today);
+    }
+  } catch (e) {
+    if (e instanceof GenerationError) throw e;
+    throw new GenerationError(e instanceof Error ? e.message : String(e), usage, calls);
+  }
+}
+
+// ── DB를 도는 바깥 껍데기 ──────────────────────────────────────────────────
+
+export interface RunDeps extends GenerateDeps { hints?: { title?: string | null; dept?: string | null }; now?: () => Date }
+
+async function downloadBuffer(admin: SupabaseClient, path: string): Promise<Buffer> {
+  const { data, error } = await admin.storage.from(PPT_BUCKET).download(path);
+  if (error || !data) throw new Error(`원고 파일을 읽지 못했습니다: ${error?.message ?? ""}`);
+  return Buffer.from(await data.arrayBuffer());
+}
+
+async function signedDownload(admin: SupabaseClient, path: string): Promise<string> {
+  const { data, error } = await admin.storage.from(PPT_BUCKET).createSignedUrl(path, 300);
+  if (error || !data) throw new Error(`서명 URL을 만들지 못했습니다: ${error?.message ?? ""}`);
+  return data.signedUrl;
+}
+
+/** 원고 텍스트 확보. 파일·pptx는 처음 한 번만 추출해 source_text에 저장한다. */
+async function resolveSource(admin: SupabaseClient, v: VersionSourceRow, service: PptServiceClient): Promise<{ source: SourceInput; sourceUrl?: string; extract?: PptExtractSlide[] }> {
+  if (v.source_kind === "text") return { source: { kind: "text", text: v.source_text ?? "" } };
+  if (!v.source_path) throw new Error("원고 파일 경로가 없습니다.");
+  if (v.source_kind === "file") {
+    let text = v.source_text;
+    if (!text) {
+      text = await textFromDocument(await downloadBuffer(admin, v.source_path), v.source_name ?? v.source_path);
+      await admin.from("ppt_deck_versions").update({ source_text: text }).eq("id", v.id);
+    }
+    return { source: { kind: "file", text } };
+  }
+  const sourceUrl = await signedDownload(admin, v.source_path);
+  let slides: PptExtractSlide[];
+  if (v.source_text) slides = JSON.parse(v.source_text) as PptExtractSlide[];
+  else {
+    slides = await service.extract(sourceUrl);
+    await admin.from("ppt_deck_versions").update({ source_text: JSON.stringify(slides) }).eq("id", v.id);
+  }
+  return { source: { kind: "pptx", text: extractionText(slides) }, sourceUrl, extract: slides };
+}
+
+export async function runGeneration(admin: SupabaseClient, versionId: string, deps: RunDeps): Promise<void> {
+  const startedAt = (deps.now ?? (() => new Date()))();
+  const v = await loadVersionWithSource(admin, versionId);
+  if (!v || v.status !== "generating") return;
+  const deck = await loadDeck(admin, v.deck_id);
+  if (!deck) return;
+  const isRegen = v.base_version !== null && !!v.feedback;
+  const finish = async (patch: Record<string, unknown>) => {
+    await admin.from("ppt_deck_versions").update({ ...patch, finished_at: new Date().toISOString(), duration_ms: Date.now() - startedAt.getTime() }).eq("id", v.id);
+  };
+  try {
+    const src = await resolveSource(admin, v, deps.service);
+    const lengthError = sourceLengthError(src.source.text);
+    if (lengthError) throw new Error(lengthError);
+    let baseDeck: DeckJson | undefined;
+    if (isRegen) {
+      const { data } = await admin.from("ppt_deck_versions").select("deck_json").eq("deck_id", v.deck_id).eq("no", v.base_version!).maybeSingle();
+      baseDeck = (data as { deck_json: DeckJson | null } | null)?.deck_json ?? undefined;
+      if (!baseDeck) throw new Error(`기준 버전 v${v.base_version}의 덱을 찾을 수 없습니다.`);
+    }
+    const paths = deckPaths(v.deck_id, v.no);
+    const uploads = async () => {
+      const [p, y] = await Promise.all([
+        admin.storage.from(PPT_BUCKET).createSignedUploadUrl(paths.pptx, { upsert: true }),
+        admin.storage.from(PPT_BUCKET).createSignedUploadUrl(paths.yaml, { upsert: true }),
+      ]);
+      if (p.error || !p.data || y.error || !y.data) throw new Error(`업로드 URL을 만들지 못했습니다: ${p.error?.message ?? y.error?.message ?? ""}`);
+      return { pptxUrl: p.data.signedUrl, yamlUrl: y.data.signedUrl };
+    };
+    await admin.from("ppt_deck_versions").update({ llm_model: deps.llm.model }).eq("id", v.id);
+    const out = await generateDeck({
+      source: src.source, prompt: v.prompt ?? "", title: deps.hints?.title, dept: deps.hints?.dept, today: todayLabel(startedAt),
+      baseDeck, feedback: v.feedback ?? undefined, uploads, sourceUrl: src.sourceUrl, extract: src.extract,
+    }, deps);
+    await finish({
+      status: "done", deck_json: out.deck, pptx_path: paths.pptx, yaml_path: paths.yaml, slide_count: out.build.slides, advisories: out.build.advisories,
+      check_issues: out.build.issues, llm_calls: out.calls, tokens_in: out.usage.in, tokens_out: out.usage.out, tokens_cache_read: out.usage.cacheRead, tokens_cache_write: out.usage.cacheWrite, error: null,
+    });
+    await admin.from("ppt_decks").update({ title: deckTitle(out.deck), current_version: v.no, updated_at: new Date().toISOString() }).eq("id", deck.id);
+    await logAudit(admin, null, { userId: deck.owner_id, userEmail: deck.owner_email, action: isRegen ? "PPT 재생성" : "PPT 생성", category: "ppt", detail: { deckId: deck.id, no: v.no, slides: out.build.slides, calls: out.calls, tokens: out.usage } });
+  } catch (e) {
+    const g = e instanceof GenerationError ? e : null;
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`[ppt] 생성 실패 deck=${deck.id} v${v.no}:`, message);
+    await finish({ status: "failed", error: message, llm_calls: g?.calls ?? 0, tokens_in: g?.usage.in ?? 0, tokens_out: g?.usage.out ?? 0, tokens_cache_read: g?.usage.cacheRead ?? 0, tokens_cache_write: g?.usage.cacheWrite ?? 0 });
+    await logAudit(admin, null, { userId: deck.owner_id, userEmail: deck.owner_email, action: "PPT 생성 실패", category: "ppt", detail: { deckId: deck.id, no: v.no, error: message.slice(0, 300) } });
+  }
+}
