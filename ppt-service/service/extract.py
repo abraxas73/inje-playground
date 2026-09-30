@@ -4,10 +4,17 @@
 ponytail: 타이틀은 "상단 25% 안에서 글자가 가장 큰 상자"로 잡는 휴리스틱. 그룹 안 도형의 좌표는 그룹 기준 상대값을 그대로 쓴다 —
 틀리면 이식 도식이 타이틀과 겹칠 수 있고, 사용자는 피드백으로 고친다.
 """
+import zipfile
+
 from pptx import Presentation
+from pptx.exc import PackageNotFoundError
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
 EMU_CM = 360000
+
+
+class ExtractError(ValueError):
+    """pptx를 열 수 없음(손상 또는 pptx 아님)."""
 
 
 def _walk(shapes):
@@ -28,7 +35,10 @@ def _max_font_pt(shape):
 
 
 def extract_slides(path: str):
-    prs = Presentation(path)
+    try:
+        prs = Presentation(path)
+    except (PackageNotFoundError, zipfile.BadZipFile, KeyError) as e:
+        raise ExtractError("pptx 파일을 열 수 없습니다") from e
     top_band = (prs.slide_height or 0) * 0.25
     out = []
     for no, slide in enumerate(prs.slides, 1):

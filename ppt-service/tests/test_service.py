@@ -82,3 +82,46 @@ def test_extract_endpoint(client, auth, tmp_path, monkeypatch):
 def test_extract_rejects_foreign_host(client, auth):
     r = client.post("/extract", headers=auth, json={"sourceUrl": "https://evil.example.com/a.pptx"})
     assert r.status_code == 400
+
+
+URL_OK = "https://example.supabase.co/storage/v1/object/sign/ppt/source/a.pptx?token=x"
+
+
+def test_check_body_rejects_non_integer_length():
+    import pytest
+    import main
+    from fastapi import HTTPException
+
+    class Stub:
+        def __init__(self, length):
+            self.headers = {"content-length": length}
+
+    with pytest.raises(HTTPException) as e:
+        main.check_body(Stub("abc"))
+    assert e.value.status_code == 400 and e.value.detail == "invalid content-length"
+    with pytest.raises(HTTPException) as e:
+        main.check_body(Stub(str(main.MAX_BODY + 1)))
+    assert e.value.status_code == 413
+
+
+def test_extract_download_failure_is_502(client, auth, monkeypatch):
+    import httpx
+    import service.storage as S
+
+    def boom(url, dest):
+        raise httpx.ConnectError("boom")
+    monkeypatch.setattr(S, "download", boom)
+    r = client.post("/extract", headers=auth, json={"sourceUrl": URL_OK})
+    assert r.status_code == 502
+
+
+def test_extract_corrupt_pptx_is_400(client, auth, monkeypatch):
+    import service.storage as S
+
+    def junk(url, dest):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"not a pptx")
+        return dest
+    monkeypatch.setattr(S, "download", junk)
+    r = client.post("/extract", headers=auth, json={"sourceUrl": URL_OK})
+    assert r.status_code == 400 and r.json()["detail"] == "pptx 파일을 열 수 없습니다(손상되었거나 pptx가 아닙니다)"

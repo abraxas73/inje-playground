@@ -63,5 +63,9 @@ def extract(req: ExtractRequest, request: Request, x_ppt_token: str | None = Hea
         return {"slides": X.extract_slides(str(src))}
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=400, detail=f"원고를 내려받지 못했습니다({e.response.status_code})")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="원고를 내려받지 못했습니다(연결 오류)")
+    except X.ExtractError:
+        raise HTTPException(status_code=400, detail="pptx 파일을 열 수 없습니다(손상되었거나 pptx가 아닙니다)")
     finally:
         shutil.rmtree(work, ignore_errors=True)
