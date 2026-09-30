@@ -13,7 +13,9 @@ export default function VersionPanel({ deckId, version }: { deckId: string; vers
   const [error, setError] = useState<string | null>(null);
   const download = async (kind: "pptx" | "yaml") => {
     setError(null);
-    const res = await fetch(`/api/ppt/decks/${deckId}/versions/${version.no}/file?kind=${kind}`);
+    let res: Response;
+    try { res = await fetch(`/api/ppt/decks/${deckId}/versions/${version.no}/file?kind=${kind}`); }
+    catch { setError("다운로드 URL을 받지 못했습니다(네트워크 오류)."); return; }
     if (!res.ok) { setError(await readError(res, "다운로드 URL을 받지 못했습니다.")); return; }
     const { url } = (await res.json()) as { url: string };
     window.location.href = url;
@@ -30,7 +32,6 @@ export default function VersionPanel({ deckId, version }: { deckId: string; vers
           </div>
         )}
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-        {version.error && <Alert variant="destructive"><AlertDescription className="whitespace-pre-wrap">{version.error}</AlertDescription></Alert>}
         <div><div className="text-xs text-muted-foreground">브랜드 검사</div><div>{version.status !== "done" ? "-" : issueCount === 0 ? "통과" : `${issueCount}건 위반`}</div>
           {issueCount > 0 && <ul className="mt-1 list-disc pl-4 text-xs text-muted-foreground">{Object.entries(version.checkIssues).map(([slide, msgs]) => msgs.map((m, i) => <li key={`${slide}-${i}`}>{slide}: {m}</li>))}</ul>}
         </div>

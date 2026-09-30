@@ -27,14 +27,15 @@ export default function PptDeckPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const stuckRef = useRef(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { selectLatest?: boolean }) => {
     const res = await fetch(`/api/ppt/decks/${id}`);
     if (!res.ok) { setError(await readError(res, "덱을 불러오지 못했습니다.")); return; }
     const d = (await res.json()) as PptDeckDetail;
     setData(d);
-    setSelected((s) => s ?? d.versions[d.versions.length - 1]?.no ?? null);
+    const latest = Math.max(0, ...d.versions.map((v) => v.no)) || null;
+    setSelected((s) => (opts?.selectLatest ? latest ?? s : s ?? latest));
   }, [id]);
-  useEffect(() => { const t = setTimeout(load, 0); return () => clearTimeout(t); }, [load]);
+  useEffect(() => { const t = setTimeout(() => load(), 0); return () => clearTimeout(t); }, [load]);
 
   const active = data?.versions.some((v) => v.status === "generating" || v.status === "building") ?? false;
   useEffect(() => {
@@ -48,7 +49,7 @@ export default function PptDeckPage() {
       if (!stillActive) { setNotice(null); await load(); return; }
       if (Date.now() - startedAt > STUCK_MS && !stuckRef.current) {
         stuckRef.current = true;
-        setNotice("생성이 6분 넘게 진행 중입니다. 서버 시간 제한에 걸리면 실패로 표시되며, 그때 '같은 입력으로 다시 시도'하거나 피드백으로 다시 만들 수 있습니다.");
+        setNotice("생성이 6분 넘게 진행 중입니다. 서버 시간 제한에 걸리면 실패로 표시되며, 그때 '현재 버전 기준으로 다시 생성'하거나 피드백으로 다시 만들 수 있습니다.");
       }
     }, POLL_MS);
     return () => clearInterval(t);
@@ -60,7 +61,7 @@ export default function PptDeckPage() {
 
   const retry = async () => {
     if (!data || !version) return;
-    try { await postJson(`/api/ppt/decks/${id}/regenerate`, { feedback: "같은 입력으로 다시 생성", baseVersion: data.deck.currentVersion || undefined }); await load(); }
+    try { await postJson(`/api/ppt/decks/${id}/regenerate`, { feedback: "이전 버전과 같은 구성으로 다시 생성", baseVersion: data.deck.currentVersion || undefined }); await load({ selectLatest: true }); }
     catch (e) { setError(e instanceof Error ? e.message : "재시도에 실패했습니다."); }
   };
   const remove = async () => {
@@ -93,11 +94,11 @@ export default function PptDeckPage() {
             version?.status === "failed" ? (
               <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-2"><span className="whitespace-pre-wrap">{version.error}</span>
                 {data.deck.canManage && (data.deck.currentVersion > 0
-                  ? <Button size="sm" variant="outline" onClick={retry} disabled={active}>같은 입력으로 다시 시도</Button>
+                  ? <Button size="sm" variant="outline" onClick={retry} disabled={active}>현재 버전 기준으로 다시 생성</Button>
                   : <Button asChild size="sm" variant="outline"><Link href="/ppt">새로 만들기</Link></Button>)}</AlertDescription></Alert>
             ) : <p className="py-10 text-center text-sm text-muted-foreground">원고를 읽고 장표를 고르는 중입니다. 보통 1~3분 걸립니다.</p>}
           {data.deck.canManage && currentDone && version && (
-            <FeedbackBox deckId={id} baseVersion={version.status === "done" ? version.no : data.deck.currentVersion} disabled={active} onStarted={load} />
+            <FeedbackBox deckId={id} baseVersion={version.status === "done" ? version.no : data.deck.currentVersion} disabled={active} onStarted={() => load({ selectLatest: true })} />
           )}
         </div>
         <div className="space-y-4">

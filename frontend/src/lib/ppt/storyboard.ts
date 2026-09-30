@@ -40,7 +40,6 @@ function slideOf(sl: SlideJson, section: number, index: number): StorySlide {
   for (const key of GROUP_KEYS) {
     const v = o[key];
     if (!Array.isArray(v) || !v.length) continue;
-    if (key === "tables") { groups.push({ label: key, items: (v as unknown[]).map(itemOf) }); continue; }
     groups.push({ label: key, items: (v as unknown[]).map(itemOf) });
   }
   const chart = o.chart as { categories?: unknown[]; values?: unknown[] } | undefined;

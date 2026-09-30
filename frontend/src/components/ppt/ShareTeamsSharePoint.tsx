@@ -34,7 +34,7 @@ export default function ShareTeamsSharePoint({ deck, currentDone, sharepointUrl,
   const toggleShare = (enabled: boolean) => run("share", async () => { await postJson(`${base}/share`, { enabled }, "PUT"); return enabled ? "공유 링크를 켰습니다." : "공유 링크를 껐습니다."; });
   const sendTeams = (enableShare: boolean) => run("teams", async () => { const r = await postJson<{ ok?: boolean; shareUrl?: string | null; warning?: string }>(`${base}/teams`, { enableShare }); return withWarning("Teams 채널에 게시했습니다.", r.warning); });
   const uploadSp = () => run("sp", async () => { const r = await postJson<{ webUrl: string; folderName: string; warning?: string }>(`${base}/sharepoint`, {}); return withWarning(`SharePoint(${r.folderName})에 올렸습니다.`, r.warning); });
-  const copy = async () => { if (!deck.shareUrl) return; await navigator.clipboard.writeText(deck.shareUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); };
+  const copy = async () => { if (!deck.shareUrl) return; try { await navigator.clipboard.writeText(deck.shareUrl); } catch { setMsg({ kind: "error", text: "클립보드 복사에 실패했습니다. 링크를 직접 선택해 복사하세요." }); return; } setCopied(true); setTimeout(() => setCopied(false), 1500); };
   const returnTo = `/ppt/${deck.id}`;
 
   return (
