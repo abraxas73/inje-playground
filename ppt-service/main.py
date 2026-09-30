@@ -15,7 +15,7 @@ MAX_BODY = 2 * 1024 * 1024
 
 def check_token(x_ppt_token: str | None):
     token = os.environ.get("PPT_SERVICE_TOKEN", "")
-    if not token or not x_ppt_token or not hmac.compare_digest(token, x_ppt_token):
+    if not token or not x_ppt_token or not hmac.compare_digest(token.encode(), x_ppt_token.encode()):
         raise HTTPException(status_code=401, detail="unauthorized")
 
 

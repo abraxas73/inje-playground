@@ -3,6 +3,10 @@ def test_health_requires_token(client):
     assert client.get("/health", headers={"x-ppt-token": "wrong"}).status_code == 401
 
 
+def test_health_non_ascii_token_is_401(client):
+    assert client.get("/health", headers={"x-ppt-token": "é".encode()}).status_code == 401
+
+
 def test_health(client, auth):
     r = client.get("/health", headers=auth)
     assert r.status_code == 200
