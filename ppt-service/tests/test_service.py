@@ -180,3 +180,67 @@ def test_build_endpoint_spec_error(client, auth):
     assert r.status_code == 422
     j = r.json()
     assert j["ok"] is False and j["kind"] == "spec" and j["section"] == 0 and j["slide"] == 0 and "no-such-layout" in j["message"]
+
+
+def _free_spec(slide):
+    return {**MINI_SPEC, "sections": [{"name": "개요", "slides": [slide]}]}
+
+
+FREE = {"layout": "free-title", "title": ["원고를 옮겨 붙인", "자유 배치 장표입니다."]}
+
+
+def test_build_yaml_has_no_work_paths(tmp_path):
+    import copy
+    from service.builder import build_deck
+    src = tmp_path / "src.pptx"
+    make_source_pptx(src)
+    spec = _free_spec({**FREE, "images": ["src:2:1"], "source": {"slide": 1}})
+    orig = copy.deepcopy(spec)
+    res = build_deck(spec, tmp_path / "w", src, None)
+    text = (tmp_path / "w" / "deck.yaml").read_text(encoding="utf-8")
+    assert "/tmp" not in text and "ppt-" not in text and str(tmp_path) not in text
+    assert "src:2:1" in text and spec == orig and res["slides"] == 5
+
+
+def _post_spec(client, auth, spec):
+    return client.post("/build", headers=auth, json={"spec": spec, "upload": {"pptxUrl": "https://example.supabase.co/x?token=1", "yamlUrl": "https://example.supabase.co/y?token=2"}})
+
+
+def test_build_meta_title_type_error(client, auth):
+    r = _post_spec(client, auth, {**MINI_SPEC, "meta": {**MINI_SPEC["meta"], "title": 123}})
+    j = r.json()
+    assert r.status_code == 422 and j["kind"] == "spec" and j["section"] is None
+
+
+def test_build_attribute_error_has_position(client, auth):
+    r = _post_spec(client, auth, _free_spec({"layout": "product", "product": 123, "title": ["a", "b."]}))
+    j = r.json()
+    assert r.status_code == 422 and j["kind"] == "spec" and (j["section"], j["slide"]) == (0, 0)
+
+
+def test_build_bad_source_slide_has_position(client, auth, tmp_path, monkeypatch):
+    import service.storage as S
+    src = tmp_path / "src.pptx"
+    make_source_pptx(src)
+    def fake_download(url, dest):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(src.read_bytes())
+        return dest
+    monkeypatch.setattr(S, "download", fake_download)
+    body = {"spec": _free_spec({**FREE, "source": {"slide": "abc"}}), "sourceUrl": "https://example.supabase.co/s.pptx?token=1",
+            "upload": {"pptxUrl": "https://example.supabase.co/x?token=1", "yamlUrl": "https://example.supabase.co/y?token=2"}}
+    r = client.post("/build", headers=auth, json=body)
+    j = r.json()
+    assert r.status_code == 422 and j["kind"] == "spec" and (j["section"], j["slide"]) == (0, 0)
+
+
+def test_build_storage_connect_error(client, auth, monkeypatch):
+    import httpx
+    import service.storage as S
+    def boom(url, dest):
+        raise httpx.ConnectError("boom")
+    monkeypatch.setattr(S, "download", boom)
+    body = {"spec": MINI_SPEC, "sourceUrl": "https://example.supabase.co/s.pptx?token=1",
+            "upload": {"pptxUrl": "https://example.supabase.co/x?token=1", "yamlUrl": "https://example.supabase.co/y?token=2"}}
+    r = client.post("/build", headers=auth, json=body)
+    assert r.status_code == 502 and r.json()["kind"] == "internal" and r.json()["message"] == "스토리지 연결 오류"
