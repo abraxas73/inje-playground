@@ -9,10 +9,11 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from innogrid_ppt import tokens as T
-from service import catalog as C, extract as X, storage as S
+from service import builder as B, catalog as C, extract as X, storage as S
 
 app = FastAPI(title="innogrid ppt-service", docs_url=None, redoc_url=None)
 
@@ -67,5 +68,45 @@ def extract(req: ExtractRequest, request: Request, x_ppt_token: str | None = Hea
         raise HTTPException(status_code=502, detail="원고를 내려받지 못했습니다(연결 오류)")
     except X.ExtractError:
         raise HTTPException(status_code=400, detail="pptx 파일을 열 수 없습니다(손상되었거나 pptx가 아닙니다)")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+class UploadTargets(BaseModel):
+    pptxUrl: str
+    yamlUrl: str
+
+
+class BuildRequest(BaseModel):
+    spec: dict
+    sourceUrl: str | None = None
+    extract: list[dict] | None = None
+    upload: UploadTargets
+
+
+@app.post("/build")
+def build(req: BuildRequest, request: Request, x_ppt_token: str | None = Header(default=None)):
+    check_token(x_ppt_token)
+    check_body(request)
+    for url in (req.upload.pptxUrl, req.upload.yamlUrl, req.sourceUrl or req.upload.pptxUrl):
+        if not S.allowed_host(url):
+            raise HTTPException(status_code=400, detail="업로드·다운로드 주소 호스트가 허용되지 않습니다")
+    work = Path(tempfile.gettempdir()) / f"ppt-{uuid.uuid4().hex}"
+    try:
+        src = S.download(req.sourceUrl, work / "source.pptx") if req.sourceUrl else None
+        res = B.build_deck(req.spec, work, src, req.extract)
+        size = S.upload(req.upload.pptxUrl, res["pptxPath"], B.PPTX_MIME)
+        S.upload(req.upload.yamlUrl, res["yamlPath"], "text/yaml; charset=utf-8")
+        return {"ok": True, "slides": res["slides"], "advisories": res["advisories"], "issues": res["issues"], "bytes": size}
+    except B.BuildError as e:
+        return JSONResponse(status_code=422, content={"ok": False, "kind": e.kind, "message": e.message, "section": e.section, "slide": e.slide})
+    except httpx.HTTPStatusError as e:
+        return JSONResponse(status_code=502, content={"ok": False, "kind": "internal", "message": f"스토리지 응답 오류({e.response.status_code})", "section": None, "slide": None})
+    except httpx.RequestError:
+        return JSONResponse(status_code=502, content={"ok": False, "kind": "internal", "message": "스토리지 연결 오류", "section": None, "slide": None})
+    except Exception as e:  # noqa: BLE001 — 패키지 내부 오류는 스택을 로그로, 사용자에게는 종류만
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"ok": False, "kind": "internal", "message": f"내부 오류: {type(e).__name__}: {e}", "section": None, "slide": None})
     finally:
         shutil.rmtree(work, ignore_errors=True)

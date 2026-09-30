@@ -125,3 +125,58 @@ def test_extract_corrupt_pptx_is_400(client, auth, monkeypatch):
     monkeypatch.setattr(S, "download", junk)
     r = client.post("/extract", headers=auth, json={"sourceUrl": URL_OK})
     assert r.status_code == 400 and r.json()["detail"] == "pptx 파일을 열 수 없습니다(손상되었거나 pptx가 아닙니다)"
+
+
+MINI_SPEC = {
+    "meta": {"title": ["최소 예제로 확인하는", "빌드 파이프라인입니다."], "subtitle": "테스트", "ver": "01", "date": "2026. 09. 30", "dept": "클라우드네이티브센터"},
+    "sections": [{"name": "개요", "slides": [{
+        "layout": "card-3",
+        "title": ["세 가지 이유로 정리하는", "표준화가 필요한 배경입니다."],
+        "cards": [
+            {"title": "속도", "body": ["배포가 수작업이라 실수가 반복됨", "환경마다 설정이 갈리는 것"]},
+            {"title": "비용", "body": ["장비 교체에 인력이 묶이는 구조"]},
+            {"title": "품질", "body": ["장애 원인 파악까지 평균 네 시간"]},
+        ],
+        "closing": "서버가 아니라 [[일하는 방식]]을 바꾸는 것이 목적입니다.",
+    }]}],
+}
+
+
+def test_build_deck(tmp_path):
+    from service.builder import build_deck
+    res = build_deck(MINI_SPEC, tmp_path, None, None)
+    assert res["slides"] == 5            # 표지·목차·간지·본문·뒷표지
+    assert res["issues"] == {}
+    assert (tmp_path / "deck.pptx").stat().st_size > 1_000_000
+    assert "layout: card-3" in (tmp_path / "deck.yaml").read_text(encoding="utf-8")
+    assert isinstance(res["advisories"], list)
+
+
+def test_build_error_has_position(tmp_path):
+    from service.builder import BuildError, build_deck
+    bad = {**MINI_SPEC, "sections": [{"name": "개요", "slides": [{**MINI_SPEC["sections"][0]["slides"][0], "layout": "card-4"}]}]}
+    try:
+        build_deck(bad, tmp_path, None, None)
+        assert False, "should raise"
+    except BuildError as e:
+        assert e.kind == "spec" and e.section == 0 and e.slide == 0 and "card-4" in e.message
+
+
+def test_build_endpoint(client, auth, tmp_path, monkeypatch):
+    import service.storage as S
+    uploaded = {}
+    monkeypatch.setattr(S, "upload", lambda url, path, ct: uploaded.setdefault(url, path.stat().st_size))
+    body = {"spec": MINI_SPEC, "upload": {"pptxUrl": "https://example.supabase.co/storage/v1/object/upload/sign/ppt/decks/d/v1/deck.pptx?token=a",
+                                          "yamlUrl": "https://example.supabase.co/storage/v1/object/upload/sign/ppt/decks/d/v1/deck.yaml?token=b"}}
+    r = client.post("/build", headers=auth, json=body)
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["ok"] is True and j["slides"] == 5 and len(uploaded) == 2 and j["bytes"] > 1_000_000
+
+
+def test_build_endpoint_spec_error(client, auth):
+    bad = {**MINI_SPEC, "sections": [{"name": "개요", "slides": [{"layout": "no-such-layout", "title": ["a", "b."]}]}]}
+    r = client.post("/build", headers=auth, json={"spec": bad, "upload": {"pptxUrl": "https://example.supabase.co/x?token=1", "yamlUrl": "https://example.supabase.co/y?token=2"}})
+    assert r.status_code == 422
+    j = r.json()
+    assert j["ok"] is False and j["kind"] == "spec" and j["section"] == 0 and j["slide"] == 0 and "no-such-layout" in j["message"]
