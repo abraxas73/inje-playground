@@ -10,7 +10,7 @@ import { addUsage, ZERO_USAGE, type DeckLlm, type LlmUsage } from "./llm";
 import { fixMessages, generateMessages, jsonOnlyRetryMessages, regenerateMessages, systemBlocks, type SourceInput } from "./prompt";
 import type { PptBuildOk, PptExtractSlide, PptServiceClient } from "./service";
 import { extractionText, sourceLengthError, textFromDocument } from "./source";
-import { deckPaths, loadDeck, loadVersionWithSource, PPT_BUCKET, type VersionSourceRow } from "./store";
+import { ACTIVE_STATUSES, deckPaths, loadDeck, loadVersionWithSource, PPT_BUCKET, type VersionSourceRow } from "./store";
 
 export const MAX_FIX_ROUNDS = 2;
 
@@ -28,6 +28,8 @@ export interface GenerateInput {
   /** pptx 원고면 서명 다운로드 URL과 /extract 결과 */
   sourceUrl?: string;
   extract?: PptExtractSlide[];
+  /** 첫 /build 직전에 한 번 호출(status=building 기록용) */
+  onBuild?: () => Promise<void>;
 }
 export interface GenerateDeps { llm: DeckLlm; service: PptServiceClient }
 export interface GenerateOutcome { deck: DeckJson; build: PptBuildOk; usage: LlmUsage; calls: number; model: string }
@@ -50,30 +52,34 @@ export async function generateDeck(input: GenerateInput, deps: GenerateDeps): Pr
     const system = systemBlocks(catalog);
     let deck: DeckJson;
     let prior: Anthropic.MessageParam[];
+    /** 질문 → 파싱. 비JSON이면 JSON만 달라고 한 번 재요청 */
+    const askDeck = async (msgs: Anthropic.MessageParam[]): Promise<DeckJson> => {
+      const first = await ask(system, msgs);
+      try {
+        return parseDeckJson(first.text, input.today);
+      } catch (e) {
+        if (!(e instanceof DeckParseError)) throw e;
+        return parseDeckJson((await ask(system, jsonOnlyRetryMessages(msgs, first.text))).text, input.today);
+      }
+    };
 
     if (input.baseDeck && input.feedback) {
       prior = regenerateMessages({ source: input.source, baseDeck: input.baseDeck, feedback: input.feedback, today: input.today, withKeep: true });
-      let parsed = parseDeckJson((await ask(system, prior)).text, input.today);
+      let parsed = await askDeck(prior);
       let merged = hasKeep(parsed) ? applyKeep(parsed, input.baseDeck) : { ok: true as const, deck: parsed };
       if (!merged.ok) {
         prior = regenerateMessages({ source: input.source, baseDeck: input.baseDeck, feedback: input.feedback, today: input.today, withKeep: false });
-        parsed = parseDeckJson((await ask(system, prior)).text, input.today);
+        parsed = await askDeck(prior);
         if (hasKeep(parsed)) throw new DeckParseError("재생성 응답에 keep이 남아 있습니다.");
         merged = { ok: true as const, deck: parsed };
       }
       deck = merged.deck;
     } else {
       prior = generateMessages({ source: input.source, prompt: input.prompt, title: input.title, dept: input.dept, today: input.today });
-      const first = await ask(system, prior);
-      try {
-        deck = parseDeckJson(first.text, input.today);
-      } catch (e) {
-        if (!(e instanceof DeckParseError)) throw e;
-        const retry = await ask(system, jsonOnlyRetryMessages(prior, first.text));
-        deck = parseDeckJson(retry.text, input.today);
-      }
+      deck = await askDeck(prior);
     }
 
+    await input.onBuild?.();
     for (let round = 0; ; round += 1) {
       const upload = await input.uploads();
       const result = await deps.service.build({ spec: deck, sourceUrl: input.sourceUrl, extract: input.extract, upload });
@@ -105,6 +111,11 @@ async function signedDownload(admin: SupabaseClient, path: string): Promise<stri
   return data.signedUrl;
 }
 
+async function logSave(q: PromiseLike<{ error: { message: string } | null }>): Promise<void> {
+  const { error } = await q;
+  if (error) console.error("[ppt] source_text 저장 실패:", error.message);
+}
+
 /** 원고 텍스트 확보. 파일·pptx는 처음 한 번만 추출해 source_text에 저장한다. */
 async function resolveSource(admin: SupabaseClient, v: VersionSourceRow, service: PptServiceClient): Promise<{ source: SourceInput; sourceUrl?: string; extract?: PptExtractSlide[] }> {
   if (v.source_kind === "text") return { source: { kind: "text", text: v.source_text ?? "" } };
@@ -113,7 +124,7 @@ async function resolveSource(admin: SupabaseClient, v: VersionSourceRow, service
     let text = v.source_text;
     if (!text) {
       text = await textFromDocument(await downloadBuffer(admin, v.source_path), v.source_name ?? v.source_path);
-      await admin.from("ppt_deck_versions").update({ source_text: text }).eq("id", v.id);
+      await logSave(admin.from("ppt_deck_versions").update({ source_text: text }).eq("id", v.id));
     }
     return { source: { kind: "file", text } };
   }
@@ -122,20 +133,37 @@ async function resolveSource(admin: SupabaseClient, v: VersionSourceRow, service
   if (v.source_text) slides = JSON.parse(v.source_text) as PptExtractSlide[];
   else {
     slides = await service.extract(sourceUrl);
-    await admin.from("ppt_deck_versions").update({ source_text: JSON.stringify(slides) }).eq("id", v.id);
+    await logSave(admin.from("ppt_deck_versions").update({ source_text: JSON.stringify(slides) }).eq("id", v.id));
   }
   return { source: { kind: "pptx", text: extractionText(slides) }, sourceUrl, extract: slides };
 }
 
 export async function runGeneration(admin: SupabaseClient, versionId: string, deps: RunDeps): Promise<void> {
+  try {
+    await runLoaded(admin, versionId, deps);
+  } catch (e) {
+    console.error(`[ppt] 생성 처리 중 예기치 않은 오류 version=${versionId}:`, e instanceof Error ? e.message : String(e));
+  }
+}
+
+async function runLoaded(admin: SupabaseClient, versionId: string, deps: RunDeps): Promise<void> {
   const startedAt = (deps.now ?? (() => new Date()))();
   const v = await loadVersionWithSource(admin, versionId);
   if (!v || v.status !== "generating") return;
   const deck = await loadDeck(admin, v.deck_id);
   if (!deck) return;
   const isRegen = v.base_version !== null && !!v.feedback;
-  const finish = async (patch: Record<string, unknown>) => {
-    await admin.from("ppt_deck_versions").update({ ...patch, finished_at: new Date().toISOString(), duration_ms: Date.now() - startedAt.getTime() }).eq("id", v.id);
+  /** 진행 중인 버전만 마감한다(stale 정리가 먼저 failed로 바꿨다면 덮어쓰지 않음). 오류는 반환한다. */
+  const finish = async (patch: Record<string, unknown>): Promise<string | null> => {
+    const { error } = await admin.from("ppt_deck_versions")
+      .update({ ...patch, finished_at: new Date().toISOString(), duration_ms: Date.now() - startedAt.getTime() })
+      .eq("id", v.id).in("status", ACTIVE_STATUSES);
+    if (error) console.error(`[ppt] 버전 상태 저장 실패 v${v.no}:`, error.message);
+    return error?.message ?? null;
+  };
+  const bestEffort = async (label: string, q: PromiseLike<{ error: { message: string } | null }>) => {
+    const { error } = await q;
+    if (error) console.error(`[ppt] ${label} 저장 실패 v${v.no}:`, error.message);
   };
   try {
     const src = await resolveSource(admin, v, deps.service);
@@ -156,16 +184,21 @@ export async function runGeneration(admin: SupabaseClient, versionId: string, de
       if (p.error || !p.data || y.error || !y.data) throw new Error(`업로드 URL을 만들지 못했습니다: ${p.error?.message ?? y.error?.message ?? ""}`);
       return { pptxUrl: p.data.signedUrl, yamlUrl: y.data.signedUrl };
     };
-    await admin.from("ppt_deck_versions").update({ llm_model: deps.llm.model }).eq("id", v.id);
+    await bestEffort("llm_model", admin.from("ppt_deck_versions").update({ llm_model: deps.llm.model }).eq("id", v.id));
     const out = await generateDeck({
       source: src.source, prompt: v.prompt ?? "", title: deps.hints?.title, dept: deps.hints?.dept, today: todayLabel(startedAt),
       baseDeck, feedback: v.feedback ?? undefined, uploads, sourceUrl: src.sourceUrl, extract: src.extract,
+      onBuild: () => bestEffort("building 상태", admin.from("ppt_deck_versions").update({ status: "building" }).eq("id", v.id)),
     }, deps);
-    await finish({
+    const saveError = await finish({
       status: "done", deck_json: out.deck, pptx_path: paths.pptx, yaml_path: paths.yaml, slide_count: out.build.slides, advisories: out.build.advisories,
       check_issues: out.build.issues, llm_calls: out.calls, tokens_in: out.usage.in, tokens_out: out.usage.out, tokens_cache_read: out.usage.cacheRead, tokens_cache_write: out.usage.cacheWrite, error: null,
     });
-    await admin.from("ppt_decks").update({ title: deckTitle(out.deck), current_version: v.no, updated_at: new Date().toISOString() }).eq("id", deck.id);
+    if (saveError) {
+      await finish({ status: "failed", error: `결과 저장 실패: ${saveError}` });
+      return;
+    }
+    await bestEffort("덱 제목", admin.from("ppt_decks").update({ title: deckTitle(out.deck), current_version: v.no, updated_at: new Date().toISOString() }).eq("id", deck.id));
     await logAudit(admin, null, { userId: deck.owner_id, userEmail: deck.owner_email, action: isRegen ? "PPT 재생성" : "PPT 생성", category: "ppt", detail: { deckId: deck.id, no: v.no, slides: out.build.slides, calls: out.calls, tokens: out.usage } });
   } catch (e) {
     const g = e instanceof GenerationError ? e : null;

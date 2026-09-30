@@ -78,9 +78,11 @@ export async function failStaleVersions(admin: SupabaseClient, now: number = Dat
 
 /** 사용자당 동시 생성 1건 */
 export async function hasActiveVersion(admin: SupabaseClient, ownerId: string): Promise<boolean> {
-  const { data: decks } = await admin.from("ppt_decks").select("id").eq("owner_id", ownerId);
+  const { data: decks, error } = await admin.from("ppt_decks").select("id").eq("owner_id", ownerId);
+  if (error) { console.error("[ppt] 진행 중 확인 실패:", error.message); return true; } // 안전측: 호출자가 409
   const ids = (decks ?? []).map((d) => (d as { id: string }).id);
   if (!ids.length) return false;
-  const { count } = await admin.from("ppt_deck_versions").select("id", { count: "exact", head: true }).in("deck_id", ids).in("status", ACTIVE_STATUSES);
+  const { count, error: e2 } = await admin.from("ppt_deck_versions").select("id", { count: "exact", head: true }).in("deck_id", ids).in("status", ACTIVE_STATUSES);
+  if (e2) { console.error("[ppt] 진행 중 확인 실패:", e2.message); return true; }
   return (count ?? 0) > 0;
 }

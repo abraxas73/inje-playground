@@ -63,6 +63,19 @@ describe("generateDeck", () => {
     expect(out2.calls).toBe(2);
     expect(llm2.calls[1].at(-1)?.content).toContain("keep을 쓰지 말고");
   });
+  it("regeneration retries once when the first reply is not JSON", async () => {
+    const llm = llmOf(["설명입니다", JSON.stringify(deck)]);
+    const out = await generateDeck({ ...base, baseDeck: deck, feedback: "제목만" }, { llm, service: serviceOf([ok]) });
+    expect(out.calls).toBe(2);
+  });
+  it("calls onBuild exactly once, even when a fix round happens", async () => {
+    const onBuild = vi.fn(async () => {});
+    const llm = llmOf([JSON.stringify(deck), JSON.stringify({ slide: { layout: "card-3", cards: [] } })]);
+    const svc = serviceOf([{ ok: false, kind: "spec", message: "x", section: 0, slide: 0 }, ok]);
+    await generateDeck({ ...base, onBuild }, { llm, service: svc });
+    expect(svc.built).toHaveLength(2);
+    expect(onBuild).toHaveBeenCalledTimes(1);
+  });
   it("wraps a service outage into GenerationError with usage so far", async () => {
     const llm = llmOf([JSON.stringify(deck)]);
     const svc: PptServiceClient = { async catalog() { return catalog; }, async extract() { return []; }, async build() { throw new Error("PPT 서비스에 연결할 수 없습니다(TimeoutError)."); } };
