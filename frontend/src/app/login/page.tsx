@@ -11,6 +11,12 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 export default function LoginPage() {
   // 구글 로그인은 기본 숨김(2026-08-31 요청) — 필요 시 /login?google=1 로 표시
   const [showGoogle] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("google") === "1");
+  // ?next= 는 같은 오리진 경로만 OAuth 콜백에 전달
+  const callbackUrl = () => {
+    const next = new URLSearchParams(window.location.search).get("next");
+    const safeNext = next && /^\/(?!\/)/.test(next) ? next : null;
+    return `${window.location.origin}/auth/callback${safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""}`;
+  };
   const handleGoogleLogin = async () => {
     // 리다이렉트 전에 시도를 남긴다(실패해도 로그인은 계속 진행)
     await logAuthEvent("attempt", "google");
@@ -18,7 +24,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: callbackUrl(),
       },
     });
     if (error) await logAuthEvent("failure", "google", error.message);
@@ -31,7 +37,7 @@ export default function LoginPage() {
       provider: "azure",
       options: {
         scopes: "email openid profile",
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: callbackUrl(),
       },
     });
     if (error) await logAuthEvent("failure", "azure", error.message);

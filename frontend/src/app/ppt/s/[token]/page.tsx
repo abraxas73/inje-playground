@@ -18,11 +18,16 @@ export default function SharedDeckPage() {
 
   useEffect(() => {
     const t = setTimeout(async () => {
-      const res = await fetch(`/api/ppt/shared/${token}`);
-      if (res.ok) { setDeck((await res.json()) as PptSharedDeck); setState("ok"); return; }
-      const body = (await res.json().catch(() => ({}))) as { code?: string; error?: string };
-      setError(body.error ?? null);
-      setState(body.code === "login_required" ? "login" : res.status === 404 ? "gone" : "error");
+      try {
+        const res = await fetch(`/api/ppt/shared/${token}`);
+        if (res.ok) { setDeck((await res.json()) as PptSharedDeck); setState("ok"); return; }
+        const body = (await res.json().catch(() => ({}))) as { code?: string; error?: string };
+        setError(body.error ?? null);
+        setState(body.code === "login_required" ? "login" : res.status === 404 ? "gone" : "error");
+      } catch {
+        setError("불러오지 못했습니다(네트워크 오류).");
+        setState("error");
+      }
     }, 0);
     return () => clearTimeout(t);
   }, [token]);
