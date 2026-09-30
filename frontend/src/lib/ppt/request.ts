@@ -37,6 +37,14 @@ export function parseCreateRequest(body: unknown): CreateParsed {
   return { ok: true, kind: sourceKindFor(fileName), text: null, storagePath, fileName, prompt, title, dept };
 }
 
+/** 덱 목록·머리글에 완성 전부터 보일 임시 제목: 입력한 표지 제목 → 파일명(확장자 제외) → 원고 첫 줄. 완성되면 표지 제목으로 바뀐다. */
+export function provisionalTitle(p: { title: string | null; fileName: string | null; text: string | null }): string {
+  if (p.title) return p.title;
+  if (p.fileName) return p.fileName.replace(/\.[^.]+$/, "").trim().slice(0, TITLE_MAX);
+  const line = (p.text ?? "").split("\n").map((l) => l.replace(/^[#\s*\->]+/, "").trim()).find((l) => l);
+  return (line ?? "").replace(/\s+/g, " ").slice(0, 80);
+}
+
 export type RegenerateParsed = { ok: true; retry: boolean; feedback: string | null; baseVersion: number | null } | Fail;
 
 export function parseRegenerateRequest(body: unknown): RegenerateParsed {

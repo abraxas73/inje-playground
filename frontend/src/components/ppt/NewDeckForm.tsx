@@ -73,7 +73,7 @@ export default function NewDeckForm({ llmAvailable, onCreated }: { llmAvailable:
           <Textarea id="ppt-prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={2} maxLength={2000} placeholder="예: 경영진 보고용, 12장 이내, 결론 먼저" />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1"><Label htmlFor="ppt-title">표지 제목(선택)</Label><Input id="ppt-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="비우면 원고에서 정합니다" /></div>
+          <div className="space-y-1"><Label htmlFor="ppt-title">표지 제목(선택)</Label><Input id="ppt-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="비우면 원고에서 정합니다(목록에는 파일명·첫 줄이 먼저 보입니다)" /></div>
           <div className="space-y-1"><Label htmlFor="ppt-dept">부서명(선택)</Label><Input id="ppt-dept" value={dept} onChange={(e) => setDept(e.target.value)} maxLength={60} placeholder="비우면 '부서명'으로 표기됩니다" /></div>
         </div>
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}

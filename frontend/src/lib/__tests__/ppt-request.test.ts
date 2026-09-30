@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCreateRequest, parseRegenerateRequest } from "@/lib/ppt/request";
+import { parseCreateRequest, parseRegenerateRequest, provisionalTitle } from "@/lib/ppt/request";
 
 describe("parseCreateRequest", () => {
   it("accepts text", () => {
@@ -19,6 +19,17 @@ describe("parseCreateRequest", () => {
     expect(parseCreateRequest({ storagePath: "source/0d1f0f7e-1111-4222-8333-444455556666.docx", fileName: "a.pdf", prompt: "" })).toMatchObject({ ok: false, status: 400 });
     expect(parseCreateRequest({ text: "a", prompt: "p".repeat(2001) })).toMatchObject({ ok: false, status: 400 });
     expect(parseCreateRequest(null)).toMatchObject({ ok: false, status: 400 });
+  });
+});
+
+describe("provisionalTitle", () => {
+  it("prefers the typed title, then the file name without extension, then the first meaningful text line", () => {
+    expect(provisionalTitle({ title: "제안", fileName: "a.pptx", text: null })).toBe("제안");
+    expect(provisionalTitle({ title: null, fileName: "(기술운영부분) 신규입사자 소개 자료v2.0.pptx", text: null })).toBe("(기술운영부분) 신규입사자 소개 자료v2.0");
+    expect(provisionalTitle({ title: null, fileName: null, text: "\n\n## 2026년   사업 계획\n본문" })).toBe("2026년 사업 계획");
+    expect(provisionalTitle({ title: null, fileName: null, text: "- 첫 불릿\n" })).toBe("첫 불릿");
+    expect(provisionalTitle({ title: null, fileName: null, text: "가".repeat(100) })).toHaveLength(80);
+    expect(provisionalTitle({ title: null, fileName: null, text: "   " })).toBe("");
   });
 });
 

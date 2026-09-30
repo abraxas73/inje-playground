@@ -4,7 +4,7 @@ import { newShareToken } from "@/lib/rfp/share";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { runGeneration } from "@/lib/ppt/generate";
 import { createAnthropicDeckLlm, LlmUnavailableError, type DeckLlm } from "@/lib/ppt/llm";
-import { parseCreateRequest } from "@/lib/ppt/request";
+import { parseCreateRequest, provisionalTitle } from "@/lib/ppt/request";
 import { createPptServiceClient, PptServiceError, type PptServiceClient } from "@/lib/ppt/service";
 import { DECK_COLUMNS, failStaleVersions, hasActiveVersion, mapDeck, type DeckRow, type VersionRow } from "@/lib/ppt/store";
 import type { PptListResponse } from "@/types/ppt";
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const { data: deck, error: deckError } = await auth.admin.from("ppt_decks")
-    .insert({ owner_id: auth.userId, owner_email: user?.email ?? "", title: parsed.title ?? "", share_token: newShareToken() })
+    .insert({ owner_id: auth.userId, owner_email: user?.email ?? "", title: provisionalTitle(parsed), share_token: newShareToken() })
     .select("id").single();
   if (deckError || !deck) return NextResponse.json({ error: deckError?.message ?? "덱을 만들지 못했습니다." }, { status: 500 });
   const deckId = (deck as { id: string }).id;
