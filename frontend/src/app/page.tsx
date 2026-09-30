@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Database, Dice5, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Newspaper, SquareTerminal, MessagesSquare, TrendingUp } from "lucide-react";
+import { Database, Dice5, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Presentation, Newspaper, SquareTerminal, MessagesSquare, TrendingUp } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 
 const FEATURES = [
@@ -60,6 +60,16 @@ const FEATURES = [
     bgAccent: "bg-violet-50",
     iconColor: "text-violet-600",
     delay: "delay-[475ms]",
+  },
+  {
+    href: "/ppt",
+    title: "PPT 만들기",
+    description: "원고와 프롬프트를 넣으면 이노그리드 표준 템플릿으로 PPT를 만들어 드립니다. 피드백으로 다시 만들고, 링크·Teams·SharePoint로 공유하세요.",
+    icon: Presentation,
+    gradient: "from-sky-500 to-blue-600",
+    bgAccent: "bg-sky-50",
+    iconColor: "text-sky-600",
+    delay: "delay-[500ms]",
   },
   {
     href: "/people-news",

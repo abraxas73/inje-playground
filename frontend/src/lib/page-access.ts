@@ -15,6 +15,7 @@ export const PAGES = [
   { key: "usage_chat", href: "/usage/chat", label: "Claude 채팅", group: "ai", minRole: "user" },
   { key: "usage_perf", href: "/usage/perf", label: "성과", group: "ai", minRole: "user" },
   { key: "rfp", href: "/rfp", label: "RFP 분석", group: "work", minRole: "user" },
+  { key: "ppt", href: "/ppt", label: "PPT 만들기", group: "work", minRole: "user" },
   { key: "people_news", href: "/people-news", label: "인사·부고", group: "work", minRole: "user" },
   { key: "marketing", href: "/marketing", label: "마케팅 Master DB", group: "work", minRole: "user" },
   { key: "guide", href: "/guide", label: "가이드 (메뉴 숨김)", group: "work", minRole: "user", hidden: true },
@@ -38,6 +39,7 @@ export function canUsePage(role: UserRole, key: PageKey, permissions: PagePermis
 /** Shared helper APIs require at least one of their consuming pages. */
 export function pagesForPath(path: string): PageKey[] {
   if (matchesPath(path, "/rfp/shared") || matchesPath(path, "/api/rfp/shared")) return [];
+  if (matchesPath(path, "/ppt/s") || matchesPath(path, "/api/ppt/shared")) return [];
   if (matchesPath(path, "/guide/admin") || matchesPath(path, "/admin") || matchesPath(path, "/api/admin")) return [];
   if (path === "/usage") return ["usage_code", "usage_chat", "usage_perf"];
   const page = PAGES.find((p) => matchesPath(path, p.href));
@@ -47,7 +49,7 @@ export function pagesForPath(path: string): PageKey[] {
     ["/api/team-sessions", ["team"]], ["/api/team-attendance", ["team"]],
     ["/api/team-comments", ["team"]], ["/api/team-notify", ["team"]],
     ["/api/surveys", ["survey"]], ["/api/guide", ["guide"]],
-    ["/api/rfp", ["rfp"]], ["/api/people-news", ["people_news"]],
+    ["/api/rfp", ["rfp"]], ["/api/ppt", ["ppt"]], ["/api/people-news", ["people_news"]],
     ["/api/marketing", ["marketing"]],
     ["/media-directory", ["people_news"]], ["/api/media-directory", ["people_news"]],
     ["/api/usage/code", ["usage_code"]], ["/api/usage/tools", ["usage_code"]],
