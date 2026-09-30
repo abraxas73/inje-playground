@@ -37,11 +37,12 @@ export function parseCreateRequest(body: unknown): CreateParsed {
   return { ok: true, kind: sourceKindFor(fileName), text: null, storagePath, fileName, prompt, title, dept };
 }
 
-export type RegenerateParsed = { ok: true; feedback: string; baseVersion: number | null } | Fail;
+export type RegenerateParsed = { ok: true; retry: boolean; feedback: string | null; baseVersion: number | null } | Fail;
 
 export function parseRegenerateRequest(body: unknown): RegenerateParsed {
   if (!body || typeof body !== "object") return fail("요청 본문이 없습니다.");
   const b = body as Record<string, unknown>;
+  if (b.retry === true) return { ok: true, retry: true, feedback: null, baseVersion: null };
   const feedback = typeof b.feedback === "string" ? b.feedback.trim() : "";
   if (!feedback) return fail("피드백을 입력하세요.");
   if (feedback.length > PROMPT_MAX) return fail(`피드백은 ${PROMPT_MAX.toLocaleString("ko-KR")}자 이하여야 합니다.`);
@@ -50,5 +51,5 @@ export function parseRegenerateRequest(body: unknown): RegenerateParsed {
     if (typeof b.baseVersion !== "number" || !Number.isInteger(b.baseVersion) || b.baseVersion < 1) return fail("baseVersion이 올바르지 않습니다.");
     baseVersion = b.baseVersion;
   }
-  return { ok: true, feedback, baseVersion };
+  return { ok: true, retry: false, feedback, baseVersion };
 }

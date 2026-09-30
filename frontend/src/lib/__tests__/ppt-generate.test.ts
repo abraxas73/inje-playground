@@ -47,6 +47,14 @@ describe("generateDeck", () => {
     expect(svc.built).toHaveLength(2);
     expect(out.calls).toBe(2);
   });
+  it("accepts a whole deck as the reply to a positioned fix round", async () => {
+    const fixedDeck = { ...deck, meta: { ...deck.meta, title: ["x", "y."] } };
+    const llm = llmOf([JSON.stringify(deck), JSON.stringify(fixedDeck)]);
+    const svc = serviceOf([{ ok: false, kind: "spec", message: "card-4는 4개", section: 0, slide: 0 }, ok]);
+    const out = await generateDeck(base, { llm, service: svc });
+    expect(out.deck.meta.title).toEqual(["x", "y."]);
+    expect(out.calls).toBe(2);
+  });
   it("gives up after 2 fix rounds with the package message", async () => {
     const llm = llmOf([JSON.stringify(deck), JSON.stringify({ slide: { layout: "x" } }), JSON.stringify({ slide: { layout: "y" } })]);
     const fail: PptBuildResult = { ok: false, kind: "overflow", message: "'body' 슬롯이 넘친다", section: 0, slide: 0 };

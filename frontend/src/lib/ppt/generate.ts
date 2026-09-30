@@ -86,8 +86,13 @@ export async function generateDeck(input: GenerateInput, deps: GenerateDeps): Pr
       if (result.ok) return { deck, build: result, usage, calls, model: deps.llm.model };
       if (round >= MAX_FIX_ROUNDS || (result.kind !== "spec" && result.kind !== "overflow")) throw new Error(result.message);
       const fix = await ask(system, fixMessages({ prior, deck, error: result }));
-      if (result.section !== null && result.slide !== null) deck = replaceSlide(deck, result.section, result.slide, parseSlidePatch(fix.text));
-      else deck = parseDeckJson(fix.text, input.today);
+      if (result.section !== null && result.slide !== null) {
+        try { deck = replaceSlide(deck, result.section, result.slide, parseSlidePatch(fix.text)); }
+        catch (e) {
+          if (!(e instanceof DeckParseError)) throw e;
+          deck = parseDeckJson(fix.text, input.today); // 슬라이드 대신 덱 전체를 돌려준 경우
+        }
+      } else deck = parseDeckJson(fix.text, input.today);
     }
   } catch (e) {
     if (e instanceof GenerationError) throw e;

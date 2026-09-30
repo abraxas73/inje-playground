@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       .in("deck_id", decks.map((d) => d.id)).order("no", { ascending: false }).limit(1000);
     for (const v of (vs ?? []) as VersionRow[]) if (!latest.has(v.deck_id)) latest.set(v.deck_id, v);
   }
-  const res: PptListResponse = { decks: decks.map((d) => mapDeck(d, latest.get(d.id) ?? null)), llmAvailable: !!process.env.ANTHROPIC_API_KEY };
+  const res: PptListResponse = { decks: decks.map((d) => mapDeck(d, latest.get(d.id) ?? null)), llmAvailable: !!process.env.ANTHROPIC_API_KEY && !!process.env.PPT_SERVICE_URL && !!process.env.PPT_SERVICE_TOKEN };
   return NextResponse.json(res);
 }
 

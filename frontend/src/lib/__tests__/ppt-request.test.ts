@@ -24,8 +24,10 @@ describe("parseCreateRequest", () => {
 
 describe("parseRegenerateRequest", () => {
   it("requires feedback and accepts an optional base version", () => {
-    expect(parseRegenerateRequest({ feedback: "  3장을 표로 " })).toEqual({ ok: true, feedback: "3장을 표로", baseVersion: null });
-    expect(parseRegenerateRequest({ feedback: "x", baseVersion: 2 })).toEqual({ ok: true, feedback: "x", baseVersion: 2 });
+    expect(parseRegenerateRequest({ feedback: "  3장을 표로 " })).toEqual({ ok: true, retry: false, feedback: "3장을 표로", baseVersion: null });
+    expect(parseRegenerateRequest({ feedback: "x", baseVersion: 2 })).toEqual({ ok: true, retry: false, feedback: "x", baseVersion: 2 });
+    expect(parseRegenerateRequest({ retry: true })).toEqual({ ok: true, retry: true, feedback: null, baseVersion: null });
+    expect(parseRegenerateRequest({})).toEqual({ ok: false, status: 400, error: "피드백을 입력하세요." });
     expect(parseRegenerateRequest({ feedback: "" })).toMatchObject({ ok: false, status: 400 });
     expect(parseRegenerateRequest({ feedback: "x", baseVersion: 0 })).toMatchObject({ ok: false, status: 400 });
   });

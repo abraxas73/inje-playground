@@ -26,7 +26,7 @@ export default function NewDeckForm({ llmAvailable, onCreated }: { llmAvailable:
 
   if (!llmAvailable) {
     return (
-      <Alert><AlertDescription>PPT 생성에 쓰는 AI 모델이 이 서버에 설정되어 있지 않습니다. 관리자에게 문의하세요.</AlertDescription></Alert>
+      <Alert><AlertDescription>PPT 생성에 필요한 AI 모델 또는 PPT 서비스가 이 서버에 설정되어 있지 않습니다. 관리자에게 문의하세요.</AlertDescription></Alert>
     );
   }
   const tooLong = text.length > SOURCE_MAX_CHARS;

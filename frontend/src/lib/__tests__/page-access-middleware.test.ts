@@ -33,6 +33,7 @@ it("rejects anonymous feature API calls but preserves public shares and surveys"
   expect((await visit("/api/people-news/email")).status).toBe(401);
   expect((await visit("/api/rfp/shared/token")).status).toBe(200);
   expect((await visit("/rfp/shared/token")).status).toBe(200);
+  expect((await visit("/ppt/s/sometoken")).status).toBe(200);
   expect((await visit("/api/surveys/public")).status).toBe(200);
 });
 it("blocks an authenticated restricted survey user", async () => {

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   }
   const latest = versions.length ? versions[versions.length - 1] : null;
   const res: PptDeckDetail = {
-    deck: { ...mapDeck(r.deck, latest), shareUrl: shareUrlFor(request, r.deck), canManage: true },
+    deck: { ...mapDeck(r.deck, latest), shareUrl: shareUrlFor(request, r.deck), canManage: r.deck.owner_id !== null && r.deck.owner_id === r.auth.userId },
     versions: versions.map(mapVersion),
   };
   return NextResponse.json(res, { headers: { "Cache-Control": "no-store" } });

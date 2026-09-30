@@ -69,6 +69,7 @@ export function createPptServiceClient(opts: { baseUrl?: string; token?: string;
       return body as T;
     }
     const body = (await res.json().catch(() => ({}))) as { detail?: unknown; message?: string };
+    if (res.status === 401) throw new PptServiceError(401, "PPT 서비스 토큰이 일치하지 않습니다(PPT_SERVICE_TOKEN).");
     throw new PptServiceError(res.status, detailText(body, res.status));
   }
 

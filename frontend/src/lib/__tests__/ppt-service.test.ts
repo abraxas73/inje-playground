@@ -30,6 +30,10 @@ describe("createPptServiceClient", () => {
     expect(r).toEqual({ ok: false, kind: "spec", message: "card-4는 4개", section: 0, slide: 1 });
     await expect(c.extract("https://x/y")).rejects.toBeInstanceOf(PptServiceError);
   });
+  it("maps 401 to a token mismatch message", async () => {
+    const c = createPptServiceClient({ baseUrl: "http://svc", token: "t", fetchImpl: fetchMock(() => ({ status: 401, body: { detail: "unauthorized" } })) });
+    await expect(c.extract("https://x/y")).rejects.toMatchObject({ status: 401, message: "PPT 서비스 토큰이 일치하지 않습니다(PPT_SERVICE_TOKEN)." });
+  });
   it("treats a FastAPI validation 422 on /build as an error, not a build result", async () => {
     const c = createPptServiceClient({ baseUrl: "http://svc", token: "t", fetchImpl: fetchMock(() => ({ status: 422, body: { detail: [{ loc: ["body", "spec"], msg: "field required" }] } })) });
     const p = c.build({ spec: {}, upload: { pptxUrl: "u1", yamlUrl: "u2" } });
