@@ -6,7 +6,7 @@ const row: VersionRow = {
   id: "v1", deck_id: "d1", no: 2, status: "done", source_kind: "file", source_name: "a.docx", prompt: "p", feedback: null, base_version: null,
   deck_json: { meta: { title: ["a"] }, sections: [] }, pptx_path: "decks/d1/v2/deck.pptx", yaml_path: "decks/d1/v2/deck.yaml", slide_count: 12,
   advisories: ["x"], check_issues: {}, llm_model: "claude-sonnet-5-5", llm_calls: 2, tokens_in: 10, tokens_out: 20, tokens_cache_read: 30, tokens_cache_write: 40,
-  duration_ms: 1000, error: null, sharepoint_url: null, sharepoint_at: null, created_at: "2026-09-30T00:00:00Z", finished_at: "2026-09-30T00:01:00Z", template_id: null, template_name: "기본형(내장 · 이노그리드 v1.0 최신본)",
+  duration_ms: 1000, error: null, sharepoint_url: null, sharepoint_at: null, created_at: "2026-09-30T00:00:00Z", finished_at: "2026-09-30T00:01:00Z", template_id: null, template_name: "기본형(내장 · 이노그리드 v1.0 최신본)", source_images: null,
 };
 
 describe("store", () => {

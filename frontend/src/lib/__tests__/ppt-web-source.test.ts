@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkSourceUrl, clampSourceText, decodeBody, fetchUrlSource, htmlToText, UrlSourceError } from "@/lib/ppt/web-source";
+import { checkSourceUrl, clampSourceText, decodeBody, extractImages, fetchUrlSource, htmlToText, UrlSourceError } from "@/lib/ppt/web-source";
 import { SOURCE_MAX_CHARS } from "@/types/ppt";
 
 const page = `<!doctype html><html><head><meta charset="utf-8"><title> 사내 LLM &amp; 위키 </title><style>p{}</style><script>var x=1</script></head>
@@ -76,5 +76,25 @@ describe("fetchUrlSource", () => {
   it("treats text/plain as the source as-is", async () => {
     const r = await fetchUrlSource("https://a.example.com/readme.txt", async () => new Response("# README\n\n" + "설명 ".repeat(30), { status: 200, headers: { "content-type": "text/plain; charset=utf-8" } }));
     expect(r.text.startsWith("# README")).toBe(true);
+  });
+});
+
+describe("extractImages / htmlToText images", () => {
+  const body = `<p>앞 글</p><img src="/img/diagram.png" alt="구성도" width="800" height="450">
+<img src="data:image/gif;base64,R0lGOD" data-src="https://cdn.example.com/photo.webp" alt="사진">
+<img src="https://cdn.example.com/icons/logo.svg" width="40" height="40"><img src="https://cdn.example.com/track/pixel.gif" width="1" height="1">
+<figure><img src="https://cdn.example.com/chart.jpg"><figcaption>그래프 설명</figcaption></figure><img src="/img/diagram.png" alt="중복">`;
+  it("keeps content images (absolute, lazy data-src, inside figure), drops icons/pixels/data URIs/duplicates, marks positions", () => {
+    const { body: out, images } = extractImages(body, "https://site.example.com/a/b");
+    expect(images.map((i) => i.url)).toEqual(["https://site.example.com/img/diagram.png", "https://cdn.example.com/photo.webp", "https://cdn.example.com/chart.jpg"]);
+    expect(images[0]).toMatchObject({ alt: "구성도", width: 800, height: 450 });
+    expect(out).toContain("[이미지 1: 구성도]"); expect(out).toContain("[이미지 2: 사진]"); expect(out).toContain("[이미지 3]");
+    expect(out).not.toContain("<img");
+  });
+  it("htmlToText returns images only when asked and keeps figcaption text", () => {
+    const html = `<html><body><main>${"글 ".repeat(40)}${body}</main></body></html>`;
+    const off = htmlToText(html); expect(off.images).toEqual([]); expect(off.text).not.toContain("[이미지");
+    const on = htmlToText(html, { images: true, baseUrl: "https://site.example.com/" });
+    expect(on.images).toHaveLength(3); expect(on.text).toContain("[이미지 1: 구성도]"); expect(on.text).toContain("그래프 설명");
   });
 });

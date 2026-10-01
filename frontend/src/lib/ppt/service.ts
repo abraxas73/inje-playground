@@ -26,6 +26,8 @@ export interface PptBuildRequest {
   spec: unknown; sourceUrl?: string; extract?: PptExtractSlide[]; upload: { pptxUrl: string; yamlUrl: string };
   /** 업로드 템플릿(서명 URL)과 캐시 키. 없으면 내장 템플릿 */
   templateUrl?: string; templateId?: string;
+  /** URL 원고 이미지 {"N": 서명 URL} — deck JSON의 images "url:N" */
+  imageUrls?: Record<string, string>;
 }
 export type PptTemplateValidation = { ok: true; file: string; slides: number; issues: Record<string, string[]>; advisories: string[]; bytes: number } | { ok: false; error: string };
 export interface PptBuildOk { ok: true; slides: number; advisories: string[]; issues: Record<string, string[]>; bytes: number }

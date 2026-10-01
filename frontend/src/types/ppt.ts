@@ -29,7 +29,12 @@ export interface PptVersion {
   finishedAt: string | null;
   /** 생성에 쓴 템플릿 표시 이름(내장이면 BUILTIN_TEMPLATE_LABEL) */
   templateName: string | null;
+  /** URL 원고에서 가져온 이미지 수 */
+  sourceImages: number;
 }
+
+/** URL 원고의 이미지. path = 버킷 ppt의 images/<versionId>/<n>.<ext>, null이면 받기 실패, 없으면 아직 안 받음 */
+export interface PptSourceImage { url: string; alt: string | null; width: number | null; height: number | null; path?: string | null }
 
 export interface PptDeckSummary {
   id: string;
@@ -79,6 +84,8 @@ export interface PptCreateRequest {
   text?: string;
   /** 웹 페이지 주소(https). 서버가 본문을 가져와 텍스트 원고처럼 다룬다 */
   url?: string;
+  /** URL 원고: 페이지 본문의 이미지도 가져와 PPT에 넣는다 */
+  includeImages?: boolean;
   storagePath?: string;
   fileName?: string;
   prompt: string;

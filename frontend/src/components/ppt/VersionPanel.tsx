@@ -80,6 +80,7 @@ export default function VersionPanel({ deckId, version }: { deckId: string; vers
             ) : version.sourceKind === "url" ? (
               <span className="flex flex-col items-start gap-0.5">
                 <a href={version.sourceName ?? "#"} target="_blank" rel="noreferrer" className="break-all underline-offset-2 hover:underline">{version.sourceName}</a>
+                {version.sourceImages > 0 && <span className="text-xs text-muted-foreground">이미지 {version.sourceImages}장 가져옴</span>}
                 <button type="button" className="inline-flex items-center gap-1 text-muted-foreground underline-offset-2 hover:underline" onClick={() => download("source")}><FileText className="h-3.5 w-3.5" />가져온 본문 보기</button>
               </span>
             ) : (

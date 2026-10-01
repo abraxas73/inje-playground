@@ -18,6 +18,7 @@ from innogrid_ppt import deck as D
 from innogrid_ppt import tokens as T
 from innogrid_ppt.media import extract_images
 from innogrid_ppt.slots import Overflow
+from service import storage as S
 from service import transplant_fix
 from innogrid_ppt.template import find_template
 
@@ -29,6 +30,8 @@ _BUILD_LOCK = threading.Lock()
 transplant_fix.install()  # 이식 도형의 테마색 고정·id 중복 해소(패키지 무수정)
 SPEC_ERRORS = (ValueError, KeyError, TypeError, IndexError, AttributeError)
 IMAGE_REF = re.compile(r"^src:(\d+):(\d+)$")
+URL_IMAGE_REF = re.compile(r"^url:(\d+)$")   # 웹 페이지 원고의 이미지 — 프론트가 Storage에 받아 둔 서명 URL(imageUrls["N"])
+FREE_IMAGE_GAP_CM = 0.5
 ACCENT = re.compile(r"\[\[(.+?)\]\]")
 
 
@@ -38,23 +41,56 @@ class BuildError(Exception):
         self.kind, self.message, self.section, self.slide = kind, message, section, slide
 
 
-def _prepare_media(spec, source_pptx, work, extract_info):
-    """images "src:장:번호" → 파일 경로, source {slide} → {file, slide, from}. 원고 pptx가 없으면 참조를 지운다."""
+def _prepare_media(spec, source_pptx, work, extract_info, image_urls=None):
+    """images "src:장:번호"·"url:N" → 파일 경로, source {slide} → {file, slide, from}. 원고 pptx·이미지 URL이 없으면 참조를 지운다."""
     info = {s["no"]: s for s in (extract_info or [])}
     cache = {}
+    url_cache = {}
     for si, sec in enumerate(spec.get("sections") or []):
         for sj, sl in enumerate(sec.get("slides") or []):
             try:
-                _prepare_slide(sl, source_pptx, work, info, cache)
+                _prepare_slide(sl, source_pptx, work, info, cache, image_urls or {}, url_cache)
             except SPEC_ERRORS as e:
                 raise BuildError("spec", _msg(e), si, sj)
 
 
-def _prepare_slide(sl, source_pptx, work, info, cache):
+def _url_image(n, image_urls, work, url_cache):
+    """imageUrls["N"]을 내려받아 python-pptx가 여는 형식(PNG/JPEG)으로 맞춘다. webp 등은 Pillow로 PNG 변환."""
+    if n in url_cache:
+        return url_cache[n]
+    url = image_urls.get(str(n))
+    if not url:
+        url_cache[n] = None
+        return None
+    raw = S.download(url, work / "images" / "url" / f"{n}.bin")
+    try:
+        from PIL import Image
+        with Image.open(raw) as im:
+            fmt = (im.format or "").upper()
+            if fmt in ("PNG", "JPEG", "GIF", "BMP", "TIFF"):
+                out = raw.with_suffix({"PNG": ".png", "JPEG": ".jpg", "GIF": ".gif", "BMP": ".bmp", "TIFF": ".tiff"}[fmt])
+                raw.rename(out)
+            else:
+                out = raw.with_suffix(".png")
+                im.convert("RGBA" if im.mode in ("RGBA", "LA", "P") else "RGB").save(out, "PNG")
+    except Exception as e:  # noqa: BLE001 — 깨진 이미지는 건너뛴다(장표는 템플릿 그림이 남는다)
+        print(f"[ppt] url 이미지 {n} 열기 실패: {type(e).__name__}: {e}")
+        out = None
+    url_cache[n] = str(out) if out else None
+    return url_cache[n]
+
+
+def _prepare_slide(sl, source_pptx, work, info, cache, image_urls, url_cache):
     imgs = sl.get("images")
     if isinstance(imgs, list):
         paths = []
         for ref in imgs:
+            um = URL_IMAGE_REF.match(str(ref))
+            if um:
+                p = _url_image(int(um.group(1)), image_urls, work, url_cache)
+                if p:
+                    paths.append(p)
+                continue
             m = IMAGE_REF.match(str(ref))
             if not (m and source_pptx):
                 continue
@@ -136,6 +172,8 @@ def _build_with_positions(template, spec):
                 D._advise(f"[{sec['name']}] 하위 섹션이 있는데 장표에 'sub'가 없다 — 라벨은 '01. 섹션명 : 하위섹션명' 구조여야 한다 (프롬프트 필수 준수 사항)")
             try:
                 D._emit(d, label, sl)
+                if str(sl.get("layout", "")).lower() == "free-title" and sl.get("images"):
+                    _place_free_images(d.prs.slides[-1], sl["images"])
             except Overflow as e:
                 raise BuildError("overflow", str(e), i, j)
             except SPEC_ERRORS as e:
@@ -146,18 +184,42 @@ def _build_with_positions(template, spec):
     return d
 
 
+def _place_free_images(slide, paths):
+    """free-title에 이미지만 놓는 장표(패키지에 없는 조합). 1~3장을 본문 영역에 가로로 나란히, 비율 유지·세로 가운데."""
+    from PIL import Image
+    from innogrid_ppt import media as M
+    paths = [p for p in paths if isinstance(p, str) and Path(p).is_file()][:3]
+    if not paths:
+        return
+    ax, ay, aw, ah = T.CONTENT_X, T.FIGURE_Y, T.CONTENT_W, T.CONTENT_BOTTOM - T.FIGURE_Y
+    col_w = (aw - FREE_IMAGE_GAP_CM * (len(paths) - 1)) / len(paths)
+    for k, p in enumerate(paths):
+        with Image.open(p) as im:
+            iw, ih = im.size
+        scale = min(col_w / iw, ah / ih)
+        w, h = iw * scale, ih * scale
+        x = ax + k * (col_w + FREE_IMAGE_GAP_CM) + (col_w - w) / 2
+        y = ay + (ah - h) / 2
+        pic = slide.shapes.add_picture(p, T.cm(x), T.cm(y), T.cm(w), T.cm(h))
+        try:
+            M._round_corners(pic)
+        except Exception:  # noqa: BLE001 — 모서리 장식은 실패해도 그림은 남긴다
+            pass
+
+
 def _msg(e):
     if isinstance(e, KeyError):
         return f"필수 키가 없다: {e.args[0] if e.args else e}"
     return str(e)
 
 
-def build_deck(spec, work: Path, source_pptx, extract_info, template=None):
-    """template: 업로드 템플릿 경로(없으면 내장 template/). 같은 106장 구성이어야 한다 — Deck()이 장 수를 검사한다."""
+def build_deck(spec, work: Path, source_pptx, extract_info, template=None, image_urls=None):
+    """template: 업로드 템플릿 경로(없으면 내장 template/). 같은 106장 구성이어야 한다 — Deck()이 장 수를 검사한다.
+    image_urls: 웹 페이지 원고 이미지 {"N": 서명 URL} — images "url:N" 참조가 여기서 풀린다."""
     with _BUILD_LOCK:
         work.mkdir(parents=True, exist_ok=True)
         work_spec = copy.deepcopy(spec)  # 미디어 치환은 사본에만 — deck.yaml에 서버 임시 경로가 새지 않게
-        _prepare_media(work_spec, source_pptx, work, extract_info)
+        _prepare_media(work_spec, source_pptx, work, extract_info, image_urls)
         _strip_table_accents(work_spec)
         try:
             template = find_template(str(template) if template else None, root=ROOT)

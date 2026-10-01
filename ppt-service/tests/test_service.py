@@ -394,3 +394,32 @@ def test_transplant_fix_resolves_theme_colors_and_dedupes_ids(tmp_path):
     # 제목 띠(y<3.2)의 글상자는 이식되지 않았다
     texts = [t.text for sh in slide.shapes if sh.shape_type == 6 for t in sh.shapes if sh.name == MARK and t.has_text_frame]
     assert "원고 제목 문장" not in texts and "01." not in texts
+
+
+def test_url_images_fill_image_layout_and_free_title(tmp_path, monkeypatch):
+    """images "url:N": webp는 PNG로 변환해 image-3 자리에 들어가고, free-title에는 1~2장을 나란히 놓는다."""
+    from PIL import Image
+    from pptx import Presentation
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+    from service import storage as S
+    from service.builder import build_deck
+    pics = {}
+    for n, (fmt, color) in {1: ("WEBP", (200, 30, 30)), 2: ("PNG", (30, 200, 30)), 3: ("JPEG", (30, 30, 200))}.items():
+        p = tmp_path / f"img{n}.{fmt.lower()}"; Image.new("RGB", (640, 360), color).save(p, fmt); pics[str(n)] = p
+    def dl(url, dest):
+        n = url.rsplit("/", 1)[-1].split("?")[0]; dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(pics[n].read_bytes()); return dest
+    monkeypatch.setattr(S, "download", dl)
+    urls = {n: f"https://example.supabase.co/storage/v1/object/sign/ppt/images/v/{n}?token=x" for n in pics}
+    spec = {"meta": {"title": ["a", "b."], "ver": "01", "date": "2026. 10. 01"}, "sections": [{"name": "s", "slides": [
+        {"layout": "image-3", "title": ["이미지 세 장을", "보여 줍니다."], "cards": [{"title": "하나", "body": ["설명"]}, {"title": "둘", "body": ["설명"]}, {"title": "셋", "body": ["설명"]}], "images": ["url:1", "url:2", "url:3"], "closing": "세 장을 보여 줍니다."},
+        {"layout": "free-title", "title": ["이미지 두 장을", "나란히 놓습니다."], "images": ["url:1", "url:2"]},
+    ]}]}
+    res = build_deck(spec, tmp_path / "w", None, None, image_urls=urls)
+    prs = Presentation(str(res["pptxPath"]))
+    body = list(prs.slides)[-3:-1]  # 뒷표지 앞 두 장
+    def pics_of(sl): return [sh for sh in sl.shapes if sh.shape_type == MSO_SHAPE_TYPE.PICTURE]
+    assert len(pics_of(body[0])) >= 3
+    free = pics_of(body[1]); assert len(free) == 2
+    assert all(p.image.ext in ("png", "jpg", "jpeg") for p in free)   # webp가 PNG로 바뀌었다
+    assert free[0].left < free[1].left and abs(free[0].top - free[1].top) < 10

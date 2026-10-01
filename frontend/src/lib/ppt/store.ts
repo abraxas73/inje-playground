@@ -1,6 +1,6 @@
 /** ppt_decks · ppt_deck_versions 접근과 매핑, Storage 경로. 라우트와 generate.ts가 함께 쓴다. */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { BUILTIN_TEMPLATE_LABEL, type PptDeckSummary, type PptSourceKind, type PptTemplate, type PptTemplateOption, type PptVersion, type PptVersionStatus } from "@/types/ppt";
+import { BUILTIN_TEMPLATE_LABEL, type PptDeckSummary, type PptSourceImage, type PptSourceKind, type PptTemplate, type PptTemplateOption, type PptVersion, type PptVersionStatus } from "@/types/ppt";
 import type { DeckJson } from "./deck-json";
 import { safeFileName } from "./deck-json";
 import { RULES_TEXT } from "./rules-default";
@@ -10,7 +10,7 @@ export const STALE_MS = 15 * 60 * 1000; // 라우트 maxDuration 800초보다 �
 export const ACTIVE_STATUSES: PptVersionStatus[] = ["generating", "building"];
 
 export const DECK_COLUMNS = "id, owner_id, owner_email, title, share_token, share_enabled, current_version, created_at, updated_at";
-export const VERSION_COLUMNS = "id, deck_id, no, status, source_kind, source_name, prompt, feedback, base_version, deck_json, pptx_path, yaml_path, slide_count, advisories, check_issues, llm_model, llm_calls, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, duration_ms, error, sharepoint_url, sharepoint_at, created_at, finished_at, template_id, template_name";
+export const VERSION_COLUMNS = "id, deck_id, no, status, source_kind, source_name, prompt, feedback, base_version, deck_json, pptx_path, yaml_path, slide_count, advisories, check_issues, llm_model, llm_calls, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, duration_ms, error, sharepoint_url, sharepoint_at, created_at, finished_at, template_id, template_name, source_images";
 export const TEMPLATE_COLUMNS = "id, name, file_name, storage_path, bytes, slides, check_issues, advisories, status, is_default, uploaded_by, uploaded_by_email, note, created_at";
 export const VERSION_SOURCE_COLUMNS = `${VERSION_COLUMNS}, source_text, source_path`;
 
@@ -22,7 +22,7 @@ export interface VersionRow {
   base_version: number | null; deck_json: DeckJson | null; pptx_path: string | null; yaml_path: string | null; slide_count: number | null; advisories: string[] | null;
   check_issues: Record<string, string[]> | null; llm_model: string | null; llm_calls: number; tokens_in: number; tokens_out: number; tokens_cache_read: number; tokens_cache_write: number;
   duration_ms: number | null; error: string | null; sharepoint_url: string | null; sharepoint_at: string | null; created_at: string; finished_at: string | null;
-  template_id: string | null; template_name: string | null;
+  template_id: string | null; template_name: string | null; source_images: PptSourceImage[] | null;
 }
 export interface TemplateRow {
   id: string; name: string; file_name: string; storage_path: string; bytes: number; slides: number | null; check_issues: Record<string, string[]> | null; advisories: string[] | null;
@@ -36,7 +36,7 @@ export function mapVersion(r: VersionRow): PptVersion {
     deckJson: r.deck_json, slideCount: r.slide_count, advisories: r.advisories ?? [], checkIssues: r.check_issues ?? {}, llmModel: r.llm_model, llmCalls: r.llm_calls,
     tokens: { in: r.tokens_in, out: r.tokens_out, cacheRead: r.tokens_cache_read, cacheWrite: r.tokens_cache_write },
     durationMs: r.duration_ms, error: r.error, sharepointUrl: r.sharepoint_url, sharepointAt: r.sharepoint_at, createdAt: r.created_at, finishedAt: r.finished_at,
-    templateName: r.template_name,
+    templateName: r.template_name, sourceImages: r.source_images?.length ?? 0,
   };
 }
 

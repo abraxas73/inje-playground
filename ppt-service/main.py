@@ -84,6 +84,7 @@ class BuildRequest(BaseModel):
     upload: UploadTargets
     templateUrl: str | None = None   # 업로드 템플릿(서명 URL). 없으면 내장 템플릿
     templateId: str | None = None    # 인스턴스 캐시 키
+    imageUrls: dict[str, str] | None = None  # 웹 페이지 원고 이미지 {"N": 서명 URL} (images "url:N")
 
 
 class TemplateValidateRequest(BaseModel):
@@ -117,14 +118,16 @@ def template_validate(req: TemplateValidateRequest, request: Request, x_ppt_toke
 def build(req: BuildRequest, request: Request, x_ppt_token: str | None = Header(default=None)):
     check_token(x_ppt_token)
     check_body(request)
-    for url in (req.upload.pptxUrl, req.upload.yamlUrl, req.sourceUrl or req.upload.pptxUrl, req.templateUrl or req.upload.pptxUrl):
+    for url in (req.upload.pptxUrl, req.upload.yamlUrl, req.sourceUrl or req.upload.pptxUrl, req.templateUrl or req.upload.pptxUrl, *((req.imageUrls or {}).values())):
         if not S.allowed_host(url):
             raise HTTPException(status_code=400, detail="업로드·다운로드 주소 호스트가 허용되지 않습니다")
+    if req.imageUrls and len(req.imageUrls) > 24:
+        raise HTTPException(status_code=400, detail="이미지는 24장까지입니다")
     work = Path(tempfile.gettempdir()) / f"ppt-{uuid.uuid4().hex}"
     try:
         src = S.download(req.sourceUrl, work / "source.pptx") if req.sourceUrl else None
         template = TP.fetch_template(req.templateUrl, req.templateId, work) if req.templateUrl else None
-        res = B.build_deck(req.spec, work, src, req.extract, template=template)
+        res = B.build_deck(req.spec, work, src, req.extract, template=template, image_urls=req.imageUrls)
         size = S.upload(req.upload.pptxUrl, res["pptxPath"], B.PPTX_MIME)
         S.upload(req.upload.yamlUrl, res["yamlPath"], "text/yaml; charset=utf-8")
         return {"ok": True, "slides": res["slides"], "advisories": res["advisories"], "issues": res["issues"], "bytes": size}

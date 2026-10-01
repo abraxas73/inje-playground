@@ -62,21 +62,23 @@ export function sourceBlock(source: SourceInput): Anthropic.TextBlockParam {
   return { type: "text", text: `[원고 — ${SOURCE_KIND_LABEL[source.kind]}]\n${source.text}`, cache_control: CACHE };
 }
 
-export function instructionText(p: { prompt: string; title?: string | null; dept?: string | null; today: string; kind: PptSourceKind }): string {
+export interface SourceImagesInfo { total: number; available: number[] }
+export function instructionText(p: { prompt: string; title?: string | null; dept?: string | null; today: string; kind: PptSourceKind; images?: SourceImagesInfo }): string {
   const lines = [
     `[지시]`,
     `오늘 날짜: ${p.today} (meta.date에 이 값을 쓴다). meta.ver는 "01".`,
     p.title ? `표지 제목 힌트: ${p.title} (두 줄 문장형으로 다듬어 meta.title에)` : `표지 제목은 원고에서 정한다.`,
     p.dept ? `부서명: ${p.dept} (meta.dept)` : `부서명은 원고에서 파악되면 넣고, 아니면 생략한다.`,
     p.kind === "pptx" ? `원고가 PPT다: 장표 수와 순서를 그대로 유지하고, 그림·도식은 images/source로 가져온다.` : `원고의 목차가 있으면 그대로, 없으면 섹션을 만든다.`,
+    ...(p.images && p.images.total > 0 ? [`원고(웹 페이지)에 이미지 ${p.images.total}장이 있다 — 본문의 [이미지 N] 표시가 그 자리다. 쓸 수 있는 번호: ${p.images.available.join(", ")}. 이미지는 장표의 "images":["url:N", …]로 넣는다: image-3·image-4 계열(자리 3·4개 — 개수를 맞춘다) 또는 free-title에 "images"만 두어 1~3장을 나란히. 쓸 수 있는 이미지는 빠짐없이 적어도 한 번 쓰고, 이미지 장표 제목은 그 이미지가 설명하는 내용으로 한다.`] : []),
     p.prompt.trim() ? `사용자 요청: ${p.prompt.trim()}` : `사용자 요청: 없음(원고를 충실히 옮긴다).`,
     `위 규칙과 카탈로그에 맞는 deck JSON 객체 하나만 출력한다.`,
   ];
   return lines.join("\n");
 }
 
-export function generateMessages(p: { source: SourceInput; prompt: string; title?: string | null; dept?: string | null; today: string }): Anthropic.MessageParam[] {
-  return [{ role: "user", content: [sourceBlock(p.source), { type: "text", text: instructionText({ prompt: p.prompt, title: p.title, dept: p.dept, today: p.today, kind: p.source.kind }) }] }];
+export function generateMessages(p: { source: SourceInput; prompt: string; title?: string | null; dept?: string | null; today: string; images?: SourceImagesInfo }): Anthropic.MessageParam[] {
+  return [{ role: "user", content: [sourceBlock(p.source), { type: "text", text: instructionText({ prompt: p.prompt, title: p.title, dept: p.dept, today: p.today, kind: p.source.kind, images: p.images }) }] }];
 }
 
 /** JSON이 아닌 응답이 왔을 때 한 번 더: 이전 응답을 assistant로 붙이고 JSON만 요구한다. */

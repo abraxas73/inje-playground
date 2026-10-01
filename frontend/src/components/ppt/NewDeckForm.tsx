@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createDeck, uploadSource } from "@/lib/ppt/client";
 import { DEFAULT_PPT_MODEL, PPT_MODEL_OPTIONS, PPT_SOURCE_EXTENSIONS_TEXT, SOURCE_MAX_CHARS, type PptTemplateOption } from "@/types/ppt";
@@ -20,6 +21,7 @@ export default function NewDeckForm({ llmAvailable, templates, onCreated }: { ll
   const [tab, setTab] = useState<"text" | "file" | "url">("file");
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
+  const [includeImages, setIncludeImages] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("");
   const [title, setTitle] = useState("");
@@ -43,7 +45,7 @@ export default function NewDeckForm({ llmAvailable, templates, onCreated }: { ll
     try {
       let body: Parameters<typeof createDeck>[0] = { prompt, title: title.trim() || undefined, dept: dept.trim() || undefined, model, templateId: templateId === BUILTIN ? null : templateId };
       if (tab === "text") body = { ...body, text };
-      else if (tab === "url") body = { ...body, url: url.trim() };
+      else if (tab === "url") body = { ...body, url: url.trim(), includeImages };
       else {
         setBusy("upload");
         const ticket = await uploadSource(file!);
@@ -83,6 +85,7 @@ export default function NewDeckForm({ llmAvailable, templates, onCreated }: { ll
           </TabsContent>
           <TabsContent value="url" className="space-y-2">
             <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://… 공개 웹 페이지·PDF·DOCX 주소" inputMode="url" autoComplete="off" />
+            <label className="flex items-start gap-2 text-sm"><Checkbox checked={includeImages} onCheckedChange={(v) => setIncludeImages(v === true)} className="mt-0.5" /><span>페이지의 이미지도 가져와 PPT에 넣기 <span className="text-xs text-muted-foreground">— 본문 안의 이미지만(아이콘·로고 제외, 12장까지). 가져온 이미지는 이미지 장표에 모두 배치합니다.</span></span></label>
             <p className="text-xs text-muted-foreground">서버가 본문 글만 가져와 원고로 씁니다(메뉴·광고 제외, 60,000자까지). 로그인이 필요하거나 스크립트로만 그려지는 페이지는 가져오지 못합니다 — 그때는 내용을 복사해 텍스트 원고로 넣어 주세요. 사내망 주소는 받지 않습니다.</p>
           </TabsContent>
           <TabsContent value="text" className="space-y-1">

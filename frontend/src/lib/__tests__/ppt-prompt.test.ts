@@ -55,6 +55,12 @@ describe("prompt", () => {
     expect(blocks[1].text).toContain("R&D본부");
     expect(blocks[1].text).toContain("2026. 09. 30");
   });
+  it("generate instruction lists usable web images and the url:N convention when images exist", () => {
+    const m = generateMessages({ source: { kind: "url", text: "본문 [이미지 1: 구성도]" }, prompt: "", today: "2026. 10. 01", images: { total: 3, available: [1, 3] } });
+    const t2 = text(m[0]);
+    expect(t2).toContain("이미지 3장"); expect(t2).toContain("쓸 수 있는 번호: 1, 3"); expect(t2).toContain('"url:N"'); expect(t2).toContain("[원고 — 웹 페이지]");
+    expect(text(generateMessages({ source: { kind: "url", text: "x" }, prompt: "", today: "2026. 10. 01" })[0])).not.toContain("쓸 수 있는 번호");
+  });
   it("fix messages ask for one slide when the error has a position, the whole deck otherwise", () => {
     const prior = generateMessages({ source: { kind: "text", text: "x" }, prompt: "", today: "2026. 09. 30" });
     const one = fixMessages({ prior, deck, error: { ok: false, kind: "spec", message: "'card-4'는 항목 4개 고정인데 3개가 왔다.", section: 0, slide: 0 }, catalog });

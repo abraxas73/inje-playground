@@ -7,7 +7,9 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { logAudit } from "@/lib/audit";
 import { applyKeep, DeckParseError, deckTitle, hasKeep, parseDeckJson, parseSlidePatch, replaceSlide, todayLabel, type DeckJson } from "./deck-json";
 import { addUsage, ZERO_USAGE, type DeckLlm, type LlmUsage } from "./llm";
-import { fixMessages, generateMessages, jsonOnlyRetryMessages, regenerateMessages, systemBlocks, type SourceInput } from "./prompt";
+import { fixMessages, generateMessages, jsonOnlyRetryMessages, regenerateMessages, systemBlocks, type SourceImagesInfo, type SourceInput } from "./prompt";
+import { fetchImage, UrlSourceError } from "./web-source";
+import type { PptSourceImage } from "@/types/ppt";
 import type { PptBuildOk, PptExtractSlide, PptServiceClient } from "./service";
 import { extractionText, sourceLengthError, textFromDocument } from "./source";
 import { ACTIVE_STATUSES, deckPaths, loadDeck, loadPptRules, loadVersionWithSource, PPT_BUCKET, type VersionSourceRow } from "./store";
@@ -36,6 +38,9 @@ export interface GenerateInput {
   /** 업로드 템플릿(서명 URL·캐시 키). 없으면 내장 */
   templateUrl?: string;
   templateId?: string;
+  /** URL 원고 이미지 {"N": 서명 URL}와 지시용 요약 */
+  imageUrls?: Record<string, string>;
+  images?: SourceImagesInfo;
 }
 export interface GenerateDeps { llm: DeckLlm; service: PptServiceClient }
 export interface GenerateOutcome { deck: DeckJson; build: PptBuildOk; usage: LlmUsage; calls: number; model: string }
@@ -83,7 +88,7 @@ export async function generateDeck(input: GenerateInput, deps: GenerateDeps): Pr
       }
       deck = merged.deck;
     } else {
-      prior = generateMessages({ source: input.source, prompt: input.prompt, title: input.title, dept: input.dept, today: input.today });
+      prior = generateMessages({ source: input.source, prompt: input.prompt, title: input.title, dept: input.dept, today: input.today, images: input.images });
       deck = await askDeck(prior);
     }
 
@@ -92,7 +97,7 @@ export async function generateDeck(input: GenerateInput, deps: GenerateDeps): Pr
     for (let round = 0; ; round += 1) {
       lastDeck = deck;
       const upload = await input.uploads();
-      const result = await deps.service.build({ spec: deck, sourceUrl: input.sourceUrl, extract: input.extract, upload, templateUrl: input.templateUrl, templateId: input.templateId });
+      const result = await deps.service.build({ spec: deck, sourceUrl: input.sourceUrl, extract: input.extract, upload, templateUrl: input.templateUrl, templateId: input.templateId, imageUrls: input.imageUrls });
       if (result.ok) return { deck, build: result, usage, calls, model: deps.llm.model };
       if (round >= MAX_FIX_ROUNDS || (result.kind !== "spec" && result.kind !== "overflow")) throw new Error(result.message);
       const line = result.message.split("\n")[0];
@@ -137,8 +142,36 @@ async function logSave(q: PromiseLike<{ error: { message: string } | null }>): P
 }
 
 /** 원고 텍스트 확보. 파일·pptx는 처음 한 번만 추출해 source_text에 저장한다. */
-async function resolveSource(admin: SupabaseClient, v: VersionSourceRow, service: PptServiceClient): Promise<{ source: SourceInput; sourceUrl?: string; extract?: PptExtractSlide[] }> {
-  if (v.source_kind === "text" || v.source_kind === "url") return { source: { kind: v.source_kind, text: v.source_text ?? "" } };
+/** URL 원고 이미지를 Storage에 받아 둔다(처음 한 번; 실패한 것은 path null). 빌드용 {"N": 서명 URL}과 지시용 요약을 돌려준다. */
+async function resolveImages(admin: SupabaseClient, v: VersionSourceRow): Promise<{ imageUrls?: Record<string, string>; images?: SourceImagesInfo }> {
+  const list = v.source_images ?? [];
+  if (!list.length) return {};
+  let changed = false;
+  const next: PptSourceImage[] = [];
+  for (const [i, im] of list.entries()) {
+    if (im.path !== undefined) { next.push(im); continue; }
+    try {
+      const got = await fetchImage(im.url);
+      const path = `images/${v.id}/${i + 1}.${got.ext}`;
+      const { error } = await admin.storage.from(PPT_BUCKET).upload(path, got.bytes, { contentType: got.contentType, upsert: true });
+      if (error) throw new Error(error.message);
+      next.push({ ...im, path });
+    } catch (e) {
+      console.warn(`[ppt] 원고 이미지 ${i + 1} 받기 실패(${im.url.slice(0, 80)}): ${e instanceof UrlSourceError || e instanceof Error ? e.message : String(e)}`);
+      next.push({ ...im, path: null });
+    }
+    changed = true;
+  }
+  if (changed) await logSave(admin.from("ppt_deck_versions").update({ source_images: next }).eq("id", v.id));
+  const imageUrls: Record<string, string> = {};
+  for (const [i, im] of next.entries()) if (im.path) imageUrls[String(i + 1)] = await signedDownload(admin, im.path);
+  const available = Object.keys(imageUrls).map(Number);
+  return available.length ? { imageUrls, images: { total: next.length, available } } : {};
+}
+
+async function resolveSource(admin: SupabaseClient, v: VersionSourceRow, service: PptServiceClient): Promise<{ source: SourceInput; sourceUrl?: string; extract?: PptExtractSlide[]; imageUrls?: Record<string, string>; images?: SourceImagesInfo }> {
+  if (v.source_kind === "url") return { source: { kind: "url", text: v.source_text ?? "" }, ...(await resolveImages(admin, v)) };
+  if (v.source_kind === "text") return { source: { kind: "text", text: v.source_text ?? "" } };
   if (!v.source_path) throw new Error("원고 파일 경로가 없습니다.");
   if (v.source_kind === "file") {
     let text = v.source_text;
@@ -218,7 +251,7 @@ async function runLoaded(admin: SupabaseClient, versionId: string, deps: RunDeps
     await bestEffort("llm_model", admin.from("ppt_deck_versions").update({ llm_model: deps.llm.model }).eq("id", v.id));
     const out = await generateDeck({
       source: src.source, prompt: v.prompt ?? "", title: deps.hints?.title, dept: deps.hints?.dept, today: todayLabel(startedAt),
-      baseDeck, feedback: v.feedback ?? undefined, uploads, sourceUrl: src.sourceUrl, extract: src.extract, rules, ...tpl,
+      baseDeck, feedback: v.feedback ?? undefined, uploads, sourceUrl: src.sourceUrl, extract: src.extract, rules, ...tpl, imageUrls: src.imageUrls, images: src.images,
       onBuild: () => bestEffort("building 상태", admin.from("ppt_deck_versions").update({ status: "building" }).eq("id", v.id)),
     }, deps);
     const saveError = await finish({
