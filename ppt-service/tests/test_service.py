@@ -387,6 +387,10 @@ def test_transplant_fix_resolves_theme_colors_and_dedupes_ids(tmp_path):
     assert len(ids) == len(set(ids))
     refs = [r.get("id") for tag in (qn("a:stCxn"), qn("a:endCxn")) for r in group.iter(tag)]
     assert refs and all(r in ids for r in refs)
+    # 그룹은 본문 왼쪽 경계에 붙는다(가운데 정렬 대신)
+    from innogrid_ppt import tokens as T
+    off = group.find(qn("p:grpSpPr")).find(qn("a:xfrm")).find(qn("a:off"))
+    assert int(off.get("x")) == T.cm(T.CONTENT_X)
     # 제목 띠(y<3.2)의 글상자는 이식되지 않았다
     texts = [t.text for sh in slide.shapes if sh.shape_type == 6 for t in sh.shapes if sh.name == MARK and t.has_text_frame]
     assert "원고 제목 문장" not in texts and "01." not in texts

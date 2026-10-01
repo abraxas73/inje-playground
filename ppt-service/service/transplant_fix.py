@@ -3,10 +3,12 @@
 
 ① 테마색(a:schemeClr)은 원고 테마 기준으로 보이던 색인데 템플릿 테마에서 다른 색으로 바뀐다 → 원고 테마·clrMap으로 풀어 고정색(a:srgbClr)으로 바꾼다.
 ② 복사한 도형의 cNvPr id가 템플릿 장표의 도형 id와 겹치면 PowerPoint가 '복구'를 띄우고 도형을 깨뜨린다 → 겹치는 id를 새 번호로 바꾸고 연결선 참조(stCxn/endCxn)도 따라 고친다.
+③ 패키지는 도식을 가로 가운데에 두는데 템플릿 제목·본문은 왼쪽 정렬이라 왼쪽에 빈 띠가 생긴다 → 그룹을 본문 왼쪽 경계(CONTENT_X)에 붙인다(그룹은 배율 1·chOff=off라 off.x만 옮기면 자식이 따라온다).
 """
 from lxml import etree
 from pptx.oxml.ns import qn
 
+from innogrid_ppt import tokens as T
 from innogrid_ppt import transplant as TR
 
 _CLR_SCHEME_KEYS = ("dk1", "lt1", "dk2", "lt2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6", "hlink", "folHlink")
@@ -99,6 +101,16 @@ def _inside(el, group):
     return False
 
 
+def align_left(group, x_cm=None):
+    """그룹을 본문 왼쪽 경계에 붙인다. 폭이 본문 폭을 다 쓰면(가운데=왼쪽) 변화 없음."""
+    xfrm = group.find(qn("p:grpSpPr")).find(qn("a:xfrm"))
+    off = xfrm.find(qn("a:off"))
+    new_x = T.cm(x_cm if x_cm is not None else T.CONTENT_X)
+    moved = int(off.get("x")) - new_x
+    off.set("x", str(new_x))
+    return moved
+
+
 _ORIGINAL = TR.transplant
 
 
@@ -107,6 +119,8 @@ def transplant_fixed(dst_slide, src_path, slide_no, **kw):
     src_slide = TR.open_source(src_path).slides[slide_no - 1]
     resolve_scheme_colors(group, theme_colors(src_slide))
     dedupe_shape_ids(dst_slide, group)
+    if not kw.get("area"):
+        align_left(group)
     return group
 
 
