@@ -51,7 +51,9 @@ function pickBody(html: string): string {
   return body ? body[1] : html;
 }
 
-function stripTags(s: string): string { return s.replace(/<[^>]+>/g, ""); }
+// 따옴표 속성 안의 ">"(위키백과 data-mw 등)에서 끊기지 않게 속성 단위로 태그를 읽는다
+const TAG_RE = /<\/?[a-zA-Z][^\s/>]*(?:\s+[^\s=>]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?)*\s*\/?>/g;
+function stripTags(s: string): string { return s.replace(TAG_RE, ""); }
 
 /** HTML → 제목과 마크다운 비슷한 본문(제목 #, 목록 -, 표는 셀을 |로). */
 export function htmlToText(html: string): { title: string | null; text: string } {

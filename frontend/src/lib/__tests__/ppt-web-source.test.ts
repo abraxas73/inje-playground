@@ -20,6 +20,11 @@ describe("htmlToText", () => {
     expect(text).toContain("구분 | 값\nA | 1");
     for (const bad of ["메뉴", "사이드바", "푸터", "var x", "주석", "p{}"]) expect(text).not.toContain(bad);
   });
+  it("does not break on '>' inside quoted attributes", () => {
+    const { text } = htmlToText(`<body><main><p>${"글 ".repeat(60)}<span data-mw='{"a":"</span>"}'>안쪽</span> 끝</p></main></body>`);
+    expect(text).toContain("안쪽 끝");
+    expect(text).not.toContain("</span>");
+  });
   it("falls back to <body> when there is no substantial <main>/<article>", () => {
     const { text } = htmlToText("<html><body><main>짧음</main><div><p>본문 문단 1</p><p>본문 문단 2</p></div></body></html>");
     expect(text).toContain("본문 문단 1\n\n본문 문단 2");
