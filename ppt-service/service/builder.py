@@ -27,6 +27,7 @@ DEFAULT_TITLE_BOTTOM_CM = 3.2
 _BUILD_LOCK = threading.Lock()
 SPEC_ERRORS = (ValueError, KeyError, TypeError, IndexError, AttributeError)
 IMAGE_REF = re.compile(r"^src:(\d+):(\d+)$")
+ACCENT = re.compile(r"\[\[(.+?)\]\]")
 
 
 class BuildError(Exception):
@@ -77,6 +78,19 @@ def _prepare_slide(sl, source_pptx, work, info, cache):
         if "from" not in src:
             bottom = (info.get(no) or {}).get("titleBottomCm")
             src["from"] = float(bottom) if bottom else DEFAULT_TITLE_BOTTOM_CM
+
+
+def _strip_table_accents(spec):
+    """표 셀의 [[강조]] 표시를 지운다 — 패키지 표 렌더러(table.py)는 강조를 지원하지 않아 괄호가 그대로 찍힌다."""
+    for sec in spec.get("sections") or []:
+        for sl in sec.get("slides") or []:
+            for t in sl.get("tables") or []:
+                if not isinstance(t, dict):
+                    continue
+                if isinstance(t.get("header"), list):
+                    t["header"] = [ACCENT.sub(r"\1", c) if isinstance(c, str) else c for c in t["header"]]
+                if isinstance(t.get("rows"), list):
+                    t["rows"] = [[ACCENT.sub(r"\1", c) if isinstance(c, str) else c for c in row] if isinstance(row, list) else row for row in t["rows"]]
 
 
 def _build_with_positions(template, spec):
@@ -141,6 +155,7 @@ def build_deck(spec, work: Path, source_pptx, extract_info):
         work.mkdir(parents=True, exist_ok=True)
         work_spec = copy.deepcopy(spec)  # 미디어 치환은 사본에만 — deck.yaml에 서버 임시 경로가 새지 않게
         _prepare_media(work_spec, source_pptx, work, extract_info)
+        _strip_table_accents(work_spec)
         template = find_template(None, root=ROOT)
         err = io.StringIO()
         with contextlib.redirect_stderr(err):

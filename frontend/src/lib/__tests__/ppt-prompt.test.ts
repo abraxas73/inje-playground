@@ -34,7 +34,7 @@ describe("prompt", () => {
     expect(t).toContain("용량: note_title 20/1 · 표 자리 높이 7.1cm = 머리글 + 한 줄 행 6개(두 줄 행 4개), 폭 27cm ≈ 한 줄 95자(열 합계, 8pt)");
   });
   it("rules carry the table row budget and the slides split protocol", () => {
-    for (const s of ["표 자리", "두 줄 행", '{"slides":[']) expect(RULES_TEXT).toContain(s);
+    for (const s of ["표 자리", "두 줄 행", '{"slides":[', "한 줄이 원칙", "표 셀(tables)에는 쓰지 않는다"]) expect(RULES_TEXT).toContain(s);
   });
   it("system blocks are two cached text blocks", () => {
     const b = systemBlocks(catalog);

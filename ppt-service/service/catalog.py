@@ -19,6 +19,10 @@ PACKAGE_VERSION = "v3.1"
 ELLIPSIS = "…"
 # 모든 장표가 같은 값이라 카탈로그 상단에 한 번만 싣는 역할
 COMMON_ROLES = ("page_title", "section_label")
+# 마무리 문구 글상자의 안쪽 여백(좌우 각, cm)과 글자 크기 — 템플릿 실측 2026-10-01.
+# 패키지 capacity.py는 여백을 빼지 않고 상자 폭 27cm로 재서 bar16을 47자/줄로 잡지만 실제 글 폭은 15cm(26자)다(디자인센터 보고 대상).
+# ponytail: 상수표 — 템플릿이 바뀌면 tools/measure.py와 함께 다시 잰다(런북 §3).
+CLOSING_TEXT_INSET_CM = {"bar16": (6.0, 16.0), "key": (3.0, 16.0), "msg": (0.25, 16.0), "bar13": (0.6, 13.0)}
 
 
 def skeleton(value):
@@ -53,9 +57,14 @@ def _arity_from_name(name):
     return int(m.group(1)) if m else None
 
 
-def _capacity(name):
-    """장표의 슬롯 용량 {역할: [줄당 글자, 줄 수]} — capacity.py 실측값 그대로(LLM이 넘침을 미리 피하게)."""
-    return {role: list(cap) for (lay, role), cap in sorted(CAPACITY.items()) if lay == name and role not in COMMON_ROLES}
+def _capacity(name, spec):
+    """장표의 슬롯 용량 {역할: [줄당 글자, 줄 수]} — capacity.py 실측값. closing은 글상자 안쪽 여백을 뺀 실제 한 줄 글자 수로 바꾼다."""
+    out = {role: list(cap) for (lay, role), cap in sorted(CAPACITY.items()) if lay == name and role not in COMMON_ROLES}
+    style = (spec.get("closing") or {}).get("style", "bar")
+    if "closing" in out and style in CLOSING_TEXT_INSET_CM:
+        inset, pt = CLOSING_TEXT_INSET_CM[style]
+        out["closing"][0] = int((T.CONTENT_W - 2 * inset) // (pt / 72 * 2.54))
+    return out
 
 
 def _table(spec):
@@ -107,7 +116,7 @@ def load_catalog():
             "closing": {"required": bool(spec.get("closing_required")), "maxLines": int(closing.get("max_lines", 2))} if closing else None,
             "chips": (spec.get("chips") or {}).get("per"),
             "required": list(spec.get("required") or []),
-            "capacity": _capacity(name),
+            "capacity": _capacity(name, spec),
             "table": _table(spec),
             "example": example,
         })
@@ -115,7 +124,7 @@ def load_catalog():
         "name": "message", "slide": T.MESSAGE, "arity": None,
         "desc": "핵심 메시지 — 검정 배경, 40pt 한 줄. 섹션 라벨·타이틀 없음",
         "use": "한 문장으로 못 박을 메시지. headline은 20자 이내, detail은 생략 가능",
-        "closing": None, "chips": None, "required": ["headline"], "capacity": _capacity("message"),
+        "closing": None, "chips": None, "required": ["headline"], "capacity": _capacity("message", {}),
         "example": {"layout": "message", "headline": ELLIPSIS, "detail": ELLIPSIS},
     }
     return {

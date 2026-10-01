@@ -30,6 +30,9 @@ def test_catalog_shape(client, auth):
     assert note["table"] == {"widthCm": 27.0, "heightCm": 7.1, "rowsOneLine": 6, "rowsTwoLine": 4, "charsPerLine": 95}
     full = next(e for e in cat["layouts"] if e["name"] == "table-full")
     assert full["table"]["rowsOneLine"] == 9
+    # 마무리 바(bar16)는 양옆 6cm 여백 → 한 줄 26자(패키지 표 47자가 아니라). msg형은 46자
+    assert card4["capacity"]["closing"] == [26, 3]
+    assert next(e for e in cat["layouts"] if e["name"] == "kpi-3-cards-3")["capacity"]["closing"] == [46, 2]
     image4 = next(e for e in cat["layouts"] if e["name"] == "image-4")
     assert image4["example"]["images"] == ["src:장:번호"] * 4
     free = next(e for e in cat["layouts"] if e["name"] == "free-title")
@@ -252,3 +255,12 @@ def test_build_storage_connect_error(client, auth, monkeypatch):
             "upload": {"pptxUrl": "https://example.supabase.co/x?token=1", "yamlUrl": "https://example.supabase.co/y?token=2"}}
     r = client.post("/build", headers=auth, json=body)
     assert r.status_code == 502 and r.json()["kind"] == "internal" and r.json()["message"] == "스토리지 연결 오류"
+
+
+def test_strip_table_accents_removes_markers_only_in_table_cells():
+    from service.builder import _strip_table_accents
+    spec = {"sections": [{"slides": [{"layout": "table", "closing": "[[남긴다]]", "tables": [{"header": ["구분", "[[LLM Wiki]]"], "rows": [["합성 시점", "[[넣을 때 한 번]]"], ["비용", 3]]}]}]}]}
+    _strip_table_accents(spec)
+    t = spec["sections"][0]["slides"][0]["tables"][0]
+    assert t["header"] == ["구분", "LLM Wiki"] and t["rows"] == [["합성 시점", "넣을 때 한 번"], ["비용", 3]]
+    assert spec["sections"][0]["slides"][0]["closing"] == "[[남긴다]]"

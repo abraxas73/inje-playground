@@ -19,7 +19,7 @@
 ## 3. 배포
 - 프론트: 평소처럼 `frontend/`에서 `NODE_OPTIONS= vercel deploy --prod --yes`.
 - ppt-service(Python이 바뀔 때만): `cd ppt-service && vercel deploy --prod --yes`, 이어서 `curl -H "x-ppt-token: $TOKEN" https://innogrid-ppt-service.vercel.app/health`가 `{"ok":true,"templateSlides":106,"layouts":69,…}`.
-- 템플릿 갱신: `ppt-service/template/`의 pptx 교체 → `python tools/measure.py` → `pytest` → 배포. `/catalog`는 프로세스 캐시라 프론트 재배포 없이 새 인스턴스부터 반영된다. 카탈로그의 `capacity`(장표별 슬롯 용량)는 `capacity.py`에서 나오므로 measure.py를 돌리면 프롬프트도 같이 바뀐다.
+- 템플릿 갱신: `ppt-service/template/`의 pptx 교체 → `python tools/measure.py` → `pytest` → 배포. 마무리 문구 글상자의 안쪽 여백(`service/catalog.py` `CLOSING_TEXT_INSET_CM`, bar16 6cm·key 3cm·msg 0.25cm·bar13 0.6cm)도 다시 잰다 — 패키지 `capacity.py`는 여백을 빼지 않아 bar16을 47자/줄로 잡지만 실제는 26자(디자인센터 보고 대상). 표 셀의 `[[ ]]`는 패키지가 지원하지 않아 서비스가 빌드 전에 지운다. `/catalog`는 프로세스 캐시라 프론트 재배포 없이 새 인스턴스부터 반영된다. 카탈로그의 `capacity`(장표별 슬롯 용량)는 `capacity.py`에서 나오므로 measure.py를 돌리면 프롬프트도 같이 바뀐다.
 
 ## 4. 생성이 실패하면
 | 화면 오류 | 원인·조치 |
