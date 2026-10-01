@@ -77,14 +77,12 @@ export default function NewDeckForm({ llmAvailable, templates, onCreated }: { ll
           <Label htmlFor="ppt-prompt">프롬프트(선택)</Label>
           <Textarea id="ppt-prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={2} maxLength={2000} placeholder="예: 경영진 보고용, 12장 이내, 결론 먼저" />
         </div>
-        {templates.length > 1 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1"><Label htmlFor="ppt-template">템플릿</Label>
             <Select value={templateId} onValueChange={setTemplateId}>
               <SelectTrigger id="ppt-template" className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>{templates.map((t) => <SelectItem key={t.id ?? BUILTIN} value={t.id ?? BUILTIN}>{t.name}{t.isDefault && <span className="ml-2 text-xs text-muted-foreground">기본</span>}</SelectItem>)}</SelectContent>
+              <SelectContent>{(templates.length ? templates : [{ id: null, name: "기본형", isDefault: true }]).map((t) => <SelectItem key={t.id ?? BUILTIN} value={t.id ?? BUILTIN}>{t.name}{t.isDefault && <span className="ml-2 text-xs text-muted-foreground">기본</span>}</SelectItem>)}</SelectContent>
             </Select></div>
-        )}
-        <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1"><Label htmlFor="ppt-model">모델</Label>
             <Select value={model} onValueChange={setModel}>
               <SelectTrigger id="ppt-model" className="w-full"><SelectValue /></SelectTrigger>

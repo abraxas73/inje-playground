@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Loader2, Upload, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase";
@@ -16,6 +17,8 @@ export default function PptTemplatesCard() {
   const [data, setData] = useState<PptTemplatesResponse | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const [newName, setNewName] = useState("");
+  const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -35,7 +38,8 @@ export default function PptTemplatesCard() {
       const { error } = await createClient().storage.from("ppt").uploadToSignedUrl(ticket.storagePath, ticket.token, file, { contentType: "application/octet-stream" });
       if (error) throw new Error(`파일 업로드에 실패했습니다: ${error.message}`);
       setBusy("validate");
-      const r = await postJson<{ template: PptTemplate }>("/api/admin/ppt/templates", { storagePath: ticket.storagePath, fileName: file.name });
+      const r = await postJson<{ template: PptTemplate }>("/api/admin/ppt/templates", { storagePath: ticket.storagePath, fileName: file.name, name: newName.trim() || undefined });
+      setNewName("");
       setMsg({ kind: "ok", text: `등록했습니다: ${r.template.name} (샘플 덱 ${r.template.slides}장 빌드, 브랜드 검사 ${r.template.issueCount === 0 ? "통과" : `${r.template.issueCount}건`})` });
       await load();
     } catch (e) {
@@ -57,17 +61,27 @@ export default function PptTemplatesCard() {
   return (
     <div className="space-y-3 text-sm">
       <p className="text-xs text-muted-foreground">
-        디자인센터가 배포한 표준 템플릿 pptx를 올리면 ppt-service가 장 수(106장)를 확인하고 샘플 덱 전체를 실제로 빌드해 검증한 뒤 등록합니다. 장표 번호·좌표가 내장본과 같은 구성이어야 하며, 다른 구성은 검증에서 거절됩니다.
+        디자인센터가 배포한 표준 템플릿 pptx를 이름을 붙여 여러 개 올릴 수 있습니다. ppt-service가 장 수(106장)와 슬라이드 크기(가로형 33.9×19.1cm)를 확인하고 샘플 덱 전체를 실제로 빌드해 검증한 뒤 등록합니다.
+        조판 패키지가 내장본의 장표 번호·좌표(cm)로 글을 앉히기 때문에 같은 구성의 새 버전만 통과하며, 세로형처럼 크기·좌표가 다른 템플릿은 사유를 보여 주고 거절합니다(그 경우 디자인센터 패키지 수정이 함께 필요).
         사용자는 PPT를 만들 때 템플릿을 고르고, 재생성·재시도는 그 버전의 템플릿을 그대로 씁니다. 템플릿은 삭제하지 않고 비활성화합니다(기존 버전이 참조).
       </p>
       <div className="rounded border px-3 py-2">
-        <div className="flex items-center gap-2"><span className="font-medium">내장 템플릿</span>{!hasDefault && <span className="rounded bg-sky-100 px-1.5 py-0.5 text-xs text-sky-800">기본</span>}</div>
+        <div className="flex items-center gap-2"><span className="font-medium">기본형</span><span className="text-xs text-muted-foreground">내장</span>{!hasDefault && <span className="rounded bg-sky-100 px-1.5 py-0.5 text-xs text-sky-800">기본</span>}</div>
         <div className="text-xs text-muted-foreground">{data.builtin.file ?? "ppt-service 응답 없음"}{data.builtin.slides ? ` · ${data.builtin.slides}장` : ""} · 서비스에 포함된 파일(배포로만 바뀜)</div>
       </div>
       {data.templates.map((t) => (
         <div key={t.id} className={`rounded border px-3 py-2 ${t.status === "disabled" ? "opacity-60" : ""}`}>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">{t.name}</span>
+            {editing?.id === t.id ? (
+              <span className="flex items-center gap-1">
+                <Input value={editing.name} onChange={(e) => setEditing({ id: t.id, name: e.target.value })} className="h-7 w-48 text-sm" maxLength={120} autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter" && editing.name.trim()) { void patch(t.id, { name: editing.name.trim() }); setEditing(null); } if (e.key === "Escape") setEditing(null); }} />
+                <Button size="sm" variant="outline" className="h-7" disabled={!editing.name.trim() || busy !== null} onClick={() => { void patch(t.id, { name: editing.name.trim() }); setEditing(null); }}>저장</Button>
+                <Button size="sm" variant="ghost" className="h-7" onClick={() => setEditing(null)}>취소</Button>
+              </span>
+            ) : (
+              <button type="button" className="font-medium hover:underline" title="이름 바꾸기" onClick={() => setEditing({ id: t.id, name: t.name })}>{t.name}</button>
+            )}
             {t.isDefault && t.status === "active" && <span className="rounded bg-sky-100 px-1.5 py-0.5 text-xs text-sky-800">기본</span>}
             {t.status === "disabled" && <span className="rounded bg-muted px-1.5 py-0.5 text-xs">비활성</span>}
             <span className="ml-auto flex items-center gap-3 text-xs">
@@ -84,12 +98,13 @@ export default function PptTemplatesCard() {
         </div>
       ))}
       <input ref={inputRef} type="file" accept=".pptx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void upload(f); }} />
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="이름(예: 가로형 v1.1) — 비우면 파일명" className="h-9 w-64" maxLength={120} disabled={busy !== null} />
         <Button type="button" variant="outline" disabled={busy !== null} onClick={() => inputRef.current?.click()}>
           {busy === "upload" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : busy === "validate" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
           {busy === "upload" ? "올리는 중…" : busy === "validate" ? "검증 중(샘플 덱 빌드)…" : "템플릿 pptx 올리기"}
         </Button>
-        <span className="text-xs text-muted-foreground">50MB 이하 · 등록까지 보통 10~30초</span>
+        <span className="text-xs text-muted-foreground">pptx · 50MB 이하 · 등록까지 보통 10~30초 · 이름은 등록 뒤에도 클릭해 바꿀 수 있습니다</span>
       </div>
       {msg && <Alert variant={msg.kind === "error" ? "destructive" : "default"}><AlertDescription className="whitespace-pre-wrap">{msg.text}</AlertDescription></Alert>}
     </div>

@@ -53,7 +53,7 @@ export interface PptTemplate {
   uploadedByEmail: string; note: string | null; createdAt: string;
 }
 export interface PptTemplatesResponse { templates: PptTemplate[]; builtin: { file: string | null; slides: number | null } }
-export const BUILTIN_TEMPLATE_LABEL = "내장 템플릿(이노그리드 v1.0 최신본)";
+export const BUILTIN_TEMPLATE_LABEL = "기본형(내장 · 이노그리드 v1.0 최신본)";
 
 export interface PptDeckDetail {
   deck: PptDeckSummary & { shareUrl: string | null; canManage: boolean };

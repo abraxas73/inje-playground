@@ -307,3 +307,18 @@ def test_build_uses_uploaded_template_and_caches_by_id(client, auth, monkeypatch
     assert client.post("/build", headers=auth, json=body).json()["ok"] is True
     assert client.post("/build", headers=auth, json=body).json()["ok"] is True
     assert len(calls) == 1  # 두 번째 빌드는 캐시
+
+
+def test_template_validate_rejects_portrait_size(client, auth, monkeypatch):
+    from pptx import Presentation
+    from pptx.util import Cm
+    from innogrid_ppt import tokens as T
+    from service import storage as S
+    def portrait(url, dest):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        prs = Presentation(); prs.slide_width, prs.slide_height = Cm(19.05), Cm(33.867)
+        for _ in range(T.TEMPLATE_SLIDES): prs.slides.add_slide(prs.slide_layouts[6])
+        prs.save(str(dest)); return dest
+    monkeypatch.setattr(S, "download", portrait)
+    r = client.post("/template/validate", headers=auth, json={"templateUrl": "https://example.supabase.co/t.pptx?token=1"})
+    assert r.status_code == 422 and "세로형" in r.json()["error"] and "19.1×33.9cm" in r.json()["error"]
