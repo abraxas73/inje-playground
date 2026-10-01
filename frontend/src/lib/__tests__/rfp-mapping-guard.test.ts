@@ -54,3 +54,35 @@ it("세분화 후 재매핑도 상위 후보를 보존하며 하위 키로 저�
   expect(insert).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ detail_key: "1.1" }), expect.objectContaining({ detail_key: "1.2" })]));
   expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ mapping_status: "ready" }));
 });
+
+it.each(["1", "1.2", "9"])("그룹/개별 %s 실행은 대상 하위 자동 행만 교체", async (detailKey) => {
+ const details = "○ HCI\n  - 라이선스\n  - VM\n○ 컨테이너\n  - 배포\n  - 로그";
+ const filters: unknown[][] = [];
+ const deletion: Record<string, unknown> = {};
+ for (const name of ["eq", "in"]) deletion[name] = (...args: unknown[]) => { filters.push([name,...args]); return deletion; };
+ deletion.then = (resolve: (v: unknown) => void) => resolve({error:null});
+ const remove = vi.fn(() => deletion);
+ const insert = vi.fn(async (_rows: {detail_key:string}[]) => ({error:null}));
+ const update = vi.fn(() => ({eq:async()=>({error:null})}));
+ const admin = {from:(table:string)=> {
+  if(table === "rfp_projects") return {update};
+  if(table === "rfp_requirements") return {select:()=>({eq:async()=>({data:[{id:"r1",req_id:"SFR-001",title:"도구",category_code:"SFR",category_name:"기능",definition:"",details,source:{detailSplits:{"1":"○ HCI\n  - 라이선스\n  - VM","2":"○ 컨테이너\n  - 배포\n  - 로그"}},sort_order:0}],error:null})})};
+  if(table === "rfp_requirement_mappings") return {delete:remove,insert};
+  throw new Error(table);
+ }} as unknown as SupabaseClient;
+ const factory = ()=>({lookup:new Map([["F1",{featureId:"f1",solutionCode:"s"}]]),run:async()=>["1.1","1.2","2.1","2.2"].map(key=>({reqId:"SFR-001",verdict:"build" as const,feature:null,rationale:"구축",detailKey:key}))});
+ await runMapping(admin,"p1","all","llm",{factories:{rules:factory,llm:factory},requirementIds:["r1"],detailKey});
+ if(detailKey === "9") {
+  expect(remove).not.toHaveBeenCalled();
+  expect(insert).not.toHaveBeenCalled();
+  expect(update).toHaveBeenLastCalledWith(expect.objectContaining({mapping_status:"failed"}));
+ } else {
+  const keys = detailKey === "1" ? ["1.1","1.2"] : ["1.2"];
+  expect(filters).toContainEqual(["in","detail_key",keys]);
+  expect(filters).toContainEqual(["eq","edited",false]);
+  expect(filters).toContainEqual(["eq","project_id","p1"]);
+  expect(filters).toContainEqual(["in","requirement_id",["r1"]]);
+  expect(insert.mock.calls[0][0].map((r: {detail_key:string})=>r.detail_key)).toEqual(keys);
+  expect(update).toHaveBeenLastCalledWith(expect.objectContaining({mapping_status:"ready"}));
+ }
+});

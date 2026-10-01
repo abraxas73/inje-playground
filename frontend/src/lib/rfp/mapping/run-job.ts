@@ -110,7 +110,7 @@ export interface RunDeps {
   solutionCodes?: string[];
   /** 이 요구사항만 다시 매핑(비었으면 프로젝트 전체) */
   requirementIds?: string[];
-  /** requirementIds가 한 건일 때, 그 요구사항의 이 세부 항목만 다시 매핑 */
+  /** requirementIds가 한 건일 때, 해당 항목 또는 세분화된 상위 키의 하위 항목들을 다시 매핑 */
   detailKey?: string | null;
 }
 
@@ -172,6 +172,16 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
     }
     // 세부 항목 지정은 요구사항 한 건에만 의미가 있다
     const detailKey = deps.requirementIds?.length === 1 ? (deps.detailKey ?? null) : null;
+    // 상위 키는 현재 원문에서 유효한 하위 키들로 해석한다. 저장도 동일한 키 목록으로 제한한다.
+    let detailKeys: string[] | null = null;
+    if (detailKey) {
+      const req = targets[0];
+      const structure = parseDetailUnits(req.details, readDetailSplits(req.source, req.details));
+      detailKeys = structure.retiredKeys?.includes(detailKey)
+        ? structure.units.filter((u) => u.key.startsWith(`${detailKey}.`)).map((u) => u.key)
+        : structure.units.filter((u) => u.key === detailKey).map((u) => u.key);
+      if (!detailKeys.length) return await fail("매핑할 세부 항목을 찾지 못했습니다. 요구사항을 새로고침해 주세요.");
+    }
     if (detailKey) scopeNote.push(`세부 항목 ${detailKey}만 다시 매핑`);
     else if (deps.requirementIds?.length) scopeNote.push(`요구사항 ${targets.length}건만 다시 매핑`);
 
@@ -185,8 +195,8 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
       const validated = validateMappingOutput(items, chunk, setup.lookup, { maxCandidates: deps.maxCandidates, maxPerSolution: 2 });
       if (engine === "llm") assertCompleteLlmMapping(validated.rows, chunk);
       // 세부 항목 지정이면 그 항목의 행만 남긴다(엔진은 요구사항의 모든 항목을 계산한다)
-      const v = detailKey
-        ? { ...validated, rows: validated.rows.filter((r) => r.detailKey === detailKey), warnings: validated.warnings.filter((w) => !w.includes("세부 항목")) }
+      const v = detailKeys
+        ? { ...validated, rows: validated.rows.filter((r) => r.detailKey !== null && detailKeys.includes(r.detailKey)), warnings: validated.warnings.filter((w) => !w.includes("세부 항목")) }
         : validated;
       const ids = chunk.map((r) => r.id);
       const hasSplits = chunk.some((r) => parseDetailUnits(r.details, r.detailSplits).retiredKeys?.length);
@@ -203,7 +213,7 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
         }
       } else {
         const del = admin.from("rfp_requirement_mappings").delete().eq("project_id", projectId).eq("edited", false).in("requirement_id", ids);
-        const { error: de } = await (detailKey ? del.eq("detail_key", detailKey) : del);
+        const { error: de } = await (detailKeys ? del.in("detail_key", detailKeys) : del);
         if (de) throw new Error(de.message);
       }
       if (v.rows.length) {

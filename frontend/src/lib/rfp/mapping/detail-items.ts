@@ -38,6 +38,8 @@ export interface DetailStructure {
   units: DetailUnit[];
   /** 세분화 전 상위 매핑은 참고용으로 보존한다. */
   retiredKeys?: string[];
+  /** 세분화된 상위 항목. 매핑이 없어도 그룹 제목을 표시한다. */
+  parents?: DetailUnit[];
   /** 글머리가 없어 한 덩어리로 본 경우 */
   flat: boolean;
   /** 하위 글머리가 있어 1단으로 묶은 경우 */
@@ -130,12 +132,14 @@ export function splitDetailChildren(unit: DetailUnit): DetailUnit[] {
 export function parseDetailUnits(details: string, splits: DetailSplits = {}): DetailStructure {
   const base = parseBaseDetailUnits(details);
   const retiredKeys: string[] = [];
+  const parents: DetailUnit[] = [];
   const units = base.units.flatMap((unit) => {
     if (splits[unit.key] !== unit.text) return [unit];
     const children = splitDetailChildren(unit);
     if (!children.length) return [unit];
     retiredKeys.push(unit.key);
+    parents.push(unit);
     return children;
   });
-  return retiredKeys.length ? { units, flat: false, nested: true, retiredKeys: base.flat ? [...retiredKeys, ""] : retiredKeys } : base;
+  return retiredKeys.length ? { units, parents, flat: false, nested: true, retiredKeys: base.flat ? [...retiredKeys, ""] : retiredKeys } : base;
 }

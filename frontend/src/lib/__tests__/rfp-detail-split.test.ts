@@ -50,3 +50,14 @@ describe("선택한 상위 항목 세분화", () => {
   expect(()=>assertCompleteLlmMapping(result.rows,[req])).not.toThrow();
  });
 });
+
+it("여러 세분화 그룹은 상위 다음 하위 순서이며 매핑 없는 상위도 표시", () => {
+ const text = "○ 하나\n○ 둘\n○ 셋\n○ HCI\n  - 라이선스\n  - VM\n○ 컨테이너\n  - 배포\n  - 로그";
+ const parents = parseDetailUnits(text).units.slice(3);
+ const structure = parseDetailUnits(text, Object.fromEntries(parents.map(p => [p.key, p.text])));
+ const row = {id:"old",requirementId:"r",detailKey:"5",detailText:"옛 제목",sortOrder:0} as MappingRow;
+ const groups = groupRowsByDetail([row], structure);
+ expect(groups.map(g => g.key)).toEqual(["1","2","3","4","4.1","4.2","5","5.1","5.2"]);
+ expect(groups.find(g => g.key === "4")).toMatchObject({label:"HCI", archived:true, rows:[]});
+ expect(groups.find(g => g.key === "5")).toMatchObject({label:"컨테이너", rows:[row]});
+});

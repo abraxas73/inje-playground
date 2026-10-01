@@ -84,7 +84,7 @@ function mergeDown(ws: ExcelJS.Worksheet, col: number, top: number, bottom: numb
 
 /** 세부 항목 칸에 넣을 본문. 항목이면 항목 전체 텍스트(하위 줄 포함), 요구사항 전체 단위면 세부 내용 전체 */
 function detailCellText(group: DetailGroup, details: string): string {
-  if (group.archived) return `${group.label} (세분화 전 매핑 · 참고용)`;
+  if (group.archived) return `${group.label} (${group.rows.length ? "세분화 전 매핑 · 참고용" : "세분화 그룹"})`;
   return group.text || (group.key ? group.label : details);
 }
 
@@ -236,7 +236,7 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
             r === reqTop ? q.related : null,
             r === groupTop ? (g.key ?? (scoped ? "전체" : "")) : null,
             r === groupTop ? detailCellText(g, q.details) : null,
-            m ? VERDICT_LABEL[m.verdict] : UNMAPPED_LABEL,
+            m ? VERDICT_LABEL[m.verdict] : g.archived ? "" : UNMAPPED_LABEL,
             nm.solution, nm.feature,
             m?.rationale ?? "", m?.evidenceText ?? "", m?.evidenceUrl ?? "", m?.note ?? "", m?.edited ? "수정" : "",
           ];

@@ -18,3 +18,19 @@ it("splits the clicked group, renders independent children and persists on reloa
  expect(screen.queryByRole("button",{name:"더 상세하게 추출"})).not.toBeInTheDocument();
  view.unmount();vi.unstubAllGlobals();
 });
+
+it("상위 그룹 일괄 실행과 하위 개별 실행은 각각의 키를 전달", async () => {
+ const details = "○ HCI\n  - 라이선스\n  - VM\n○ 컨테이너\n  - 배포\n  - 로그";
+ const requirement = {id:"r",reqId:"ECR-003",title:"도구",details,detailSplits:Object.fromEntries(parseDetailUnits(details).units.map(u=>[u.key,u.text]))} as RfpRequirement;
+ const run = vi.fn().mockResolvedValue(undefined);
+ const view = render(<MappingEditor projectId="p" requirement={requirement} rows={[]} catalog={[]} solutions={[{code:"s",name:"솔루션",featureCount:1}]} llmAvailable={false} maxCandidates={2} running={false} onRunMapping={run} onChange={vi.fn()} onRequirementChange={vi.fn()}/>);
+ expect(Array.from(view.container.querySelectorAll("section")).map(s=>s.querySelector("span")?.textContent)).toEqual(["1","1.1","1.2","2","2.1","2.2"]);
+ fireEvent.click(screen.getAllByRole("button",{name:"하위 항목 일괄 매핑"})[0]);
+ fireEvent.click(screen.getByRole("button",{name:"하위 항목 일괄 매핑 그룹 1의 하위 항목 2개"}));
+ await waitFor(()=>expect(run).toHaveBeenCalledWith(expect.objectContaining({engine:"rules"}),{requirementIds:["r"],detailKey:"1"}));
+ await waitFor(()=>expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+ fireEvent.click(screen.getAllByRole("button",{name:"다시 매핑"})[1]);
+ fireEvent.click(screen.getByRole("button",{name:"다시 매핑 세부 항목 1.1"}));
+ await waitFor(()=>expect(run).toHaveBeenLastCalledWith(expect.anything(),{requirementIds:["r"],detailKey:"1.1"}));
+ view.unmount();
+});
