@@ -12,7 +12,7 @@ export interface EngineSetup {
   run: MappingEngine;
   lookup: FeatureLookup;
 }
-/** 엔진 실행 옵션. maxCandidates는 규칙 엔진의 요구사항당 후보 상한(어드민 설정, 1~5) — Claude 엔진은 무시한다. */
+/** 엔진 실행 옵션. maxCandidates는 두 엔진의 세부 항목당 후보 상한(어드민 설정, 1~5). */
 export interface EngineOptions {
   maxCandidates?: number;
 }
@@ -31,13 +31,13 @@ export function createRulesEngine(catalog: CatalogSolution[], opts: EngineOption
 }
 
 /** Claude 엔진(2단계 그대로): lookup 키 = "F{n}" 별칭. 출력 feature는 trim·대문자로 정리해 돌려준다. */
-export function createLlmEngine(catalog: CatalogSolution[], opts: { apiKey?: string; model?: string } = {}): EngineSetup {
+export function createLlmEngine(catalog: CatalogSolution[], opts: EngineOptions & { apiKey?: string; model?: string } = {}): EngineSetup {
   const { systemText, aliases } = buildCatalogPrompt(catalog);
   const call = createAnthropicMappingCall(systemText, opts);
   return {
     lookup: aliases.features,
     run: async (chunk) =>
-      (await call(buildChunkMessage(chunk))).mappings.map((m) => ({
+      (await call(buildChunkMessage(chunk, opts.maxCandidates))).mappings.map((m) => ({
         reqId: m.reqId, verdict: m.verdict, rationale: m.rationale,
         feature: m.feature ? m.feature.trim().toUpperCase() : null,
         detailKey: m.detail?.trim() || null,
@@ -48,5 +48,5 @@ export function createLlmEngine(catalog: CatalogSolution[], opts: { apiKey?: str
 
 export const ENGINE_FACTORIES: Record<EngineKind, EngineFactory> = {
   rules: createRulesEngine,
-  llm: (catalog) => createLlmEngine(catalog),
+  llm: (catalog, opts) => createLlmEngine(catalog, opts),
 };
