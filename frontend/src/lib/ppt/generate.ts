@@ -10,7 +10,7 @@ import { addUsage, ZERO_USAGE, type DeckLlm, type LlmUsage } from "./llm";
 import { fixMessages, generateMessages, jsonOnlyRetryMessages, regenerateMessages, systemBlocks, type SourceInput } from "./prompt";
 import type { PptBuildOk, PptExtractSlide, PptServiceClient } from "./service";
 import { extractionText, sourceLengthError, textFromDocument } from "./source";
-import { ACTIVE_STATUSES, deckPaths, loadDeck, loadVersionWithSource, PPT_BUCKET, type VersionSourceRow } from "./store";
+import { ACTIVE_STATUSES, deckPaths, loadDeck, loadPptRules, loadVersionWithSource, PPT_BUCKET, type VersionSourceRow } from "./store";
 
 /** 빌드는 첫 오류에서 멈추므로 장표마다 한 회가 든다 — 30장 원고에서 2회는 모자랐다(2026-10-01). */
 export const MAX_FIX_ROUNDS = 4;
@@ -31,6 +31,11 @@ export interface GenerateInput {
   extract?: PptExtractSlide[];
   /** 첫 /build 직전에 한 번 호출(status=building 기록용) */
   onBuild?: () => Promise<void>;
+  /** 운영 설정의 LLM 규칙(없으면 기본본) */
+  rules?: string;
+  /** 업로드 템플릿(서명 URL·캐시 키). 없으면 내장 */
+  templateUrl?: string;
+  templateId?: string;
 }
 export interface GenerateDeps { llm: DeckLlm; service: PptServiceClient }
 export interface GenerateOutcome { deck: DeckJson; build: PptBuildOk; usage: LlmUsage; calls: number; model: string }
@@ -52,7 +57,7 @@ export async function generateDeck(input: GenerateInput, deps: GenerateDeps): Pr
   };
   try {
     const catalog = await deps.service.catalog();
-    const system = systemBlocks(catalog);
+    const system = systemBlocks(catalog, input.rules);
     let deck: DeckJson;
     let prior: Anthropic.MessageParam[];
     /** 질문 → 파싱. 비JSON이면 JSON만 달라고 한 번 재요청 */
@@ -87,7 +92,7 @@ export async function generateDeck(input: GenerateInput, deps: GenerateDeps): Pr
     for (let round = 0; ; round += 1) {
       lastDeck = deck;
       const upload = await input.uploads();
-      const result = await deps.service.build({ spec: deck, sourceUrl: input.sourceUrl, extract: input.extract, upload });
+      const result = await deps.service.build({ spec: deck, sourceUrl: input.sourceUrl, extract: input.extract, upload, templateUrl: input.templateUrl, templateId: input.templateId });
       if (result.ok) return { deck, build: result, usage, calls, model: deps.llm.model };
       if (round >= MAX_FIX_ROUNDS || (result.kind !== "spec" && result.kind !== "overflow")) throw new Error(result.message);
       const line = result.message.split("\n")[0];
@@ -153,6 +158,15 @@ async function resolveSource(admin: SupabaseClient, v: VersionSourceRow, service
   return { source: { kind: "pptx", text: extractionText(slides) }, sourceUrl, extract: slides };
 }
 
+/** 버전이 업로드 템플릿을 가리키면 서명 URL을 만든다(없으면 내장). 비활성화된 템플릿도 그 버전의 재생성에는 그대로 쓴다. */
+async function resolveTemplate(admin: SupabaseClient, v: VersionSourceRow): Promise<{ templateUrl?: string; templateId?: string }> {
+  if (!v.template_id) return {};
+  const { data, error } = await admin.from("ppt_templates").select("storage_path").eq("id", v.template_id).maybeSingle();
+  const path = (data as { storage_path?: string } | null)?.storage_path;
+  if (error || !path) throw new Error(`템플릿(${v.template_name ?? v.template_id})을 찾을 수 없습니다.`);
+  return { templateUrl: await signedDownload(admin, path), templateId: v.template_id };
+}
+
 export async function runGeneration(admin: SupabaseClient, versionId: string, deps: RunDeps): Promise<void> {
   try {
     await runLoaded(admin, versionId, deps);
@@ -182,6 +196,8 @@ async function runLoaded(admin: SupabaseClient, versionId: string, deps: RunDeps
   };
   try {
     const src = await resolveSource(admin, v, deps.service);
+    const tpl = await resolveTemplate(admin, v);
+    const rules = (await loadPptRules(admin)) ?? undefined;
     const lengthError = sourceLengthError(src.source.text);
     if (lengthError) throw new Error(lengthError);
     let baseDeck: DeckJson | undefined;
@@ -202,7 +218,7 @@ async function runLoaded(admin: SupabaseClient, versionId: string, deps: RunDeps
     await bestEffort("llm_model", admin.from("ppt_deck_versions").update({ llm_model: deps.llm.model }).eq("id", v.id));
     const out = await generateDeck({
       source: src.source, prompt: v.prompt ?? "", title: deps.hints?.title, dept: deps.hints?.dept, today: todayLabel(startedAt),
-      baseDeck, feedback: v.feedback ?? undefined, uploads, sourceUrl: src.sourceUrl, extract: src.extract,
+      baseDeck, feedback: v.feedback ?? undefined, uploads, sourceUrl: src.sourceUrl, extract: src.extract, rules, ...tpl,
       onBuild: () => bestEffort("building 상태", admin.from("ppt_deck_versions").update({ status: "building" }).eq("id", v.id)),
     }, deps);
     const saveError = await finish({

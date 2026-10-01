@@ -16,7 +16,7 @@ function llmOf(replies: string[]): DeckLlm & { calls: Anthropic.MessageParam[][]
 }
 function serviceOf(results: PptBuildResult[]): PptServiceClient & { built: unknown[] } {
   const built: unknown[] = [];
-  return { built, async catalog() { return catalog; }, async extract() { return []; }, async build(req) { built.push(req.spec); const r = results.shift(); if (!r) throw new Error("no more results"); return r; } };
+  return { built, async catalog() { return catalog; }, async extract() { return []; }, async validateTemplate() { return { ok: false, error: "n/a" }; }, async build(req) { built.push(req); const r = results.shift(); if (!r) throw new Error("no more results"); return r; } };
 }
 const ok: PptBuildResult = { ok: true, slides: 5, advisories: ["권고1"], issues: {}, bytes: 100 };
 const uploads = vi.fn(async () => ({ pptxUrl: "https://s/p", yamlUrl: "https://s/y" }));
@@ -101,9 +101,18 @@ describe("generateDeck", () => {
     expect(svc.built).toHaveLength(2);
     expect(onBuild).toHaveBeenCalledTimes(1);
   });
+  it("passes rules and the uploaded template through to the system prompt and /build", async () => {
+    const llm = llmOf([JSON.stringify(deck)]);
+    const svc = serviceOf([ok]);
+    const systems: Anthropic.TextBlockParam[][] = [];
+    const spy: DeckLlm = { model: "test", async complete(s, m) { systems.push(s); return llm.complete(s, m); } };
+    await generateDeck({ ...base, rules: "내 규칙", templateUrl: "https://s/t.pptx", templateId: "tpl-1" }, { llm: spy, service: svc });
+    expect(systems[0][0].text).toBe("내 규칙");
+    expect(svc.built[0]).toMatchObject({ templateUrl: "https://s/t.pptx", templateId: "tpl-1" });
+  });
   it("wraps a service outage into GenerationError with usage so far", async () => {
     const llm = llmOf([JSON.stringify(deck)]);
-    const svc: PptServiceClient = { async catalog() { return catalog; }, async extract() { return []; }, async build() { throw new Error("PPT 서비스에 연결할 수 없습니다(TimeoutError)."); } };
+    const svc: PptServiceClient = { async catalog() { return catalog; }, async extract() { return []; }, async validateTemplate() { return { ok: false, error: "n/a" }; }, async build() { throw new Error("PPT 서비스에 연결할 수 없습니다(TimeoutError)."); } };
     await expect(generateDeck(base, { llm, service: svc })).rejects.toMatchObject({ message: "PPT 서비스에 연결할 수 없습니다(TimeoutError).", calls: 1, usage });
   });
 });

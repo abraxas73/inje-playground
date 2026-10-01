@@ -6,8 +6,8 @@ import { runGeneration } from "@/lib/ppt/generate";
 import { createAnthropicDeckLlm, LlmUnavailableError, type DeckLlm } from "@/lib/ppt/llm";
 import { parseCreateRequest, provisionalTitle } from "@/lib/ppt/request";
 import { createPptServiceClient, PptServiceError, type PptServiceClient } from "@/lib/ppt/service";
-import { DECK_COLUMNS, failStaleVersions, hasActiveVersion, mapDeck, type DeckRow, type VersionRow } from "@/lib/ppt/store";
-import type { PptListResponse } from "@/types/ppt";
+import { DECK_COLUMNS, failStaleVersions, hasActiveVersion, loadActiveTemplates, mapDeck, templateOptions, type DeckRow, type TemplateRow, type VersionRow } from "@/lib/ppt/store";
+import { BUILTIN_TEMPLATE_LABEL, type PptListResponse } from "@/types/ppt";
 
 export const runtime = "nodejs";
 export const maxDuration = 800; // Pro + Fluid 상한. 긴 원고는 LLM 출력만 수 분 걸린다
@@ -29,7 +29,11 @@ export async function GET(request: NextRequest) {
       .in("deck_id", decks.map((d) => d.id)).order("no", { ascending: false }).limit(1000);
     for (const v of (vs ?? []) as VersionRow[]) if (!latest.has(v.deck_id)) latest.set(v.deck_id, v);
   }
-  const res: PptListResponse = { decks: decks.map((d) => mapDeck(d, latest.get(d.id) ?? null)), llmAvailable: !!process.env.ANTHROPIC_API_KEY && !!process.env.PPT_SERVICE_URL && !!process.env.PPT_SERVICE_TOKEN };
+  const res: PptListResponse = {
+    decks: decks.map((d) => mapDeck(d, latest.get(d.id) ?? null)),
+    llmAvailable: !!process.env.ANTHROPIC_API_KEY && !!process.env.PPT_SERVICE_URL && !!process.env.PPT_SERVICE_TOKEN,
+    templates: templateOptions(await loadActiveTemplates(auth.admin)),
+  };
   return NextResponse.json(res);
 }
 
@@ -51,6 +55,13 @@ export async function POST(request: NextRequest) {
   if (await hasActiveVersion(auth.admin, auth.userId)) {
     return NextResponse.json({ error: "진행 중인 생성이 끝난 뒤 다시 시도하세요." }, { status: 409 });
   }
+  // 템플릿: 지정했으면 활성 행이어야 한다. 비우면 내장
+  let template: Pick<TemplateRow, "id" | "name"> | null = null;
+  if (parsed.templateId) {
+    const { data } = await auth.admin.from("ppt_templates").select("id, name").eq("id", parsed.templateId).eq("status", "active").maybeSingle();
+    template = (data as Pick<TemplateRow, "id" | "name"> | null) ?? null;
+    if (!template) return NextResponse.json({ error: "선택한 템플릿을 찾을 수 없거나 비활성화되었습니다." }, { status: 400 });
+  }
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -60,7 +71,7 @@ export async function POST(request: NextRequest) {
   if (deckError || !deck) return NextResponse.json({ error: deckError?.message ?? "덱을 만들지 못했습니다." }, { status: 500 });
   const deckId = (deck as { id: string }).id;
   const { data: version, error: versionError } = await auth.admin.from("ppt_deck_versions")
-    .insert({ deck_id: deckId, no: 1, status: "generating", source_kind: parsed.kind, source_text: parsed.text, source_path: parsed.storagePath, source_name: parsed.fileName, prompt: parsed.prompt, llm_model: deps.llm.model })
+    .insert({ deck_id: deckId, no: 1, status: "generating", source_kind: parsed.kind, source_text: parsed.text, source_path: parsed.storagePath, source_name: parsed.fileName, prompt: parsed.prompt, llm_model: deps.llm.model, template_id: template?.id ?? null, template_name: template?.name ?? BUILTIN_TEMPLATE_LABEL })
     .select("id").single();
   if (versionError || !version) {
     const { error: cleanupError } = await auth.admin.from("ppt_decks").delete().eq("id", deckId);

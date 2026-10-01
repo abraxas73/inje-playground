@@ -25,6 +25,8 @@ export const SETTING_KEYS = [
   "teams_group_id",
   // 비용 관리 — 1달러당 원(표시 전환용, 비밀 아님)
   "usd_krw_rate",
+  // PPT 만들기 — LLM 규칙 텍스트(비어 있으면 코드 기본본)
+  "ppt_llm_rules",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];

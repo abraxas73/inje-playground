@@ -27,6 +27,8 @@ export interface PptVersion {
   sharepointAt: string | null;
   createdAt: string;
   finishedAt: string | null;
+  /** 생성에 쓴 템플릿 표시 이름(내장이면 BUILTIN_TEMPLATE_LABEL) */
+  templateName: string | null;
 }
 
 export interface PptDeckSummary {
@@ -41,7 +43,17 @@ export interface PptDeckSummary {
   updatedAt: string;
 }
 
-export interface PptListResponse { decks: PptDeckSummary[]; llmAvailable: boolean }
+/** 생성 폼의 템플릿 선택지. id null = 내장 템플릿 */
+export interface PptTemplateOption { id: string | null; name: string; isDefault: boolean }
+export interface PptListResponse { decks: PptDeckSummary[]; llmAvailable: boolean; templates: PptTemplateOption[] }
+
+/** 관리자 템플릿 목록 행 */
+export interface PptTemplate {
+  id: string; name: string; fileName: string; bytes: number; slides: number | null; issueCount: number; status: "active" | "disabled"; isDefault: boolean;
+  uploadedByEmail: string; note: string | null; createdAt: string;
+}
+export interface PptTemplatesResponse { templates: PptTemplate[]; builtin: { file: string | null; slides: number | null } }
+export const BUILTIN_TEMPLATE_LABEL = "내장 템플릿(이노그리드 v1.0 최신본)";
 
 export interface PptDeckDetail {
   deck: PptDeckSummary & { shareUrl: string | null; canManage: boolean };
@@ -72,6 +84,8 @@ export interface PptCreateRequest {
   dept?: string;
   /** PPT_MODEL_OPTIONS의 id. 비우면 서버 기본(PPT_LLM_MODEL 또는 Sonnet) */
   model?: string;
+  /** 업로드 템플릿 id. 비우면 내장 템플릿 */
+  templateId?: string | null;
 }
 
 /** 폼에서 고르는 생성 모델. 재생성·재시도는 기준 버전의 모델을 잇는다. */

@@ -71,6 +71,7 @@ export default function VersionPanel({ deckId, version }: { deckId: string; vers
           {version.feedback && <><span>피드백</span><span className="text-foreground">{version.feedback}{version.baseVersion ? ` (v${version.baseVersion} 기준)` : ""}</span></>}
           {version.prompt && <><span>프롬프트</span><span className="text-foreground">{version.prompt}</span></>}
           <span>원고</span><span className="text-foreground break-all">{version.sourceName ?? (version.sourceKind === "text" ? "텍스트" : "-")}</span>
+          {version.templateName && <><span>템플릿</span><span className="text-foreground break-all">{version.templateName}</span></>}
         </div>
       </CardContent>
     </Card>

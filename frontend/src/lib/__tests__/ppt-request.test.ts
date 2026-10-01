@@ -4,7 +4,7 @@ import { parseCreateRequest, parseRegenerateRequest, provisionalTitle } from "@/
 describe("parseCreateRequest", () => {
   it("accepts text", () => {
     const r = parseCreateRequest({ text: "원고", prompt: " 12장 ", title: "제안", dept: "R&D" });
-    expect(r).toEqual({ ok: true, kind: "text", text: "원고", storagePath: null, fileName: null, prompt: "12장", title: "제안", dept: "R&D", model: null });
+    expect(r).toEqual({ ok: true, kind: "text", text: "원고", storagePath: null, fileName: null, prompt: "12장", title: "제안", dept: "R&D", model: null, templateId: null });
   });
   it("accepts a file ticket and classifies pptx", () => {
     const path = "source/0d1f0f7e-1111-4222-8333-444455556666.pptx";
@@ -27,6 +27,11 @@ describe("parseCreateRequest model", () => {
     expect(parseCreateRequest({ text: "x", prompt: "", model: "claude-opus-5-5" })).toMatchObject({ ok: true, model: "claude-opus-5-5" });
     expect(parseCreateRequest({ text: "x", prompt: "" })).toMatchObject({ ok: true, model: null });
     expect(parseCreateRequest({ text: "x", prompt: "", model: "claude-haiku-4-5" })).toMatchObject({ ok: false, status: 400, error: "선택할 수 없는 모델입니다." });
+  });
+  it("templateId must be a uuid when given; null means the built-in template", () => {
+    expect(parseCreateRequest({ text: "x", prompt: "", templateId: "0d1f0f7e-1111-4222-8333-444455556666" })).toMatchObject({ ok: true, templateId: "0d1f0f7e-1111-4222-8333-444455556666" });
+    expect(parseCreateRequest({ text: "x", prompt: "", templateId: null })).toMatchObject({ ok: true, templateId: null });
+    expect(parseCreateRequest({ text: "x", prompt: "", templateId: "builtin" })).toMatchObject({ ok: false, status: 400 });
   });
 });
 

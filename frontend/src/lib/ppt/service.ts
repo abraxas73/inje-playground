@@ -14,6 +14,8 @@ export interface PptCatalogEntry {
 export interface PptCatalog {
   layouts: PptCatalogEntry[]; message: PptCatalogEntry; products: string[]; overview: string[];
   productExample: Record<string, unknown>[]; templateSlides: number; package: string;
+  /** 내장 템플릿 파일명 */
+  templateFile?: string;
   /** 모든 장표 공통 슬롯(page_title·section_label) 용량 */
   capacityCommon?: Record<string, [number, number]>;
 }
@@ -22,7 +24,10 @@ export interface PptExtractSlide {
 }
 export interface PptBuildRequest {
   spec: unknown; sourceUrl?: string; extract?: PptExtractSlide[]; upload: { pptxUrl: string; yamlUrl: string };
+  /** 업로드 템플릿(서명 URL)과 캐시 키. 없으면 내장 템플릿 */
+  templateUrl?: string; templateId?: string;
 }
+export type PptTemplateValidation = { ok: true; file: string; slides: number; issues: Record<string, string[]>; advisories: string[]; bytes: number } | { ok: false; error: string };
 export interface PptBuildOk { ok: true; slides: number; advisories: string[]; issues: Record<string, string[]>; bytes: number }
 export interface PptBuildFail { ok: false; kind: "spec" | "overflow" | "template" | "internal"; message: string; section: number | null; slide: number | null }
 export type PptBuildResult = PptBuildOk | PptBuildFail;
@@ -35,6 +40,8 @@ export interface PptServiceClient {
   catalog(): Promise<PptCatalog>;
   extract(sourceUrl: string): Promise<PptExtractSlide[]>;
   build(req: PptBuildRequest): Promise<PptBuildResult>;
+  /** 업로드 템플릿 검증(장 수 + 샘플 덱 전체 빌드) */
+  validateTemplate(templateUrl: string): Promise<PptTemplateValidation>;
 }
 
 let catalogCache: PptCatalog | null = null;
@@ -48,6 +55,7 @@ export function resetCatalogCache() { catalogCache = null; }
 
 const CATALOG_TIMEOUT_MS = 30_000;
 const BUILD_TIMEOUT_MS = 90_000;
+const VALIDATE_TIMEOUT_MS = 180_000;
 
 export function createPptServiceClient(opts: { baseUrl?: string; token?: string; fetchImpl?: typeof fetch } = {}): PptServiceClient {
   const baseUrl = (opts.baseUrl ?? process.env.PPT_SERVICE_URL ?? "").replace(/\/+$/, "");
@@ -92,6 +100,9 @@ export function createPptServiceClient(opts: { baseUrl?: string; token?: string;
     },
     build(req) {
       return call<PptBuildResult>("/build", { method: "POST", body: req, timeoutMs: BUILD_TIMEOUT_MS, accept422: true });
+    },
+    validateTemplate(templateUrl) {
+      return call<PptTemplateValidation>("/template/validate", { method: "POST", body: { templateUrl }, timeoutMs: VALIDATE_TIMEOUT_MS, accept422: true });
     },
   };
 }

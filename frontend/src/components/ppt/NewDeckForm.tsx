@@ -10,11 +10,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createDeck, uploadSource } from "@/lib/ppt/client";
-import { DEFAULT_PPT_MODEL, PPT_MODEL_OPTIONS, PPT_SOURCE_EXTENSIONS_TEXT, SOURCE_MAX_CHARS } from "@/types/ppt";
+import { DEFAULT_PPT_MODEL, PPT_MODEL_OPTIONS, PPT_SOURCE_EXTENSIONS_TEXT, SOURCE_MAX_CHARS, type PptTemplateOption } from "@/types/ppt";
+
+const BUILTIN = "builtin";
 
 const ACCEPT = ".docx,.pdf,.hwp,.hwpx,.pptx,.md,.txt";
 
-export default function NewDeckForm({ llmAvailable, onCreated }: { llmAvailable: boolean; onCreated: (deckId: string) => void }) {
+export default function NewDeckForm({ llmAvailable, templates, onCreated }: { llmAvailable: boolean; templates: PptTemplateOption[]; onCreated: (deckId: string) => void }) {
   const [tab, setTab] = useState<"text" | "file">("text");
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -22,6 +24,7 @@ export default function NewDeckForm({ llmAvailable, onCreated }: { llmAvailable:
   const [title, setTitle] = useState("");
   const [dept, setDept] = useState("");
   const [model, setModel] = useState(DEFAULT_PPT_MODEL);
+  const [templateId, setTemplateId] = useState<string>(() => templates.find((t) => t.isDefault)?.id ?? BUILTIN);
   const [busy, setBusy] = useState<"upload" | "create" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,7 +40,7 @@ export default function NewDeckForm({ llmAvailable, onCreated }: { llmAvailable:
   const submit = async () => {
     setError(null);
     try {
-      let body: Parameters<typeof createDeck>[0] = { prompt, title: title.trim() || undefined, dept: dept.trim() || undefined, model };
+      let body: Parameters<typeof createDeck>[0] = { prompt, title: title.trim() || undefined, dept: dept.trim() || undefined, model, templateId: templateId === BUILTIN ? null : templateId };
       if (tab === "text") body = { ...body, text };
       else {
         setBusy("upload");
@@ -74,6 +77,13 @@ export default function NewDeckForm({ llmAvailable, onCreated }: { llmAvailable:
           <Label htmlFor="ppt-prompt">프롬프트(선택)</Label>
           <Textarea id="ppt-prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={2} maxLength={2000} placeholder="예: 경영진 보고용, 12장 이내, 결론 먼저" />
         </div>
+        {templates.length > 1 && (
+          <div className="space-y-1"><Label htmlFor="ppt-template">템플릿</Label>
+            <Select value={templateId} onValueChange={setTemplateId}>
+              <SelectTrigger id="ppt-template" className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>{templates.map((t) => <SelectItem key={t.id ?? BUILTIN} value={t.id ?? BUILTIN}>{t.name}{t.isDefault && <span className="ml-2 text-xs text-muted-foreground">기본</span>}</SelectItem>)}</SelectContent>
+            </Select></div>
+        )}
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1"><Label htmlFor="ppt-model">모델</Label>
             <Select value={model} onValueChange={setModel}>

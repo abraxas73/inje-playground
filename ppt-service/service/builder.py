@@ -150,13 +150,17 @@ def _msg(e):
     return str(e)
 
 
-def build_deck(spec, work: Path, source_pptx, extract_info):
+def build_deck(spec, work: Path, source_pptx, extract_info, template=None):
+    """template: 업로드 템플릿 경로(없으면 내장 template/). 같은 106장 구성이어야 한다 — Deck()이 장 수를 검사한다."""
     with _BUILD_LOCK:
         work.mkdir(parents=True, exist_ok=True)
         work_spec = copy.deepcopy(spec)  # 미디어 치환은 사본에만 — deck.yaml에 서버 임시 경로가 새지 않게
         _prepare_media(work_spec, source_pptx, work, extract_info)
         _strip_table_accents(work_spec)
-        template = find_template(None, root=ROOT)
+        try:
+            template = find_template(str(template) if template else None, root=ROOT)
+        except FileNotFoundError as e:
+            raise BuildError("template", str(e).splitlines()[0])
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
             d = _build_with_positions(str(template), work_spec)

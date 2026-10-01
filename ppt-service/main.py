@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from innogrid_ppt import tokens as T
-from service import builder as B, catalog as C, extract as X, storage as S
+from service import builder as B, catalog as C, extract as X, storage as S, templates as TP
 
 app = FastAPI(title="innogrid ppt-service", docs_url=None, redoc_url=None)
 
@@ -82,19 +82,49 @@ class BuildRequest(BaseModel):
     sourceUrl: str | None = None
     extract: list[dict] | None = None
     upload: UploadTargets
+    templateUrl: str | None = None   # 업로드 템플릿(서명 URL). 없으면 내장 템플릿
+    templateId: str | None = None    # 인스턴스 캐시 키
+
+
+class TemplateValidateRequest(BaseModel):
+    templateUrl: str
+
+
+@app.post("/template/validate")
+def template_validate(req: TemplateValidateRequest, request: Request, x_ppt_token: str | None = Header(default=None)):
+    """업로드 템플릿 검증 — 장 수(106)와 샘플 덱 전체 빌드. 통과하면 장 수·브랜드 검사 결과를 돌려준다."""
+    check_token(x_ppt_token)
+    check_body(request)
+    if not S.allowed_host(req.templateUrl):
+        raise HTTPException(status_code=400, detail="templateUrl 호스트가 허용되지 않습니다")
+    work = Path(tempfile.gettempdir()) / f"ppt-{uuid.uuid4().hex}"
+    try:
+        path = S.download(req.templateUrl, work / "template.pptx")
+        return TP.validate_template(path, work / "build")
+    except B.BuildError as e:
+        return JSONResponse(status_code=422, content={"ok": False, "error": f"[{e.kind}] {e.message}"})
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=400, detail=f"템플릿을 내려받지 못했습니다({e.response.status_code})")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="템플릿을 내려받지 못했습니다(연결 오류)")
+    except Exception as e:  # noqa: BLE001 — 손상된 pptx 등
+        return JSONResponse(status_code=422, content={"ok": False, "error": f"템플릿을 열 수 없습니다: {type(e).__name__}: {e}"})
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
 
 
 @app.post("/build")
 def build(req: BuildRequest, request: Request, x_ppt_token: str | None = Header(default=None)):
     check_token(x_ppt_token)
     check_body(request)
-    for url in (req.upload.pptxUrl, req.upload.yamlUrl, req.sourceUrl or req.upload.pptxUrl):
+    for url in (req.upload.pptxUrl, req.upload.yamlUrl, req.sourceUrl or req.upload.pptxUrl, req.templateUrl or req.upload.pptxUrl):
         if not S.allowed_host(url):
             raise HTTPException(status_code=400, detail="업로드·다운로드 주소 호스트가 허용되지 않습니다")
     work = Path(tempfile.gettempdir()) / f"ppt-{uuid.uuid4().hex}"
     try:
         src = S.download(req.sourceUrl, work / "source.pptx") if req.sourceUrl else None
-        res = B.build_deck(req.spec, work, src, req.extract)
+        template = TP.fetch_template(req.templateUrl, req.templateId, work) if req.templateUrl else None
+        res = B.build_deck(req.spec, work, src, req.extract, template=template)
         size = S.upload(req.upload.pptxUrl, res["pptxPath"], B.PPTX_MIME)
         S.upload(req.upload.yamlUrl, res["yamlPath"], "text/yaml; charset=utf-8")
         return {"ok": True, "slides": res["slides"], "advisories": res["advisories"], "issues": res["issues"], "bytes": size}

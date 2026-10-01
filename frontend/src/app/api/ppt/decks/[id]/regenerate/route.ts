@@ -39,6 +39,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const { data, error } = await admin.from("ppt_deck_versions").insert({
     deck_id: id, no, status: "generating", source_kind: base.source_kind, source_text: baseSrc?.source_text ?? null, source_path: baseSrc?.source_path ?? null,
     source_name: base.source_name, prompt: base.prompt, feedback: parsed.feedback, base_version: parsed.retry ? null : baseNo, llm_model: deps.llm.model,
+    template_id: base.template_id, template_name: base.template_name,
   }).select("id").single();
   if (error || !data) return NextResponse.json({ error: error?.message ?? "버전을 만들지 못했습니다." }, { status: 500 });
   const versionId = (data as { id: string }).id;

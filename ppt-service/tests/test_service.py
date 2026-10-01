@@ -264,3 +264,46 @@ def test_strip_table_accents_removes_markers_only_in_table_cells():
     t = spec["sections"][0]["slides"][0]["tables"][0]
     assert t["header"] == ["구분", "LLM Wiki"] and t["rows"] == [["합성 시점", "넣을 때 한 번"], ["비용", 3]]
     assert spec["sections"][0]["slides"][0]["closing"] == "[[남긴다]]"
+
+
+def test_template_validate_ok_with_builtin_copy(client, auth, monkeypatch, tmp_path):
+    import shutil
+    from service import storage as S
+    src = Path(__file__).resolve().parent.parent / "template" / "INNOGRID_PPT_Template_v1_0_latest.pptx"
+    monkeypatch.setattr(S, "download", lambda url, dest: (dest.parent.mkdir(parents=True, exist_ok=True), shutil.copy(src, dest), dest)[2])
+    r = client.post("/template/validate", headers=auth, json={"templateUrl": "https://example.supabase.co/storage/v1/object/sign/ppt/templates/x.pptx?token=1"})
+    j = r.json()
+    assert r.status_code == 200 and j["ok"] is True and j["slides"] >= 80 and j["issues"] == {} and j["bytes"] > 1_000_000
+
+
+def test_template_validate_rejects_wrong_slide_count(client, auth, monkeypatch, tmp_path):
+    from pptx import Presentation
+    from service import storage as S
+    def tiny(url, dest):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        prs = Presentation(); prs.slides.add_slide(prs.slide_layouts[0]); prs.save(str(dest)); return dest
+    monkeypatch.setattr(S, "download", tiny)
+    r = client.post("/template/validate", headers=auth, json={"templateUrl": "https://example.supabase.co/t.pptx?token=1"})
+    assert r.status_code == 422 and r.json()["ok"] is False and "106장" in r.json()["error"]
+
+
+def test_template_validate_rejects_foreign_host(client, auth):
+    r = client.post("/template/validate", headers=auth, json={"templateUrl": "https://evil.example.com/t.pptx"})
+    assert r.status_code == 400
+
+
+def test_build_uses_uploaded_template_and_caches_by_id(client, auth, monkeypatch, tmp_path):
+    import shutil
+    from service import storage as S, templates as TP
+    src = Path(__file__).resolve().parent.parent / "template" / "INNOGRID_PPT_Template_v1_0_latest.pptx"
+    calls = []
+    def dl(url, dest):
+        calls.append(url); dest.parent.mkdir(parents=True, exist_ok=True); shutil.copy(src, dest); return dest
+    monkeypatch.setattr(S, "download", dl)
+    monkeypatch.setattr(S, "upload", lambda url, path, ct: path.stat().st_size)
+    monkeypatch.setattr(TP, "CACHE_DIR", tmp_path / "cache")
+    body = {"spec": MINI_SPEC, "templateUrl": "https://example.supabase.co/storage/v1/object/sign/ppt/templates/t1.pptx?token=1", "templateId": "11111111-2222-3333-4444-555555555555",
+            "upload": {"pptxUrl": "https://example.supabase.co/u/p?token=a", "yamlUrl": "https://example.supabase.co/u/y?token=b"}}
+    assert client.post("/build", headers=auth, json=body).json()["ok"] is True
+    assert client.post("/build", headers=auth, json=body).json()["ok"] is True
+    assert len(calls) == 1  # 두 번째 빌드는 캐시

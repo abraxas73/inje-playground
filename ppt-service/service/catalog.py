@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 
 from innogrid_ppt import tokens as T
+from innogrid_ppt.template import find_template
 from innogrid_ppt.capacity import CAPACITY
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -135,5 +136,6 @@ def load_catalog():
         "productExample": [{"layout": "product", "product": "openstackit"}, {"layout": "product-features", "product": "openstackit"}, {"layout": "product", "product": "tafa"}],
         "capacityCommon": _capacity_common(),
         "templateSlides": T.TEMPLATE_SLIDES,
+        "templateFile": find_template(None, root=ROOT).name,
         "package": PACKAGE_VERSION,
     }

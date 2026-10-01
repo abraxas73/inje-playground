@@ -36,11 +36,13 @@ describe("prompt", () => {
   it("rules carry the table row budget and the slides split protocol", () => {
     for (const s of ["표 자리", "두 줄 행", '{"slides":[', "한 줄이 원칙", "표 셀(tables)에는 쓰지 않는다"]) expect(RULES_TEXT).toContain(s);
   });
-  it("system blocks are two cached text blocks", () => {
+  it("system blocks are two cached text blocks; custom rules replace the default, empty falls back", () => {
     const b = systemBlocks(catalog);
     expect(b).toHaveLength(2);
     expect(b.every((x) => x.cache_control?.type === "ephemeral")).toBe(true);
     expect(b[0].text).toBe(RULES_TEXT);
+    expect(systemBlocks(catalog, "운영 규칙")[0].text).toBe("운영 규칙");
+    expect(systemBlocks(catalog, "")[0].text).toBe(RULES_TEXT);
   });
   it("generate messages: cached source block + instruction with hints and today", () => {
     const m = generateMessages({ source: { kind: "text", text: "원고 본문" }, prompt: "12장 이내", title: "제안", dept: "R&D본부", today: "2026. 09. 30" });
