@@ -10,12 +10,14 @@ interface Props {
   onSave: (next: string) => Promise<void>;
   /** 접힌 상태에서 보일 줄 수(0이면 접지 않음) */
   clampLines?: number;
+  /** 별도 상세 영역이 있는 셀은 미리보기의 더보기 버튼을 숨긴다 */
+  showExpandButton?: boolean;
   placeholder?: string;
   className?: string;
 }
 
 /** 클릭 → textarea, blur 또는 ⌘/Ctrl+Enter 저장, Esc 취소. 실패하면 원래 값으로 되돌리고 오류를 표시. */
-export default function EditableCell({ value, onSave, clampLines = 3, placeholder = "비어 있음", className }: Props) {
+export default function EditableCell({ value, onSave, clampLines = 3, showExpandButton = true, placeholder = "비어 있음", className }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [saving, setSaving] = useState(false);
@@ -68,7 +70,7 @@ export default function EditableCell({ value, onSave, clampLines = 3, placeholde
   return (
     <div className={cn("group cursor-text", className)} onClick={() => setEditing(true)} title="클릭해서 편집">
       <div className={cn("whitespace-pre-wrap break-words text-sm", clamp && "line-clamp-3", !value && "text-muted-foreground/60 italic")}>{value || placeholder}</div>
-      {clampLines > 0 && lines > clampLines && (
+      {showExpandButton && clampLines > 0 && lines > clampLines && (
         <button type="button" className="mt-0.5 text-[11px] text-primary hover:underline" onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}>
           {expanded ? "접기" : `더보기 (${lines}줄)`}
         </button>
