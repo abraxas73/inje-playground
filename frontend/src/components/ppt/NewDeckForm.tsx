@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { Loader2, Sparkles, Upload } from "lucide-react";
+import { FileUp, Link2, Loader2, Sparkles, Type, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ const BUILTIN = "builtin";
 const ACCEPT = ".docx,.pdf,.hwp,.hwpx,.pptx,.md,.txt";
 
 export default function NewDeckForm({ llmAvailable, templates, onCreated }: { llmAvailable: boolean; templates: PptTemplateOption[]; onCreated: (deckId: string) => void }) {
-  const [tab, setTab] = useState<"text" | "file" | "url">("text");
+  const [tab, setTab] = useState<"text" | "file" | "url">("file");
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -64,11 +64,18 @@ export default function NewDeckForm({ llmAvailable, templates, onCreated }: { ll
       <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Sparkles className="h-4 w-4 text-sky-600" />새로 만들기</CardTitle></CardHeader>
       <CardContent className="space-y-4">
         <Tabs value={tab} onValueChange={(v) => setTab(v as "text" | "file" | "url")}>
-          <TabsList><TabsTrigger value="text">텍스트 원고</TabsTrigger><TabsTrigger value="file">파일 원고</TabsTrigger><TabsTrigger value="url">URL 원고</TabsTrigger></TabsList>
-          <TabsContent value="text" className="space-y-1">
-            <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={10} placeholder="보고서·제안서 원고를 붙여 넣으세요. 마크다운 목차(#, ##)가 있으면 그대로 섹션이 됩니다." />
-            <div className={`text-right text-xs ${tooLong ? "text-destructive" : "text-muted-foreground"}`}>{text.length.toLocaleString("ko-KR")} / {SOURCE_MAX_CHARS.toLocaleString("ko-KR")}자</div>
-          </TabsContent>
+          <TabsList className="grid h-auto w-full grid-cols-3 gap-1 bg-muted p-1">
+            {([
+              ["file", FileUp, "파일 원고", "docx·pdf·pptx 등 업로드"],
+              ["url", Link2, "URL 원고", "웹 페이지 주소"],
+              ["text", Type, "텍스트 원고", "직접 붙여 넣기"],
+            ] as const).map(([v, Icon, label, hint]) => (
+              <TabsTrigger key={v} value={v} className="flex h-auto flex-col items-center gap-0.5 rounded-md py-2 data-[state=active]:bg-sky-600 data-[state=active]:text-white data-[state=active]:shadow">
+                <span className="flex items-center gap-1.5 text-sm font-medium"><Icon className="h-4 w-4" />{label}</span>
+                <span className="text-[11px] font-normal opacity-80">{hint}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
           <TabsContent value="file" className="space-y-2">
             <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => { setFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
             <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={!!busy}><Upload className="mr-2 h-4 w-4" />{file ? file.name : "파일 선택"}</Button>
@@ -77,6 +84,10 @@ export default function NewDeckForm({ llmAvailable, templates, onCreated }: { ll
           <TabsContent value="url" className="space-y-2">
             <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://… 공개 웹 페이지·PDF·DOCX 주소" inputMode="url" autoComplete="off" />
             <p className="text-xs text-muted-foreground">서버가 본문 글만 가져와 원고로 씁니다(메뉴·광고 제외, 60,000자까지). 로그인이 필요하거나 스크립트로만 그려지는 페이지는 가져오지 못합니다 — 그때는 내용을 복사해 텍스트 원고로 넣어 주세요. 사내망 주소는 받지 않습니다.</p>
+          </TabsContent>
+          <TabsContent value="text" className="space-y-1">
+            <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={10} placeholder="보고서·제안서 원고를 붙여 넣으세요. 마크다운 목차(#, ##)가 있으면 그대로 섹션이 됩니다." />
+            <div className={`text-right text-xs ${tooLong ? "text-destructive" : "text-muted-foreground"}`}>{text.length.toLocaleString("ko-KR")} / {SOURCE_MAX_CHARS.toLocaleString("ko-KR")}자</div>
           </TabsContent>
         </Tabs>
         <div className="space-y-1">
