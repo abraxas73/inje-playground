@@ -19,7 +19,7 @@ const text = (m: Anthropic.MessageParam) => (typeof m.content === "string" ? m.c
 
 describe("prompt", () => {
   it("rules mention the load-bearing constraints", () => {
-    for (const s of ["~합니다.", "마침표", "closing", "keep", "JSON", "[[", "표는", "5개", "8개", "용량", "0.55", "90%"]) expect(RULES_TEXT).toContain(s);
+    for (const s of ["~합니다.", "마침표", "closing", "keep", "JSON", "[[", "표는", "5개", "8개", "용량", "0.55", "90%", "meta.name", "20자 이내 명사형"]) expect(RULES_TEXT).toContain(s);
   });
   it("catalog text lists every layout with arity, closing rule and example, plus message and products", () => {
     const t = catalogText(catalog);

@@ -76,6 +76,13 @@ describe("keep / replace", () => {
 });
 
 describe("helpers", () => {
+  it("deckTitle prefers meta.name and truncates long fallbacks to 40 chars", () => {
+    const long = { meta: { title: ["해외 클라우드 사업자의 공공 시장 진입을 위해", "국가 클라우드 보안 가이드라인을 개정합니다."] }, sections: [] } as unknown as DeckJson;
+    expect(deckTitle(long)).toHaveLength(40);
+    expect(deckTitle(long).endsWith("…")).toBe(true);
+    expect(deckTitle({ ...long, meta: { ...long.meta, name: " 클라우드 보안  가이드라인 개정안 " } })).toBe("클라우드 보안 가이드라인 개정안");
+    expect(deckTitle({ ...long, meta: { ...long.meta, name: "가".repeat(60) } })).toHaveLength(40);
+  });
   it("deckTitle joins lines, safeFileName strips path characters, todayLabel is KST", () => {
     expect(deckTitle(base)).toBe("A B.");
     expect(safeFileName('클라우드/전환: "2026"?')).toBe("클라우드_전환_ _2026__");

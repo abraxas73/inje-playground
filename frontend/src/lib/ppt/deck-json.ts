@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 
-export type DeckMeta = { title: string[]; subtitle?: string; ver?: string; date?: string; dept?: string; author?: string; body_only?: boolean };
+export type DeckMeta = { title: string[]; name?: string; subtitle?: string; ver?: string; date?: string; dept?: string; author?: string; body_only?: boolean };
 export type KeepSlide = { keep: true };
 export type SlideJson = ({ layout: string; sub?: string } & Record<string, unknown>) | KeepSlide;
 export type SectionJson = { name: string; subs?: string[]; label?: string; slides: SlideJson[] };
@@ -17,6 +17,7 @@ const SectionSchema = z.object({
 }).passthrough();
 const MetaSchema = z.object({
   title: z.union([z.string().min(1), z.array(z.string().min(1)).min(1).max(3)]),
+  name: z.string().optional(),
   subtitle: z.string().optional(), ver: z.union([z.string(), z.number()]).optional(), date: z.string().optional(),
   dept: z.string().optional(), author: z.string().optional(), body_only: z.boolean().optional(),
 }).passthrough();
@@ -95,8 +96,14 @@ export function replaceSlide(deck: DeckJson, section: number, slide: number, nex
   return { meta: deck.meta, sections };
 }
 
+export const DECK_TITLE_MAX = 40;
+/** 덱 이름: LLM이 준 meta.name(20자 이내 명사형) → 없으면 표지 두 줄을 이어 40자에서 자른다(옛 덱·name 누락 대비). */
 export function deckTitle(deck: DeckJson): string {
-  return deck.meta.title.join(" ").replace(/\s+/g, " ").trim() || "제목 없음";
+  const name = deck.meta.name?.replace(/\s+/g, " ").trim();
+  if (name) return name.length > DECK_TITLE_MAX ? `${name.slice(0, DECK_TITLE_MAX - 1)}…` : name;
+  const joined = deck.meta.title.join(" ").replace(/\s+/g, " ").trim();
+  if (!joined) return "제목 없음";
+  return joined.length > DECK_TITLE_MAX ? `${joined.slice(0, DECK_TITLE_MAX - 1)}…` : joined;
 }
 
 /** 파일명에 못 쓰는 문자를 _로. 비면 deck */
