@@ -149,6 +149,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
     { key: "prs", header: "PR", align: "right", value: (r) => r.pull_requests , total: "sum" },
     { key: "cowork", header: "Cowork 세션", align: "right", value: (r) => r.cowork_sessions , total: "sum" },
     { key: "cwmsg", header: "Cowork 메시지", align: "right", value: (r) => r.cowork_messages , total: "sum" },
+    { key: "unimsg", header: "통합 메시지\n(채팅+Cowork, 베타)", hint: "CSV 칼럼 Messages in Chat and Cowork unified (beta) — 2026-10부터 생긴 지표라 그 전 기간은 0", align: "right", value: (r) => r.unified_messages ?? 0, total: "sum" },
     { key: "proj", header: "프로젝트", align: "right", value: (r) => r.projects_used , total: "sum" },
     { key: "art", header: "아티팩트", align: "right", value: (r) => r.artifacts_created , total: "sum" },
     { key: "spend", header: "초과 지출", align: "right", value: (r) => r.estimated_spend_usd, render: (r) => usd(r.estimated_spend_usd) , total: (rows) => usd(sumBy(rows, (r) => r.estimated_spend_usd)) },

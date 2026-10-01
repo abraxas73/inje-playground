@@ -30,7 +30,7 @@ describe("mergeWindowRows", () => {
   const row = (email: string, chats: number, extra: Partial<MemberActivityRow & { org_id: string; import_id: string }> = {}) => ({
     org_id: "a", import_id: "i", name: email, email, role: "User", seat_tier: "Standard", last_active: "2026-09-01", days_active: 1,
     chats, messages: chats * 2, projects_created: 0, projects_used: 0, pull_requests: 0, code_sessions: 0, file_edits: 0,
-    cowork_sessions: 0, cowork_messages: 0, artifacts_created: 0, claude_code_artifacts: 0, cowork_artifacts: 0, estimated_spend_usd: 1.5, ...extra,
+    cowork_sessions: 0, cowork_messages: 0, unified_messages: 0, artifacts_created: 0, claude_code_artifacts: 0, cowork_artifacts: 0, estimated_spend_usd: 1.5, ...extra,
   });
   it("조직·이메일별로 숫자를 더하고, 이름·티어는 최신 창, last_active는 최댓값", () => {
     const latest = [row("k@x", 3, { seat_tier: "Unassigned", last_active: "2026-09-20" })];

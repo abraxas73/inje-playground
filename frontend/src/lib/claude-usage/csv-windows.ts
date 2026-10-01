@@ -35,7 +35,7 @@ export function pickWindowImports<T extends { org_id: string; period_end: string
 }
 
 type Row = MemberActivityRow & { org_id: string; import_id: string };
-const SUM_KEYS = ["days_active", "chats", "messages", "projects_created", "projects_used", "pull_requests", "code_sessions", "file_edits", "cowork_sessions", "cowork_messages", "artifacts_created", "claude_code_artifacts", "cowork_artifacts", "estimated_spend_usd"] as const;
+const SUM_KEYS = ["days_active", "chats", "messages", "projects_created", "projects_used", "pull_requests", "code_sessions", "file_edits", "cowork_sessions", "cowork_messages", "unified_messages", "artifacts_created", "claude_code_artifacts", "cowork_artifacts", "estimated_spend_usd"] as const;
 
 /** 창별 행 목록(0번이 최신 창)을 조직·이메일로 합친다. 숫자는 합, 이름·역할·티어·import_id는 최신 창, last_active는 최댓값 */
 export function mergeWindowRows<T extends Row>(rowsByWindow: T[][]): T[] {

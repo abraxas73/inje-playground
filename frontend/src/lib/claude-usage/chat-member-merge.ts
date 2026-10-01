@@ -13,6 +13,7 @@ export const MEMBER_SUM_FIELDS = [
   "pull_requests",
   "cowork_sessions",
   "cowork_messages",
+  "unified_messages",
   "projects_used",
   "artifacts_created",
   "estimated_spend_usd",

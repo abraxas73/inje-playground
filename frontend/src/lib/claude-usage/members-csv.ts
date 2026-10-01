@@ -57,6 +57,7 @@ export const MEMBERS_CSV_COLUMNS: Record<string, keyof MemberActivityRow> = {
   "file edits": "file_edits",
   "cowork sessions": "cowork_sessions",
   "cowork messages": "cowork_messages",
+  "messages in chat and cowork unified (beta)": "unified_messages",
   "artifacts created": "artifacts_created",
   "claude code artifacts": "claude_code_artifacts",
   "cowork artifacts": "cowork_artifacts",
@@ -67,7 +68,7 @@ const REQUIRED_HEADERS = ["Email", "Seat Tier", "Chats", "Code sessions", "Cowor
 
 const NUMERIC_FIELDS: NumericField[] = [
   "days_active", "chats", "messages", "projects_created", "projects_used", "pull_requests", "code_sessions",
-  "file_edits", "cowork_sessions", "cowork_messages", "artifacts_created", "claude_code_artifacts", "cowork_artifacts",
+  "file_edits", "cowork_sessions", "cowork_messages", "unified_messages", "artifacts_created", "claude_code_artifacts", "cowork_artifacts",
   "estimated_spend_usd",
 ];
 
@@ -119,7 +120,7 @@ export function parseMembersCsv(text: string): { rows: MemberActivityRow[]; miss
       seat_tier: cell(r, "seat_tier") ?? "",
       last_active: cell(r, "last_active") || null,
       days_active: 0, chats: 0, messages: 0, projects_created: 0, projects_used: 0, pull_requests: 0, code_sessions: 0,
-      file_edits: 0, cowork_sessions: 0, cowork_messages: 0, artifacts_created: 0, claude_code_artifacts: 0,
+      file_edits: 0, cowork_sessions: 0, cowork_messages: 0, unified_messages: 0, artifacts_created: 0, claude_code_artifacts: 0,
       cowork_artifacts: 0, estimated_spend_usd: 0,
     };
     for (const f of NUMERIC_FIELDS) row[f] = toNumber(cell(r, f));

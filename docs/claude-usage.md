@@ -42,7 +42,7 @@
 2. 7개 파일을 `./frontend/scripts/claude-usage-upload.sh 1`(수집 토큰으로 `POST /api/admin/claude-usage/imports`)로 한 번에 업로드. 결과 줄이 전부 ✓인지 확인. 평소에는 `/claude-usage-csv` 스킬(launchd 매일 09:05)이 내보내기·업로드를 무인으로 처리하며, 웹 화면에는 업로드 UI가 없고(2026-09-03 제거) "마지막 CSV 수집"·수집 이력(삭제)만 있다. **팀별 집계** 탭에서 사내 조직도 기준 팀별 채팅·Cowork 활동을 볼 수 있다(여러 Claude 조직에 속한 계정은 인원 1명으로, 상위 조직은 팀 바로 위 단위 표기).
 3. "노는 시트만" 버튼으로 Premium 시트인데 활동 0인 사용자를 확인 → 시트 회수 검토.
 - 기간 60/90일 CSV도 업로드 가능(다른 기간 키로 별도 저장). 같은 조직·기간 재업로드는 교체.
-- **모르는 칼럼 감지(2026-09-22)**: 파서는 `MEMBERS_CSV_COLUMNS`에 없는 칼럼을 버린다. 버린 칼럼 이름을 `claude_csv_imports.unknown_headers`에 남기고, 업로드 스크립트는 `⚠ 저장하지 않은 칼럼 …` 줄을, 채팅·Cowork 탭은 노란 경고 줄과 수집 이력의 "미매핑 칼럼 N" 배지를 띄우며, 감사 로그에 `claude_csv_unknown_headers`(category `usage`)가 남는다. Anthropic이 지표를 추가하면(예: 디자인 관련) 이 경고로 알아채고 `MEMBERS_CSV_COLUMNS`·`MemberActivityRow`·테이블 칼럼을 늘린다.
+- **모르는 칼럼 감지(2026-09-22)**: 파서는 `MEMBERS_CSV_COLUMNS`에 없는 칼럼을 버린다. 버린 칼럼 이름을 `claude_csv_imports.unknown_headers`에 남기고, 업로드 스크립트는 `⚠ 저장하지 않은 칼럼 …` 줄을, 채팅·Cowork 탭은 노란 경고 줄과 수집 이력의 "미매핑 칼럼 N" 배지를 띄우며, 감사 로그에 `claude_csv_unknown_headers`(category `usage`)가 남는다. Anthropic이 지표를 추가하면(예: 디자인 관련) 이 경고로 알아채고 `MEMBERS_CSV_COLUMNS`·`MemberActivityRow`·테이블 칼럼을 늘린다. 2026-10-02 `Messages in Chat and Cowork unified (beta)` → `unified_messages`(SQL `2026-10-02-claude-unified-messages.sql`, 채팅·Cowork 탭 "통합 메시지" 칼럼, 그 전 업로드분은 0).
 - **마지막 수집 시각**: 업로드마다 `claude_csv_imports.created_at`에 기록되며, 채팅·Cowork 탭 "업로드 이력" 상단("마지막 CSV 수집 … · N개 조직")과 조직·설정 탭 "수집 상태"(전체) 및 조직 표 "CSV 최신(수집 시각)"(조직별)에 표시된다. 표시는 조직별 최신 import 기준이라 재업로드로 중복 집계되지 않는다.
 
 ## 4. 장애 대응

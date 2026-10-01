@@ -59,7 +59,7 @@ describe("acceptRate / isIdleSeat", () => {
   it("수락률과 노는 시트", () => {
     expect(acceptRate(9, 1)).toBe(90);
     expect(acceptRate(0, 0)).toBeNull();
-    const base = { name: "", email: "x@example.com", role: "User", last_active: null, days_active: 0, messages: 0, projects_created: 0, projects_used: 0, pull_requests: 0, file_edits: 0, cowork_messages: 0, artifacts_created: 0, claude_code_artifacts: 0, cowork_artifacts: 0, estimated_spend_usd: 0 };
+    const base = { name: "", email: "x@example.com", role: "User", last_active: null, days_active: 0, messages: 0, projects_created: 0, projects_used: 0, pull_requests: 0, file_edits: 0, cowork_messages: 0, unified_messages: 0, artifacts_created: 0, claude_code_artifacts: 0, cowork_artifacts: 0, estimated_spend_usd: 0 };
     expect(isIdleSeat({ ...base, seat_tier: "Premium", chats: 0, code_sessions: 0, cowork_sessions: 0 })).toBe(true);
     expect(isIdleSeat({ ...base, seat_tier: "Premium", chats: 0, code_sessions: 1, cowork_sessions: 0 })).toBe(false);
     expect(isIdleSeat({ ...base, seat_tier: "", chats: 0, code_sessions: 0, cowork_sessions: 0 })).toBe(false);

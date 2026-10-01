@@ -31,7 +31,7 @@ describe("parseMembersCsv", () => {
     expect(r.rows[0]).toEqual({
       name: "홍, 길동", email: "dev1@example.com", role: "User", seat_tier: "Premium", last_active: "2026-08-24",
       days_active: 1, chats: 6, messages: 21, projects_created: 0, projects_used: 0, pull_requests: 0, code_sessions: 32,
-      file_edits: 0, cowork_sessions: 0, cowork_messages: 0, artifacts_created: 0, claude_code_artifacts: 0, cowork_artifacts: 0,
+      file_edits: 0, cowork_sessions: 0, cowork_messages: 0, unified_messages: 0, artifacts_created: 0, claude_code_artifacts: 0, cowork_artifacts: 0,
       estimated_spend_usd: 0,
     });
     expect(r.rows[1]).toMatchObject({ name: 'Kim "K"', seat_tier: "", last_active: null, estimated_spend_usd: 1234.5 });
@@ -54,6 +54,13 @@ describe("parseMembersCsv", () => {
   it("알려진 칼럼만 있으면 미매핑 목록이 비어 있고, 빈 헤더는 무시한다", () => {
     const r = parseMembersCsv(`Email,Seat Tier,Chats,Code sessions,Cowork Sessions,\ndev@example.com,Premium,1,0,0,\n`);
     expect(r.unknownHeaders).toEqual([]);
+  });
+
+  it("2026-10 추가된 통합 메시지(베타) 칼럼을 저장하고, 없던 CSV는 0", () => {
+    const r = parseMembersCsv(`Email,Seat Tier,Chats,Code sessions,Cowork Sessions,Messages in Chat and Cowork unified (beta)\ndev@example.com,Premium,1,0,0,"1,234"\n`);
+    expect(r.unknownHeaders).toEqual([]);
+    expect(r.rows[0].unified_messages).toBe(1234);
+    expect(parseMembersCsv(`Email,Seat Tier,Chats,Code sessions,Cowork Sessions\ndev@example.com,Premium,1,0,0\n`).rows[0].unified_messages).toBe(0);
   });
 
   it("필수 칼럼이 없어도 미매핑 칼럼은 알려 준다", () => {

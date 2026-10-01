@@ -106,6 +106,8 @@ export interface MemberActivityRow {
   file_edits: number;
   cowork_sessions: number;
   cowork_messages: number;
+  /** CSV "Messages in Chat and Cowork unified (beta)" — 칼럼이 없던 과거 CSV는 0 */
+  unified_messages: number;
   artifacts_created: number;
   claude_code_artifacts: number;
   cowork_artifacts: number;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { aggregateChatTeams, parentUnitOf } from "@/lib/claude-usage/chat-team-summary";
 
-const base = { chats: 0, messages: 0, code_sessions: 0, cowork_sessions: 0, cowork_messages: 0, projects_used: 0, artifacts_created: 0, estimated_spend_usd: 0 };
+const base = { chats: 0, messages: 0, code_sessions: 0, cowork_sessions: 0, cowork_messages: 0, unified_messages: 0, projects_used: 0, artifacts_created: 0, estimated_spend_usd: 0 };
 
 describe("aggregateChatTeams", () => {
   it("팀별로 수치를 더하고 인원은 고유 이메일로 센다(여러 Claude 조직 계정 중복 제거)", () => {
