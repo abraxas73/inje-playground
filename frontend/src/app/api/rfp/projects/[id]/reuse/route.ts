@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
 import { loadReusePool, suggestReuse } from "@/lib/rfp/mapping/reuse";
-import { detailUnitMap } from "@/lib/rfp/mapping/detail-items";
+import { detailUnitMap, readDetailSplits } from "@/lib/rfp/mapping/detail-items";
 import type { ReuseResponse } from "@/types/rfp";
 
 export const runtime = "nodejs";
@@ -19,11 +19,11 @@ export async function GET(request: NextRequest, { params }: Params) {
   const detailKey = (request.nextUrl.searchParams.get("detailKey") ?? "").trim() || null;
   if (!requirementId) return NextResponse.json({ error: "requirementId가 필요합니다." }, { status: 400 });
 
-  const { data: req, error } = await auth.admin.from("rfp_requirements").select("id, project_id, title, details").eq("id", requirementId).maybeSingle();
+  const { data: req, error } = await auth.admin.from("rfp_requirements").select("id, project_id, title, details, source").eq("id", requirementId).maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!req || req.project_id !== id) return NextResponse.json({ error: "요구사항이 없습니다." }, { status: 404 });
-  const q = req as { id: string; title: string; details: string };
-  const detailText = detailKey ? detailUnitMap(q.details).get(detailKey)?.text ?? null : null;
+  const q = req as { id: string; title: string; details: string; source?: unknown };
+  const detailText = detailKey ? detailUnitMap(q.details, readDetailSplits(q.source, q.details)).get(detailKey)?.text ?? null : null;
 
   try {
     const pool = await loadReusePool(auth.admin);

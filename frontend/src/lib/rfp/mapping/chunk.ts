@@ -11,6 +11,8 @@ export interface ChunkRequirement {
   categoryName: string;
   definition: string;
   details: string;
+  /** 사용자가 하위 대시까지 분리한 상위 항목: key → 원문 스냅샷 */
+  detailSplits?: Record<string, string>;
 }
 
 export function truncateDetails(text: string, max = DETAILS_MAX_CHARS): string {

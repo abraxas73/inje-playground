@@ -10,6 +10,8 @@ export interface Requirement {
   title: string;
   definition: string;
   details: string;
+  /** 사용자가 하위 대시까지 분리한 상위 항목: key → 원문 스냅샷 */
+  detailSplits?: Record<string, string>;
   deliverables: string;
   related: string;
   /** 문서 등장 순서 */

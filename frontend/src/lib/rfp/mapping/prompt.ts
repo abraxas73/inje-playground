@@ -63,7 +63,7 @@ export function buildCatalogPrompt(catalog: CatalogSolution[]): { systemText: st
  */
 export function buildChunkMessage(reqs: readonly ChunkRequirement[], maxCandidates = MAPPING_CANDIDATES_DEFAULT): string {
   const parts = reqs.map((r) => {
-    const { units, flat } = parseDetailUnits(r.details);
+    const { units, flat } = parseDetailUnits(r.details, r.detailSplits);
     const lines = [
       `### ${r.reqId} ${r.title.trim()}`,
       `구분: ${r.categoryName.trim()}`,

@@ -36,6 +36,8 @@ export interface DetailUnit {
 
 export interface DetailStructure {
   units: DetailUnit[];
+  /** 세분화 전 상위 매핑은 참고용으로 보존한다. */
+  retiredKeys?: string[];
   /** 글머리가 없어 한 덩어리로 본 경우 */
   flat: boolean;
   /** 하위 글머리가 있어 1단으로 묶은 경우 */
@@ -47,7 +49,7 @@ function label(text: string): string {
   return one.length <= DETAIL_LABEL_MAX ? one : `${one.slice(0, DETAIL_LABEL_MAX).trim()}…`;
 }
 
-export function parseDetailUnits(details: string): DetailStructure {
+function parseBaseDetailUnits(details: string): DetailStructure {
   const lines = details.split("\n").map((l) => l.trimEnd()).filter((l) => l.trim());
   if (!lines.length) return { units: [], flat: true, nested: false };
 
@@ -85,6 +87,55 @@ export function parseDetailUnits(details: string): DetailStructure {
 }
 
 /** key → 단위(화면·검증에서 라벨을 되찾을 때) */
-export function detailUnitMap(details: string): Map<string, DetailUnit> {
-  return new Map(parseDetailUnits(details).units.map((u) => [u.key, u]));
+export function detailUnitMap(details: string, splits?: DetailSplits): Map<string, DetailUnit> {
+  return new Map(parseDetailUnits(details, splits).units.map((u) => [u.key, u]));
+}
+
+
+/** 원문 스냅샷과 일치할 때만 적용한다. 내용 수정 후 다른 항목을 잘못 분할하지 않는다. */
+export type DetailSplits = Record<string, string>;
+export const EXPANDED_DETAIL_UNITS_MAX = 200;
+
+export function readDetailSplits(source: unknown, details?: string): DetailSplits {
+  if (!source || typeof source !== "object" || !("detailSplits" in source)) return {};
+  const value = source.detailSplits;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const current = details === undefined ? null : new Map(parseBaseDetailUnits(details).units.map((u) => [u.key, u.text]));
+  return Object.fromEntries(Object.entries(value).filter(([key, text]) => /^\d+$/.test(key) && typeof text === "string" && (!current || current.get(key) === text)));
+}
+
+/** 상위 항목의 바로 아래 대시만 분리. ※·줄바꿈·더 깊은 대시는 앞 하위 항목에 붙인다. */
+export function splitDetailChildren(unit: DetailUnit): DetailUnit[] {
+  const lines = unit.text.split("\n");
+  const dash = (line: string) => /^\s*[-–—]\s+/.test(line);
+  const indents = lines.slice(1).filter(dash).map((line) => line.length - line.trimStart().length);
+  if (indents.length < 2) return [];
+  const depth = Math.min(...indents);
+  const preamble: string[] = [];
+  const children: string[][] = [];
+  for (const line of lines) {
+    if (dash(line) && line.length - line.trimStart().length === depth) children.push([line]);
+    else if (children.length) children[children.length - 1].push(line);
+    else preamble.push(line);
+  }
+  if (children.length < 2) return [];
+  return children.map((child, i) => ({
+    key: `${unit.key}.${i + 1}`,
+    label: label(child[0]),
+    text: [...preamble, ...child].join("\n"),
+    childCount: child.length - 1,
+  }));
+}
+
+export function parseDetailUnits(details: string, splits: DetailSplits = {}): DetailStructure {
+  const base = parseBaseDetailUnits(details);
+  const retiredKeys: string[] = [];
+  const units = base.units.flatMap((unit) => {
+    if (splits[unit.key] !== unit.text) return [unit];
+    const children = splitDetailChildren(unit);
+    if (!children.length) return [unit];
+    retiredKeys.push(unit.key);
+    return children;
+  });
+  return retiredKeys.length ? { units, flat: false, nested: true, retiredKeys: base.flat ? [...retiredKeys, ""] : retiredKeys } : base;
 }

@@ -46,7 +46,7 @@ interface Candidate {
 export function validateMappingOutput(items: EngineItem[], chunk: readonly ChunkRequirement[], lookup: FeatureLookup, opts: { maxCandidates?: number; maxPerSolution?: number } = {}): ValidationResult {
   const maxRows = parseMaxCandidates(opts.maxCandidates ?? MAX_ROWS_PER_REQUIREMENT);
   const byReqId = new Map(chunk.map((r) => [r.reqId.replace(/\s+/g, "").toUpperCase(), r]));
-  const unitsOf = new Map(chunk.map((r) => [r.id, detailUnitMap(r.details)]));
+  const unitsOf = new Map(chunk.map((r) => [r.id, detailUnitMap(r.details, r.detailSplits)]));
   const warnings: string[] = [];
   const unmapped: string[] = [];
   /** 키 = `${요구사항 id}|${세부 항목 키 ?? ""}` */
@@ -157,7 +157,7 @@ export function assertCompleteLlmMapping(rows: readonly ValidatedRow[], chunk: r
   const missing: string[] = [];
   for (const req of chunk) {
     const mapped = rows.filter((r) => r.requirementId === req.id);
-    const { units, flat } = parseDetailUnits(req.details);
+    const { units, flat } = parseDetailUnits(req.details, req.detailSplits);
     if (!flat && units.length > 1) {
       for (const unit of units) {
         if (!mapped.some((r) => r.detailKey === unit.key)) missing.push(`${req.reqId} 세부 ${unit.key}`);

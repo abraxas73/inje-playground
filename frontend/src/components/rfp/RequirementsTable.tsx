@@ -175,9 +175,9 @@ export default function RequirementsTable({
         const g = groups.get(ctx.row.original.id) ?? [];
         const best = bestVerdict(g);
         // 세부 항목 단위로 매핑했으면 몇 개 항목이 채워졌는지 함께 보여준다
-        const { units, flat } = parseDetailUnits(ctx.row.original.details);
+        const { units, flat } = parseDetailUnits(ctx.row.original.details, ctx.row.original.detailSplits);
         const multi = !flat && units.length > 1;
-        const done = multi ? new Set(g.filter((m) => m.detailKey).map((m) => m.detailKey)).size : 0;
+        const done = multi ? new Set(g.filter((m) => units.some((u) => u.key === m.detailKey)).map((m) => m.detailKey)).size : 0;
         return (
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-1">
@@ -322,6 +322,7 @@ export default function RequirementsTable({
                             maxCandidates={maxCandidates}
                             running={mappingStatus === "running"}
                             onRunMapping={onRunMapping}
+                            onRequirementChange={(updated) => onChange(requirements.map((r) => r.id === updated.id ? updated : r))}
                             onChange={(rows) => replaceMappingsFor(row.original.id, rows)}
                           />
                         </td>

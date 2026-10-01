@@ -194,7 +194,7 @@ export function matchRequirement(
   r: ChunkRequirement, index: FeatureEntry[], maxCandidates: number = RULES.TOP_PER_REQ, descriptions: Map<string, string> = new Map(),
 ): EngineItem[] {
   const top = parseMaxCandidates(maxCandidates);
-  const { units, flat } = parseDetailUnits(r.details);
+  const { units, flat } = parseDetailUnits(r.details, r.detailSplits);
   if (!units.length || flat) return matchText(r.reqId, requirementText(r), index, top, null, descriptions);
   return units.flatMap((u) => matchText(r.reqId, detailUnitText(r, u), index, top, u.key, descriptions));
 }
