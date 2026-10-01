@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createDeck, uploadSource } from "@/lib/ppt/client";
-import { PPT_SOURCE_EXTENSIONS_TEXT, SOURCE_MAX_CHARS } from "@/types/ppt";
+import { DEFAULT_PPT_MODEL, PPT_MODEL_OPTIONS, PPT_SOURCE_EXTENSIONS_TEXT, SOURCE_MAX_CHARS } from "@/types/ppt";
 
 const ACCEPT = ".docx,.pdf,.hwp,.hwpx,.pptx,.md,.txt";
 
@@ -20,6 +21,7 @@ export default function NewDeckForm({ llmAvailable, onCreated }: { llmAvailable:
   const [prompt, setPrompt] = useState("");
   const [title, setTitle] = useState("");
   const [dept, setDept] = useState("");
+  const [model, setModel] = useState(DEFAULT_PPT_MODEL);
   const [busy, setBusy] = useState<"upload" | "create" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,7 +37,7 @@ export default function NewDeckForm({ llmAvailable, onCreated }: { llmAvailable:
   const submit = async () => {
     setError(null);
     try {
-      let body: Parameters<typeof createDeck>[0] = { prompt, title: title.trim() || undefined, dept: dept.trim() || undefined };
+      let body: Parameters<typeof createDeck>[0] = { prompt, title: title.trim() || undefined, dept: dept.trim() || undefined, model };
       if (tab === "text") body = { ...body, text };
       else {
         setBusy("upload");
@@ -72,7 +74,12 @@ export default function NewDeckForm({ llmAvailable, onCreated }: { llmAvailable:
           <Label htmlFor="ppt-prompt">프롬프트(선택)</Label>
           <Textarea id="ppt-prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={2} maxLength={2000} placeholder="예: 경영진 보고용, 12장 이내, 결론 먼저" />
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1"><Label htmlFor="ppt-model">모델</Label>
+            <Select value={model} onValueChange={setModel}>
+              <SelectTrigger id="ppt-model" className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>{PPT_MODEL_OPTIONS.map((o) => <SelectItem key={o.id} value={o.id}>{o.label}<span className="ml-2 text-xs text-muted-foreground">{o.note}</span></SelectItem>)}</SelectContent>
+            </Select></div>
           <div className="space-y-1"><Label htmlFor="ppt-title">표지 제목(선택)</Label><Input id="ppt-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="비우면 원고에서 정합니다(목록에는 파일명·첫 줄이 먼저 보입니다)" /></div>
           <div className="space-y-1"><Label htmlFor="ppt-dept">부서명(선택)</Label><Input id="ppt-dept" value={dept} onChange={(e) => setDept(e.target.value)} maxLength={60} placeholder="비우면 '부서명'으로 표기됩니다" /></div>
         </div>

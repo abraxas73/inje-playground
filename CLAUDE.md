@@ -116,7 +116,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `ANTHROPIC_API_KEY`, `RFP_LLM_MODEL`(기본 claude-opus-5) — RFP 비표준 문서 LLM 폴백 + 카탈로그 기능 추출 + 솔루션 매핑(선택 — 없으면 규칙 엔진만)
 - `PPT_SERVICE_URL` — ppt-service 주소(`https://innogrid-ppt-service.vercel.app`)
 - `PPT_SERVICE_TOKEN` — 프론트·ppt-service 공통 토큰(`openssl rand -hex 32`, 두 프로젝트 같은 값)
-- `PPT_LLM_MODEL` — (선택) PPT 생성 모델, 기본 `claude-sonnet-5-5`. `ANTHROPIC_API_KEY`가 없으면 /ppt는 안내문만 보인다
+- `PPT_LLM_MODEL` — (선택) 폼에서 모델을 안 골랐을 때의 PPT 생성 모델, 기본 `claude-sonnet-5-5`(폼 선택지 Sonnet 5.5·Opus 5.5는 `types/ppt.ts`). `ANTHROPIC_API_KEY`가 없으면 /ppt는 안내문만 보인다
 - `CLAUDE_ADMIN_API_KEY` — (선택) Anthropic Admin API 키(`sk-ant-admin01-…`, Console > Admin keys). 비용 관리의 API 비용 수집(`cost_report`)에만 쓰고, 없으면 그 탭을 숨긴다. settings 저장 금지
 - `MARKETING_AI_ENABLED`, `MARKETING_AI_MODEL` — 마케팅 Master DB AI 추천(선택). `ANTHROPIC_API_KEY`와 함께 있을 때만 활성, 없으면 규칙 검증·수동 검수만. 현재 운영 미설정
 - `MEDIA_SMTP_HOST`, `MEDIA_SMTP_PORT`, `MEDIA_SMTP_USER`, `MEDIA_SMTP_PASS`, `MEDIA_APP_URL` — **Edge Function secrets**(Vercel 아님). 부고 알림과 인사·부고 소식 메일(예약·지금 수신) SMTPS 발송. 비어 있으면 매칭만 하고 발송·예약 claim을 건너뛴다

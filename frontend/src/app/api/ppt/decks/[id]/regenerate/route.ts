@@ -17,13 +17,6 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!r.ok) return r.response;
   const parsed = parseRegenerateRequest(await request.json().catch(() => null));
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
-  let deps: { llm: DeckLlm; service: PptServiceClient };
-  try {
-    deps = { llm: createAnthropicDeckLlm(), service: createPptServiceClient() };
-  } catch (e) {
-    if (e instanceof LlmUnavailableError || e instanceof PptServiceError) return NextResponse.json({ error: e.message }, { status: 500 });
-    throw e;
-  }
   const { admin, userId } = r.auth;
   await failStaleVersions(admin);
   if (await hasActiveVersion(admin, userId)) return NextResponse.json({ error: "진행 중인 생성이 끝난 뒤 다시 시도하세요." }, { status: 409 });
@@ -33,11 +26,19 @@ export async function POST(request: NextRequest, { params }: Params) {
   const baseNo = parsed.retry ? Math.max(...versions.map((v) => v.no)) : (parsed.baseVersion ?? r.deck.current_version);
   const base = versions.find((v) => v.no === baseNo && (parsed.retry || v.status === "done"));
   if (!base) return NextResponse.json({ error: `기준 버전 v${baseNo}이(가) 완료 상태가 아닙니다.` }, { status: 400 });
+  // 모델은 기준 버전 것을 잇는다(덱 하나는 같은 모델로) — 바꾸려면 새 덱
+  let deps: { llm: DeckLlm; service: PptServiceClient };
+  try {
+    deps = { llm: createAnthropicDeckLlm({ model: base.llm_model ?? undefined }), service: createPptServiceClient() };
+  } catch (e) {
+    if (e instanceof LlmUnavailableError || e instanceof PptServiceError) return NextResponse.json({ error: e.message }, { status: 500 });
+    throw e;
+  }
   const baseSrc = await loadVersionWithSource(admin, base.id);
   const no = Math.max(...versions.map((v) => v.no)) + 1;
   const { data, error } = await admin.from("ppt_deck_versions").insert({
     deck_id: id, no, status: "generating", source_kind: base.source_kind, source_text: baseSrc?.source_text ?? null, source_path: baseSrc?.source_path ?? null,
-    source_name: base.source_name, prompt: base.prompt, feedback: parsed.feedback, base_version: parsed.retry ? null : baseNo,
+    source_name: base.source_name, prompt: base.prompt, feedback: parsed.feedback, base_version: parsed.retry ? null : baseNo, llm_model: deps.llm.model,
   }).select("id").single();
   if (error || !data) return NextResponse.json({ error: error?.message ?? "버전을 만들지 못했습니다." }, { status: 500 });
   const versionId = (data as { id: string }).id;

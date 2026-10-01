@@ -70,7 +70,16 @@ export interface PptCreateRequest {
   prompt: string;
   title?: string;
   dept?: string;
+  /** PPT_MODEL_OPTIONS의 id. 비우면 서버 기본(PPT_LLM_MODEL 또는 Sonnet) */
+  model?: string;
 }
+
+/** 폼에서 고르는 생성 모델. 재생성·재시도는 기준 버전의 모델을 잇는다. */
+export const DEFAULT_PPT_MODEL = "claude-sonnet-5-5";
+export const PPT_MODEL_OPTIONS: ReadonlyArray<{ id: string; label: string; note: string }> = [
+  { id: DEFAULT_PPT_MODEL, label: "Sonnet 5.5", note: "기본 · 빠르고 저렴" },
+  { id: "claude-opus-5-5", label: "Opus 5.5", note: "더 정교 · 비용 약 2배" },
+];
 
 export type PptActionErrorCode = "not_connected" | "reconnect" | "no_folder" | "no_channel";
 

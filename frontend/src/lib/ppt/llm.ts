@@ -1,7 +1,8 @@
 /** Anthropic 호출을 한 겹 싼다 — 테스트에서 가짜로 바꾸고, usage(캐시 포함)를 한 곳에서 집계한다. */
 import Anthropic from "@anthropic-ai/sdk";
+import { DEFAULT_PPT_MODEL } from "@/types/ppt";
 
-export const DEFAULT_PPT_MODEL = "claude-sonnet-5-5";
+export { DEFAULT_PPT_MODEL };
 export function pptModel(): string { return process.env.PPT_LLM_MODEL || DEFAULT_PPT_MODEL; }
 
 export interface LlmUsage { in: number; out: number; cacheRead: number; cacheWrite: number }

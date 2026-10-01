@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
   let deps: { llm: DeckLlm; service: PptServiceClient };
   try {
-    deps = { llm: createAnthropicDeckLlm(), service: createPptServiceClient() };
+    deps = { llm: createAnthropicDeckLlm({ model: parsed.model ?? undefined }), service: createPptServiceClient() };
   } catch (e) {
     if (e instanceof LlmUnavailableError || e instanceof PptServiceError) return NextResponse.json({ error: e.message }, { status: 500 });
     throw e;
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
   if (deckError || !deck) return NextResponse.json({ error: deckError?.message ?? "덱을 만들지 못했습니다." }, { status: 500 });
   const deckId = (deck as { id: string }).id;
   const { data: version, error: versionError } = await auth.admin.from("ppt_deck_versions")
-    .insert({ deck_id: deckId, no: 1, status: "generating", source_kind: parsed.kind, source_text: parsed.text, source_path: parsed.storagePath, source_name: parsed.fileName, prompt: parsed.prompt })
+    .insert({ deck_id: deckId, no: 1, status: "generating", source_kind: parsed.kind, source_text: parsed.text, source_path: parsed.storagePath, source_name: parsed.fileName, prompt: parsed.prompt, llm_model: deps.llm.model })
     .select("id").single();
   if (versionError || !version) {
     const { error: cleanupError } = await auth.admin.from("ppt_decks").delete().eq("id", deckId);

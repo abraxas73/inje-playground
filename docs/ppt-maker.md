@@ -12,7 +12,7 @@
 |---|---|---|
 | 둘 다 | `PPT_SERVICE_TOKEN` | `openssl rand -hex 32`. 같은 값 |
 | innogrid-playground | `PPT_SERVICE_URL` | `https://innogrid-ppt-service.vercel.app` |
-| innogrid-playground | `PPT_LLM_MODEL`(선택) | 기본 `claude-sonnet-5-5` |
+| innogrid-playground | `PPT_LLM_MODEL`(선택) | 폼에서 안 고를 때의 기본(기본값 `claude-sonnet-5-5`). 폼은 Sonnet 5.5·Opus 5.5 중 선택(`types/ppt.ts` `PPT_MODEL_OPTIONS`), 재생성·재시도는 기준 버전 모델을 잇는다 |
 | innogrid-playground | `ANTHROPIC_API_KEY` | 없으면 화면이 안내문만 보인다 |
 | innogrid-ppt-service | `SUPABASE_URL` | 서명 URL 호스트 제한용 |
 

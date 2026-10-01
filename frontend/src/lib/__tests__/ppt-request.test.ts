@@ -4,7 +4,7 @@ import { parseCreateRequest, parseRegenerateRequest, provisionalTitle } from "@/
 describe("parseCreateRequest", () => {
   it("accepts text", () => {
     const r = parseCreateRequest({ text: "원고", prompt: " 12장 ", title: "제안", dept: "R&D" });
-    expect(r).toEqual({ ok: true, kind: "text", text: "원고", storagePath: null, fileName: null, prompt: "12장", title: "제안", dept: "R&D" });
+    expect(r).toEqual({ ok: true, kind: "text", text: "원고", storagePath: null, fileName: null, prompt: "12장", title: "제안", dept: "R&D", model: null });
   });
   it("accepts a file ticket and classifies pptx", () => {
     const path = "source/0d1f0f7e-1111-4222-8333-444455556666.pptx";
@@ -19,6 +19,14 @@ describe("parseCreateRequest", () => {
     expect(parseCreateRequest({ storagePath: "source/0d1f0f7e-1111-4222-8333-444455556666.docx", fileName: "a.pdf", prompt: "" })).toMatchObject({ ok: false, status: 400 });
     expect(parseCreateRequest({ text: "a", prompt: "p".repeat(2001) })).toMatchObject({ ok: false, status: 400 });
     expect(parseCreateRequest(null)).toMatchObject({ ok: false, status: 400 });
+  });
+});
+
+describe("parseCreateRequest model", () => {
+  it("accepts a listed model, defaults to null, rejects others", () => {
+    expect(parseCreateRequest({ text: "x", prompt: "", model: "claude-opus-5-5" })).toMatchObject({ ok: true, model: "claude-opus-5-5" });
+    expect(parseCreateRequest({ text: "x", prompt: "" })).toMatchObject({ ok: true, model: null });
+    expect(parseCreateRequest({ text: "x", prompt: "", model: "claude-haiku-4-5" })).toMatchObject({ ok: false, status: 400, error: "선택할 수 없는 모델입니다." });
   });
 });
 
