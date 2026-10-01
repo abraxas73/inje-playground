@@ -58,12 +58,13 @@ export function normalizeMeta(raw: RawDeck, today: string): DeckJson {
   return { meta, sections: raw.sections as SectionJson[] };
 }
 
-/** 수정 응답 `{"slide": {...}}` → 장표 하나 */
-export function parseSlidePatch(text: string): SlideJson {
-  const obj = parseObject(text) as { slide?: unknown };
-  const r = SlideSchema.safeParse(obj?.slide);
-  if (!r.success || isKeep(r.data as SlideJson)) throw new DeckParseError("수정 응답에 slide 객체가 없습니다.");
-  return r.data as SlideJson;
+/** 수정 응답 `{"slide": {...}}` → 장표 하나, `{"slides": [...]}` → 장 분리(1~4장이 그 자리에 들어간다) */
+export function parseSlidePatch(text: string): SlideJson[] {
+  const obj = parseObject(text) as { slide?: unknown; slides?: unknown };
+  const raw = Array.isArray(obj?.slides) ? obj.slides : obj?.slide !== undefined ? [obj.slide] : [];
+  const r = z.array(SlideSchema).min(1).max(4).safeParse(raw);
+  if (!r.success || r.data.some((s) => isKeep(s as SlideJson))) throw new DeckParseError("수정 응답에 slide 객체가 없습니다.");
+  return r.data as SlideJson[];
 }
 
 export function isKeep(s: SlideJson): s is KeepSlide { return (s as KeepSlide).keep === true; }
@@ -85,10 +86,12 @@ export function applyKeep(deck: DeckJson, base: DeckJson): { ok: true; deck: Dec
   return { ok: true, deck: { meta: deck.meta, sections } };
 }
 
-export function replaceSlide(deck: DeckJson, section: number, slide: number, next: SlideJson): DeckJson {
+/** (섹션, 순번)의 장표를 next로 바꾼다. 배열이면 그 자리에 여러 장이 들어간다(장 분리). */
+export function replaceSlide(deck: DeckJson, section: number, slide: number, next: SlideJson | SlideJson[]): DeckJson {
   const sec = deck.sections[section];
   if (!sec || slide < 0 || slide >= sec.slides.length) throw new RangeError(`장표 위치가 없습니다: 섹션 ${section} 장표 ${slide}`);
-  const sections = deck.sections.map((s, i) => (i === section ? { ...s, slides: s.slides.map((x, j) => (j === slide ? next : x)) } : s));
+  const list = Array.isArray(next) ? next : [next];
+  const sections = deck.sections.map((s, i) => (i === section ? { ...s, slides: [...s.slides.slice(0, slide), ...list, ...s.slides.slice(slide + 1)] } : s));
   return { meta: deck.meta, sections };
 }
 

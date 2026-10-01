@@ -24,6 +24,7 @@ export const RULES_TEXT = `당신은 이노그리드 표준 PPT 템플릿(v1.0 �
 2) 항목 관계: 독립 나열 → card-N / 결론 먼저+근거 → lead-N / 항목마다 설명→결론 → pill-N / 순서·단계 → steps-N·flow-N·timeline / 전·후 → change-2-* / 둘 비교 → compare-* / 중심-주변 → radial-4 / 축×관점 격자 → columns-3x3
 3) 단 수는 이름의 일부다: 항목 수와 정확히 같은 N을 고른다(card-4는 항목 4개 고정). 맞는 N이 없으면 항목을 묶거나 장을 나눈다.
 - 표는 행·열 데이터에만. 서술을 표로 만들지 않는다. 표가 본문의 1/4를 넘으면 도식 장표로 바꾼다.
+- 표 행 수(머리글 제외)는 카탈로그 '표 자리'의 한 줄 행 수 안에서. 한 행의 셀 글 합이 한 줄 글자 수를 넘어 두 줄로 접히면 한도는 두 줄 행 수로 준다. 행이 더 많으면 table-full로 바꾸거나 두 장으로 나눈다. 셀 글만 줄여서는 행 최소 높이 때문에 해결되지 않는다.
 - 템플릿으로 표현하기 어려운 원고 도식(아키텍처 구성도 등)은 free-title에 "source":{"slide":원고 장 번호}로 그대로 이식하고, 같은 내용을 템플릿 장표 한 장으로 요약해 뒤에 붙인다.
 - 이미지형은 원고 PPT 그림을 "images":["src:장:번호", …](장 = 원고 장표 번호, 번호 = 그 장의 그림 순번)로 준다. 그림이 없는 원고에는 image-*를 쓰지 않는다.
 - 제품 소개는 {"layout":"product"|"product-features","product":"제품 이름"} 또는 {"layout":"product","product":"tafa"|"tafa-layers"|"lineup"}.
@@ -40,7 +41,7 @@ export const RULES_TEXT = `당신은 이노그리드 표준 PPT 템플릿(v1.0 �
 - 부서명은 원고에서 파악되면 meta.dept에, 아니면 생략한다(표지에 "부서명"으로 표기된다). 날짜는 지시에 준 오늘 날짜.
 
 # 수정·재생성 규약
-- 빌드 오류 수정 요청에는 지시대로 {"slide":{…}} 한 장표만, 또는 덱 전체 JSON을 낸다.
+- 빌드 오류 수정 요청에는 지시대로 {"slide":{…}} 한 장표만, 장을 나눠야 하면 {"slides":[{…},{…}]}(그 자리에 순서대로 들어간다), 또는 덱 전체 JSON을 낸다.
 - 재생성에서 바꾸지 않는 장표는 {"keep": true}로만 적는다(같은 섹션의 같은 순번을 유지한다는 뜻). 섹션을 추가·삭제·순서 변경했으면 그 섹션의 장표는 전부 다시 적는다.`;
 
 function entryLine(e: PptCatalogEntry): string {
@@ -49,8 +50,14 @@ function entryLine(e: PptCatalogEntry): string {
   if (e.closing) bits.push(e.closing.required ? `마무리 문구 필수·${e.closing.maxLines}줄까지` : `마무리 문구 선택·${e.closing.maxLines}줄까지`);
   if (e.chips) bits.push(`키워드 칩 ${e.chips}개`);
   if (e.required.length) bits.push(`필수: ${e.required.join(", ")}`);
-  const cap = capacityLine(e.capacity);
+  const cap = [capacityLine(e.capacity), tableLine(e.table)].filter(Boolean).join(" · ");
   return `- ${e.name} (${bits.join(", ")}) — ${e.desc}. ${e.use}\n  ${JSON.stringify(e.example)}${cap ? `\n  용량: ${cap}` : ""}`;
+}
+
+/** "표 자리 높이 7.1cm = 머리글 + 한 줄 행 6개(두 줄 행 4개), 폭 27cm ≈ 한 줄 95자(열 합계, 8pt)" */
+export function tableLine(t: PptCatalogEntry["table"]): string | null {
+  if (!t) return null;
+  return `표 자리 높이 ${t.heightCm}cm = 머리글 + 한 줄 행 ${t.rowsOneLine}개(두 줄 행 ${t.rowsTwoLine}개), 폭 ${t.widthCm}cm ≈ 한 줄 ${t.charsPerLine}자(열 합계, 8pt)`;
 }
 
 /** "title 15/1 · body 24/4" — 역할 줄당글자/줄수. 없으면 null */
@@ -107,14 +114,18 @@ export function jsonOnlyRetryMessages(prior: Anthropic.MessageParam[], badText: 
   return [...prior, { role: "assistant", content: badText.slice(0, 4000) || "(빈 응답)" }, { role: "user", content: "설명 없이 deck JSON 객체 하나만 다시 출력한다. 마크다운 펜스도 쓰지 않는다." }];
 }
 
-export function fixMessages(p: { prior: Anthropic.MessageParam[]; deck: DeckJson; error: PptBuildFail; catalog?: PptCatalog }): Anthropic.MessageParam[] {
+/** history: 같은 장표가 앞서 실패한 오류 첫 줄들 — 있으면 글 줄이기 대신 행·항목 수 축소·장표 교체·장 분리로 지시를 올린다 */
+export function fixMessages(p: { prior: Anthropic.MessageParam[]; deck: DeckJson; error: PptBuildFail; catalog?: PptCatalog; history?: string[] }): Anthropic.MessageParam[] {
   const where = p.error.section !== null && p.error.slide !== null ? { s: p.error.section, j: p.error.slide } : null;
   const slide = where ? p.deck.sections[where.s]?.slides[where.j] : undefined;
   const layout = slide && !isKeep(slide) ? String(slide.layout) : null;
   const entry = layout ? p.catalog?.layouts.find((e) => e.name === layout) ?? (layout === "message" ? p.catalog?.message : undefined) : undefined;
-  const cap = capacityLine({ ...(entry?.capacity ?? {}), ...(entry?.capacity && p.catalog?.capacityCommon ? p.catalog.capacityCommon : {}) });
+  const cap = [capacityLine({ ...(entry?.capacity ?? {}), ...(entry?.capacity && p.catalog?.capacityCommon ? p.catalog.capacityCommon : {}) }), tableLine(entry?.table)].filter(Boolean).join(" · ");
+  const again = p.history?.length
+    ? `\n이 장표는 이미 ${p.history.length}회 고쳤지만 다시 넘쳤다(${p.history.join(" → ")}). 글만 줄이는 방식은 통하지 않았다 — 행·항목 수를 줄이거나, 더 넓은 장표(표는 table-full)로 바꾸거나, {"slides":[{…},{…}]}로 두 장으로 나눈다.`
+    : "";
   const ask = where
-    ? `섹션 ${where.s + 1} 장표 ${where.j + 1}${layout ? `(${layout})` : ""}에서 빌드 오류가 났다:\n${p.error.message}\n\n이 장표만 고쳐 {"slide": {…}} 형식으로 답한다. 항목 수를 바꿔야 하면 카탈로그의 같은 계열 다른 단 수 장표를 쓴다. 넘침이면 넘친 슬롯만이 아니라 이 장표의 모든 문자열을 용량의 90% 안으로 줄인다(글자 수 세는 법은 규칙과 같다). 다른 장표는 건드리지 않는다.${cap ? `\n이 장표의 용량(역할 줄당글자/줄수): ${cap}` : ""}`
+    ? `섹션 ${where.s + 1} 장표 ${where.j + 1}${layout ? `(${layout})` : ""}에서 빌드 오류가 났다:\n${p.error.message}\n\n이 장표만 고쳐 {"slide": {…}} 형식으로 답한다. 항목 수를 바꿔야 하면 카탈로그의 같은 계열 다른 단 수 장표를 쓴다. 넘침이면 넘친 슬롯만이 아니라 이 장표의 모든 문자열을 용량의 90% 안으로 줄인다(글자 수 세는 법은 규칙과 같다). 다른 장표는 건드리지 않는다.${cap ? `\n이 장표의 용량(역할 줄당글자/줄수): ${cap}` : ""}${again}`
     : `빌드 오류가 났다:\n${p.error.message}\n\n오류를 고친 덱 전체 JSON을 다시 출력한다(keep 금지). 넘침이면 카탈로그 용량의 90% 안으로 줄인다.`;
   return [...p.prior, { role: "assistant", content: JSON.stringify(p.deck) }, { role: "user", content: ask }];
 }

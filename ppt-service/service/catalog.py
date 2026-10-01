@@ -58,6 +58,23 @@ def _capacity(name):
     return {role: list(cap) for (lay, role), cap in sorted(CAPACITY.items()) if lay == name and role not in COMMON_ROLES}
 
 
+def _table(spec):
+    """표 장표의 표 자리 — 높이·폭과 그 안에 드는 행 수(table._auto_row_heights와 같은 식: 행 = 여백 0.6 + 줄 × 8pt 줄높이, 최소 1.0cm)."""
+    cfg = spec.get("table")
+    if not cfg:
+        return None
+    avail = cfg["max_bottom"] - cfg["y"]
+    pitch = T.TABLE_FONT / 72 * 2.54 * 1.3
+    one = max(T.TABLE_ROW_H, 2 * T.TABLE_ROW_PAD + pitch)
+    two = max(T.TABLE_ROW_H, 2 * T.TABLE_ROW_PAD + 2 * pitch)
+    em = T.TABLE_FONT / 72 * 2.54
+    return {
+        "widthCm": round(cfg["w"], 1), "heightCm": round(avail, 1),
+        "rowsOneLine": int((avail - T.TABLE_HEADER_H) // one), "rowsTwoLine": int((avail - T.TABLE_HEADER_H) // two),
+        "charsPerLine": int(cfg["w"] // em),
+    }
+
+
 def _capacity_common():
     return {role: list(min(cap for (_, r), cap in CAPACITY.items() if r == role)) for role in COMMON_ROLES}
 
@@ -91,6 +108,7 @@ def load_catalog():
             "chips": (spec.get("chips") or {}).get("per"),
             "required": list(spec.get("required") or []),
             "capacity": _capacity(name),
+            "table": _table(spec),
             "example": example,
         })
     message = {

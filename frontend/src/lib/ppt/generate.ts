@@ -83,14 +83,19 @@ export async function generateDeck(input: GenerateInput, deps: GenerateDeps): Pr
     }
 
     await input.onBuild?.();
+    const failures: { key: string; line: string }[] = [];
     for (let round = 0; ; round += 1) {
       lastDeck = deck;
       const upload = await input.uploads();
       const result = await deps.service.build({ spec: deck, sourceUrl: input.sourceUrl, extract: input.extract, upload });
       if (result.ok) return { deck, build: result, usage, calls, model: deps.llm.model };
       if (round >= MAX_FIX_ROUNDS || (result.kind !== "spec" && result.kind !== "overflow")) throw new Error(result.message);
-      console.warn(`[ppt] 빌드 오류 수정 ${round + 1}/${MAX_FIX_ROUNDS} (${result.kind}, 섹션 ${result.section}, 장표 ${result.slide}): ${result.message.split("\n")[0]}`);
-      const fix = await ask(system, fixMessages({ prior, deck, error: result, catalog }));
+      const line = result.message.split("\n")[0];
+      const key = `${result.section}/${result.slide}`;
+      const history = failures.filter((f) => f.key === key).map((f) => f.line);
+      failures.push({ key, line: line.replace(/^\[[^\]]*\]\s*/, "") });
+      console.warn(`[ppt] 빌드 오류 수정 ${round + 1}/${MAX_FIX_ROUNDS} (${result.kind}, 섹션 ${result.section}, 장표 ${result.slide}): ${line}`);
+      const fix = await ask(system, fixMessages({ prior, deck, error: result, catalog, history }));
       if (result.section !== null && result.slide !== null) {
         try { deck = replaceSlide(deck, result.section, result.slide, parseSlidePatch(fix.text)); }
         catch (e) {

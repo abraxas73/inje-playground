@@ -8,6 +8,8 @@ export interface PptCatalogEntry {
   example: Record<string, unknown>;
   /** 슬롯 용량 {역할: [줄당 글자, 줄 수]} — 패키지 capacity.py 실측값(구버전 서비스에는 없다) */
   capacity?: Record<string, [number, number]>;
+  /** 표 장표의 표 자리 — 높이·폭과 드는 행 수(한 줄 행/두 줄 행), 한 줄 글자 수(열 합계) */
+  table?: { widthCm: number; heightCm: number; rowsOneLine: number; rowsTwoLine: number; charsPerLine: number } | null;
 }
 export interface PptCatalog {
   layouts: PptCatalogEntry[]; message: PptCatalogEntry; products: string[]; overview: string[];

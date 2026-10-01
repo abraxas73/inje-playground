@@ -8,6 +8,7 @@ const catalog: PptCatalog = {
   layouts: [
     { name: "card-4", slide: 28, arity: 4, desc: "카드 4장 + 마무리 바", use: "서로 독립한 4가지", closing: { required: true, maxLines: 2 }, chips: null, required: [], example: { layout: "card-4", title: ["…", "…"], cards: [{ title: "…", body: ["…"] }], closing: "…" }, capacity: { title: [9, 2], body: [17, 4], closing: [47, 3] } },
     { name: "pill-4", slide: 52, arity: 4, desc: "Pill 4", use: "항목마다 결론", closing: null, chips: 2, required: [], example: { layout: "pill-4", items: [] } },
+    { name: "table-note", slide: 92, arity: null, desc: "표 + 설명", use: "표 아래 주석", closing: null, chips: null, required: [], example: { layout: "table-note", tables: [] }, capacity: { note_title: [20, 1] }, table: { widthCm: 27, heightCm: 7.1, rowsOneLine: 6, rowsTwoLine: 4, charsPerLine: 95 } },
   ],
   message: { name: "message", slide: 26, arity: null, desc: "핵심 메시지", use: "한 문장", closing: null, chips: null, required: ["headline"], example: { layout: "message", headline: "…", detail: "…" } },
   products: ["openstackit"], overview: ["tafa"], productExample: [{ layout: "product", product: "openstackit" }], templateSlides: 106, package: "v3.1",
@@ -30,6 +31,10 @@ describe("prompt", () => {
     expect(t).toContain("용량: title 9/2 · body 17/4 · closing 47/3");
     expect(t).toContain("page_title 47/2 · section_label 20/1");
     expect(t).not.toContain("용량: \n"); // pill-4는 용량 없음 → 줄 자체를 생략
+    expect(t).toContain("용량: note_title 20/1 · 표 자리 높이 7.1cm = 머리글 + 한 줄 행 6개(두 줄 행 4개), 폭 27cm ≈ 한 줄 95자(열 합계, 8pt)");
+  });
+  it("rules carry the table row budget and the slides split protocol", () => {
+    for (const s of ["표 자리", "두 줄 행", '{"slides":[']) expect(RULES_TEXT).toContain(s);
   });
   it("system blocks are two cached text blocks", () => {
     const b = systemBlocks(catalog);
@@ -58,6 +63,15 @@ describe("prompt", () => {
     // 넘침 수정에 필요한 그 장표의 용량표 — 카드 제목 title과 장표 타이틀 page_title을 구분해 준다
     expect(text(one[2])).toContain("이 장표의 용량(역할 줄당글자/줄수): title 9/2 · body 17/4 · closing 47/3 · page_title 47/2 · section_label 20/1");
     expect(text(one[2])).toContain("모든 문자열을 용량의 90% 안으로");
+    // 같은 장표가 다시 넘치면 지시를 올린다: 행·항목 수, 장표 교체, 장 분리
+    const tableDeck: DeckJson = { meta: { title: ["a", "b."] }, sections: [{ name: "s", slides: [{ layout: "table-note", tables: [] }] }] };
+    const err = { ok: false as const, kind: "overflow" as const, message: "[table-note] 표가 7.4cm 로 자리(7.1cm)를 넘친다 — 행을 나누어", section: 0, slide: 0 };
+    const first = text(fixMessages({ prior, deck: tableDeck, error: err, catalog })[2]);
+    expect(first).toContain("표 자리 높이 7.1cm = 머리글 + 한 줄 행 6개");
+    expect(first).not.toContain("이미");
+    const third = text(fixMessages({ prior, deck: tableDeck, error: err, catalog, history: ["표가 8.9cm 로 자리(7.1cm)를 넘친다", "표가 8.7cm 로 자리(7.1cm)를 넘친다"] })[2]);
+    expect(third).toContain("이미 2회 고쳤지만 다시 넘쳤다(표가 8.9cm 로 자리(7.1cm)를 넘친다 → 표가 8.7cm 로 자리(7.1cm)를 넘친다)");
+    expect(third).toContain('{"slides":[');
     // 카탈로그 없이(구버전 서비스) 호출해도 용량 줄만 빠진다
     expect(text(fixMessages({ prior, deck, error: { ok: false, kind: "overflow", message: "x", section: 0, slide: 0 } })[2])).not.toContain("이 장표의 용량");
     const whole = fixMessages({ prior, deck, error: { ok: false, kind: "spec", message: "섹션은 최대 8개다", section: null, slide: null } });

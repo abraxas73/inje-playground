@@ -61,10 +61,17 @@ describe("keep / replace", () => {
     expect(d.sections[1].slides[0]).toEqual({ layout: "card-4" });
     expect(base.sections[1].slides[0]).toEqual({ layout: "table", title: ["p", "q."] });
     expect(() => replaceSlide(base, 5, 0, { layout: "x" })).toThrow(RangeError);
+    // 배열이면 그 자리에 여러 장(장 분리) — 뒤 장표는 밀린다
+    const split = replaceSlide(base, 1, 0, [{ layout: "table", title: ["1/2", "a."] }, { layout: "table", title: ["2/2", "b."] }]);
+    expect(split.sections[1].slides).toHaveLength(base.sections[1].slides.length + 1);
+    expect(split.sections[1].slides[1]).toEqual({ layout: "table", title: ["2/2", "b."] });
   });
-  it("parseSlidePatch accepts {slide:{…}} only", () => {
-    expect(parseSlidePatch('{"slide":{"layout":"card-3","cards":[]}}')).toEqual({ layout: "card-3", cards: [] });
+  it("parseSlidePatch accepts {slide:{…}} or {slides:[…]} (1~4), never keep", () => {
+    expect(parseSlidePatch('{"slide":{"layout":"card-3","cards":[]}}')).toEqual([{ layout: "card-3", cards: [] }]);
+    expect(parseSlidePatch('{"slides":[{"layout":"table"},{"layout":"table"}]}')).toHaveLength(2);
     expect(() => parseSlidePatch('{"layout":"card-3"}')).toThrow(DeckParseError);
+    expect(() => parseSlidePatch('{"slides":[]}')).toThrow(DeckParseError);
+    expect(() => parseSlidePatch('{"slides":[{"keep":true}]}')).toThrow(DeckParseError);
   });
 });
 

@@ -47,6 +47,18 @@ describe("generateDeck", () => {
     expect(svc.built).toHaveLength(2);
     expect(out.calls).toBe(2);
   });
+  it("a {slides:[…]} fix splits the slide in place, and the same slide failing again carries history", async () => {
+    const twoTables = { slides: [{ layout: "table", title: ["1/2", "a."] }, { layout: "table", title: ["2/2", "b."] }] };
+    const llm = llmOf([JSON.stringify(deck), JSON.stringify({ slide: { layout: "table-note" } }), JSON.stringify(twoTables)]);
+    const fail = (cm: string): PptBuildResult => ({ ok: false, kind: "overflow", message: `[table-note] 표가 ${cm}cm 로 자리(7.1cm)를 넘친다 — 행을 나누어`, section: 0, slide: 0 });
+    const svc = serviceOf([fail("8.9"), fail("7.4"), ok]);
+    const out = await generateDeck(base, { llm, service: svc });
+    expect(out.deck.sections[0].slides).toHaveLength(2);
+    expect(out.calls).toBe(3);
+    const secondAsk = llm.calls[2].at(-1)?.content as string;
+    expect(secondAsk).toContain("이미 1회 고쳤지만 다시 넘쳤다(표가 8.9cm 로 자리(7.1cm)를 넘친다 — 행을 나누어)");
+    expect(llm.calls[1].at(-1)?.content as string).not.toContain("이미");
+  });
   it("accepts a whole deck as the reply to a positioned fix round", async () => {
     const fixedDeck = { ...deck, meta: { ...deck.meta, title: ["x", "y."] } };
     const llm = llmOf([JSON.stringify(deck), JSON.stringify(fixedDeck)]);
