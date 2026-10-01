@@ -66,7 +66,7 @@ export default function NewDeckForm({ llmAvailable, templates, onCreated }: { ll
       <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Sparkles className="h-4 w-4 text-sky-600" />새로 만들기</CardTitle></CardHeader>
       <CardContent className="space-y-4">
         <Tabs value={tab} onValueChange={(v) => setTab(v as "text" | "file" | "url")}>
-          <TabsList className="grid h-auto w-full grid-cols-3 gap-1 bg-muted p-1">
+          <TabsList className="grid h-auto w-full group-data-[orientation=horizontal]/tabs:h-auto grid-cols-3 gap-1 bg-muted p-1">
             {([
               ["file", FileUp, "파일 원고", "docx·pdf·pptx 등 업로드"],
               ["url", Link2, "URL 원고", "웹 페이지 주소"],
