@@ -52,7 +52,7 @@ const RequirementCellContext = createContext<{ save: SaveRequirement; mapped: bo
 // Keep the component type stable even when callbacks or fetched data rebuild the columns.
 function RequirementEditableCell(ctx: CellContext<RfpRequirement, string>) {
   const { save } = useContext(RequirementCellContext)!;
-  return <EditableCell value={ctx.getValue()} onSave={save(ctx.row.original, ctx.column.id as EditableField)} clampLines={ctx.column.columnDef.meta?.clampLines ?? 3} />;
+  return <EditableCell value={ctx.getValue()} onSave={save(ctx.row.original, ctx.column.id as EditableField)} clampLines={ctx.column.columnDef.meta?.clampLines ?? 3} showExpandButton={ctx.column.id !== "details"} />;
 }
 
 function RequirementIdCell(ctx: CellContext<RfpRequirement, string>) {
