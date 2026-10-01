@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
-import { Download, FileCode2 } from "lucide-react";
+import { CheckCircle2, Download, FileCode2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { readError } from "@/lib/ppt/client";
 import { estimateCostUsd, formatUsd, PRICES_AS_OF } from "@/lib/ppt/pricing";
 import { formatElapsed } from "@/lib/ppt/elapsed";
+import { brandCheckItems } from "@/lib/ppt/brand-check";
 import ElapsedSince from "./ElapsedSince";
 import type { PptVersion } from "@/types/ppt";
 
@@ -39,8 +40,20 @@ export default function VersionPanel({ deckId, version }: { deckId: string; vers
         )}
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         {version.status === "done" && (
-          <div><div className="text-xs text-muted-foreground">브랜드 검사</div><div>{issueCount === 0 ? "통과" : `${issueCount}건 위반`}</div>
-            {issueCount > 0 && <ul className="mt-1 list-disc pl-4 text-xs text-muted-foreground">{Object.entries(version.checkIssues).map(([slide, msgs]) => msgs.map((m, i) => <li key={`${slide}-${i}`}>{slide}: {m}</li>))}</ul>}
+          <div>
+            <div className="text-xs text-muted-foreground">브랜드 검사 <span className="text-foreground">{issueCount === 0 ? "· 통과" : `· ${issueCount}건 위반`}</span> <span>— 템플릿 v1.0 규칙</span></div>
+            <ul className="mt-1 space-y-1">
+              {brandCheckItems(version.checkIssues).map((it) => (
+                <li key={it.key} className="text-xs">
+                  <div className="flex items-center gap-1.5">
+                    {it.issues.length === 0 ? <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" aria-label="통과" /> : <XCircle className="h-4 w-4 shrink-0 text-destructive" aria-label="위반" />}
+                    <span className="font-medium">{it.label}</span>
+                    <span className="text-muted-foreground">{it.issues.length === 0 ? it.desc : `${it.issues.length}건`}</span>
+                  </div>
+                  {it.issues.length > 0 && <ul className="mt-0.5 list-disc pl-9 text-muted-foreground">{it.issues.map((m, i) => <li key={i}>{m}</li>)}</ul>}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
         {version.advisories.length > 0 && (
