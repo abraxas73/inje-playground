@@ -125,11 +125,11 @@ export default function OverviewCard({ project, canDelete, catalogReady, llmAvai
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+        <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
           {FIELDS.map((f) => (
-            <div key={f.key} className="rounded-lg border p-3">
-              <dt className="text-xs text-muted-foreground">{f.label}</dt>
-              <dd className="mt-1"><EditableCell value={project[f.key] ?? ""} onSave={save(f.key)} clampLines={0} placeholder="클릭해서 입력" /></dd>
+            <div key={f.key} className="grid min-w-0 grid-cols-[7rem_minmax(0,1fr)] items-start gap-x-3 rounded-lg border px-3 py-2">
+              <dt className="pt-0.5 text-xs text-muted-foreground">{f.label}</dt>
+              <dd className="min-w-0 [&_textarea]:min-w-0"><EditableCell value={project[f.key] ?? ""} onSave={save(f.key)} clampLines={0} placeholder="클릭해서 입력" /></dd>
             </div>
           ))}
         </dl>
