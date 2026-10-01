@@ -10,8 +10,8 @@ export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
 
 /**
- * POST /api/ppt/decks/[id]/teams {enableShare?} — 개인 채널(있으면) 또는 관리자 채널에 카드 게시.
- * 400 {code:"no_channel"} / 409 완료 버전 없음 / 502 전송 실패
+ * POST /api/ppt/decks/[id]/teams {enableShare?} — **내 알림 채널(설정 → 알림 채널 개인 워크플로우 URL)** 에 카드 게시. 관리자 채널로는 보내지 않는다.
+ * 400 {code:"no_channel"} 채널 미설정 / 409 완료 버전 없음 / 502 전송 실패
  */
 export async function POST(request: NextRequest, { params }: Params) {
   const { id } = await params;
@@ -23,9 +23,13 @@ export async function POST(request: NextRequest, { params }: Params) {
   const body = (await request.json().catch(() => ({}))) as { enableShare?: boolean };
   const supabase = await createServerSupabase();
   const userSettings = await loadUserSettings(supabase, userId, USER_NOTIFIER_SETTING_KEYS);
+  // 내 덱을 내 채널로만 — 관리자 공용 채널 폴백은 하지 않는다(개인 알림이 전사 채널에 올라가는 사고 방지)
+  if (!userSettings.teams_notify_webhook_url?.trim()) {
+    return NextResponse.json({ error: "내 알림 채널이 설정되지 않았습니다. 설정 → 알림 채널(개인 워크플로우 URL)을 먼저 등록하세요. PPT 공유는 내 채널로만 보냅니다.", code: "no_channel" }, { status: 400 });
+  }
   const notifier = await getNotifier(supabase, "notify", personalNotifyOverrides(userSettings));
   if (!notifier.channelConfigured) {
-    return NextResponse.json({ error: "Teams 알림 채널이 설정되지 않았습니다(설정 → 알림 채널).", code: "no_channel" }, { status: 400 });
+    return NextResponse.json({ error: "알림 채널 URL이 올바르지 않습니다. 설정 → 알림 채널에서 다시 저장하세요.", code: "no_channel" }, { status: 400 });
   }
   const turnOn = !deck.share_enabled && body.enableShare === true;
   const shareUrl = deck.share_enabled || turnOn ? shareUrlFor(request, { ...deck, share_enabled: true }) : null;

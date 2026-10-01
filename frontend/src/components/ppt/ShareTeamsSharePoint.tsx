@@ -52,6 +52,7 @@ export default function ShareTeamsSharePoint({ deck, currentDone, sharepointUrl,
         <div className="grid gap-2">
           <Button size="sm" variant="outline" className="justify-start" disabled={!currentDone || busy !== null} onClick={() => (deck.shareEnabled ? sendTeams(false) : setAskShare(true))}>
             {busy === "teams" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <MessageSquareShare className="mr-1 h-4 w-4" />}Teams로 공유</Button>
+          <p className="-mt-1 pl-1 text-xs text-muted-foreground">내 알림 채널(설정 → 알림 채널 개인 워크플로우 URL)로 게시합니다. 미설정이면 안내가 뜹니다.</p>
           <Button size="sm" variant="outline" className="justify-start" disabled={!currentDone || busy !== null} onClick={uploadSp}>
             {busy === "sp" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CloudUpload className="mr-1 h-4 w-4" />}SharePoint 업로드</Button>
         </div>
@@ -63,7 +64,7 @@ export default function ShareTeamsSharePoint({ deck, currentDone, sharepointUrl,
               {msg.code === "not_connected" && <Button asChild size="sm" variant="outline"><a href={connectUrl(returnTo)}>Microsoft 계정 연결</a></Button>}
               {msg.code === "reconnect" && <Button asChild size="sm" variant="outline"><a href={connectUrl(returnTo)}>다시 연결</a></Button>}
               {msg.code === "no_folder" && <Button asChild size="sm" variant="outline"><Link href="/settings">기본 폴더 설정</Link></Button>}
-              {msg.code === "no_channel" && <Button asChild size="sm" variant="outline"><Link href="/settings">알림 채널 설정</Link></Button>}
+              {msg.code === "no_channel" && <Button asChild size="sm" variant="outline"><Link href="/settings">내 알림 채널 설정</Link></Button>}
             </AlertDescription>
           </Alert>
         )}
