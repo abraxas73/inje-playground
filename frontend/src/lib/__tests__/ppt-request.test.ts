@@ -4,7 +4,7 @@ import { parseCreateRequest, parseRegenerateRequest, provisionalTitle } from "@/
 describe("parseCreateRequest", () => {
   it("accepts text", () => {
     const r = parseCreateRequest({ text: "원고", prompt: " 12장 ", title: "제안", dept: "R&D" });
-    expect(r).toEqual({ ok: true, kind: "text", text: "원고", storagePath: null, fileName: null, prompt: "12장", title: "제안", dept: "R&D", model: null, templateId: null });
+    expect(r).toEqual({ ok: true, kind: "text", text: "원고", storagePath: null, fileName: null, prompt: "12장", title: "제안", dept: "R&D", model: null, templateId: null, url: null });
   });
   it("accepts a file ticket and classifies pptx", () => {
     const path = "source/0d1f0f7e-1111-4222-8333-444455556666.pptx";
@@ -32,6 +32,14 @@ describe("parseCreateRequest model", () => {
     expect(parseCreateRequest({ text: "x", prompt: "", templateId: "0d1f0f7e-1111-4222-8333-444455556666" })).toMatchObject({ ok: true, templateId: "0d1f0f7e-1111-4222-8333-444455556666" });
     expect(parseCreateRequest({ text: "x", prompt: "", templateId: null })).toMatchObject({ ok: true, templateId: null });
     expect(parseCreateRequest({ text: "x", prompt: "", templateId: "builtin" })).toMatchObject({ ok: false, status: 400 });
+  });
+});
+
+describe("parseCreateRequest url", () => {
+  it("accepts a public https url as its own source kind and rejects mixing sources", () => {
+    expect(parseCreateRequest({ url: " https://docs.example.com/page ", prompt: "" })).toMatchObject({ ok: true, kind: "url", url: "https://docs.example.com/page", text: null, storagePath: null });
+    expect(parseCreateRequest({ url: "http://example.com", prompt: "" })).toMatchObject({ ok: false, status: 400 });
+    expect(parseCreateRequest({ url: "https://example.com", text: "x", prompt: "" })).toMatchObject({ ok: false, error: "텍스트·파일·URL 중 하나만 보내세요." });
   });
 });
 

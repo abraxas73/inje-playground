@@ -138,7 +138,7 @@ async function logSave(q: PromiseLike<{ error: { message: string } | null }>): P
 
 /** 원고 텍스트 확보. 파일·pptx는 처음 한 번만 추출해 source_text에 저장한다. */
 async function resolveSource(admin: SupabaseClient, v: VersionSourceRow, service: PptServiceClient): Promise<{ source: SourceInput; sourceUrl?: string; extract?: PptExtractSlide[] }> {
-  if (v.source_kind === "text") return { source: { kind: "text", text: v.source_text ?? "" } };
+  if (v.source_kind === "text" || v.source_kind === "url") return { source: { kind: v.source_kind, text: v.source_text ?? "" } };
   if (!v.source_path) throw new Error("원고 파일 경로가 없습니다.");
   if (v.source_kind === "file") {
     let text = v.source_text;

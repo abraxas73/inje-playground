@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   const v = data as { status: string; pptx_path: string | null; yaml_path: string | null; source_kind: string; source_path: string | null; source_name: string | null; source_text: string | null } | null;
   if (!v) return NextResponse.json({ error: "버전이 없습니다." }, { status: 404 });
   if (kind === "source") {
-    if (v.source_kind === "text") return NextResponse.json({ text: v.source_text ?? "" }, { headers: { "Cache-Control": "no-store" } });
+    if (v.source_kind === "text" || v.source_kind === "url") return NextResponse.json({ text: v.source_text ?? "", url: v.source_kind === "url" ? v.source_name : undefined }, { headers: { "Cache-Control": "no-store" } });
     if (!v.source_path) return NextResponse.json({ error: "원고 파일이 없습니다." }, { status: 404 });
     const name = v.source_name ?? v.source_path.slice(v.source_path.lastIndexOf("/") + 1);
     const { data: s, error: e } = await r.auth.admin.storage.from(PPT_BUCKET).createSignedUrl(v.source_path, 300, { download: name });

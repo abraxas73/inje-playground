@@ -77,6 +77,11 @@ export default function VersionPanel({ deckId, version }: { deckId: string; vers
           <span className="text-foreground break-all">
             {version.sourceKind === "text" ? (
               <button type="button" className="inline-flex items-center gap-1 underline-offset-2 hover:underline" onClick={() => download("source")}><FileText className="h-3.5 w-3.5" />텍스트 원문 보기</button>
+            ) : version.sourceKind === "url" ? (
+              <span className="flex flex-col items-start gap-0.5">
+                <a href={version.sourceName ?? "#"} target="_blank" rel="noreferrer" className="break-all underline-offset-2 hover:underline">{version.sourceName}</a>
+                <button type="button" className="inline-flex items-center gap-1 text-muted-foreground underline-offset-2 hover:underline" onClick={() => download("source")}><FileText className="h-3.5 w-3.5" />가져온 본문 보기</button>
+              </span>
             ) : (
               <button type="button" className="inline-flex items-center gap-1 text-left underline-offset-2 hover:underline" title="원본 파일 다운로드" onClick={() => download("source")}><Download className="h-3.5 w-3.5 shrink-0" />{version.sourceName ?? "원본 다운로드"}</button>
             )}
@@ -86,7 +91,7 @@ export default function VersionPanel({ deckId, version }: { deckId: string; vers
       </CardContent>
       <Dialog open={sourceText !== null} onOpenChange={(o) => { if (!o) setSourceText(null); }}>
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-hidden">
-          <DialogHeader><DialogTitle>텍스트 원고 — v{version.no}</DialogTitle><DialogDescription>{(sourceText ?? "").length.toLocaleString("ko-KR")}자</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{version.sourceKind === "url" ? "웹 페이지에서 가져온 본문" : "텍스트 원고"} — v{version.no}</DialogTitle><DialogDescription>{(sourceText ?? "").length.toLocaleString("ko-KR")}자</DialogDescription></DialogHeader>
           <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-3 text-xs leading-relaxed">{sourceText}</pre>
         </DialogContent>
       </Dialog>

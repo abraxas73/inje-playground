@@ -21,6 +21,11 @@
 - ppt-service(Python이 바뀔 때만): `cd ppt-service && vercel deploy --prod --yes`, 이어서 `curl -H "x-ppt-token: $TOKEN" https://innogrid-ppt-service.vercel.app/health`가 `{"ok":true,"templateSlides":106,"layouts":69,…}`.
 - 템플릿 갱신: `ppt-service/template/`의 pptx 교체 → `python tools/measure.py` → `pytest` → 배포. 마무리 문구 글상자의 안쪽 여백(`service/catalog.py` `CLOSING_TEXT_INSET_CM`, bar16 6cm·key 3cm·msg 0.25cm·bar13 0.6cm)도 다시 잰다 — 패키지 `capacity.py`는 여백을 빼지 않아 bar16을 47자/줄로 잡지만 실제는 26자(디자인센터 보고 대상). 표 셀의 `[[ ]]`는 패키지가 지원하지 않아 서비스가 빌드 전에 지운다. `/catalog`는 프로세스 캐시라 프론트 재배포 없이 새 인스턴스부터 반영된다. 카탈로그의 `capacity`(장표별 슬롯 용량)는 `capacity.py`에서 나오므로 measure.py를 돌리면 프롬프트도 같이 바뀐다.
 
+## 2-1. URL 원고
+- 생성 폼 "URL 원고" 탭에 https 공개 주소를 넣으면 **생성 라우트가 그 자리에서** 페이지를 가져와(20초·10MB 상한, 리다이렉트 3홉까지 홉마다 호스트 재검사) 본문 텍스트를 뽑아 `source_kind='url'`, `source_text`=본문, `source_name`=주소로 저장한다. 못 가져오면 덱을 만들지 않고 사유(403·시간 초과·사내망 주소·글 없음 등)를 돌려준다.
+- 호스트 규칙은 알림 웹훅과 같다(`lib/notify/url-guard.ts`: https, 도메인 이름만, IP 리터럴·단일 라벨·사설 접미사 금지). 본문 추출은 `lib/ppt/web-source.ts`(의존성 없는 정규식: `<main>`/`<article>` 우선, nav·footer·script 제거, 제목 `#`·목록 `-`·표 `|`). PDF·DOCX 주소는 기존 문서 추출기로 읽는다. 60,000자를 넘으면 상한에서 자르고 끝에 잘렸다는 표시를 남긴다.
+- 결과 화면 "원고" 행에 주소 링크와 "가져온 본문 보기"가 뜬다. 로그인 뒤에만 보이거나 스크립트로 그리는 페이지는 글이 없다고 거절되므로 내용을 복사해 텍스트 원고로 넣는 안내를 폼에 두었다.
+
 ## 3-1. 규칙·템플릿 바꾸기 (배포 없이)
 - **LLM 규칙**: 관리자 > 시스템 설정 > "PPT 만들기 — 생성 규칙". settings 키 `ppt_llm_rules`. 비어 있으면 코드 기본본(`frontend/src/lib/ppt/rules-default.ts`)이 쓰인다. "기본 규칙 불러오기"로 가져와 고치고 저장하면 다음 생성부터 적용(프롬프트 캐시는 새로 만들어진다). 장표 목록·용량 카탈로그는 ppt-service가 템플릿에서 자동 생성하므로 규칙에 적지 않는다.
 - **템플릿 업로드**: 같은 화면 "PPT 만들기 — 템플릿"에서 디자인센터 배포 pptx를 이름(예: 가로형 v1.1)을 붙여 여러 개 올린다(이름은 클릭해 바꿀 수 있다). 흐름: 서명 URL로 `ppt/templates/<uuid>.pptx` 업로드 → `POST /api/admin/ppt/templates` → ppt-service `POST /template/validate`(장 수 106 + 슬라이드 크기 29.7×16.7cm(내장본과 동일) 확인 + `sample.deck.yaml` 전체 빌드 + 브랜드 검사) → 통과하면 `ppt_templates` 행(active). 내장 템플릿은 폼·버전 카드에 "기본형(내장 · …)"으로 보인다. **세로형 등 크기·좌표가 다른 템플릿은 거절**된다 — 패키지가 내장본 좌표(cm)로 조판하므로 통과시키면 결과가 어긋난다. 지원하려면 디자인센터 패키지(`tokens.py` 좌표·`capacity.py`)를 템플릿별로 갖도록 바꿔야 한다. 실패하면 파일을 지우고 사유를 보여 준다. **내장본과 같은 106장 구성**(장표 번호·슬롯 좌표)이어야 한다 — 패키지 `tokens.py`가 좌표를 고정하고 있어 다른 구성은 통과하지 못한다.

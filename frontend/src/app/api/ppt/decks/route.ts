@@ -5,6 +5,7 @@ import { createServerSupabase } from "@/lib/supabase-server";
 import { runGeneration } from "@/lib/ppt/generate";
 import { createAnthropicDeckLlm, LlmUnavailableError, type DeckLlm } from "@/lib/ppt/llm";
 import { parseCreateRequest, provisionalTitle } from "@/lib/ppt/request";
+import { clampSourceText, fetchUrlSource, UrlSourceError } from "@/lib/ppt/web-source";
 import { createPptServiceClient, PptServiceError, type PptServiceClient } from "@/lib/ppt/service";
 import { DECK_COLUMNS, failStaleVersions, hasActiveVersion, loadActiveTemplates, mapDeck, templateOptions, type DeckRow, type TemplateRow, type VersionRow } from "@/lib/ppt/store";
 import { BUILTIN_TEMPLATE_LABEL, type PptListResponse } from "@/types/ppt";
@@ -43,6 +44,15 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response;
   const parsed = parseCreateRequest(await request.json().catch(() => null));
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+  // URL 원고는 여기서 바로 가져온다 — 못 가져오면 덱을 만들지 않고 사유를 돌려준다
+  let fetched: { text: string; title: string | null } | null = null;
+  if (parsed.kind === "url" && parsed.url) {
+    try { fetched = await fetchUrlSource(parsed.url); }
+    catch (e) {
+      if (e instanceof UrlSourceError) return NextResponse.json({ error: e.message }, { status: e.status });
+      return NextResponse.json({ error: `페이지 본문을 읽지 못했습니다: ${e instanceof Error ? e.message : String(e)}` }, { status: 400 });
+    }
+  }
 
   let deps: { llm: DeckLlm; service: PptServiceClient };
   try {
@@ -66,12 +76,12 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const { data: deck, error: deckError } = await auth.admin.from("ppt_decks")
-    .insert({ owner_id: auth.userId, owner_email: user?.email ?? "", title: provisionalTitle(parsed), share_token: newShareToken() })
+    .insert({ owner_id: auth.userId, owner_email: user?.email ?? "", title: provisionalTitle({ title: parsed.title, fileName: parsed.fileName, text: fetched ? (fetched.title ?? parsed.url) : parsed.text }), share_token: newShareToken() })
     .select("id").single();
   if (deckError || !deck) return NextResponse.json({ error: deckError?.message ?? "덱을 만들지 못했습니다." }, { status: 500 });
   const deckId = (deck as { id: string }).id;
   const { data: version, error: versionError } = await auth.admin.from("ppt_deck_versions")
-    .insert({ deck_id: deckId, no: 1, status: "generating", source_kind: parsed.kind, source_text: parsed.text, source_path: parsed.storagePath, source_name: parsed.fileName, prompt: parsed.prompt, llm_model: deps.llm.model, template_id: template?.id ?? null, template_name: template?.name ?? BUILTIN_TEMPLATE_LABEL })
+    .insert({ deck_id: deckId, no: 1, status: "generating", source_kind: parsed.kind, source_text: fetched ? clampSourceText(fetched.text) : parsed.text, source_path: parsed.storagePath, source_name: fetched ? parsed.url : parsed.fileName, prompt: parsed.prompt, llm_model: deps.llm.model, template_id: template?.id ?? null, template_name: template?.name ?? BUILTIN_TEMPLATE_LABEL })
     .select("id").single();
   if (versionError || !version) {
     const { error: cleanupError } = await auth.admin.from("ppt_decks").delete().eq("id", deckId);

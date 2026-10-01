@@ -17,8 +17,9 @@ const BUILTIN = "builtin";
 const ACCEPT = ".docx,.pdf,.hwp,.hwpx,.pptx,.md,.txt";
 
 export default function NewDeckForm({ llmAvailable, templates, onCreated }: { llmAvailable: boolean; templates: PptTemplateOption[]; onCreated: (deckId: string) => void }) {
-  const [tab, setTab] = useState<"text" | "file">("text");
+  const [tab, setTab] = useState<"text" | "file" | "url">("text");
   const [text, setText] = useState("");
+  const [url, setUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("");
   const [title, setTitle] = useState("");
@@ -35,13 +36,14 @@ export default function NewDeckForm({ llmAvailable, templates, onCreated }: { ll
     );
   }
   const tooLong = text.length > SOURCE_MAX_CHARS;
-  const canSubmit = !busy && !tooLong && (tab === "text" ? text.trim().length > 0 : !!file);
+  const canSubmit = !busy && !tooLong && (tab === "text" ? text.trim().length > 0 : tab === "url" ? /^https:\/\/\S+\.\S+/i.test(url.trim()) : !!file);
 
   const submit = async () => {
     setError(null);
     try {
       let body: Parameters<typeof createDeck>[0] = { prompt, title: title.trim() || undefined, dept: dept.trim() || undefined, model, templateId: templateId === BUILTIN ? null : templateId };
       if (tab === "text") body = { ...body, text };
+      else if (tab === "url") body = { ...body, url: url.trim() };
       else {
         setBusy("upload");
         const ticket = await uploadSource(file!);
@@ -61,8 +63,8 @@ export default function NewDeckForm({ llmAvailable, templates, onCreated }: { ll
     <Card>
       <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Sparkles className="h-4 w-4 text-sky-600" />새로 만들기</CardTitle></CardHeader>
       <CardContent className="space-y-4">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "text" | "file")}>
-          <TabsList><TabsTrigger value="text">텍스트 원고</TabsTrigger><TabsTrigger value="file">파일 원고</TabsTrigger></TabsList>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "text" | "file" | "url")}>
+          <TabsList><TabsTrigger value="text">텍스트 원고</TabsTrigger><TabsTrigger value="file">파일 원고</TabsTrigger><TabsTrigger value="url">URL 원고</TabsTrigger></TabsList>
           <TabsContent value="text" className="space-y-1">
             <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={10} placeholder="보고서·제안서 원고를 붙여 넣으세요. 마크다운 목차(#, ##)가 있으면 그대로 섹션이 됩니다." />
             <div className={`text-right text-xs ${tooLong ? "text-destructive" : "text-muted-foreground"}`}>{text.length.toLocaleString("ko-KR")} / {SOURCE_MAX_CHARS.toLocaleString("ko-KR")}자</div>
@@ -71,6 +73,10 @@ export default function NewDeckForm({ llmAvailable, templates, onCreated }: { ll
             <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => { setFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
             <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={!!busy}><Upload className="mr-2 h-4 w-4" />{file ? file.name : "파일 선택"}</Button>
             <p className="text-xs text-muted-foreground">{PPT_SOURCE_EXTENSIONS_TEXT} · 50MB 이하. PPT 원고는 장표 순서를 그대로 유지하고 그림·도식을 가져옵니다.</p>
+          </TabsContent>
+          <TabsContent value="url" className="space-y-2">
+            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://… 공개 웹 페이지·PDF·DOCX 주소" inputMode="url" autoComplete="off" />
+            <p className="text-xs text-muted-foreground">서버가 본문 글만 가져와 원고로 씁니다(메뉴·광고 제외, 60,000자까지). 로그인이 필요하거나 스크립트로만 그려지는 페이지는 가져오지 못합니다 — 그때는 내용을 복사해 텍스트 원고로 넣어 주세요. 사내망 주소는 받지 않습니다.</p>
           </TabsContent>
         </Tabs>
         <div className="space-y-1">
@@ -95,7 +101,7 @@ export default function NewDeckForm({ llmAvailable, templates, onCreated }: { ll
         <div className="flex justify-end">
           <Button onClick={submit} disabled={!canSubmit}>
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-            {busy === "upload" ? "업로드 중…" : busy === "create" ? "요청 중…" : "생성"}
+            {busy === "upload" ? "업로드 중…" : busy === "create" ? (tab === "url" ? "페이지 가져오는 중…" : "요청 중…") : "생성"}
           </Button>
         </div>
       </CardContent>
