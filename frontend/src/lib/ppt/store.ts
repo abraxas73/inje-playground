@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { BUILTIN_TEMPLATE_LABEL, type PptDeckSummary, type PptSourceKind, type PptTemplate, type PptTemplateOption, type PptVersion, type PptVersionStatus } from "@/types/ppt";
 import type { DeckJson } from "./deck-json";
 import { safeFileName } from "./deck-json";
+import { RULES_TEXT } from "./rules-default";
 
 export const PPT_BUCKET = "ppt";
 export const STALE_MS = 15 * 60 * 1000; // 라우트 maxDuration 800초보다 길게
@@ -60,12 +61,16 @@ export async function loadActiveTemplates(admin: SupabaseClient): Promise<Templa
 }
 
 export const PPT_RULES_SETTING_KEY = "ppt_llm_rules";
-/** 관리자가 저장한 LLM 규칙. 비어 있으면 null(기본본 사용) */
+/** 저장본이 기본본과 같으면 '사용자 규칙 없음'으로 본다 — 기본 규칙을 그대로 저장해 둔 채 코드가 갱신될 때 묵은 사본이 우선하지 않게. */
+export function customRulesOf(saved: string | null | undefined): string | null {
+  const v = saved?.trim();
+  return v && v !== RULES_TEXT.trim() ? v : null;
+}
+/** 관리자가 저장한 LLM 규칙. 비어 있거나 기본본과 같으면 null(기본본 사용) */
 export async function loadPptRules(admin: SupabaseClient): Promise<string | null> {
   const { data, error } = await admin.from("settings").select("value").eq("key", PPT_RULES_SETTING_KEY).maybeSingle();
   if (error) { console.error("[ppt] 규칙 설정 조회 실패:", error.message); return null; }
-  const v = (data as { value?: string } | null)?.value?.trim();
-  return v ? v : null;
+  return customRulesOf((data as { value?: string } | null)?.value);
 }
 
 export function mapDeck(r: DeckRow, latest: VersionRow | null): PptDeckSummary {

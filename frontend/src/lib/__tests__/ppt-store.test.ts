@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { deckPaths, mapVersion, newSourcePath, pptxFileName, SOURCE_PATH_RE, canManage, type VersionRow, templateOptions, TEMPLATE_PATH_RE, newTemplatePath } from "@/lib/ppt/store";
+import { deckPaths, mapVersion, newSourcePath, pptxFileName, SOURCE_PATH_RE, canManage, type VersionRow, templateOptions, TEMPLATE_PATH_RE, newTemplatePath, customRulesOf } from "@/lib/ppt/store";
+import { RULES_TEXT } from "@/lib/ppt/rules-default";
 
 const row: VersionRow = {
   id: "v1", deck_id: "d1", no: 2, status: "done", source_kind: "file", source_name: "a.docx", prompt: "p", feedback: null, base_version: null,
@@ -43,5 +44,15 @@ describe("templateOptions", () => {
   it("template paths are uuid pptx under templates/", () => {
     expect(TEMPLATE_PATH_RE.test(newTemplatePath())).toBe(true);
     expect(TEMPLATE_PATH_RE.test("templates/../x.pptx")).toBe(false);
+  });
+});
+
+describe("customRulesOf", () => {
+  it("treats empty or default-identical text as no custom rules", () => {
+    expect(customRulesOf(null)).toBeNull();
+    expect(customRulesOf("   ")).toBeNull();
+    expect(customRulesOf(RULES_TEXT)).toBeNull();
+    expect(customRulesOf(`${RULES_TEXT}\n`)).toBeNull();
+    expect(customRulesOf(`${RULES_TEXT}\n- 표는 쓰지 않는다.`)).toContain("표는 쓰지 않는다");
   });
 });
