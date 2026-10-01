@@ -6,7 +6,7 @@
  *   글머리 없는 줄은 바로 위 단위에 붙는다.
  * - 1단 글머리가 없고 하위 글머리만 2개 이상이면 그 줄들을 1단 목록으로 본다(-만 쓰는 양식).
  * - 글머리가 아예 없으면 세부 내용 전체가 한 단위(= 예전처럼 요구사항 단위 매핑).
- * 들여쓰기는 신뢰하지 않는다 — hwp·엑셀 추출 과정에서 줄마다 trim되기 때문.
+ * 구분은 글머리로 판단하되 원본 들여쓰기를 매핑·화면·엑셀에 보존한다. ※ 주석은 앞 항목에 붙인다.
  */
 
 /**
@@ -15,7 +15,7 @@
  * 한쪽에만 있으면 그 문서의 세부 항목 매핑이 조용히 요구사항 단위로 퇴화한다.
  * (2026-09-08 리뷰: `◦`(U+25E6)가 빠져 있어 한 프로젝트 124건 중 123건이 단위 분해되지 않았다.)
  */
-const L1_MARKER = /^(?:[○◦●◎◯ㅇ□■◇◆▶▷►⦿]|[①-⑳]|\(?\d{1,2}[).]|[가-하][.)])\s+/;
+const L1_MARKER = /^(?:[○◦●◎◯ㅇ□■▣◇◆▶▷►⦿❍]|[①-⑳]|\(?\d{1,2}[).]|[가-하][.)])\s+/;
 /** 하위(2단) 글머리. `▫`·`・`는 ■·○ 아래에 쓰이는 작은 기호라 2단으로 본다 */
 const L2_MARKER = /^(?:[-–—•·ㆍ‧‣▪▫￭※*・]|[a-zA-Z][).])\s+/;
 /** 라벨(화면·보고서 표시용) 최대 길이 */
@@ -43,24 +43,24 @@ export interface DetailStructure {
 }
 
 function label(text: string): string {
-  const one = text.replace(L1_MARKER, "").replace(L2_MARKER, "").replace(/\s+/g, " ").trim();
+  const one = text.trimStart().replace(L1_MARKER, "").replace(L2_MARKER, "").replace(/\s+/g, " ").trim();
   return one.length <= DETAIL_LABEL_MAX ? one : `${one.slice(0, DETAIL_LABEL_MAX).trim()}…`;
 }
 
 export function parseDetailUnits(details: string): DetailStructure {
-  const lines = details.split("\n").map((l) => l.trim()).filter(Boolean);
+  const lines = details.split("\n").map((l) => l.trimEnd()).filter((l) => l.trim());
   if (!lines.length) return { units: [], flat: true, nested: false };
 
-  const l1 = lines.filter((l) => L1_MARKER.test(l)).length;
-  const l2 = lines.filter((l) => !L1_MARKER.test(l) && L2_MARKER.test(l)).length;
+  const l1 = lines.filter((l) => L1_MARKER.test(l.trimStart())).length;
+  const l2 = lines.filter((l) => !L1_MARKER.test(l.trimStart()) && L2_MARKER.test(l.trimStart())).length;
   const useL1 = l1 >= 2;
-  const useL2Only = l1 === 0 && l2 >= 2;
+  const useL2Only = l1 === 0 && lines.filter((l) => L2_MARKER.test(l.trimStart()) && !l.trimStart().startsWith("※")).length >= 2;
   if (!useL1 && !useL2Only) {
     const text = lines.join("\n");
     return { units: [{ key: "1", label: label(lines[0]), text, childCount: Math.max(0, lines.length - 1) }], flat: true, nested: l1 + l2 > 0 && l1 <= 1 };
   }
 
-  const isHead = (l: string) => (useL1 ? L1_MARKER.test(l) : L2_MARKER.test(l));
+  const isHead = (l: string) => (useL1 ? L1_MARKER.test(l.trimStart()) : L2_MARKER.test(l.trimStart()) && !l.trimStart().startsWith("※"));
   const units: DetailUnit[] = [];
   const pending: string[] = [];
   for (const line of lines) {

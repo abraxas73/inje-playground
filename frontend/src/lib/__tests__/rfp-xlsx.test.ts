@@ -180,7 +180,7 @@ describe("buildWorkbook + 세부 항목 단위 매핑", () => {
     // 4행: 요구사항 전체(옛 행) / 5~6행: 항목 1의 두 매핑 / 7행: 항목 2 / 8행: 매핑 없는 항목 3
     expect(ws.getRow(4).values).toEqual([undefined, 1, "SER-010", "제목 SER-010", "정의", "", "", "전체", details, "설계·구축영역", "", "", "옛 요구사항 단위 행", "", "", "", ""]);
     expect(ws.getRow(5).getCell(7).value).toBe("1");
-    expect(ws.getRow(5).getCell(8).value).toBe("○ 첫째 항목\n- 하위 설명");
+    expect(ws.getRow(5).getCell(8).value).toBe("○ 첫째 항목\n - 하위 설명");
     expect(ws.getRow(5).getCell(9).value).toBe("충족");
     expect(ws.getRow(5).getCell(11).value).toBe("IAM");
     expect(ws.getRow(5).getCell(13).value).toBe("근거 문장 1");

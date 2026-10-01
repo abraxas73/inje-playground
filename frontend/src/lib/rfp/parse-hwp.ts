@@ -3,7 +3,7 @@ import { inflateRawSync } from "node:zlib";
 import { UnsupportedDocumentError, type Block, type Cell, type DocumentModel, type Table } from "./document-model";
 
 /** HWP 5.x 레코드 태그(HWPTAG_BEGIN=16 기준) */
-const TAG = { PARA_TEXT: 67, CTRL_HEADER: 71, LIST_HEADER: 72, TABLE: 77 } as const;
+const TAG = { BULLET: 24, PARA_SHAPE: 25, PARA_HEADER: 66, PARA_TEXT: 67, CTRL_HEADER: 71, LIST_HEADER: 72, TABLE: 77 } as const;
 /** 확장 컨트롤(뒤 14바이트에 컨트롤 정보) — 문자 8개(16바이트) 차지 */
 const EXT_CTRL = new Set([1, 2, 3, 11, 12, 14, 15, 16, 17, 18, 21, 22, 23]);
 /** 인라인 컨트롤 — 역시 16바이트 */
@@ -24,9 +24,11 @@ function* records(buf: Buffer): Generator<HwpRecord> {
     const level = (h >>> 10) & 0x3ff;
     let size = (h >>> 20) & 0xfff;
     if (size === 0xfff) {
+      if (off + 4 > buf.length) break;
       size = buf.readUInt32LE(off);
       off += 4;
     }
+    if (off + size > buf.length) break;
     yield { tag, level, data: buf.subarray(off, off + size) };
     off += size;
   }
@@ -61,23 +63,89 @@ export function decodeParaText(data: Buffer): string {
   return s;
 }
 
+interface ParagraphShape {
+  heading: number;
+  left: number;
+  bulletRef: number;
+}
+interface ParagraphStyles {
+  shapes: (ParagraphShape | undefined)[];
+  bullets: string[];
+}
+
+/** 본 제품은 한글과컴퓨터의 한글 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.
+ * DocInfo의 PARA_SHAPE / BULLET을 본문의 PARA_HEADER 참조와 연결한다.
+ * 자동 글머리표는 PARA_TEXT에 들어 있지 않다. BULLET의 공통 머리 정보는 12바이트.
+ */
+function paragraphStyles(buf: Buffer): ParagraphStyles {
+  const styles: ParagraphStyles = { shapes: [], bullets: [] };
+  for (const { tag, data } of records(buf)) {
+    if (tag === TAG.PARA_SHAPE) {
+      styles.shapes.push(data.length >= 32 ? {
+        heading: (data.readUInt32LE(0) >>> 23) & 3,
+        left: data.readInt32LE(4),
+        bulletRef: data.readUInt16LE(30),
+      } : undefined);
+    } else if (tag === TAG.BULLET) {
+      styles.bullets.push(data.length >= 14 ? data.subarray(12, 14).toString("utf16le").replace(/\0/g, "") : "");
+    }
+  }
+  return styles;
+}
+
+/** 셀/본문마다 별도 상태. 글머리표의 level 비트에는 이전 번호 서식 값이 남을 수 있어
+ * 실제 왼쪽 여백의 증가/감소로 들여쓰기를 복원한다(물리적인 포인트 수를 공백 수로 추측하지 않는다).
+ */
+function bulletFormatter(styles: ParagraphStyles) {
+  const margins: number[] = [];
+  let lastDepth: number | undefined;
+  return (text: string, shapeId: number | undefined): string => {
+    if (!text.trim()) return text;
+    const shape = shapeId === undefined ? undefined : styles.shapes[shapeId];
+    const marker = shape?.heading === 3 ? styles.bullets[shape.bulletRef - 1] : undefined;
+    if (marker && shape) {
+      while (margins.length && margins[margins.length - 1] > shape.left) margins.pop();
+      if (!margins.length || margins[margins.length - 1] < shape.left) margins.push(shape.left);
+      const depth = margins.length - 1;
+      lastDepth = depth;
+      const value = text.trimStart();
+      const prefix = value.startsWith(marker) && (/^\s/.test(value.slice(marker.length)) || value === marker) ? "" : `${marker} `;
+      return `${"  ".repeat(depth)}${prefix}${value}`;
+    }
+    // 수동 주석은 직전 자동 목록 항목에 종속되며 원래 들여쓰기가 더 깊으면 보존한다.
+    if (/^\s*※/.test(text) && lastDepth !== undefined) {
+      const spaces = text.length - text.trimStart().length;
+      return `${" ".repeat(Math.max(spaces, (lastDepth + 1) * 2))}${text.trimStart()}`;
+    }
+    lastDepth = undefined;
+    margins.length = 0;
+    return text;
+  };
+}
+
 interface OpenTable {
   level: number;
   table: Table;
   cell: Cell | null;
 }
 
-function parseSection(buf: Buffer): Block[] {
+function parseSection(buf: Buffer, styles: ParagraphStyles): Block[] {
   const blocks: Block[] = [];
   const stack: OpenTable[] = [];
   let pendingCtrl: string | null = null;
+  const paragraphShapes = new Map<number, number>();
+  const formatBody = bulletFormatter(styles);
+  const formatCells = new WeakMap<Cell, ReturnType<typeof bulletFormatter>>();
 
   for (const r of records(buf)) {
     // 표는 레코드 level이 표 level보다 낮아질 때 끝난다(셀 문단 헤더는 셀 헤더와 같은 level이므로 "<="로 하면 일찍 닫힌다)
     while (stack.length && r.level < stack[stack.length - 1].level) stack.pop();
     const top = stack[stack.length - 1];
 
-    if (r.tag === TAG.CTRL_HEADER) {
+    if (r.tag === TAG.PARA_HEADER) {
+      for (const level of paragraphShapes.keys()) if (level >= r.level) paragraphShapes.delete(level);
+      if (r.data.length >= 10) paragraphShapes.set(r.level, r.data.readUInt16LE(8));
+    } else if (r.tag === TAG.CTRL_HEADER) {
       pendingCtrl = Buffer.from(r.data.subarray(0, 4)).reverse().toString("latin1");
     } else if (r.tag === TAG.TABLE && pendingCtrl === "tbl ") {
       const table: Table = { type: "table", rows: r.data.readUInt16LE(4), cols: r.data.readUInt16LE(6), cells: [] };
@@ -100,9 +168,11 @@ function parseSection(buf: Buffer): Block[] {
         };
         top.table.cells.push(cell);
         top.cell = cell;
+        formatCells.set(cell, bulletFormatter(styles));
       }
     } else if (r.tag === TAG.PARA_TEXT) {
-      const t = decodeParaText(r.data);
+      const format = top?.cell ? formatCells.get(top.cell)! : formatBody;
+      const t = format(decodeParaText(r.data), paragraphShapes.get(r.level - 1));
       if (top && top.cell && r.level > top.level) top.cell.text = top.cell.text ? `${top.cell.text}\n${t}` : t;
       else if (!top) blocks.push({ type: "paragraph", text: t });
     }
@@ -134,11 +204,14 @@ export function parseHwp(buf: Buffer): DocumentModel {
     .sort((a, b) => Number(a.m[1]) - Number(b.m[1]));
   if (!sections.length) throw new UnsupportedDocumentError("HWP 본문(BodyText)이 없습니다.");
 
+  const info = CFB.find(cfb, "/DocInfo");
+  const infoBytes = info ? Buffer.from(info.content as Uint8Array) : Buffer.alloc(0);
+  const styles = paragraphStyles(compressed && infoBytes.length ? inflateRawSync(infoBytes) : infoBytes);
   const blocks: Block[] = [];
   for (const s of sections) {
     let body = Buffer.from(cfb.FileIndex[s.i].content as Uint8Array);
     if (compressed) body = inflateRawSync(body);
-    blocks.push(...parseSection(body));
+    blocks.push(...parseSection(body, styles));
   }
   return { format: "hwp", blocks };
 }
