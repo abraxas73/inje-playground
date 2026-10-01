@@ -15,7 +15,7 @@ describe("groupRowsByDetail", () => {
     expect(groups.map((g) => g.key)).toEqual(["1", "2", "3"]);
     expect(groups.map((g) => g.rows.length)).toEqual([2, 1, 0]);
     expect(groups[0].label).toBe("첫째 항목");
-    expect(groups[0].text).toBe("○ 첫째 항목\n- 하위");
+    expect(groups[0].text).toBe("○ 첫째 항목\n - 하위");
     expect(isDetailScoped(groups)).toBe(true);
   });
 
