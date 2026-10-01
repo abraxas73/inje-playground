@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
-import { CheckCircle2, Download, FileCode2, XCircle } from "lucide-react";
+import { CheckCircle2, Download, FileCode2, FileText, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { readError } from "@/lib/ppt/client";
 import { estimateCostUsd, formatUsd, PRICES_AS_OF } from "@/lib/ppt/pricing";
 import { formatElapsed } from "@/lib/ppt/elapsed";
@@ -15,14 +16,16 @@ const n = (v: number) => v.toLocaleString("ko-KR");
 
 export default function VersionPanel({ deckId, version }: { deckId: string; version: PptVersion }) {
   const [error, setError] = useState<string | null>(null);
-  const download = async (kind: "pptx" | "yaml") => {
+  const [sourceText, setSourceText] = useState<string | null>(null);
+  const download = async (kind: "pptx" | "yaml" | "source") => {
     setError(null);
     let res: Response;
     try { res = await fetch(`/api/ppt/decks/${deckId}/versions/${version.no}/file?kind=${kind}`); }
     catch { setError("다운로드 URL을 받지 못했습니다(네트워크 오류)."); return; }
     if (!res.ok) { setError(await readError(res, "다운로드 URL을 받지 못했습니다.")); return; }
-    const { url } = (await res.json()) as { url: string };
-    window.location.href = url;
+    const j = (await res.json()) as { url?: string; text?: string };
+    if (typeof j.text === "string") { setSourceText(j.text); return; } // 텍스트 원고는 대화상자로
+    if (j.url) window.location.href = j.url;
   };
   const issueCount = Object.values(version.checkIssues).reduce((a, b) => a + b.length, 0);
   const active = version.status === "generating" || version.status === "building";
@@ -70,10 +73,23 @@ export default function VersionPanel({ deckId, version }: { deckId: string; vers
           </>)}
           {version.feedback && <><span>피드백</span><span className="text-foreground">{version.feedback}{version.baseVersion ? ` (v${version.baseVersion} 기준)` : ""}</span></>}
           {version.prompt && <><span>프롬프트</span><span className="text-foreground">{version.prompt}</span></>}
-          <span>원고</span><span className="text-foreground break-all">{version.sourceName ?? (version.sourceKind === "text" ? "텍스트" : "-")}</span>
+          <span>원고</span>
+          <span className="text-foreground break-all">
+            {version.sourceKind === "text" ? (
+              <button type="button" className="inline-flex items-center gap-1 underline-offset-2 hover:underline" onClick={() => download("source")}><FileText className="h-3.5 w-3.5" />텍스트 원문 보기</button>
+            ) : (
+              <button type="button" className="inline-flex items-center gap-1 text-left underline-offset-2 hover:underline" title="원본 파일 다운로드" onClick={() => download("source")}><Download className="h-3.5 w-3.5 shrink-0" />{version.sourceName ?? "원본 다운로드"}</button>
+            )}
+          </span>
           {version.templateName && <><span>템플릿</span><span className="text-foreground break-all">{version.templateName}</span></>}
         </div>
       </CardContent>
+      <Dialog open={sourceText !== null} onOpenChange={(o) => { if (!o) setSourceText(null); }}>
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-hidden">
+          <DialogHeader><DialogTitle>텍스트 원고 — v{version.no}</DialogTitle><DialogDescription>{(sourceText ?? "").length.toLocaleString("ko-KR")}자</DialogDescription></DialogHeader>
+          <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-3 text-xs leading-relaxed">{sourceText}</pre>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
