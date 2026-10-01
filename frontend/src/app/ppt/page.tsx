@@ -33,7 +33,7 @@ export default function PptPage() {
         <h2 className="text-base font-medium">{all ? "전체 덱" : "내 덱"}</h2>
         {isAdmin && <Button variant="ghost" size="sm" onClick={() => setAll((v) => !v)}>{all ? "내 덱만" : "전체 보기"}</Button>}
       </div>
-      {data && <DeckList decks={data.decks} showOwner={all} />}
+      {data && <DeckList decks={data.decks} showOwner={all} onDeleted={() => { setError(null); void load(); }} onError={setError} />}
     </div>
   );
 }

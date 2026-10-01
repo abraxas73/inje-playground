@@ -1,19 +1,33 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
-import { Link2 } from "lucide-react";
+import { Link2, Loader2, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import StatusBadge from "./StatusBadge";
+import { postJson } from "@/lib/ppt/client";
 import type { PptDeckSummary } from "@/types/ppt";
 
 const fmt = (iso: string) => new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "short", timeStyle: "short" });
 
-export default function DeckList({ decks, showOwner }: { decks: PptDeckSummary[]; showOwner: boolean }) {
+export default function DeckList({ decks, showOwner, onDeleted, onError }: { decks: PptDeckSummary[]; showOwner: boolean; onDeleted: () => void; onError: (msg: string) => void }) {
+  const [target, setTarget] = useState<PptDeckSummary | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const remove = async (d: PptDeckSummary) => {
+    setBusy(d.id);
+    try { await postJson(`/api/ppt/decks/${d.id}`, undefined, "DELETE"); onDeleted(); }
+    catch (e) { onError(e instanceof Error ? e.message : "삭제에 실패했습니다."); }
+    finally { setBusy(null); }
+  };
   if (!decks.length) return <p className="py-8 text-center text-sm text-muted-foreground">아직 만든 PPT가 없습니다. 위에서 원고를 넣고 생성해 보세요.</p>;
   return (
     <div className="overflow-x-auto rounded-lg border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
           <tr>
-            <th className="px-3 py-2">제목</th>{showOwner && <th className="px-3 py-2">소유자</th>}<th className="px-3 py-2">버전</th><th className="px-3 py-2">장 수</th><th className="px-3 py-2">상태</th><th className="px-3 py-2">수정</th>
+            <th className="px-3 py-2">제목</th>{showOwner && <th className="px-3 py-2">소유자</th>}<th className="px-3 py-2">버전</th><th className="px-3 py-2">장 수</th><th className="px-3 py-2">상태</th><th className="px-3 py-2">수정</th><th className="w-10 px-3 py-2"><span className="sr-only">삭제</span></th>
           </tr>
         </thead>
         <tbody>
@@ -28,10 +42,25 @@ export default function DeckList({ decks, showOwner }: { decks: PptDeckSummary[]
               <td className="px-3 py-2">{d.latest?.slideCount ?? "-"}</td>
               <td className="px-3 py-2">{d.latest ? <StatusBadge status={d.latest.status} /> : "-"}</td>
               <td className="px-3 py-2 text-muted-foreground">{fmt(d.updatedAt)}</td>
+              <td className="px-1 py-1 text-right">
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive" disabled={busy !== null} onClick={() => setTarget(d)} aria-label={`${d.title} 삭제`}>
+                  {busy === d.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                </Button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <AlertDialog open={target !== null} onOpenChange={(o) => { if (!o) setTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>덱을 삭제할까요?</AlertDialogTitle>
+            <AlertDialogDescription>&quot;{target?.title}&quot;의 모든 버전·원고·PPT 파일과 공유 링크가 함께 삭제됩니다. 되돌릴 수 없습니다.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={() => { if (target) void remove(target); setTarget(null); }}>삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

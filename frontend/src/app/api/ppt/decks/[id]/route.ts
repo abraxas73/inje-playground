@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { logAudit } from "@/lib/audit";
 import { deckForRequest, shareUrlFor } from "@/lib/ppt/deck-access";
 import { loadVersions, mapDeck, mapVersion, PPT_BUCKET } from "@/lib/ppt/store";
-import type { PptDeckDetail, PptStatusResponse } from "@/types/ppt";
+import type { PptDeckDetail, PptSourceImage, PptStatusResponse } from "@/types/ppt";
 
 export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
@@ -31,9 +31,9 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   const r = await deckForRequest(id);
   if (!r.ok) return r.response;
   const { admin, userId } = r.auth;
-  const { data } = await admin.from("ppt_deck_versions").select("pptx_path, yaml_path, source_path").eq("deck_id", id);
-  const paths = ((data ?? []) as { pptx_path: string | null; yaml_path: string | null; source_path: string | null }[])
-    .flatMap((v) => [v.pptx_path, v.yaml_path, v.source_path]).filter((p): p is string => !!p);
+  const { data } = await admin.from("ppt_deck_versions").select("pptx_path, yaml_path, source_path, source_images").eq("deck_id", id);
+  const paths = ((data ?? []) as { pptx_path: string | null; yaml_path: string | null; source_path: string | null; source_images: PptSourceImage[] | null }[])
+    .flatMap((v) => [v.pptx_path, v.yaml_path, v.source_path, ...(v.source_images ?? []).map((i) => i.path)]).filter((p): p is string => !!p);
   if (paths.length) {
     const { error } = await admin.storage.from(PPT_BUCKET).remove(paths);
     if (error) console.error("[ppt] 파일 삭제 실패:", error.message);
