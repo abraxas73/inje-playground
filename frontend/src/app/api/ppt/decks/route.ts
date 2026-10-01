@@ -24,15 +24,15 @@ export async function GET(request: NextRequest) {
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const decks = (data ?? []) as DeckRow[];
-  const latest = new Map<string, VersionRow>();
+  const byDeck = new Map<string, VersionRow[]>();
   if (decks.length) {
     // ponytail: 덱 200개 × 버전을 한 번에 읽는다(1000행 상한). 버전이 많이 쌓이면 current_version 조인으로 바꾼다.
-    const { data: vs } = await auth.admin.from("ppt_deck_versions").select("id, deck_id, no, status, slide_count, created_at")
+    const { data: vs } = await auth.admin.from("ppt_deck_versions").select("id, deck_id, no, status, slide_count, created_at, llm_model, template_name, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write")
       .in("deck_id", decks.map((d) => d.id)).order("no", { ascending: false }).limit(1000);
-    for (const v of (vs ?? []) as VersionRow[]) if (!latest.has(v.deck_id)) latest.set(v.deck_id, v);
+    for (const v of (vs ?? []) as VersionRow[]) byDeck.set(v.deck_id, [...(byDeck.get(v.deck_id) ?? []), v]);
   }
   const res: PptListResponse = {
-    decks: decks.map((d) => mapDeck(d, latest.get(d.id) ?? null)),
+    decks: decks.map((d) => { const vs = byDeck.get(d.id) ?? []; return mapDeck(d, vs[0] ?? null, vs); }),
     llmAvailable: !!process.env.ANTHROPIC_API_KEY && !!process.env.PPT_SERVICE_URL && !!process.env.PPT_SERVICE_TOKEN,
     templates: templateOptions(await loadActiveTemplates(auth.admin)),
   };

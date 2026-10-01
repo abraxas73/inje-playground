@@ -43,7 +43,9 @@ export interface PptDeckSummary {
   ownerEmail: string;
   currentVersion: number;
   shareEnabled: boolean;
-  latest: { no: number; status: PptVersionStatus; slideCount: number | null; createdAt: string } | null;
+  latest: { no: number; status: PptVersionStatus; slideCount: number | null; createdAt: string; llmModel: string | null; templateName: string | null } | null;
+  /** 모든 버전 LLM 추정 비용 합(USD). 단가 미등록 모델만 있으면 null */
+  costUsd: number | null;
   createdAt: string;
   updatedAt: string;
 }

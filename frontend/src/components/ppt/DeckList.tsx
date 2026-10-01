@@ -8,7 +8,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import StatusBadge from "./StatusBadge";
 import { postJson } from "@/lib/ppt/client";
-import type { PptDeckSummary } from "@/types/ppt";
+import { formatUsd } from "@/lib/ppt/pricing";
+import { BUILTIN_TEMPLATE_LABEL, PPT_MODEL_OPTIONS, type PptDeckSummary } from "@/types/ppt";
+
+const modelLabel = (id: string | null | undefined) => (id ? PPT_MODEL_OPTIONS.find((m) => m.id === id)?.label ?? id : "-");
 
 const fmt = (iso: string) => new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "short", timeStyle: "short" });
 
@@ -27,7 +30,7 @@ export default function DeckList({ decks, showOwner, onDeleted, onError }: { dec
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
           <tr>
-            <th className="px-3 py-2">제목</th>{showOwner && <th className="px-3 py-2">소유자</th>}<th className="px-3 py-2">버전</th><th className="px-3 py-2">장 수</th><th className="px-3 py-2">상태</th><th className="px-3 py-2">수정</th><th className="w-10 px-3 py-2"><span className="sr-only">삭제</span></th>
+            <th className="px-3 py-2">제목</th>{showOwner && <th className="px-3 py-2">소유자</th>}<th className="px-3 py-2">버전</th><th className="px-3 py-2">장 수</th><th className="px-3 py-2">템플릿</th><th className="px-3 py-2">모델</th><th className="px-3 py-2 text-right" title="모든 버전의 LLM 추정 비용 합">비용</th><th className="px-3 py-2">상태</th><th className="px-3 py-2">수정</th><th className="w-10 px-3 py-2"><span className="sr-only">삭제</span></th>
           </tr>
         </thead>
         <tbody>
@@ -40,6 +43,9 @@ export default function DeckList({ decks, showOwner, onDeleted, onError }: { dec
               {showOwner && <td className="px-3 py-2 text-muted-foreground">{d.ownerEmail}</td>}
               <td className="px-3 py-2">{d.latest ? `v${d.latest.no}` : "-"}</td>
               <td className="px-3 py-2">{d.latest?.slideCount ?? "-"}</td>
+              <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{d.latest ? (!d.latest.templateName || d.latest.templateName === BUILTIN_TEMPLATE_LABEL ? "기본형" : d.latest.templateName) : "-"}</td>
+              <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{modelLabel(d.latest?.llmModel)}</td>
+              <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{d.costUsd === null ? "-" : formatUsd(d.costUsd)}</td>
               <td className="px-3 py-2">{d.latest ? <StatusBadge status={d.latest.status} /> : "-"}</td>
               <td className="px-3 py-2 text-muted-foreground">{fmt(d.updatedAt)}</td>
               <td className="px-1 py-1 text-right">

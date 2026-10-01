@@ -4,6 +4,7 @@ import { BUILTIN_TEMPLATE_LABEL, type PptDeckSummary, type PptSourceImage, type 
 import type { DeckJson } from "./deck-json";
 import { safeFileName } from "./deck-json";
 import { RULES_TEXT } from "./rules-default";
+import { estimateCostUsd } from "./pricing";
 
 export const PPT_BUCKET = "ppt";
 export const STALE_MS = 15 * 60 * 1000; // 라우트 maxDuration 800초보다 길게
@@ -73,10 +74,12 @@ export async function loadPptRules(admin: SupabaseClient): Promise<string | null
   return customRulesOf((data as { value?: string } | null)?.value);
 }
 
-export function mapDeck(r: DeckRow, latest: VersionRow | null): PptDeckSummary {
+export function mapDeck(r: DeckRow, latest: VersionRow | null, versions: VersionRow[] = latest ? [latest] : []): PptDeckSummary {
+  const costs = versions.map((v) => estimateCostUsd(v.llm_model, { in: v.tokens_in, out: v.tokens_out, cacheRead: v.tokens_cache_read, cacheWrite: v.tokens_cache_write })).filter((c): c is number => c !== null);
   return {
     id: r.id, title: r.title || "제목 없음", ownerId: r.owner_id, ownerEmail: r.owner_email, currentVersion: r.current_version, shareEnabled: r.share_enabled,
-    latest: latest ? { no: latest.no, status: latest.status, slideCount: latest.slide_count, createdAt: latest.created_at } : null,
+    latest: latest ? { no: latest.no, status: latest.status, slideCount: latest.slide_count, createdAt: latest.created_at, llmModel: latest.llm_model, templateName: latest.template_name } : null,
+    costUsd: costs.length ? costs.reduce((a, b) => a + b, 0) : null,
     createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
