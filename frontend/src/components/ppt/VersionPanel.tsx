@@ -60,7 +60,7 @@ export default function VersionPanel({ deckId, version }: { deckId: string; vers
           <details><summary className="cursor-pointer text-xs text-muted-foreground">권고 {version.advisories.length}건</summary>
             <ul className="mt-1 list-disc pl-4 text-xs text-muted-foreground">{version.advisories.map((a, i) => <li key={i}>{a}</li>)}</ul></details>
         )}
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs text-muted-foreground">
           {!active && (<>
             <span>모델</span><span className="text-foreground">{version.llmModel ?? "-"}</span>
             <span>호출</span><span className="text-foreground">{version.llmCalls}회{version.durationMs ? ` · ${formatElapsed(version.durationMs)}` : ""}</span>

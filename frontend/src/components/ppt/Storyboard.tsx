@@ -7,7 +7,7 @@ export default function Storyboard({ sections }: { sections: StorySection[] }) {
       {sections.map((sec, si) => (
         <section key={si} className="space-y-3">
           <h3 className="flex items-baseline gap-2 text-sm font-semibold"><span className="text-sky-600">{String(si + 1).padStart(2, "0")}.</span>{sec.name}{sec.subs.length > 0 && <span className="text-xs font-normal text-muted-foreground">{sec.subs.join(" · ")}</span>}</h3>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
             {sec.slides.map((sl) => (
               <article key={sl.index} className="rounded-lg border bg-card p-3 text-sm">
                 <div className="mb-1 flex items-center justify-between"><Badge variant="outline" className="font-mono text-[11px]">{sl.layout}</Badge><span className="text-xs text-muted-foreground">장표 {sl.index + 1}</span></div>

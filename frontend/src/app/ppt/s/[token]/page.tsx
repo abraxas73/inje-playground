@@ -40,7 +40,7 @@ export default function SharedDeckPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4 p-4 sm:p-6">
+    <div className="space-y-4">
       {state === "loading" && <p className="text-sm text-muted-foreground">불러오는 중…</p>}
       {state === "login" && (
         <Alert><AlertDescription className="flex flex-wrap items-center gap-2">이 PPT는 로그인한 사내 사용자만 볼 수 있습니다.

@@ -71,11 +71,11 @@ export default function PptDeckPage() {
     catch (e) { setError(e instanceof Error ? e.message : "삭제에 실패했습니다."); }
   };
 
-  if (error) return <div className="mx-auto max-w-5xl p-6"><Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert></div>;
+  if (error) return <div><Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert></div>;
   if (!data) return <div className="p-6 text-sm text-muted-foreground">불러오는 중…</div>;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <Button asChild variant="ghost" size="sm"><Link href="/ppt"><ChevronLeft className="mr-1 h-4 w-4" />내 덱</Link></Button>
         <h1 className="text-lg font-semibold">{data.deck.title}</h1>
@@ -89,7 +89,7 @@ export default function PptDeckPage() {
         <TabsList>{data.versions.map((v) => <TabsTrigger key={v.no} value={String(v.no)}>v{v.no}</TabsTrigger>)}</TabsList>
       </Tabs>
       {active && notice && <Alert><AlertDescription>{notice}</AlertDescription></Alert>}
-      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="space-y-4">
           {version?.status === "done" && version.deckJson ? <Storyboard sections={sections} /> :
             version?.status === "failed" ? (
