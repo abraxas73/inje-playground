@@ -16,6 +16,12 @@
 
 - **4단계(규칙 기반 카탈로그·매핑, LLM 폴백)**: `ANTHROPIC_API_KEY` 없이 동작한다. 어드민 소스는 **Confluence 페이지 URL**(규칙 파서: 표의 기능명 열·h2~h4 제목·글머리 `이름: 설명`)과 **SharePoint xlsx 기능명세서 링크**(가져오기 실행자의 Microsoft 위임 토큰으로 Graph에서 내려받아 exceljs로 헤더 탐지 — 기능명/설명/키워드 열) 두 종류이고, "Confluence에서 찾기" 패널로 제목 검색(CQL) 뒤 한 번에 등록할 수 있다. 가져오기는 기본 "규칙", 키가 있으면 "Claude로 보강". 기능마다 **키워드**(이름 토큰 + 설명 토큰 10개, 어드민 편집·↻ 재생성)를 둔다. 상세 "솔루션 매핑 실행" 다이얼로그에서 엔진(규칙 기본 / Claude)을 고른다. 규칙 엔진은 키워드 일치(이름 키워드 2, 나머지 1; 활성 기능의 5%를 넘게 쓰인 키워드는 제외) + 문자 bigram cosine 유사도(`|A∩B|/√(|A|·|B|)`)로 점수(`0.15×가중치 + 0.7×유사도`, 후보 조건 가중치≥2 또는 유사도≥0.5 — 운영 튜닝 2026-09-07)를 매겨 요구사항당(2026-09-07 이후 세부 항목당) 상위 N(어드민 설정 1~5, 기본 5·솔루션당 2)을 판정 **"후보"**(`candidate`)로 저장한다. 사람이 후보를 충족/부분충족 등으로 확정하고, 나중에 Claude로 다시 실행하면 후보는 교체되고 확정 행(✎)은 남는다. 매핑 행에 `engine`(rules|llm|manual)·`score`. 전체 목록에서 행을 펼치면 요구사항 정의·세부 내용·산출정보·관련 요구사항이 매핑 편집기 위에 함께 보인다(후보 확인용). SQL `docs/sql/2026-09-06-rfp-rules-mapping.sql`. 라이브러리 `lib/rfp/catalog/{source-kind,extract-rules,xlsx-features,keywords,confluence-search}.ts`, `lib/rfp/mapping/{tokenize,rules,engine}.ts`, `lib/ms/graph-drive.ts`(resolveItem·downloadFile), `lib/ms/route-token.ts`.
 
+## 후속 검토 — SharePoint 검색·소스 등록
+
+**보류(2026-10-01, 착수 일정 미정).** 조사·제안 설계만 기록했으며 구현과 Entra 설정 변경은 진행하지 않는다. 현재는 SharePoint xlsx 링크 직접 등록만 지원한다.
+
+[SharePoint 검색·소스 등록 조사 및 후속 설계](superpowers/specs/2026-10-01-rfp-sharepoint-search-design.md)에 단계별 범위, Entra 위임 권한·동의·리디렉션 URI 사전 조건, 기존 연동 재사용 방안, 카탈로그 공유 범위와 재개 시 확인 목록을 정리했다. 운영 테넌트의 승인 상태와 실제 검색·다운로드는 아직 검증하지 않았다.
+
 ## 환경 변수
 | 이름 | 용도 |
 |---|---|
