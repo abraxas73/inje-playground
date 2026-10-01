@@ -21,6 +21,7 @@ export interface MappingRunSolution {
 export type MappingRunScope =
   | { kind: "project"; requirementCount: number; missing: number; editedRequirements: number; hasAny: boolean }
   | { kind: "requirement"; reqId: string; title: string }
+  | { kind: "group"; reqId: string; detailKey: string; detailLabel: string; childCount: number }
   | { kind: "detail"; reqId: string; detailKey: string; detailLabel: string };
 
 export interface MappingRunArgs {
@@ -63,14 +64,16 @@ export default function MappingRunDialog({ open, onOpenChange, scope, solutions,
 
   const title = scope.kind === "project"
     ? scope.hasAny ? "솔루션 매핑을 다시 실행할까요?" : "솔루션 매핑 실행"
-    : scope.kind === "requirement" ? `${scope.reqId} 다시 매핑` : `${scope.reqId} 세부 ${scope.detailKey} 다시 매핑`;
+    : scope.kind === "requirement" ? `${scope.reqId} 다시 매핑` : scope.kind === "group" ? `${scope.reqId} 그룹 ${scope.detailKey} 하위 항목 일괄 매핑` : `${scope.reqId} 세부 ${scope.detailKey} 다시 매핑`;
   const description = scope.kind === "project"
     ? scope.editedRequirements > 0
       ? `사람이 고친 매핑이 있는 요구사항 ${scope.editedRequirements}건은 어느 방식이든 건드리지 않습니다.`
       : scope.hasAny ? "자동으로 만든 매핑(규칙 후보·Claude)은 새 결과로 교체됩니다." : "카탈로그 기능을 요구사항마다 대조합니다."
     : scope.kind === "requirement"
       ? `이 요구사항만 다시 매핑합니다(${scope.title}). 사람이 고친 행(✎)은 그대로 남고 자동 후보만 교체됩니다.`
-      : `이 세부 항목만 다시 매핑합니다: ${scope.detailLabel}. 다른 항목과 사람이 고친 행은 건드리지 않습니다.`;
+      : scope.kind === "group"
+        ? `${scope.detailLabel}의 하위 항목 ${scope.childCount}개를 각각 매핑합니다. 기존 상위 매핑과 사람이 고친 행은 유지됩니다.`
+        : `이 세부 항목만 다시 매핑합니다: ${scope.detailLabel}. 다른 항목과 사람이 고친 행은 건드리지 않습니다.`;
 
   const engineButton = (kind: EngineKind, label: string, desc: string) => (
     <button
@@ -154,9 +157,9 @@ export default function MappingRunDialog({ open, onOpenChange, scope, solutions,
               <Button className="h-auto justify-start py-3 text-left" disabled={busy || selected.length === 0} onClick={() => run("all")}>
                 <Wand2 className="mr-2 h-4 w-4" />
                 <div>
-                  <div className="font-medium">{scope.kind === "project" ? "매핑 실행" : "다시 매핑"}</div>
+                  <div className="font-medium">{scope.kind === "project" ? "매핑 실행" : scope.kind === "group" ? "하위 항목 일괄 매핑" : "다시 매핑"}</div>
                   <div className="text-xs opacity-80">
-                    {scope.kind === "project" ? `요구사항 ${scope.requirementCount}건 전체` : scope.kind === "requirement" ? "이 요구사항의 모든 세부 항목" : `세부 항목 ${scope.detailKey}`}
+                    {scope.kind === "project" ? `요구사항 ${scope.requirementCount}건 전체` : scope.kind === "requirement" ? "이 요구사항의 모든 세부 항목" : scope.kind === "group" ? `그룹 ${scope.detailKey}의 하위 항목 ${scope.childCount}개` : `세부 항목 ${scope.detailKey}`}
                   </div>
                 </div>
               </Button>

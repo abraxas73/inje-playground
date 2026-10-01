@@ -249,7 +249,7 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
       });
       if (!res.ok) throw new Error(await readError(res, "상세 추출에 실패했습니다."));
       onRequirementChange(await res.json() as RfpRequirement);
-      setNotice("하위 항목을 분리했습니다. 각 항목의 ‘다시 매핑’ 또는 요구사항의 ‘다시 매핑’으로 매핑하세요. 기존 상위 매핑은 아래에 보존됩니다.");
+      setNotice("하위 항목을 분리했습니다. 상위 그룹의 ‘하위 항목 일괄 매핑’ 또는 각 항목의 ‘다시 매핑’으로 매핑하세요. 기존 상위 매핑은 해당 그룹에 보존됩니다.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "상세 추출에 실패했습니다.");
     } finally { setBusy(false); }
@@ -280,7 +280,7 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
       </div>
       {groups.map((g) => (
         /* 세부 항목 하나 = 카드 하나. 왼쪽 강조선은 그 항목의 가장 좋은 판정 색(행이 없으면 미매핑 색) */
-        <section key={g.key ?? "__all"} className={cn("overflow-hidden rounded-md border border-l-4 bg-background", VERDICT_ACCENT[bestVerdict(g.rows) ?? "unmapped"])}>
+        <section key={g.key ?? "__all"} className={cn("overflow-hidden rounded-md border border-l-4 bg-background", g.key?.includes(".") && "ml-4", VERDICT_ACCENT[bestVerdict(g.rows) ?? "unmapped"])}>
           <div className="flex items-start justify-between gap-2 border-b bg-muted/40 px-2.5 py-1.5">
             <div className="flex min-w-0 items-baseline gap-1.5">
               {g.key && <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded border bg-background px-1 text-[11px] font-semibold tabular-nums text-muted-foreground">{g.key}</span>}
@@ -288,12 +288,21 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
                 <span className={cn("font-medium", g.key ? "text-foreground" : "text-muted-foreground")} title={g.text || g.label}>
                   {g.key ? g.label : multi ? "요구사항 전체" : "매핑"}
                 </span>
-                {g.archived && <span className="ml-1 text-xs text-amber-700">세분화 전 매핑 · 참고용</span>}
+                {g.archived && <span className="ml-1 text-xs text-amber-700">{g.rows.length ? "세분화 전 매핑 · 참고용" : "세분화 그룹"}</span>}
                 {g.stale && !g.archived && <span className="ml-1 text-xs text-amber-700">분할·내용 변경 전 매핑</span>}
                 <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{g.rows.length}행</span>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
+              {g.archived && g.key && structure.parents?.some((p) => p.key === g.key) && (
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={busy || running}
+                  onClick={() => setRunScope({
+                    scope: { kind: "group", reqId: requirement.reqId, detailKey: g.key!, detailLabel: g.label, childCount: structure.units.filter((u) => u.key.startsWith(`${g.key}.`)).length },
+                    target: { requirementIds: [requirement.id], detailKey: g.key },
+                  })}>
+                  <RefreshCw className="mr-1 h-3.5 w-3.5" />하위 항목 일괄 매핑
+                </Button>
+              )}
               {!g.stale && !g.archived && splittableKey(g.key) && (
                 <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={busy || running || draft !== null || Object.keys(pending).length > 0}
                   title="하위 - 항목을 각각 매핑할 수 있도록 분리합니다. 기존 매핑은 보존됩니다."
@@ -321,7 +330,7 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
           <div className="divide-y">
             {g.rows.map(rowBlock)}
             {draft && (draft.detailKey ?? null) === g.key && draftBlock}
-            {!g.rows.length && !(draft && (draft.detailKey ?? null) === g.key) && (
+            {!g.archived && !g.rows.length && !(draft && (draft.detailKey ?? null) === g.key) && (
               <div className="px-2.5 py-2 text-xs text-muted-foreground">
                 {g.key ? "이 세부 항목은 매핑이 없습니다." : "매핑이 없습니다(미매핑). \u201c행 추가\u201d로 직접 매핑하거나 개요의 \u201c솔루션 매핑 실행\u201d을 누르세요."}
               </div>

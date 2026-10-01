@@ -2,7 +2,7 @@
  * 매핑 행을 세부 항목(매핑 단위)으로 묶는다. 순수 함수 — 화면 편집기(MappingEditor)와 xlsx 상세 시트가
  * **같은 함수**를 써야 "웹 화면과 같은 매핑"이 파일에서도 성립한다.
  *
- * 그룹 순서: 요구사항 전체(옛 행·목록이 아닌 요구사항) → 세부 항목 1..N(매핑이 없는 항목도 빈 그룹으로) → 유령 그룹.
+ * 그룹 순서: 요구사항 전체 → 상위 항목·그 하위 항목(4, 4.1, 4.2, 5, 5.1…) → 유령 그룹.
  */
 import { parseDetailUnits, type DetailStructure } from "./detail-items";
 import type { MappingRow } from "./types";
@@ -39,7 +39,15 @@ export function groupRowsByDetail<T extends MappingRow>(rows: readonly T[], stru
   const wholeRows = byKey.get("") ?? [];
   if (wholeRows.length) out.push({ key: null, label: ALL_DETAIL_LABEL, text: "", rows: wholeRows, stale: false });
   byKey.delete("");
+  const parents = new Map((structure.parents ?? []).map((u) => [u.key, u]));
   for (const u of structure.units) {
+    const parentKey = u.key.split(".")[0];
+    const parent = parents.get(parentKey);
+    if (parent) {
+      out.push({ key: parent.key, label: parent.label, text: parent.text, rows: byKey.get(parent.key) ?? [], stale: true, archived: true });
+      byKey.delete(parent.key);
+      parents.delete(parentKey);
+    }
     out.push({ key: u.key, label: u.label, text: u.text, rows: byKey.get(u.key) ?? [], stale: false });
     byKey.delete(u.key);
   }
