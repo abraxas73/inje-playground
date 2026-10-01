@@ -12,7 +12,7 @@ Vercel Cron으로 돌릴 수 없는 작업(로컬 Chrome 세션·사내망·개�
 | `com.innogrid.claude-usage-csv` | 매일 09:05 | Claude 사용량 CSV·멤버·초대·시트 수집 — `/claude-usage-csv` 스킬을 `claude -p --chrome`으로 헤드리스 실행 | `~/.claude/hooks/claude-usage-csv-daily.sh` | `~/.claude/logs/claude-usage-csv.log`, 회차별 `~/.claude/logs/claude-usage-csv/YYYY-MM-DD.json` |
 | `com.innogrid.claude-seat-executor` | 상시(KeepAlive) | Claude 시트 할당·해제 요청을 claude.ai에 반영(전용 프로필 Chrome 창 상시, 15초 폴링 — 헤드리스는 Cloudflare에 막힘). 런북 `docs/claude-usage.md` §9 | `~/.claude/hooks/claude-seat-executor.sh` → `frontend/scripts/claude-seat-executor.mjs` | `~/Library/Logs/claude-seat-executor.log` |
 
-plist는 모두 `~/Library/LaunchAgents/<라벨>.plist`. 전제: Mac이 깨어 있어야 하고(잠자기 중 놓친 일정은 깨어난 뒤 실행, 꺼져 있으면 실행 안 됨), `claude-usage-csv`는 Chrome 실행 + claude.ai 7개 조직 소유자 로그인 + Claude in Chrome 확장 연동이 필요하다.
+plist는 모두 `~/Library/LaunchAgents/<라벨>.plist`. 전제: Mac이 깨어 있어야 하고(잠자기 중 놓친 일정은 깨어난 뒤 실행, 꺼져 있으면 실행 안 됨), `claude-usage-csv`는 Chrome 실행 + claude.ai 7개 조직 소유자 로그인 + Claude in Chrome 확장 연동이 필요하다. 스크립트는 **평소 프로필 Chrome**(`--user-data-dir` 없는 인스턴스)이 없으면 `open -nga`로 띄운다 — 시트 실행기 Chrome이 상시 떠 있어 `pgrep -x`만으로는 재부팅 뒤 평소 Chrome 미실행을 놓쳤다(2026-10-02). 확장이 붙지 않으면(연결 브라우저 0개) Chrome 확장 설정에서 로그아웃 → 재로그인하면 중계 서버에 다시 등록된다.
 
 ## 한 곳에서 보기: `claude-jobs`
 
