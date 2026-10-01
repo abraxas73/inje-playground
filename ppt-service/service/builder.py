@@ -18,6 +18,7 @@ from innogrid_ppt import deck as D
 from innogrid_ppt import tokens as T
 from innogrid_ppt.media import extract_images
 from innogrid_ppt.slots import Overflow
+from service import transplant_fix
 from innogrid_ppt.template import find_template
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -25,6 +26,7 @@ PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presen
 DEFAULT_TITLE_BOTTOM_CM = 3.2
 # ponytail: 전역 stderr·템플릿 상태(builders.TEMPLATE_PRS) 때문에 빌드를 프로세스 안에서 직렬화 — 병렬이 필요하면 프로세스 풀로
 _BUILD_LOCK = threading.Lock()
+transplant_fix.install()  # 이식 도형의 테마색 고정·id 중복 해소(패키지 무수정)
 SPEC_ERRORS = (ValueError, KeyError, TypeError, IndexError, AttributeError)
 IMAGE_REF = re.compile(r"^src:(\d+):(\d+)$")
 ACCENT = re.compile(r"\[\[(.+?)\]\]")

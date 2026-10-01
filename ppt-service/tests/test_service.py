@@ -322,3 +322,71 @@ def test_template_validate_rejects_portrait_size(client, auth, monkeypatch):
     monkeypatch.setattr(S, "download", portrait)
     r = client.post("/template/validate", headers=auth, json={"templateUrl": "https://example.supabase.co/t.pptx?token=1"})
     assert r.status_code == 422 and "세로형" in r.json()["error"] and "19.1×33.9cm" in r.json()["error"]
+
+
+def _source_with_theme_shapes(path):
+    """원고 pptx: 상단에 큰 '01.'과 그 아래 제목, 본문에 accent1 채움 도형(id=3 — 템플릿 장표 id와 충돌)과 연결선."""
+    from pptx import Presentation
+    from pptx.util import Cm, Pt
+    from pptx.oxml.ns import qn
+    from pptx.enum.shapes import MSO_SHAPE
+    prs = Presentation(); prs.slide_width, prs.slide_height = Cm(29.7), Cm(16.7)
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    num = s.shapes.add_textbox(Cm(1.2), Cm(1.1), Cm(1.5), Cm(0.9)); num.text_frame.text = "01."; num.text_frame.paragraphs[0].runs[0].font.size = Pt(28)
+    title = s.shapes.add_textbox(Cm(1.2), Cm(2.3), Cm(27), Cm(0.9)); title.text_frame.text = "원고 제목 문장"; title.text_frame.paragraphs[0].runs[0].font.size = Pt(18)
+    box = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, Cm(2), Cm(5), Cm(8), Cm(3)); box.text_frame.text = "노드"
+    box._element.find(".//" + qn("p:cNvPr")).set("id", "3")
+    sp = box._element.spPr
+    fill = sp.find(qn("a:solidFill"))
+    if fill is None:
+        from pptx.oxml import parse_xml
+        from pptx.oxml.ns import nsdecls
+        sp.append(parse_xml(f'<a:solidFill {nsdecls("a")}><a:schemeClr val="accent1"><a:lumMod val="75000"/></a:schemeClr></a:solidFill>'))
+    else:
+        for c in list(fill): fill.remove(c)
+        from pptx.oxml import parse_xml
+        from pptx.oxml.ns import nsdecls
+        fill.append(parse_xml(f'<a:schemeClr {nsdecls("a")} val="accent1"><a:lumMod val="75000"/></a:schemeClr>'))
+    box2 = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, Cm(14), Cm(5), Cm(8), Cm(3)); box2._element.find(".//" + qn("p:cNvPr")).set("id", "25")
+    cx = s.shapes.add_connector(1, Cm(10), Cm(6.5), Cm(14), Cm(6.5))
+    cx._element.find(".//" + qn("p:cNvPr")).set("id", "5")
+    cx.begin_connect(box, 3); cx.end_connect(box2, 1)
+    prs.save(str(path))
+    return path
+
+
+def test_extract_title_bottom_is_whole_header_band(tmp_path):
+    from service.extract import extract_slides
+    src = _source_with_theme_shapes(tmp_path / "src.pptx")
+    s = extract_slides(str(src))[0]
+    assert s["title"] == "원고 제목 문장"   # 폭 넓은 글상자가 제목('01.'은 번호)
+    assert s["titleBottomCm"] == 3.2      # 이식 기준선은 띠의 바닥(제목 2.3+0.9)
+
+
+def test_transplant_fix_resolves_theme_colors_and_dedupes_ids(tmp_path):
+    from pptx import Presentation
+    from pptx.oxml.ns import qn
+    from pptx.util import Emu
+    from innogrid_ppt.transplant import MARK
+    src = _source_with_theme_shapes(tmp_path / "src.pptx")
+    spec = {"meta": {"title": ["a", "b."], "ver": "01", "date": "2026. 10. 01"},
+            "sections": [{"name": "s", "slides": [{"layout": "free-title", "title": ["도식", "이식합니다."], "source": {"slide": 1}}]}]}
+    from service.builder import build_deck
+    res = build_deck(spec, tmp_path / "w", src, [{"no": 1, "titleBottomCm": 3.2}])
+    prs = Presentation(str(res["pptxPath"]))
+    slide = next(sl for sl in prs.slides if any(e.get("name") == MARK for e in sl._element.iter(qn("p:cNvPr"))))
+    group = next(e for e in slide._element.iter(qn("p:grpSp")) if e.find(".//" + qn("p:cNvPr")).get("name") == MARK)
+    # 테마색이 남지 않고 원고 테마의 accent1 값으로 고정, lumMod 자식 유지
+    from service.transplant_fix import theme_colors
+    accent1 = theme_colors(Presentation(str(src)).slides[0])["accent1"]
+    assert not list(group.iter(qn("a:schemeClr")))
+    fills = [e for e in group.iter(qn("a:srgbClr")) if e.get("val") == accent1]
+    assert fills and any(c.tag == qn("a:lumMod") for f in fills for c in f)
+    # 슬라이드 안 도형 id가 모두 유일하고, 연결선 참조도 새 id를 가리킨다
+    ids = [e.get("id") for e in slide._element.iter(qn("p:cNvPr"))]
+    assert len(ids) == len(set(ids))
+    refs = [r.get("id") for tag in (qn("a:stCxn"), qn("a:endCxn")) for r in group.iter(tag)]
+    assert refs and all(r in ids for r in refs)
+    # 제목 띠(y<3.2)의 글상자는 이식되지 않았다
+    texts = [t.text for sh in slide.shapes if sh.shape_type == 6 for t in sh.shapes if sh.name == MARK and t.has_text_frame]
+    assert "원고 제목 문장" not in texts and "01." not in texts
