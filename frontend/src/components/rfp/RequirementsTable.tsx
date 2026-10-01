@@ -1,8 +1,8 @@
 "use client";
 
-import { Fragment, useCallback, useMemo, useState } from "react";
+import { createContext, Fragment, useCallback, useContext, useMemo, useState } from "react";
 import {
-  createColumnHelper, flexRender, getCoreRowModel, getExpandedRowModel, getFilteredRowModel, getSortedRowModel, useReactTable, type ExpandedState, type SortingState,
+  createColumnHelper, flexRender, getCoreRowModel, getExpandedRowModel, getFilteredRowModel, getSortedRowModel, useReactTable, type CellContext, type ExpandedState, type SortingState,
 } from "@tanstack/react-table";
 import { ArrowUpDown, ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -45,6 +45,35 @@ interface Props {
 }
 
 type EditableField = "categoryName" | "reqId" | "title" | "definition" | "details" | "deliverables" | "related";
+
+type SaveRequirement = (row: RfpRequirement, field: EditableField) => (next: string) => Promise<void>;
+const RequirementCellContext = createContext<{ save: SaveRequirement; mapped: boolean; groups: ReturnType<typeof groupByRequirement> } | null>(null);
+
+// Keep the component type stable even when callbacks or fetched data rebuild the columns.
+function RequirementEditableCell(ctx: CellContext<RfpRequirement, string>) {
+  const { save } = useContext(RequirementCellContext)!;
+  return <EditableCell value={ctx.getValue()} onSave={save(ctx.row.original, ctx.column.id as EditableField)} clampLines={ctx.column.columnDef.meta?.clampLines ?? 3} />;
+}
+
+function RequirementIdCell(ctx: CellContext<RfpRequirement, string>) {
+  const { save, mapped, groups } = useContext(RequirementCellContext)!;
+  if (!mapped) return <EditableCell value={ctx.getValue()} onSave={save(ctx.row.original, "reqId")} clampLines={0} />;
+  const verdict = bestVerdict(groups.get(ctx.row.original.id) ?? []) ?? "unmapped";
+  const label = verdict === "unmapped" ? UNMAPPED_LABEL : VERDICT_LABEL[verdict];
+  const open = ctx.row.getIsExpanded();
+  return (
+    <button
+      type="button"
+      onClick={ctx.row.getToggleExpandedHandler()}
+      aria-expanded={open}
+      title={`${label} — 클릭하면 솔루션 매핑을 ${open ? "접습니다" : "펼칩니다"}. ID 편집은 펼친 패널에서.`}
+      className={cn("inline-flex max-w-full items-center rounded-md border border-transparent px-1.5 py-0.5 text-left text-sm font-medium leading-tight tabular-nums ring-offset-background transition", VERDICT_CLASS[verdict], open && "ring-2 ring-ring ring-offset-1")}
+    >
+      {/* 좁은 열(구분 탭은 열이 10개)에서는 잘라내지 않고 줄바꿈 — ID는 끝 번호까지 보여야 한다 */}
+      <span className="break-all">{ctx.getValue() || "ID 없음"}</span>
+    </button>
+  );
+}
 
 async function patchRequirement(id: string, patch: Partial<Record<EditableField, string>>): Promise<RfpRequirement> {
   const res = await fetch(`/api/rfp/requirements/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
@@ -106,14 +135,14 @@ export default function RequirementsTable({
     onMappingsChange([...mappings.filter((m) => m.requirementId !== requirementId), ...rows]);
   }, [mappings, onMappingsChange]);
 
-  // save·groups·index가 바뀔 때마다 컬럼을 다시 만든다(편집 콜백이 옛 requirements를 캡처하지 않게 — 1단계와 같은 이유)
+  // 표시 데이터에 따라 컬럼을 갱신해도 편집 셀 타입은 유지한다. 최신 저장 콜백은 Context로 전달한다.
   const { allColumns, detailColumns } = useMemo(() => {
     const col = createColumnHelper<RfpRequirement>();
     const editable = (field: EditableField, header: string, opts: { clamp?: number; width?: string } = {}) =>
       col.accessor(field, {
         header,
-        cell: (ctx) => <EditableCell value={ctx.getValue()} onSave={save(ctx.row.original, field)} clampLines={opts.clamp ?? 3} />,
-        meta: { width: opts.width },
+        cell: RequirementEditableCell,
+        meta: { width: opts.width, clampLines: opts.clamp ?? 3 },
       });
     const expander = col.display({
       id: "expand",
@@ -136,24 +165,7 @@ export default function RequirementsTable({
     // 매핑 전에는 다른 셀처럼 클릭해서 편집. 매핑 후에는 판정 색 버튼(클릭 → 행 펼침)이 되고 ID 편집은 펼친 패널 헤더에서 한다.
     const reqIdCol = col.accessor("reqId", {
       header: "요구사항 ID",
-      cell: (ctx) => {
-        if (!mapped) return <EditableCell value={ctx.getValue()} onSave={save(ctx.row.original, "reqId")} clampLines={0} />;
-        const verdict = bestVerdict(groups.get(ctx.row.original.id) ?? []) ?? "unmapped";
-        const label = verdict === "unmapped" ? UNMAPPED_LABEL : VERDICT_LABEL[verdict];
-        const open = ctx.row.getIsExpanded();
-        return (
-          <button
-            type="button"
-            onClick={ctx.row.getToggleExpandedHandler()}
-            aria-expanded={open}
-            title={`${label} — 클릭하면 솔루션 매핑을 ${open ? "접습니다" : "펼칩니다"}. ID 편집은 펼친 패널에서.`}
-            className={cn("inline-flex max-w-full items-center rounded-md border border-transparent px-1.5 py-0.5 text-left text-sm font-medium leading-tight tabular-nums ring-offset-background transition", VERDICT_CLASS[verdict], open && "ring-2 ring-ring ring-offset-1")}
-          >
-            {/* 좁은 열(구분 탭은 열이 10개)에서는 잘라내지 않고 줄바꿈 — ID는 끝 번호까지 보여야 한다 */}
-            <span className="break-all">{ctx.getValue() || "ID 없음"}</span>
-          </button>
-        );
-      },
+      cell: RequirementIdCell,
       meta: { width: "8rem" },
     });
     const solution = col.display({
@@ -208,7 +220,7 @@ export default function RequirementsTable({
         actions,
       ],
     };
-  }, [save, sheetIndex, groups, index, mapped]);
+  }, [sheetIndex, groups, index]);
 
   const data = useMemo(() => {
     const byTab = tab === "all" ? requirements : requirements.filter((r) => r.categoryCode === tab);
@@ -247,6 +259,7 @@ export default function RequirementsTable({
   }, [tab, allColumns, detailColumns]);
 
   return (
+    <RequirementCellContext.Provider value={{ save, mapped, groups }}>
     <div className="space-y-3">
       <Tabs value={tab} onValueChange={setTab}>
         {/* 구분이 20개를 넘으면 탭이 두 줄로 접힌다. TabsList 기본 고정 높이(h-9)를 풀어야(!) 둘째 줄이 상자 밖으로 넘치지 않고, 트리거는 flex-1로 늘어나지 않게, 검색·행 추가는 오른쪽 고정 폭. */}
@@ -347,6 +360,7 @@ export default function RequirementsTable({
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </RequirementCellContext.Provider>
   );
 }
 

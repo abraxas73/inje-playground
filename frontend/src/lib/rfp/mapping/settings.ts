@@ -1,5 +1,5 @@
 /**
- * 매핑 운영 설정(전역 settings 테이블). 지금은 규칙 엔진의 요구사항당 후보 상한 하나뿐이다 — 어드민 `/admin/rfp-catalog`에서 지정한다.
+ * 매핑 운영 설정(전역 settings 테이블). 규칙·Claude 엔진의 세부 항목당 후보 상한을 관리한다 — 어드민 `/admin/rfp-catalog`에서 지정한다.
  * 값 검증은 여기 한 곳에서만 한다(화면·API·잡이 같은 규칙을 쓰게).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";

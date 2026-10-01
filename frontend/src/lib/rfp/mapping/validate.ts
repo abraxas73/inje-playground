@@ -1,6 +1,7 @@
 import { isVerdict, requiresFeature, type CatalogSolution, type EngineItem, type FeatureLookup, type MappingRow, type Verdict } from "./types";
 import type { ChunkRequirement } from "./chunk";
-import { detailUnitMap } from "./detail-items";
+import { parseMaxCandidates } from "./settings";
+import { detailUnitMap, parseDetailUnits } from "./detail-items";
 
 /** 한 단위(요구사항 전체 또는 세부 항목 하나)에 허용하는 최대 행 수 */
 export const MAX_ROWS_PER_REQUIREMENT = 5;
@@ -42,7 +43,8 @@ interface Candidate {
 }
 
 /** 2단계 스펙 §4.3 검증 1~6 + 4단계 §5.4(FeatureLookup·score). 순수 함수. lookup 키는 llm 별칭("F3") 또는 규칙 기능 id — 대소문자 정리는 엔진이 한다. */
-export function validateMappingOutput(items: EngineItem[], chunk: readonly ChunkRequirement[], lookup: FeatureLookup): ValidationResult {
+export function validateMappingOutput(items: EngineItem[], chunk: readonly ChunkRequirement[], lookup: FeatureLookup, opts: { maxCandidates?: number; maxPerSolution?: number } = {}): ValidationResult {
+  const maxRows = parseMaxCandidates(opts.maxCandidates ?? MAX_ROWS_PER_REQUIREMENT);
   const byReqId = new Map(chunk.map((r) => [r.reqId.replace(/\s+/g, "").toUpperCase(), r]));
   const unitsOf = new Map(chunk.map((r) => [r.id, detailUnitMap(r.details)]));
   const warnings: string[] = [];
@@ -116,9 +118,18 @@ export function validateMappingOutput(items: EngineItem[], chunk: readonly Chunk
         // build와 na가 섞이면 build만, 같은 판정이 여럿이면 첫 행(규칙 4)
         list = [list.find((c) => c.verdict === "build") ?? list[0]];
       }
-      if (list.length > MAX_ROWS_PER_REQUIREMENT) {
-        warnings.push(`${where}: 매핑 ${list.length}행 중 ${MAX_ROWS_PER_REQUIREMENT}행만 사용`);
-        list = list.slice(0, MAX_ROWS_PER_REQUIREMENT);
+      if (opts.maxPerSolution !== undefined) {
+        const counts = new Map<string, number>();
+        list = list.filter((c) => {
+          if (!c.solutionCode) return true;
+          const count = (counts.get(c.solutionCode) ?? 0) + 1;
+          counts.set(c.solutionCode, count);
+          return count <= opts.maxPerSolution!;
+        });
+      }
+      if (list.length > maxRows) {
+        warnings.push(`${where}: 매핑 ${list.length}행 중 ${maxRows}행만 사용`);
+        list = list.slice(0, maxRows);
       }
       if (!list.length) return;
       list.forEach((c, i) =>
@@ -139,6 +150,21 @@ export function validateMappingOutput(items: EngineItem[], chunk: readonly Chunk
     }
   }
   return { rows, warnings, unmapped };
+}
+
+/** Claude 결과가 빠진 청크는 기존 자동 매핑을 지우기 전에 실패시킨다. */
+export function assertCompleteLlmMapping(rows: readonly ValidatedRow[], chunk: readonly ChunkRequirement[]): void {
+  const missing: string[] = [];
+  for (const req of chunk) {
+    const mapped = rows.filter((r) => r.requirementId === req.id);
+    const { units, flat } = parseDetailUnits(req.details);
+    if (!flat && units.length > 1) {
+      for (const unit of units) {
+        if (!mapped.some((r) => r.detailKey === unit.key)) missing.push(`${req.reqId} 세부 ${unit.key}`);
+      }
+    } else if (!mapped.length) missing.push(req.reqId);
+  }
+  if (missing.length) throw new Error(`Claude 매핑 결과 누락 ${missing.length}건: ${missing.slice(0, 5).join(", ")}. 기존 매핑은 유지됩니다.`);
 }
 
 export interface ManualMappingInput {

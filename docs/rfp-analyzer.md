@@ -31,7 +31,7 @@
 1. SQL 실행(Supabase SQL Editor 또는 Management API) → 테이블 3개 + 버킷 `rfp`(private, 50MB).
 2. Vercel env에 `ANTHROPIC_API_KEY` 추가(선택).
 3. 배포: `git push` 후 `vercel --prod`(자동 배포 아님).
-4. (2단계) `docs/sql/2026-09-04-rfp-solution-mapping.sql` 실행 → 테이블 4개 + 시드 5건. Vercel env에 `ANTHROPIC_API_KEY`가 있어야 가져오기·매핑이 동작한다.
+4. (2단계) `docs/sql/2026-09-04-rfp-solution-mapping.sql` 실행 → 테이블 4개 + 시드 5건. 규칙 가져오기·매핑에는 API 키가 필요 없고, Claude 엔진에만 `ANTHROPIC_API_KEY`가 필요하다.
 5. (2단계) 어드민 `/admin/rfp-catalog`에서 솔루션별 Confluence 페이지 URL 등록 → 가져오기 → 기능 표 검토(이름·설명 정리, 회의록성 항목 비활성).
 6. (3단계) Entra 앱 등록(기존 Teams 앱) → 인증 → 플랫폼 "웹" 리디렉션 URI `https://inje-playground.vercel.app/api/ms/callback`, `http://localhost:3003/api/ms/callback` 추가. API 권한 → Microsoft Graph → **위임된 권한** `Files.ReadWrite.All`, `Sites.Read.All`, `User.Read`, `offline_access` 추가(관리자 동의 버튼은 누르지 않아도 된다. 테넌트가 사용자 동의를 막아 첫 연결에서 "관리자 승인 필요"가 뜨면 Application Administrator가 위임 권한에 동의 — 앱 권한과 달리 GA 불필요). 클라이언트 암호가 없으면 새로 만들어 `TEAMS_GRAPH_CLIENT_SECRET`에.
 7. (3단계) `docs/sql/2026-09-05-rfp-sharepoint.sql` 실행 → `ms_connections`·`rfp_sharepoint_uploads` + `rfp_projects.sharepoint_folder`. Vercel env에 `MS_TOKEN_ENC_KEY`·`TEAMS_GRAPH_CLIENT_SECRET` 추가 후 재배포. 관리자 시스템 설정에 `teams_tenant_id`·`teams_graph_client_id` 확인.
@@ -160,3 +160,11 @@
 65. **제안팀용 시트 2종**(2026-09-12, xlsx 다운로드·SharePoint 업로드 공통 — `buildWorkbook`): 솔루션_매핑 시트 뒤에 붙는다.
     - `{n+1}.요구사항_대응표`: 제안서 부속 "요구사항 대응표" 초안. 단위마다 한 줄 — 구분·ID·명칭·세부 항목·**대응 여부(확정 판정만; 후보만 있으면 "검토 대기", 없으면 "미매핑")**·대응 솔루션·대응 기능·대응 방안(근거 문장 — 설명)·제안서 목차·페이지(비워 둠, 제안서 작성 뒤 채운다)·비고(메모). 미확정 후보가 제안서에 판정으로 실리지 않게 하는 것이 요점.
     - `{n+2}.Gap_리포트`: Go/No-go 회의 자료. 충족이 아닌 단위만, "우리가 못 하는 것"부터 — 설계·구축영역 → 해당없음 → 부분충족 → 검토 대기 → 미매핑. 위에 상태별 건수, 사유 칸에는 확정 행의 근거·설명 또는 후보만 있으면 "후보 N건 — 최고 솔루션 › 기능 (점수)"(검토 우선순위용).
+
+### Claude API 키 주입 후 확인 (2026-10-01)
+
+- 서버 환경의 `ANTHROPIC_API_KEY`를 사용한다. 환경 변수를 추가한 뒤 서버 재시작/재배포가 필요하다. `GET /api/rfp/catalog`의 `llmAvailable`은 키 존재 여부이며 인증·잔액·모델 접근 권한까지 보장하지 않는다.
+- 비표준 RFP 추출 폴백, 카탈로그 "Claude로 보강", 매핑 다이얼로그의 "Claude"가 같은 키와 `RFP_LLM_MODEL`을 사용한다. 표준 문서 추출과 기본 매핑 엔진은 기존 규칙 방식을 유지한다. 기존 분석 결과는 자동으로 재실행되지 않는다.
+- 규칙 후보가 있는 프로젝트를 Claude로 판정하려면 "전체 다시 매핑" 또는 해당 요구사항/세부 항목의 "다시 매핑"을 선택한다. "미매핑만"은 기존 규칙 후보가 있는 요구사항을 제외한다. 사람이 편집한 매핑은 기존 보존 규칙을 따른다.
+- Claude에도 세부 항목당 최대 후보 1~5개 및 솔루션당 2개 상한을 적용한다. 프롬프트와 서버 검증에서 모두 제한하며, 각 항목은 독립적으로 충족·부분충족·설계·해당없음 판정을 받는다.
+- Claude 결과가 비었거나 검증 후 누락된 요구사항/세부 항목이 있으면 해당 청크를 실패 처리하고 기존 자동 매핑을 유지한다. 기존 결과가 있는 실패 요구사항은 개별 재매핑 또는 전체 재매핑으로 재시도한다. DB 삭제 후 삽입 단계의 실패까지 원자적으로 복구하는 것은 아니다.
