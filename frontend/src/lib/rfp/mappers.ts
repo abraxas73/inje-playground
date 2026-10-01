@@ -1,3 +1,4 @@
+import { readDetailSplits } from "./mapping/detail-items";
 import type { RfpFile, RfpMapping, RfpProjectDetail, RfpProjectSummary, RfpRequirement, RfpSharepointUpload, SharepointFolder } from "@/types/rfp";
 import type { MappingEngineKind, Verdict } from "./mapping/types";
 import type { RequirementRow } from "./requirements";
@@ -154,6 +155,7 @@ export function mapRequirement(row: RequirementDbRow): RfpRequirement {
     title: row.title,
     definition: row.definition,
     details: row.details,
+    detailSplits: readDetailSplits(row.source, row.details),
     deliverables: row.deliverables,
     related: row.related,
     solution: row.solution,
@@ -174,6 +176,7 @@ export function toRequirementRow(row: RequirementDbRow): RequirementRow {
     title: row.title,
     definition: row.definition,
     details: row.details,
+    detailSplits: readDetailSplits(row.source, row.details),
     deliverables: row.deliverables,
     related: row.related,
     solution: row.solution,

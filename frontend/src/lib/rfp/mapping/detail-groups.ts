@@ -20,9 +20,10 @@ export interface DetailGroup<T extends MappingRow = MappingRow> {
   rows: T[];
   /** 세부 내용을 고친 뒤 지금 구조에 없는 키 — 행을 지우지 않고 따로 보여준다 */
   stale: boolean;
+  archived?: boolean;
 }
 
-/** 세부 항목 그룹. structure는 parseDetailUnits(requirement.details) 결과. */
+/** 세부 항목 그룹. structure는 parseDetailUnits(requirement.details, requirement.detailSplits) 결과. */
 export function groupRowsByDetail<T extends MappingRow>(rows: readonly T[], structure: DetailStructure): DetailGroup<T>[] {
   const sorted = [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
   // 목록이 아니거나 항목이 하나면 예전처럼 요구사항 한 덩어리(행에 detail_key가 있어도 한 그룹에 모은다)
@@ -43,7 +44,7 @@ export function groupRowsByDetail<T extends MappingRow>(rows: readonly T[], stru
     byKey.delete(u.key);
   }
   for (const [k, rs] of byKey) out.push({ key: k, label: rs[0]?.detailText || `세부 항목 ${k}`, text: "", rows: rs, stale: true });
-  return out;
+  return out.map((group) => ({ ...group, ...(structure.retiredKeys?.includes(group.key ?? "") ? { archived: true } : {}) }));
 }
 
 /** 편의 함수 — 요구사항의 세부 내용 문자열로 바로 묶는다 */

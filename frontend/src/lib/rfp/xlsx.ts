@@ -84,6 +84,7 @@ function mergeDown(ws: ExcelJS.Worksheet, col: number, top: number, bottom: numb
 
 /** 세부 항목 칸에 넣을 본문. 항목이면 항목 전체 텍스트(하위 줄 포함), 요구사항 전체 단위면 세부 내용 전체 */
 function detailCellText(group: DetailGroup, details: string): string {
+  if (group.archived) return `${group.label} (세분화 전 매핑 · 참고용)`;
   return group.text || (group.key ? group.label : details);
 }
 
@@ -119,7 +120,7 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
   const unitCounts = new Map<string, number>();
   if (mapping) {
     for (const q of sorted) {
-      const structure = parseDetailUnits(q.details);
+      const structure = parseDetailUnits(q.details, q.detailSplits);
       detailGroups.set(q.id, groupRowsByDetail(groups.get(q.id) ?? [], structure));
       unitCounts.set(q.id, structure.units.length);
     }
@@ -128,7 +129,7 @@ export async function buildWorkbook(project: XlsxProject, rows: RequirementRow[]
   const detailProgress = (q: RequirementRow): string => {
     const gs = detailGroups.get(q.id) ?? [];
     if (!isDetailScoped(gs)) return "";
-    const done = gs.filter((g) => g.key && g.rows.length).length;
+    const done = gs.filter((g) => g.key && !g.stale && !g.archived && g.rows.length).length;
     return `${done}/${unitCounts.get(q.id) ?? 0}`;
   };
 

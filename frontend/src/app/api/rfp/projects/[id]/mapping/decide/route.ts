@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/rfp/require-user";
 import { loadCatalog } from "@/lib/rfp/catalog/store";
 import { validateManualMapping } from "@/lib/rfp/mapping/validate";
 import { loadDetailSiblings } from "@/lib/rfp/mapping/siblings";
-import { detailUnitMap } from "@/lib/rfp/mapping/detail-items";
+import { detailUnitMap, readDetailSplits } from "@/lib/rfp/mapping/detail-items";
 import { cleanRationale, isConfirmed } from "@/lib/rfp/mapping/review";
 import { MAPPING_COLUMNS, mapMapping, type MappingDbRow } from "@/lib/rfp/mappers";
 import type { DecideResponse, ReviewDecision } from "@/types/rfp";
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const decision = parseDecision(await request.json().catch(() => null));
   if (!decision) return bad("결정 형식이 아닙니다(action confirm|close|reuse).");
 
-  const { data: req, error: reqError } = await auth.admin.from("rfp_requirements").select("id, project_id, details").eq("id", decision.requirementId).maybeSingle();
+  const { data: req, error: reqError } = await auth.admin.from("rfp_requirements").select("id, project_id, details, source").eq("id", decision.requirementId).maybeSingle();
   if (reqError) return bad(reqError.message, 500);
   if (!req || req.project_id !== id) return bad("요구사항이 없습니다.", 404);
 
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!siblingsRes.ok) return bad(siblingsRes.error, 500);
   const unitRows = siblingsRes.siblings;
   // 세부 항목 키는 지금 세부 내용에서 뽑히는 것이거나, 이미 그 키로 저장된 행이 있는 것(세부 내용이 바뀐 뒤 남은 매핑)만
-  const units = detailUnitMap(String((req as { details?: unknown }).details ?? ""));
+  const units = detailUnitMap(String((req as { details?: unknown }).details ?? ""), readDetailSplits(req.source, req.details));
   if (decision.detailKey && !units.has(decision.detailKey) && !unitRows.length) return bad("세부 항목을 찾을 수 없습니다. 화면을 새로 불러오세요.");
   const detailText = decision.detailKey ? units.get(decision.detailKey)?.label ?? unitRows[0]?.detailText ?? null : null;
 

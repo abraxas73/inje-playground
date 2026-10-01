@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/rfp/require-user";
 import { loadCatalog } from "@/lib/rfp/catalog/store";
 import { validateManualMapping } from "@/lib/rfp/mapping/validate";
 import { loadDetailSiblings } from "@/lib/rfp/mapping/siblings";
-import { detailUnitMap } from "@/lib/rfp/mapping/detail-items";
+import { detailUnitMap, readDetailSplits } from "@/lib/rfp/mapping/detail-items";
 import { MAPPING_COLUMNS, mapMapping, type MappingDbRow } from "@/lib/rfp/mappers";
 import { normalizeHttpUrl } from "@/lib/rfp/url";
 
@@ -26,13 +26,13 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!urlCheck.ok) return NextResponse.json({ error: urlCheck.error }, { status: 400 });
   const evidenceUrl = urlCheck.value;
 
-  const { data: req, error: reqError } = await auth.admin.from("rfp_requirements").select("id, project_id, details").eq("id", body.requirementId).maybeSingle();
+  const { data: req, error: reqError } = await auth.admin.from("rfp_requirements").select("id, project_id, details, source").eq("id", body.requirementId).maybeSingle();
   if (reqError) return NextResponse.json({ error: reqError.message }, { status: 500 });
   if (!req || req.project_id !== id) return NextResponse.json({ error: "요구사항이 없습니다." }, { status: 404 });
 
   // 세부 항목 단위 지정(선택). 세부 내용에서 실제로 뽑히는 키만 허용한다.
   const rawKey = typeof body.detailKey === "string" ? body.detailKey.trim() : "";
-  const units = detailUnitMap(String((req as { details?: unknown }).details ?? ""));
+  const units = detailUnitMap(String((req as { details?: unknown }).details ?? ""), readDetailSplits(req.source, req.details));
   if (rawKey && !units.has(rawKey)) return NextResponse.json({ error: "세부 항목을 찾을 수 없습니다. 화면을 새로 불러오세요." }, { status: 400 });
   const detailKey = rawKey || null;
   const detailText = detailKey ? units.get(detailKey)!.label : null;

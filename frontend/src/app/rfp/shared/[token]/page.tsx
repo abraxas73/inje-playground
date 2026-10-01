@@ -19,7 +19,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleString("ko-KR", { timeZone: "
 
 /** 요구사항 한 건의 펼친 내용 — 본문 + 세부 항목별 매핑(읽기 전용) */
 function RequirementPanel({ requirement, rows }: { requirement: RfpRequirement; rows: SharedMapping[] }) {
-  const structure = useMemo(() => parseDetailUnits(requirement.details), [requirement.details]);
+  const structure = useMemo(() => parseDetailUnits(requirement.details, requirement.detailSplits), [requirement.details, requirement.detailSplits]);
   const groups = useMemo(() => groupRowsByDetail(rows, structure), [rows, structure]);
   const multi = groups.length > 1 || groups[0]?.key !== null;
 

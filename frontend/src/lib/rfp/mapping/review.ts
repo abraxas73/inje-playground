@@ -62,6 +62,7 @@ export interface ReviewRequirement {
   title: string;
   definition: string;
   details: string;
+  detailSplits?: Record<string, string>;
   sortOrder: number;
 }
 
@@ -90,8 +91,9 @@ export function buildReviewUnits<T extends MappingRow, R extends ReviewRequireme
   const sorted = [...requirements].sort((a, b) => a.sortOrder - b.sortOrder || a.reqId.localeCompare(b.reqId));
   const out: ReviewUnit<T, R>[] = [];
   for (const q of sorted) {
-    const groups = groupRowsByDetail(byReq.get(q.id) ?? [], parseDetailUnits(q.details));
+    const groups = groupRowsByDetail(byReq.get(q.id) ?? [], parseDetailUnits(q.details, q.detailSplits));
     for (const g of groups) {
+      if (g.archived) continue;
       const candidates = g.rows.filter((r) => !isConfirmed(r)).sort((a, b) => scoreOf(b) - scoreOf(a) || a.sortOrder - b.sortOrder);
       const confirmed = g.rows.filter(isConfirmed).sort((a, b) => a.sortOrder - b.sortOrder);
       out.push({ key: unitKey(q.id, g.key), requirement: q, group: g, status: unitStatus(g.rows), candidates, confirmed });

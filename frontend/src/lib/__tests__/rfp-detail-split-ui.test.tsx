@@ -1,0 +1,20 @@
+import { it, expect, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import MappingEditor from "@/components/rfp/MappingEditor";
+import { parseDetailUnits } from "@/lib/rfp/mapping/detail-items";
+import type { RfpRequirement } from "@/types/rfp";
+it("splits the clicked group, renders independent children and persists on reload",async()=>{
+ const requirement={id:"r",reqId:"ECR-003",title:"HCI",details:"ㅇ 수량\nㅇ HCI 관리\n  - 영구 라이선스\n    ※ 10년\n  - VM 관리",updatedAt:"now"} as RfpRequirement;
+ const change=vi.fn();const base={projectId:"p",rows:[],catalog:[],solutions:[],llmAvailable:false,maxCandidates:2,running:false,onRunMapping:vi.fn(),onChange:vi.fn(),onRequirementChange:change};
+ const updated={...requirement,detailSplits:{"2":parseDetailUnits(requirement.details).units[1].text}};
+ const fetcher=vi.fn().mockResolvedValue({ok:true,json:async()=>updated});vi.stubGlobal("fetch",fetcher);
+ const view=render(<MappingEditor {...base} requirement={requirement}/>);
+ fireEvent.click(screen.getByRole("button",{name:"더 상세하게 추출"}));
+ await waitFor(()=>expect(change).toHaveBeenCalledWith(updated));
+ expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({detailKey:"2",updatedAt:"now"});
+ view.rerender(<MappingEditor {...base} requirement={updated}/>);
+ expect(screen.getByText("영구 라이선스")).toBeInTheDocument();
+ expect(screen.getByText("VM 관리")).toBeInTheDocument();
+ expect(screen.queryByRole("button",{name:"더 상세하게 추출"})).not.toBeInTheDocument();
+ view.unmount();vi.unstubAllGlobals();
+});

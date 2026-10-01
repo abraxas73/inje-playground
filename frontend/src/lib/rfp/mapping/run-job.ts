@@ -1,3 +1,4 @@
+import { readDetailSplits, parseDetailUnits } from "./detail-items";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sortRequirements } from "../requirements";
 import { loadCatalog } from "../catalog/store";
@@ -90,6 +91,7 @@ export function summarizeChunkOutcomes(
 }
 
 interface ReqRow {
+  source?: unknown;
   id: string;
   req_id: string;
   title: string;
@@ -154,7 +156,7 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
     const scopeNote = catalog.length < all.length ? [`대상 솔루션 ${catalog.length}/${all.length}개: ${catalog.map((s) => s.name).join(", ")}`] : [];
 
     const [reqRes, mapRes] = await Promise.all([
-      admin.from("rfp_requirements").select("id, req_id, title, category_code, category_name, definition, details, sort_order").eq("project_id", projectId),
+      admin.from("rfp_requirements").select("id, req_id, title, category_code, category_name, definition, details, source, sort_order").eq("project_id", projectId),
       selectAll<{ requirement_id: string; edited: boolean }>(() =>
         admin.from("rfp_requirement_mappings").select("requirement_id, edited", { count: "exact" }).eq("project_id", projectId).order("id"),
       ),
@@ -175,7 +177,7 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
 
     const sorted = sortRequirements(targets.map((r) => ({ ...r, categoryCode: r.category_code, sortOrder: r.sort_order })));
     const chunks = chunkRequirements(
-      sorted.map<ChunkRequirement>((r) => ({ id: r.id, reqId: r.req_id, title: r.title, categoryName: r.category_name, definition: r.definition, details: r.details })),
+      sorted.map<ChunkRequirement>((r) => ({ id: r.id, reqId: r.req_id, title: r.title, categoryName: r.category_name, definition: r.definition, details: r.details, detailSplits: readDetailSplits(r.source, r.details) })),
     );
 
     const results = await runWithConcurrency(chunks, CONCURRENCY, async (chunk): Promise<ChunkOutcome> => {
@@ -187,9 +189,23 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
         ? { ...validated, rows: validated.rows.filter((r) => r.detailKey === detailKey), warnings: validated.warnings.filter((w) => !w.includes("세부 항목")) }
         : validated;
       const ids = chunk.map((r) => r.id);
-      const del = admin.from("rfp_requirement_mappings").delete().eq("project_id", projectId).eq("edited", false).in("requirement_id", ids);
-      const { error: de } = await (detailKey ? del.eq("detail_key", detailKey) : del);
-      if (de) throw new Error(de.message);
+      const hasSplits = chunk.some((r) => parseDetailUnits(r.details, r.detailSplits).retiredKeys?.length);
+      if (hasSplits && !detailKey) {
+        // 상위 자동 후보도 참고용으로 남긴다. 하위 항목에 복사하거나 재실행 때 지우지 않는다.
+        for (const r of chunk) {
+          const retired = parseDetailUnits(r.details, r.detailSplits).retiredKeys ?? [];
+          let del = admin.from("rfp_requirement_mappings").delete().eq("project_id", projectId).eq("edited", false).eq("requirement_id", r.id);
+          const keys = retired.filter(Boolean);
+          if (keys.length) del = del.or(`detail_key.is.null,detail_key.not.in.(${keys.join(",")})`);
+          if (retired.includes("")) del = del.not("detail_key", "is", null);
+          const { error: de } = await del;
+          if (de) throw new Error(de.message);
+        }
+      } else {
+        const del = admin.from("rfp_requirement_mappings").delete().eq("project_id", projectId).eq("edited", false).in("requirement_id", ids);
+        const { error: de } = await (detailKey ? del.eq("detail_key", detailKey) : del);
+        if (de) throw new Error(de.message);
+      }
       if (v.rows.length) {
         const { error: ie } = await admin.from("rfp_requirement_mappings").insert(
           v.rows.map((r) => ({

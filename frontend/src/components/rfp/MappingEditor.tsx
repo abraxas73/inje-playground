@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { ENGINE_LABEL, requiresFeature, VERDICT_LABEL, VERDICT_ORDER, type CatalogFeature, type CatalogSolution, type Verdict } from "@/lib/rfp/mapping/types";
 import { bestVerdict, indexCatalog } from "@/lib/rfp/mapping/summary";
 import { VERDICT_ACCENT, VERDICT_CLASS } from "@/components/rfp/MappingSummary";
-import { parseDetailUnits } from "@/lib/rfp/mapping/detail-items";
+import { parseDetailUnits, splitDetailChildren } from "@/lib/rfp/mapping/detail-items";
 import { groupRowsByDetail, isDetailScoped } from "@/lib/rfp/mapping/detail-groups";
 import MappingRunDialog, { type MappingRunArgs, type MappingRunScope, type MappingRunSolution } from "@/components/rfp/MappingRunDialog";
 import type { MappingRunTarget } from "@/lib/rfp/mapping/run-target";
@@ -31,6 +31,7 @@ interface Props {
   onRunMapping: (args: MappingRunArgs, target?: MappingRunTarget) => Promise<void>;
   /** 이 요구사항의 행이 바뀌면 전체 목록에서 교체할 수 있게 새 행 목록을 준다 */
   onChange: (rows: RfpMapping[]) => void;
+  onRequirementChange: (requirement: RfpRequirement) => void;
 }
 
 /** 규칙 필드(판정·솔루션·기능) 중 아직 저장 못 한 선택 — 충족/부분충족인데 기능을 아직 안 골랐을 때 */
@@ -41,12 +42,13 @@ async function readError(res: Response, fallback: string): Promise<string> {
   return j.error ?? fallback;
 }
 
-export default function MappingEditor({ projectId, requirement, rows, catalog, solutions, llmAvailable, maxCandidates, running, onRunMapping, onChange }: Props) {
+export default function MappingEditor({ projectId, requirement, rows, catalog, solutions, llmAvailable, maxCandidates, running, onRunMapping, onChange, onRequirementChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, Pending>>({});
   /** 새 행 초안. detailKey = 어느 세부 항목에 넣을지(null = 요구사항 전체) */
   const [draft, setDraft] = useState<(Pending & { detailKey: string | null }) | null>(null);
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   /** 근거 URL 입력을 펼친 행 — 기본은 문서 제목·요약만 보이고 URL은 "바로가기"로 */
   const [urlEditing, setUrlEditing] = useState<Record<string, boolean>>({});
   /** 규칙 엔진의 정형 설명("자동 매칭 — …")은 윗줄 끝에 한 줄로만 보이고, 클릭하면 편집 칸이 열린다 */
@@ -151,7 +153,7 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
   );
 
   const sorted = useMemo(() => [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id)), [rows]);
-  const structure = useMemo(() => parseDetailUnits(requirement.details), [requirement.details]);
+  const structure = useMemo(() => parseDetailUnits(requirement.details, requirement.detailSplits), [requirement.details, requirement.detailSplits]);
 
   /**
    * 매핑 단위(그룹). 세부 내용이 목록이면 1단 항목마다 한 그룹, 아니면 "요구사항 전체" 한 그룹.
@@ -236,13 +238,34 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
     </div>
   );
 
+  const split = async (detailKey: string) => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch(`/api/rfp/requirements/${requirement.id}/split`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ detailKey, updatedAt: requirement.updatedAt }),
+      });
+      if (!res.ok) throw new Error(await readError(res, "상세 추출에 실패했습니다."));
+      onRequirementChange(await res.json() as RfpRequirement);
+      setNotice("하위 항목을 분리했습니다. 각 항목의 ‘다시 매핑’ 또는 요구사항의 ‘다시 매핑’으로 매핑하세요. 기존 상위 매핑은 아래에 보존됩니다.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "상세 추출에 실패했습니다.");
+    } finally { setBusy(false); }
+  };
+  const splittableKey = (key: string | null) => {
+    const unit = structure.units.find((u) => u.key === (key ?? "1"));
+    return unit && /^\d+$/.test(unit.key) && splitDetailChildren(unit).length >= 2 ? unit.key : null;
+  };
+
   const multi = isDetailScoped(groups);
   return (
     <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs font-medium text-muted-foreground">
           {requirement.reqId} 솔루션 매핑 {sorted.length}행
-          {multi && ` · 세부 항목 ${structure.units.length}개(매핑된 항목 ${groups.filter((g) => g.key && g.rows.length).length}개)`}
+          {multi && ` · 세부 항목 ${structure.units.length}개(매핑된 항목 ${groups.filter((g) => g.key && !g.stale && g.rows.length).length}개)`}
         </div>
         <Button
           size="sm" variant="outline" className="h-7 shrink-0 text-xs" disabled={busy || running}
@@ -265,12 +288,20 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
                 <span className={cn("font-medium", g.key ? "text-foreground" : "text-muted-foreground")} title={g.text || g.label}>
                   {g.key ? g.label : multi ? "요구사항 전체" : "매핑"}
                 </span>
-                {g.stale && <span className="ml-1 text-xs text-amber-700">세부 내용이 바뀐 뒤 남은 매핑</span>}
+                {g.archived && <span className="ml-1 text-xs text-amber-700">세분화 전 매핑 · 참고용</span>}
+                {g.stale && !g.archived && <span className="ml-1 text-xs text-amber-700">분할·내용 변경 전 매핑</span>}
                 <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{g.rows.length}행</span>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
-              {g.key && !g.stale && (
+              {!g.stale && !g.archived && splittableKey(g.key) && (
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={busy || running || draft !== null || Object.keys(pending).length > 0}
+                  title="하위 - 항목을 각각 매핑할 수 있도록 분리합니다. 기존 매핑은 보존됩니다."
+                  onClick={() => void split(splittableKey(g.key)!)}>
+                  더 상세하게 추출
+                </Button>
+              )}
+              {g.key && !g.stale && !g.archived && (
                 <Button
                   size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" disabled={busy || running}
                   title={running ? "매핑이 실행 중입니다." : "이 세부 항목만 다시 매핑합니다"}
@@ -282,7 +313,7 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
                   <RefreshCw className="mr-1 h-3.5 w-3.5" />다시 매핑
                 </Button>
               )}
-              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" disabled={busy || draft !== null} title="이 항목에 매핑 행을 직접 추가합니다" onClick={() => setDraft({ verdict: "partial", solutionCode: null, featureId: null, detailKey: g.key })}>
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" disabled={busy || draft !== null || g.archived} title="이 항목에 매핑 행을 직접 추가합니다" onClick={() => setDraft({ verdict: "partial", solutionCode: null, featureId: null, detailKey: g.key })}>
                 <Plus className="mr-1 h-3.5 w-3.5" />행 추가
               </Button>
             </div>
@@ -298,6 +329,7 @@ export default function MappingEditor({ projectId, requirement, rows, catalog, s
           </div>
         </section>
       ))}
+      {notice && <div role="status" className="text-sm text-muted-foreground">{notice}</div>}
       {error && <div className="text-sm text-destructive">{error}</div>}
       {runScope && (
         <MappingRunDialog

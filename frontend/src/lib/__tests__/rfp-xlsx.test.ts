@@ -268,3 +268,17 @@ describe("buildWorkbook + 대응표·Gap 리포트", () => {
     expect((ws.getRow(5).values as unknown[])[7]).toBe("우리 범위 아님");
   });
 });
+
+it("하위 세분화는 엑셀에서도 별도 항목이며 상위 매핑은 진행률에서 제외", async () => {
+  const details = "○ HCI\n  - 영구 라이선스\n    ※ 10년\n  - VM 관리";
+  const requirement = row("SER", "SER-001", 0, { details, detailSplits: { "1": details } });
+  const old: MappingRow = { id: "old", requirementId: requirement.id, detailKey: "1", detailText: "HCI", solutionCode: null, featureId: null, verdict: "build", rationale: "기존", evidenceUrl: null, edited: true, sortOrder: 0 };
+  const wb = await loadWorkbook(await buildWorkbook(project, [requirement], { rows: [old], catalog: [], mappingAt: null }));
+  expect(JSON.stringify(wb.getWorksheet("1.요구사항_목록")!.getSheetValues())).toContain("0/2");
+  const detail = JSON.stringify(wb.getWorksheet("2.SER")!.getSheetValues());
+  expect(detail).toContain("1.1");
+  expect(detail).toContain("1.2");
+  expect(detail).toContain("세분화 전 매핑");
+  const report=wb.worksheets.find(s=>s.name.endsWith("요구사항_대응표"))!;
+  expect(String(report.getCell("A1").value)).toContain("단위 2개 중 확정 0개");
+});
