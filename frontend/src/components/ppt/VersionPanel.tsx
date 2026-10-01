@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { readError } from "@/lib/ppt/client";
 import { estimateCostUsd, formatUsd, PRICES_AS_OF } from "@/lib/ppt/pricing";
+import { formatElapsed } from "@/lib/ppt/elapsed";
+import ElapsedSince from "./ElapsedSince";
 import type { PptVersion } from "@/types/ppt";
 
 const n = (v: number) => v.toLocaleString("ko-KR");
@@ -27,7 +29,7 @@ export default function VersionPanel({ deckId, version }: { deckId: string; vers
   const STATUS_LABEL = { generating: "생성 중", building: "빌드 중", done: "완료", failed: "실패" } as const;
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">v{version.no}{version.slideCount ? ` · ${version.slideCount}장` : ` · ${STATUS_LABEL[version.status]}`}</CardTitle></CardHeader>
+      <CardHeader><CardTitle className="text-base">v{version.no}{version.slideCount ? ` · ${version.slideCount}장` : ` · ${STATUS_LABEL[version.status]}`}{active && <> · <ElapsedSince since={version.createdAt} /></>}</CardTitle></CardHeader>
       <CardContent className="space-y-3 text-sm">
         {version.status === "done" && (
           <div className="flex flex-wrap gap-2">
@@ -48,7 +50,7 @@ export default function VersionPanel({ deckId, version }: { deckId: string; vers
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {!active && (<>
             <span>모델</span><span className="text-foreground">{version.llmModel ?? "-"}</span>
-            <span>호출</span><span className="text-foreground">{version.llmCalls}회{version.durationMs ? ` · ${Math.round(version.durationMs / 1000)}초` : ""}</span>
+            <span>호출</span><span className="text-foreground">{version.llmCalls}회{version.durationMs ? ` · ${formatElapsed(version.durationMs)}` : ""}</span>
             <span>입력 토큰</span><span className="text-foreground">{n(version.tokens.in)}<span className="text-muted-foreground"> + 캐시 읽기 {n(version.tokens.cacheRead)} · 캐시 쓰기 {n(version.tokens.cacheWrite)}</span></span>
             <span>출력 토큰</span><span className="text-foreground">{n(version.tokens.out)}</span>
             <span>비용(추정)</span><span className="text-foreground">{cost === null ? (version.llmModel ? "단가 미등록" : "-") : <>{formatUsd(cost)}<span className="text-muted-foreground"> · API 공시가 {PRICES_AS_OF} 기준</span></>}</span>

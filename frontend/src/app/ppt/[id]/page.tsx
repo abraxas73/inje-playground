@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import StatusBadge from "@/components/ppt/StatusBadge";
+import ElapsedSince from "@/components/ppt/ElapsedSince";
 import Storyboard from "@/components/ppt/Storyboard";
 import VersionPanel from "@/components/ppt/VersionPanel";
 import FeedbackBox from "@/components/ppt/FeedbackBox";
@@ -94,7 +95,11 @@ export default function PptDeckPage() {
             version?.status === "failed" ? (
               <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-2"><span className="whitespace-pre-wrap">{version.error}</span>
                 {data.deck.canManage && <Button size="sm" variant="outline" onClick={retry} disabled={active}>같은 입력으로 다시 시도</Button>}</AlertDescription></Alert>
-            ) : <p className="py-10 text-center text-sm text-muted-foreground">원고를 읽고 장표를 고르는 중입니다. 보통 1~3분 걸립니다.</p>}
+            ) : version ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                {version.status === "building" ? "PPT 파일을 만드는 중입니다." : "원고를 읽고 장표를 고르는 중입니다."} 경과 <ElapsedSince since={version.createdAt} /> · 보통 1~3분, 긴 원고는 더 걸립니다.
+              </p>
+            ) : null}
           {data.deck.canManage && currentDone && version && (
             <FeedbackBox deckId={id} baseVersion={version.status === "done" ? version.no : data.deck.currentVersion} disabled={active} onStarted={() => load({ selectLatest: true })} />
           )}
