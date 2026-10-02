@@ -34,6 +34,7 @@
 - `라인 합이 소계와 다릅니다`: 라인 한 줄이 정규식에 안 걸렸거나 크레딧 판정이 빠진 것. 위와 같이 처리.
 - `PDF를 받지 못했습니다`: 링크 만료. `pay.stripe.com/…/pdf`는 302로 S3 프리사인 URL(`stripe-upload-api.s3.us-west-1.amazonaws.com`)을 돌려주며 서버는 Stripe·그 버킷으로의 리디렉션만 최대 2홉 따른다 — 다른 호스트로 넘어가면 `허용되지 않은 주소` 오류. PDF 업로드로 대체.
 - `관리자 키가 거부되었습니다`: 키가 회수됐거나 워크스페이스 키를 넣은 것. Admin 키(`sk-ant-admin01-`)여야 한다.
+- `cost_report HTTP 400` "ending date must be after starting date": 조회 조각이 오늘(UTC) 하루만이면 API가 거부한다. `chunkDateRange`가 하루짜리 꼬리 조각을 앞 조각에 붙인다(2026-10-02 수정). 2026-10-02 키 등록·운영 반영, 비용은 2026-09-29부터(PPT·RFP용 `ANTHROPIC_API_KEY` 사용 시작).
 - cost_report 값은 30일간 사후 보정된다 — cron이 매일 최근 3일을 다시 받는다. 더 과거는 "지금 수집"으로 기간을 지정한다(최대 93일).
 
 ## 6. 테스트

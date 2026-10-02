@@ -58,6 +58,10 @@ export function chunkDateRange(from: string, to: string, maxDays = 31): { from: 
     const end = addDays(start, maxDays - 1);
     out.push({ from: start, to: end < to ? end : to });
   }
+  // 하루짜리 꼬리 조각은 앞 조각에 붙인다 — 그 하루가 오늘(UTC)이면 API가 "ending date must be after starting date"(400)를 낸다.
+  // 32일 조각은 limit=31을 넘지만 next_page로 이어 받는다.
+  const last = out[out.length - 1];
+  if (out.length > 1 && last.from === last.to) { out.pop(); out[out.length - 1].to = last.to; }
   return out;
 }
 

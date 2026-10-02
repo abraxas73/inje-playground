@@ -42,6 +42,14 @@ describe("chunkDateRange", () => {
       { from: "2026-08-01", to: "2026-08-31" },
     ]);
   });
+  it("하루짜리 꼬리 조각(오늘이면 API 400)은 앞 조각에 붙인다", () => {
+    expect(chunkDateRange("2026-07-01", "2026-10-02")).toEqual([
+      { from: "2026-07-01", to: "2026-07-31" },
+      { from: "2026-08-01", to: "2026-08-31" },
+      { from: "2026-09-01", to: "2026-10-02" },
+    ]);
+    expect(chunkDateRange("2026-10-02", "2026-10-02")).toEqual([{ from: "2026-10-02", to: "2026-10-02" }]);
+  });
 });
 
 describe("fetchCostReport", () => {
