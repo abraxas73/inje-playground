@@ -80,7 +80,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `GET /api/admin/audit?kind&category&q&from&to&page&pageSize` — Audit 로그 조회(admin, 뷰 `audit_log`). 기록은 `lib/audit.ts`(`logAudit`·`logLogin`·`logAuthEvent`)·`lib/audit-proxy.ts`(proxy가 변경 요청 자동 기록), 조건 해석은 `lib/audit-query.ts`. 런북 `docs/audit-log.md`
 - `POST /api/auth/events` — 로그인 전(익명) 감사 기록: 로그인 시도·실패·차단만(event·provider 화이트리스트, IP당 5분 30건 상한). 성공 로그인은 `/auth/callback`이 `login_history`에 남긴다
 - `GET /api/admin/directory`, `POST /api/admin/directory/sync` — 사내 조직도 명부 조회/동기화(동기화는 관리자 세션 또는 수집 토큰; 로컬 `frontend/scripts/company-directory-sync.py`가 inno-creed MCP `find_person` 전사 명부를 밀어 넣음). 런북 `docs/company-directory.md`
-- `/api/ppt/uploads`(kind=template은 admin), `/api/ppt/decks[/[id]/(regenerate|versions/[no]/file|share|teams|sharepoint)]`, `/api/ppt/shared/[token][/file]`, `GET·POST /api/admin/ppt/templates`, `PATCH /api/admin/ppt/templates/[id]` — PPT 만들기(규칙 `.claude/rules/ppt-maker.md`)
+- `/api/ppt/uploads`(kind=template은 admin), `/api/ppt/decks[/[id]/(regenerate|versions/[no]/file|share|teams|sharepoint)]`, `/api/ppt/shared/[token][/file]`, `GET /api/admin/ppt/decks`(관리자 `/admin/ppt` 전체 덱 관리), `GET·POST /api/admin/ppt/templates`, `PATCH /api/admin/ppt/templates/[id]` — PPT 만들기(규칙 `.claude/rules/ppt-maker.md`)
 
 ### Supabase Tables (guide feature)
 - `nlm_notebooks` — Notebook metadata with `is_visible`, `sort_order`

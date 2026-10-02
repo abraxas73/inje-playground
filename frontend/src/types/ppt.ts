@@ -50,6 +50,9 @@ export interface PptDeckSummary {
   updatedAt: string;
 }
 
+/** 관리자 전체 덱 목록 */
+export interface PptAdminDecksResponse { decks: (PptDeckSummary & { versionCount: number })[] }
+
 /** 생성 폼의 템플릿 선택지. id null = 내장 템플릿 */
 export interface PptTemplateOption { id: string | null; name: string; isDefault: boolean }
 export interface PptListResponse { decks: PptDeckSummary[]; llmAvailable: boolean; templates: PptTemplateOption[] }
