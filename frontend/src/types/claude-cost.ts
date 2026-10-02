@@ -78,6 +78,25 @@ export interface ApiCostRow {
   currency: string;
 }
 
+/** claude_api_usage_daily 한 행 — Admin API usage_report(키·모델별 토큰). api_key_id '' = 키 없음 */
+export interface ApiUsageRow {
+  day: string;
+  api_key_id: string;
+  model: string;
+  uncached_input: number;
+  cache_write_5m: number;
+  cache_write_1h: number;
+  cache_read: number;
+  output: number;
+  web_search: number;
+}
+
+/** claude_api_keys — Console API 키 메타(전체 키 값은 API가 주지 않는다) */
+export interface ApiKeyInfo { id: string; name: string; status: string; workspace_id: string | null; hint: string | null; created_at: string | null }
+
+/** 키별로 배분한 실제 비용(센트). apiKeyId null = 미배분(토큰 외 비용·사용량 없음) */
+export interface ApiKeyCostRow { day: string; apiKeyId: string | null; model: string; cents: number }
+
 /** 월 배정 기준 — issued: 발행일의 달력 월(기본, 카드 청구와 같음) · period: 서비스 기간 일수 비례 배분 */
 export type MonthBasis = "issued" | "period";
 

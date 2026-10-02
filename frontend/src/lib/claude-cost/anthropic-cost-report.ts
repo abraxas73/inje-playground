@@ -65,7 +65,7 @@ export function chunkDateRange(from: string, to: string, maxDays = 31): { from: 
   return out;
 }
 
-async function requestPage(url: URL, apiKey: string, fetchImpl: typeof fetch, retryDelayMs: number): Promise<unknown> {
+export async function requestPage(url: URL, apiKey: string, fetchImpl: typeof fetch, retryDelayMs: number, label = "cost_report"): Promise<unknown> {
   const headers = { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "User-Agent": USER_AGENT, Accept: "application/json" };
   let res = await fetchImpl(url.toString(), { headers });
   if (res.status === 429 || res.status >= 500) {
@@ -73,7 +73,7 @@ async function requestPage(url: URL, apiKey: string, fetchImpl: typeof fetch, re
     res = await fetchImpl(url.toString(), { headers });
   }
   if (res.status === 401 || res.status === 403) throw new Error(`관리자 키가 거부되었습니다(HTTP ${res.status}). Console > Admin keys에서 키를 확인하세요.`);
-  if (!res.ok) throw new Error(`cost_report HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`${label} HTTP ${res.status}`);
   return res.json();
 }
 

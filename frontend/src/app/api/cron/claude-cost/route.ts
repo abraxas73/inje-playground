@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminClientOr500, requireAdmin } from "@/lib/claude-usage/require-admin";
 import { addDays } from "@/lib/claude-usage/aggregate";
-import { isApiCostAvailable, syncApiCost } from "@/lib/claude-cost/anthropic-cost-report";
+import { isApiCostAvailable } from "@/lib/claude-cost/anthropic-cost-report";
+import { syncApiCostAndUsage } from "@/lib/claude-cost/api-key-usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
   const to = new Date().toISOString().slice(0, 10);
   const from = addDays(to, -3);
   try {
-    const r = await syncApiCost(c.admin, from, to);
+    const r = await syncApiCostAndUsage(c.admin, from, to);
     return NextResponse.json({ from, to, ...r });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });

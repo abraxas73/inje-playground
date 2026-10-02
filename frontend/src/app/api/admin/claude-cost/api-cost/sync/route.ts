@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500, isYmd } from "@/lib/claude-usage/require-admin";
-import { isApiCostAvailable, syncApiCost } from "@/lib/claude-cost/anthropic-cost-report";
+import { isApiCostAvailable } from "@/lib/claude-cost/anthropic-cost-report";
+import { syncApiCostAndUsage } from "@/lib/claude-cost/api-key-usage";
 import { logAudit } from "@/lib/audit";
 
 export const runtime = "nodejs";
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
   if (!isYmd(from) || !isYmd(to) || from > to) return NextResponse.json({ error: "from·to(YYYY-MM-DD)가 필요합니다." }, { status: 400 });
   if ((Date.parse(to) - Date.parse(from)) / 86_400_000 > MAX_DAYS) return NextResponse.json({ error: `기간은 최대 ${MAX_DAYS}일입니다.` }, { status: 400 });
   try {
-    const r = await syncApiCost(c.admin, from, to);
+    const r = await syncApiCostAndUsage(c.admin, from, to);
     await logAudit(c.admin, request, { userId: auth.userId, action: "claude_cost.api_sync", category: "usage", detail: { from, to, upserted: r.upserted } });
     return NextResponse.json(r);
   } catch (e) {
