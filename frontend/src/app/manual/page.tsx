@@ -145,7 +145,7 @@ export default function ManualPage() {
             이노그리드 사용자 매뉴얼
           </h1>
           <p className="text-muted-foreground mt-2">
-            이노그리더를 위한 서비스 사용 가이드
+            이노크루를 위한 서비스 사용 가이드
           </p>
         </div>
 

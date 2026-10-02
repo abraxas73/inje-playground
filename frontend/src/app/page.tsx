@@ -109,7 +109,7 @@ export default function HomePage() {
           이노그리드
         </div>
         <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4">
-          <span className="gradient-text">이노그리더</span>를 위한{" "}
+          <span className="gradient-text">이노크루</span>를 위한{" "}
           <span className="text-foreground">서비스</span>
         </h1>
         <p className="text-muted-foreground text-lg max-w-md mx-auto">

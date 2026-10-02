@@ -7,7 +7,7 @@ const geistMono = GeistMono;
 
 export const metadata: Metadata = {
   title: "이노그리드",
-  description: "이노그리더를 위한 서비스 — 팀 활동, 일상의 고민을 해결하는 우리만의 도구",
+  description: "이노크루를 위한 서비스 — 팀 활동, 일상의 고민을 해결하는 우리만의 도구",
 };
 
 export default function RootLayout({

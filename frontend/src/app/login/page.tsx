@@ -50,7 +50,7 @@ export default function LoginPage() {
           <div className="mx-auto mb-4">
             <Image src="/logo.svg" alt="이노그리드" width={130} height={18} priority />
           </div>
-          <CardDescription>이노그리더를 위한 서비스에 로그인하세요</CardDescription>
+          <CardDescription>이노크루를 위한 서비스에 로그인하세요</CardDescription>
         </CardHeader>
         <CardContent>
           {showGoogle && (
