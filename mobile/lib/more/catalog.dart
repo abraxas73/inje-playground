@@ -11,6 +11,7 @@ const pages = <PageEntry>[
   PageEntry('ladder', '/ladder', '사다리', 'daily', 'guest'),
   PageEntry('team', '/team', '커피 타임', 'daily', 'guest'),
   PageEntry('survey', '/survey', '설문', 'daily', 'guest'),
+  PageEntry('teams_chat', '/teams/chat', 'Teams 채팅', 'daily', 'user'),
   PageEntry('usage_code', '/usage/code', 'Claude Code', 'ai', 'user'),
   PageEntry('usage_chat', '/usage/chat', 'Claude 채팅', 'ai', 'user'),
   PageEntry('usage_perf', '/usage/perf', '성과', 'ai', 'user'),

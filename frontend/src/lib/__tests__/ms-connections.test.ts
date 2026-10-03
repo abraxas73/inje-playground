@@ -80,6 +80,8 @@ describe("getAccessTokenForUser", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     const body = new URLSearchParams((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
     expect(body.get("refresh_token")).toBe("RT-1");
+    // 갱신 스코프는 전역 상수가 아니라 그 연결이 동의한 스코프(행의 scopes) — 새 스코프(Chat.ReadWrite)가 추가돼도 기존 연결이 consent_required로 끊기지 않는다
+    expect(body.get("scope")).toBe("offline_access User.Read Files.ReadWrite.All Sites.Read.All");
     expect(state.updates).toHaveLength(1);
     expect(state.updates[0]).toEqual({ last_used_at: new Date(t).toISOString(), last_error: null });
     t += TOKEN_CACHE_MAX_MS - 1;

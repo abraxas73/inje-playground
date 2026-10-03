@@ -5,7 +5,9 @@
 import type { FetchLike } from "@/lib/notify/types";
 import { GRAPH_BASE } from "@/lib/teams-graph";
 
-export const MS_SCOPES = ["offline_access", "User.Read", "Files.ReadWrite.All", "Sites.Read.All"] as const;
+/** Teams 그룹 채팅 읽기·보내기(위임, 관리자 동의 불필요). 기존 연결은 이 스코프가 없으므로 채팅을 쓰려면 한 번 재연결한다. */
+export const TEAMS_CHAT_SCOPE = "Chat.ReadWrite";
+export const MS_SCOPES = ["offline_access", "User.Read", "Files.ReadWrite.All", "Sites.Read.All", TEAMS_CHAT_SCOPE] as const;
 const SCOPE = MS_SCOPES.join(" ");
 const LOGIN_BASE = "https://login.microsoftonline.com";
 
@@ -100,8 +102,9 @@ export function exchangeCode(cfg: MsAppConfig, p: { code: string; redirectUri: s
   return postToken(cfg, { grant_type: "authorization_code", code: p.code, redirect_uri: p.redirectUri, scope: SCOPE }, fetchImpl);
 }
 
-export function refreshAccessToken(cfg: MsAppConfig, refreshToken: string, fetchImpl: FetchLike = fetch): Promise<TokenResult> {
-  return postToken(cfg, { grant_type: "refresh_token", refresh_token: refreshToken, scope: SCOPE }, fetchImpl);
+/** scope 기본은 전체 스코프. 연결이 동의한 스코프만 넘기면(connections) 새 스코프가 추가돼도 기존 연결이 끊기지 않는다. */
+export function refreshAccessToken(cfg: MsAppConfig, refreshToken: string, fetchImpl: FetchLike = fetch, scope: string = SCOPE): Promise<TokenResult> {
+  return postToken(cfg, { grant_type: "refresh_token", refresh_token: refreshToken, scope }, fetchImpl);
 }
 
 export interface MsMe {

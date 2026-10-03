@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { FetchLike } from "@/lib/notify/types";
 import type { MsConnectionStatus } from "@/types/ms";
 import { decryptSecret, encryptSecret } from "./crypto";
-import { OAuthError, refreshAccessToken, type MsAppConfig } from "./oauth";
+import { OAuthError, refreshAccessToken, type MsAppConfig, MS_SCOPES } from "./oauth";
 
 export class NotConnectedError extends Error {
   constructor() {
@@ -100,6 +100,13 @@ export interface TokenDeps {
   now?: () => number;
 }
 
+/** 갱신에 쓸 스코프 = 그 연결이 동의한 스코프(+offline_access). 비어 있으면 전체(MS_SCOPES). */
+export function refreshScope(stored: string | null | undefined): string {
+  const parts = (stored ?? "").split(" ").filter(Boolean);
+  if (!parts.length) return MS_SCOPES.join(" ");
+  return [...new Set(["offline_access", ...parts])].join(" ");
+}
+
 async function markError(admin: SupabaseClient, userId: string, code: string): Promise<void> {
   const { error } = await admin.from(TABLE).update({ last_error: code }).eq("user_id", userId);
   if (error) console.error("[ms] ms_connections last_error 기록 실패:", error.message);
@@ -115,10 +122,10 @@ export async function getAccessTokenForUser(admin: SupabaseClient, userId: strin
   const now = deps.now ?? Date.now;
   const fetchImpl = deps.fetchImpl ?? fetch;
 
-  const { data, error } = await admin.from(TABLE).select("refresh_token_enc, connected_at").eq("user_id", userId).maybeSingle();
+  const { data, error } = await admin.from(TABLE).select("refresh_token_enc, connected_at, scopes").eq("user_id", userId).maybeSingle();
   if (error) throw new Error(`ms_connections 조회 실패: ${error.message}`);
   if (!data) throw new NotConnectedError();
-  const row = data as { refresh_token_enc: string; connected_at: string };
+  const row = data as { refresh_token_enc: string; connected_at: string; scopes: string | null };
 
   const cacheKey = userId;
   const cached = tokenCache.get(cacheKey);
@@ -134,7 +141,7 @@ export async function getAccessTokenForUser(admin: SupabaseClient, userId: strin
 
   let tok;
   try {
-    tok = await refreshAccessToken(deps.app, refreshToken, fetchImpl);
+    tok = await refreshAccessToken(deps.app, refreshToken, fetchImpl, refreshScope(row.scopes));
   } catch (e) {
     if (e instanceof OAuthError && RECONNECT_CODES.has(e.code)) {
       await markError(admin, userId, e.code);

@@ -174,3 +174,13 @@ curl -i -X POST "$TEAMS_DM_WEBHOOK_URL" -H "Content-Type: application/json" -d '
 - Teams 멤버 import는 `user_members`에 이름만 저장한다(`dooray_member_id`는 null). 재-DM 식별은 점심 모달이 Graph에서 이메일을 다시 읽어 해결한다.
 - 가이드 답변 DM(Teams)은 로그인 이메일로 간다 — 개인 설정의 "Dooray 본인 선택"은 Dooray DM에만 쓰인다.
 - `GET /api/settings`는 비admin에게 웹훅 URL을 숨긴다. `dooray_token`은 브라우저 확장 브리지 때문에 계속 노출된다(기존과 동일).
+
+## 3-D. 그룹 채팅 페이지 `/teams/chat` (위임 Graph, 관리자 동의 불필요) — 2026-10-03
+
+지정한 Teams **그룹 채팅 1개**를 웹과 앱(WebView)에서 읽고 보낸다. 본인 Microsoft 계정의 위임 토큰(§3-C와 같은 `ms_connections`)으로 Graph `GET/POST /chats/{id}/messages`를 호출하므로 메시지는 **본인 이름**으로 올라가고, 서버는 내용을 저장·로그하지 않는다(감사 로그는 "Teams 채팅 전송" + 글자 수).
+
+- **스코프**: `MS_SCOPES`에 `Chat.ReadWrite`(위임, 관리자 동의 불필요) 추가. 기존 연결은 이 스코프가 없으므로 채팅 페이지가 "다시 연결(권한 추가)"을 안내한다. 토큰 갱신은 **그 연결이 동의한 스코프(ms_connections.scopes)** 로 요청하므로 SharePoint만 쓰던 기존 연결은 그대로 동작한다(`refreshScope`).
+- **설정(관리자, 시스템 설정 → Teams)**: `teams_chat_id`·`teams_chat_topic`. "내 그룹 채팅에서 고르기"(`GET /api/admin/teams/chats` = 관리자 본인의 `GET /me/chats?$filter=chatType eq 'group'`)로 고르거나 `19:…@thread.v2`를 직접 입력. 관리자도 먼저 Microsoft 계정을 연결해야 목록이 뜬다.
+- **API**: `GET /api/teams/chat`(configured·connected·hasChatScope·topic·webUrl·meId), `GET /api/teams/chat/messages?since=`(최근 50건, since 뒤 수정분 — 5초 폴링), `POST /api/teams/chat/messages {text}`(4,000자). Graph 401/403은 409 `reconnect`로 바꿔 재연결을 안내한다. 페이지 권한 키 `teams_chat`(일상 그룹, user 이상).
+- **채널(팀 안)**로 바꾸려면 읽기 스코프 `ChannelMessage.Read.All`이 테넌트 관리자 동의(GA)를 요구한다(§3-A.0 절차). 그룹 채팅은 그 절차가 없다.
+- **한계(1차)**: 첨부·이미지는 "첨부 N개 — Teams에서 확인", 반응·답글 스레드는 표시하지 않음, 실시간 아님(폴링). 변경 알림(webhook) 구독은 공개 수신점 + 리소스 데이터 암호화가 필요해 2단계.

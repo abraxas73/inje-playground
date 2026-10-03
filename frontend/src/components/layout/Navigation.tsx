@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Database, Dice5, LogOut, UtensilsCrossed, Coffee, Shield, User as UserIcon, Settings, BookOpen, ClipboardList, SquareTerminal, MessagesSquare, TrendingUp, FileSearch, Presentation, Newspaper, ChevronDown, Users, BriefcaseBusiness, ChartNoAxesCombined } from "lucide-react";
+import { Database, Dice5, LogOut, UtensilsCrossed, Coffee, Shield, User as UserIcon, Settings, BookOpen, ClipboardList, SquareTerminal, MessagesSquare, TrendingUp, FileSearch, Presentation, Newspaper, ChevronDown, Users, BriefcaseBusiness, ChartNoAxesCombined, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 import {
@@ -19,7 +19,7 @@ import { logAction } from "@/lib/action-log";
 import { useUserRole } from "@/hooks/useUserRole";
 import { PAGE_GROUPS, PAGES, matchesPath, pagesForPath, type PageKey } from "@/lib/page-access";
 
-const PAGE_ICONS: Record<PageKey, typeof Coffee> = { food: UtensilsCrossed, ladder: Dice5, team: Coffee, survey: ClipboardList, usage_code: SquareTerminal, usage_chat: MessagesSquare, usage_perf: TrendingUp, rfp: FileSearch, ppt: Presentation, people_news: Newspaper, marketing: Database, guide: BookOpen };
+const PAGE_ICONS: Record<PageKey, typeof Coffee> = { food: UtensilsCrossed, ladder: Dice5, team: Coffee, survey: ClipboardList, usage_code: SquareTerminal, usage_chat: MessagesSquare, usage_perf: TrendingUp, rfp: FileSearch, ppt: Presentation, people_news: Newspaper, marketing: Database, guide: BookOpen, teams_chat: MessageCircle };
 const GROUP_ICONS = { daily: Users, ai: ChartNoAxesCombined, work: BriefcaseBusiness };
 
 /** chromeless: 앱 WebView — 접근 권한 검사(effect)는 그대로 돌리고 헤더·하단 탭만 그리지 않는다. */

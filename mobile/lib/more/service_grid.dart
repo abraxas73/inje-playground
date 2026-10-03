@@ -8,6 +8,7 @@ import 'catalog.dart';
 /// 사내 서비스 카드의 아이콘·한 줄 설명(카탈로그 key 기준). 네이티브 탭(뭐 먹지·사다리·커피 타임)은 여기 안 나온다.
 const serviceMeta = <String, (IconData, String)>{
   'survey': (Icons.poll_outlined, '진행 중인 설문 응답'),
+  'teams_chat': (Icons.forum_outlined, '지정 그룹 채팅 읽기·보내기'),
   'usage_code': (Icons.terminal, 'Claude Code 사용량'),
   'usage_chat': (Icons.chat_bubble_outline, 'Chat·Cowork 사용량'),
   'usage_perf': (Icons.insights_outlined, '개발 성과 지표'),

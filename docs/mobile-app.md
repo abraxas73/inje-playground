@@ -10,7 +10,7 @@
 
 로그인 없이 화면을 확인하려면: 위젯 테스트에서 `apiClientProvider`를 MockClient로, `authClientProvider`를 FakeAuth로 바꿔 화면을 띄우고 `FontLoader`로 `/System/Library/Fonts/Supplemental/AppleGothic.ttf`를 심은 뒤(`appTheme(fontFamily:)`) `matchesGoldenFile` + `flutter test --update-goldens`로 PNG를 뜬다(2026-10-03 시안 반영 때 사용, 테스트 파일은 커밋하지 않음). 테스트 글꼴이 없는 아이콘·일부 라벨은 네모로 나오는 게 정상.
 
-홈(웰컴) 탭(2026-10-03): 로그인 직후 첫 화면은 `/home`. 시간대·날짜 인사는 `mobile/lib/features/home/greeting.dart`(`greetingFor` 순수 함수 — 공휴일은 양력 고정 8개만, 설·추석은 제외), "오늘의 한 줄"은 `quotes.dart`의 격언 40개를 날짜(연중 일수)로 골라 같은 날은 모두 같은 글(Teams 08:00 격언은 `claude -p` 생성이라 공유하지 않음 — 공유하려면 저장소가 필요). 이름은 `/api/mobile/login`의 `name`(user_profiles.display_name → Azure full_name). 바로 가기 3개(네이티브 탭) + 사내 서비스 카드(`lib/more/service_grid.dart`, 더보기에서 옮김 — 더보기는 프로필·관리자·계정·로그아웃만).
+홈(웰컴) 탭(2026-10-03): 로그인 직후 첫 화면은 `/home`. 시간대·날짜 인사는 `mobile/lib/features/home/greeting.dart`(`greetingFor` 순수 함수 — 공휴일은 양력 고정 8개만, 설·추석은 제외), "오늘의 한 줄"은 `quotes.dart`의 격언 40개를 날짜(연중 일수)로 골라 같은 날은 모두 같은 글(Teams 08:00 격언은 `claude -p` 생성이라 공유하지 않음 — 공유하려면 저장소가 필요). 이름은 `/api/mobile/login`의 `name`(user_profiles.display_name → Azure full_name). 바로 가기 3개(네이티브 탭) + 사내 서비스 카드(`lib/more/service_grid.dart`, 더보기에서 옮김 — 더보기는 프로필·관리자·계정·로그아웃만). 웹 카탈로그(`lib/page-access.ts`)에 페이지가 늘면 `lib/more/catalog.dart`와 `service_grid.dart`의 아이콘·설명도 같이 늘린다(2026-10-03 Teams 채팅 `teams_chat` 추가).
 
 앱 WebView 안의 웹 페이지(2026-10-03): 루트 레이아웃(`frontend/src/app/layout.tsx`)이 요청 UA로 앱을 판별해(`isInnogridAppUA`) 웹 헤더·하단 탭을 그리지 않고(`Navigation chromeless` — 접근 권한 검사는 그대로) `<body data-app="1">`을 단다. 앱 전용 스타일이 필요하면 `[data-app]` 선택자. 표는 좁은 화면에서 열을 짜부라뜨리지 말고 `min-w` + 가로 스크롤(내 덱 표가 글자 단위로 깨진 사례).
 
