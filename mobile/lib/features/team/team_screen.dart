@@ -21,6 +21,9 @@ class _TeamScreenState extends ConsumerState<TeamScreen>
     with WidgetsBindingObserver {
   List<TeamMemberRow> _members = [];
   bool _membersLoaded = false;
+
+  /// 내 팀 목록 펼침 — 많으면(10명 초과) 접은 채 시작, 접힌 상태에선 불참자만 요약.
+  bool _membersOpen = true;
   final Set<String> _selected = {};
   final List<String> _extra = [];
   Set<String> _cards = {};
@@ -79,6 +82,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen>
       _members = await _repo.members();
     } catch (_) {}
     _membersLoaded = true;
+    _membersOpen = _members.length <= 10;
     _cards = {
       ...saved,
       ..._members.where((m) => m.isCardHolder).map((m) => m.name),
@@ -269,12 +273,28 @@ class _TeamScreenState extends ConsumerState<TeamScreen>
                                 ),
                                 child: const Text('편집'),
                               ),
+                              if (names.isNotEmpty)
+                                IconButton(
+                                  icon: Icon(
+                                    _membersOpen
+                                        ? Icons.expand_less
+                                        : Icons.expand_more,
+                                  ),
+                                  tooltip: _membersOpen ? '접기' : '펼치기',
+                                  onPressed: () => setState(
+                                    () => _membersOpen = !_membersOpen,
+                                  ),
+                                ),
                             ],
                           ),
                           if (_membersLoaded && _members.isEmpty)
                             EmptyTeamHint(onReturn: _reloadMembers),
-                          for (final n in names)
-                            _memberRow(n, extra: _extra.contains(n)),
+                          if (names.isNotEmpty) _attendanceActions(),
+                          if (_membersOpen)
+                            for (final n in names)
+                              _memberRow(n, extra: _extra.contains(n))
+                          else if (names.isNotEmpty)
+                            _collapsedSummary(names),
                           const SizedBox(height: 10),
                           Row(
                             children: [
@@ -428,6 +448,62 @@ class _TeamScreenState extends ConsumerState<TeamScreen>
           ),
         ],
       ),
+    );
+  }
+
+  /// 모두 참석 / 모두 불참 — 인원이 많을 때 스위치를 하나씩 안 눌러도 되게.
+  Widget _attendanceActions() {
+    final all = _members.map((m) => m.name).toSet();
+    final allOn = all.isNotEmpty && all.every(_selected.contains);
+    return Row(
+      children: [
+        TextButton(
+          onPressed: allOn ? null : () => setState(() => _selected.addAll(all)),
+          child: const Text('모두 참석'),
+        ),
+        TextButton(
+          onPressed: _selected.isEmpty
+              ? null
+              : () => setState(() => _selected.removeAll(all)),
+          child: const Text('모두 불참'),
+        ),
+      ],
+    );
+  }
+
+  /// 접힌 상태 요약: 불참자 이름(없으면 "전원 참석"). 이름을 누르면 바로 참석으로.
+  Widget _collapsedSummary(List<String> names) {
+    final absent = names
+        .where((n) => !_selected.contains(n) && !_extra.contains(n))
+        .toList();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: absent.isEmpty
+          ? Text(
+              '전원 참석 · 펼쳐서 개별 조정',
+              style: Theme.of(context).textTheme.bodySmall,
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '불참 ${absent.length}명 · 누르면 참석으로',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final n in absent)
+                      ActionChip(
+                        label: Text(n),
+                        onPressed: () => setState(() => _selected.add(n)),
+                      ),
+                  ],
+                ),
+              ],
+            ),
     );
   }
 

@@ -192,8 +192,28 @@ class _LadderScreenState extends ConsumerState<LadderScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CountTitle('참가자', _participants.length),
-                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          CountTitle('참가자', _participants.length),
+                          const Spacer(),
+                          if (_team.isNotEmpty)
+                            TextButton(
+                              onPressed: () => setState(() {
+                                if (_team.every(_selected.contains)) {
+                                  _selected.removeAll(_team);
+                                } else {
+                                  _selected.addAll(_team);
+                                }
+                              }),
+                              child: Text(
+                                _team.every(_selected.contains)
+                                    ? '모두 해제'
+                                    : '모두 선택',
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
                       if (_teamLoaded && _team.isEmpty)
                         EmptyTeamHint(onReturn: _reloadTeam),
                       if (_team.isNotEmpty || _extra.isNotEmpty) ...[
