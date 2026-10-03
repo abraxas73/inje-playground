@@ -14,7 +14,7 @@ void main() {
     expect(AppSession.fromJson({'role': 'admin'}).isAdmin, true);
   });
 
-  test('redirectFor — 로딩 중엔 /splash, 로그아웃은 /login, guest는 /guest, 로그인 사용자는 그대로', () {
+  test('redirectFor — 로딩 중엔 /splash, 로그아웃은 /login, guest는 /guest, 로그인 직후는 /home(웰컴), 그 외 그대로', () {
     expect(redirectFor(const AsyncValue.loading(), '/food'), '/splash');
     expect(redirectFor(const AsyncValue.loading(), '/splash'), null);
     expect(redirectFor(const AsyncValue.data(null), '/food'), '/login');
@@ -25,8 +25,8 @@ void main() {
     expect(redirectFor(AsyncValue.data(guest), '/guest'), null);
     final user = AppSession(email: 'u@x', role: 'user', permissions: const {});
     expect(redirectFor(AsyncValue.data(user), '/food'), null);
-    expect(redirectFor(AsyncValue.data(user), '/login'), '/food');
-    expect(redirectFor(AsyncValue.data(user), '/splash'), '/food');
+    expect(redirectFor(AsyncValue.data(user), '/login'), '/home');
+    expect(redirectFor(AsyncValue.data(user), '/splash'), '/home');
   });
 
   group('SessionNotifier', () {

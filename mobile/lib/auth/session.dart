@@ -9,8 +9,9 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../config.dart';
 
 class AppSession {
-  AppSession({required this.email, required this.role, required this.permissions});
+  AppSession({required this.email, this.name, required this.role, required this.permissions});
   final String? email;
+  final String? name; // 홈 인사말용(user_profiles.display_name → Azure full_name)
   final String role; // guest | user | admin
   final Map<String, bool> permissions;
   bool get isGuest => role == 'guest';
@@ -18,18 +19,19 @@ class AppSession {
 
   factory AppSession.fromJson(Map<String, dynamic> j) => AppSession(
         email: j['email'] as String?,
+        name: j['name'] as String?,
         role: (j['role'] as String?) ?? 'guest',
         permissions: {for (final e in ((j['permissions'] as Map?) ?? const {}).entries) if (e.value is bool) e.key as String: e.value as bool},
       );
 }
 
-/// 라우터 redirect 규칙(순수 함수). null = 이동 없음. 세션 확인 중에는 /splash에 머물러 탭 화면(위치 권한·API 호출)이 먼저 뜨지 않게 한다.
+/// 라우터 redirect 규칙(순수 함수). null = 이동 없음. 로그인 직후 첫 화면은 홈(웰컴). 세션 확인 중에는 /splash에 머물러 탭 화면(위치 권한·API 호출)이 먼저 뜨지 않게 한다.
 String? redirectFor(AsyncValue<AppSession?> session, String location) {
   if (session.isLoading) return location == '/splash' ? null : '/splash';
   final s = session.asData?.value;
   if (s == null) return location == '/login' ? null : '/login';
   if (s.isGuest) return location == '/guest' ? null : '/guest';
-  if (location == '/login' || location == '/guest' || location == '/splash') return '/food';
+  if (location == '/login' || location == '/guest' || location == '/splash') return '/home';
   return null;
 }
 

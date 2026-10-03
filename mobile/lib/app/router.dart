@@ -6,13 +6,14 @@ import '../auth/splash_screen.dart';
 import '../more/more_screen.dart';
 import '../web/web_screen.dart';
 import '../features/food/food_screen.dart';
+import '../features/home/home_screen.dart';
 import '../features/ladder/history_screen.dart';
 import '../features/ladder/ladder_screen.dart';
 import '../features/team/history_screen.dart';
 import '../features/team/team_screen.dart';
 
 GoRouter buildRouter({required Listenable refresh, required String? Function(BuildContext, GoRouterState) redirect}) => GoRouter(
-      initialLocation: '/food',
+      initialLocation: '/home',
       refreshListenable: refresh,
       redirect: redirect,
       routes: [
@@ -27,6 +28,7 @@ GoRouter buildRouter({required Listenable refresh, required String? Function(Bui
               selectedIndex: shell.currentIndex,
               onDestinationSelected: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex),
               destinations: const [
+                NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
                 NavigationDestination(icon: Icon(Icons.restaurant), label: '뭐 먹지'),
                 NavigationDestination(icon: Icon(Icons.stairs), label: '사다리'),
                 NavigationDestination(icon: Icon(Icons.coffee), label: '커피 타임'),
@@ -35,6 +37,7 @@ GoRouter buildRouter({required Listenable refresh, required String? Function(Bui
             ),
           ),
           branches: [
+            StatefulShellBranch(routes: [GoRoute(path: '/home', builder: (c, s) => const HomeScreen())]),
             StatefulShellBranch(routes: [GoRoute(path: '/food', builder: (c, s) => const FoodScreen())]),
             StatefulShellBranch(routes: [GoRoute(path: '/ladder', builder: (c, s) => const LadderScreen(), routes: [GoRoute(path: 'history', builder: (c, s) => const LadderHistoryScreen())])]),
             StatefulShellBranch(routes: [GoRoute(path: '/team', builder: (c, s) => const TeamScreen(), routes: [GoRoute(path: 'history', builder: (c, s) => const TeamHistoryScreen())])]),
