@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Database, Dice5, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Presentation, Newspaper, SquareTerminal, MessagesSquare, TrendingUp } from "lucide-react";
+import { Database, Dice5, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Presentation, Newspaper, SquareTerminal, MessagesSquare, TrendingUp, MessageCircle } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 
 const FEATURES = [
+  // Teams 채팅은 홈 첫 카드(2026-10-03 사용자 요청)
+  { href: "/teams/chat", title: "Teams 채팅", description: "내가 속한 Teams 그룹·1:1 채팅을 여기서 바로 읽고 보내세요.", icon: MessageCircle, gradient: "from-violet-500 to-indigo-600", bgAccent: "bg-violet-50", iconColor: "text-violet-600", delay: "delay-100" },
   { href: "/marketing", title: "마케팅 Master DB", description: "부문별 Contact 제출부터 검증·검수·승인 반영까지 한곳에서 관리합니다.", icon: Database, gradient: "from-blue-500 to-indigo-600", bgAccent: "bg-blue-50", iconColor: "text-blue-600", delay: "delay-100" },
   { href: "/usage/code", title: "Claude Code", description: "개인과 담당 조직의 Claude Code 사용량을 확인하세요.", icon: SquareTerminal, gradient: "from-blue-500 to-indigo-600", bgAccent: "bg-blue-50", iconColor: "text-blue-600", delay: "delay-100" },
   { href: "/usage/chat", title: "Claude 채팅", description: "Claude 채팅·Cowork와 Office 활동을 확인하세요.", icon: MessagesSquare, gradient: "from-sky-500 to-blue-600", bgAccent: "bg-sky-50", iconColor: "text-sky-600", delay: "delay-100" },

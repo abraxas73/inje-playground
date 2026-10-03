@@ -180,7 +180,7 @@ curl -i -X POST "$TEAMS_DM_WEBHOOK_URL" -H "Content-Type: application/json" -d '
 사용자가 **자기가 속한 그룹·1:1 채팅**을 목록에서 골라 웹과 앱(WebView)에서 읽고 보낸다. 본인 Microsoft 계정의 위임 토큰(§3-C와 같은 `ms_connections`)으로 Graph `GET /me/chats`, `GET/POST /chats/{id}/messages`를 호출하므로 메시지는 **본인 이름**으로 올라가고 참여 여부도 Graph가 검사한다(미참여 403 → 409 reconnect). 서버는 내용을 저장·로그하지 않는다(감사 로그는 "Teams 채팅 전송" + 글자 수). 관리자 설정은 없다.
 
 - **스코프**: `MS_SCOPES`에 `Chat.ReadWrite`(위임, 관리자 동의 불필요) 추가. 기존 연결은 이 스코프가 없으므로 채팅 페이지가 "다시 연결(권한 추가)"을 안내한다. 토큰 갱신은 **그 연결이 동의한 스코프(ms_connections.scopes)** 로 요청하므로 SharePoint만 쓰던 기존 연결은 그대로 동작한다(`refreshScope`).
-- **API**: `GET /api/teams/chat`(connected·hasChatScope·meId·chats — 그룹·1:1, 모임 채팅 제외, 최근 순; 주제 없으면 나를 뺀 구성원 이름), `GET /api/teams/chat/messages?chat=&since=`(최근 50건, since 뒤 수정분 — 5초 폴링), `POST /api/teams/chat/messages {chat, text}`(4,000자). 페이지 권한 키 `teams_chat`(일상 그룹, user 이상).
+- **API**: `GET /api/teams/chat`(connected·hasChatScope·meId·chats — 그룹·1:1, 모임 채팅 제외, 최근 순; 주제 없으면 나를 뺀 구성원 이름), `GET /api/teams/chat/messages?chat=&since=`(최근 50건, since 뒤 수정분 — 5초 폴링), `POST /api/teams/chat/messages {chat, text}`(4,000자). 페이지 권한 키 `teams_chat`(업무·소식 그룹 첫 메뉴, user 이상; 웹 홈 첫 카드·앱 홈 바로 가기 첫 칸).
 - **채널(팀 안)**로 넓히려면 읽기 스코프 `ChannelMessage.Read.All`이 테넌트 관리자 동의(GA)를 요구한다(§3-A.0 절차). 채팅은 그 절차가 없다.
 - **함정**: `GET /me/chats`에 `$expand=members($select=…)`처럼 중첩 `$select`를 넣으면 Graph가 400 BadRequest(2026-10-03 운영 재현) — `$expand=members`만 쓴다. Graph 오류는 서버 로그 `[teams-chat] Graph <status> <code> request-id=… — <message>`로 남는다(`vercel logs <배포 URL>`).
 - **한계(1차)**: 첨부·이미지는 "첨부 N개 — Teams에서 확인", 반응·답글 스레드는 표시하지 않음, 실시간 아님(폴링), 목록은 최근 50개. 변경 알림(webhook) 구독은 공개 수신점 + 리소스 데이터 암호화가 필요해 2단계.

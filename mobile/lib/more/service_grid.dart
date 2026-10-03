@@ -18,8 +18,11 @@ const serviceMeta = <String, (IconData, String)>{
   'marketing': (Icons.campaign_outlined, 'Master DB 조회'),
 };
 const nativeTabKeys = {'food', 'ladder', 'team'};
+/// 홈 "바로 가기"에 따로 나오는 것(네이티브 탭 3개 + Teams 채팅) — 사내 서비스 그리드에서는 뺀다.
+const quickKeys = {...nativeTabKeys, 'teams_chat'};
+const teamsChatEntry = PageEntry('teams_chat', '/teams/chat', 'Teams 채팅', 'work', 'user');
 
-List<PageEntry> webServices(AppSession s) => visiblePages(s).where((p) => !nativeTabKeys.contains(p.key)).toList();
+List<PageEntry> webServices(AppSession s) => visiblePages(s).where((p) => !quickKeys.contains(p.key)).toList();
 
 /// 웹 기능(WebView로 여는 것) 2열 카드 그리드.
 class ServiceGrid extends StatelessWidget {

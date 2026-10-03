@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/brand.dart';
 import '../../app/theme.dart';
 import '../../auth/session.dart';
+import '../../more/catalog.dart';
 import '../../more/service_grid.dart';
 import 'greeting.dart';
 import 'quotes.dart';
@@ -46,13 +47,22 @@ class HomeScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
           Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('바로 가기', style: theme.textTheme.titleSmall)),
-          Row(children: [
-            _quick(context, Icons.restaurant, '뭐 먹지', '주변 식당·카페', '/food', Brand.tints[2]),
-            const SizedBox(width: 8),
-            _quick(context, Icons.stairs, '사다리', '순서·당번 정하기', '/ladder', Brand.tints[0]),
-            const SizedBox(width: 8),
-            _quick(context, Icons.coffee, '커피 타임', '팀 나누기·법카', '/team', Brand.tints[1]),
-          ]),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: 1.5,
+            children: [
+              // Teams 채팅이 맨 앞(사용자 요청) — 권한이 있을 때만. WebView로 연다.
+              if (session != null && canUsePage(session, teamsChatEntry))
+                _quick(context, Icons.forum_outlined, 'Teams 채팅', '내가 속한 채팅 읽기·보내기', () => context.push('/web?path=${Uri.encodeComponent('/teams/chat')}'), Brand.tints[3]),
+              _quick(context, Icons.restaurant, '뭐 먹지', '주변 식당·카페', () => context.go('/food'), Brand.tints[2]),
+              _quick(context, Icons.stairs, '사다리', '순서·당번 정하기', () => context.go('/ladder'), Brand.tints[0]),
+              _quick(context, Icons.coffee, '커피 타임', '팀 나누기·법카', () => context.go('/team'), Brand.tints[1]),
+            ],
+          ),
           if (session != null && webServices(session).isNotEmpty) ...[
             const SizedBox(height: 20),
             Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('사내 서비스', style: theme.textTheme.titleSmall)),
@@ -63,20 +73,18 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _quick(BuildContext context, IconData icon, String label, String desc, String path, Color tint) => Expanded(
-        child: Card(
-          child: InkWell(
-            onTap: () => context.go(path),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                TintIcon(icon, size: 40, background: tint, color: Brand.navy),
-                const SizedBox(height: 10),
-                Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
-                Text(desc, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
-              ]),
-            ),
+  Widget _quick(BuildContext context, IconData icon, String label, String desc, VoidCallback onTap, Color tint) => Card(
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              TintIcon(icon, size: 40, background: tint, color: Brand.navy),
+              const Spacer(),
+              Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Text(desc, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ]),
           ),
         ),
       );
