@@ -6,6 +6,8 @@ import '../auth/login_screen.dart';
 import '../more/more_screen.dart';
 import '../web/web_screen.dart';
 import '../features/food/food_screen.dart';
+import '../features/ladder/history_screen.dart';
+import '../features/ladder/ladder_screen.dart';
 
 class StubScreen extends StatelessWidget {
   const StubScreen(this.title, {super.key});
@@ -38,7 +40,7 @@ GoRouter buildRouter({required Listenable refresh, required String? Function(Bui
           ),
           branches: [
             StatefulShellBranch(routes: [GoRoute(path: '/food', builder: (c, s) => const FoodScreen())]),
-            StatefulShellBranch(routes: [GoRoute(path: '/ladder', builder: (c, s) => const StubScreen('사다리'))]),
+            StatefulShellBranch(routes: [GoRoute(path: '/ladder', builder: (c, s) => const LadderScreen(), routes: [GoRoute(path: 'history', builder: (c, s) => const LadderHistoryScreen())])]),
             StatefulShellBranch(routes: [GoRoute(path: '/team', builder: (c, s) => const StubScreen('커피 타임'))]),
             StatefulShellBranch(routes: [GoRoute(path: '/more', builder: (c, s) => const MoreScreen())]),
           ],
