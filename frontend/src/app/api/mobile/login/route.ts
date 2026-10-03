@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 
 /** 역할·페이지 권한 — 웹 /api/users/role과 같은 규칙(마케팅은 has_page_access RPC: 지정 검수자·고정 담당자 포함). */
 async function sessionInfo(supabase: SupabaseClient, user: User) {
-  const profile = await supabase.from("user_profiles").select("role").eq("user_id", user.id).single();
+  const profile = await supabase.from("user_profiles").select("role,display_name").eq("user_id", user.id).single();
   const role: UserRole = profile.data?.role === "admin" || profile.data?.role === "user" ? profile.data.role : "guest";
   let permissions: PagePermissions = {};
   if (role === "user") {
@@ -18,7 +18,9 @@ async function sessionInfo(supabase: SupabaseClient, user: User) {
     const marketing = await supabase.rpc("has_page_access", { p_page: "marketing" });
     permissions.marketing = !marketing.error && marketing.data === true;
   }
-  return { email: user.email ?? null, role, permissions };
+  // 홈 인사말용 이름 — 웹 프로필과 같은 우선순위(display_name → Azure full_name)
+  const name = (profile.data?.display_name as string | null | undefined) ?? (user.user_metadata?.full_name as string | undefined) ?? null;
+  return { email: user.email ?? null, name, role, permissions };
 }
 
 async function handle(request: NextRequest, record: boolean) {

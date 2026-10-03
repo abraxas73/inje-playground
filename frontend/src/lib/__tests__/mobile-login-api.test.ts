@@ -1,10 +1,10 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
-const m = vi.hoisted(() => ({ user: true as boolean, role: "user" as string | null, permissions: null as unknown, marketing: false as boolean, login: vi.fn() }));
+const m = vi.hoisted(() => ({ user: true as boolean, role: "user" as string | null, displayName: null as string | null, permissions: null as unknown, marketing: false as boolean, login: vi.fn() }));
 vi.mock("@/lib/supabase-server", () => ({ createServerSupabase: async () => ({
-  auth: { getUser: async () => ({ data: { user: m.user ? { id: "u1", email: "a@innogrid.com" } : null } }) },
+  auth: { getUser: async () => ({ data: { user: m.user ? { id: "u1", email: "a@innogrid.com", user_metadata: { full_name: "Seunguk Kang" } } : null } }) },
   from: () => ({ select: () => ({ eq: () => ({
-    single: async () => ({ data: m.role ? { role: m.role } : null, error: m.role ? null : { message: "no row" } }),
+    single: async () => ({ data: m.role ? { role: m.role, display_name: m.displayName } : null, error: m.role ? null : { message: "no row" } }),
     maybeSingle: async () => ({ data: m.permissions ? { permissions: m.permissions } : null, error: null }),
   }) }) }),
   rpc: async (fn: string) => ({ data: fn === "has_page_access" ? m.marketing : null, error: null }),
@@ -13,15 +13,19 @@ vi.mock("@/lib/audit", () => ({ logLogin: m.login }));
 import { GET, POST } from "@/app/api/mobile/login/route";
 import { NextRequest } from "next/server";
 const req = (method = "POST") => new NextRequest("https://app.test/api/mobile/login", { method, headers: { "user-agent": "InnogridApp/1.0 (android)" } });
-beforeEach(() => { m.user = true; m.role = "user"; m.permissions = null; m.marketing = false; m.login.mockReset(); });
+beforeEach(() => { m.user = true; m.role = "user"; m.displayName = null; m.permissions = null; m.marketing = false; m.login.mockReset(); });
 
 it("POST — 로그인 사용자의 역할·권한을 돌려주고 login_history를 남긴다", async () => {
   m.permissions = { rfp: false };
   const res = await POST(req());
   expect(res.status).toBe(200);
-  expect(await res.json()).toEqual({ email: "a@innogrid.com", role: "user", permissions: { rfp: false, marketing: false } });
+  expect(await res.json()).toEqual({ email: "a@innogrid.com", name: "Seunguk Kang", role: "user", permissions: { rfp: false, marketing: false } });
   expect(m.login).toHaveBeenCalledTimes(1);
   expect(m.login.mock.calls[0][2]).toEqual({ userId: "u1", userEmail: "a@innogrid.com" });
+});
+it("이름은 user_profiles.display_name 우선, 없으면 Azure full_name(홈 인사말용)", async () => {
+  m.displayName = "강승욱";
+  expect(await (await GET(req("GET"))).json()).toMatchObject({ name: "강승욱" });
 });
 it("마케팅 권한은 웹 /api/users/role처럼 has_page_access RPC로 합친다(지정 검수자 포함)", async () => {
   m.marketing = true;
