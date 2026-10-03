@@ -132,9 +132,7 @@ export interface OrgOption {
   count: number;
 }
 
-type HasUnits = { units?: string[] } & Record<string, unknown>;
-
-export function buildOrgOptions(members: ReadonlyArray<HasUnits>): OrgOption[] {
+export function buildOrgOptions<T extends { units?: string[] }>(members: ReadonlyArray<T>): OrgOption[] {
   const map = new Map<string, OrgOption>();
   for (const m of members) {
     const u = (m.units ?? []).filter(Boolean);
@@ -149,7 +147,7 @@ export function buildOrgOptions(members: ReadonlyArray<HasUnits>): OrgOption[] {
 }
 
 /** 빈 key = 전체. 상위 조직 key면 그 아래 전원이 맞는다. 조직 정보가 없는 구성원은 필터가 있으면 빠진다. */
-export function matchesOrg(m: HasUnits, key: string): boolean {
+export function matchesOrg<T extends { units?: string[] }>(m: T, key: string): boolean {
   if (!key) return true;
   const u = (m.units ?? []).filter(Boolean);
   for (let d = 1; d <= u.length; d++) if (u.slice(0, d).join(" > ") === key) return true;
