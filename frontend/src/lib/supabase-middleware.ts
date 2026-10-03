@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { after, NextResponse, type NextRequest } from "next/server";
 import { auditProxyRequest } from "./audit-proxy";
 import { canUsePage, isPagePermissions, matchesPath, pagesForPath } from "./page-access";
+import { bearerToken, createBearerSupabase } from "./supabase-server";
 import type { UserRole } from "./roles";
 
 /**
@@ -40,26 +41,30 @@ export async function updateSession(request: NextRequest) {
   }
 
   try {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) =>
-              request.cookies.set(name, value)
-            );
-            supabaseResponse = NextResponse.next({ request });
-            cookiesToSet.forEach(({ name, value, options }) =>
-              supabaseResponse.cookies.set(name, value, options)
-            );
-          },
-        },
-      }
-    );
+    // 모바일 앱의 네이티브 화면은 /api/*를 Bearer로 부른다 — 쿠키 갱신 없이 그 토큰으로 사용자·권한을 확인한다.
+    const token = api ? bearerToken(request.headers) : null;
+    const supabase = token
+      ? createBearerSupabase(token)
+      : createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            cookies: {
+              getAll() {
+                return request.cookies.getAll();
+              },
+              setAll(cookiesToSet) {
+                cookiesToSet.forEach(({ name, value }) =>
+                  request.cookies.set(name, value)
+                );
+                supabaseResponse = NextResponse.next({ request });
+                cookiesToSet.forEach(({ name, value, options }) =>
+                  supabaseResponse.cookies.set(name, value, options)
+                );
+              },
+            },
+          }
+        );
 
     const {
       data: { user },
