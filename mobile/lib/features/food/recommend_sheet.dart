@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../api/client.dart';
 import 'models.dart';
+import '../team/repository.dart';
 import 'repository.dart';
 
 /// "오늘 뭐 먹지": 검색 결과에서 무작위 1곳 → 다시/결정. 결정은 웹과 같은 /api/food/decide 본문(구성원 = 내 팀 이름, 채널 전송 여부).
@@ -52,5 +53,11 @@ Future<void> showRecommendSheet(BuildContext context, WidgetRef ref, List<KakaoP
   );
 }
 
-/// 결정 기록의 구성원 이름. Task 13에서 내 팀(TeamRepository.memberNames)으로 교체한다.
-Future<List<String>> recommendMembers(WidgetRef ref) async => const <String>[];
+/// 결정 기록의 구성원 이름 = 내 팀(웹 추천 모달과 같은 역할). 못 불러오면 빈 목록(호출자가 '나'로 대체).
+Future<List<String>> recommendMembers(WidgetRef ref) async {
+  try {
+    return await ref.read(teamRepositoryProvider).memberNames();
+  } catch (_) {
+    return const <String>[];
+  }
+}

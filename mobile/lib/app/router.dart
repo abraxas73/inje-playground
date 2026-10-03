@@ -1,4 +1,3 @@
-// 라우터 골격 — 화면은 뒤 작업(인증·더보기·WebView·기능)에서 교체한다.
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../auth/guest_screen.dart';
@@ -8,13 +7,8 @@ import '../web/web_screen.dart';
 import '../features/food/food_screen.dart';
 import '../features/ladder/history_screen.dart';
 import '../features/ladder/ladder_screen.dart';
-
-class StubScreen extends StatelessWidget {
-  const StubScreen(this.title, {super.key});
-  final String title;
-  @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text(title)), body: Center(child: Text(title)));
-}
+import '../features/team/history_screen.dart';
+import '../features/team/team_screen.dart';
 
 GoRouter buildRouter({required Listenable refresh, required String? Function(BuildContext, GoRouterState) redirect}) => GoRouter(
       initialLocation: '/food',
@@ -41,7 +35,7 @@ GoRouter buildRouter({required Listenable refresh, required String? Function(Bui
           branches: [
             StatefulShellBranch(routes: [GoRoute(path: '/food', builder: (c, s) => const FoodScreen())]),
             StatefulShellBranch(routes: [GoRoute(path: '/ladder', builder: (c, s) => const LadderScreen(), routes: [GoRoute(path: 'history', builder: (c, s) => const LadderHistoryScreen())])]),
-            StatefulShellBranch(routes: [GoRoute(path: '/team', builder: (c, s) => const StubScreen('커피 타임'))]),
+            StatefulShellBranch(routes: [GoRoute(path: '/team', builder: (c, s) => const TeamScreen(), routes: [GoRoute(path: 'history', builder: (c, s) => const TeamHistoryScreen())])]),
             StatefulShellBranch(routes: [GoRoute(path: '/more', builder: (c, s) => const MoreScreen())]),
           ],
         ),
