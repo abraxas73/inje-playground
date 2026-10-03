@@ -9,6 +9,7 @@ import { Loader2, Search, UserPlus, Users, Pencil, AlertTriangle } from "lucide-
 import type { MemberSourceProvider } from "@/lib/providers";
 import type { Member } from "@/lib/members/types";
 import { createAppUsersMemberSource } from "@/lib/members/users";
+import { createDirectoryMemberSource } from "@/lib/members/directory";
 import { createTeamsMemberSource } from "@/lib/members/teams";
 import {
   memberKey,
@@ -24,7 +25,7 @@ import type { UserMember } from "@/hooks/useUserMembers";
 interface MyTeamPickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** 멤버 소스 provider (users | teams). dooray는 이 모달을 쓰지 않는다 */
+  /** 멤버 소스 provider (users | teams | directory). dooray는 이 모달을 쓰지 않는다 */
   provider: MemberSourceProvider;
   /** 현재 저장된 내 팀(user_members) — 미리 체크 */
   current: UserMember[];
@@ -40,6 +41,7 @@ function extraKey(e: { name: string; email?: string | null }): string {
 const SOURCE_LABEL: Record<MemberSourceProvider, string> = {
   users: "앱 사용자 명단",
   teams: "Teams 구성원",
+  directory: "사내 조직도 명부",
   dooray: "Dooray",
 };
 
@@ -78,7 +80,7 @@ export default function MyTeamPicker({ open, onOpenChange, provider, current, on
         const src =
           provider === "dooray"
             ? []
-            : await (provider === "users" ? createAppUsersMemberSource() : createTeamsMemberSource()).listMembers();
+            : await (provider === "users" ? createAppUsersMemberSource() : provider === "directory" ? createDirectoryMemberSource() : createTeamsMemberSource()).listMembers();
         if (cancelled) return;
         setSource(src);
         const { preselectedIds, overrides: savedOverrides, extras: keep } = splitCurrent(current, src);

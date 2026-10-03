@@ -23,6 +23,7 @@ describe("parseProvider", () => {
 describe("parseMemberSourceProvider", () => {
   it("teams/users만 인식, 나머지는 dooray 기본값", () => {
     expect(parseMemberSourceProvider("users")).toBe("users");
+    expect(parseMemberSourceProvider("directory")).toBe("directory");
     expect(parseMemberSourceProvider(" Users ")).toBe("users");
     expect(parseMemberSourceProvider("teams")).toBe("teams");
     expect(parseMemberSourceProvider("")).toBe("dooray");

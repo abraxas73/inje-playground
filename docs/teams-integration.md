@@ -71,6 +71,7 @@ curl -i -X POST "$TEAMS_DM_WEBHOOK_URL" -H "Content-Type: application/json" -d '
 | `users` (**권장**) | 앱 사용자 명단 — `user_profiles`에서 역할이 guest가 아닌 구성원(`GET /api/members/users`) | 없음 |
 | `teams` + `teams_members_webhook_url` | Power Automate 멤버 목록 흐름(§3-B) | Power Automate **프리미엄** |
 | `teams` (웹훅 URL 비움) | Microsoft Graph app-only(§3-A) | Graph 앱 권한 **테넌트 관리자 동의** + env 시크릿 |
+| `directory` | 사내 조직도 명부(`company_directory`, 아마란스 동기화 — 런북 docs/company-directory.md) | 외부 연동·동의 불필요. 전 직원·팀 포함, 이메일이 Teams DM 수신자. 최신성은 운영자 Mac 동기화에 따름(2026-10-03 추가 — Teams 소스가 GA 동의를 못 받아 멤버 선택이 막혔던 것의 대안) |
 
 ### 3.1 앱 사용자 명단(`users`)
 - 이 앱에 한 번이라도 로그인한 구성원이 역할 `user`/`admin`이면 포함된다(신규 인원은 첫 로그인 후 등장). 이름은 로그인 프로필 표시명, 없으면 이메일 로컬파트. 이메일을 항상 가지므로 Teams DM과 조합 가능.

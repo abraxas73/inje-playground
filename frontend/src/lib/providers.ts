@@ -36,12 +36,15 @@ export function parseProvider(value: string | null | undefined): Provider {
   return value?.trim().toLowerCase() === "teams" ? "teams" : "dooray";
 }
 
-/** 멤버 소스 축은 외부 연동 없이 쓰는 "users"(앱 사용자 명단 = user_profiles)도 허용 */
-export type MemberSourceProvider = Provider | "users";
+/**
+ * 멤버 소스 축은 외부 연동 없이 쓰는 "users"(앱 사용자 명단 = user_profiles)와
+ * "directory"(사내 조직도 명부 = company_directory, 아마란스 동기화 — 전 직원·팀 포함, 관리자 동의 불필요)도 허용
+ */
+export type MemberSourceProvider = Provider | "users" | "directory";
 
 export function parseMemberSourceProvider(value: string | null | undefined): MemberSourceProvider {
   const v = value?.trim().toLowerCase();
-  return v === "teams" ? "teams" : v === "users" ? "users" : "dooray";
+  return v === "teams" ? "teams" : v === "users" ? "users" : v === "directory" ? "directory" : "dooray";
 }
 
 export function resolveProvider(

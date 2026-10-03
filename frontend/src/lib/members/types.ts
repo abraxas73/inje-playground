@@ -5,6 +5,8 @@ export interface Member {
   id: string;
   name: string;
   email?: string;
+  /** 사내 조직도 명부(directory)만: 말단 부서명 */
+  team?: string;
 }
 
 export interface MemberSource {

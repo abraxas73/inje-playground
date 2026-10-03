@@ -7,7 +7,7 @@ vi.mock("@/lib/dooray-client", () => ({
 import { createTeamsMemberSource } from "@/lib/members/teams";
 import { createDoorayMemberSource } from "@/lib/members/dooray";
 import { createAppUsersMemberSource } from "@/lib/members/users";
-import { getMemberSource } from "@/lib/members";
+import { getMemberSource, createDirectoryMemberSource } from "@/lib/members";
 import { fetchProjectMembers } from "@/lib/dooray-client";
 
 describe("createTeamsMemberSource", () => {
@@ -47,6 +47,21 @@ describe("createAppUsersMemberSource", () => {
   });
 });
 
+describe("createDirectoryMemberSource", () => {
+  it("/api/members/directory를 호출해 members를 돌려준다(사내 조직도 명부)", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ members: [{ id: "su@innogrid.com", name: "강승욱", email: "su@innogrid.com", team: "XPU플랫폼팀" }] }) });
+    const src = createDirectoryMemberSource(fetchImpl as never);
+    expect(src.provider).toBe("directory");
+    const signal = new AbortController().signal;
+    expect(await src.listMembers({ signal })).toEqual([{ id: "su@innogrid.com", name: "강승욱", email: "su@innogrid.com", team: "XPU플랫폼팀" }]);
+    expect(fetchImpl).toHaveBeenCalledWith("/api/members/directory", { signal });
+  });
+  it("실패 응답의 error 메시지를 throw", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: false, status: 503, json: async () => ({ error: "명부가 비어 있습니다." }) });
+    await expect(createDirectoryMemberSource(fetchImpl as never).listMembers()).rejects.toThrow("명부가 비어 있습니다.");
+  });
+});
+
 describe("createDoorayMemberSource / getMemberSource", () => {
   it("Dooray 소스는 브리지 fetchProjectMembers를 위임", async () => {
     const src = createDoorayMemberSource({ token: "tok", projectId: "p1" });
@@ -56,6 +71,7 @@ describe("createDoorayMemberSource / getMemberSource", () => {
   });
 
   it("getMemberSource는 provider로 분기", () => {
+    expect(getMemberSource("directory", { token: "", projectId: "" }).provider).toBe("directory");
     expect(getMemberSource("teams", { token: "", projectId: "" }).provider).toBe("teams");
     expect(getMemberSource("users", { token: "", projectId: "" }).provider).toBe("users");
     expect(getMemberSource("dooray", { token: "t", projectId: "p" }).provider).toBe("dooray");

@@ -22,7 +22,7 @@ const AXES: { key: SettingKey; label: string; hint: string }[] = [
   {
     key: "member_source_provider",
     label: "멤버 가져오기",
-    hint: "사다리/팀/점심의 구성원 목록 소스. '앱 사용자 명단' = 이 앱에 로그인한 적 있는 구성원(guest 제외, 외부 연동 불필요)",
+    hint: "사다리/팀/점심의 구성원 목록 소스. '사내 조직도 명부' = 아마란스 동기화 명부(전 직원·팀, 외부 연동·동의 불필요, 권장) · '앱 사용자 명단' = 이 앱에 로그인한 적 있는 구성원(guest 제외)",
   },
   { key: "dm_provider", label: "개인 DM", hint: "점심 알림·가이드 답변 1:1 메시지" },
 ];
@@ -31,7 +31,8 @@ const PROVIDER_LABEL: Record<Provider, string> = { dooray: "Dooray", teams: "Mic
 const MEMBER_SOURCE_LABEL: Record<MemberSourceProvider, string> = {
   dooray: "Dooray",
   users: "앱 사용자 명단",
-  teams: "Microsoft Teams (Graph/웹훅)",
+  directory: "사내 조직도 명부 (아마란스)",
+  teams: "Microsoft Teams (Graph/웹훅 — 관리자 동의 필요)",
 };
 
 export default function ProviderSettings({ settingsHook }: ProviderSettingsProps) {
@@ -63,6 +64,7 @@ export default function ProviderSettings({ settingsHook }: ProviderSettingsProps
                 {axis.key === "member_source_provider" ? (
                   <>
                     <SelectItem value="dooray">{MEMBER_SOURCE_LABEL.dooray}</SelectItem>
+                    <SelectItem value="directory">{MEMBER_SOURCE_LABEL.directory}</SelectItem>
                     <SelectItem value="users">{MEMBER_SOURCE_LABEL.users}</SelectItem>
                     <SelectItem value="teams">{MEMBER_SOURCE_LABEL.teams}</SelectItem>
                   </>

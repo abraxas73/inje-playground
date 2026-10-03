@@ -52,3 +52,6 @@ BASE_URL=http://localhost:3003 ./frontend/scripts/company-directory-sync.py   # 
 ## 5. 테스트
 - 단위: `npx vitest run src/lib/__tests__/directory-parse.test.ts` (경로 분해·정규화·중복 제거).
 - E2E 게이트: `npx playwright test e2e/directory.spec.ts` (세션 없는 401, 토큰 있는 400, 소규모 명부 거부).
+
+## 멤버 소스로 쓰기 (2026-10-03)
+시스템 설정 → 연동 provider → 멤버 가져오기를 **사내 조직도 명부**로 두면 설정 → 내 팀 구성원 선택과 사다리·커피 타임·뭐 먹지가 이 명부(active)에서 고른다(`GET /api/members/directory`, RLS가 관리자 전용이라 service role로 읽음). 퇴사자는 동기화 때 `active=false`가 되어 빠진다 — 명부가 비어 있으면 503과 안내.
