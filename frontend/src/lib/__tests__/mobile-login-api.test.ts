@@ -1,0 +1,31 @@
+// @vitest-environment node
+import { beforeEach, expect, it, vi } from "vitest";
+const m = vi.hoisted(() => ({ user: true as boolean, role: "user" as string | null, permissions: null as unknown, login: vi.fn() }));
+vi.mock("@/lib/supabase-server", () => ({ createServerSupabase: async () => ({
+  auth: { getUser: async () => ({ data: { user: m.user ? { id: "u1", email: "a@innogrid.com" } : null } }) },
+  from: () => ({ select: () => ({ eq: () => ({
+    single: async () => ({ data: m.role ? { role: m.role } : null, error: m.role ? null : { message: "no row" } }),
+    maybeSingle: async () => ({ data: m.permissions ? { permissions: m.permissions } : null, error: null }),
+  }) }) }),
+}) }));
+vi.mock("@/lib/audit", () => ({ logLogin: m.login }));
+import { POST } from "@/app/api/mobile/login/route";
+import { NextRequest } from "next/server";
+const req = () => new NextRequest("https://app.test/api/mobile/login", { method: "POST", headers: { "user-agent": "InnogridApp/1.0 (android)" } });
+beforeEach(() => { m.user = true; m.role = "user"; m.permissions = null; m.login.mockReset(); });
+
+it("로그인 사용자의 역할·권한을 돌려주고 login_history를 남긴다", async () => {
+  m.permissions = { marketing: true };
+  const res = await POST(req());
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ email: "a@innogrid.com", role: "user", permissions: { marketing: true } });
+  expect(m.login).toHaveBeenCalledTimes(1);
+  expect(m.login.mock.calls[0][2]).toEqual({ userId: "u1", userEmail: "a@innogrid.com" });
+});
+it("guest도 기록하고 역할을 돌려준다(차단은 앱이 한다)", async () => {
+  m.role = "guest";
+  expect(await (await POST(req())).json()).toMatchObject({ role: "guest", permissions: {} });
+  expect(m.login).toHaveBeenCalledTimes(1);
+});
+it("프로필이 없으면 guest로 본다", async () => { m.role = null; expect(await (await POST(req())).json()).toMatchObject({ role: "guest" }); });
+it("비로그인 401, 기록 없음", async () => { m.user = false; expect((await POST(req())).status).toBe(401); expect(m.login).not.toHaveBeenCalled(); });
