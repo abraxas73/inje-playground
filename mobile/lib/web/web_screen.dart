@@ -88,6 +88,15 @@ class _WebScreenState extends ConsumerState<WebScreen> {
     }
   }
 
+  /// /auth/mobile에서의 reload는 토큰 없는 재진입이라 처음부터(원래 경로 → /login → 부트스트랩) 다시 간다.
+  Future<void> _reload() async {
+    if (isAuthBootstrapPage(await _c.currentUrl(), appOrigin: _origin)) {
+      _retry();
+    } else {
+      await _c.reload();
+    }
+  }
+
   void _retry() {
     setState(() { _error = null; _guard.reset(); });
     _c.loadRequest(Uri.parse('${Config.apiBase}${widget.path}'));
@@ -108,7 +117,7 @@ class _WebScreenState extends ConsumerState<WebScreen> {
           appBar: AppBar(
             title: Text(_title.isEmpty ? widget.path : _title, overflow: TextOverflow.ellipsis),
             actions: [
-              IconButton(icon: const Icon(Icons.refresh), onPressed: () => _c.reload()),
+              IconButton(icon: const Icon(Icons.refresh), tooltip: '새로고침', onPressed: _reload),
               IconButton(icon: const Icon(Icons.open_in_browser), tooltip: '브라우저로 열기', onPressed: () => launchUrl(Uri.parse('${Config.apiBase}${widget.path}'), mode: LaunchMode.externalApplication)),
             ],
             bottom: _loading ? const PreferredSize(preferredSize: Size.fromHeight(2), child: LinearProgressIndicator(minHeight: 2)) : null,

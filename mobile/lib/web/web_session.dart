@@ -24,6 +24,12 @@ Future<String> webBootstrapUrl(ApiClient api, String apiBase, String nextPath) a
   return bootstrapUrl(apiBase: apiBase, nextPath: nextPath, tokenHash: j['tokenHash'] as String);
 }
 
+/// 지금 보이는 페이지가 /auth/mobile(부트스트랩 페이지)인가. 조각 토큰은 페이지가 바로 지우므로 여기서 reload하면 토큰 없이 다시 열린다 — 새로고침은 재부트스트랩으로.
+bool isAuthBootstrapPage(String? currentUrl, {required Uri appOrigin}) {
+  final u = currentUrl == null ? null : Uri.tryParse(currentUrl);
+  return u != null && u.host == appOrigin.host && u.path == '/auth/mobile';
+}
+
 /// 세션 부트스트랩 루프 방지. /login으로 처음 튕기면 1회 부트스트랩, 그 뒤 또 튕기면 멈춘다(오류 상태). 사용자가 "다시 시도"할 때만 초기화.
 class BootstrapGuard {
   int _attempts = 0;
