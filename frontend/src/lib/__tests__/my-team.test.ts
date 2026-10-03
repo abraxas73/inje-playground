@@ -116,12 +116,13 @@ describe("조직 필터 (buildOrgOptions / matchesOrg)", () => {
       { key: "기술·운영부문 > AX본부 > 클라우드 네이티브 센터", label: "클라우드 네이티브 센터", depth: 2, count: 1 },
       { key: "기술·운영부문 > AX본부 > XPU플랫폼팀", label: "XPU플랫폼팀", depth: 2, count: 1 },
     ]);
-    expect(buildOrgOptions([{ id: "x", name: "X" }])).toEqual([]);
+    const noUnits = { id: "x", name: "X" }; // 변수로 넘겨 초과 속성 검사 회피
+    expect(buildOrgOptions([noUnits])).toEqual([]);
   });
   it("상위 조직을 고르면 하위 전원이, 빈 키는 전체, 조직 정보 없는 구성원은 필터에서 빠진다", () => {
     expect(members.filter((m) => matchesOrg(m, "기술·운영부문 > AX본부")).map((m) => m.id)).toEqual(["a", "b"]);
     expect(members.filter((m) => matchesOrg(m, "기술·운영부문 > AX본부 > XPU플랫폼팀")).map((m) => m.id)).toEqual(["a"]);
     expect(members.filter((m) => matchesOrg(m, "")).map((m) => m.id)).toEqual(["a", "b", "c", "d"]);
-    expect(matchesOrg({ id: "d", name: "D" }, "경영지원부문")).toBe(false);
+    expect(matchesOrg(members[3], "경영지원부문")).toBe(false);
   });
 });
