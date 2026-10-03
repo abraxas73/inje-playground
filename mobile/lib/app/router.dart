@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../auth/guest_screen.dart';
 import '../auth/login_screen.dart';
+import '../more/more_screen.dart';
 
 class StubScreen extends StatelessWidget {
   const StubScreen(this.title, {super.key});
@@ -37,7 +38,7 @@ GoRouter buildRouter({required Listenable refresh, required String? Function(Bui
             StatefulShellBranch(routes: [GoRoute(path: '/food', builder: (c, s) => const StubScreen('뭐 먹지'))]),
             StatefulShellBranch(routes: [GoRoute(path: '/ladder', builder: (c, s) => const StubScreen('사다리'))]),
             StatefulShellBranch(routes: [GoRoute(path: '/team', builder: (c, s) => const StubScreen('커피 타임'))]),
-            StatefulShellBranch(routes: [GoRoute(path: '/more', builder: (c, s) => const StubScreen('더보기'))]),
+            StatefulShellBranch(routes: [GoRoute(path: '/more', builder: (c, s) => const MoreScreen())]),
           ],
         ),
       ],
