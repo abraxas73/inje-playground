@@ -129,8 +129,8 @@ export default function PeopleNewsPage() {
       <SubscriptionCard />
       <MediaAlertCard />
 
-      <Card>
-        <CardContent className="space-y-4 pt-5">
+      <Card className="py-4 md:py-6">
+        <CardContent className="space-y-3 pt-0 md:space-y-4 md:pt-5">
           <Tabs value={filters.category} onValueChange={(category) => changeFilters({ category })}>
             <TabsList aria-label="소식 구분">
               <TabsTrigger value="all">전체</TabsTrigger>
@@ -138,23 +138,23 @@ export default function PeopleNewsPage() {
               <TabsTrigger value="obituary">부고</TabsTrigger>
             </TabsList>
           </Tabs>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-48 flex-1 space-y-1.5">
-              <Label htmlFor="notice-search">제목 검색</Label>
-              <div className="relative">
+          {/* 레이블은 입력과 한 줄. 폰: "제목 검색" 줄 + "시작일/종료일" 줄, md 이상: 한 줄 */}
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <Label htmlFor="notice-search" className="shrink-0">제목 검색</Label>
+              <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input id="notice-search" className="pl-9" placeholder="이름 또는 기관명" value={filters.q} maxLength={100} onChange={(e) => changeFilters({ q: e.target.value })} />
               </div>
+              {filtered && <Button variant="ghost" size="sm" className="shrink-0 md:hidden" onClick={() => changeFilters(INITIAL_FILTERS)}>초기화</Button>}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="notice-from">시작일</Label>
-              <Input id="notice-from" type="date" className="w-40" value={filters.from} max={filters.to || undefined} onChange={(e) => changeFilters({ from: e.target.value })} />
+            <div className="flex items-center gap-2">
+              <Label htmlFor="notice-from" className="shrink-0">시작일</Label>
+              <Input id="notice-from" type="date" className="min-w-0 flex-1 md:w-40 md:flex-none" value={filters.from} max={filters.to || undefined} onChange={(e) => changeFilters({ from: e.target.value })} />
+              <Label htmlFor="notice-to" className="shrink-0 pl-1">종료일</Label>
+              <Input id="notice-to" type="date" className="min-w-0 flex-1 md:w-40 md:flex-none" value={filters.to} min={filters.from || undefined} onChange={(e) => changeFilters({ to: e.target.value })} />
+              {filtered && <Button variant="ghost" className="hidden md:inline-flex" onClick={() => changeFilters(INITIAL_FILTERS)}>초기화</Button>}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="notice-to">종료일</Label>
-              <Input id="notice-to" type="date" className="w-40" value={filters.to} min={filters.from || undefined} onChange={(e) => changeFilters({ to: e.target.value })} />
-            </div>
-            {filtered && <Button variant="ghost" onClick={() => changeFilters(INITIAL_FILTERS)}>초기화</Button>}
           </div>
         </CardContent>
       </Card>
