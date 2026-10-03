@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BellRing, Loader2 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/shared/CollapsibleCard";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { MediaAlertSettings } from "@/types/media-directory";
@@ -36,11 +36,10 @@ export default function MediaAlertCard() {
   }
 
   return (
-    <Card><CardContent className="space-y-3 pt-5">
+    <CollapsibleCard title={<><BellRing className="h-4 w-4 text-sky-600" />관리 매체·부서 부고 알림</>}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="flex items-center gap-2 font-semibold"><BellRing className="h-4 w-4 text-sky-600" />관리 매체·부서 부고 알림</h2>
-          <p className="mt-1 text-xs text-muted-foreground">새로 수집된 부고가 <Link href="/media-directory" className="underline">관리 매체·부서</Link>와 일치하면 {settings?.email ?? "계정 이메일"}로 메일을 보냅니다. Microsoft 연결이 필요 없습니다.</p>
+          <p className="text-xs text-muted-foreground">새로 수집된 부고가 <Link href="/media-directory" className="underline">관리 매체·부서</Link>와 일치하면 {settings?.email ?? "계정 이메일"}로 메일을 보냅니다. Microsoft 연결이 필요 없습니다.</p>
         </div>
         <div className="flex items-center gap-2">
           <Switch id="media-alert" checked={settings?.enabled ?? false} disabled={!settings || saving || (!settings.enabled && !settings.emailVerified)} onCheckedChange={(checked) => void toggle(checked)} />
@@ -53,6 +52,6 @@ export default function MediaAlertCard() {
       {settings?.latestDelivery?.status === "failed" && <p className="text-xs text-destructive">최근 알림 발송 실패 ({format(settings.latestDelivery.created_at)}){settings.latestDelivery.error_message ? ` · ${settings.latestDelivery.error_message}` : ""}. 관리자에게 문의해 주세요.</p>}
       {message && <p role="status" className={`text-xs ${message.error ? "text-destructive" : "text-muted-foreground"}`}>{message.text}</p>}
       <p className="text-xs text-muted-foreground">매일 07:00 수집과 ‘지금 가져오기’ 직후, 새 매칭이 있을 때만 수집 1회당 1통을 보냅니다. 매체와 등록 부서가 함께 나올 때만 일치하며 ‘부서 무관’ 매체는 매체명만으로 일치합니다.</p>
-    </CardContent></Card>
+    </CollapsibleCard>
   );
 }

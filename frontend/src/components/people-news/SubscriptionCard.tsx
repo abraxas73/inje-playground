@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChevronDown, Loader2, Mail } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/shared/CollapsibleCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -87,12 +87,10 @@ export default function SubscriptionCard() {
   }
 
   return (
-    <Card>
-      <CardContent className="space-y-3 pt-5">
+    <CollapsibleCard title={<><Mail className="h-4 w-4 text-sky-600" />메일로 소식 받기</>}>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="flex items-center gap-2 font-semibold"><Mail className="h-4 w-4 text-sky-600" />메일로 소식 받기</h2>
-            <p className="mt-1 text-xs text-muted-foreground">{settings?.email ?? "계정 이메일"}로 인사·부고 소식을 보내드립니다. 사내 메일 서버(SMTP)로 발송되며 Microsoft 계정 연결이 필요하지 않습니다.</p>
+            <p className="text-xs text-muted-foreground">{settings?.email ?? "계정 이메일"}로 인사·부고 소식을 보내드립니다. 사내 메일 서버(SMTP)로 발송되며 Microsoft 계정 연결이 필요하지 않습니다.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
@@ -148,7 +146,6 @@ export default function SubscriptionCard() {
             </> : <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />메일을 불러오고 있습니다.</p>}
           </DialogContent>
         </Dialog>
-      </CardContent>
-    </Card>
+    </CollapsibleCard>
   );
 }

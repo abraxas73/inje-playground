@@ -103,10 +103,10 @@ export default function PeopleNewsPage() {
             <p className="text-sm text-muted-foreground">연합뉴스에서 전하는 인사와 부고 소식을 확인하세요.</p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" size="sm"><Link href="/media-directory"><ListChecks className="h-4 w-4" />관리 매체·부서</Link></Button>
-          <Button variant="outline" size="sm" disabled={loading || syncing} onClick={() => { setLoading(true); setRevision((n) => n + 1); }}>
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />목록 새로고침
+        <div className="flex flex-nowrap gap-2">
+          <Button asChild variant="outline" size="sm" title="관리 매체·부서"><Link href="/media-directory"><ListChecks className="h-4 w-4" /><span className="hidden sm:inline">관리 매체·부서</span><span className="sr-only sm:hidden">관리 매체·부서</span></Link></Button>
+          <Button variant="outline" size="sm" title="목록 새로고침" disabled={loading || syncing} onClick={() => { setLoading(true); setRevision((n) => n + 1); }}>
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /><span className="hidden sm:inline">목록 새로고침</span><span className="sr-only sm:hidden">목록 새로고침</span>
           </Button>
           <Button size="sm" disabled={syncing} onClick={syncNow}>
             {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
