@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { memberKey, splitCurrent, isValidEmail, isPersonalEmail, mergeManual, toDrafts, userMembersToMembers, buildOrgOptions, matchesOrg } from "@/lib/my-team";
+import type { Member } from "@/lib/members/types";
 
 describe("memberKey", () => {
   it("이메일이 있으면 소문자 이메일, 없으면 name: 접두 키", () => {
@@ -100,7 +101,7 @@ describe("toDrafts / userMembersToMembers", () => {
 });
 
 describe("조직 필터 (buildOrgOptions / matchesOrg)", () => {
-  const members = [
+  const members: Member[] = [
     { id: "a", name: "A", units: ["기술·운영부문", "AX본부", "XPU플랫폼팀"] },
     { id: "b", name: "B", units: ["기술·운영부문", "AX본부", "클라우드 네이티브 센터"] },
     { id: "c", name: "C", units: ["경영지원부문", "경영지원팀"] },
@@ -116,7 +117,7 @@ describe("조직 필터 (buildOrgOptions / matchesOrg)", () => {
       { key: "기술·운영부문 > AX본부 > 클라우드 네이티브 센터", label: "클라우드 네이티브 센터", depth: 2, count: 1 },
       { key: "기술·운영부문 > AX본부 > XPU플랫폼팀", label: "XPU플랫폼팀", depth: 2, count: 1 },
     ]);
-    const noUnits = { id: "x", name: "X" }; // 변수로 넘겨 초과 속성 검사 회피
+    const noUnits: Member = { id: "x", name: "X" };
     expect(buildOrgOptions([noUnits])).toEqual([]);
   });
   it("상위 조직을 고르면 하위 전원이, 빈 키는 전체, 조직 정보 없는 구성원은 필터에서 빠진다", () => {
