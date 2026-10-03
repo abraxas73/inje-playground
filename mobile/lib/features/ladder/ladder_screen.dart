@@ -5,10 +5,10 @@ import '../../api/client.dart';
 import '../../app/brand.dart';
 import '../../app/router.dart' show tabTapProvider;
 import '../../app/theme.dart';
+import '../shared/participant_picker.dart';
 import 'generator.dart';
 import 'model.dart';
 import 'painter.dart';
-import '../shared/empty_team_hint.dart';
 import 'repository.dart';
 
 const kDensities = {'낮음': 0.25, '보통': 0.4, '높음': 0.6};
@@ -34,8 +34,7 @@ class _LadderScreenState extends ConsumerState<LadderScreen>
   final List<String> _extra = [];
   final List<LadderResult> _results = [];
   String _density = '보통';
-  final _nameCtl = TextEditingController(),
-      _resultCtl = TextEditingController();
+  final _resultCtl = TextEditingController();
   String _resultType = 'normal';
   // 사다리
   LadderData? _ladder;
@@ -62,16 +61,20 @@ class _LadderScreenState extends ConsumerState<LadderScreen>
     _reloadTeam();
   }
 
-  /// 내 팀 다시 불러오기 — 처음·탭 재선택·앱 복귀·설정에서 돌아올 때·당겨서 새로고침. 웹에서 저장한 구성원이 앱에도 보이게.
+  /// 내 팀 다시 불러오기 — 처음·탭 재선택·앱 복귀·설정에서 돌아올 때·당겨서 새로고침.
+  /// 커피 타임과 같이 새로 들어온 사람은 기본 참가, 빠진 사람은 선택에서 제거(처음엔 전원 참가).
   Future<void> _reloadTeam() async {
     try {
       final n = await ref.read(ladderRepositoryProvider).myTeamNames();
-      if (mounted) {
-        setState(() {
-          _team = n;
-          _teamLoaded = true;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        final before = _team.toSet();
+        final now = n.toSet();
+        _team = n;
+        _teamLoaded = true;
+        _selected.addAll(now.difference(before));
+        _selected.removeWhere((x) => !now.contains(x) && !_extra.contains(x));
+      });
     } catch (_) {
       if (mounted) setState(() => _teamLoaded = true);
     }
@@ -88,7 +91,6 @@ class _LadderScreenState extends ConsumerState<LadderScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _anim.dispose();
-    _nameCtl.dispose();
     _resultCtl.dispose();
     super.dispose();
   }
@@ -186,81 +188,21 @@ class _LadderScreenState extends ConsumerState<LadderScreen>
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          CountTitle('참가자', _participants.length),
-                          const Spacer(),
-                          if (_team.isNotEmpty)
-                            TextButton(
-                              onPressed: () => setState(() {
-                                if (_team.every(_selected.contains)) {
-                                  _selected.removeAll(_team);
-                                } else {
-                                  _selected.addAll(_team);
-                                }
-                              }),
-                              child: Text(
-                                _team.every(_selected.contains)
-                                    ? '모두 해제'
-                                    : '모두 선택',
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      if (_teamLoaded && _team.isEmpty)
-                        EmptyTeamHint(onReturn: _reloadTeam),
-                      if (_team.isNotEmpty || _extra.isNotEmpty) ...[
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final n in _team)
-                              FilterChip(
-                                label: Text(n),
-                                selected: _selected.contains(n),
-                                onSelected: (v) => setState(
-                                  () => v
-                                      ? _selected.add(n)
-                                      : _selected.remove(n),
-                                ),
-                              ),
-                            for (final n in _extra)
-                              InputChip(
-                                label: Text(n),
-                                selected: true,
-                                deleteIconColor: Colors.white,
-                                onDeleted: () =>
-                                    setState(() => _extra.remove(n)),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _nameCtl,
-                              decoration: const InputDecoration(
-                                hintText: '직접 입력',
-                              ),
-                              onSubmitted: (_) => _addName(),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _addButton(_addName),
-                        ],
-                      ),
-                    ],
-                  ),
+              ParticipantPicker(
+                names: _team,
+                selected: _selected,
+                extras: _extra,
+                loaded: _teamLoaded,
+                includeWord: '참가',
+                onToggle: (n, v) =>
+                    setState(() => v ? _selected.add(n) : _selected.remove(n)),
+                onSetAll: (v) => setState(
+                  () =>
+                      v ? _selected.addAll(_team) : _selected.removeAll(_team),
                 ),
+                onAddExtra: (n) => setState(() => _extra.add(n)),
+                onRemoveExtra: (n) => setState(() => _extra.remove(n)),
+                onReload: _reloadTeam,
               ),
               const SizedBox(height: 12),
               Card(
@@ -386,7 +328,7 @@ class _LadderScreenState extends ConsumerState<LadderScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       icon: const Icon(Icons.add, size: 22),
-      tooltip: '추가',
+      tooltip: '결과 추가',
       onPressed: onAdd,
     ),
   );
@@ -417,15 +359,6 @@ class _LadderScreenState extends ConsumerState<LadderScreen>
       deleteIconColor: fg.withValues(alpha: 0.6),
       onDeleted: () => setState(() => _results.remove(r)),
     );
-  }
-
-  void _addName() {
-    final n = _nameCtl.text.trim();
-    if (n.isEmpty || _participants.contains(n)) return;
-    setState(() {
-      _extra.add(n);
-      _nameCtl.clear();
-    });
   }
 
   void _addResult() {

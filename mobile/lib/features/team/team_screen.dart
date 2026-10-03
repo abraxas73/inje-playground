@@ -5,10 +5,10 @@ import '../../api/client.dart';
 import '../../app/brand.dart';
 import '../../app/router.dart' show tabTapProvider;
 import '../../app/theme.dart';
+import '../shared/participant_picker.dart';
 import 'divider.dart';
 import 'models.dart';
 import 'prefs.dart';
-import '../shared/empty_team_hint.dart';
 import 'repository.dart';
 
 class TeamScreen extends ConsumerStatefulWidget {
@@ -21,9 +21,6 @@ class _TeamScreenState extends ConsumerState<TeamScreen>
     with WidgetsBindingObserver {
   List<TeamMemberRow> _members = [];
   bool _membersLoaded = false;
-
-  /// 내 팀 목록 펼침 — 많으면(10명 초과) 접은 채 시작, 접힌 상태에선 불참자만 요약.
-  bool _membersOpen = true;
   final Set<String> _selected = {};
   final List<String> _extra = [];
   Set<String> _cards = {};
@@ -33,7 +30,6 @@ class _TeamScreenState extends ConsumerState<TeamScreen>
   TeamConfig? _lastConfig;
   String? _savedId;
   bool _busy = false;
-  final _nameCtl = TextEditingController();
   TeamRepository get _repo => ref.read(teamRepositoryProvider);
 
   @override
@@ -46,7 +42,6 @@ class _TeamScreenState extends ConsumerState<TeamScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _nameCtl.dispose();
     super.dispose();
   }
 
@@ -57,7 +52,13 @@ class _TeamScreenState extends ConsumerState<TeamScreen>
     }
   }
 
-  /// 내 팀 다시 불러오기(탭 재선택·앱 복귀·설정에서 돌아올 때·당겨서 새로고침). 새로 들어온 사람은 기본 참석, 빠진 사람은 선택에서 제거.
+  Future<void> _init() async {
+    final saved = await TeamPrefs.cardHolders();
+    _cards = {...saved};
+    await _reloadMembers();
+  }
+
+  /// 내 팀 다시 불러오기(처음·탭 재선택·앱 복귀·설정에서 돌아올 때·당겨서 새로고침). 새로 들어온 사람은 기본 참석, 빠진 사람은 선택에서 제거.
   Future<void> _reloadMembers() async {
     try {
       final list = await _repo.members();
@@ -76,23 +77,9 @@ class _TeamScreenState extends ConsumerState<TeamScreen>
     }
   }
 
-  Future<void> _init() async {
-    final saved = await TeamPrefs.cardHolders();
-    try {
-      _members = await _repo.members();
-    } catch (_) {}
-    _membersLoaded = true;
-    _membersOpen = _members.length <= 10;
-    _cards = {
-      ...saved,
-      ..._members.where((m) => m.isCardHolder).map((m) => m.name),
-    };
-    _selected.addAll(_members.map((m) => m.name)); // 웹과 같이 내 팀 전원 기본 참석
-    if (mounted) setState(() {});
-  }
-
+  List<String> get _names => _members.map((m) => m.name).toList();
   List<String> get _participants => [
-    ..._members.map((m) => m.name).where(_selected.contains),
+    ..._names.where(_selected.contains),
     ..._extra,
   ];
   void _snack(String m) =>
@@ -159,20 +146,11 @@ class _TeamScreenState extends ConsumerState<TeamScreen>
     await TeamPrefs.save(_cards);
   }
 
-  void _addName() {
-    final n = _nameCtl.text.trim();
-    if (n.isEmpty || _participants.contains(n)) return;
-    setState(() {
-      _extra.add(n);
-      _nameCtl.clear();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     ref.listen(tabTapProvider, (_, _) => _reloadMembers());
     final theme = Theme.of(context);
-    final names = [..._members.map((m) => m.name), ..._extra];
+    final total = _names.length + _extra.length;
     return Scaffold(
       appBar: BrandHeader(
         title: '커피 타임',
@@ -226,7 +204,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen>
                                       style: const TextStyle(color: Brand.sky),
                                     ),
                                     TextSpan(
-                                      text: ' / ${names.length}',
+                                      text: ' / $total',
                                       style: TextStyle(
                                         color: Colors.white.withValues(
                                           alpha: 0.5,
@@ -257,77 +235,35 @@ class _TeamScreenState extends ConsumerState<TeamScreen>
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              CountTitle('내 팀', names.length),
-                              const Spacer(),
-                              TextButton(
-                                onPressed: () => context.push(
-                                  '/web?path=${Uri.encodeComponent('/settings')}',
-                                ),
-                                child: const Text('편집'),
-                              ),
-                              if (names.isNotEmpty)
-                                IconButton(
-                                  icon: Icon(
-                                    _membersOpen
-                                        ? Icons.expand_less
-                                        : Icons.expand_more,
-                                  ),
-                                  tooltip: _membersOpen ? '접기' : '펼치기',
-                                  onPressed: () => setState(
-                                    () => _membersOpen = !_membersOpen,
-                                  ),
-                                ),
-                            ],
-                          ),
-                          if (_membersLoaded && _members.isEmpty)
-                            EmptyTeamHint(onReturn: _reloadMembers),
-                          if (names.isNotEmpty) _attendanceActions(),
-                          if (_membersOpen)
-                            for (final n in names)
-                              _memberRow(n, extra: _extra.contains(n))
-                          else if (names.isNotEmpty)
-                            _collapsedSummary(names),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _nameCtl,
-                                  decoration: const InputDecoration(
-                                    hintText: '직접 입력',
-                                  ),
-                                  onSubmitted: (_) => _addName(),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              SizedBox(
-                                width: 48,
-                                height: 48,
-                                child: IconButton.filled(
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: Brand.navy,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                  ),
-                                  icon: const Icon(Icons.add, size: 22),
-                                  tooltip: '추가',
-                                  onPressed: _addName,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                  ParticipantPicker(
+                    names: _names,
+                    selected: _selected,
+                    extras: _extra,
+                    loaded: _membersLoaded,
+                    includeWord: '참석',
+                    onToggle: (n, v) => setState(
+                      () => v ? _selected.add(n) : _selected.remove(n),
+                    ),
+                    onSetAll: (v) => setState(
+                      () => v
+                          ? _selected.addAll(_names)
+                          : _selected.removeAll(_names),
+                    ),
+                    onAddExtra: (n) => setState(() => _extra.add(n)),
+                    onRemoveExtra: (n) => setState(() => _extra.remove(n)),
+                    onReload: _reloadMembers,
+                    rowBadge: (n) =>
+                        _cards.contains(n) ? const CardHolderBadge() : null,
+                    rowAction: (n) => IconButton(
+                      icon: Icon(
+                        Icons.credit_card,
+                        size: 20,
+                        color: _cards.contains(n)
+                            ? Brand.cardBadgeFg
+                            : Brand.faint,
                       ),
+                      tooltip: '법카 보유자 표시',
+                      onPressed: () => _toggleCard(n),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -446,122 +382,6 @@ class _TeamScreenState extends ConsumerState<TeamScreen>
               onPressed: _divide,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  /// 모두 참석 / 모두 불참 — 인원이 많을 때 스위치를 하나씩 안 눌러도 되게.
-  Widget _attendanceActions() {
-    final all = _members.map((m) => m.name).toSet();
-    final allOn = all.isNotEmpty && all.every(_selected.contains);
-    return Row(
-      children: [
-        TextButton(
-          onPressed: allOn ? null : () => setState(() => _selected.addAll(all)),
-          child: const Text('모두 참석'),
-        ),
-        TextButton(
-          onPressed: _selected.isEmpty
-              ? null
-              : () => setState(() => _selected.removeAll(all)),
-          child: const Text('모두 불참'),
-        ),
-      ],
-    );
-  }
-
-  /// 접힌 상태 요약: 불참자 이름(없으면 "전원 참석"). 이름을 누르면 바로 참석으로.
-  Widget _collapsedSummary(List<String> names) {
-    final absent = names
-        .where((n) => !_selected.contains(n) && !_extra.contains(n))
-        .toList();
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: absent.isEmpty
-          ? Text(
-              '전원 참석 · 펼쳐서 개별 조정',
-              style: Theme.of(context).textTheme.bodySmall,
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '불참 ${absent.length}명 · 누르면 참석으로',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final n in absent)
-                      ActionChip(
-                        label: Text(n),
-                        onPressed: () => setState(() => _selected.add(n)),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-    );
-  }
-
-  /// 내 팀 한 줄: 머리글자 · 이름 · 법카 배지 · 법카 토글 · 출석 스위치(직접 입력한 이름은 빼기 버튼).
-  Widget _memberRow(String n, {required bool extra}) {
-    final on = extra || _selected.contains(n);
-    final holder = _cards.contains(n);
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Brand.hairline)),
-      ),
-      child: Row(
-        children: [
-          InitialBadge(n, size: 36, circle: true),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    n,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: on ? Brand.navy : Brand.faint,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (holder) ...[
-                  const SizedBox(width: 8),
-                  const CardHolderBadge(),
-                ],
-              ],
-            ),
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.credit_card,
-              size: 20,
-              color: holder ? Brand.cardBadgeFg : Brand.faint,
-            ),
-            tooltip: '법카 보유자 표시',
-            onPressed: () => _toggleCard(n),
-          ),
-          if (extra)
-            IconButton(
-              icon: const Icon(Icons.close, size: 20),
-              tooltip: '빼기',
-              onPressed: () => setState(() => _extra.remove(n)),
-            )
-          else
-            Switch(
-              value: on,
-              onChanged: (v) =>
-                  setState(() => v ? _selected.add(n) : _selected.remove(n)),
-            ),
         ],
       ),
     );
