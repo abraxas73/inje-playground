@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/router.dart';
 import 'app/theme.dart';
+import 'auth/session.dart';
 import 'config.dart';
 
 Future<void> main() async {
@@ -12,14 +13,17 @@ Future<void> main() async {
   runApp(const ProviderScope(child: App()));
 }
 
-class App extends StatefulWidget {
+class App extends ConsumerStatefulWidget {
   const App({super.key});
   @override
-  State<App> createState() => _AppState();
+  ConsumerState<App> createState() => _AppState();
 }
 
-class _AppState extends State<App> {
-  late final GoRouter _router = buildRouter(refresh: ValueNotifier(0), redirect: (_, _) => null);
+class _AppState extends ConsumerState<App> {
+  late final GoRouter _router = buildRouter(
+    refresh: ref.read(sessionListenableProvider),
+    redirect: (context, state) => redirectFor(ref.read(sessionProvider), state.matchedLocation),
+  );
   @override
   Widget build(BuildContext context) => MaterialApp.router(title: '이노그리드', theme: appTheme(), routerConfig: _router);
 }

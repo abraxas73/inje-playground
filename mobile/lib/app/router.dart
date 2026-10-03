@@ -1,6 +1,8 @@
 // 라우터 골격 — 화면은 뒤 작업(인증·더보기·WebView·기능)에서 교체한다.
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../auth/guest_screen.dart';
+import '../auth/login_screen.dart';
 
 class StubScreen extends StatelessWidget {
   const StubScreen(this.title, {super.key});
@@ -14,8 +16,8 @@ GoRouter buildRouter({required Listenable refresh, required String? Function(Bui
       refreshListenable: refresh,
       redirect: redirect,
       routes: [
-        GoRoute(path: '/login', builder: (c, s) => const StubScreen('로그인')),
-        GoRoute(path: '/guest', builder: (c, s) => const StubScreen('권한 안내')),
+        GoRoute(path: '/login', builder: (c, s) => const LoginScreen()),
+        GoRoute(path: '/guest', builder: (c, s) => const GuestScreen()),
         GoRoute(path: '/web', builder: (c, s) => StubScreen('웹 ${s.uri.queryParameters['path'] ?? '/'}')),
         StatefulShellRoute.indexedStack(
           builder: (c, s, shell) => Scaffold(
