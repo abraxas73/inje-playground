@@ -17,7 +17,7 @@ const IMPORT_LABEL: Record<MemberSourceProvider, string> = {
   dooray: "Dooray에서 가져오기",
   teams: "내 팀 구성원 선택",
   users: "내 팀 구성원 선택",
-  directory: "사내 조직도 명부",
+  directory: "내 팀 구성원 선택",
 };
 
 interface DoorayImportButtonProps {
