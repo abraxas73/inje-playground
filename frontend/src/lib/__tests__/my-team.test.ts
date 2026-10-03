@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { memberKey, splitCurrent, isValidEmail, isPersonalEmail, mergeManual, toDrafts, userMembersToMembers } from "@/lib/my-team";
+import { memberKey, splitCurrent, isValidEmail, isPersonalEmail, mergeManual, toDrafts, userMembersToMembers, buildOrgOptions, matchesOrg } from "@/lib/my-team";
 
 describe("memberKey", () => {
   it("이메일이 있으면 소문자 이메일, 없으면 name: 접두 키", () => {
@@ -96,5 +96,31 @@ describe("toDrafts / userMembersToMembers", () => {
       { id: "u1", name: "강승억", email: "su@innogrid.com" },
       { id: "row-2", name: "수동", email: undefined },
     ]);
+  });
+});
+
+describe("조직 필터 (buildOrgOptions / matchesOrg)", () => {
+  const members = [
+    { id: "a", name: "A", units: ["기술·운영부문", "AX본부", "XPU플랫폼팀"] },
+    { id: "b", name: "B", units: ["기술·운영부문", "AX본부", "클라우드 네이티브 센터"] },
+    { id: "c", name: "C", units: ["경영지원부문", "경영지원팀"] },
+    { id: "d", name: "D" }, // 조직 정보 없음(직접 추가·앱 사용자 명단)
+  ];
+  it("경로 접두 단위로 선택지를 만들고 상위가 하위보다 먼저, 인원수·깊이를 함께", () => {
+    expect(buildOrgOptions(members)).toEqual([
+      { key: "경영지원부문", label: "경영지원부문", depth: 0, count: 1 },
+      { key: "경영지원부문 > 경영지원팀", label: "경영지원팀", depth: 1, count: 1 },
+      { key: "기술·운영부문", label: "기술·운영부문", depth: 0, count: 2 },
+      { key: "기술·운영부문 > AX본부", label: "AX본부", depth: 1, count: 2 },
+      { key: "기술·운영부문 > AX본부 > XPU플랫폼팀", label: "XPU플랫폼팀", depth: 2, count: 1 },
+      { key: "기술·운영부문 > AX본부 > 클라우드 네이티브 센터", label: "클라우드 네이티브 센터", depth: 2, count: 1 },
+    ]);
+    expect(buildOrgOptions([{ id: "x", name: "X" }])).toEqual([]);
+  });
+  it("상위 조직을 고르면 하위 전원이, 빈 키는 전체, 조직 정보 없는 구성원은 필터에서 빠진다", () => {
+    expect(members.filter((m) => matchesOrg(m, "기술·운영부문 > AX본부")).map((m) => m.id)).toEqual(["a", "b"]);
+    expect(members.filter((m) => matchesOrg(m, "기술·운영부문 > AX본부 > XPU플랫폼팀")).map((m) => m.id)).toEqual(["a"]);
+    expect(members.filter((m) => matchesOrg(m, "")).map((m) => m.id)).toEqual(["a", "b", "c", "d"]);
+    expect(matchesOrg({ id: "d", name: "D" }, "경영지원부문")).toBe(false);
   });
 });

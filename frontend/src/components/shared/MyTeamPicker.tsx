@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Search, UserPlus, Users, Pencil, AlertTriangle } from "lucide-react";
 import type { MemberSourceProvider } from "@/lib/providers";
 import type { Member } from "@/lib/members/types";
@@ -18,6 +19,8 @@ import {
   isPersonalEmail,
   mergeManual,
   toDrafts,
+  buildOrgOptions,
+  matchesOrg,
   type TeamMemberDraft,
 } from "@/lib/my-team";
 import type { UserMember } from "@/hooks/useUserMembers";
@@ -57,6 +60,8 @@ export default function MyTeamPicker({ open, onOpenChange, provider, current, on
   const [editValue, setEditValue] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  /** 조직 필터(사내 조직도 명부일 때) — "" = 전체 */
+  const [org, setOrg] = useState("");
   const [manualName, setManualName] = useState("");
   const [manualEmail, setManualEmail] = useState("");
   const [manualError, setManualError] = useState<string | null>(null);
@@ -70,6 +75,7 @@ export default function MyTeamPicker({ open, onOpenChange, provider, current, on
     let cancelled = false;
     setError(null);
     setSearch("");
+    setOrg("");
     setManualName("");
     setManualEmail("");
     setManualError(null);
@@ -102,11 +108,11 @@ export default function MyTeamPicker({ open, onOpenChange, provider, current, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, provider, currentKey]);
 
+  const orgOptions = useMemo(() => buildOrgOptions(source), [source]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return source;
-    return source.filter((m) => m.name.toLowerCase().includes(q) || (m.email ?? "").toLowerCase().includes(q));
-  }, [source, search]);
+    return source.filter((m) => matchesOrg(m, org) && (!q || m.name.toLowerCase().includes(q) || (m.email ?? "").toLowerCase().includes(q) || (m.team ?? "").toLowerCase().includes(q)));
+  }, [source, search, org]);
 
   const toggle = (key: string) => {
     setSelected((prev) => {
@@ -229,6 +235,22 @@ export default function MyTeamPicker({ open, onOpenChange, provider, current, on
               />
             </div>
 
+            {orgOptions.length > 0 && (
+              <Select value={org || "__all__"} onValueChange={(v) => setOrg(v === "__all__" ? "" : v)}>
+                <SelectTrigger className="h-9 w-full text-sm" aria-label="조직 필터">
+                  <SelectValue placeholder="조직 전체" />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  <SelectItem value="__all__">조직 전체 ({source.length}명)</SelectItem>
+                  {orgOptions.map((o) => (
+                    <SelectItem key={o.key} value={o.key}>
+                      <span style={{ paddingLeft: `${o.depth * 12}px` }}>{o.depth > 0 ? "└ " : ""}{o.label} <span className="text-muted-foreground">({o.count})</span></span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">{selectedCount}명 선택</span>
               {filtered.length > 0 && (
@@ -255,6 +277,7 @@ export default function MyTeamPicker({ open, onOpenChange, provider, current, on
                     />
                     <label htmlFor={`pick-${m.id}`} className="text-sm cursor-pointer shrink-0">
                       {m.name}
+                      {m.team && <span className="ml-1.5 text-[11px] text-muted-foreground">{m.team}</span>}
                     </label>
                     {editingId === m.id ? (
                       <div className="flex-1 min-w-0 flex items-center gap-1">

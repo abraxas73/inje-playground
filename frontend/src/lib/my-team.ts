@@ -123,3 +123,33 @@ export function toDrafts(selected: Member[], overrides: Record<string, string> =
 export function userMembersToMembers(rows: UserMemberLike[]): Member[] {
   return rows.map((r) => ({ id: r.external_id || r.id, name: r.name, email: r.email || undefined }));
 }
+
+/** 조직 필터 선택지 — 구성원 units(부문 > 본부 > 센터 > 팀 경로)의 접두 단위. key는 " > "로 이은 경로, depth는 들여쓰기용. */
+export interface OrgOption {
+  key: string;
+  label: string;
+  depth: number;
+  count: number;
+}
+
+export function buildOrgOptions(members: Array<{ units?: string[] }>): OrgOption[] {
+  const map = new Map<string, OrgOption>();
+  for (const m of members) {
+    const u = (m.units ?? []).filter(Boolean);
+    for (let d = 1; d <= u.length; d++) {
+      const key = u.slice(0, d).join(" > ");
+      const e = map.get(key);
+      if (e) e.count++;
+      else map.set(key, { key, label: u[d - 1], depth: d - 1, count: 1 });
+    }
+  }
+  return [...map.values()].sort((a, b) => a.key.localeCompare(b.key, "ko"));
+}
+
+/** 빈 key = 전체. 상위 조직 key면 그 아래 전원이 맞는다. 조직 정보가 없는 구성원은 필터가 있으면 빠진다. */
+export function matchesOrg(m: { units?: string[] }, key: string): boolean {
+  if (!key) return true;
+  const u = (m.units ?? []).filter(Boolean);
+  for (let d = 1; d <= u.length; d++) if (u.slice(0, d).join(" > ") === key) return true;
+  return false;
+}
