@@ -118,7 +118,8 @@ export async function sendChatMessage(token: string, chatId: string, text: strin
 
 /** 내가 속한 채팅(그룹·1:1, 모임 채팅 제외) — 최근 활동 순. 주제가 없으면 나(meId)를 뺀 구성원 이름을 주제로. */
 export async function listMyChats(token: string, meId: string, fetchImpl: FetchLike = fetch): Promise<ChatSummary[]> {
-  const url = `${GRAPH_BASE}/me/chats?$expand=${encodeURIComponent("members($select=displayName,userId)")}&$top=50`;
+  // $expand 안의 중첩 $select는 채팅 목록에서 400(BadRequest) — members 전체를 펼친다(displayName·userId 포함)
+  const url = `${GRAPH_BASE}/me/chats?$expand=members&$top=50`;
   const j = (await graph(token, url, {}, fetchImpl)) as { value?: Array<Record<string, unknown>> } | null;
   return (j?.value ?? [])
     .filter((c) => c.chatType === "group" || c.chatType === "oneOnOne")

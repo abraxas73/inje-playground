@@ -19,7 +19,7 @@ export function graphErrorResponse(e: unknown): NextResponse {
   }
   if (e instanceof GraphError) {
     if (e.status === 401 || e.status === 403) return NextResponse.json({ error: TEAMS_CHAT_RECONNECT_MESSAGE, code: "reconnect" }, { status: 409 });
-    console.error(`[teams-chat] Graph ${e.status} ${e.code} request-id=${e.requestId ?? "-"}`);
+    console.error(`[teams-chat] Graph ${e.status} ${e.code} request-id=${e.requestId ?? "-"} — ${e.message.slice(0, 200)}`);
     return NextResponse.json({ error: `Teams 요청이 실패했습니다 (${e.status})` }, { status: 502 });
   }
   throw e;

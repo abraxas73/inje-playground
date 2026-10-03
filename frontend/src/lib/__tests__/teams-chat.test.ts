@@ -68,7 +68,7 @@ describe("Graph 호출", () => {
     const out = await listMyChats("AT", "me", fetchImpl as never);
     const url = (fetchImpl.mock.calls[0] as unknown as [string])[0];
     expect(url).toContain("/me/chats?");
-    expect(url).toContain("members(%24select%3DdisplayName%2CuserId)");
+    expect(url).toContain("$expand=members&$top=50"); // 중첩 $select는 Graph가 400으로 거절(2026-10-03 운영 재현)
     expect(out).toEqual([
       { id: "19:b@thread.v2", type: "group", topic: "개발팀 수다", members: ["강승욱"], webUrl: "https://teams/b", lastUpdated: "2026-10-03T00:00:00Z" },
       { id: "19:me_u2@unq.gbl.spaces", type: "oneOnOne", topic: "김민준", members: ["강승욱", "김민준"], webUrl: "https://teams/c", lastUpdated: "2026-10-02T00:00:00Z" },
