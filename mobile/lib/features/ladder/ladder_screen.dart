@@ -66,11 +66,12 @@ class _LadderScreenState extends ConsumerState<LadderScreen>
   Future<void> _reloadTeam() async {
     try {
       final n = await ref.read(ladderRepositoryProvider).myTeamNames();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _team = n;
           _teamLoaded = true;
         });
+      }
     } catch (_) {
       if (mounted) setState(() => _teamLoaded = true);
     }
