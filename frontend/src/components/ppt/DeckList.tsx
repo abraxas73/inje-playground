@@ -27,8 +27,8 @@ export default function DeckList({ decks, showOwner, onDeleted, onError }: { dec
   if (!decks.length) return <p className="py-8 text-center text-sm text-muted-foreground">아직 만든 PPT가 없습니다. 위에서 원고를 넣고 생성해 보세요.</p>;
   return (
     <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+      <table className="w-full min-w-[720px] text-sm">{/* 좁은 화면(앱 WebView·폰)에선 열을 짜부라뜨리지 않고 가로 스크롤 */}
+        <thead className="bg-muted/50 text-left text-xs whitespace-nowrap text-muted-foreground">
           <tr>
             <th className="px-3 py-2">제목</th>{showOwner && <th className="px-3 py-2">소유자</th>}<th className="px-3 py-2">버전</th><th className="px-3 py-2">장 수</th><th className="px-3 py-2">템플릿</th><th className="px-3 py-2">모델</th><th className="px-3 py-2 text-right" title="모든 버전의 LLM 추정 비용 합">비용</th><th className="px-3 py-2">상태</th><th className="px-3 py-2">수정</th><th className="w-10 px-3 py-2"><span className="sr-only">삭제</span></th>
           </tr>
@@ -36,9 +36,11 @@ export default function DeckList({ decks, showOwner, onDeleted, onError }: { dec
         <tbody>
           {decks.map((d) => (
             <tr key={d.id} className="border-t hover:bg-muted/30">
-              <td className="px-3 py-2">
-                <Link href={`/ppt/${d.id}`} className="font-medium hover:underline">{d.title}</Link>
-                {d.shareEnabled && <Link2 className="ml-1 inline h-3 w-3 text-muted-foreground" aria-label="공유 켜짐" />}
+              <td className="max-w-[280px] px-3 py-2">
+                <span className="flex items-center gap-1">
+                  <Link href={`/ppt/${d.id}`} className="truncate font-medium hover:underline" title={d.title}>{d.title}</Link>
+                  {d.shareEnabled && <Link2 className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="공유 켜짐" />}
+                </span>
               </td>
               {showOwner && <td className="px-3 py-2 text-muted-foreground">{d.ownerEmail}</td>}
               <td className="px-3 py-2">{d.latest ? `v${d.latest.no}` : "-"}</td>

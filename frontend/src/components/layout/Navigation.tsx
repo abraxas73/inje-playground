@@ -22,7 +22,8 @@ import { PAGE_GROUPS, PAGES, matchesPath, pagesForPath, type PageKey } from "@/l
 const PAGE_ICONS: Record<PageKey, typeof Coffee> = { food: UtensilsCrossed, ladder: Dice5, team: Coffee, survey: ClipboardList, usage_code: SquareTerminal, usage_chat: MessagesSquare, usage_perf: TrendingUp, rfp: FileSearch, ppt: Presentation, people_news: Newspaper, marketing: Database, guide: BookOpen };
 const GROUP_ICONS = { daily: Users, ai: ChartNoAxesCombined, work: BriefcaseBusiness };
 
-export default function Navigation() {
+/** chromeless: 앱 WebView — 접근 권한 검사(effect)는 그대로 돌리고 헤더·하단 탭만 그리지 않는다. */
+export default function Navigation({ chromeless = false }: { chromeless?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -50,7 +51,7 @@ export default function Navigation() {
   };
 
   // 공유 링크 화면은 사외 열람용이라 사내 메뉴를 보여 주지 않는다(눌러도 로그인으로 튕긴다)
-  if (pathname === "/login" || pathname === "/privacy" || pathname.startsWith("/rfp/shared/")) return null;
+  if (chromeless || pathname === "/login" || pathname === "/privacy" || pathname.startsWith("/rfp/shared/")) return null;
 
   const groups = PAGE_GROUPS.map((group) => ({ ...group, pages: PAGES.filter((page) => page.group === group.id && !("hidden" in page && page.hidden) && canAccessPage(page.href)) })).filter((group) => group.pages.length > 0);
   function groupMenu(group: typeof groups[number], mobile = false) {
