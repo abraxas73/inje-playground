@@ -1,13 +1,14 @@
 /**
- * Teams 그룹 채팅(지정 1개) — Microsoft Graph 위임 호출(Chat.ReadWrite). 서버 전용.
+ * Teams 채팅(내가 속한 그룹·1:1) — Microsoft Graph 위임 호출(Chat.ReadWrite). 서버 전용.
  * 메시지 본문(HTML)은 텍스트로 정리해 돌려주고, 채팅 내용은 저장·로그하지 않는다.
  */
 import type { FetchLike } from "@/lib/notify/types";
 import { GRAPH_BASE } from "@/lib/teams-graph";
 import { GraphError, fetchWithRetry } from "@/lib/ms/graph-drive";
 
-export const TEAMS_CHAT_SETTING_KEYS = ["teams_chat_id", "teams_chat_topic"] as const;
 export const CHAT_MESSAGE_MAX = 4000;
+/** Teams 채팅 ID(`19:…@thread.v2`, 1:1은 `19:…@unq.gbl.spaces`). 경로 조각으로 쓰므로 허용 문자만. */
+export const CHAT_ID_RE = /^[0-9A-Za-z:_@.\-]{3,200}$/;
 
 export interface ChatMessage {
   id: string;
@@ -18,8 +19,11 @@ export interface ChatMessage {
   attachments: number;
 }
 
-export interface GroupChatSummary {
+export type ChatType = "group" | "oneOnOne";
+export interface ChatSummary {
   id: string;
+  type: ChatType;
+  /** 주제가 없으면 나를 뺀 구성원 이름 */
   topic: string;
   members: string[];
   webUrl: string | null;
@@ -112,16 +116,20 @@ export async function sendChatMessage(token: string, chatId: string, text: strin
   return normalizeChatMessage(j) ?? { id: String((j as { id?: unknown } | null)?.id ?? ""), createdAt: now, modifiedAt: now, from: null, text, attachments: 0 };
 }
 
-/** 관리자 "고르기"용: 내가 참여한 그룹 채팅. 주제가 없으면 구성원 이름을 주제로. 최근 활동 순. */
-export async function listMyGroupChats(token: string, fetchImpl: FetchLike = fetch): Promise<GroupChatSummary[]> {
-  const url = `${GRAPH_BASE}/me/chats?$filter=${encodeURIComponent("chatType eq 'group'")}&$expand=${encodeURIComponent("members($select=displayName)")}&$top=50`;
+/** 내가 속한 채팅(그룹·1:1, 모임 채팅 제외) — 최근 활동 순. 주제가 없으면 나(meId)를 뺀 구성원 이름을 주제로. */
+export async function listMyChats(token: string, meId: string, fetchImpl: FetchLike = fetch): Promise<ChatSummary[]> {
+  const url = `${GRAPH_BASE}/me/chats?$expand=${encodeURIComponent("members($select=displayName,userId)")}&$top=50`;
   const j = (await graph(token, url, {}, fetchImpl)) as { value?: Array<Record<string, unknown>> } | null;
   return (j?.value ?? [])
+    .filter((c) => c.chatType === "group" || c.chatType === "oneOnOne")
     .map((c) => {
-      const members = (Array.isArray(c.members) ? c.members : []).map((m) => String((m as { displayName?: unknown }).displayName ?? "")).filter(Boolean);
+      const raw = (Array.isArray(c.members) ? c.members : []) as Array<{ displayName?: unknown; userId?: unknown }>;
+      const members = raw.map((m) => String(m.displayName ?? "")).filter(Boolean);
+      const others = raw.filter((m) => String(m.userId ?? "") !== meId).map((m) => String(m.displayName ?? "")).filter(Boolean);
       return {
         id: String(c.id ?? ""),
-        topic: typeof c.topic === "string" && c.topic ? c.topic : members.join(", "),
+        type: c.chatType as ChatType,
+        topic: typeof c.topic === "string" && c.topic ? c.topic : others.join(", ") || members.join(", ") || "(이름 없음)",
         members,
         webUrl: typeof c.webUrl === "string" ? c.webUrl : null,
         lastUpdated: typeof c.lastUpdatedDateTime === "string" ? c.lastUpdatedDateTime : null,

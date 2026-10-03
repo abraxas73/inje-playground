@@ -52,8 +52,6 @@ describe("resolveProvider", () => {
       "teams_graph_client_id",
       "teams_tenant_id",
       "teams_group_id",
-      "teams_chat_id",
-      "teams_chat_topic",
     ]);
   });
 });

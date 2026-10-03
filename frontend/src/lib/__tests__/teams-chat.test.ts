@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
-import { chatMessagesUrl, getChatInfo, listChatMessages, listMyGroupChats, normalizeChatMessages, sendChatMessage, teamsHtmlToText } from "@/lib/teams/chat";
+import { chatMessagesUrl, getChatInfo, listChatMessages, listMyChats, normalizeChatMessages, sendChatMessage, teamsHtmlToText } from "@/lib/teams/chat";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "request-id": "rid-1" } });
 
@@ -58,17 +58,21 @@ describe("Graph 호출", () => {
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({ body: { contentType: "text", content: "보냄" } });
   });
-  it("listMyGroupChats — 그룹 채팅만, 주제 없으면 구성원 이름으로, 최근 순", async () => {
+  it("listMyChats — 내가 속한 그룹·1:1 채팅(모임 채팅 제외), 주제 없으면 나를 뺀 구성원 이름, 최근 활동 순", async () => {
     const fetchImpl = vi.fn(async () => json(200, { value: [
-      { id: "19:a", topic: null, webUrl: "https://teams/a", lastUpdatedDateTime: "2026-10-01T00:00:00Z", members: [{ displayName: "강승욱" }, { displayName: "김민준" }] },
-      { id: "19:b", topic: "개발팀 수다", webUrl: "https://teams/b", lastUpdatedDateTime: "2026-10-03T00:00:00Z", members: [{ displayName: "강승욱" }] },
+      { id: "19:a@thread.v2", chatType: "group", topic: null, webUrl: "https://teams/a", lastUpdatedDateTime: "2026-10-01T00:00:00Z", members: [{ userId: "me", displayName: "강승욱" }, { userId: "u2", displayName: "김민준" }, { userId: "u3", displayName: "이서연" }] },
+      { id: "19:b@thread.v2", chatType: "group", topic: "개발팀 수다", webUrl: "https://teams/b", lastUpdatedDateTime: "2026-10-03T00:00:00Z", members: [{ userId: "me", displayName: "강승욱" }] },
+      { id: "19:me_u2@unq.gbl.spaces", chatType: "oneOnOne", topic: null, webUrl: "https://teams/c", lastUpdatedDateTime: "2026-10-02T00:00:00Z", members: [{ userId: "me", displayName: "강승욱" }, { userId: "u2", displayName: "김민준" }] },
+      { id: "19:meeting@thread.v2", chatType: "meeting", topic: "주간 회의", webUrl: null, lastUpdatedDateTime: "2026-10-04T00:00:00Z", members: [] },
     ] }));
-    const out = await listMyGroupChats("AT", fetchImpl as never);
-    expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toContain("/me/chats?");
-    expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toContain("chatType%20eq%20'group'");
+    const out = await listMyChats("AT", "me", fetchImpl as never);
+    const url = (fetchImpl.mock.calls[0] as unknown as [string])[0];
+    expect(url).toContain("/me/chats?");
+    expect(url).toContain("members(%24select%3DdisplayName%2CuserId)");
     expect(out).toEqual([
-      { id: "19:b", topic: "개발팀 수다", members: ["강승욱"], webUrl: "https://teams/b", lastUpdated: "2026-10-03T00:00:00Z" },
-      { id: "19:a", topic: "강승욱, 김민준", members: ["강승욱", "김민준"], webUrl: "https://teams/a", lastUpdated: "2026-10-01T00:00:00Z" },
+      { id: "19:b@thread.v2", type: "group", topic: "개발팀 수다", members: ["강승욱"], webUrl: "https://teams/b", lastUpdated: "2026-10-03T00:00:00Z" },
+      { id: "19:me_u2@unq.gbl.spaces", type: "oneOnOne", topic: "김민준", members: ["강승욱", "김민준"], webUrl: "https://teams/c", lastUpdated: "2026-10-02T00:00:00Z" },
+      { id: "19:a@thread.v2", type: "group", topic: "김민준, 이서연", members: ["강승욱", "김민준", "이서연"], webUrl: "https://teams/a", lastUpdated: "2026-10-01T00:00:00Z" },
     ]);
   });
   it("getChatInfo — 주제·webUrl", async () => {

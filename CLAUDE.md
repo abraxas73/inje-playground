@@ -66,7 +66,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/manual` — User manual with Playwright-captured screenshots (8 sections)
 - `/admin/audit` — Audit 로그(admin): 로그인 이력 + 액션 이력 통합 조회(구분 로그인 성공/**로그인 실패**/**로그인 시도**/액션/API 호출, 카테고리, KST 기간, 검색 — 사용자·액션·IP·상세, 페이지 CSV). 뷰 `audit_log`는 service_role만 읽는다. 런북 `docs/audit-log.md`
 - `/admin/directory` — 조직/팀(admin): 사내 조직도(그룹웨어 아마란스, inno-creed MCP — Claude 사용량 표 "소속" 컬럼의 출처)·Claude 멤버·초대·조직·설정(관리형 설정 JSON) 탭
-- `/teams/chat` — 지정 Teams 그룹 채팅을 우리 화면에서 읽고 보내기(본인 Microsoft 위임 토큰, 5초 폴링). 관리자가 시스템 설정 → Teams에서 대상 채팅을 고른다. 런북 `docs/teams-integration.md` §3-D
+- `/teams/chat` — 내가 속한 Teams 그룹·1:1 채팅을 목록에서 골라 우리 화면에서 읽고 보내기(본인 Microsoft 위임 토큰, 5초 폴링). 런북 `docs/teams-integration.md` §3-D
 - `/ppt` — PPT 만들기: 원고(텍스트·파일·URL)·프롬프트(모델·템플릿 선택) → 이노그리드 표준 템플릿 PPTX(ppt-service). URL 원고는 서버가 본문을 가져와 저장(`lib/ppt/web-source.ts`, SSRF 가드는 알림 웹훅과 공유). /ppt/[id] 버전·구성 보기·피드백 재생성·공유·Teams·SharePoint, /ppt/s/[token] 로그인 필요 공유 뷰. 관리자는 `/admin/settings`에서 LLM 규칙(settings `ppt_llm_rules`)과 템플릿 업로드(`ppt_templates`, 샘플 덱 빌드로 검증)를 관리. 런북 `docs/ppt-maker.md`
 
 ### API Routes (`frontend/src/app/api/`)
@@ -81,7 +81,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/api/admin/chat-history` — GET all users' chat history with filters/pagination (admin only)
 - `POST /api/food/payco` — Proxies bizplus.payco.com for PAYCO 식권 merchant search
 - `GET /api/teams/members` — Microsoft Graph(app-only) 또는 멤버 목록 웹훅으로 `settings.teams_group_id` 그룹 멤버 조회 (`{id, name, email}`)
-- `GET /api/teams/chat`, `GET·POST /api/teams/chat/messages`, `GET /api/admin/teams/chats` — 지정 Teams 그룹 채팅 읽기·보내기(본인 위임 토큰 `Chat.ReadWrite`, 관리자 동의 불필요; 페이지 `/teams/chat`, 설정 `teams_chat_id`). 런북 `docs/teams-integration.md` §3-D
+- `GET /api/teams/chat`(내가 속한 채팅 목록), `GET·POST /api/teams/chat/messages?chat=` — Teams 그룹·1:1 채팅 읽기·보내기(본인 위임 토큰 `Chat.ReadWrite`, 관리자 동의 불필요; 페이지 `/teams/chat`). 런북 `docs/teams-integration.md` §3-D
 - `GET /api/members/users` — 앱 사용자 명단(user_profiles, guest 제외) → `{id, name, email}` (멤버 소스 provider `users`)
 - `/api/users/members` — 내 팀(user_members: name, email, external_id, dooray_member_id, is_card_holder) GET/POST(교체)/PATCH(법카)/DELETE
 - `GET·PUT·DELETE /api/users/sharepoint-folder` — 개인 SharePoint 업로드 기본 폴더(링크를 본인 Graph 권한으로 해석해 저장, `lib/rfp/user-folder.ts`·`lib/ms/folder-route.ts` 공용)
