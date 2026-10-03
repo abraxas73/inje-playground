@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/client.dart';
+import '../team/models.dart' show parseMemberRows;
 import 'model.dart';
 
 class LadderSession {
@@ -32,7 +33,7 @@ class LadderRepository {
         'mappings': mappings.map((m) => m.toJson()).toList(),
       });
 
-  Future<List<String>> myTeamNames() async => ((await _api.getJson('/api/users/members')) as List).map((e) => (e as Map)['name'] as String).toList();
+  Future<List<String>> myTeamNames() async => parseMemberRows(await _api.getJson('/api/users/members')).map((m) => m.name).toList();
 }
 
 final ladderRepositoryProvider = Provider((ref) => LadderRepository(ref.watch(apiClientProvider)));

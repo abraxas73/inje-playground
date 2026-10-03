@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../auth/session.dart';
 import '../config.dart';
 
 abstract class TokenSource {
@@ -85,7 +86,7 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   final auth = Supabase.instance.client.auth;
   return ApiClient(
     httpClient: http.Client(),
-    tokens: SupabaseTokenSource(auth, () => auth.signOut()),
+    tokens: SupabaseTokenSource(auth, () => ref.read(sessionProvider.notifier).signOut()),
     baseUrl: Config.apiBase,
     userAgent: Config.userAgent(defaultTargetPlatform.name),
   );

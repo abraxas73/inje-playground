@@ -36,3 +36,15 @@ class TeamResultRow {
         comments: ((j['team_comments'] as List?) ?? []).cast<Map<String, dynamic>>(),
       );
 }
+
+/// GET /api/users/members 응답은 `{members: [...]}` — 배열이 아니다(frontend/src/app/api/users/members/route.ts).
+List<TeamMemberRow> parseMemberRows(dynamic json) {
+  final list = json is Map ? (json['members'] as List?) ?? const [] : const [];
+  return list.map((e) => TeamMemberRow.fromJson(e as Map<String, dynamic>)).toList();
+}
+
+/// 출석 기본값은 웹 TeamHistory와 같이 false(attendance에 없으면 미참석).
+bool attended(Map<String, bool> attendance, String name) => attendance[name] ?? false;
+
+/// POST /api/team-notify 응답은 `{webhook_sent}` 하나 — 그것으로만 성공을 판단한다.
+String notifyResultMessage(Map<String, dynamic> res) => res['webhook_sent'] == true ? '알림을 보냈습니다.' : '알림 채널이 설정되지 않았거나 전송에 실패했습니다.';

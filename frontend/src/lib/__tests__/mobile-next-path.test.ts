@@ -11,4 +11,9 @@ describe("safeNextPath", () => {
       expect(safeNextPath(v)).toBe("/");
     }
   });
+  it("URL 파서가 지우는 탭·개행·제어문자로 //를 숨겨도 /", () => {
+    for (const v of ["/\t/evil.com", "/\n/evil.com", "/%09/evil.com", "/%0a/evil.com", "/\r\n/evil.com", "/x\u0000/evil.com"]) {
+      expect(safeNextPath(v)).toBe("/");
+    }
+  });
 });

@@ -23,7 +23,7 @@ class _WebScreenState extends ConsumerState<WebScreen> {
   String _title = '';
   bool _loading = true;
   String? _error;
-  int _bootstraps = 0;
+  final _guard = BootstrapGuard();
 
   @override
   void initState() {
@@ -63,7 +63,6 @@ class _WebScreenState extends ConsumerState<WebScreen> {
     final uri = Uri.parse(req.url);
     switch (WebNavPolicy.decide(uri, appOrigin: _origin)) {
       case NavAction.inApp:
-        if (uri.path.startsWith('/auth/mobile')) _bootstraps = 0; // 부트스트랩 페이지 자체는 통과
         return NavigationDecision.navigate;
       case NavAction.external:
         launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -75,11 +74,10 @@ class _WebScreenState extends ConsumerState<WebScreen> {
   }
 
   Future<void> _bootstrap(String nextPath) async {
-    if (_bootstraps >= 2) {
-      setState(() { _loading = false; _error = '로그인 상태를 만들지 못했습니다. 다시 시도해 주세요.'; });
+    if (!_guard.tryBegin()) {
+      if (mounted) setState(() { _loading = false; _error = '로그인 상태를 만들지 못했습니다. 다시 시도해 주세요.'; });
       return;
     }
-    _bootstraps++;
     try {
       final url = await webBootstrapUrl(ref.read(apiClientProvider), Config.apiBase, nextPath.startsWith('/') ? nextPath : widget.path);
       await _c.loadRequest(Uri.parse(url));
@@ -91,7 +89,7 @@ class _WebScreenState extends ConsumerState<WebScreen> {
   }
 
   void _retry() {
-    setState(() { _error = null; _bootstraps = 0; });
+    setState(() { _error = null; _guard.reset(); });
     _c.loadRequest(Uri.parse('${Config.apiBase}${widget.path}'));
   }
 

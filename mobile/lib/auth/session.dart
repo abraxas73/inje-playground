@@ -22,53 +22,74 @@ class AppSession {
       );
 }
 
-/// 라우터 redirect 규칙(순수 함수). null = 이동 없음.
+/// 라우터 redirect 규칙(순수 함수). null = 이동 없음. 세션 확인 중에는 /splash에 머물러 탭 화면(위치 권한·API 호출)이 먼저 뜨지 않게 한다.
 String? redirectFor(AsyncValue<AppSession?> session, String location) {
-  if (session.isLoading) return null;
+  if (session.isLoading) return location == '/splash' ? null : '/splash';
   final s = session.asData?.value;
   if (s == null) return location == '/login' ? null : '/login';
   if (s.isGuest) return location == '/guest' ? null : '/guest';
-  if (location == '/login' || location == '/guest') return '/food';
+  if (location == '/login' || location == '/guest' || location == '/splash') return '/food';
   return null;
 }
 
+/// 역할·권한 조회. record=true면 POST /api/mobile/login(login_history 기록), false면 GET(기록 없음).
+typedef SessionFetcher = Future<AppSession> Function(String accessToken, {required bool record});
+
+final authClientProvider = Provider<GoTrueClient>((_) => Supabase.instance.client.auth);
+
+final sessionFetcherProvider = Provider<SessionFetcher>((_) => (token, {required record}) async {
+      final uri = Uri.parse('${Config.apiBase}/api/mobile/login');
+      final headers = {'Authorization': 'Bearer $token', 'User-Agent': Config.userAgent(defaultTargetPlatform.name)};
+      final res = record ? await http.post(uri, headers: headers) : await http.get(uri, headers: headers);
+      if (res.statusCode != 200) throw Exception('로그인 확인 실패(${res.statusCode})');
+      return AppSession.fromJson(jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+    });
+
 class SessionNotifier extends AsyncNotifier<AppSession?> {
-  GoTrueClient get _auth => Supabase.instance.client.auth;
-  StreamSubscription<AuthState>? _sub;
+  GoTrueClient get _auth => ref.read(authClientProvider);
 
   @override
   Future<AppSession?> build() async {
-    _sub ??= _auth.onAuthStateChange.listen((e) {
-      if (e.event == AuthChangeEvent.signedIn) reload();
+    // Riverpod 3는 노티파이어 인스턴스를 재빌드(실패 재시도·invalidate) 사이에 재사용한다 — 구독은 빌드마다 새로 걸고 그 빌드의 dispose에 끊는다.
+    final sub = _auth.onAuthStateChange.listen((e) {
+      if (e.event == AuthChangeEvent.signedIn) _afterSignIn();
       if (e.event == AuthChangeEvent.signedOut) state = const AsyncValue.data(null);
     });
-    ref.onDispose(() => _sub?.cancel());
+    ref.onDispose(sub.cancel);
     if (_auth.currentSession == null) return null;
-    return _fetchSession();
+    return _fetch(record: false);
   }
 
-  /// POST /api/mobile/login — 로그인 기록 + 역할·권한. 실패하면 예외를 올려 로그인 화면이 "다시 시도"를 보여 준다.
-  Future<AppSession> _fetchSession() async {
-    final token = _auth.currentSession?.accessToken;
-    if (token == null) throw StateError('세션이 없습니다.');
-    final res = await http.post(Uri.parse('${Config.apiBase}/api/mobile/login'),
-        headers: {'Authorization': 'Bearer $token', 'User-Agent': Config.userAgent(defaultTargetPlatform.name)});
-    if (res.statusCode != 200) throw Exception('로그인 확인 실패(${res.statusCode})');
-    return AppSession.fromJson(jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+  /// 콜드 스타트에서 supabase_flutter는 만료된 세션을 먼저 올리고 갱신은 기다리지 않는다 — 만료면 갱신부터.
+  Future<AppSession> _fetch({required bool record}) async {
+    var session = _auth.currentSession;
+    if (session == null) throw StateError('세션이 없습니다.');
+    if (session.isExpired) session = (await _auth.refreshSession()).session ?? session;
+    return ref.read(sessionFetcherProvider)(session.accessToken, record: record);
   }
 
+  Future<void> _afterSignIn() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _fetch(record: true));
+  }
+
+  /// 역할·권한 다시 조회(기록 없음) — guest "다시 확인", 오류 뒤 "다시 시도".
   Future<void> reload() async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(_fetchSession);
+    state = await AsyncValue.guard(() => _fetch(record: false));
   }
 
   Future<void> signIn() async {
     await _auth.signInWithOAuth(OAuthProvider.azure, redirectTo: Config.loginRedirect, scopes: 'email openid profile');
-    // 돌아오면 onAuthStateChange(signedIn) → reload()
+    // 돌아오면 onAuthStateChange(signedIn) → _afterSignIn()
   }
 
+  /// 앱 세션 종료 + WebView 쿠키·localStorage 정리(같은 기기에서 다른 계정이 이전 사용자의 웹 세션·설정을 보지 않게).
   Future<void> signOut() async {
-    try { await WebViewCookieManager().clearCookies(); } catch (_) {}
+    try {
+      await WebViewCookieManager().clearCookies();
+      await WebViewController().clearLocalStorage();
+    } catch (_) {}
     await _auth.signOut();
     state = const AsyncValue.data(null);
   }

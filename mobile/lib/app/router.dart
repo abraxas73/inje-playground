@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../auth/guest_screen.dart';
 import '../auth/login_screen.dart';
+import '../auth/splash_screen.dart';
 import '../more/more_screen.dart';
 import '../web/web_screen.dart';
 import '../features/food/food_screen.dart';
@@ -15,6 +16,7 @@ GoRouter buildRouter({required Listenable refresh, required String? Function(Bui
       refreshListenable: refresh,
       redirect: redirect,
       routes: [
+        GoRoute(path: '/splash', builder: (c, s) => const SplashScreen()),
         GoRoute(path: '/login', builder: (c, s) => const LoginScreen()),
         GoRoute(path: '/guest', builder: (c, s) => const GuestScreen()),
         GoRoute(path: '/web', builder: (c, s) => WebScreen(path: s.uri.queryParameters['path'] ?? '/')),

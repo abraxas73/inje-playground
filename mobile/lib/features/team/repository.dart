@@ -6,7 +6,7 @@ import 'models.dart';
 class TeamRepository {
   TeamRepository(this._api);
   final ApiClient _api;
-  Future<List<TeamMemberRow>> members() async => ((await _api.getJson('/api/users/members')) as List).map((e) => TeamMemberRow.fromJson(e as Map<String, dynamic>)).toList();
+  Future<List<TeamMemberRow>> members() async => parseMemberRows(await _api.getJson('/api/users/members'));
   Future<List<String>> memberNames() async => (await members()).map((m) => m.name).toList();
   Future<List<TeamSessionRow>> sessions() async => ((await _api.getJson('/api/team-sessions')) as List).map((e) => TeamSessionRow.fromJson(e as Map<String, dynamic>)).toList();
 

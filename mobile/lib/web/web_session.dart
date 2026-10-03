@@ -23,3 +23,14 @@ Future<String> webBootstrapUrl(ApiClient api, String apiBase, String nextPath) a
   final j = await api.postJson('/api/mobile/web-token') as Map<String, dynamic>;
   return bootstrapUrl(apiBase: apiBase, nextPath: nextPath, tokenHash: j['tokenHash'] as String);
 }
+
+/// 세션 부트스트랩 루프 방지. /login으로 처음 튕기면 1회 부트스트랩, 그 뒤 또 튕기면 멈춘다(오류 상태). 사용자가 "다시 시도"할 때만 초기화.
+class BootstrapGuard {
+  int _attempts = 0;
+  bool tryBegin() {
+    if (_attempts >= 1) return false;
+    _attempts++;
+    return true;
+  }
+  void reset() => _attempts = 0;
+}

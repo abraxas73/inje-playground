@@ -15,4 +15,12 @@ void main() {
     expect(bootstrapUrl(apiBase: 'https://inje-playground.vercel.app', nextPath: '/admin/settings?tab=ppt', tokenHash: 'h1'),
         'https://inje-playground.vercel.app/auth/mobile?next=%2Fadmin%2Fsettings%3Ftab%3Dppt#token=h1');
   });
+  test('BootstrapGuard — /login으로 두 번째 튕기면 멈추고, 사용자가 다시 시도할 때만 초기화된다', () {
+    final g = BootstrapGuard();
+    expect(g.tryBegin(), true); // 첫 /login → 부트스트랩
+    expect(g.tryBegin(), false); // 부트스트랩 뒤 또 /login → 오류 상태
+    expect(g.tryBegin(), false);
+    g.reset();
+    expect(g.tryBegin(), true);
+  });
 }

@@ -2,9 +2,12 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies, headers } from "next/headers";
 
-/** `Authorization: Bearer <jwt>`의 토큰. 모바일 앱(네이티브 화면)이 쿠키 대신 보낸다. */
+/**
+ * `Authorization: Bearer <jwt>`의 토큰. 모바일 앱(네이티브 화면)이 쿠키 대신 보낸다.
+ * JWT 형태(점으로 나뉜 세 조각)만 인정한다 — OTel 수집·cron·시트 실행기의 불투명 토큰까지 GoTrue에 검증 요청을 보내지 않기 위해.
+ */
 export function bearerToken(h: { get(name: string): string | null }): string | null {
-  const m = /^Bearer\s+(\S+)$/i.exec(h.get("authorization") ?? "");
+  const m = /^Bearer\s+([\w-]+\.[\w-]+\.[\w-]+)$/i.exec(h.get("authorization") ?? "");
   return m ? m[1] : null;
 }
 

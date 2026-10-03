@@ -82,9 +82,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
     if (r == null) return;
     setState(() => _busy = true);
     try {
-      final res = await _repo.notify(r);
-      final msg = [res['error'], res['warning'], res['message']].whereType<String>().join(' ');
-      _snack(msg.isEmpty ? '알림을 보냈습니다.' : msg);
+      _snack(notifyResultMessage(await _repo.notify(r)));
     } on ApiException catch (e) {
       _snack(e.message);
     } finally {
