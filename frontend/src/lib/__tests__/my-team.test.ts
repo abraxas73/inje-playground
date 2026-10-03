@@ -112,8 +112,9 @@ describe("조직 필터 (buildOrgOptions / matchesOrg)", () => {
       { key: "경영지원부문 > 경영지원팀", label: "경영지원팀", depth: 1, count: 1 },
       { key: "기술·운영부문", label: "기술·운영부문", depth: 0, count: 2 },
       { key: "기술·운영부문 > AX본부", label: "AX본부", depth: 1, count: 2 },
-      { key: "기술·운영부문 > AX본부 > XPU플랫폼팀", label: "XPU플랫폼팀", depth: 2, count: 1 },
+      // 형제는 ko 로케일 정렬(한글이 라틴보다 먼저)
       { key: "기술·운영부문 > AX본부 > 클라우드 네이티브 센터", label: "클라우드 네이티브 센터", depth: 2, count: 1 },
+      { key: "기술·운영부문 > AX본부 > XPU플랫폼팀", label: "XPU플랫폼팀", depth: 2, count: 1 },
     ]);
     expect(buildOrgOptions([{ id: "x", name: "X" }])).toEqual([]);
   });
