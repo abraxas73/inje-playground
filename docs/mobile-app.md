@@ -5,6 +5,11 @@
 - 로그인: Supabase Microsoft OAuth → `innogrid://login-callback`(Supabase uri_allow_list에 등록, 2026-10-03). Azure 앱 등록은 변경 없음.
 - 네이티브 화면은 `/api/*`를 Bearer로 호출. WebView는 `POST /api/mobile/web-token` → `/auth/mobile?next=…#token=…`으로 자기 세션을 만든다.
 
+## 디자인
+시안은 Claude Design 캔버스 "이노그리드 앱 디자인"(https://claude.ai/artifact/DHctJG13TJTaZpeo4CbZsS — 비공개, 소유자만 열람). 방향은 "네이비 위의 이노그리드 블루": 웹 CI 블루(#0441FF)는 그대로, 로그인·요약 카드는 딥 네이비(#0B1A3A), 화면 바탕 #F4F6FB에 흰 카드(16px)·알약형 버튼·칩·탭. 토큰은 `mobile/lib/app/theme.dart`의 `Brand`, 공용 위젯(`BrandHeader` 머리·`BrandLogo`·`SquareIconButton`·`InitialBadge`·`PrimaryCta`·`GridBackdrop`)은 `lib/app/brand.dart` — 새 화면은 이걸 쓰고 색을 직접 박지 않는다. 로고 PNG(`assets/brand/logo_dark.png`·`logo_white.png`, 1320×177 투명)는 `frontend/public/logo.svg`를 Quick Look(`qlmanage -t -s 1328 -o <dir> logo.svg`)으로 뜬 뒤 밝기→알파로 바꿔 만든 것(flutter_svg 의존성은 안 넣음) — 로고가 바뀌면 같은 방법으로 다시 만든다. 글꼴은 OS 기본 고딕(iOS Apple SD Gothic Neo·Android Noto Sans CJK).
+
+로그인 없이 화면을 확인하려면: 위젯 테스트에서 `apiClientProvider`를 MockClient로, `authClientProvider`를 FakeAuth로 바꿔 화면을 띄우고 `FontLoader`로 `/System/Library/Fonts/Supplemental/AppleGothic.ttf`를 심은 뒤(`appTheme(fontFamily:)`) `matchesGoldenFile` + `flutter test --update-goldens`로 PNG를 뜬다(2026-10-03 시안 반영 때 사용, 테스트 파일은 커밋하지 않음). 테스트 글꼴이 없는 아이콘·일부 라벨은 네모로 나오는 게 정상.
+
 ## 사내망이 필요한 기능 안내
 - 사내망(VPN)이 필요한 사용자 기능은 **Dooray에서 가져오기**(멤버 소스 `dooray` 모드일 때 사다리·팀 페이지 버튼)뿐이다 — 브라우저가 Dooray API를 직접 호출하며 Innogrid Chrome 확장(CORS)도 필요하다.
 - 앱 WebView(User-Agent `InnogridApp/…`)에서는 `DoorayImportButton`이 직접 호출을 건너뛰고 저장된 명단(`dooray_members` 캐시)만 쓰며 "사내 VPN이 연결된 PC 웹에서 가져오세요"를 안내한다(`lib/mobile/app-ua.ts`). 설정의 내 팀 카드도 같은 안내를 보인다.
@@ -23,6 +28,7 @@
 | WebView가 로그인 페이지로 튕김 | 웹 토큰 발급 실패(guest·서비스 키) | `/api/mobile/web-token` 응답 확인. guest는 WebView를 열 수 없다 |
 | iOS 빌드 `Target Integrity … IPHONEOS_DEPLOYMENT_TARGET is set to 13.0, but … 15.0 to 27.0.x` | 플러그인 Pod이 iOS 11~14를 선언, Xcode 27은 15.0+만 허용 | `ios/Podfile` post_install이 모든 Pod을 15.0으로 올린다(2026-10-03 반영). 그래도 나오면 `flutter clean` 후 다시 실행 |
 | iOS 빌드 `Flutter.framework/Flutter does not contain architectures "arm64 x86_64"` (lipo -info는 둘 다 보여 줌) | Xcode 27 `lipo -verify_arch`가 아키텍처 2개를 받지 못함(Flutter 3.44 도구 결함) | 시뮬레이터는 **기기를 지정해** `flutter run -d <시뮬레이터 UDID>`로 실행(ARCHS 하나만 넘어감). 일반 `flutter build ios --simulator`는 두 아키텍처라 실패한다. Flutter 업그레이드로 해결될 수 있음 |
+| 로그아웃 → 다시 로그인하면 탭 화면이 `element._lifecycleState == _ElementLifecycle.inactive` 빨간 화면 | 사다리 화면의 AnimationController가 `late final` 지연 생성이라, 사다리를 안 만들고 화면이 정리될 때(로그아웃) dispose에서 처음 생성되며 "Looking up a deactivated widget's ancestor is unsafe" 예외 → 트리 정리가 중단되어 다음 셸 생성 때 GlobalKey 충돌(추정) | initState에서 생성하도록 수정(2026-10-03, 테스트 `test/ladder/ladder_screen_test.dart`). 재발하면 터미널에서 **가장 먼저** 찍힌 `EXCEPTION CAUGHT BY WIDGETS LIBRARY` 블록을 본다 — 빨간 화면의 단언은 결과이지 원인이 아니다 |
 | iOS에서 Microsoft 로그인 뒤 `login.microsoftonline.com` 시트(마지막 "로그인 상태를 유지하시겠습니까?")가 안 닫히고 앱을 덮음 — 로그에는 `handle deeplink uri`가 찍힘 | supabase_flutter는 딥링크로 세션만 복구하고 인앱 Safari 시트(SFSafariViewController)는 닫지 않는다 | 앱이 `signedIn` 때 `closeInAppWebView()`로 시트를 닫는다(`lib/auth/session.dart`, 2026-10-03 반영). 그래도 남으면 X로 닫으면 이미 로그인된 상태 |
 
 ## 개발기 설치

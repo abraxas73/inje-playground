@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../api/client.dart';
+import '../../app/brand.dart';
+import '../../app/theme.dart';
 import 'location.dart';
 import 'models.dart';
 import 'prefs.dart';
@@ -150,48 +152,81 @@ class _FoodScreenState extends ConsumerState<FoodScreen> {
   @override
   Widget build(BuildContext context) {
     final list = _showFavs ? _favs.map(_favToPlace).toList() : _places;
+    final theme = Theme.of(context);
+    final showPayco = !_showFavs && _payco.isNotEmpty;
     return Scaffold(
-      appBar: AppBar(title: const Text('뭐 먹지'), actions: [IconButton(icon: const Icon(Icons.tune), tooltip: '필터', onPressed: _openFilters)]),
+      appBar: BrandHeader(title: '뭐 먹지', actions: [SquareIconButton(icon: Icons.tune, tooltip: '필터', onPressed: _openFilters)]),
       body: Column(children: [
-        ListTile(
-          leading: const Icon(Icons.place_outlined),
-          title: Text(_loc?.address ?? '위치 없음', maxLines: 1, overflow: TextOverflow.ellipsis),
-          subtitle: Text(_filterSummary),
-          trailing: Wrap(children: [
-            IconButton(icon: const Icon(Icons.my_location), tooltip: '현재 위치', onPressed: _busy ? null : _useCurrentLocation),
-            TextButton(onPressed: _changeAddress, child: const Text('주소 변경')),
-          ]),
-        ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: Row(children: [
-            Expanded(child: TextField(controller: _keyword, decoration: const InputDecoration(hintText: '키워드(선택)', isDense: true, border: OutlineInputBorder()), onSubmitted: (_) => _search())),
-            const SizedBox(width: 8),
-            FilledButton(onPressed: _busy ? null : _search, child: const Text('검색')),
-          ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Wrap(spacing: 4, alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, children: [ // 좁은 화면(378px)에선 두 줄로 — Row는 72px 넘침
-            SegmentedButton<bool>(
-              segments: const [ButtonSegment(value: false, label: Text('검색 결과')), ButtonSegment(value: true, label: Text('즐겨찾기'))],
-              selected: {_showFavs},
-              onSelectionChanged: (s) => setState(() => _showFavs = s.first),
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+          child: Column(children: [
+            Card(
+              child: InkWell(
+                onTap: _changeAddress,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 6, 12),
+                  child: Row(children: [
+                    const TintIcon(Icons.place_outlined),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(_loc?.address ?? '위치 없음 — 눌러서 주소 입력', style: theme.textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 3),
+                        Text(_filterSummary, style: theme.textTheme.bodySmall),
+                      ]),
+                    ),
+                    IconButton(icon: const Icon(Icons.my_location, size: 20), tooltip: '현재 위치', onPressed: _busy ? null : _useCurrentLocation),
+                  ]),
+                ),
+              ),
             ),
-            TextButton.icon(onPressed: _busy ? null : _searchPayco, icon: const Icon(Icons.credit_card, size: 18), label: const Text('PAYCO')),
-            FilledButton.tonalIcon(onPressed: _places.isEmpty ? null : () => showRecommendSheet(context, ref, _places), icon: const Icon(Icons.casino), label: const Text('오늘 뭐 먹지')),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: TextField(controller: _keyword, decoration: const InputDecoration(hintText: '키워드 (선택) — 예: 국밥, 카페', prefixIcon: Icon(Icons.search, size: 20)), onSubmitted: (_) => _search())),
+              const SizedBox(width: 8),
+              FilledButton(onPressed: _busy ? null : _search, child: const Text('검색')),
+            ]),
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+              SegmentedButton<bool>(
+                showSelectedIcon: false,
+                segments: const [ButtonSegment(value: false, label: Text('검색 결과')), ButtonSegment(value: true, label: Text('즐겨찾기'))],
+                selected: {_showFavs},
+                onSelectionChanged: (s) => setState(() => _showFavs = s.first),
+              ),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40), padding: const EdgeInsets.symmetric(horizontal: 12), textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                onPressed: _busy ? null : _searchPayco,
+                icon: const Icon(Icons.credit_card, size: 16),
+                label: const Text('PAYCO'),
+              ),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: Brand.navy, minimumSize: const Size(0, 40), padding: const EdgeInsets.symmetric(horizontal: 14), textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                onPressed: _places.isEmpty ? null : () => showRecommendSheet(context, ref, _places),
+                icon: const Icon(Icons.auto_awesome, size: 16, color: Brand.sky),
+                label: const Text('오늘 뭐 먹지'),
+              ),
+            ]),
           ]),
         ),
-        if (_busy) const LinearProgressIndicator(minHeight: 2),
-        if (_error != null) Padding(padding: const EdgeInsets.all(12), child: Text(_error!, style: const TextStyle(color: Colors.red))),
+        if (_busy) const Padding(padding: EdgeInsets.fromLTRB(20, 12, 20, 0), child: LinearProgressIndicator(minHeight: 2, borderRadius: BorderRadius.all(Radius.circular(2)))),
+        if (_error != null) Padding(padding: const EdgeInsets.fromLTRB(20, 12, 20, 0), child: Text(_error!, style: const TextStyle(fontSize: 13, color: Brand.dangerText))),
         Expanded(
-          child: ListView(children: [
-            if (!_showFavs && _payco.isNotEmpty) ...[
-              const ListTile(dense: true, title: Text('PAYCO 식권 가맹점', style: TextStyle(fontWeight: FontWeight.w600))),
+          child: ListView(padding: const EdgeInsets.fromLTRB(20, 16, 20, 20), children: [
+            if (showPayco) ...[
+              _sectionLabel('PAYCO 식권 가맹점 ${_payco.length}곳'),
               for (final p in _payco) _tile(p),
             ],
-            if (list.isEmpty && !_busy && _payco.isEmpty)
-              Padding(padding: const EdgeInsets.all(32), child: Center(child: Text(_showFavs ? '즐겨찾기가 없습니다.' : '검색을 눌러 주변 식당·카페를 찾아보세요.', style: const TextStyle(color: Colors.grey)))),
+            if (list.isEmpty && !_busy && !showPayco)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Column(children: [
+                  TintIcon(_showFavs ? Icons.favorite_border : Icons.restaurant_outlined, size: 56, color: Brand.muted, background: Brand.fill),
+                  const SizedBox(height: 12),
+                  Text(_showFavs ? '즐겨찾기가 없습니다.' : '검색을 눌러 주변 식당·카페를 찾아보세요.', textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
+                ]),
+              ),
+            if (list.isNotEmpty) _sectionLabel(_showFavs ? '즐겨찾기 ${list.length}곳' : '검색 결과 ${list.length}곳', trailing: _showFavs ? null : '가까운 순'),
             for (final p in list) _tile(p),
           ]),
         ),
@@ -199,15 +234,43 @@ class _FoodScreenState extends ConsumerState<FoodScreen> {
     );
   }
 
-  Widget _tile(KakaoPlace p) => ListTile(
-        title: Text(p.name),
-        subtitle: Text('${p.shortCategory} · ${p.distanceM}m · ${p.address}', maxLines: 2),
-        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-          if (p.phone.isNotEmpty) IconButton(icon: const Icon(Icons.call_outlined), onPressed: () => launchUrl(Uri.parse('tel:${p.phone.replaceAll('-', '')}'))),
-          IconButton(icon: Icon(_isFav(p.id) ? Icons.favorite : Icons.favorite_border, color: _isFav(p.id) ? Colors.red : null), onPressed: () => _toggleFav(p)),
+  Widget _sectionLabel(String text, {String? trailing}) => Padding(
+        padding: const EdgeInsets.fromLTRB(0, 4, 0, 8),
+        child: Row(children: [
+          Text(text, style: Theme.of(context).textTheme.titleSmall),
+          const Spacer(),
+          if (trailing != null) Text(trailing, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12)),
         ]),
-        onTap: p.placeUrl.isEmpty ? null : () => launchUrl(Uri.parse(p.placeUrl), mode: LaunchMode.externalApplication),
       );
+
+  Widget _tile(KakaoPlace p) {
+    final fav = _isFav(p.id);
+    final meta = [p.shortCategory, if (p.distanceM > 0) '${p.distanceM}m', p.address].where((s) => s.isNotEmpty).join(' · ');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Card(
+        child: InkWell(
+          onTap: p.placeUrl.isEmpty ? null : () => launchUrl(Uri.parse(p.placeUrl), mode: LaunchMode.externalApplication),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+            child: Row(children: [
+              InitialBadge(p.name, size: 48),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(p.name, style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 3),
+                  Text(meta, style: Theme.of(context).textTheme.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                ]),
+              ),
+              if (p.phone.isNotEmpty) IconButton(icon: const Icon(Icons.call_outlined, size: 20), tooltip: '전화', onPressed: () => launchUrl(Uri.parse('tel:${p.phone.replaceAll('-', '')}'))),
+              IconButton(icon: Icon(fav ? Icons.favorite : Icons.favorite_border, size: 20, color: fav ? Brand.danger : Brand.faint), tooltip: '즐겨찾기', onPressed: () => _toggleFav(p)),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
 
   KakaoPlace _favToPlace(FoodFavorite f) => KakaoPlace(
         id: f.placeId, name: f.name, categoryName: f.categoryName ?? '', categoryGroupCode: '', phone: f.phone ?? '',

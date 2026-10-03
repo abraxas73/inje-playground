@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../api/client.dart';
+import '../../app/brand.dart';
+import '../../app/theme.dart';
 import 'generator.dart';
 import 'model.dart';
 import 'painter.dart';
@@ -34,13 +36,15 @@ class _LadderScreenState extends ConsumerState<LadderScreen> with SingleTickerPr
   final List<LadderMapping> _mappings = [];
   int? _animating;
   bool _saved = false, _saving = false;
-  late final AnimationController _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))..addListener(() => setState(() {}));
+  // initState에서 바로 만든다 — late final 지연 생성이면 사다리를 안 만들고 화면이 사라질 때 dispose에서 처음 생성되며 Ticker가 deactivated 조상을 찾아 예외.
+  late final AnimationController _anim;
 
   List<String> get _participants => [..._team.where(_selected.contains), ..._extra];
 
   @override
   void initState() {
     super.initState();
+    _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))..addListener(() => setState(() {}));
     ref.read(ladderRepositoryProvider).myTeamNames().then((n) {
       if (mounted) setState(() { _team = n; _teamLoaded = true; });
     }).catchError((_) { if (mounted) setState(() => _teamLoaded = true); });
@@ -103,38 +107,113 @@ class _LadderScreenState extends ConsumerState<LadderScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('사다리'), actions: [IconButton(icon: const Icon(Icons.history), tooltip: '이력', onPressed: () => context.push('/ladder/history'))]),
+        appBar: BrandHeader(title: '사다리', actions: [SquareIconButton(icon: Icons.history, tooltip: '이력', onPressed: () => context.push('/ladder/history'))]),
         body: _ladder == null ? _setup() : _board(_ladder!),
       );
 
-  Widget _setup() => ListView(padding: const EdgeInsets.all(16), children: [
-        const Text('참가자', style: TextStyle(fontWeight: FontWeight.w600)),
-        if (_teamLoaded && _team.isEmpty) const EmptyTeamHint(),
-        Wrap(spacing: 6, children: [
-          for (final n in _team) FilterChip(label: Text(n), selected: _selected.contains(n), onSelected: (v) => setState(() => v ? _selected.add(n) : _selected.remove(n))),
-          for (final n in _extra) InputChip(label: Text(n), onDeleted: () => setState(() => _extra.remove(n))),
-        ]),
-        Row(children: [
-          Expanded(child: TextField(controller: _nameCtl, decoration: const InputDecoration(hintText: '직접 입력', isDense: true), onSubmitted: (_) => _addName())),
-          IconButton(icon: const Icon(Icons.add), onPressed: _addName),
-        ]),
-        const SizedBox(height: 16),
-        const Text('결과', style: TextStyle(fontWeight: FontWeight.w600)),
-        Wrap(spacing: 6, children: [
-          for (final r in _results) InputChip(label: Text(r.text), avatar: CircleAvatar(backgroundColor: resultColor(r.type), radius: 6), onDeleted: () => setState(() => _results.remove(r))),
-        ]),
-        Row(children: [
-          Expanded(child: TextField(controller: _resultCtl, decoration: const InputDecoration(hintText: '예: 커피 사기', isDense: true), onSubmitted: (_) => _addResult())),
-          DropdownButton<String>(value: _resultType, items: [for (final e in kResultTypes.entries) DropdownMenuItem(value: e.key, child: Text(e.value))], onChanged: (v) => setState(() => _resultType = v ?? 'normal')),
-          IconButton(icon: const Icon(Icons.add), onPressed: _addResult),
-        ]),
-        Text('결과가 참가자보다 적으면 나머지는 "꽝 N"으로 채웁니다.', style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 16),
-        const Text('다리 밀도', style: TextStyle(fontWeight: FontWeight.w600)),
-        SegmentedButton<String>(segments: [for (final k in kDensities.keys) ButtonSegment(value: k, label: Text(k))], selected: {_density}, onSelectionChanged: (v) => setState(() => _density = v.first)),
-        const SizedBox(height: 24),
-        FilledButton.icon(onPressed: _generate, icon: const Icon(Icons.auto_awesome), label: Text('사다리 만들기 (${_participants.length}명)')),
+  Widget _setup() => Column(children: [
+        Expanded(
+          child: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 8), children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  CountTitle('참가자', _participants.length),
+                  const SizedBox(height: 12),
+                  if (_teamLoaded && _team.isEmpty) const EmptyTeamHint(),
+                  if (_team.isNotEmpty || _extra.isNotEmpty) ...[
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      for (final n in _team) FilterChip(label: Text(n), selected: _selected.contains(n), onSelected: (v) => setState(() => v ? _selected.add(n) : _selected.remove(n))),
+                      for (final n in _extra) InputChip(label: Text(n), selected: true, deleteIconColor: Colors.white, onDeleted: () => setState(() => _extra.remove(n))),
+                    ]),
+                    const SizedBox(height: 12),
+                  ],
+                  Row(children: [
+                    Expanded(child: TextField(controller: _nameCtl, decoration: const InputDecoration(hintText: '직접 입력'), onSubmitted: (_) => _addName())),
+                    const SizedBox(width: 8),
+                    _addButton(_addName),
+                  ]),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  CountTitle('결과', _results.length),
+                  const SizedBox(height: 12),
+                  if (_results.isNotEmpty) ...[
+                    Wrap(spacing: 8, runSpacing: 8, children: [for (final r in _results) _resultChip(r)]),
+                    const SizedBox(height: 12),
+                  ],
+                  Row(children: [
+                    Expanded(child: TextField(controller: _resultCtl, decoration: const InputDecoration(hintText: '예: 커피 사기'), onSubmitted: (_) => _addResult())),
+                    const SizedBox(width: 8),
+                    Container(
+                      height: 48,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Brand.line)),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _resultType,
+                          borderRadius: BorderRadius.circular(14),
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Brand.navy),
+                          items: [for (final e in kResultTypes.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
+                          onChanged: (v) => setState(() => _resultType = v ?? 'normal'),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _addButton(_addResult),
+                  ]),
+                  const SizedBox(height: 8),
+                  Text('결과가 참가자보다 적으면 나머지는 "꽝"으로 채웁니다.', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12)),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+                child: Row(children: [
+                  Expanded(child: Text('다리 밀도', style: Theme.of(context).textTheme.titleMedium)),
+                  SegmentedButton<String>(showSelectedIcon: false, segments: [for (final k in kDensities.keys) ButtonSegment(value: k, label: Text(k))], selected: {_density}, onSelectionChanged: (v) => setState(() => _density = v.first)),
+                ]),
+              ),
+            ),
+          ]),
+        ),
+        Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 16), child: PrimaryCta(icon: Icons.auto_awesome, label: '사다리 만들기 (${_participants.length}명)', onPressed: _generate)),
       ]);
+
+  Widget _addButton(VoidCallback onAdd) => SizedBox(
+        width: 48,
+        height: 48,
+        child: IconButton.filled(
+          style: IconButton.styleFrom(backgroundColor: Brand.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+          icon: const Icon(Icons.add, size: 22),
+          tooltip: '추가',
+          onPressed: onAdd,
+        ),
+      );
+
+  Widget _resultChip(LadderResult r) {
+    final (bg, fg) = switch (r.type) {
+      'reward' => (const Color(0xFFE3F6EE), const Color(0xFF065F46)),
+      'punishment' => (const Color(0xFFFDECEC), const Color(0xFF991B1B)),
+      _ => (const Color(0xFFEEF1F6), const Color(0xFF3F4A5C)),
+    };
+    return InputChip(
+      avatar: Container(width: 8, height: 8, decoration: BoxDecoration(color: resultColor(r.type), shape: BoxShape.circle)),
+      label: Text(r.text),
+      labelStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: fg),
+      backgroundColor: bg,
+      side: BorderSide.none,
+      deleteIconColor: fg.withValues(alpha: 0.6),
+      onDeleted: () => setState(() => _results.remove(r)),
+    );
+  }
 
   void _addName() {
     final n = _nameCtl.text.trim();
