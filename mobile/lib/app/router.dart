@@ -12,6 +12,7 @@ import '../features/ladder/history_screen.dart';
 import '../features/ladder/ladder_screen.dart';
 import '../features/team/history_screen.dart';
 import '../features/team/team_screen.dart';
+import 'tab_shell.dart';
 
 /// 하단 탭을 누를 때마다 1 증가 — 탭 화면(IndexedStack에 살아 있음)이 이걸 듣고 서버 데이터(내 팀 등)를 다시 불러온다.
 class TabTap extends Notifier<int> {
@@ -38,32 +39,7 @@ GoRouter buildRouter({
       builder: (c, s) => WebScreen(path: s.uri.queryParameters['path'] ?? '/'),
     ),
     StatefulShellRoute.indexedStack(
-      builder: (c, s, shell) => Consumer(
-        builder: (c, ref, _) => Scaffold(
-          body: shell,
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: shell.currentIndex,
-            onDestinationSelected: (i) {
-              ref.read(tabTapProvider.notifier).bump();
-              shell.goBranch(i, initialLocation: i == shell.currentIndex);
-            },
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: '홈',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.restaurant),
-                label: '뭐 먹지',
-              ),
-              NavigationDestination(icon: Icon(Icons.stairs), label: '사다리'),
-              NavigationDestination(icon: Icon(Icons.coffee), label: '커피 타임'),
-              NavigationDestination(icon: Icon(Icons.more_horiz), label: '더보기'),
-            ],
-          ),
-        ),
-      ),
+      builder: (c, s, shell) => TabShell(shell: shell),
       branches: [
         StatefulShellBranch(
           routes: [

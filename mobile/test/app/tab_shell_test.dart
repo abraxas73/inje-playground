@@ -1,0 +1,95 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:playground/api/client.dart';
+import 'package:playground/app/router.dart';
+import 'package:playground/app/tab_shell.dart';
+import 'package:playground/auth/session.dart';
+import 'package:playground/features/ladder/ladder_screen.dart';
+import '../auth/fake_auth.dart';
+
+class _Tokens implements TokenSource {
+  @override
+  Future<String?> accessToken() async => 't';
+  @override
+  Future<String?> refreshToken() async => 't';
+  @override
+  Future<void> onUnauthorized() async {}
+}
+
+Future<void> pumpShell(WidgetTester tester, AppSession user) async {
+  final auth = FakeAuth()..current = session(expired: false);
+  addTearDown(auth.ctrl.close);
+  final api = ApiClient(httpClient: MockClient((_) async => http.Response('{"members":[]}', 200)), tokens: _Tokens(), baseUrl: 'http://x', userAgent: 't');
+  final router = buildRouter(refresh: ValueNotifier(0), redirect: (_, _) => null);
+  await tester.pumpWidget(ProviderScope(overrides: [
+    authClientProvider.overrideWithValue(auth),
+    sessionFetcherProvider.overrideWithValue((_, {required record}) async => user),
+    apiClientProvider.overrideWithValue(api),
+  ], child: MaterialApp.router(routerConfig: router)));
+  await tester.pumpAndSettle();
+}
+
+Finder fanItem(String label) => find.descendant(of: find.byType(FanItem), matching: find.text(label));
+Finder tab(String label) => find.descendant(of: find.byType(NavigationBar), matching: find.text(label));
+
+void main() {
+  final user = AppSession(email: 'u@innogrid.com', role: 'user', permissions: const {});
+
+  testWidgets('하단 바는 홈·일상·AI·업무·더보기 — 하위 메뉴는 접혀 있다', (tester) async {
+    await pumpShell(tester, user);
+    for (final l in ['홈', '일상', 'AI', '업무', '더보기']) {
+      expect(tab(l), findsOneWidget, reason: l);
+    }
+    expect(find.byType(FanItem), findsNothing);
+  });
+
+  testWidgets('일상을 누르면 하위 메뉴가 부채꼴로 펼쳐지고, 사다리를 고르면 그 탭으로 이동하며 접힌다', (tester) async {
+    await pumpShell(tester, user);
+    await tester.tap(tab('일상'));
+    await tester.pumpAndSettle();
+    for (final l in ['뭐 먹지', '사다리', '커피 타임', '설문']) {
+      expect(fanItem(l), findsOneWidget, reason: l);
+    }
+    await tester.tap(fanItem('사다리'));
+    await tester.pumpAndSettle();
+    expect(find.byType(LadderScreen), findsOneWidget);
+    expect(find.byType(FanItem), findsNothing);
+  });
+
+  testWidgets('업무는 Teams 채팅이 첫 항목, 바깥을 누르면 접힌다', (tester) async {
+    await pumpShell(tester, user);
+    await tester.tap(tab('업무'));
+    await tester.pumpAndSettle();
+    final labels = tester.widgetList<FanItem>(find.byType(FanItem)).map((w) => w.page.label).toList();
+    expect(labels.first, 'Teams 채팅');
+    expect(labels, containsAll(['RFP 분석', 'PPT 만들기', '인사·부고']));
+    expect(labels, isNot(contains('마케팅 Master DB'))); // 기본 거부
+    await tester.tapAt(const Offset(400, 60)); // 스크림
+    await tester.pumpAndSettle();
+    expect(find.byType(FanItem), findsNothing);
+  });
+
+  testWidgets('같은 그룹을 다시 누르면 접히고, 다른 그룹을 누르면 그 그룹으로 바뀐다', (tester) async {
+    await pumpShell(tester, user);
+    await tester.tap(tab('AI'));
+    await tester.pumpAndSettle();
+    expect(fanItem('Claude Code'), findsOneWidget);
+    await tester.tap(tab('업무'));
+    await tester.pumpAndSettle();
+    expect(fanItem('Claude Code'), findsNothing);
+    expect(fanItem('Teams 채팅'), findsOneWidget);
+    await tester.tap(tab('업무'));
+    await tester.pumpAndSettle();
+    expect(find.byType(FanItem), findsNothing);
+  });
+
+  testWidgets('볼 수 있는 페이지가 없는 그룹은 탭에서 빠진다', (tester) async {
+    await pumpShell(tester, AppSession(email: 'u@innogrid.com', role: 'user', permissions: const {'usage_code': false, 'usage_chat': false, 'usage_perf': false}));
+    expect(tab('AI'), findsNothing);
+    expect(tab('일상'), findsOneWidget);
+    expect(tab('업무'), findsOneWidget);
+  });
+}

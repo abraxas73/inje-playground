@@ -5,8 +5,11 @@ import '../app/theme.dart';
 import '../auth/session.dart';
 import 'catalog.dart';
 
-/// 사내 서비스 카드의 아이콘·한 줄 설명(카탈로그 key 기준). 네이티브 탭(뭐 먹지·사다리·커피 타임)은 여기 안 나온다.
+/// 페이지 아이콘·한 줄 설명(카탈로그 key 기준). 사내 서비스 카드와 하단 바 부채꼴 메뉴가 같이 쓴다.
 const serviceMeta = <String, (IconData, String)>{
+  'food': (Icons.restaurant, '주변 식당·카페'),
+  'ladder': (Icons.stairs, '순서·당번 정하기'),
+  'team': (Icons.coffee, '팀 나누기·법카'),
   'survey': (Icons.poll_outlined, '진행 중인 설문 응답'),
   'teams_chat': (Icons.forum_outlined, '지정 그룹 채팅 읽기·보내기'),
   'usage_code': (Icons.terminal, 'Claude Code 사용량'),

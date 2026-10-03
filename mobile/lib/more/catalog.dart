@@ -6,6 +6,14 @@ class PageEntry {
   final String key, href, label, group, minRole;
 }
 
+/// 2단 메뉴의 1단(웹 PAGE_GROUPS와 같은 id, 라벨은 하단 바에 맞춰 짧게).
+class PageGroup {
+  const PageGroup(this.id, this.label);
+  final String id, label;
+}
+
+const pageGroups = <PageGroup>[PageGroup('daily', '일상'), PageGroup('ai', 'AI'), PageGroup('work', '업무')];
+
 const pages = <PageEntry>[
   PageEntry('food', '/food', '뭐 먹지', 'daily', 'guest'),
   PageEntry('ladder', '/ladder', '사다리', 'daily', 'guest'),
@@ -51,3 +59,9 @@ bool canUsePage(AppSession s, PageEntry p) {
 
 List<PageEntry> visiblePages(AppSession s) => pages.where((p) => canUsePage(s, p)).toList();
 List<PageEntry> visibleAdminPages(AppSession s) => s.isAdmin ? adminPages : const [];
+
+/// 그룹별로 볼 수 있는 페이지. 빈 그룹은 하단 바에서 뺀다(웹과 같은 규칙).
+List<(PageGroup, List<PageEntry>)> visibleGroups(AppSession s) => [
+      for (final g in pageGroups)
+        if (visiblePages(s).where((p) => p.group == g.id) case final ps when ps.isNotEmpty) (g, ps.toList()),
+    ];
