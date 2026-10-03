@@ -11,6 +11,7 @@ import type { UserMember, ImportedMember } from "@/hooks/useUserMembers";
 import type { TeamMemberDraft } from "@/lib/my-team";
 import { useProviderSettings } from "@/hooks/useProviderSettings";
 import { logAction } from "@/lib/action-log";
+import { APP_DOORAY_NOTICE, doorayImportMode, isInnogridApp } from "@/lib/mobile/app-ua";
 
 const IMPORT_LABEL: Record<MemberSourceProvider, string> = {
   dooray: "Dooray에서 가져오기",
@@ -86,6 +87,18 @@ export default function DoorayImportButton({
     setError(null);
     setInfo(null);
     setOriginalError(null);
+    if (doorayImportMode(memberSource, isInnogridApp()) === "app-cached") {
+      // 모바일 앱 WebView: 사내 VPN·Chrome 확장이 없어 Dooray 직접 호출이 항상 실패한다 — 저장된 명단만 쓰고 PC 웹을 안내
+      setLoading(true);
+      try {
+        const ok = await fallbackFromDB();
+        setInfo(ok ? `저장된 Dooray 명단을 사용합니다. ${APP_DOORAY_NOTICE}` : null);
+        if (!ok) setError(APP_DOORAY_NOTICE);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     setLoading(true);
 
     const controller = new AbortController();

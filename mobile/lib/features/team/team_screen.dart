@@ -5,6 +5,7 @@ import '../../api/client.dart';
 import 'divider.dart';
 import 'models.dart';
 import 'prefs.dart';
+import '../shared/empty_team_hint.dart';
 import 'repository.dart';
 
 class TeamScreen extends ConsumerStatefulWidget {
@@ -15,6 +16,7 @@ class TeamScreen extends ConsumerStatefulWidget {
 
 class _TeamScreenState extends ConsumerState<TeamScreen> {
   List<TeamMemberRow> _members = [];
+  bool _membersLoaded = false;
   final Set<String> _selected = {};
   final List<String> _extra = [];
   Set<String> _cards = {};
@@ -44,6 +46,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
     try {
       _members = await _repo.members();
     } catch (_) {}
+    _membersLoaded = true;
     _cards = {...saved, ..._members.where((m) => m.isCardHolder).map((m) => m.name)};
     _selected.addAll(_members.map((m) => m.name)); // 웹과 같이 내 팀 전원 기본 참석
     if (mounted) setState(() {});
@@ -100,6 +103,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
         appBar: AppBar(title: const Text('커피 타임'), actions: [IconButton(icon: const Icon(Icons.history), tooltip: '이력', onPressed: () => context.push('/team/history'))]),
         body: ListView(padding: const EdgeInsets.all(16), children: [
           const Text('참가자 (법카 아이콘을 눌러 보유자 표시)', style: TextStyle(fontWeight: FontWeight.w600)),
+          if (_membersLoaded && _members.isEmpty) const EmptyTeamHint(),
           Wrap(spacing: 6, children: [
             for (final n in [..._members.map((m) => m.name), ..._extra])
               FilterChip(

@@ -1,5 +1,6 @@
 "use client";
 
+import { isInnogridApp } from "@/lib/mobile/app-ua";
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,7 +65,7 @@ export default function MyTeamCard() {
           </Button>
           {isLoaded && memberSource === "dooray" && (
             <span className="text-xs text-muted-foreground">
-              Dooray 모드에서는 사다리/팀 페이지의 &quot;Dooray에서 가져오기&quot;로 명단을 채웁니다.
+              Dooray 모드에서는 사다리/팀 페이지의 &quot;Dooray에서 가져오기&quot;로 명단을 채웁니다.{isInnogridApp() && <> 앱에서는 Dooray 직접 가져오기가 되지 않습니다(사내 VPN·Chrome 확장 필요) — 사내 VPN이 연결된 PC 웹에서 가져오면 앱에서도 그 명단을 씁니다.</>}
             </span>
           )}
         </div>

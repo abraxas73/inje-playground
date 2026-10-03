@@ -5,6 +5,7 @@ import '../../api/client.dart';
 import 'generator.dart';
 import 'model.dart';
 import 'painter.dart';
+import '../shared/empty_team_hint.dart';
 import 'repository.dart';
 
 const kDensities = {'낮음': 0.25, '보통': 0.4, '높음': 0.6};
@@ -20,6 +21,7 @@ class LadderScreen extends ConsumerStatefulWidget {
 class _LadderScreenState extends ConsumerState<LadderScreen> with SingleTickerProviderStateMixin {
   // 설정
   List<String> _team = [];
+  bool _teamLoaded = false;
   final Set<String> _selected = {};
   final List<String> _extra = [];
   final List<LadderResult> _results = [];
@@ -40,8 +42,8 @@ class _LadderScreenState extends ConsumerState<LadderScreen> with SingleTickerPr
   void initState() {
     super.initState();
     ref.read(ladderRepositoryProvider).myTeamNames().then((n) {
-      if (mounted) setState(() => _team = n);
-    }).catchError((_) {});
+      if (mounted) setState(() { _team = n; _teamLoaded = true; });
+    }).catchError((_) { if (mounted) setState(() => _teamLoaded = true); });
   }
 
   @override
@@ -107,6 +109,7 @@ class _LadderScreenState extends ConsumerState<LadderScreen> with SingleTickerPr
 
   Widget _setup() => ListView(padding: const EdgeInsets.all(16), children: [
         const Text('참가자', style: TextStyle(fontWeight: FontWeight.w600)),
+        if (_teamLoaded && _team.isEmpty) const EmptyTeamHint(),
         Wrap(spacing: 6, children: [
           for (final n in _team) FilterChip(label: Text(n), selected: _selected.contains(n), onSelected: (v) => setState(() => v ? _selected.add(n) : _selected.remove(n))),
           for (final n in _extra) InputChip(label: Text(n), onDeleted: () => setState(() => _extra.remove(n))),
