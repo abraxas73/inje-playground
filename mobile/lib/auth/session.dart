@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../config.dart';
 
@@ -37,6 +38,9 @@ typedef SessionFetcher = Future<AppSession> Function(String accessToken, {requir
 
 final authClientProvider = Provider<GoTrueClient>((_) => Supabase.instance.client.auth);
 
+/// OAuth 인앱 브라우저 닫기. supabase_flutter는 딥링크로 세션만 복구하고 iOS SFSafariViewController는 그대로 둔다(Microsoft 마지막 화면이 앱을 덮음).
+final closeAuthBrowserProvider = Provider<Future<void> Function()>((_) => closeInAppWebView);
+
 final sessionFetcherProvider = Provider<SessionFetcher>((_) => (token, {required record}) async {
       final uri = Uri.parse('${Config.apiBase}/api/mobile/login');
       final headers = {'Authorization': 'Bearer $token', 'User-Agent': Config.userAgent(defaultTargetPlatform.name)};
@@ -52,7 +56,10 @@ class SessionNotifier extends AsyncNotifier<AppSession?> {
   Future<AppSession?> build() async {
     // Riverpod 3는 노티파이어 인스턴스를 재빌드(실패 재시도·invalidate) 사이에 재사용한다 — 구독은 빌드마다 새로 걸고 그 빌드의 dispose에 끊는다.
     final sub = _auth.onAuthStateChange.listen((e) {
-      if (e.event == AuthChangeEvent.signedIn) _afterSignIn();
+      if (e.event == AuthChangeEvent.signedIn) {
+        ref.read(closeAuthBrowserProvider)().catchError((_) {}); // Android 커스텀 탭 등 닫을 게 없으면 무시
+        _afterSignIn();
+      }
       if (e.event == AuthChangeEvent.signedOut) state = const AsyncValue.data(null);
     });
     ref.onDispose(sub.cancel);

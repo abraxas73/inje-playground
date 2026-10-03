@@ -72,12 +72,15 @@ void main() {
   group('SessionNotifier', () {
     late FakeAuth auth;
     final calls = <({String token, bool record})>[];
+    var browserCloses = 0;
     late ProviderContainer c;
     setUp(() {
       auth = FakeAuth();
       calls.clear();
+      browserCloses = 0;
       c = ProviderContainer(overrides: [
         authClientProvider.overrideWithValue(auth),
+        closeAuthBrowserProvider.overrideWithValue(() async => browserCloses++),
         sessionFetcherProvider.overrideWithValue((token, {required record}) async {
           calls.add((token: token, record: record));
           return AppSession(email: 'u@innogrid.com', role: 'user', permissions: const {});
@@ -96,6 +99,7 @@ void main() {
       await pump();
       expect(calls.length, 1);
       expect(calls.single.record, true);
+      expect(browserCloses, 1, reason: 'OAuth 콜백 뒤 인앱 브라우저(SFSafariViewController)를 닫아야 한다 — supabase_flutter는 닫지 않는다');
       expect(c.read(sessionProvider).asData?.value?.role, 'user');
       auth.ctrl.add(const AuthState(AuthChangeEvent.signedOut, null));
       await pump();
