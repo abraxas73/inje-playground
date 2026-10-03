@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../auth/guest_screen.dart';
 import '../auth/login_screen.dart';
 import '../more/more_screen.dart';
+import '../web/web_screen.dart';
 
 class StubScreen extends StatelessWidget {
   const StubScreen(this.title, {super.key});
@@ -19,7 +20,7 @@ GoRouter buildRouter({required Listenable refresh, required String? Function(Bui
       routes: [
         GoRoute(path: '/login', builder: (c, s) => const LoginScreen()),
         GoRoute(path: '/guest', builder: (c, s) => const GuestScreen()),
-        GoRoute(path: '/web', builder: (c, s) => StubScreen('웹 ${s.uri.queryParameters['path'] ?? '/'}')),
+        GoRoute(path: '/web', builder: (c, s) => WebScreen(path: s.uri.queryParameters['path'] ?? '/')),
         StatefulShellRoute.indexedStack(
           builder: (c, s, shell) => Scaffold(
             body: shell,
