@@ -64,7 +64,7 @@ class _FoodScreenState extends ConsumerState<FoodScreen> {
     } on ApiException catch (e) {
       _error = e.message;
     } catch (e) {
-      _error = '$e';
+      _error = locationFailureMessage(e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -172,13 +172,12 @@ class _FoodScreenState extends ConsumerState<FoodScreen> {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(children: [
+          child: Wrap(spacing: 4, alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, children: [ // 좁은 화면(378px)에선 두 줄로 — Row는 72px 넘침
             SegmentedButton<bool>(
               segments: const [ButtonSegment(value: false, label: Text('검색 결과')), ButtonSegment(value: true, label: Text('즐겨찾기'))],
               selected: {_showFavs},
               onSelectionChanged: (s) => setState(() => _showFavs = s.first),
             ),
-            const Spacer(),
             TextButton.icon(onPressed: _busy ? null : _searchPayco, icon: const Icon(Icons.credit_card, size: 18), label: const Text('PAYCO')),
             FilledButton.tonalIcon(onPressed: _places.isEmpty ? null : () => showRecommendSheet(context, ref, _places), icon: const Icon(Icons.casino), label: const Text('오늘 뭐 먹지')),
           ]),

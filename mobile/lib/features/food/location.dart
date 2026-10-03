@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 
 class LocationDenied implements Exception {
@@ -17,3 +18,7 @@ Future<({double x, double y})> currentPosition() async {
   final pos = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 10)));
   return (x: pos.longitude, y: pos.latitude);
 }
+
+/// 권한 외의 실패(시뮬레이터 위치 미설정·GPS 미수신 등 10초 초과)를 사람이 읽는 안내로 — 원시 예외 문자열을 화면에 내지 않는다.
+String locationFailureMessage(Object e) =>
+    e is TimeoutException ? '현재 위치를 가져오지 못했습니다(시간 초과). 다시 시도하거나 주소 변경으로 찾아 주세요.' : '현재 위치를 가져오지 못했습니다: $e';
