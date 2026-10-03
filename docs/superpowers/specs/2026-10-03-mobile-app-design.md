@@ -44,7 +44,7 @@ mobile/                      Flutter 앱(모노레포)
 frontend/                    서버 추가분(§5)
 ```
 
-- 패키지: `supabase_flutter`(인증·세션 저장·갱신), `webview_flutter`(+android/wkwebview), `go_router`, `flutter_riverpod`, `geolocator`, `url_launcher`, `shared_preferences`, `http`. 이 외 추가 금지(필요하면 설계 변경으로).
+- 패키지: `supabase_flutter`(인증·세션 저장·갱신), `webview_flutter`(+android/wkwebview), `go_router`, `flutter_riverpod`, `geolocator`, `url_launcher`, `shared_preferences`, `http`, `file_picker`(Android WebView 파일 업로드 — `webview_flutter_android`의 `setOnShowFileSelector`가 선택기를 제공하지 않아 필요, 2026-10-03 계획 단계에서 추가). 이 외 추가 금지(필요하면 설계 변경으로).
 - 화면 이동: `/login`, `/`(탭 셸), `/web?path=<경로>`. 탭은 `IndexedStack`으로 상태 유지.
 - 상태: 세션(로그인 사용자·역할·권한)은 앱 전역 provider 하나. 기능별 상태는 그 기능 폴더 안에만.
 - 기기 저장(`shared_preferences`): 뭐 먹지 위치·필터, 법카 보유자 명단 — 웹 localStorage와 같은 역할, 기기별이며 웹과 동기화하지 않는다(웹도 그렇다).
