@@ -86,6 +86,30 @@ void main() {
     expect(find.byType(FanItem), findsNothing);
   });
 
+  testWidgets('하위 메뉴는 왼쪽부터 시간차를 두고 하나씩 펼쳐지고, 접힐 때는 역순으로 접힌다', (tester) async {
+    await pumpShell(tester, user);
+    await tester.tap(tab('업무'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    double op(int i) => tester.widget<Opacity>(find.ancestor(of: find.byType(FanItem).at(i), matching: find.byType(Opacity)).first).opacity;
+    final n = tester.widgetList(find.byType(FanItem)).length;
+    expect(n, greaterThanOrEqualTo(4));
+    expect(op(0), greaterThan(0.5)); // 첫 항목은 거의 다 나옴
+    expect(op(n - 1), lessThan(0.5)); // 마지막 항목은 아직
+    expect(op(0), greaterThan(op(1)));
+    await tester.pumpAndSettle();
+    expect(op(0), 1);
+    expect(op(n - 1), 1);
+
+    await tester.tapAt(const Offset(400, 60)); // 바깥 → 접힘 시작
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160)); // 접힘 322ms의 절반(easeOutBack 되돌림은 끝 40%가 1 이상이라 더 뒤에서 본다)
+    expect(find.byType(FanItem), findsNWidgets(n)); // 아직 접히는 중
+    expect(op(n - 1), lessThan(op(0))); // 마지막 항목부터 사라진다
+    await tester.pumpAndSettle();
+    expect(find.byType(FanItem), findsNothing);
+  });
+
   testWidgets('볼 수 있는 페이지가 없는 그룹은 탭에서 빠진다', (tester) async {
     await pumpShell(tester, AppSession(email: 'u@innogrid.com', role: 'user', permissions: const {'usage_code': false, 'usage_chat': false, 'usage_perf': false}));
     expect(tab('AI'), findsNothing);
