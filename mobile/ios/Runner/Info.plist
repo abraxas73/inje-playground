@@ -43,6 +43,8 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>주변 식당·카페를 찾기 위해 현재 위치를 사용합니다. 백그라운드 위치는 쓰지 않습니다.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>주변 식당·카페를 찾기 위해 현재 위치를 사용합니다.</string>
 	<key>UIApplicationSceneManifest</key>
