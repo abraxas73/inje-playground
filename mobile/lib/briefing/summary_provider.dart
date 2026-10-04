@@ -16,7 +16,8 @@ class BriefingSummary {
 final summaryProvider = AsyncNotifierProvider<SummaryNotifier, BriefingSummary?>(SummaryNotifier.new);
 
 class SummaryNotifier extends AsyncNotifier<BriefingSummary?> {
-  static const _key = 'briefing.summary';
+  // v2: 1.1.2 이전 서버가 생각 토큰에 밀려 잘린 문장("강승")을 저장했다 — 키를 바꿔 그날 것도 한 번 새로 만든다
+  static const _key = 'briefing.summary.v2';
   Future<void>? _inflight;
 
   @override
@@ -31,9 +32,9 @@ class SummaryNotifier extends AsyncNotifier<BriefingSummary?> {
     return s != null && s.date == ymd(kstNow()) ? s : null;
   }
 
-  /// 오늘 문장이 없으면 만든다(force면 있어도). 동시 호출은 한 번만 간다.
-  Future<void> ensure(BriefingData data, {bool force = false}) async {
-    if (!force && state.value?.date == ymd(kstNow())) return;
+  /// 오늘 문장이 없으면 만든다 — 하루 1회(새로고침·탭 재터치로는 다시 만들지 않는다). 동시 호출은 한 번만 간다.
+  Future<void> ensure(BriefingData data) async {
+    if (state.value?.date == ymd(kstNow())) return;
     if (_inflight != null) return _inflight;
     final run = _generate(data);
     _inflight = run;

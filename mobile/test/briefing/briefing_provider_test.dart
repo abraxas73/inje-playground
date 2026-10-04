@@ -100,7 +100,7 @@ void main() {
       expect(d.mentions!.connected, isFalse, reason: '$code');
     }
   });
-  test('요약: 오늘 캐시가 없으면 서버에 payload를 보내 저장하고, 같은 날 다시 ensure해도 호출하지 않는다; force면 다시', () async {
+  test('요약: 오늘 캐시가 없으면 서버에 payload를 보내 저장하고, 같은 날에는 새로고침해도 다시 호출하지 않는다', () async {
     final app = AppApi({'/api/mobile/briefing': (200, {'enabled': true, 'text': '오늘 10시 주간회의가 있습니다.', 'model': 'm', 'at': 'x'})});
     final c = scope(gw: gwRoutes(gwAll), api: app.client);
     final d = await c.read(briefingProvider.future);
@@ -111,11 +111,19 @@ void main() {
     expect((app.bodies['/api/mobile/briefing'] as Map)['name'], isNotNull);
     expect((app.bodies['/api/mobile/briefing'] as Map).containsKey('meetings'), isTrue);
     await c.read(summaryProvider.notifier).ensure(d);
+    await c.read(briefingProvider.notifier).refresh(); // 새로고침해도 같은 날이면 다시 만들지 않는다
+    await c.read(summaryProvider.notifier).ensure(await c.read(briefingProvider.future));
     expect(app.calls['/api/mobile/briefing'], 1);
-    await c.read(summaryProvider.notifier).ensure(d, force: true);
-    expect(app.calls['/api/mobile/briefing'], 2);
-    final saved = jsonDecode((await SharedPreferences.getInstance()).getString('briefing.summary')!) as Map;
+    final saved = jsonDecode((await SharedPreferences.getInstance()).getString('briefing.summary.v2')!) as Map;
     expect(saved['text'], '오늘 10시 주간회의가 있습니다.');
+  });
+  test('요약: 옛 키(briefing.summary)에 남은 오늘 문장은 쓰지 않는다 — 1.1.2 이전 잘린 문장을 버리고 한 번 새로 만든다', () async {
+    SharedPreferences.setMockInitialValues({'briefing.summary': jsonEncode({'date': ymd(kstNow()), 'text': '강승', 'at': '22:59'})});
+    final app = AppApi({'/api/mobile/briefing': (200, {'enabled': true, 'text': '새 문장입니다.', 'model': 'm', 'at': 'x'})});
+    final c = scope(gw: gwRoutes(gwAll), api: app.client);
+    expect(await c.read(summaryProvider.future), isNull);
+    await c.read(summaryProvider.notifier).ensure(await c.read(briefingProvider.future));
+    expect(c.read(summaryProvider).value!.text, '새 문장입니다.');
   });
   test('요약: 서버가 enabled:false거나 실패하면 null 유지, 캐시가 어제 것이면 무시', () async {
     SharedPreferences.setMockInitialValues({'briefing.summary': jsonEncode({'date': '20000101', 'text': '옛날', 'at': '00:00'})});

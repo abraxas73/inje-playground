@@ -19,7 +19,7 @@ import 'greeting.dart';
 import 'quotes.dart';
 
 /// 홈 = 오늘의 브리핑. 인사말 → 오늘의 한 마디(Claude, 없으면 격언) → 지금 필요한 것 → 일정 → 팀원 부재 → 결재 → 메일 → Teams → 공지 → 바로 가기·사내 서비스.
-/// 수집은 홈을 열 때·홈 탭을 다시 누를 때·당겨서 새로고침. Claude 문장은 하루 1회(summaryProvider).
+/// 수집은 홈을 열 때·홈 탭을 다시 누를 때·당겨서 새로고침. Claude 문장은 하루 1회(summaryProvider, 다시 만들기 없음).
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key, this.now});
   final DateTime? now; // 테스트에서 고정
@@ -42,13 +42,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _refresh() => ref.read(briefingProvider.notifier).refresh(name: ref.read(sessionProvider).asData?.value?.name);
 
   /// Claude "오늘의 한 마디". 아마란스가 연결돼 있을 때만 — 미연결이면 payload가 비어 오해를 부르는 문장이 되므로 격언을 유지한다(스펙: 미연결 시 2~9 대신 연결 카드).
-  Future<void> _summary(BriefingData d, {bool force = false}) async {
+  Future<void> _summary(BriefingData d) async {
     if (ref.read(gwProvider).value?.status != GwStatus.connected) return;
     final name = ref.read(sessionProvider).asData?.value?.name;
     if (name != null && name.isNotEmpty) d.name = name; // 첫 수집 때 세션이 아직 없었어도 payload에는 이름을 싣는다
     setState(() => _summaryBusy = true);
     try {
-      await ref.read(summaryProvider.notifier).ensure(d, force: force);
+      await ref.read(summaryProvider.notifier).ensure(d);
     } finally {
       if (mounted) setState(() => _summaryBusy = false);
     }
@@ -84,7 +84,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const SizedBox(height: 4),
             Text(g.subtitle, style: theme.textTheme.bodySmall),
             const SizedBox(height: 16),
-            SummaryCard(quote: q, summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at), busy: _summaryBusy, onRefresh: () { if (data != null) _summary(data, force: true); }),
+            SummaryCard(quote: q, summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at), busy: _summaryBusy),
             if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(top: 14), child: LinearProgressIndicator(minHeight: 2)),
             if (gw != null && gw.status != GwStatus.connected)
               GwConnectCard(relogin: gw.status == GwStatus.needsRelogin, onConnect: () => context.push('/gw/connect'))

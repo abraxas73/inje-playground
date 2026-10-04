@@ -9,18 +9,17 @@ Widget wrap(Widget w) => MaterialApp(home: Scaffold(body: SingleChildScrollView(
 final now = DateTime(2026, 10, 5, 8, 40);
 
 void main() {
-  testWidgets('SummaryCard — 문장이 없으면 격언, 있으면 문장과 시각, ↻는 onRefresh', (tester) async {
-    var hits = 0;
+  testWidgets('SummaryCard — 문장이 없으면 격언, 있으면 문장과 시각; 다시 만들기 버튼은 없다(하루 1회)', (tester) async {
     final q = dailyQuote(now);
-    await tester.pumpWidget(wrap(SummaryCard(quote: q, summary: null, onRefresh: () => hits++)));
+    await tester.pumpWidget(wrap(SummaryCard(quote: q, summary: null)));
     expect(find.text(q.text), findsOneWidget);
     expect(find.text('오늘의 한 줄'), findsOneWidget);
-    await tester.pumpWidget(wrap(SummaryCard(quote: q, summary: const SummaryText(text: '오늘 10시 주간회의가 있습니다.', at: '08:40'), onRefresh: () => hits++)));
+    await tester.pumpWidget(wrap(SummaryCard(quote: q, summary: const SummaryText(text: '오늘 10시 주간회의가 있습니다.', at: '08:40'))));
     expect(find.text('오늘 10시 주간회의가 있습니다.'), findsOneWidget);
     expect(find.textContaining('Claude · 08:40'), findsOneWidget);
     expect(find.text('오늘의 한 마디'), findsOneWidget);
-    await tester.tap(find.byTooltip('다시 만들기'));
-    expect(hits, 1);
+    expect(find.byIcon(Icons.refresh), findsNothing);
+    expect(find.byTooltip('다시 만들기'), findsNothing);
   });
   testWidgets('FocusSection — 항목마다 이동 버튼, 없으면 안내 한 줄', (tester) async {
     await tester.pumpWidget(wrap(FocusSection(items: const [FocusItem(icon: Icons.event, text: '09:30 주간회의', route: '/gw/today')], onOpen: (_) {})));

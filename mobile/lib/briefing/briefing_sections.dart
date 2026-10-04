@@ -12,18 +12,17 @@ class SummaryText {
   final String text, at;
 }
 
-/// 네이비 카드: Claude 문장이 있으면 "오늘의 한 마디", 없으면 기존 격언 "오늘의 한 줄".
+/// 네이비 카드: Claude 문장이 있으면 "오늘의 한 마디", 없으면 기존 격언 "오늘의 한 줄". 하루 1회만 바뀐다(다시 만들기 버튼 없음).
 class SummaryCard extends StatelessWidget {
-  const SummaryCard({super.key, required this.quote, required this.summary, required this.onRefresh, this.busy = false});
+  const SummaryCard({super.key, required this.quote, required this.summary, this.busy = false});
   final Quote quote;
   final SummaryText? summary;
-  final VoidCallback onRefresh;
   final bool busy;
   @override
   Widget build(BuildContext context) {
     final s = summary;
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 12, 10, 14),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
       decoration: BoxDecoration(color: Brand.navy, borderRadius: BorderRadius.circular(16)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -31,12 +30,9 @@ class SummaryCard extends StatelessWidget {
           const SizedBox(width: 6),
           Text(s == null ? '오늘의 한 줄' : '오늘의 한 마디', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.3, color: Brand.sky)),
           const Spacer(),
-          if (busy)
-            const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Brand.sky)))
-          else
-            IconButton(icon: const Icon(Icons.refresh, size: 18, color: Brand.sky), tooltip: '다시 만들기', onPressed: onRefresh),
+          if (busy) const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Brand.sky)),
         ]),
-        const SizedBox(height: 4),
+        const SizedBox(height: 10),
         Text(s?.text ?? quote.text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.5, color: Colors.white)),
         const SizedBox(height: 8),
         Align(alignment: Alignment.centerRight, child: Text(s == null ? '— ${quote.source}' : 'Claude · ${s.at}', style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.6)))),
