@@ -7,8 +7,10 @@ import 'package:playground/api/client.dart';
 import 'package:playground/app/router.dart';
 import 'package:playground/app/tab_shell.dart';
 import 'package:playground/auth/session.dart';
+import 'package:playground/gw/gw_creds.dart';
 import 'package:playground/features/ladder/ladder_screen.dart';
 import '../auth/fake_auth.dart';
+import '../gw/fakes.dart';
 
 class _Tokens implements TokenSource {
   @override
@@ -28,6 +30,7 @@ Future<void> pumpShell(WidgetTester tester, AppSession user) async {
     authClientProvider.overrideWithValue(auth),
     sessionFetcherProvider.overrideWithValue((_, {required record}) async => user),
     apiClientProvider.overrideWithValue(api),
+    gwStoreProvider.overrideWithValue(FakeGwStore()),
   ], child: MaterialApp.router(routerConfig: router)));
   await tester.pumpAndSettle();
 }
@@ -47,7 +50,7 @@ void main() {
 
   testWidgets('하단 바는 홈·일상·AI·업무·더보기 — 하위 메뉴는 접혀 있다', (tester) async {
     await pumpShell(tester, user);
-    for (final l in ['홈', '일상', 'AI', '업무', '더보기']) {
+    for (final l in ['홈', '일상', 'AI', '업무', '아마란스', '더보기']) {
       expect(tab(l), findsOneWidget, reason: l);
     }
     expect(find.byType(FanItem), findsNothing);
@@ -114,6 +117,19 @@ void main() {
     expect(find.byType(FanItem), findsNWidgets(n)); // 아직 접히는 중
     expect(op(n - 1), lessThan(op(0))); // 마지막 항목부터 사라진다
     await tester.pumpAndSettle();
+    expect(find.byType(FanItem), findsNothing);
+  });
+
+  testWidgets('아마란스 그룹의 항목은 네이티브 화면으로 push된다(WebView 아님)', (tester) async {
+    await pumpShell(tester, user);
+    await tester.tap(tab('아마란스'));
+    await tester.pumpAndSettle();
+    for (final l in ['미결 결재', '출퇴근', '오늘 일정', '메일']) {
+      expect(fanItem(l), findsOneWidget, reason: l);
+    }
+    await tester.tap(fanItem('출퇴근'));
+    await tester.pumpAndSettle();
+    expect(find.text('아마란스 연결하기'), findsOneWidget); // 미연결 → GwGate 안내
     expect(find.byType(FanItem), findsNothing);
   });
 

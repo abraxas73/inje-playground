@@ -23,6 +23,7 @@ const _groupIcons = <String, (IconData, IconData)>{
   'daily': (Icons.groups_outlined, Icons.groups),
   'ai': (Icons.auto_awesome_outlined, Icons.auto_awesome),
   'work': (Icons.work_outline, Icons.work),
+  'gw': (Icons.apartment_outlined, Icons.apartment),
 };
 
 class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderStateMixin {
@@ -72,7 +73,8 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
     final b = nativeBranch[p.key];
     if (b != null) return _goBranch(b);
     _close();
-    context.push('/web?path=${Uri.encodeComponent(p.href)}');
+    // 앱 전용 네이티브 화면(/gw/*)은 그대로 push, 나머지는 WebView
+    context.push(p.href.startsWith('/gw/') ? p.href : '/web?path=${Uri.encodeComponent(p.href)}');
   }
 
   @override

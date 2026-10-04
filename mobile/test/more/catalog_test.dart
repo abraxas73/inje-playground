@@ -22,4 +22,10 @@ void main() {
     expect(visibleAdminPages(s('admin')).map((e) => e.href), contains('/admin/ppt'));
     expect(visibleAdminPages(s('user')), isEmpty);
   });
+  test('앱 전용 항목(appPages)은 그룹에는 나오지만 웹 서비스 목록(visiblePages)에는 섞이지 않는다', () {
+    expect(visiblePages(s('user')).any((p) => p.group == 'gw'), false);
+    final groups = visibleGroups(s('user'));
+    expect(groups.map((g) => g.$1.id), ['daily', 'ai', 'work', 'gw']);
+    expect(groups.last.$2.map((p) => p.href), ['/gw/approvals', '/gw/attendance', '/gw/today', '/gw/mail']);
+  });
 }

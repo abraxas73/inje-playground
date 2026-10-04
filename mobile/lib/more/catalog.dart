@@ -12,7 +12,15 @@ class PageGroup {
   final String id, label;
 }
 
-const pageGroups = <PageGroup>[PageGroup('daily', '일상'), PageGroup('ai', 'AI'), PageGroup('work', '업무')];
+const pageGroups = <PageGroup>[PageGroup('daily', '일상'), PageGroup('ai', 'AI'), PageGroup('work', '업무'), PageGroup('gw', '아마란스')];
+
+/// 앱 전용 네이티브 항목(웹 카탈로그에 없음). 하단 바 그룹에만 나오고 사내 서비스 카드(visiblePages)에는 섞이지 않는다.
+const appPages = <PageEntry>[
+  PageEntry('gw_approvals', '/gw/approvals', '미결 결재', 'gw', 'user'),
+  PageEntry('gw_attendance', '/gw/attendance', '출퇴근', 'gw', 'user'),
+  PageEntry('gw_today', '/gw/today', '오늘 일정', 'gw', 'user'),
+  PageEntry('gw_mail', '/gw/mail', '메일', 'gw', 'user'),
+];
 
 const pages = <PageEntry>[
   PageEntry('food', '/food', '뭐 먹지', 'daily', 'guest'),
@@ -60,8 +68,11 @@ bool canUsePage(AppSession s, PageEntry p) {
 List<PageEntry> visiblePages(AppSession s) => pages.where((p) => canUsePage(s, p)).toList();
 List<PageEntry> visibleAdminPages(AppSession s) => s.isAdmin ? adminPages : const [];
 
-/// 그룹별로 볼 수 있는 페이지. 빈 그룹은 하단 바에서 뺀다(웹과 같은 규칙).
-List<(PageGroup, List<PageEntry>)> visibleGroups(AppSession s) => [
-      for (final g in pageGroups)
-        if (visiblePages(s).where((p) => p.group == g.id) case final ps when ps.isNotEmpty) (g, ps.toList()),
-    ];
+/// 그룹별로 볼 수 있는 페이지(웹 카탈로그 + 앱 전용). 빈 그룹은 하단 바에서 뺀다(웹과 같은 규칙).
+List<(PageGroup, List<PageEntry>)> visibleGroups(AppSession s) {
+  final all = [...visiblePages(s), ...appPages.where((p) => canUsePage(s, p))];
+  return [
+    for (final g in pageGroups)
+      if (all.where((p) => p.group == g.id) case final ps when ps.isNotEmpty) (g, ps.toList()),
+  ];
+}

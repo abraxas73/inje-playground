@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:playground/app/router.dart';
 import 'package:playground/auth/session.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'auth/fake_auth.dart';
 
 void main() {
+  SharedPreferences.setMockInitialValues({}); // 홈 카드(아마란스 상태)가 저장소를 읽는다
   testWidgets('로그아웃 → 다시 로그인(/login → /splash → /food)에서 탭 셸이 다시 그려진다', (tester) async {
     final user = AppSession(email: 'u@innogrid.com', role: 'user', permissions: const {});
     final session = ValueNotifier<AsyncValue<AppSession?>>(AsyncValue.data(user));

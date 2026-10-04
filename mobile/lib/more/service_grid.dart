@@ -19,6 +19,10 @@ const serviceMeta = <String, (IconData, String)>{
   'ppt': (Icons.slideshow_outlined, '원고 → 표준 템플릿'),
   'people_news': (Icons.newspaper_outlined, '인사·부고 소식'),
   'marketing': (Icons.campaign_outlined, 'Master DB 조회'),
+  'gw_approvals': (Icons.fact_check_outlined, '미결 문서'),
+  'gw_attendance': (Icons.timer_outlined, '출근·퇴근 기록'),
+  'gw_today': (Icons.event_outlined, '일정·회의실'),
+  'gw_mail': (Icons.mail_outline, '받은메일 미읽음'),
 };
 const nativeTabKeys = {'food', 'ladder', 'team'};
 /// 홈 "바로 가기"에 따로 나오는 것(네이티브 탭 3개 + Teams 채팅) — 사내 서비스 그리드에서는 뺀다.
