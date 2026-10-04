@@ -19,6 +19,7 @@
 
 ## B. Apple — 한 번만 (약 30분 + 심사 대기 하루 안팎)
 사용 계정: 개인 Apple Developer 계정(팀 `LME2TNRC9G`, 이 Mac에 Apple Distribution 인증서 있음).
+**화면별 상세 안내(입력값·메뉴 경로·막힐 때): `docs/app-store-connect-guide.md`.**
 
 - [ ] **B1. 번들 ID 등록** — https://developer.apple.com/account → Certificates, Identifiers & Profiles → **Identifiers** → `+` → App IDs → App → Description `Innogrid App`, Bundle ID **Explicit** `com.innogrid.playground` → Register. 이미 목록에 있으면(Xcode가 기기 실행 때 등록했을 수 있음) 건너뛴다.
 - [ ] **B2. 앱 생성** — https://appstoreconnect.apple.com → 나의 앱 → `+` → 신규 앱: 플랫폼 iOS, 이름 `이노그리드`, 기본 언어 한국어, 번들 ID에서 B1 항목 선택, SKU `innogrid-app`, 사용자 액세스 전체 → 생성.
