@@ -65,6 +65,7 @@
 | Android에서 APK 설치 시 "앱이 설치되지 않았습니다" / 서명 불일치 | 기존 설치와 서명 키가 다름(디버그 빌드 위에 릴리스, 또는 키스토어 분실) | 기존 앱 삭제 후 설치. 키스토어는 1Password 백업본을 `mobile/android/`에 복원 |
 | 홈 "오늘의 한 마디"가 계속 격언 | 설정 off, 서버 `ANTHROPIC_API_KEY` 없음, 또는 오늘 이미 실패해 조용히 격언 유지 | `/admin/settings` 스위치·Vercel env 확인 → 카드 ↻. 감사 로그 "모바일 브리핑 생성"이 없으면 서버까지 못 간 것(앱 로그인·네트워크) |
 | 팀원 연차가 "오늘 일정"에 내 일정처럼 보임 | 아마란스가 `delYn='Y'`(mine)를 팀원 근태에도 준다 | 제목·캘린더명 키워드로 분류한다(`absenceKind`). 새 표현(예: "휴무")이 보이면 `_absenceWords`에 추가 |
+| Android에서 WebView 화면(설정 등)에 들어간 뒤 ←로 못 나감(같은 페이지가 다시 뜨거나 로그인 페이지가 보임) | 첫 로드(`/settings` → 307 `/login`)를 가로채도 Android WebView는 `/login`을 히스토리에 남겨 `canGoBack()`이 true — `goBack()`은 그 유령 항목을 실제로 연다(iOS WKWebView는 안 남김). `goBack`은 `onNavigationRequest`를 거치지 않는다 | `WebScreen`이 뒤로 가기 직후 `onPageStarted`가 `/login`·`/auth/mobile`(`isSessionBoundary`)이면 화면을 닫는다(`BackTracker`, 1.1.1). 재현은 가짜 서버 + `lib/_probe_main.dart`식 프로브(런북 §실기기 체크리스트 참고) |
 
 ## 홈 브리핑 (2026-10-04)
 스펙 `docs/superpowers/specs/2026-10-04-mobile-briefing-design.md`. 홈 탭 = 오늘의 브리핑: 인사말 → **오늘의 한 마디**(Claude Sonnet 5.5 2~3문장, 하루 1회 기기 캐시 `briefing.summary`, ↻로 재생성; 꺼져 있거나 실패하면 기존 격언) → **지금 필요한 것**(규칙: 90분 안 회의 → 안 읽음·2일 이상 결재 → Teams 답장 대기 → 오늘 안 읽은 메일 → 09:30 이후 출근 미기록 → 새 공지, 최대 4) → 오늘 일정(내일 N건) → **팀원 부재**(남의 일정 중 연차·반차·휴가·병가·출장·외근·재택·교육·경조 키워드 — 아마란스 `mine` 플래그에 팀원 근태가 섞여 오는 문제의 답) → 결재 3 → 메일 3 → Teams 3 → 공지 3 → 바로 가기. 코드 `mobile/lib/briefing/`(순수 `briefing_model.dart`, 수집 `briefing_provider.dart`, 요약 `summary_provider.dart`, 위젯 `briefing_sections.dart`).

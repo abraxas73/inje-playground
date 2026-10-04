@@ -28,6 +28,7 @@ class _WebScreenState extends ConsumerState<WebScreen> {
   // 오류는 바로 보여 주지 않는다 — 가로챈 내비게이션 뒤 곧바로 새 로드가 시작되면(seq 증가) 그 오류는 버린다.
   int _loadSeq = 0;
   Timer? _errTimer;
+  final _back = BackTracker();
 
   @override
   void initState() {
@@ -36,7 +37,13 @@ class _WebScreenState extends ConsumerState<WebScreen> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(NavigationDelegate(
         onNavigationRequest: _onNav,
-        onPageStarted: (_) {
+        onPageStarted: (u) {
+          if (!mounted) return;
+          // 뒤로 가다가 /login·/auth/mobile에 닿으면 세션 시작점(첫 로드의 유령 항목) — 부트스트랩을 또 하지 말고 화면을 닫는다
+          if (_back.consume() && isSessionBoundary(u, appOrigin: _origin)) {
+            if (mounted) Navigator.of(context).pop();
+            return;
+          }
           _loadSeq++;
           _errTimer?.cancel();
           setState(() { _loading = true; _error = null; });
@@ -127,6 +134,7 @@ class _WebScreenState extends ConsumerState<WebScreen> {
         onPopInvokedWithResult: (didPop, _) async {
           if (didPop) return;
           if (await _c.canGoBack()) {
+            _back.begin();
             _c.goBack();
           } else if (context.mounted) {
             Navigator.of(context).pop();

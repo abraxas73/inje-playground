@@ -23,6 +23,25 @@ void main() {
     g.reset();
     expect(g.tryBegin(), true);
   });
+  test('isSessionBoundary — /login·/auth/mobile(우리 오리진)만 세션 시작점, 다른 페이지·다른 호스트는 아니다', () {
+    expect(isSessionBoundary('https://inje-playground.vercel.app/login', appOrigin: origin), true);
+    expect(isSessionBoundary('https://inje-playground.vercel.app/login?next=%2Fsettings', appOrigin: origin), true);
+    expect(isSessionBoundary('https://inje-playground.vercel.app/auth/mobile?next=%2Fsettings', appOrigin: origin), true);
+    expect(isSessionBoundary('https://inje-playground.vercel.app/settings', appOrigin: origin), false);
+    expect(isSessionBoundary('https://login.microsoftonline.com/x', appOrigin: origin), false);
+    expect(isSessionBoundary(null, appOrigin: origin), false);
+  });
+  test('BackTracker — 뒤로 가기 직후(3초 안) 첫 페이지 시작만 "뒤로 가는 중"으로 판정하고, 오래됐거나 이미 소비했으면 아니다', () {
+    var t = DateTime(2026, 10, 5, 9);
+    final b = BackTracker(now: () => t);
+    expect(b.consume(), false); // 뒤로 간 적 없음
+    b.begin();
+    expect(b.consume(), true);
+    expect(b.consume(), false); // 한 번만
+    b.begin();
+    t = t.add(const Duration(seconds: 4));
+    expect(b.consume(), false); // 오래됨
+  });
   test('취소된 내비게이션 오류(-999·Frame load interrupted 102·cancelled)는 오류로 보여 주지 않는다', () {
     expect(isIgnorableWebError(code: -999, description: 'cancelled'), true);
     expect(isIgnorableWebError(code: 102, description: 'Frame load interrupted'), true);

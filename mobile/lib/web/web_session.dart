@@ -51,3 +51,25 @@ bool isIgnorableWebError({required int code, required String description}) {
 
 /// 머리 제목: 페이지 제목이 있으면 그것, 로딩 중이면 "로딩 중…", 아니면 경로.
 String webTitleFor({required String title, required bool loading, required String path}) => title.isNotEmpty ? title : (loading ? '로딩 중…' : path);
+
+/// 뒤로 가다가 닿으면 "세션 시작점을 지난 것"인 페이지 — /login(세션 없음)·/auth/mobile(부트스트랩). 여기 닿으면 WebView 안에서 더 뒤로 갈 곳이 없으니 화면을 닫는다.
+/// Android WebView는 첫 로드에서 가로챈(/settings → 307 /login) 내비게이션을 히스토리에 남겨 canGoBack()이 true가 되고, goBack()은 그 /login을 실제로 연다(실기기 실측 2026-10-04).
+bool isSessionBoundary(String? url, {required Uri appOrigin}) {
+  final u = url == null ? null : Uri.tryParse(url);
+  if (u == null || u.host != appOrigin.host) return false;
+  return u.path == '/login' || u.path.startsWith('/login/') || u.path == '/auth/mobile';
+}
+
+/// "방금 뒤로 가기를 눌렀다"를 다음 페이지 시작 한 번에만 전달한다. 히스토리 이동(goBack)은 onNavigationRequest를 거치지 않으므로 onPageStarted에서 쓴다.
+class BackTracker {
+  BackTracker({DateTime Function()? now}) : _now = now ?? DateTime.now;
+  final DateTime Function() _now;
+  static const window = Duration(seconds: 3);
+  DateTime? _at;
+  void begin() => _at = _now();
+  bool consume() {
+    final at = _at;
+    _at = null;
+    return at != null && _now().difference(at) <= window;
+  }
+}
