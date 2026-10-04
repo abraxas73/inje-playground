@@ -1,0 +1,215 @@
+import 'package:flutter/material.dart';
+import '../app/brand.dart';
+import '../app/theme.dart';
+import '../features/home/quotes.dart';
+import '../gw/gw_models.dart';
+import 'briefing_model.dart';
+
+/// 홈 브리핑 섹션 위젯 — 데이터만 받아 그린다(상태·네트워크 없음). 데이터가 비면 SizedBox.shrink().
+
+class SummaryText {
+  const SummaryText({required this.text, required this.at});
+  final String text, at;
+}
+
+/// 네이비 카드: Claude 문장이 있으면 "오늘의 한 마디", 없으면 기존 격언 "오늘의 한 줄".
+class SummaryCard extends StatelessWidget {
+  const SummaryCard({super.key, required this.quote, required this.summary, required this.onRefresh, this.busy = false});
+  final Quote quote;
+  final SummaryText? summary;
+  final VoidCallback onRefresh;
+  final bool busy;
+  @override
+  Widget build(BuildContext context) {
+    final s = summary;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 12, 10, 14),
+      decoration: BoxDecoration(color: Brand.navy, borderRadius: BorderRadius.circular(16)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(s == null ? Icons.format_quote_rounded : Icons.auto_awesome, size: 18, color: Brand.sky),
+          const SizedBox(width: 6),
+          Text(s == null ? '오늘의 한 줄' : '오늘의 한 마디', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.3, color: Brand.sky)),
+          const Spacer(),
+          if (busy)
+            const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Brand.sky)))
+          else
+            IconButton(icon: const Icon(Icons.refresh, size: 18, color: Brand.sky), tooltip: '다시 만들기', onPressed: onRefresh),
+        ]),
+        const SizedBox(height: 4),
+        Text(s?.text ?? quote.text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.5, color: Colors.white)),
+        const SizedBox(height: 8),
+        Align(alignment: Alignment.centerRight, child: Text(s == null ? '— ${quote.source}' : 'Claude · ${s.at}', style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.6)))),
+      ]),
+    );
+  }
+}
+
+class _Section extends StatelessWidget {
+  const _Section({required this.title, required this.child, this.trailing});
+  final String title;
+  final Widget child;
+  final Widget? trailing;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(padding: const EdgeInsets.only(left: 4, bottom: 6), child: Row(children: [Text(title, style: Theme.of(context).textTheme.titleSmall), const Spacer(), ?trailing])),
+          Card(child: child),
+        ]),
+      );
+}
+
+Widget _more(String label, VoidCallback onTap) => TextButton(onPressed: onTap, child: Text(label));
+
+/// 소스 실패 한 줄 — 누르면 전체 재수집.
+class RetryLine extends StatelessWidget {
+  const RetryLine({super.key, required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: Row(children: [
+          const Icon(Icons.error_outline, size: 16, color: Brand.dangerText),
+          const SizedBox(width: 6),
+          Text('$label을(를) 불러오지 못했습니다', style: const TextStyle(fontSize: 12, color: Brand.dangerText)),
+          const Spacer(),
+          TextButton(onPressed: onTap, child: const Text('다시 시도')),
+        ]),
+      );
+}
+
+/// 아마란스 미연결·만료 안내(옛 GwTodayCard의 것).
+class GwConnectCard extends StatelessWidget {
+  const GwConnectCard({super.key, required this.relogin, required this.onConnect});
+  final bool relogin;
+  final VoidCallback? onConnect;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 14),
+        child: Card(
+          child: ListTile(
+            leading: const TintIcon(Icons.apartment_outlined, size: 40),
+            title: Text(relogin ? '아마란스 로그인이 만료되었습니다' : '아마란스를 연결하세요'),
+            subtitle: Text(relogin ? '다시 연결하면 이어서 봅니다' : '일정·결재·메일·공지를 브리핑으로 봅니다', style: Theme.of(context).textTheme.bodySmall),
+            trailing: FilledButton(onPressed: onConnect, child: Text(relogin ? '다시 연결' : '연결하기')),
+          ),
+        ),
+      );
+}
+
+class FocusSection extends StatelessWidget {
+  const FocusSection({super.key, required this.items, required this.onOpen});
+  final List<FocusItem> items;
+  final void Function(String route) onOpen;
+  @override
+  Widget build(BuildContext context) => _Section(
+        title: '지금 필요한 것',
+        child: items.isEmpty
+            ? const Padding(padding: EdgeInsets.all(14), child: Text('지금 당장 처리할 것은 없습니다', style: TextStyle(fontSize: 13, color: Brand.muted)))
+            : Column(children: [
+                for (final (i, it) in items.indexed) ...[
+                  if (i > 0) const Divider(height: 1),
+                  ListTile(dense: true, leading: TintIcon(it.icon, size: 32, background: Brand.blueTint, color: Brand.navy), title: Text(it.text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)), trailing: const Icon(Icons.chevron_right, color: Brand.faint), onTap: () => onOpen(it.route)),
+                ],
+              ]),
+      );
+}
+
+class MeetingsSection extends StatelessWidget {
+  const MeetingsSection({super.key, required this.meetings, required this.tomorrowCount, required this.onMore});
+  final List<GwEvent> meetings;
+  final int tomorrowCount;
+  final VoidCallback onMore;
+  @override
+  Widget build(BuildContext context) {
+    if (meetings.isEmpty && tomorrowCount == 0) return const SizedBox.shrink();
+    final shown = meetings.take(6).toList();
+    final rest = meetings.length - shown.length;
+    return _Section(
+      title: '오늘 일정',
+      trailing: _more('일정', onMore),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        for (final e in shown)
+          ListTile(dense: true, leading: SizedBox(width: 52, child: Text(e.allDay ? '종일' : hm(e.start), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.navy))), title: Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: e.place.isEmpty ? null : Text(e.place, style: const TextStyle(fontSize: 12))),
+        if (rest > 0 || tomorrowCount > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+            child: Row(children: [if (rest > 0) Text('$rest개 더', style: const TextStyle(fontSize: 12, color: Brand.muted)), const Spacer(), if (tomorrowCount > 0) Text('내일 $tomorrowCount건', style: const TextStyle(fontSize: 12, color: Brand.muted))]),
+          ),
+      ]),
+    );
+  }
+}
+
+class AbsenceSection extends StatelessWidget {
+  const AbsenceSection({super.key, required this.absences});
+  final List<Absence> absences;
+  @override
+  Widget build(BuildContext context) => absences.isEmpty
+      ? const SizedBox.shrink()
+      : _Section(
+          title: '팀원 부재',
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+            child: Wrap(spacing: 8, runSpacing: 8, children: [for (final a in absences) Chip(avatar: InitialBadge(a.who, size: 22, circle: true), label: Text('${a.who} · ${a.kind.label}'))]),
+          ),
+        );
+}
+
+class ApprovalsSection extends StatelessWidget {
+  const ApprovalsSection({super.key, required this.total, required this.items, required this.now, required this.onMore});
+  final int total;
+  final List<PendingApproval> items;
+  final DateTime now;
+  final VoidCallback onMore;
+  @override
+  Widget build(BuildContext context) => items.isEmpty
+      ? const SizedBox.shrink()
+      : _Section(
+          title: '미결 결재 $total',
+          trailing: _more('더 보기', onMore),
+          child: Column(children: [
+            for (final a in items.take(3))
+              ListTile(dense: true, leading: InitialBadge(a.drafter, size: 32, circle: true), title: Text(a.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: a.unread ? FontWeight.w700 : FontWeight.w500)), subtitle: Text('${a.drafter} · ${a.form}', style: const TextStyle(fontSize: 12)), trailing: Text(a.waitingDays(now) == null ? '' : '${a.waitingDays(now)}일째', style: const TextStyle(fontSize: 12, color: Brand.muted))),
+          ]),
+        );
+}
+
+class MailsSection extends StatelessWidget {
+  const MailsSection({super.key, required this.items, required this.unreadTotal, required this.onMore});
+  final List<MailItem> items;
+  final int unreadTotal;
+  final VoidCallback onMore;
+  @override
+  Widget build(BuildContext context) {
+    final unread = items.where((m) => !m.seen).take(3).toList();
+    if (unread.isEmpty) return const SizedBox.shrink();
+    return _Section(
+      title: '안 읽은 메일 $unreadTotal',
+      trailing: _more('더 보기', onMore),
+      child: Column(children: [
+        for (final m in unread) ListTile(dense: true, leading: InitialBadge(m.fromName, size: 32, circle: true), title: Text(m.subject, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text('${m.fromName} · ${niceDate(m.tooltip.isNotEmpty ? m.tooltip : m.date)}', style: const TextStyle(fontSize: 12))),
+      ]),
+    );
+  }
+}
+
+class TeamsSection extends StatelessWidget {
+  const TeamsSection({super.key, required this.mentions, required this.onOpen});
+  final TeamsMentions? mentions;
+  final VoidCallback onOpen;
+  @override
+  Widget build(BuildContext context) {
+    final m = mentions;
+    if (m == null || !m.connected || m.items.isEmpty) return const SizedBox.shrink();
+    return _Section(
+      title: 'Teams 답장 대기 ${m.items.length}',
+      trailing: _more('Teams 열기', onOpen),
+      child: Column(children: [
+        for (final x in m.items.take(3)) ListTile(dense: true, leading: InitialBadge(x.from, size: 32, circle: true), title: Text(x.text, maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('${x.topic} · ${x.from}', style: const TextStyle(fontSize: 12)), onTap: onOpen),
+      ]),
+    );
+  }
+}

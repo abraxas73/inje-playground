@@ -2,80 +2,124 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/brand.dart';
+import '../../app/router.dart' show tabTapProvider;
 import '../../app/theme.dart';
 import '../../auth/session.dart';
+import '../../briefing/briefing_model.dart';
+import '../../briefing/briefing_provider.dart';
+import '../../briefing/briefing_sections.dart';
+import '../../briefing/summary_provider.dart';
+import '../../gw/gw_creds.dart';
+import '../../gw/gw_models.dart' show myEvents;
 import '../../gw/gw_notices_card.dart';
-import '../../gw/gw_today_card.dart';
 import '../../more/catalog.dart';
 import '../../more/service_grid.dart';
+import '../../release/update_banner.dart';
 import 'greeting.dart';
 import 'quotes.dart';
-import '../../release/update_banner.dart';
 
-/// 로그인 뒤 첫 화면(웰컴): 시간·날짜 인사, 오늘의 한 줄, 네이티브 기능 바로 가기, 사내 서비스(WebView) 카드.
-class HomeScreen extends ConsumerWidget {
+/// 홈 = 오늘의 브리핑. 인사말 → 오늘의 한 마디(Claude, 없으면 격언) → 지금 필요한 것 → 일정 → 팀원 부재 → 결재 → 메일 → Teams → 공지 → 바로 가기·사내 서비스.
+/// 수집은 홈을 열 때·홈 탭을 다시 누를 때·당겨서 새로고침. Claude 문장은 하루 1회(summaryProvider).
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key, this.now});
   final DateTime? now; // 테스트에서 고정
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _summaryBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 첫 수집에 인사말 이름을 실어 보낸다 — 진행 중인 build()와 합쳐져 추가 수집은 없다(BriefingNotifier.refresh).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refresh();
+    });
+  }
+
+  Future<void> _refresh() => ref.read(briefingProvider.notifier).refresh(name: ref.read(sessionProvider).asData?.value?.name);
+
+  Future<void> _summary(BriefingData d, {bool force = false}) async {
+    setState(() => _summaryBusy = true);
+    try {
+      await ref.read(summaryProvider.notifier).ensure(d, force: force);
+    } finally {
+      if (mounted) setState(() => _summaryBusy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider).asData?.value;
-    final t = now ?? DateTime.now();
+    final t = widget.now ?? DateTime.now();
     final g = greetingFor(t, name: session?.name);
     final q = dailyQuote(t);
     final theme = Theme.of(context);
+    final gw = ref.watch(gwProvider).value;
+    final briefing = ref.watch(briefingProvider);
+    final data = briefing.value;
+    final summary = ref.watch(summaryProvider).value;
+    ref.listen(tabTapProvider, (_, _) => _refresh());
+    ref.listen(briefingProvider, (prev, next) {
+      final d = next.value;
+      if (d != null && d != prev?.value) _summary(d);
+    });
+    void open(String route) => context.push(route);
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 24), children: [
-          const Align(alignment: Alignment.centerLeft, child: BrandLogo(width: 86, opacity: 0.8)),
-          const SizedBox(height: 14),
-          const UpdateBanner(),
-          Text(g.title, style: theme.textTheme.headlineSmall),
-          const SizedBox(height: 4),
-          Text(g.subtitle, style: theme.textTheme.bodySmall),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
-            decoration: BoxDecoration(color: Brand.navy, borderRadius: BorderRadius.circular(16)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Row(children: [
-                Icon(Icons.format_quote_rounded, size: 18, color: Brand.sky),
-                SizedBox(width: 6),
-                Text('오늘의 한 줄', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.3, color: Brand.sky)),
-              ]),
-              const SizedBox(height: 10),
-              Text(q.text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.5, color: Colors.white)),
-              const SizedBox(height: 8),
-              Align(alignment: Alignment.centerRight, child: Text('— ${q.source}', style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.6)))),
-            ]),
-          ),
-          const SizedBox(height: 12),
-          const GwTodayCard(),
-          const GwNoticesCard(),
-          const SizedBox(height: 20),
-          Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('바로 가기', style: theme.textTheme.titleSmall)),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            childAspectRatio: 1.5,
-            children: [
-              // Teams 채팅이 맨 앞(사용자 요청) — 권한이 있을 때만. WebView로 연다.
-              if (session != null && canUsePage(session, teamsChatEntry))
-                _quick(context, Icons.forum_outlined, 'Teams 채팅', '내가 속한 채팅 읽기·보내기', () => context.push('/web?path=${Uri.encodeComponent('/teams/chat')}'), Brand.tints[3]),
-              _quick(context, Icons.restaurant, '뭐 먹지', '주변 식당·카페', () => context.go('/food'), Brand.tints[2]),
-              _quick(context, Icons.stairs, '사다리', '순서·당번 정하기', () => context.go('/ladder'), Brand.tints[0]),
-              _quick(context, Icons.coffee, '커피 타임', '팀 나누기·법카', () => context.go('/team'), Brand.tints[1]),
+        child: RefreshIndicator(
+          onRefresh: _refresh,
+          child: ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 24), children: [
+            const Align(alignment: Alignment.centerLeft, child: BrandLogo(width: 86, opacity: 0.8)),
+            const SizedBox(height: 14),
+            const UpdateBanner(),
+            Text(g.title, style: theme.textTheme.headlineSmall),
+            const SizedBox(height: 4),
+            Text(g.subtitle, style: theme.textTheme.bodySmall),
+            const SizedBox(height: 16),
+            SummaryCard(quote: q, summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at), busy: _summaryBusy, onRefresh: () { if (data != null) _summary(data, force: true); }),
+            if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(top: 14), child: LinearProgressIndicator(minHeight: 2)),
+            if (gw != null && gw.status != GwStatus.connected)
+              GwConnectCard(relogin: gw.status == GwStatus.needsRelogin, onConnect: () => context.push('/gw/connect'))
+            else if (data != null) ...[
+              FocusSection(items: focusItems(data), onOpen: open),
+              if (data.errors.containsKey('today')) RetryLine(label: '일정', onTap: _refresh) else MeetingsSection(meetings: myMeetings(data), tomorrowCount: myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).length, onMore: () => open('/gw/today')),
+              AbsenceSection(absences: teamAbsences(data)),
+              if (data.errors.containsKey('approvals')) RetryLine(label: '미결 결재', onTap: _refresh) else ApprovalsSection(total: data.approvals?.$1 ?? 0, items: data.approvals?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals')),
+              if (data.errors.containsKey('inbox')) RetryLine(label: '메일', onTap: _refresh) else MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail')),
             ],
-          ),
-          if (session != null && webServices(session).isNotEmpty) ...[
+            if (data != null) ...[
+              if (data.errors.containsKey('teams')) RetryLine(label: 'Teams', onTap: _refresh) else TeamsSection(mentions: data.mentions, onOpen: () => open(teamsRoute)),
+            ],
+            const GwNoticesCard(),
             const SizedBox(height: 20),
-            Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('사내 서비스', style: theme.textTheme.titleSmall)),
-            ServiceGrid(session: session),
-          ],
-        ]),
+            Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('바로 가기', style: theme.textTheme.titleSmall)),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 1.5,
+              children: [
+                // Teams 채팅이 맨 앞(사용자 요청) — 권한이 있을 때만. WebView로 연다.
+                if (session != null && canUsePage(session, teamsChatEntry))
+                  _quick(context, Icons.forum_outlined, 'Teams 채팅', '내가 속한 채팅 읽기·보내기', () => context.push(teamsRoute), Brand.tints[3]),
+                _quick(context, Icons.restaurant, '뭐 먹지', '주변 식당·카페', () => context.go('/food'), Brand.tints[2]),
+                _quick(context, Icons.stairs, '사다리', '순서·당번 정하기', () => context.go('/ladder'), Brand.tints[0]),
+                _quick(context, Icons.coffee, '커피 타임', '팀 나누기·법카', () => context.go('/team'), Brand.tints[1]),
+              ],
+            ),
+            if (session != null && webServices(session).isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('사내 서비스', style: theme.textTheme.titleSmall)),
+              ServiceGrid(session: session),
+            ],
+          ]),
+        ),
       ),
     );
   }

@@ -40,7 +40,6 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
   Future<BriefingData> _load() async {
     await ref.read(gwProvider.future); // 크레덴셜 로딩이 끝나야 gwApiProvider가 결정된다
     final api = ref.read(gwApiProvider);
-    final client = ref.read(apiClientProvider);
     final d = BriefingData(now: kstNow(), empSeq: api?.client.creds().empSeq ?? '');
     Future<void> src(String key, Future<void> Function() f) async {
       try {
@@ -61,7 +60,7 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
       ],
       src('teams', () async {
         try {
-          d.mentions = TeamsMentions.parse(await client.getJson('/api/teams/mentions', query: {'days': '2'}));
+          d.mentions = TeamsMentions.parse(await ref.read(apiClientProvider).getJson('/api/teams/mentions', query: {'days': '2'}));
         } on ApiException catch (e) {
           if (e.status == 401 || e.status == 403) {
             d.mentions = const TeamsMentions(connected: false, items: []);
