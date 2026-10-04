@@ -60,6 +60,7 @@
 | `release-mobile.sh`가 "작업 트리가 깨끗하지 않습니다"로 멈춤 | 릴리스는 커밋된 상태에서 재현 가능해야 한다 | 커밋하거나 `--allow-dirty` |
 | `release-mobile.sh android`가 "이미 있습니다"로 멈춤 | 같은 `+N` 빌드의 APK가 버킷에 있고 설정도 그걸 가리킴 | pubspec의 `+N`을 올린다(앱은 이 숫자로 새 버전을 판단). APK만 있고 설정이 안 가리키면(지난 실행이 설정 쓰기에서 실패) 스크립트가 빌드·업로드를 건너뛰고 설정만 다시 쓴다 |
 | `release-mobile.sh` 업로드가 "업로드 실패 (HTTP 413…)" 또는 오래 멈춤 | APK가 프로젝트 전역 파일 상한을 넘음(초기 50MB) | Supabase 대시보드 Storage 설정 또는 Management API로 `fileSizeLimit`을 올린다(2026-10-04 200MB). 10MB 조각으로 업로드 속도를 먼저 확인 |
+| `release-mobile.sh`가 `flutter test`에서 `No space left on device`(errno 28)로 죽음 | 디스크 가득 참. 2026-10-04 실측: 미사용 시뮬레이터 런타임(`/Library/Developer/CoreSimulator/Volumes`, 런타임당 ≈22GB)·Antigravity 브라우저 녹화(`~/.gemini/*/browser_recordings`)·uv 캐시(`~/.cache/uv`)가 각각 수십 GB | `df -h /System/Volumes/Data`로 확인 → `xcrun simctl runtime list`에서 기기 없는 런타임을 `xcrun simctl runtime delete <UUID>`(현재 시뮬레이터가 쓰는 버전은 남김), `rm -rf mobile/build ~/Library/Developer/Xcode/DerivedData`, `uv cache clean`(Serena MCP가 잠금을 쥐면 `~/.cache/uv/archive-v0`의 실행 중 항목만 빼고 지움). `~/Library/Developer/CoreDevice/DeviceFS`는 시뮬레이터 파일시스템의 가상 마운트라 `du`에 중복 집계될 뿐 실제 용량이 아니다. iOS 빌드엔 최소 10GB 여유 |
 | Android에서 APK 설치 시 "앱이 설치되지 않았습니다" / 서명 불일치 | 기존 설치와 서명 키가 다름(디버그 빌드 위에 릴리스, 또는 키스토어 분실) | 기존 앱 삭제 후 설치. 키스토어는 1Password 백업본을 `mobile/android/`에 복원 |
 
 ## 배포(사내) (2026-10-04)
