@@ -5,6 +5,7 @@ import '../app/brand.dart';
 import '../app/theme.dart';
 import '../auth/session.dart';
 import '../config.dart';
+import '../gw/gw_creds.dart';
 import 'catalog.dart';
 
 class MoreScreen extends ConsumerWidget {
@@ -15,6 +16,7 @@ class MoreScreen extends ConsumerWidget {
     if (session == null) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final admin = visibleAdminPages(session);
+    final gw = ref.watch(gwProvider).value;
     final email = session.email ?? '';
     final handle = email.contains('@') ? email.substring(0, email.indexOf('@')) : email;
     void open(String path) => context.push('/web?path=${Uri.encodeComponent(path)}');
@@ -73,6 +75,8 @@ class MoreScreen extends ConsumerWidget {
             _label(context, '계정'),
             Card(
               child: Column(children: [
+                _GwRow(gw: gw, onConnect: () => context.push('/gw/connect'), onDisconnect: () => ref.read(gwProvider.notifier).disconnect()),
+                const Divider(),
                 ListTile(
                   leading: const Icon(Icons.settings_outlined),
                   title: const Text('설정'),
@@ -98,4 +102,31 @@ class MoreScreen extends ConsumerWidget {
   }
 
   Widget _label(BuildContext context, String t) => Padding(padding: const EdgeInsets.fromLTRB(4, 0, 0, 8), child: Text(t, style: Theme.of(context).textTheme.titleSmall));
+}
+
+/// 계정 카드의 아마란스 연결 상태 행.
+class _GwRow extends StatelessWidget {
+  const _GwRow({required this.gw, required this.onConnect, required this.onDisconnect});
+  final GwState? gw;
+  final VoidCallback onConnect, onDisconnect;
+  @override
+  Widget build(BuildContext context) {
+    final status = gw?.status ?? GwStatus.none;
+    final c = gw?.creds;
+    return ListTile(
+      leading: const Icon(Icons.apartment_outlined),
+      title: const Text('아마란스'),
+      subtitle: Text(switch (status) {
+        GwStatus.none => '연결하면 미결 결재·출퇴근·일정·메일을 앱에서 봅니다',
+        GwStatus.connected => '${c?.empName ?? ''} · ${c?.email ?? ''}',
+        GwStatus.needsRelogin => '로그인이 만료되었습니다 — 다시 연결하세요',
+      }),
+      trailing: status == GwStatus.none
+          ? TextButton(onPressed: onConnect, child: const Text('연결하기'))
+          : Row(mainAxisSize: MainAxisSize.min, children: [
+              TextButton(onPressed: onConnect, child: Text(status == GwStatus.needsRelogin ? '다시 연결' : '재연결')),
+              IconButton(icon: const Icon(Icons.link_off, size: 20), tooltip: '연결 해제', onPressed: onDisconnect),
+            ]),
+    );
+  }
 }
