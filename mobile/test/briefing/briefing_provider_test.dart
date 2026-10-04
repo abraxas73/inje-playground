@@ -117,6 +117,17 @@ void main() {
     final saved = jsonDecode((await SharedPreferences.getInstance()).getString('briefing.summary.v2')!) as Map;
     expect(saved['text'], '오늘 10시 주간회의가 있습니다.');
   });
+  test('요약: 앱을 새로 시작하면(새 컨테이너) 오늘 저장된 문장을 먼저 보여 주고, 서버에 한 번 새로 받아 바꾼다', () async {
+    SharedPreferences.setMockInitialValues({'briefing.summary.v2': jsonEncode({'date': ymd(kstNow()), 'text': '아침 문장', 'at': '08:40'})});
+    final app = AppApi({'/api/mobile/briefing': (200, {'enabled': true, 'text': '새로 시작한 뒤 문장', 'model': 'm', 'at': 'x'})});
+    final c = scope(gw: gwRoutes(gwAll), api: app.client);
+    expect((await c.read(summaryProvider.future))!.text, '아침 문장', reason: '받기 전엔 직전 문장');
+    final d = await c.read(briefingProvider.future);
+    await c.read(summaryProvider.notifier).ensure(d);
+    expect(c.read(summaryProvider).value!.text, '새로 시작한 뒤 문장');
+    await c.read(summaryProvider.notifier).ensure(d);
+    expect(app.calls['/api/mobile/briefing'], 1, reason: '켜져 있는 동안에는 다시 만들지 않는다');
+  });
   test('요약: 옛 키(briefing.summary)에 남은 오늘 문장은 쓰지 않는다 — 1.1.2 이전 잘린 문장을 버리고 한 번 새로 만든다', () async {
     SharedPreferences.setMockInitialValues({'briefing.summary': jsonEncode({'date': ymd(kstNow()), 'text': '강승', 'at': '22:59'})});
     final app = AppApi({'/api/mobile/briefing': (200, {'enabled': true, 'text': '새 문장입니다.', 'model': 'm', 'at': 'x'})});
