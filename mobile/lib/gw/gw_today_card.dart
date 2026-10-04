@@ -40,7 +40,7 @@ class _GwTodayCardState extends ConsumerState<GwTodayCard> {
     }
     if (mounted) setState(() {});
     final me = api.client.creds().empSeq;
-    final day = DateTime.now();
+    final day = kstNow();
     await Future.wait([
       _fill(_tiles[0], () async {
         final c = await api.approvalCounts();

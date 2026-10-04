@@ -90,4 +90,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(r.hits.containsKey('/mail/mail002A01'), false);
   });
+  testWidgets('[리뷰6] 메일: 집계가 실패하면 영어 클래스 이름이 아니라 서버 메시지를 보여 준다', (tester) async {
+    final r = Routes({'/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]}], '/mail/mail003A01': [{'Records': [], 'TotalUnseenCount': 0}]}); // mail000A03 없음 → 999 'unexpected …'
+    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const MailScreen()));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('ParallelWaitError'), findsNothing);
+    expect(find.textContaining('unexpected'), findsOneWidget);
+  });
 }

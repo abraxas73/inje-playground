@@ -59,7 +59,7 @@ class _BodyState extends State<_Body> {
 
   @override
   Widget build(BuildContext context) {
-    final today = DateTime.now();
+    final today = kstNow();
     return Scaffold(
       appBar: const BrandHeader(title: '미결 결재'),
       body: RefreshIndicator(

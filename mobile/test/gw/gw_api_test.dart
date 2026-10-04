@@ -119,4 +119,16 @@ void main() {
     final f = Fake({'/mail/mail000A01': [{'list': []}]});
     await expectLater(f.api().inbox(), throwsA(isA<GwException>()));
   });
+  test('[리뷰2] 기록 호출이 실패해도 read-back을 해서 서버 상태로 판정한다', () async {
+    const base = '/human/common/judgeTimeManagement';
+    // 기록 응답은 resultCode 999(실패)지만 서버엔 이미 찍혀 있는 경우
+    final f = Fake({'/gw/gw050A02': [session], '$base/getTodayComeLeaveInfo': [{'comeTm': '', 'leaveTm': ''}, {'comeTm': '202610040902', 'leaveTm': ''}], '$base/confirmApplicationStatus': [{}]});
+    final r = await f.api().punch(clockIn: true);
+    expect((r.ok, r.verified, r.comeTm), (true, true, '202610040902'));
+    // 기록 실패 + read-back에도 없음 → 실패 + 원인 포함
+    final g = Fake({'/gw/gw050A02': [session], '$base/getTodayComeLeaveInfo': [{'comeTm': '', 'leaveTm': ''}, {'comeTm': '', 'leaveTm': ''}], '$base/confirmApplicationStatus': [{}]});
+    final r2 = await g.api().punch(clockIn: true);
+    expect((r2.ok, r2.verified), (false, false));
+    expect(r2.note, contains('unexpected'));
+  });
 }

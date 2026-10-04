@@ -1,5 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:playground/gw/gw_client.dart';
 import 'package:playground/gw/gw_creds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -19,6 +22,10 @@ void main() {
     });
     test('BIZCUBE_AT/HK로 폴백', () {
       final c = parseGwCookies('BIZCUBE_AT=t; BIZCUBE_HK=h');
+      expect((c?.authToken, c?.signKey), ('t', 'h'));
+    });
+    test('[리뷰5] 다른 쿠키 값이 깨진 퍼센트 인코딩이어도 예외 없이 토큰을 찾는다', () {
+      final c = parseGwCookies('bad=%E0%A4%A; oAuthToken=t; signKey=h; worse=100%');
       expect((c?.authToken, c?.signKey), ('t', 'h'));
     });
     test('iOS가 돌려주는 따옴표 감싼 JSON 문자열도 벗긴다', () {
@@ -49,5 +56,18 @@ void main() {
     await container.read(gwProvider.notifier).disconnect();
     expect(container.read(gwProvider).value?.status, GwStatus.none);
     expect(await GwCredsStore().load(), isNull);
+  });
+  test('[리뷰1·7] 401이 병렬로 두 번 와도 GwUnauthorized만 나오고, 만료 상태에선 클라이언트가 null', () async {
+    SharedPreferences.setMockInitialValues({});
+    final container = ProviderContainer(overrides: [gwHttpClientProvider.overrideWithValue(MockClient((_) async => http.Response('{"resultCode":140}', 401)))]);
+    addTearDown(container.dispose);
+    await container.read(gwProvider.notifier).connect(const GwCreds(authToken: 'a|b|c', signKey: 'k'));
+    final client = container.read(gwClientProvider)!;
+    final results = await Future.wait([client.call('/p', {}), client.call('/q', {})].map((f) => f.then((_) => 'ok').catchError((e) => e.runtimeType.toString())));
+    expect(results, ['GwUnauthorized', 'GwUnauthorized']);
+    expect(container.read(gwProvider).value?.status, GwStatus.needsRelogin);
+    expect(container.read(gwClientProvider), isNull); // 만료면 요청을 보내지 않는다
+    await container.read(gwProvider.notifier).connect(const GwCreds(authToken: 'a|b|c', signKey: 'k2'));
+    expect(container.read(gwClientProvider), isNotNull);
   });
 }

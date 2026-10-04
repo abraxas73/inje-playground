@@ -69,4 +69,9 @@ void main() {
     expect((m.muid, m.seen, m.attach, m.fromName, m.date), ('14531056', false, true, '홍', '07:10'));
     expect(MailItem.fromRow({'seen': '1'}).seen, true);
   });
+  test('[리뷰3] 오늘은 기기 시간대가 아니라 KST — UTC 16시는 한국 다음 날', () {
+    expect(ymd(kstOf(DateTime.utc(2026, 10, 3, 16, 0))), '20261004');
+    expect(ymd(kstOf(DateTime.utc(2026, 10, 3, 14, 59))), '20261003');
+    expect(kstNow().difference(kstOf(DateTime.now())).inSeconds.abs(), lessThan(2));
+  });
 }

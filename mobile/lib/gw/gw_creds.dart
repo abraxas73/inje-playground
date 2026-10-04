@@ -19,7 +19,14 @@ GwCreds? parseGwCookies(String raw) {
   for (final part in s.split(';')) {
     final i = part.indexOf('=');
     if (i <= 0) continue;
-    m[part.substring(0, i).trim()] = Uri.decodeComponent(part.substring(i + 1).trim());
+    final v = part.substring(i + 1).trim();
+    String decoded;
+    try {
+      decoded = Uri.decodeComponent(v);
+    } catch (_) {
+      decoded = v; // 다른 쿠키의 깨진 퍼센트 인코딩이 연결을 막지 않게
+    }
+    m[part.substring(0, i).trim()] = decoded;
   }
   final at = m['oAuthToken'] ?? m['BIZCUBE_AT'];
   final hk = m['signKey'] ?? m['BIZCUBE_HK'];

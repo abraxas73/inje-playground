@@ -55,20 +55,22 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
 
   Future<void> _check() async {
     final c = _c;
-    if (c == null || _busy || _done != null) return;
+    if (c == null || _busy || _done != null || !mounted) return;
     String raw;
     try {
       raw = (await c.runJavaScriptReturningResult('document.cookie')).toString();
     } catch (_) {
       return;
     }
-    if (parseGwCookies(raw) == null) return;
+    // 화면이 닫힌 뒤에도 onPageFinished가 올 수 있다(컨트롤러는 살아 있음)
+    if (!mounted || parseGwCookies(raw) == null) return;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
       final creds = await verifyGwCookies(raw, ref.read(gwHttpClientProvider));
+      if (!mounted) return;
       await ref.read(gwProvider.notifier).connect(creds);
       if (mounted) setState(() => _done = '${creds.empName ?? ''} (${creds.email ?? ''}) 연결됨');
     } on GwException catch (e) {

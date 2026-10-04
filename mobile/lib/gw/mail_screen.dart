@@ -21,7 +21,9 @@ class _Body extends StatefulWidget {
 class _BodyState extends State<_Body> {
   late Future<(MailSummary, List<MailItem>)> _future = _load();
   Future<(MailSummary, List<MailItem>)> _load() async {
-    final (s, (_, items)) = await (widget.api.mailSummary(), widget.api.inbox()).wait;
+    // 레코드 .wait는 실패를 ParallelWaitError로 감싸 영어 클래스 이름이 화면에 나온다 → 순서대로
+    final s = await widget.api.mailSummary();
+    final (_, items) = await widget.api.inbox();
     return (s, items);
   }
 

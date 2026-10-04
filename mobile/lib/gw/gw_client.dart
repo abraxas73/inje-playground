@@ -113,9 +113,13 @@ class GwClient {
 
 final gwHttpClientProvider = Provider<http.Client>((_) => http.Client());
 
-/// 크레덴셜이 있을 때만 클라이언트. 401이면 gwProvider를 needsRelogin으로.
+/// 연결돼 있고 만료 표시가 없을 때만 클라이언트(만료 뒤엔 요청을 보내지 않는다). 401이면 gwProvider를 needsRelogin으로.
+/// 노티파이어는 미리 잡아 둔다 — 첫 401로 상태가 바뀌면 이 Provider가 다시 빌드돼 옛 ref가 해제되는데,
+/// 병렬로 날아간 다른 요청의 401이 그 ref로 read하면 Riverpod 예외가 GwUnauthorized를 가린다.
 final gwClientProvider = Provider<GwClient?>((ref) {
-  final creds = ref.watch(gwProvider).value?.creds;
-  if (creds == null) return null;
-  return GwClient(httpClient: ref.watch(gwHttpClientProvider), creds: () => creds, onUnauthorized: () => ref.read(gwProvider.notifier).markUnauthorized());
+  final st = ref.watch(gwProvider).value;
+  final creds = st?.creds;
+  if (creds == null || st!.needsRelogin) return null;
+  final notifier = ref.read(gwProvider.notifier);
+  return GwClient(httpClient: ref.watch(gwHttpClientProvider), creds: () => creds, onUnauthorized: notifier.markUnauthorized);
 });

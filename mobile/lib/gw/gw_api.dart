@@ -4,7 +4,8 @@ import 'gw_models.dart';
 
 /// 기능별 호출. 요청 본문 값과 함정의 출처는 inno-creed(approval.rs·attendance.rs·calendar.rs·resource.rs·mail.rs).
 class GwApi {
-  GwApi(this.client, {DateTime Function()? now}) : _now = now ?? DateTime.now;
+  /// 기본 시계는 KST — 기기 시간대가 달라도 '오늘'은 한국 날짜(근태 workDt·일정 날짜).
+  GwApi(this.client, {DateTime Function()? now}) : _now = now ?? kstNow;
   final GwClient client;
   final DateTime Function() _now;
   final _cache = _GwCache();
@@ -62,11 +63,20 @@ class GwApi {
     try {
       await client.call('$_att/confirmApplicationStatus', {'empCd': s.empCd, 'deptCd': s.deptCd, 'coCd': s.coCd});
     } on GwException catch (_) {}
-    await client.call('$_att/getJudgeTimeManagement', {'type': 'WEB', 'judgeData': {'empCd': s.empCd, 'deptCd': s.deptCd, 'coCd': s.coCd, 'attendFg': clockIn ? '1' : '4'}});
+    // 기록 호출이 실패(타임아웃·resultCode≠0)해도 서버에는 찍혔을 수 있다 → 판정은 늘 read-back으로
+    String? writeError;
+    try {
+      await client.call('$_att/getJudgeTimeManagement', {'type': 'WEB', 'judgeData': {'empCd': s.empCd, 'deptCd': s.deptCd, 'coCd': s.coCd, 'attendFg': clockIn ? '1' : '4'}});
+    } on GwException catch (e) {
+      writeError = e.message;
+    }
     final after = await attendanceToday();
     final now = clockIn ? after.comeTm : after.leaveTm;
     final ok = now.isNotEmpty;
-    return PunchResult(ok: ok, already: false, kind: kind, comeTm: after.comeTm, leaveTm: after.leaveTm, verified: ok, note: ok ? '$kind ${hm(now)} 기록됨' : '응답은 왔지만 반영이 확인되지 않았습니다. 아마란스에서 확인하세요.');
+    final note = ok
+        ? '$kind ${hm(now)} 기록됨'
+        : (writeError == null ? '응답은 왔지만 반영이 확인되지 않았습니다. 아마란스에서 확인하세요.' : '기록하지 못했습니다: $writeError');
+    return PunchResult(ok: ok, already: false, kind: kind, comeTm: after.comeTm, leaveTm: after.leaveTm, verified: ok, note: note);
   }
 }
 

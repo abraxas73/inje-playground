@@ -1,6 +1,10 @@
 // 아마란스 응답 정제 — 순수 함수만(네트워크 없음). 필드 이름·의미의 출처는 inno-creed src/modules/*.rs.
 import 'gw_client.dart' show asStr, asBool, asInt;
 
+/// 한국 시각. 기기 시간대와 무관하게 '오늘'을 정하는 기준(근태·일정·대기일수).
+DateTime kstOf(DateTime t) => t.toUtc().add(const Duration(hours: 9));
+DateTime kstNow() => kstOf(DateTime.now());
+
 String ymd(DateTime d) => '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
 String ymdhm(DateTime d) => '${ymd(d)}${d.hour.toString().padLeft(2, '0')}${d.minute.toString().padLeft(2, '0')}';
 

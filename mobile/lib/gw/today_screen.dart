@@ -32,7 +32,7 @@ class _BodyState extends State<_Body> {
   }
 
   Future<void> _load() async {
-    final day = DateTime.now();
+    final day = kstNow();
     await Future.wait([
       () async {
         try {
