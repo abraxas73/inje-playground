@@ -51,7 +51,8 @@ mobile/scripts/release-mobile.sh ios --notes "첫 사내 배포"
 ```
 - 스크립트가 테스트 → `flutter build ipa` → `xcrun altool --upload-app`을 돌린다. 끝에 "Delivery UUID" 또는 "완료"가 보이면 성공.
 - 서명 오류가 나면 `open mobile/ios/Runner.xcworkspace` → Runner 타깃 → **Signing & Capabilities** → Team `LME2TNRC9G`, Automatically manage signing 체크 → 다시 실행.
-- App Store Connect → 이노그리드 → **TestFlight** 탭 → iOS 빌드 목록에 `1.0.0 (1)`이 **처리 중**으로 나타난다. 10~30분 뒤 "빌드 처리 완료" 메일이 온다. 수출 규정 경고(노란 느낌표)는 뜨지 않아야 한다(뜨면 `Info.plist`의 `ITSAppUsesNonExemptEncryption` 확인).
+- 터미널에서 `mobile/scripts/asc-builds.sh`를 치면 App Store Connect API로 빌드 목록·처리 상태(`PROCESSING`→`VALID`)를 바로 볼 수 있다(앱 레코드·빌드 0개면 "아직 없음").
+- App Store Connect → 이노그리드 → **TestFlight** 탭 → iOS 빌드 목록에 `1.0.0 (N)`이 **처리 중**으로 나타난다. 10~30분 뒤 "빌드 처리 완료" 메일이 온다. 수출 규정 경고(노란 느낌표)는 뜨지 않아야 한다(뜨면 `Info.plist`의 `ITSAppUsesNonExemptEncryption` 확인).
 
 ## 6. TestFlight 테스트 정보 (3분)
 TestFlight 탭 → 왼쪽 **일반 정보 → 테스트 정보**:
@@ -91,4 +92,5 @@ TestFlight 탭 → 왼쪽 **일반 정보 → 테스트 정보**:
 - **개발자 멤버십 연 갱신($99)**: 만료되면 TestFlight 배포가 멈춘다. developer.apple.com → Membership에서 만료일 확인.
 - **약관 갱신**: Apple이 Program License Agreement를 바꾸면 Account Holder가 developer.apple.com에서 동의할 때까지 업로드가 "Unable to authenticate"류 오류로 실패한다 → 동의 후 재실행.
 - 업로드 뒤 "ITMS-90xxx … Missing Push Notification Entitlement" 같은 **경고 메일**은 무시해도 된다(푸시 안 씀). **오류** 메일(Invalid Binary)만 조치.
+- `ITMS-90129 … bundle name or display name that is already taken`: 바이너리의 `CFBundleName`/`CFBundleDisplayName`이 App Store의 다른 앱 이름과 겹친 것(2026-10-04 Flutter 기본 `playground`로 1회 발생 → `INNOGRID`로 고침). 빌드는 등록되지 않으므로 이름을 고치고 `+N` 올려 재업로드.
 - 외부 그룹에 추가하기 전까지 iOS 앱 배너가 먼저 "새 버전"을 띄울 수 있다(스크립트가 업로드 직후 버전을 기록). TestFlight가 자동 갱신하므로 무해.
