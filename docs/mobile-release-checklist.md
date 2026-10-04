@@ -14,7 +14,8 @@
   - `~/Repos/inje-playground/mobile/android/upload-keystore.jks`
   - `~/Repos/inje-playground/mobile/android/key.properties` (비밀번호가 이 안에 있다)
   - 왜: 첫 APK가 이 키로 서명됐다. 잃으면 전 직원이 앱을 지우고 다시 설치해야 한다.
-- [ ] **A2. SharePoint 폴더 지정** — SharePoint에서 APK 사본을 둘 폴더(예: 사내 공유 문서 → `앱`)를 열고 **링크 복사** → `cd ~/Repos/inje-playground && mobile/scripts/release-mobile.sh sharepoint-folder "<복사한 링크>"` → 이어서 지금 올라간 1.0.0을 바로 올리려면 `mobile/scripts/release-mobile.sh sharepoint` (파일명 `innogrid-app-1.0.0.apk`). 조건: 웹 설정의 Microsoft 계정 연결(이미 돼 있음)과 그 계정의 폴더 쓰기 권한.
+- [x] **A2. SharePoint 폴더 지정** — 2026-10-04 완료: Teams 사이트 `msteams_3713b0`의 `Shared Documents/Share` 폴더, `innogrid-app-1.0.0.apk` 업로드됨. 바꾸려면 아래 명령으로 다시 지정.
+  - (원래 절차)  — SharePoint에서 APK 사본을 둘 폴더(예: 사내 공유 문서 → `앱`)를 열고 **링크 복사** → `cd ~/Repos/inje-playground && mobile/scripts/release-mobile.sh sharepoint-folder "<복사한 링크>"` → 이어서 지금 올라간 1.0.0을 바로 올리려면 `mobile/scripts/release-mobile.sh sharepoint` (파일명 `innogrid-app-1.0.0.apk`). 조건: 웹 설정의 Microsoft 계정 연결(이미 돼 있음)과 그 계정의 폴더 쓰기 권한.
 - [ ] **A3. Teams 공지(Android 먼저 열어도 되면)** — 예시: `[이노그리드 앱] Android 먼저 배포합니다. 설치: https://inje-playground.vercel.app/apps (로그인 후 'APK 받기' → 알림에서 열기 → 설치). iPhone은 TestFlight 준비 중.`
 
 ## B. Apple — 한 번만 (약 30분 + 심사 대기 하루 안팎)
