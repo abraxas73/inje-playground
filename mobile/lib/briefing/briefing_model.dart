@@ -69,10 +69,12 @@ class BriefingData {
 String _digits(String s) => s.replaceAll(RegExp(r'\D'), '');
 
 /// 'YYYYMMDDHHmm'(구분자 있어도 됨) → DateTime. 12자리 미만이면 null.
+/// 규약: GW 시각은 KST 벽시계이고 `kstNow()`도 "KST 벽시계 + UTC 플래그"라, 같은 플래그(`DateTime.utc`)로 만들어야 difference·isAfter가 맞다.
+/// `DateTime(...)`(local)로 만들면 기기 UTC 오프셋만큼 어긋난다(KST 기기에서 9시간).
 DateTime? gwTime(String s) {
   final d = _digits(s);
   if (d.length < 12) return null;
-  return DateTime(int.parse(d.substring(0, 4)), int.parse(d.substring(4, 6)), int.parse(d.substring(6, 8)), int.parse(d.substring(8, 10)), int.parse(d.substring(10, 12)));
+  return DateTime.utc(int.parse(d.substring(0, 4)), int.parse(d.substring(4, 6)), int.parse(d.substring(6, 8)), int.parse(d.substring(8, 10)), int.parse(d.substring(10, 12)));
 }
 
 GwEvent _prefixed(GwEvent e, AbsenceKind k) => GwEvent(schSeq: e.schSeq, title: '${k.label}: ${e.title}', start: e.start, end: e.end, allDay: e.allDay, calendar: e.calendar, mcalSeq: e.mcalSeq, mine: e.mine, createName: e.createName, place: e.place);

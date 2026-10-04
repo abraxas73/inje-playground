@@ -91,6 +91,15 @@ void main() {
     expect(d.errors, isEmpty);
     expect(d.mentions!.connected, isFalse);
   });
+  test('Teams 409(reconnect)·400(not_connected)도 오류가 아니라 미연결 — 재시도 줄 대신 섹션 숨김', () async {
+    for (final code in [409, 400]) {
+      final app = AppApi({'/api/teams/mentions': (code, {'error': 'x', 'code': code == 409 ? 'reconnect' : 'not_connected'})});
+      final c = scope(gw: gwRoutes(gwAll), api: app.client);
+      final d = await c.read(briefingProvider.future);
+      expect(d.errors, isEmpty, reason: '$code');
+      expect(d.mentions!.connected, isFalse, reason: '$code');
+    }
+  });
   test('요약: 오늘 캐시가 없으면 서버에 payload를 보내 저장하고, 같은 날 다시 ensure해도 호출하지 않는다; force면 다시', () async {
     final app = AppApi({'/api/mobile/briefing': (200, {'enabled': true, 'text': '오늘 10시 주간회의가 있습니다.', 'model': 'm', 'at': 'x'})});
     final c = scope(gw: gwRoutes(gwAll), api: app.client);

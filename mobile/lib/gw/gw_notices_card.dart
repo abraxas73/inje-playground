@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../app/router.dart';
+import '../app/router.dart' show homeBranch, tabTapProvider;
 import '../app/theme.dart';
 import 'gw_api.dart';
 import 'gw_creds.dart';
@@ -34,7 +34,7 @@ class _GwNoticesCardState extends ConsumerState<GwNoticesCard> {
     final theme = Theme.of(context);
     final gw = ref.watch(gwProvider).value;
     final api = ref.watch(gwApiProvider);
-    ref.listen(tabTapProvider, (_, _) { if (api != null) _load(api); });
+    ref.listen(tabTapProvider, (_, t) { if (t.branch == homeBranch && api != null) _load(api); });
     if (gw == null || gw.status != GwStatus.connected || api == null) return const SizedBox.shrink();
     if (_loadedWith != api) {
       WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && _loadedWith != api) _load(api); });

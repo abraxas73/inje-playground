@@ -17,7 +17,7 @@ class TabShell extends ConsumerStatefulWidget {
   ConsumerState<TabShell> createState() => _TabShellState();
 }
 
-const _homeBranch = 0, _moreBranch = 4;
+const _homeBranch = homeBranch, _moreBranch = 4;
 const nativeBranch = {'food': 1, 'ladder': 2, 'team': 3};
 const _groupIcons = <String, (IconData, IconData)>{
   'daily': (Icons.groups_outlined, Icons.groups),
@@ -65,7 +65,7 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
 
   void _goBranch(int i) {
     _close();
-    ref.read(tabTapProvider.notifier).bump();
+    ref.read(tabTapProvider.notifier).bump(i);
     widget.shell.goBranch(i, initialLocation: i == widget.shell.currentIndex);
   }
 

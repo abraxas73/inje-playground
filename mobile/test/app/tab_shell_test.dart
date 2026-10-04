@@ -21,10 +21,13 @@ class _Tokens implements TokenSource {
   Future<void> onUnauthorized() async {}
 }
 
-Future<void> pumpShell(WidgetTester tester, AppSession user) async {
+Future<void> pumpShell(WidgetTester tester, AppSession user, {Map<String, int>? calls}) async {
   final auth = FakeAuth()..current = session(expired: false);
   addTearDown(auth.ctrl.close);
-  final api = ApiClient(httpClient: MockClient((_) async => http.Response('{"members":[]}', 200)), tokens: _Tokens(), baseUrl: 'http://x', userAgent: 't');
+  final api = ApiClient(httpClient: MockClient((r) async {
+    if (calls != null) calls[r.url.path] = (calls[r.url.path] ?? 0) + 1;
+    return http.Response('{"members":[]}', 200);
+  }), tokens: _Tokens(), baseUrl: 'http://x', userAgent: 't');
   final router = buildRouter(refresh: ValueNotifier(0), redirect: (_, _) => null);
   await tester.pumpWidget(ProviderScope(overrides: [
     authClientProvider.overrideWithValue(auth),
@@ -133,6 +136,19 @@ void main() {
     expect(find.byType(FanItem), findsNothing);
   });
 
+  testWidgets('홈 브리핑 재수집은 홈 탭을 눌렀을 때만 — 다른 탭을 눌러도 다시 수집하지 않는다', (tester) async {
+    final calls = <String, int>{};
+    await pumpShell(tester, user, calls: calls);
+    expect(calls['/api/teams/mentions'], 1, reason: '홈을 열 때 1회');
+    await tester.tap(tab('일상'));
+    await tester.pumpAndSettle();
+    await tester.tap(fanItem('사다리')); // 브랜치 전환 → bump
+    await tester.pumpAndSettle();
+    expect(calls['/api/teams/mentions'], 1, reason: '다른 브랜치로 가도 홈을 다시 수집하지 않는다');
+    await tester.tap(tab('홈'));
+    await tester.pumpAndSettle();
+    expect(calls['/api/teams/mentions'], 2, reason: '홈 탭 재터치는 다시 수집');
+  });
   testWidgets('볼 수 있는 페이지가 없는 그룹은 탭에서 빠진다', (tester) async {
     await pumpShell(tester, AppSession(email: 'u@innogrid.com', role: 'user', permissions: const {'usage_code': false, 'usage_chat': false, 'usage_perf': false}));
     expect(tab('AI'), findsNothing);

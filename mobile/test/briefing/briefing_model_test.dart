@@ -8,7 +8,7 @@ PendingApproval ap(String title, {String arrived = '20261002', bool unread = fal
     PendingApproval(docId: title, formId: 'f', title: title, form: 'f', drafter: '이서연', dept: '팀', arrivedDt: arrived, status: '진행', unread: unread, fileCount: 0);
 MailItem mail(String subject, {String tooltip = '2026-10-05 09:12:00', String date = '', bool seen = false}) =>
     MailItem(muid: subject, subject: subject, fromName: '박지훈', fromEmail: 'p@x', date: date, tooltip: tooltip, seen: seen, attach: false);
-final now = DateTime(2026, 10, 5, 8, 40); // 월요일
+final now = DateTime.utc(2026, 10, 5, 8, 40); // 월요일 — 운영과 같은 규약: kstNow()는 KST 벽시계 + UTC 플래그
 
 BriefingData data({List<GwEvent>? today, List<PendingApproval>? approvals, List<MailItem>? inbox, Attendance? att, TeamsMentions? mentions, List<GwNotice>? notices, DateTime? at}) {
   final d = BriefingData(now: at ?? now, name: '강승욱', empSeq: '7');
@@ -30,8 +30,8 @@ void main() {
     expect(absenceKind('주간회의', '팀 캘린더'), isNull);
   });
   test('gwTime — YYYYMMDDHHmm만, 다른 형식은 null', () {
-    expect(gwTime('202610051030'), DateTime(2026, 10, 5, 10, 30));
-    expect(gwTime('2026-10-05 10:30'), DateTime(2026, 10, 5, 10, 30));
+    expect(gwTime('202610051030'), DateTime.utc(2026, 10, 5, 10, 30)); // kstNow()와 같은 플래그여야 difference가 맞다
+    expect(gwTime('2026-10-05 10:30'), DateTime.utc(2026, 10, 5, 10, 30));
     expect(gwTime('20261005'), isNull);
   });
   test('myMeetings는 내 것만 시간순·부재는 접두 표시, teamAbsences는 남의 근태만', () {
@@ -66,7 +66,7 @@ void main() {
       att: const Attendance(workDt: '', comeTm: '', leaveTm: '', holiday: false),
       mentions: const TeamsMentions(connected: true, items: [TeamsMention(chatId: 'c', topic: '센터', from: '김민준', text: '확인', at: '2026-10-05T00:00:00Z')]),
       notices: [GwNotice(artSeqNo: '1', title: '보안 교육', board: '공지', boardId: '', writer: '', dept: '', writeDate: '', readCnt: 0, fileCnt: 0, attachmentUid: '', isNew: true, read: false, preview: '')],
-      at: DateTime(2026, 10, 5, 9, 40),
+      at: DateTime.utc(2026, 10, 5, 9, 40),
     );
     final items = focusItems(d);
     expect(items.map((i) => i.text).toList(), ['09:30 주간회의 · 3층', '미결 결재 2건 · 가장 오래 3일', 'Teams 답장 대기 1건', '오늘 받은 안 읽은 메일 1통']);

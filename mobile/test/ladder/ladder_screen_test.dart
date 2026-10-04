@@ -33,7 +33,7 @@ void main() {
   await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const MaterialApp(home: LadderScreen())));
   await tester.pump();
   expect(find.text('내 팀이 비어 있습니다'), findsOneWidget);
-  container.read(tabTapProvider.notifier).bump();
+  container.read(tabTapProvider.notifier).bump(2); // 사다리 브랜치
   await tester.pump();
   await tester.pump();
   expect(calls, 2);

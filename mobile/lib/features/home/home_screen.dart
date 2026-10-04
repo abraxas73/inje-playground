@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/brand.dart';
-import '../../app/router.dart' show tabTapProvider;
+import '../../app/router.dart' show homeBranch, tabTapProvider;
 import '../../app/theme.dart';
 import '../../auth/session.dart';
 import '../../briefing/briefing_model.dart';
@@ -41,7 +41,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _refresh() => ref.read(briefingProvider.notifier).refresh(name: ref.read(sessionProvider).asData?.value?.name);
 
+  /// Claude "오늘의 한 마디". 아마란스가 연결돼 있을 때만 — 미연결이면 payload가 비어 오해를 부르는 문장이 되므로 격언을 유지한다(스펙: 미연결 시 2~9 대신 연결 카드).
   Future<void> _summary(BriefingData d, {bool force = false}) async {
+    if (ref.read(gwProvider).value?.status != GwStatus.connected) return;
+    final name = ref.read(sessionProvider).asData?.value?.name;
+    if (name != null && name.isNotEmpty) d.name = name; // 첫 수집 때 세션이 아직 없었어도 payload에는 이름을 싣는다
     setState(() => _summaryBusy = true);
     try {
       await ref.read(summaryProvider.notifier).ensure(d, force: force);
@@ -61,7 +65,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final briefing = ref.watch(briefingProvider);
     final data = briefing.value;
     final summary = ref.watch(summaryProvider).value;
-    ref.listen(tabTapProvider, (_, _) => _refresh());
+    ref.listen(tabTapProvider, (_, t) { if (t.branch == homeBranch) _refresh(); }); // 홈 탭을 눌렀을 때만(다른 브랜치 전환은 무시)
     ref.listen(briefingProvider, (prev, next) {
       final d = next.value;
       if (d != null && d != prev?.value) _summary(d);

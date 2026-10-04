@@ -2,6 +2,7 @@
 import 'gw_client.dart' show asStr, asBool, asInt;
 
 /// 한국 시각. 기기 시간대와 무관하게 '오늘'을 정하는 기준(근태·일정·대기일수).
+/// 반환값은 "KST 벽시계 + UTC 플래그"(isUtc=true). GW 시각 문자열을 DateTime으로 만들어 이것과 비교할 때는 반드시 `DateTime.utc(...)`로 만든다(`briefing_model.dart` `gwTime` 참고).
 DateTime kstOf(DateTime t) => t.toUtc().add(const Duration(hours: 9));
 DateTime kstNow() => kstOf(DateTime.now());
 

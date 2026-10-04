@@ -6,7 +6,7 @@ import '../gw/gw_models.dart';
 import 'briefing_model.dart';
 
 /// 홈 브리핑 수집 — 소스별로 독립(try/catch)·병렬. 실패한 소스는 errors[소스]에만 남고 값은 null이라 나머지 섹션은 그려진다.
-/// Teams는 서버 라우트(/api/teams/mentions); 401·403은 "미연결"로 본다(오류 아님).
+/// Teams는 서버 라우트(/api/teams/mentions); 400·401·403·409는 "미연결"로 본다(오류 아님).
 final briefingProvider = AsyncNotifierProvider<BriefingNotifier, BriefingData>(BriefingNotifier.new);
 
 class BriefingNotifier extends AsyncNotifier<BriefingData> {
@@ -62,7 +62,8 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
         try {
           d.mentions = TeamsMentions.parse(await ref.read(apiClientProvider).getJson('/api/teams/mentions', query: {'days': '2'}));
         } on ApiException catch (e) {
-          if (e.status == 401 || e.status == 403) {
+          // 401·403(권한) · 400 not_connected · 409 reconnect(토큰 만료) — 모두 "Microsoft 미연결"이지 수집 오류가 아니다(재시도로 풀리지 않음)
+          if (e.status == 401 || e.status == 403 || e.status == 400 || e.status == 409) {
             d.mentions = const TeamsMentions(connected: false, items: []);
           } else {
             rethrow;
