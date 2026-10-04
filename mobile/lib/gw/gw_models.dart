@@ -160,3 +160,49 @@ class MailItem {
         muid: asStr(r['muid']), subject: asStr(r['subject']), fromName: asStr(r['fromAddrName']), fromEmail: asStr(r['fromAddrEmail']), date: asStr(r['rfc822date']), tooltip: asStr(r['tooltipDate']),
         seen: asBool(r['seen']), attach: asBool(r['attach']));
 }
+
+/// 서버 날짜 표기 정리: 'YYYY-MM-DD HH:MM:SS' → 초 제거, 숫자만 12~14자리면 'YYYY-MM-DD HH:MM', 그 외 원문.
+String niceDate(String s) {
+  final t = s.trim();
+  final m = RegExp(r'^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})').firstMatch(t);
+  if (m != null) return '${m.group(1)} ${m.group(2)}';
+  final d = _digits(t);
+  if (d.length >= 12 && d == t) return '${d.substring(0, 4)}-${d.substring(4, 6)}-${d.substring(6, 8)} ${d.substring(8, 10)}:${d.substring(10, 12)}';
+  return t;
+}
+
+/// 게시글 목록 행(ViewBoardNewAndNoticeArtList articleList[]). 전 게시판 공지·새 글 집계.
+class GwNotice {
+  const GwNotice({required this.artSeqNo, required this.title, required this.board, required this.boardId, required this.writer, required this.dept, required this.writeDate, required this.readCnt, required this.fileCnt, required this.attachmentUid, required this.isNew, required this.read, required this.preview});
+  final String artSeqNo, title, board, boardId, writer, dept, writeDate, attachmentUid, preview;
+  final int readCnt, fileCnt;
+  final bool isNew, read;
+  factory GwNotice.fromRow(Map r) => GwNotice(
+        artSeqNo: asStr(r['art_seq_no']), title: asStr(r['art_title']), board: asStr(r['cat_title']), boardId: asStr(r['cat_seq_no']), writer: asStr(r['mbr_nick']), dept: asStr(r['dept_name']),
+        writeDate: niceDate(asStr(r['write_date'])), readCnt: asInt(r['read_cnt']), fileCnt: asInt(r['file_cnt']), attachmentUid: asStr(r['uid']),
+        isNew: asStr(r['is_new_yn']) == 'Y', read: asStr(r['art_read_yn']) == 'Y', preview: htmlToText(asStr(r['art_content'])));
+}
+
+class GwComment {
+  const GwComment({required this.writer, required this.writeDate, required this.content});
+  final String writer, writeDate, content;
+}
+
+/// 게시글 상세(ViewPost). ⚠️ 호출하면 조회수가 오른다(실제 열람). 게시판명은 art가 아니라 board.cat_title.
+class GwNoticeDetail {
+  const GwNoticeDetail({required this.artSeqNo, required this.title, required this.board, required this.writer, required this.dept, required this.writeDate, required this.readCnt, required this.fileCnt, required this.content, required this.comments});
+  final String artSeqNo, title, board, writer, dept, writeDate, content;
+  final int readCnt, fileCnt;
+  final List<GwComment> comments;
+  factory GwNoticeDetail.fromData(Map d) {
+    final art = d['art'] is Map ? d['art'] as Map : const {};
+    final board = d['board'] is Map ? d['board'] as Map : const {};
+    final remarks = (d['remarkList'] as List?) ?? const [];
+    String firstOf(Map r, List<String> keys) => keys.map((k) => asStr(r[k])).firstWhere((v) => v.isNotEmpty, orElse: () => '');
+    return GwNoticeDetail(
+      artSeqNo: asStr(art['art_seq_no']), title: asStr(art['art_title']), board: asStr(board['cat_title']), writer: asStr(art['mbr_nick']), dept: asStr(art['dept_name']),
+      writeDate: niceDate(asStr(art['write_date'])), readCnt: asInt(art['read_cnt']), fileCnt: asInt(art['file_cnt']), content: htmlToText(asStr(art['art_content'])),
+      comments: [for (final r in remarks) if (r is Map) GwComment(writer: asStr(r['mbr_nick']), writeDate: niceDate(asStr(r['write_date'])), content: htmlToText(firstOf(r, ['remark_desc', 'remark_content', 'content', 'art_content'])))],
+    );
+  }
+}

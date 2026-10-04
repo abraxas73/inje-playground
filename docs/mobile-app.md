@@ -20,8 +20,11 @@
 
 **연결 화면(2026-10-04 2차)**: 로그인 페이지의 `<meta viewport>`가 `width=1280` 고정이라 폰에서 작게 보여 페이지 로드마다 `viewportFixJs`로 `device-width`를 끼운다(페이지는 390px에서도 안 깨지는 유동 레이아웃 — Playwright 실측). 쿠키 감지는 `onPageFinished`만으로는 SPA 라우팅을 못 잡아 `onUrlChange` + 1초 폴링으로 하고, 잡히는 즉시 검증·저장 후 **자동으로 닫는다**(아마란스 메인은 보여 주지 않음). **자동 로그인**: 더보기 → 아마란스 시트에서 아이디·비밀번호를 저장하면(iOS Keychain · Android Keystore, `flutter_secure_storage`, 키 `gw.loginId`/`gw.loginPw`) 연결 화면이 WebView를 가린 채 `#reqLoginId` → "다음" → `#reqLoginPw` → "로그인"을 React 네이티브 setter + input 이벤트로 채운다(`gw_login_js.dart`, 판단은 순수 함수 `decideFill`). 오류 문구·OTP(인증수단 선택, `input.number`) 화면·저장 정보 없음이면 WebView를 드러내 사람이 잇는다("직접 로그인" 버튼도 있음). 로그인 DOM이 바뀌면 `probeJs`/`fillJs`의 선택자부터 본다.
 
+**게시판·날짜 이동(2026-10-04 3차)**: `board_screen.dart` — 전 게시판 공지·새 글 집계(`ViewBoardNewAndNoticeArtList`, noticeYn Y, 20건씩 더 보기, 통합검색 searchTotal) → 본문·댓글(`ViewPost`, ⚠️ 조회수 증가 — 글을 눌렀을 때만). 첨부는 개수만(내려받기는 아마란스에서). 홈에 "공지사항" 카드(`gw_notices_card.dart`, 최신 3건, 누르면 `/gw/board?art=`로 바로 본문). 일정·회의실 화면(`today_screen.dart`)은 ‹ › 날짜 이동·날짜 선택·"오늘" 버튼(두 구역이 같은 날짜). 부채꼴 그룹 아마란스는 미결 결재·출퇴근·일정·메일·게시판 5항목.
+
 | 증상 | 확인 | 조치 |
 |---|---|---|
+| 게시판 목록이 비거나 특정 게시판만 안 보임 | 이 API는 전 게시판 **공지·새 글 집계**라 게시판별 필터(`searchBoard`)가 무시된다(inno-creed 실측) | 게시판별 목록은 `ViewBoardArtList`의 "게시판 코드"가 필요해 미구현 — 라이브 캡처 뒤 추가 |
 | 자동 로그인이 "직접 로그인하세요"로 빠짐 | 배너의 아마란스 오류 문구(비밀번호 불일치 등) 또는 OTP 화면 | 비밀번호를 시트에서 다시 저장. OTP가 켜진 계정은 자동 로그인이 거기까지만 된다 |
 | 자동 로그인이 멈춰 있음(패널만 돌고 있음) | 로그인 페이지 선택자 변경(`#reqLoginId`/`#reqLoginPw`/`button[type=submit]` 텍스트 "다음"·"로그인") | "직접 로그인"으로 전환해 연결하고, 선택자를 `gw_login_js.dart`에서 갱신 |
 | 연결 화면에서 로그인했는데 연결이 안 됨 | 쿠키 이름이 `oAuthToken`/`signKey`(또는 `BIZCUBE_AT`/`HK`)인지, HttpOnly로 바뀌지 않았는지(PC Chrome DevTools → Application → Cookies) | 오른쪽 위 "쿠키 지우고 로그인"으로 재시도. 이름이 바뀌었으면 `parseGwCookies` 수정 |

@@ -138,6 +138,29 @@ extension GwMailApi on GwApi {
   }
 }
 
+extension GwBoardApi on GwApi {
+  /// 전 게시판 공지·새 글 집계(최신순). search는 통합검색(제목·본문·작성자). companyInfo 불필요.
+  Future<(int, List<GwNotice>)> notices({int page = 1, int pageSize = 20, String search = ''}) async {
+    final d = await client.call('/board/APIHandler/ViewBoardNewAndNoticeArtList', {
+      'adminPage': 'N', 'searchAuthType': 'U', 'searchTotal': search, 'searchTitle': '', 'searchNick': '', 'searchDesc': '', 'searchBoard': '', 'searchRemarkNo': '', 'searchEtcValue': '',
+      'searchStartDate': '', 'searchEndDate': '', 'searchStartTerm': '', 'searchEndTerm': '', 'eventStatus': '', 'reserveStatus': '', 'counselingOk': '', 'searchMailFrom': '',
+      'sort': 'write_date', 'project_id': null, 'page': page, 'pageSize': pageSize, 'sortType': 'desc', 'menuCode': 'UFA', 'pageCode': 'UFA1000', 'moduleCode': 'UF',
+      'noticeYn': 'Y', 'apiName': 'ViewBoardNewAndNoticeArtList', 'use_list_art_content': 'Y',
+    });
+    final list = (d is Map ? d['articleList'] : null) as List? ?? const [];
+    final items = [for (final r in list) if (r is Map) GwNotice.fromRow(r)];
+    return (asInt(d is Map ? d['totalCnt'] : null, items.length), items);
+  }
+
+  /// 게시글 상세 — ⚠️ 조회수가 오른다(실제 열람). 사용자가 글을 눌렀을 때만 부른다.
+  Future<GwNoticeDetail> notice(String artSeqNo) async {
+    final d = await client.call('/board/APIHandler/ViewPost', {
+      'art_seq_no': artSeqNo, 'adminPage': 'N', 'externalYn': 'N', 'menuCode': 'UFA', 'pageCode': 'UFA1000', 'moduleCode': 'UF', 'presentPassword': '', 'isPrint': 'N', 'searchParams': null,
+    });
+    return GwNoticeDetail.fromData(d is Map ? d : const {});
+  }
+}
+
 /// 캘린더·회의실 목록·INBOX seq 캐시(앱 생명주기, GwApi 인스턴스마다).
 class _GwCache {
   List<GwCalendar>? cals;

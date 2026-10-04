@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:playground/gw/approvals_screen.dart';
 import 'package:playground/gw/attendance_screen.dart';
+import 'package:playground/gw/board_screen.dart';
 import 'package:playground/gw/mail_screen.dart';
 import 'package:playground/gw/today_screen.dart';
 import 'fakes.dart';
@@ -17,8 +18,10 @@ class Routes {
   Routes(this.m);
   final Map<String, List<Object?>> m;
   final hits = <String, int>{};
+  final bodies = <String, Map<String, dynamic>>{};
   MockClient get client => MockClient((r) async {
         hits[r.url.path] = (hits[r.url.path] ?? 0) + 1;
+        if (r.body.startsWith('{')) bodies[r.url.path] = jsonDecode(r.body) as Map<String, dynamic>;
         final q = m[r.url.path];
         if (q == null || q.isEmpty) return http.Response('{"resultCode":999,"resultMsg":"unexpected ${r.url.path}"}', 200);
         return ok(q.length == 1 ? q.first : q.removeAt(0));
@@ -106,5 +109,38 @@ void main() {
     await tester.pumpWidget(gwScope(http: r.client, child: const MailScreen()));
     await tester.pumpAndSettle();
     expect(find.byTooltip('뒤로'), findsOneWidget);
+  });
+  testWidgets('오늘 화면: › 를 누르면 다음 날 일정·예약을 다시 불러오고, 오늘 버튼으로 돌아온다', (tester) async {
+    final r = Routes({'/gw/gw050A02': [session], '/schres/sc111A02': [{'resultList': []}], '/schres/sc111A03': [{'resultList': []}, {'resultList': []}, {'resultList': []}], '/schres/rs121A01': [{'resultList': []}], '/schres/rs121A05': [{'resultList': []}, {'resultList': []}, {'resultList': []}]});
+    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const TodayScreen()));
+    await tester.pumpAndSettle();
+    final today = DateTime.now();
+    final tomorrow = today.add(const Duration(days: 1));
+    String ymd(DateTime d) => '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
+    expect(r.bodies['/schres/sc111A03']?['startDate'], ymd(today));
+    await tester.tap(find.byTooltip('다음 날'));
+    await tester.pumpAndSettle();
+    expect(r.bodies['/schres/sc111A03']?['startDate'], ymd(tomorrow));
+    expect(r.bodies['/schres/rs121A05']?['startDate'], ymd(tomorrow));
+    expect(find.text('오늘'), findsWidgets); // 오늘로 돌아가기 버튼
+    await tester.tap(find.widgetWithText(TextButton, '오늘'));
+    await tester.pumpAndSettle();
+    expect(r.bodies['/schres/sc111A03']?['startDate'], ymd(today));
+  });
+  testWidgets('게시판: 목록 → 항목 → 본문·댓글(ViewPost 1회)', (tester) async {
+    final r = Routes({'/board/APIHandler/ViewBoardNewAndNoticeArtList': [{'totalCnt': 2, 'articleList': [
+      {'art_seq_no': '1', 'art_title': '10월 전사 공지', 'cat_title': '공지사항', 'mbr_nick': '홍길동', 'dept_name': '경영지원', 'write_date': '2026-10-04 07:10:00', 'read_cnt': '5', 'file_cnt': '1', 'art_read_yn': 'N', 'art_content': '미리보기입니다'},
+      {'art_seq_no': '2', 'art_title': '동호회 모집', 'cat_title': '자유게시판', 'mbr_nick': '김민준', 'write_date': '2026-10-03 10:00:00', 'file_cnt': '0', 'art_read_yn': 'Y'}]}],
+      '/board/APIHandler/ViewPost': [{'art': {'art_seq_no': '1', 'art_title': '10월 전사 공지', 'mbr_nick': '홍길동', 'write_date': '2026-10-04 07:10:00', 'art_content': '<p>전 직원 필독</p>', 'file_cnt': '1'}, 'board': {'cat_title': '공지사항'}, 'remarkList': [{'mbr_nick': '이서연', 'remark_desc': '확인'}]}]});
+    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const BoardScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('10월 전사 공지'), findsOneWidget);
+    expect(find.text('동호회 모집'), findsOneWidget);
+    await tester.tap(find.text('10월 전사 공지'));
+    await tester.pumpAndSettle();
+    expect(find.text('전 직원 필독'), findsOneWidget);
+    expect(find.textContaining('이서연'), findsOneWidget);
+    expect(find.textContaining('첨부 1'), findsWidgets); // 메타 줄 + 안내 상자
+    expect(r.hits['/board/APIHandler/ViewPost'], 1);
   });
 }

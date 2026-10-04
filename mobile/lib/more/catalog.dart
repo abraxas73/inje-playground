@@ -18,8 +18,9 @@ const pageGroups = <PageGroup>[PageGroup('daily', '일상'), PageGroup('ai', 'AI
 const appPages = <PageEntry>[
   PageEntry('gw_approvals', '/gw/approvals', '미결 결재', 'gw', 'user'),
   PageEntry('gw_attendance', '/gw/attendance', '출퇴근', 'gw', 'user'),
-  PageEntry('gw_today', '/gw/today', '오늘 일정', 'gw', 'user'),
+  PageEntry('gw_today', '/gw/today', '일정', 'gw', 'user'),
   PageEntry('gw_mail', '/gw/mail', '메일', 'gw', 'user'),
+  PageEntry('gw_board', '/gw/board', '게시판', 'gw', 'user'),
 ];
 
 const pages = <PageEntry>[

@@ -74,4 +74,15 @@ void main() {
     expect(ymd(kstOf(DateTime.utc(2026, 10, 3, 14, 59))), '20261003');
     expect(kstNow().difference(kstOf(DateTime.now())).inSeconds.abs(), lessThan(2));
   });
+  test('게시글 행: file_cnt 문자열·플래그·프리뷰, 날짜는 초 제거', () {
+    final n = GwNotice.fromRow({'art_seq_no': 3063, 'art_title': '10월 공지', 'cat_title': '공지사항', 'cat_seq_no': '492', 'mbr_nick': '홍', 'dept_name': '경영지원', 'write_date': '2026-10-04 07:10:33', 'read_cnt': '12', 'file_cnt': '2', 'uid': 'u1,u2', 'is_new_yn': 'Y', 'art_read_yn': 'N', 'art_content': '<p>본문  미리보기</p>'});
+    expect((n.artSeqNo, n.title, n.board, n.writer, n.fileCnt, n.isNew, n.read, n.preview), ('3063', '10월 공지', '공지사항', '홍', 2, true, false, '본문 미리보기'));
+    expect(n.writeDate, '2026-10-04 07:10');
+    expect(niceDate('20261004071033'), '2026-10-04 07:10');
+    expect(niceDate('2026.10.04'), '2026.10.04');
+  });
+  test('게시글 상세: 게시판명은 board.cat_title, 본문 HTML → 평문, 댓글', () {
+    final d = GwNoticeDetail.fromData({'art': {'art_seq_no': '1', 'art_title': 't', 'mbr_nick': '홍', 'write_date': '2026-10-04 09:00:00', 'read_cnt': 3, 'file_cnt': 0, 'art_content': '<div>안녕&nbsp;하세요<br>둘째 줄</div>', 'cat_title': null}, 'board': {'cat_title': '공지사항'}, 'remarkList': [{'mbr_nick': '김', 'write_date': '2026-10-04 10:00:00', 'remark_desc': '<p>확인했습니다</p>'}]});
+    expect((d.board, d.content, d.readCnt, d.comments.single.content, d.comments.single.writer), ('공지사항', '안녕 하세요 둘째 줄', 3, '확인했습니다', '김'));
+  });
 }

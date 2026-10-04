@@ -19,6 +19,7 @@ class _Body extends StatefulWidget {
 }
 
 class _BodyState extends State<_Body> {
+  DateTime _day = kstNow();
   bool _allEvents = false, _allRooms = false;
   List<GwEvent>? _events;
   List<GwCalendar>? _cals;
@@ -31,8 +32,20 @@ class _BodyState extends State<_Body> {
     _load();
   }
 
+  bool get _isToday => ymd(_day) == ymd(kstNow());
+
+  void _go(DateTime d) {
+    setState(() { _day = d; _events = null; _rooms = null; _eventsError = null; _roomsError = null; });
+    _load();
+  }
+
+  Future<void> _pick() async {
+    final d = await showDatePicker(context: context, initialDate: _day, firstDate: DateTime(2020), lastDate: DateTime(2035));
+    if (d != null) _go(d);
+  }
+
   Future<void> _load() async {
-    final day = kstNow();
+    final day = _day;
     await Future.wait([
       () async {
         try {
@@ -66,6 +79,13 @@ class _BodyState extends State<_Body> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 24), children: [
+          Row(children: [
+            IconButton(icon: const Icon(Icons.chevron_left), tooltip: '이전 날', onPressed: () => _go(_day.subtract(const Duration(days: 1)))),
+            Expanded(child: TextButton(onPressed: _pick, child: Text(_dayLabel(_day), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Brand.navy)))),
+            IconButton(icon: const Icon(Icons.chevron_right), tooltip: '다음 날', onPressed: () => _go(_day.add(const Duration(days: 1)))),
+            if (!_isToday) TextButton(onPressed: () => _go(kstNow()), child: const Text('오늘')),
+          ]),
+          const SizedBox(height: 4),
           _Section(
             title: '일정', count: events?.length, all: _allEvents, onToggle: (v) => setState(() => _allEvents = v), error: _eventsError, loading: _events == null, empty: '일정이 없습니다',
             items: [
@@ -85,6 +105,11 @@ class _BodyState extends State<_Body> {
       ),
     );
   }
+}
+
+String _dayLabel(DateTime d) {
+  const w = ['월', '화', '수', '목', '금', '토', '일'];
+  return '${d.month}월 ${d.day}일 (${w[d.weekday - 1]})';
 }
 
 class _Section extends StatelessWidget {

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/brand.dart';
 import '../../app/theme.dart';
 import '../../auth/session.dart';
+import '../../gw/gw_notices_card.dart';
 import '../../gw/gw_today_card.dart';
 import '../../more/catalog.dart';
 import '../../more/service_grid.dart';
@@ -48,6 +49,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           const GwTodayCard(),
+          const GwNoticesCard(),
           const SizedBox(height: 20),
           Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('바로 가기', style: theme.textTheme.titleSmall)),
           GridView.count(

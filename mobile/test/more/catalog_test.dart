@@ -26,6 +26,6 @@ void main() {
     expect(visiblePages(s('user')).any((p) => p.group == 'gw'), false);
     final groups = visibleGroups(s('user'));
     expect(groups.map((g) => g.$1.id), ['daily', 'ai', 'work', 'gw']);
-    expect(groups.last.$2.map((p) => p.href), ['/gw/approvals', '/gw/attendance', '/gw/today', '/gw/mail']);
+    expect(groups.last.$2.map((p) => p.href), ['/gw/approvals', '/gw/attendance', '/gw/today', '/gw/mail', '/gw/board']);
   });
 }

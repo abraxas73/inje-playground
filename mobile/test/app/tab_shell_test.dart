@@ -124,7 +124,7 @@ void main() {
     await pumpShell(tester, user);
     await tester.tap(tab('아마란스'));
     await tester.pumpAndSettle();
-    for (final l in ['미결 결재', '출퇴근', '오늘 일정', '메일']) {
+    for (final l in ['미결 결재', '출퇴근', '일정', '메일', '게시판']) {
       expect(fanItem(l), findsOneWidget, reason: l);
     }
     await tester.tap(fanItem('출퇴근'));

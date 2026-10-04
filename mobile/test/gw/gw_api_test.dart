@@ -131,4 +131,17 @@ void main() {
     expect((r2.ok, r2.verified), (false, false));
     expect(r2.note, contains('unexpected'));
   });
+  test('notices: 공지 집계 목록 body(noticeYn Y·프리뷰·검색) + 정제', () async {
+    final f = Fake({'/board/APIHandler/ViewBoardNewAndNoticeArtList': [{'totalCnt': 1, 'articleList': [{'art_seq_no': '1', 'art_title': 'a', 'write_date': '2026-10-04 07:10:00', 'file_cnt': '0'}]}]});
+    final (total, list) = await f.api().notices(pageSize: 3, search: '회식');
+    expect((total, list.single.title), (1, 'a'));
+    final b = f.calls.last.$2;
+    expect((b['noticeYn'], b['use_list_art_content'], b['pageSize'], b['page'], b['searchTotal'], b['sort'], b['sortType'], b['apiName']), ('Y', 'Y', 3, 1, '회식', 'write_date', 'desc', 'ViewBoardNewAndNoticeArtList'));
+  });
+  test('notice: ViewPost body(isPrint N) + 상세', () async {
+    final f = Fake({'/board/APIHandler/ViewPost': [{'art': {'art_seq_no': '7', 'art_title': 't', 'art_content': '<p>x</p>'}, 'board': {'cat_title': '자유'}, 'remarkList': []}]});
+    final d = await f.api().notice('7');
+    expect((d.title, d.board, d.content), ('t', '자유', 'x'));
+    expect((f.calls.last.$2['art_seq_no'], f.calls.last.$2['isPrint'], f.calls.last.$2['menuCode']), ('7', 'N', 'UFA'));
+  });
 }
