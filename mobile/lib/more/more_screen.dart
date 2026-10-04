@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
 import '../auth/session.dart';
-import '../config.dart';
+import '../release/update_banner.dart';
 import '../gw/gw_creds.dart';
 import '../gw/gw_settings_sheet.dart';
 import 'catalog.dart';
@@ -15,7 +15,6 @@ class MoreScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionProvider).asData?.value;
     if (session == null) return const SizedBox.shrink();
-    final theme = Theme.of(context);
     final admin = visibleAdminPages(session);
     final gw = ref.watch(gwProvider).value;
     final email = session.email ?? '';
@@ -86,7 +85,7 @@ class MoreScreen extends ConsumerWidget {
                   onTap: () => open('/settings'),
                 ),
                 const Divider(),
-                ListTile(leading: const Icon(Icons.info_outline), title: const Text('앱 버전'), trailing: Text(Config.appVersion, style: theme.textTheme.bodySmall)),
+                const ListTile(leading: Icon(Icons.info_outline), title: Text('앱 버전'), trailing: VersionTrailing()),
               ]),
             ),
             const SizedBox(height: 14),

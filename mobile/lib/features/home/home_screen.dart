@@ -10,6 +10,7 @@ import '../../more/catalog.dart';
 import '../../more/service_grid.dart';
 import 'greeting.dart';
 import 'quotes.dart';
+import '../../release/update_banner.dart';
 
 /// 로그인 뒤 첫 화면(웰컴): 시간·날짜 인사, 오늘의 한 줄, 네이티브 기능 바로 가기, 사내 서비스(WebView) 카드.
 class HomeScreen extends ConsumerWidget {
@@ -28,6 +29,7 @@ class HomeScreen extends ConsumerWidget {
         child: ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 24), children: [
           const Align(alignment: Alignment.centerLeft, child: BrandLogo(width: 86, opacity: 0.8)),
           const SizedBox(height: 14),
+          const UpdateBanner(),
           Text(g.title, style: theme.textTheme.headlineSmall),
           const SizedBox(height: 4),
           Text(g.subtitle, style: theme.textTheme.bodySmall),
