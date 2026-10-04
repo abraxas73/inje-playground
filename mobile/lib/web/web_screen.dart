@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -24,6 +25,9 @@ class _WebScreenState extends ConsumerState<WebScreen> {
   bool _loading = true;
   String? _error;
   final _guard = BootstrapGuard();
+  // 오류는 바로 보여 주지 않는다 — 가로챈 내비게이션 뒤 곧바로 새 로드가 시작되면(seq 증가) 그 오류는 버린다.
+  int _loadSeq = 0;
+  Timer? _errTimer;
 
   @override
   void initState() {
@@ -32,13 +36,22 @@ class _WebScreenState extends ConsumerState<WebScreen> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(NavigationDelegate(
         onNavigationRequest: _onNav,
-        onPageStarted: (_) => setState(() { _loading = true; _error = null; }),
+        onPageStarted: (_) {
+          _loadSeq++;
+          _errTimer?.cancel();
+          setState(() { _loading = true; _error = null; });
+        },
         onPageFinished: (_) async {
           final t = await _c.getTitle();
           if (mounted) setState(() { _loading = false; _title = t ?? ''; });
         },
         onWebResourceError: (e) {
-          if (e.isForMainFrame ?? true) setState(() { _loading = false; _error = '페이지를 불러오지 못했습니다 (${e.description})'; });
+          if (!(e.isForMainFrame ?? true) || isIgnorableWebError(code: e.errorCode, description: e.description)) return;
+          final seq = _loadSeq;
+          _errTimer?.cancel();
+          _errTimer = Timer(const Duration(milliseconds: 700), () {
+            if (mounted && seq == _loadSeq) setState(() { _loading = false; _error = '페이지를 불러오지 못했습니다 (${e.description})'; });
+          });
         },
       ));
     _setUserAgent().then((_) => _c.loadRequest(Uri.parse('${Config.apiBase}${widget.path}')));
@@ -52,6 +65,12 @@ class _WebScreenState extends ConsumerState<WebScreen> {
         return f == null ? <String>[] : [f.uri.toString()];
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _errTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _setUserAgent() async {
@@ -115,7 +134,7 @@ class _WebScreenState extends ConsumerState<WebScreen> {
         },
         child: Scaffold(
           appBar: AppBar(
-            title: Text(_title.isEmpty ? widget.path : _title, overflow: TextOverflow.ellipsis),
+            title: Text(webTitleFor(title: _title, loading: _loading, path: widget.path), overflow: TextOverflow.ellipsis),
             actions: [
               IconButton(icon: const Icon(Icons.refresh), tooltip: '새로고침', onPressed: _reload),
               IconButton(icon: const Icon(Icons.open_in_browser), tooltip: '브라우저로 열기', onPressed: () => launchUrl(Uri.parse('${Config.apiBase}${widget.path}'), mode: LaunchMode.externalApplication)),

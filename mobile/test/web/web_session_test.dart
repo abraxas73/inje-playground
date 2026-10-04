@@ -23,4 +23,16 @@ void main() {
     g.reset();
     expect(g.tryBegin(), true);
   });
+  test('취소된 내비게이션 오류(-999·Frame load interrupted 102·cancelled)는 오류로 보여 주지 않는다', () {
+    expect(isIgnorableWebError(code: -999, description: 'cancelled'), true);
+    expect(isIgnorableWebError(code: 102, description: 'Frame load interrupted'), true);
+    expect(isIgnorableWebError(code: -1, description: 'The operation was cancelled'), true);
+    expect(isIgnorableWebError(code: -1009, description: 'The Internet connection appears to be offline.'), false);
+    expect(isIgnorableWebError(code: -2, description: 'net::ERR_NAME_NOT_RESOLVED'), false);
+  });
+  test('머리 제목: 페이지 제목 > 로딩 중 > 경로', () {
+    expect(webTitleFor(title: '설정', loading: true, path: '/settings'), '설정');
+    expect(webTitleFor(title: '', loading: true, path: '/settings'), '로딩 중…');
+    expect(webTitleFor(title: '', loading: false, path: '/settings'), '/settings');
+  });
 }

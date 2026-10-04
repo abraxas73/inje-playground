@@ -40,3 +40,14 @@ class BootstrapGuard {
   }
   void reset() => _attempts = 0;
 }
+
+/// 우리가 내비게이션을 가로채(/login → 부트스트랩) 다시 로드할 때 WKWebView가 내는 "취소됨" 오류.
+/// NSURLErrorCancelled(-999)·WebKit Frame load interrupted(102)·설명에 cancel/interrupt — 진짜 실패가 아니라 보여 주지 않는다.
+bool isIgnorableWebError({required int code, required String description}) {
+  if (code == -999 || code == 102) return true;
+  final d = description.toLowerCase();
+  return d.contains('cancel') || d.contains('interrupt');
+}
+
+/// 머리 제목: 페이지 제목이 있으면 그것, 로딩 중이면 "로딩 중…", 아니면 경로.
+String webTitleFor({required String title, required bool loading, required String path}) => title.isNotEmpty ? title : (loading ? '로딩 중…' : path);
