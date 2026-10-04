@@ -59,6 +59,7 @@
 | iOS에서 Microsoft 로그인 뒤 `login.microsoftonline.com` 시트(마지막 "로그인 상태를 유지하시겠습니까?")가 안 닫히고 앱을 덮음 — 로그에는 `handle deeplink uri`가 찍힘 | supabase_flutter는 딥링크로 세션만 복구하고 인앱 Safari 시트(SFSafariViewController)는 닫지 않는다 | 앱이 `signedIn` 때 `closeInAppWebView()`로 시트를 닫는다(`lib/auth/session.dart`, 2026-10-03 반영). 그래도 남으면 X로 닫으면 이미 로그인된 상태 |
 | `release-mobile.sh`가 "작업 트리가 깨끗하지 않습니다"로 멈춤 | 릴리스는 커밋된 상태에서 재현 가능해야 한다 | 커밋하거나 `--allow-dirty` |
 | `release-mobile.sh android`가 "이미 있습니다"로 멈춤 | 같은 `+N` 빌드의 APK가 버킷에 있음 | pubspec의 `+N`을 올린다(앱은 이 숫자로 새 버전을 판단) |
+| `release-mobile.sh` 업로드가 "업로드 실패 (HTTP 413…)" 또는 오래 멈춤 | APK가 프로젝트 전역 파일 상한을 넘음(초기 50MB) | Supabase 대시보드 Storage 설정 또는 Management API로 `fileSizeLimit`을 올린다(2026-10-04 200MB). 10MB 조각으로 업로드 속도를 먼저 확인 |
 | Android에서 APK 설치 시 "앱이 설치되지 않았습니다" / 서명 불일치 | 기존 설치와 서명 키가 다름(디버그 빌드 위에 릴리스, 또는 키스토어 분실) | 기존 앱 삭제 후 설치. 키스토어는 1Password 백업본을 `mobile/android/`에 복원 |
 
 ## 배포(사내) (2026-10-04)
@@ -68,7 +69,7 @@
 1. **Android 키스토어**: `mobile/android/upload-keystore.jks` + `key.properties`(둘 다 gitignore). 2026-10-04 생성(별칭 `upload`, RSA 2048, 10000일). **두 파일을 1Password에 백업** — 잃으면 서명이 바뀌어 전 직원이 앱을 지우고 다시 설치해야 한다. 새 Mac에서는 두 파일을 같은 자리에 복원하면 된다(없으면 디버그 키로 빌드돼 기존 설치 위에 업데이트가 안 된다).
 2. **App Store Connect**: 번들 ID `com.innogrid.playground` 등록 → 앱 "이노그리드" 생성 → TestFlight 테스트 정보(연락처, **심사용 로그인 계정** — 앱이 Microsoft 로그인만 받으므로 테넌트에 심사용 계정 1개를 IT에 요청하거나 심사 노트에 사내 전용임을 적는다) → 외부 테스터 그룹 "이노그리드 구성원" 생성 → **공개 링크 켜기** → 그 링크를 첫 iOS 릴리스 때 `--testflight-url`로 넘긴다.
 3. **App Store Connect API 키**: Users and Access → Integrations → App Store Connect API에서 키(역할 App Manager) 발급, `.p8`을 `~/.private_keys/AuthKey_<KEY_ID>.p8`에 두고 `mobile/.env.release`(gitignore)에 `ASC_KEY_ID=…`, `ASC_ISSUER_ID=…`.
-4. Supabase 버킷 `mobile`은 `docs/sql/2026-10-04-mobile-release.sql`로 만들었다(2026-10-04 적용).
+4. Supabase 버킷 `mobile`은 `docs/sql/2026-10-04-mobile-release.sql`로 만들었다(2026-10-04 적용). 프로젝트 **전역** 파일 상한(Storage 설정 `fileSizeLimit`)이 50MB라 59MB APK가 거부돼 Management API(`PATCH /v1/projects/<ref>/config/storage {"fileSizeLimit":209715200}`)로 200MB로 올렸다 — 버킷 상한은 전역 상한을 넘을 수 없다.
 
 ### 매 릴리스
 1. `mobile/pubspec.yaml`의 `version: X.Y.Z+N`을 올린다(빌드 번호 `+N`은 항상 증가 — 앱은 이 숫자로 새 버전을 판단한다). 커밋.

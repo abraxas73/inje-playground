@@ -102,8 +102,10 @@ if [ "$DO_ANDROID" = 1 ]; then
   fi
   say "Android: 스토리지 업로드 → mobile/$APK_PATH"
   if [ "$DRY" = 1 ]; then echo "  (dry-run) POST $STORAGE/object/mobile/$APK_URL_PATH"; else
-    curl -sf -X POST "${AUTH[@]}" -H "Content-Type: application/vnd.android.package-archive" -H "x-upsert: false" "$STORAGE/object/mobile/$APK_URL_PATH" --data-binary @"$MOBILE/build/app/outputs/flutter-apk/app-release.apk" >/dev/null || { echo "업로드 실패" >&2; exit 1; }
-    echo "  완료"
+    # 프로젝트 전역 파일 상한(Storage 설정 fileSizeLimit, 2026-10-04 200MB로 올림)을 넘으면 서버가 거부한다 — 상태 코드와 본문을 보여 준다
+    RESP=$(mktemp); CODE=$(curl -s --max-time 900 -o "$RESP" -w '%{http_code}' -X POST "${AUTH[@]}" -H "Content-Type: application/vnd.android.package-archive" -H "x-upsert: false" "$STORAGE/object/mobile/$APK_URL_PATH" --data-binary @"$MOBILE/build/app/outputs/flutter-apk/app-release.apk" || echo "000")
+    [ "$CODE" = 200 ] || { echo "업로드 실패 (HTTP $CODE): $(head -c 300 "$RESP")" >&2; rm -f "$RESP"; exit 1; }
+    rm -f "$RESP"; echo "  완료"
   fi
   write_release android "$APK_PATH"
 fi
