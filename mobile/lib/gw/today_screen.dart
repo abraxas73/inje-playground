@@ -62,7 +62,7 @@ class _BodyState extends State<_Body> {
     final events = _events == null ? null : (_allEvents ? _events! : myEvents(_events!, _cals ?? const [], me));
     final rooms = _rooms == null ? null : (_allRooms ? _rooms! : _rooms!.where((r) => r.ownerEmpSeq == me).toList());
     return Scaffold(
-      appBar: const BrandHeader(title: '오늘'),
+      appBar: const BrandHeader(title: '오늘', showBack: true),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 24), children: [

@@ -16,11 +16,11 @@ class GwGate extends ConsumerWidget {
     final st = ref.watch(gwProvider);
     final api = ref.watch(gwApiProvider);
     final state = st.value;
-    if (state == null) return Scaffold(appBar: BrandHeader(title: title), body: const Center(child: CircularProgressIndicator()));
+    if (state == null) return Scaffold(appBar: BrandHeader(title: title, showBack: true), body: const Center(child: CircularProgressIndicator()));
     if (state.status == GwStatus.connected && api != null) return builder(context, api);
     final relogin = state.status == GwStatus.needsRelogin;
     return Scaffold(
-      appBar: BrandHeader(title: title),
+      appBar: BrandHeader(title: title, showBack: true),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(28),

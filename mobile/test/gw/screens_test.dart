@@ -97,4 +97,14 @@ void main() {
     expect(find.textContaining('ParallelWaitError'), findsNothing);
     expect(find.textContaining('unexpected'), findsOneWidget);
   });
+  testWidgets('아마란스 화면(push 라우트)에는 뒤로 버튼이 있다 — 하단 바가 없어서', (tester) async {
+    final r = Routes({'/mail/mail000A03': [[{'unreadCount': 0, 'toMeCount': 0, 'totalCount': 0}]], '/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]}], '/mail/mail003A01': [{'Records': [], 'TotalUnseenCount': 0}]});
+    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const MailScreen()));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('뒤로'), findsOneWidget);
+    // 미연결 안내(GwGate)에도
+    await tester.pumpWidget(gwScope(http: r.client, child: const MailScreen()));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('뒤로'), findsOneWidget);
+  });
 }

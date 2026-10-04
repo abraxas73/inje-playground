@@ -34,7 +34,7 @@ class _BodyState extends State<_Body> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: const BrandHeader(title: '메일'),
+        appBar: const BrandHeader(title: '메일', showBack: true),
         body: RefreshIndicator(
           onRefresh: _refresh,
           child: FutureBuilder(

@@ -61,7 +61,7 @@ class _BodyState extends State<_Body> {
   Widget build(BuildContext context) {
     final today = kstNow();
     return Scaffold(
-      appBar: const BrandHeader(title: '미결 결재'),
+      appBar: const BrandHeader(title: '미결 결재', showBack: true),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: FutureBuilder(

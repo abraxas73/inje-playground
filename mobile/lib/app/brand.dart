@@ -15,10 +15,12 @@ class BrandLogo extends StatelessWidget {
 }
 
 /// 탭 화면 머리: 작은 워드마크 + 큰 제목 + 오른쪽 44px 아이콘 버튼. Scaffold.appBar 자리에 쓴다(상태 표시줄 여백은 SafeArea가 먹는다).
+/// 셸 밖 push 화면(하단 바 없음)은 [showBack]으로 왼쪽에 뒤로 버튼을 둔다.
 class BrandHeader extends StatelessWidget implements PreferredSizeWidget {
-  const BrandHeader({super.key, required this.title, this.actions = const []});
+  const BrandHeader({super.key, required this.title, this.actions = const [], this.showBack = false});
   final String title;
   final List<Widget> actions;
+  final bool showBack;
   @override
   Size get preferredSize => const Size.fromHeight(76);
   @override
@@ -27,6 +29,7 @@ class BrandHeader extends StatelessWidget implements PreferredSizeWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
           child: Row(children: [
+            if (showBack) Padding(padding: const EdgeInsets.only(right: 12), child: SquareIconButton(icon: Icons.arrow_back, tooltip: '뒤로', onPressed: () => Navigator.of(context).maybePop())),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                 const BrandLogo(width: 86, opacity: 0.8),

@@ -67,7 +67,7 @@ class _BodyState extends State<_Body> {
     final theme = Theme.of(context);
     final a = _a;
     return Scaffold(
-      appBar: const BrandHeader(title: '출퇴근'),
+      appBar: const BrandHeader(title: '출퇴근', showBack: true),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 24), children: [
