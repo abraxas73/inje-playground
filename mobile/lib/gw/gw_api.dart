@@ -111,12 +111,30 @@ extension GwScheduleApi on GwApi {
   }
 }
 
-/// 캘린더·회의실 목록 캐시(앱 생명주기, GwApi 인스턴스마다).
+extension GwMailApi on GwApi {
+  Future<MailSummary> mailSummary() async {
+    final d = await client.call('/mail/mail000A03', const <String, Object>{});
+    return MailSummary.fromCounts(d is List ? d : const []);
+  }
+
+  /// 받은메일함 최근 N통. INBOX seq는 계정마다 달라 mail000A01에서 이름으로 찾는다(세션 동안 캐시).
+  Future<(int, List<MailItem>)> inbox({int pageSize = 20}) async {
+    _cache.inboxSeq ??= findMboxSeq(await client.call('/mail/mail000A01', const <String, Object>{}), 'INBOX');
+    final seq = _cache.inboxSeq;
+    if (seq == null) throw GwException(200, 0, '받은메일함을 찾지 못했습니다');
+    final d = await client.call('/mail/mail003A01', {'boxName': 'INBOX', 'mainApiCode': 'mail003A01', 'mboxSeq': seq, 'page': 1, 'pageSize': pageSize, 'sort': 'rfc822date', 'sortType': 'desc', 'listType': '', 'showType': '', 'seen': false});
+    final recs = (d is Map ? d['Records'] : null) as List? ?? const [];
+    return (asInt(d is Map ? d['TotalUnseenCount'] : null), [for (final r in recs) if (r is Map) MailItem.fromRow(r)]);
+  }
+}
+
+/// 캘린더·회의실 목록·INBOX seq 캐시(앱 생명주기, GwApi 인스턴스마다).
 class _GwCache {
   List<GwCalendar>? cals;
   DateTime? calsAt;
   List<GwResource>? res;
   DateTime? resAt;
+  int? inboxSeq;
 }
 
 final gwApiProvider = Provider<GwApi?>((ref) {

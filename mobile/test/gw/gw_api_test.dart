@@ -102,4 +102,21 @@ void main() {
     expect(body['statusType'], ['10', '20']);
     expect((body['menuAuth'], body['startDate']), ('USER', '20261004'));
   });
+  test('mailSummary: mail000A03 body {}', () async {
+    final f = Fake({'/mail/mail000A03': [[{'boxnameSeq': 1, 'count': 1, 'totalCount': 2}, {'unreadCount': 4, 'toMeCount': 2, 'totalCount': 9}]]});
+    final s = await f.api().mailSummary();
+    expect((s.unread, s.toMe), (4, 2));
+    expect(f.calls.last.$2, isEmpty);
+  });
+  test('inbox: mail000A01에서 INBOX seq를 찾아 mail003A01(mainApiCode 필수)', () async {
+    final f = Fake({'/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': '777'}]}], '/mail/mail003A01': [{'Records': [{'muid': 1, 'subject': 'a', 'seen': 0}], 'TotalRecordCount': 10, 'TotalUnseenCount': 3}]});
+    final (unseen, items) = await f.api().inbox(pageSize: 5);
+    expect((unseen, items.single.subject), (3, 'a'));
+    final body = f.calls.last.$2;
+    expect((body['mainApiCode'], body['mboxSeq'], body['pageSize'], body['sort'], body['sortType'], body['seen']), ('mail003A01', 777, 5, 'rfc822date', 'desc', false));
+  });
+  test('inbox: INBOX를 못 찾으면 GwException', () async {
+    final f = Fake({'/mail/mail000A01': [{'list': []}]});
+    await expectLater(f.api().inbox(), throwsA(isA<GwException>()));
+  });
 }

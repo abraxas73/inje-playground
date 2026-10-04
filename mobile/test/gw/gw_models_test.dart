@@ -53,4 +53,20 @@ void main() {
     expect((r.display, r.title, r.ownerEmpSeq, hm(r.start)), ('[홍] A-1', '주간회의', '7', '14:00'));
     expect(GwReservation.fromRow({'resTitleDisplay': 'X'}).display, 'X');
   });
+  test('메일 집계: 마지막 항목이 계정 전체, 빈 배열이면 0', () {
+    final s = MailSummary.fromCounts([{'boxnameSeq': 1, 'count': 2, 'totalCount': 5}, {'unreadCount': '3', 'toMeCount': 1, 'totalCount': 40, 'flaggedCount': 0}]);
+    expect((s.unread, s.toMe, s.total), (3, 1, 40));
+    expect(MailSummary.fromCounts(const []).unread, 0);
+  });
+  test('INBOX mboxSeq 탐색: 중첩·대소문자·숫자/문자열', () {
+    final tree = {'resultList': [{'name': 'Sent', 'mboxSeq': '2'}, {'children': [{'fullname': 'inbox', 'mboxSeq': 26986}]}]};
+    expect(findMboxSeq(tree, 'INBOX'), 26986);
+    expect(findMboxSeq(tree, 'SENT'), 2);
+    expect(findMboxSeq(tree, 'DRAFTS'), isNull);
+  });
+  test('메일 항목: seen 0/1 → bool, attach bool', () {
+    final m = MailItem.fromRow({'muid': 14531056, 'subject': 's', 'fromAddrName': '홍', 'fromAddrEmail': 'h@x', 'rfc822date': '07:10', 'tooltipDate': '2026-10-04 07:10', 'seen': 0, 'attach': true});
+    expect((m.muid, m.seen, m.attach, m.fromName, m.date), ('14531056', false, true, '홍', '07:10'));
+    expect(MailItem.fromRow({'seen': '1'}).seen, true);
+  });
 }

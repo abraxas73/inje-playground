@@ -116,3 +116,43 @@ class GwReservation {
         owner: owner, ownerEmpSeq: asStr(r['empSeq']), attendees: asStr(r['resUserName']), allDay: asBool(r['alldayYn']));
   }
 }
+
+/// mail000A03 배열의 마지막 항목 = 계정 전체 집계. 없으면 0.
+class MailSummary {
+  const MailSummary({required this.unread, required this.toMe, required this.total});
+  final int unread, toMe, total;
+  static MailSummary fromCounts(List counts) {
+    final last = counts.isEmpty ? null : counts.last;
+    if (last is! Map) return const MailSummary(unread: 0, toMe: 0, total: 0);
+    return MailSummary(unread: asInt(last['unreadCount']), toMe: asInt(last['toMeCount']), total: asInt(last['totalCount']));
+  }
+}
+
+/// mail000A01 트리에서 이름(fullname/name, 대소문자 무시)이 맞는 메일함의 mboxSeq. 계정마다 값이 달라 상수 금지.
+int? findMboxSeq(Object? node, String name) {
+  if (node is Map) {
+    if (node.containsKey('mboxSeq') && [node['fullname'], node['name']].any((v) => asStr(v).toLowerCase() == name.toLowerCase())) {
+      return int.tryParse(asStr(node['mboxSeq']));
+    }
+    for (final v in node.values) {
+      final r = findMboxSeq(v, name);
+      if (r != null) return r;
+    }
+  } else if (node is List) {
+    for (final v in node) {
+      final r = findMboxSeq(v, name);
+      if (r != null) return r;
+    }
+  }
+  return null;
+}
+
+/// mail003A01 Records[] 항목. 본문은 열지 않는다(읽음 처리 부작용).
+class MailItem {
+  const MailItem({required this.muid, required this.subject, required this.fromName, required this.fromEmail, required this.date, required this.tooltip, required this.seen, required this.attach});
+  final String muid, subject, fromName, fromEmail, date, tooltip;
+  final bool seen, attach;
+  factory MailItem.fromRow(Map r) => MailItem(
+        muid: asStr(r['muid']), subject: asStr(r['subject']), fromName: asStr(r['fromAddrName']), fromEmail: asStr(r['fromAddrEmail']), date: asStr(r['rfc822date']), tooltip: asStr(r['tooltipDate']),
+        seen: asBool(r['seen']), attach: asBool(r['attach']));
+}
