@@ -3,26 +3,28 @@ import 'package:flutter/painting.dart';
 
 /// 부채꼴 메뉴 좌표(원점 기준, 위쪽이 음수 dy). 원점은 누른 탭의 가운데·바 윗변.
 /// 각도 폭은 이웃 사이 최대 [maxStep](항목이 적으면 좁은 부채꼴)이고 되도록 90°(바로 위)를 중심으로 둔다.
+/// 기본값은 "너무 퍼지지 않게" 조여 둔 것(반지름 96·간격 56·34°·바 위 60px) — 원 46px 기준.
 /// 가장자리 탭은 항목이 화면 밖으로 나가지 않도록 안쪽으로 치우친 부채꼴이 되고(경첩은 그대로 탭),
 /// 이웃 항목 사이가 [minGap]보다 좁으면 반지름을 키운다(최대 +140 — 가장자리 탭은 가로 여유가 고정이라
 /// 항목이 많으면 어떤 반지름으로도 간격을 못 맞춘다. ponytail: 5개까지는 390px 폭에서 맞고, 더 늘면 두 줄 반지름으로).
-/// 바에 눕지 않도록 각도는 35°~145° 안.
+/// 바에 눕지 않도록 항목 중심은 바에서 [minHeight] 이상 위(반지름이 크면 그만큼 옆으로 더 펼 수 있다).
 List<Offset> fanLayout({
   required int count,
   required double originX,
   required double width,
-  double radius = 120,
-  double itemWidth = 72,
+  double radius = 96,
+  double itemWidth = 60,
   double pad = 4,
-  double minGap = 74,
-  double maxStep = 40 * math.pi / 180,
+  double minGap = 56,
+  double maxStep = 34 * math.pi / 180,
+  double minHeight = 60,
 }) {
   if (count <= 0) return const [];
-  const lo = 35 * math.pi / 180, hi = 145 * math.pi / 180;
   final minX = pad + itemWidth / 2, maxX = width - pad - itemWidth / 2;
   var r = radius;
   for (var tries = 0;; tries++, r += 10) {
-    // x = originX + r·cosθ 가 [minX, maxX] 안에 들도록 허용 각도 구간
+    // y = -r·sinθ 가 minHeight 이상, x = originX + r·cosθ 가 [minX, maxX] 안에 들도록 허용 각도 구간
+    final lo = math.asin((minHeight / r).clamp(0.0, 1.0)), hi = math.pi - lo;
     final thetaMin = math.max(lo, math.acos(((maxX - originX) / r).clamp(-1.0, 1.0)));
     final thetaMax = math.min(hi, math.acos(((minX - originX) / r).clamp(-1.0, 1.0)));
     if (thetaMax < thetaMin) continue; // 구간이 비면(아주 좁은 화면) 반지름을 키워 다시

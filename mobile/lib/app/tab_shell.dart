@@ -137,7 +137,7 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
   }
 }
 
-/// 바 위 스크림 + 경첩(누른 탭 가운데·바 윗변)에서 뻗는 살 + 부채꼴 항목. 항목 원의 중심이 fanLayout 좌표.
+/// 바 위 스크림 + 부채꼴 항목(경첩은 누른 탭 가운데·바 윗변, 잇는 선은 없음). 항목 원의 중심이 fanLayout 좌표.
 /// [progress] 0→1 동안 항목 i는 [i·stagger, i·stagger+perItem] 구간에서만 움직인다(왼쪽부터 하나씩).
 class FanMenu extends StatelessWidget {
   const FanMenu({super.key, required this.pages, required this.slot, required this.slotCount, required this.currentBranch, required this.progress, required this.onSelect, required this.onDismiss});
@@ -147,7 +147,7 @@ class FanMenu extends StatelessWidget {
   final void Function(PageEntry) onSelect;
   final VoidCallback onDismiss;
 
-  static const itemWidth = 72.0, itemHeight = 94.0, circle = 54.0;
+  static const itemWidth = 60.0, itemHeight = 82.0, circle = 46.0;
   static const perItem = Duration(milliseconds: 220), stagger = Duration(milliseconds: 60);
   static Duration totalDuration(int count) => perItem + stagger * (count - 1).clamp(0, 99);
 
@@ -169,7 +169,6 @@ class FanMenu extends StatelessWidget {
             final scrim = Interval(0, 0.4).transform(progress.value);
             return Stack(fit: StackFit.expand, children: [
               GestureDetector(behavior: HitTestBehavior.opaque, onTap: onDismiss, child: ColoredBox(color: Brand.navy.withValues(alpha: 0.45 * scrim))),
-              IgnorePointer(child: CustomPaint(painter: _Ribs(origin, [for (final (i, p) in pts.indexed) origin + p * ts[i]], [for (final t in ts) t.clamp(0.0, 1.0)]))),
               for (final (i, p) in pages.indexed)
                 Positioned(
                   left: origin.dx + pts[i].dx * ts[i] - itemWidth / 2,
@@ -182,27 +181,6 @@ class FanMenu extends StatelessWidget {
           },
         );
       });
-}
-
-/// 부채의 살: 경첩에서 각 항목 원의 중심까지 가는 흰 실선(원 뒤로 숨는다).
-class _Ribs extends CustomPainter {
-  const _Ribs(this.origin, this.ends, this.opacities);
-  final Offset origin;
-  final List<Offset> ends;
-  final List<double> opacities;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round;
-    for (final (i, e) in ends.indexed) {
-      paint.color = Colors.white.withValues(alpha: 0.45 * opacities[i]);
-      canvas.drawLine(origin, e, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_Ribs old) => true; // AnimatedBuilder가 프레임마다 새로 만든다
 }
 
 /// 부채꼴 항목: 흰 원 + 아이콘, 아래 라벨(긴 이름은 2줄). 지금 보고 있는 네이티브 화면이면 블루 테두리.
@@ -227,10 +205,10 @@ class FanItem extends StatelessWidget {
             border: active ? Border.all(color: Brand.blue, width: 2) : null,
             boxShadow: [BoxShadow(color: Brand.navy.withValues(alpha: 0.25), blurRadius: 14, offset: const Offset(0, 6))],
           ),
-          child: Icon(icon, size: 24, color: active ? Brand.blue : Brand.navy),
+          child: Icon(icon, size: 22, color: active ? Brand.blue : Brand.navy),
         ),
-        const SizedBox(height: 6),
-        Text(page.label, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, height: 1.2, fontWeight: FontWeight.w700, color: Colors.white, shadows: [Shadow(color: Colors.black45, blurRadius: 6)])),
+        const SizedBox(height: 5),
+        Text(page.label, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, height: 1.2, fontWeight: FontWeight.w700, color: Colors.white, shadows: [Shadow(color: Colors.black45, blurRadius: 6)])),
       ]),
     );
   }

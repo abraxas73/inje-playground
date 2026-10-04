@@ -27,13 +27,14 @@ void main() {
       }
     }
   });
-  test('이웃 항목 사이가 최소 간격 이상 벌어진다(좁으면 반지름을 키운다)', () {
+  test('이웃 항목 사이가 최소 간격 이상 벌어진다(좁으면 반지름을 키운다) — 단, 반지름은 작게 유지', () {
     // 그룹 탭은 슬롯 1~3(x=117·195·273) — 가장자리 슬롯(홈·더보기)은 부채꼴이 없다
     for (final (count, originX) in [(5, 117.0), (4, 117.0), (3, 195.0), (4, 195.0), (5, 273.0), (2, 273.0)]) {
-      final pts = fanLayout(count: count, originX: originX, width: width, minGap: 76);
+      final pts = fanLayout(count: count, originX: originX, width: width, minGap: 56);
       for (var i = 1; i < pts.length; i++) {
-        expect((pts[i] - pts[i - 1]).distance, greaterThanOrEqualTo(76 - 0.001), reason: 'count=$count originX=$originX');
+        expect((pts[i] - pts[i - 1]).distance, greaterThanOrEqualTo(56 - 0.001), reason: 'count=$count originX=$originX');
       }
+      expect(pts.first.distance, lessThanOrEqualTo(150), reason: '5개 가장자리도 반지름 150 이하 count=$count originX=$originX');
     }
   });
   test('간격을 끝내 못 맞추는 경우(가장자리 탭에 항목이 많음) 반지름은 +140까지만 키운다 — 폭주 방지', () {
@@ -46,18 +47,19 @@ void main() {
     expect(p.dx, closeTo(0, 0.001));
     expect(p.dy, closeTo(-120, 0.001));
   });
-  test('바 바로 옆으로 눕지 않는다 — 최소 35° 위로', () {
-    final pts = fanLayout(count: 5, originX: 195, width: width, radius: 120);
-    for (final p in pts) {
-      expect(-p.dy, greaterThanOrEqualTo(120 * math.sin(35 * math.pi / 180) - 0.001));
+  test('바 바로 옆으로 눕지 않는다 — 항목 중심은 바에서 60px 이상 위(가장자리 탭 5개도)', () {
+    for (final (count, originX) in [(5, 195.0), (5, 273.0), (5, 117.0), (2, 351.0)]) {
+      for (final p in fanLayout(count: count, originX: originX, width: width)) {
+        expect(-p.dy, greaterThanOrEqualTo(60 - 0.001), reason: 'count=$count originX=$originX');
+      }
     }
   });
-  test('항목이 적으면 넓게 퍼지지 않는다 — 이웃 각도 최대 40°(3개면 80° 부채꼴, 90°를 중심으로)', () {
+  test('항목이 적으면 넓게 퍼지지 않는다 — 이웃 각도 최대 34°(3개면 68° 부채꼴, 90°를 중심으로)', () {
     final pts = fanLayout(count: 3, originX: 195, width: width, radius: 120);
     double deg(Offset p) => math.atan2(-p.dy, p.dx) * 180 / math.pi;
-    expect(deg(pts[0]), closeTo(130, 0.01));
+    expect(deg(pts[0]), closeTo(124, 0.01));
     expect(deg(pts[1]), closeTo(90, 0.01));
-    expect(deg(pts[2]), closeTo(50, 0.01));
+    expect(deg(pts[2]), closeTo(56, 0.01));
   });
   test('가장자리 탭에서 각도 폭이 허용 구간보다 작으면 90°(바로 위)에 최대한 가깝게 붙인다', () {
     // originX=351(오른쪽 끝 탭): 오른쪽이 막혀 안쪽(왼쪽)으로만 펼 수 있다 → 가장 오른쪽 항목이 허용 하한에 붙는다
@@ -67,6 +69,6 @@ void main() {
     final r = pts[1].distance;
     final thetaMin = math.acos((width - 8 - 36 - 351) / r); // 오른쪽 항목이 허용 하한(화면 안쪽 한계)에 붙는다
     expect(math.atan2(-pts[1].dy, pts[1].dx), closeTo(thetaMin, 0.001));
-    expect(math.atan2(-pts[0].dy, pts[0].dx), closeTo(thetaMin + 40 * math.pi / 180, 0.001));
+    expect(math.atan2(-pts[0].dy, pts[0].dx), closeTo(thetaMin + 34 * math.pi / 180, 0.001));
   });
 }

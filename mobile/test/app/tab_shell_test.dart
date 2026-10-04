@@ -38,6 +38,13 @@ Finder tab(String label) => find.descendant(of: find.byType(NavigationBar), matc
 void main() {
   final user = AppSession(email: 'u@innogrid.com', role: 'user', permissions: const {});
 
+  testWidgets('부채꼴에는 탭과 항목을 잇는 선이 없다', (tester) async {
+    await pumpShell(tester, user);
+    await tester.tap(tab('업무'));
+    await tester.pumpAndSettle();
+    expect(find.descendant(of: find.byType(FanMenu), matching: find.byType(CustomPaint)), findsNothing);
+  });
+
   testWidgets('하단 바는 홈·일상·AI·업무·더보기 — 하위 메뉴는 접혀 있다', (tester) async {
     await pumpShell(tester, user);
     for (final l in ['홈', '일상', 'AI', '업무', '더보기']) {
