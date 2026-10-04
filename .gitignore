@@ -41,3 +41,6 @@ supabase/.branches/
 
 # Local design analysis and temporary drafts
 .superdesign/
+
+# Python bytecode cache(frontend/scripts/*.py 실행 흔적) — 릴리스 스크립트의 깨끗한 트리 검사에 걸리지 않게
+__pycache__/
