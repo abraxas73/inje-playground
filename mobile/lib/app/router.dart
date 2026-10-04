@@ -12,6 +12,8 @@ import '../features/ladder/history_screen.dart';
 import '../features/ladder/ladder_screen.dart';
 import '../features/team/history_screen.dart';
 import '../features/team/team_screen.dart';
+import '../gw/approvals_screen.dart';
+import '../gw/attendance_screen.dart';
 import '../gw/gw_connect_screen.dart';
 import 'tab_shell.dart';
 
@@ -40,6 +42,8 @@ GoRouter buildRouter({
       builder: (c, s) => WebScreen(path: s.uri.queryParameters['path'] ?? '/'),
     ),
     GoRoute(path: '/gw/connect', builder: (c, s) => const GwConnectScreen()),
+    GoRoute(path: '/gw/approvals', builder: (c, s) => const ApprovalsScreen()),
+    GoRoute(path: '/gw/attendance', builder: (c, s) => const AttendanceScreen()),
     StatefulShellRoute.indexedStack(
       builder: (c, s, shell) => TabShell(shell: shell),
       branches: [
