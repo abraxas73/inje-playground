@@ -26,8 +26,18 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
   assets:
     - assets/brand/
+
+# 앱 아이콘 — 이노그리드 CI 가이드(Background Color #006cdb + 흰 CONNECTION 모티프). 원본은 assets/brand/app_icon*.png(런북 §배포에 재생성 방법). 바뀌면 `dart run flutter_launcher_icons`.
+flutter_launcher_icons:
+  image_path: assets/brand/app_icon.png
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  adaptive_icon_background: "#006cdb"
+  adaptive_icon_foreground: assets/brand/app_icon_fg.png
