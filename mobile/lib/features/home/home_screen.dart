@@ -18,7 +18,7 @@ import '../../release/update_banner.dart';
 import 'greeting.dart';
 import 'quotes.dart';
 
-/// 홈 = 오늘의 브리핑. 인사말 → 오늘의 한 마디(Claude, 없으면 격언) → 지금 필요한 것 → 일정 → 팀원 부재 → 결재 → 메일 → Teams → 공지 → 바로 가기·사내 서비스.
+/// 홈 = 오늘의 브리핑. 인사말 → 오늘의 한 줄(격언) → 데일리 브리핑(Claude, 없으면 숨김) → 지금 필요한 것 → 일정 → 팀원 부재 → 결재 → 메일 → Teams → 공지 → 바로 가기·사내 서비스.
 /// 수집은 홈을 열 때·홈 탭을 다시 누를 때·당겨서 새로고침. Claude 문장은 하루 1회(summaryProvider, 다시 만들기 없음).
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key, this.now});
@@ -84,7 +84,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const SizedBox(height: 4),
             Text(g.subtitle, style: theme.textTheme.bodySmall),
             const SizedBox(height: 16),
-            SummaryCard(quote: q, summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at), busy: _summaryBusy),
+            QuoteCard(quote: q),
+            BriefingCard(summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at), busy: _summaryBusy),
             if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(top: 14), child: LinearProgressIndicator(minHeight: 2)),
             if (gw != null && gw.status != GwStatus.connected)
               GwConnectCard(relogin: gw.status == GwStatus.needsRelogin, onConnect: () => context.push('/gw/connect'))

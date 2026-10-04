@@ -38,6 +38,8 @@ void main() {
     final app = await pumpHome(tester, creds: testCreds);
     expect(app.calls['/api/mobile/briefing'], 1);
     expect(find.text('오늘 10시 주간회의가 있습니다.'), findsOneWidget);
+    expect(find.text('데일리 브리핑'), findsOneWidget);
+    expect(find.text('오늘의 한 줄'), findsOneWidget, reason: '격언 카드는 그대로 위에 남는다');
     expect(find.text('지금 필요한 것'), findsOneWidget);
     expect((app.bodies['/api/mobile/briefing'] as Map)['name'], '강승욱');
   });
@@ -48,5 +50,6 @@ void main() {
     expect(find.text('Teams 답장 대기 1'), findsOneWidget);
     expect(app.calls['/api/mobile/briefing'], isNull, reason: '빈 데이터로 문장을 만들지 않는다');
     expect(find.text('오늘의 한 줄'), findsOneWidget);
+    expect(find.text('데일리 브리핑'), findsNothing);
   });
 }

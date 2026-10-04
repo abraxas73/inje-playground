@@ -8,7 +8,7 @@ const hook = (value: string, updateLocal = vi.fn()) => ({ settings: { ...DEFAULT
 it("빈 값·on은 켜짐으로 보이고, 끄면 off를 저장 후보에 넣는다", () => {
   const updateLocal = vi.fn();
   render(<MobileBriefingSettings settingsHook={hook("", updateLocal)} />);
-  const sw = screen.getByRole("switch", { name: /Claude가 '오늘의 한 마디'를 씁니다/ });
+  const sw = screen.getByRole("switch", { name: /Claude가 '데일리 브리핑'을 씁니다/ });
   expect(sw).toHaveAttribute("aria-checked", "true");
   fireEvent.click(sw);
   expect(updateLocal).toHaveBeenCalledWith("mobile_briefing_llm", "off");

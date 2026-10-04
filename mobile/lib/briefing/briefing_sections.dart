@@ -12,31 +12,49 @@ class SummaryText {
   final String text, at;
 }
 
-/// 네이비 카드: Claude 문장이 있으면 "오늘의 한 마디", 없으면 기존 격언 "오늘의 한 줄". 하루 1회만 바뀐다(다시 만들기 버튼 없음).
-class SummaryCard extends StatelessWidget {
-  const SummaryCard({super.key, required this.quote, required this.summary, this.busy = false});
+/// 네이비 격언 카드 "오늘의 한 줄"(기존 홈 그대로) — 브리핑과 무관하게 언제나 보인다.
+class QuoteCard extends StatelessWidget {
+  const QuoteCard({super.key, required this.quote});
   final Quote quote;
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+        decoration: BoxDecoration(color: Brand.navy, borderRadius: BorderRadius.circular(16)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Row(children: [
+            Icon(Icons.format_quote_rounded, size: 18, color: Brand.sky),
+            SizedBox(width: 6),
+            Text('오늘의 한 줄', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.3, color: Brand.sky)),
+          ]),
+          const SizedBox(height: 10),
+          Text(quote.text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.5, color: Colors.white)),
+          const SizedBox(height: 8),
+          Align(alignment: Alignment.centerRight, child: Text('— ${quote.source}', style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.6)))),
+        ]),
+      );
+}
+
+/// "데일리 브리핑" — Claude가 하루 1회 쓴 2~3문장. 문장이 없으면 만드는 중일 때만 자리를 잡고, 아니면 숨긴다(다시 만들기 버튼 없음).
+class BriefingCard extends StatelessWidget {
+  const BriefingCard({super.key, required this.summary, this.busy = false});
   final SummaryText? summary;
   final bool busy;
   @override
   Widget build(BuildContext context) {
     final s = summary;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
-      decoration: BoxDecoration(color: Brand.navy, borderRadius: BorderRadius.circular(16)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(s == null ? Icons.format_quote_rounded : Icons.auto_awesome, size: 18, color: Brand.sky),
-          const SizedBox(width: 6),
-          Text(s == null ? '오늘의 한 줄' : '오늘의 한 마디', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.3, color: Brand.sky)),
-          const Spacer(),
-          if (busy) const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Brand.sky)),
-        ]),
-        const SizedBox(height: 10),
-        Text(s?.text ?? quote.text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.5, color: Colors.white)),
-        const SizedBox(height: 8),
-        Align(alignment: Alignment.centerRight, child: Text(s == null ? '— ${quote.source}' : 'Claude · ${s.at}', style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.6)))),
-      ]),
+    if (s == null && !busy) return const SizedBox.shrink();
+    return _Section(
+      title: '데일리 브리핑',
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+        child: s == null
+            ? const LinearProgressIndicator(minHeight: 2)
+            : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(s.text, style: const TextStyle(fontSize: 15, height: 1.6, color: Brand.navy)),
+                const SizedBox(height: 8),
+                Align(alignment: Alignment.centerRight, child: Text('Claude · ${s.at}', style: const TextStyle(fontSize: 12, color: Brand.muted))),
+              ]),
+      ),
     );
   }
 }
