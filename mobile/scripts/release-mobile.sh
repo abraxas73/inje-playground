@@ -90,11 +90,21 @@ PY
 if [ "$DO_ANDROID" = 1 ]; then
   APK_NAME="innogrid-$VERSION+$BUILD.apk"; APK_PATH="android/$APK_NAME"; APK_URL_PATH="android/${APK_NAME//+/%2B}"
   say "Android: 같은 빌드가 이미 올라가 있는지 확인"
+  SKIP_UPLOAD=0
   if [ "$DRY" = 1 ]; then echo "  (dry-run) storage list mobile/android → $APK_NAME"; else
     n=$(curl -sf "${AUTH[@]}" -H "Content-Type: application/json" -X POST "$STORAGE/object/list/mobile" --data-binary "{\"prefix\":\"android\",\"search\":\"$APK_NAME\",\"limit\":10}" | python3 -c 'import sys,json; n=sys.argv[1]; print(sum(1 for o in json.load(sys.stdin) if o.get("name")==n))' "$APK_NAME")
-    [ "$n" = 0 ] || { echo "$APK_PATH 가 이미 있습니다 — pubspec의 빌드 번호(+N)를 올리세요." >&2; exit 1; }
-    echo "  없음"
+    if [ "$n" != 0 ]; then
+      # APK는 있는데 settings가 다른 곳을 가리키면 지난 실행이 설정 쓰기에서 실패한 것 — 빌드·업로드를 건너뛰고 설정만 다시 쓴다(고아 APK 복구)
+      cur_apk=$(read_release | python3 -c 'import sys,json
+try: d = json.loads(sys.stdin.read() or "{}")
+except Exception: d = {}
+print(((d.get("android") or {}) if isinstance(d, dict) else {}).get("apkPath", ""))')
+      [ "$cur_apk" != "$APK_PATH" ] || { echo "$APK_PATH 가 이미 있습니다 — pubspec의 빌드 번호(+N)를 올리세요." >&2; exit 1; }
+      echo "  APK는 있으나 settings.mobile_release가 가리키지 않음 — 빌드·업로드는 건너뛰고 설정만 갱신"
+      SKIP_UPLOAD=1
+    else echo "  없음"; fi
   fi
+  if [ "$SKIP_UPLOAD" = 0 ]; then
   say "Android: flutter build apk --release"
   if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter build apk --release ${DEFINES[*]}"; else
     (cd "$MOBILE" && flutter build apk --release "${DEFINES[@]}" >/dev/null) || { echo "APK 빌드 실패" >&2; exit 1; }
@@ -103,9 +113,10 @@ if [ "$DO_ANDROID" = 1 ]; then
   say "Android: 스토리지 업로드 → mobile/$APK_PATH"
   if [ "$DRY" = 1 ]; then echo "  (dry-run) POST $STORAGE/object/mobile/$APK_URL_PATH"; else
     # 프로젝트 전역 파일 상한(Storage 설정 fileSizeLimit, 2026-10-04 200MB로 올림)을 넘으면 서버가 거부한다 — 상태 코드와 본문을 보여 준다
-    RESP=$(mktemp); CODE=$(curl -s --max-time 900 -o "$RESP" -w '%{http_code}' -X POST "${AUTH[@]}" -H "Content-Type: application/vnd.android.package-archive" -H "x-upsert: false" "$STORAGE/object/mobile/$APK_URL_PATH" --data-binary @"$MOBILE/build/app/outputs/flutter-apk/app-release.apk" || echo "000")
+    RESP=$(mktemp); CODE=$(curl -s --max-time 900 -o "$RESP" -w '%{http_code}' -X POST "${AUTH[@]}" -H "Content-Type: application/vnd.android.package-archive" -H "x-upsert: false" "$STORAGE/object/mobile/$APK_URL_PATH" --data-binary @"$MOBILE/build/app/outputs/flutter-apk/app-release.apk" || true)
     [ "$CODE" = 200 ] || { echo "업로드 실패 (HTTP $CODE): $(head -c 300 "$RESP")" >&2; rm -f "$RESP"; exit 1; }
     rm -f "$RESP"; echo "  완료"
+  fi
   fi
   write_release android "$APK_PATH"
 fi
@@ -118,7 +129,7 @@ if [ "$DO_IOS" = 1 ]; then
   fi
   IPA=$(ls "$MOBILE"/build/ios/ipa/*.ipa 2>/dev/null | head -1 || true)
   say "iOS: App Store Connect 업로드(altool)"
-  if [ "$DRY" = 1 ]; then echo "  (dry-run) xcrun altool --upload-app --type ios --file <ipa> --apiKey $ASC_KEY_ID --apiIssuer <issuer>"; else
+  if [ "$DRY" = 1 ]; then echo "  (dry-run) xcrun altool --upload-app --type ios --file <ipa> --apiKey <key-id> --apiIssuer <issuer>"; else
     [ -n "$IPA" ] || { echo "IPA가 없습니다(build/ios/ipa)." >&2; exit 1; }
     LOG=$(mktemp)
     xcrun altool --upload-app --type ios --file "$IPA" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" >"$LOG" 2>&1 || { tail -20 "$LOG" >&2; rm -f "$LOG"; echo "업로드 실패" >&2; exit 1; }
