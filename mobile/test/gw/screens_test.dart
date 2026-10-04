@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:playground/gw/approvals_screen.dart';
 import 'package:playground/gw/attendance_screen.dart';
+import 'package:playground/gw/mail_screen.dart';
+import 'package:playground/gw/today_screen.dart';
 import 'fakes.dart';
 
 http.Response ok(Object? data) => http.Response.bytes(utf8.encode(jsonEncode({'resultCode': 0, 'resultData': data})), 200, headers: {'content-type': 'application/json; charset=utf-8'}) /* 한글 본문은 latin1 기본 인코딩에서 ArgumentError */;
@@ -54,5 +57,37 @@ void main() {
     expect(r.hits['$base/getJudgeTimeManagement'], 1);
     expect(find.text('09:02'), findsWidgets);
     expect(find.textContaining('기록됨'), findsWidgets); // 버튼 라벨 + 안내 문구
+  });
+  testWidgets('오늘: 기본은 내 일정·내 예약, "전체" 토글로 남의 것도', (tester) async {
+    final r = Routes({'/gw/gw050A02': [session],
+      '/schres/sc111A02': [{'resultList': [{'mcalSeq': '1', 'calType': 'E', 'empSeq': '7'}, {'mcalSeq': '2', 'calType': 'M', 'empSeq': '9'}]}],
+      '/schres/sc111A03': [{'resultList': [{'schSeq': 'a', 'schTitle': '내 회의', 'startDate': '202610041000', 'endDate': '202610041100', 'delYn': 'Y', 'mcalSeq': '2'}, {'schSeq': 'c', 'schTitle': '남의 회의', 'startDate': '202610041200', 'endDate': '202610041300', 'delYn': 'N', 'mcalSeq': '2'}]}],
+      '/schres/rs121A01': [{'resultList': [{'resSeq': '45', 'resName': 'A-1'}]}],
+      '/schres/rs121A05': [{'resultList': [{'resSeq': '45', 'resName': 'A-1', 'resStartDate': '202610041400', 'resEndDate': '202610041500', 'reqText': '내 예약', 'empName': '홍길동', 'empSeq': '7'}, {'resSeq': '45', 'resName': 'A-1', 'resStartDate': '202610041600', 'resEndDate': '202610041700', 'reqText': '남의 예약', 'empName': '김', 'empSeq': '9'}]}]});
+    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const TodayScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('내 회의'), findsOneWidget);
+    expect(find.text('남의 회의'), findsNothing);
+    expect(find.text('내 예약'), findsOneWidget);
+    expect(find.text('남의 예약'), findsNothing);
+    await tester.tap(find.text('전체').first); // 일정 구역
+    await tester.pumpAndSettle();
+    expect(find.text('남의 회의'), findsOneWidget);
+    expect(find.text('남의 예약'), findsNothing); // 구역별 토글
+    await tester.tap(find.text('전체').at(1)); // 회의실 구역
+    await tester.pumpAndSettle();
+    expect(find.text('남의 예약'), findsOneWidget);
+  });
+  testWidgets('메일: 미읽음 집계와 목록, 미읽음은 굵게, 본문 호출 없음', (tester) async {
+    final r = Routes({'/mail/mail000A03': [[{'unreadCount': 2, 'toMeCount': 1, 'totalCount': 9}]], '/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]}], '/mail/mail003A01': [{'Records': [{'muid': 1, 'subject': '안 읽음', 'fromAddrName': '홍', 'rfc822date': '07:10', 'seen': 0}, {'muid': 2, 'subject': '읽음', 'fromAddrName': '김', 'rfc822date': '10-03', 'seen': 1}], 'TotalUnseenCount': 2}]});
+    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const MailScreen()));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('미읽음 2'), findsOneWidget);
+    expect(find.text('안 읽음'), findsOneWidget);
+    expect(tester.widget<Text>(find.text('안 읽음')).style?.fontWeight, FontWeight.w800);
+    expect(tester.widget<Text>(find.text('읽음')).style?.fontWeight, isNot(FontWeight.w800));
+    await tester.tap(find.text('안 읽음'));
+    await tester.pumpAndSettle();
+    expect(r.hits.containsKey('/mail/mail002A01'), false);
   });
 }

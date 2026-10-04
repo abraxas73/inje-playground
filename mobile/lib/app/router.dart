@@ -15,6 +15,8 @@ import '../features/team/team_screen.dart';
 import '../gw/approvals_screen.dart';
 import '../gw/attendance_screen.dart';
 import '../gw/gw_connect_screen.dart';
+import '../gw/mail_screen.dart';
+import '../gw/today_screen.dart';
 import 'tab_shell.dart';
 
 /// 하단 탭을 누를 때마다 1 증가 — 탭 화면(IndexedStack에 살아 있음)이 이걸 듣고 서버 데이터(내 팀 등)를 다시 불러온다.
@@ -44,6 +46,8 @@ GoRouter buildRouter({
     GoRoute(path: '/gw/connect', builder: (c, s) => const GwConnectScreen()),
     GoRoute(path: '/gw/approvals', builder: (c, s) => const ApprovalsScreen()),
     GoRoute(path: '/gw/attendance', builder: (c, s) => const AttendanceScreen()),
+    GoRoute(path: '/gw/today', builder: (c, s) => const TodayScreen()),
+    GoRoute(path: '/gw/mail', builder: (c, s) => const MailScreen()),
     StatefulShellRoute.indexedStack(
       builder: (c, s, shell) => TabShell(shell: shell),
       branches: [
