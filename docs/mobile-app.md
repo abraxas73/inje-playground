@@ -69,13 +69,15 @@
 1. **Android 키스토어**: `mobile/android/upload-keystore.jks` + `key.properties`(둘 다 gitignore). 2026-10-04 생성(별칭 `upload`, RSA 2048, 10000일). **두 파일을 1Password에 백업** — 잃으면 서명이 바뀌어 전 직원이 앱을 지우고 다시 설치해야 한다. 새 Mac에서는 두 파일을 같은 자리에 복원하면 된다(없으면 디버그 키로 빌드돼 기존 설치 위에 업데이트가 안 된다). `key.properties` 형식(4줄): `storePassword=…` `keyPassword=…` `keyAlias=upload` `storeFile=../upload-keystore.jks`(`android/app` 기준 경로).
 2. **App Store Connect**: 번들 ID `com.innogrid.playground` 등록 → 앱 "이노그리드" 생성 → TestFlight 테스트 정보(연락처, **심사용 로그인 계정** — 앱이 Microsoft 로그인만 받으므로 테넌트에 심사용 계정 1개를 IT에 요청하거나 심사 노트에 사내 전용임을 적는다) → 외부 테스터 그룹 "이노그리드 구성원" 생성 → **공개 링크 켜기** → 그 링크를 첫 iOS 릴리스 때 `--testflight-url`로 넘긴다.
 3. **App Store Connect API 키**: Users and Access → Integrations → App Store Connect API에서 키(역할 App Manager) 발급, `.p8`을 `~/.private_keys/AuthKey_<KEY_ID>.p8`에 두고 `mobile/.env.release`(gitignore)에 `ASC_KEY_ID=…`, `ASC_ISSUER_ID=…`.
-4. Supabase 버킷 `mobile`은 `docs/sql/2026-10-04-mobile-release.sql`로 만들었다(2026-10-04 적용). 프로젝트 **전역** 파일 상한(Storage 설정 `fileSizeLimit`)이 50MB라 59MB APK가 거부돼 Management API(`PATCH /v1/projects/<ref>/config/storage {"fileSizeLimit":209715200}`)로 200MB로 올렸다 — 버킷 상한은 전역 상한을 넘을 수 없다.
+4. Supabase 버킷 `mobile`은 `docs/sql/2026-10-04-mobile-release.sql`로 만들었다(2026-10-04 적용).
+5. **SharePoint 사본 폴더**(사용자 요청 2026-10-04 "빌드된 APK는 SharePoint에 올리자, 버전 번호 붙여서"): SharePoint에서 APK를 둘 폴더의 링크를 복사해 `mobile/scripts/release-mobile.sh sharepoint-folder <링크>`로 한 번 저장한다(settings `mobile_sharepoint_folder`). 이후 `android`/`all` 릴리스 끝에 서버(`POST /api/mobile/release/sharepoint`, `CRON_SECRET` + `mobile/.env.release`의 `OPERATOR_EMAIL` — 그 관리자의 Microsoft 연결로 올림)가 스토리지의 APK를 읽어 **`innogrid-app-<major.minor.patch>.apk`** 로 올린다(같은 버전은 덮어씀, SharePoint 버전 이력 보존). 실패해도 릴리스는 끝나며 `release-mobile.sh sharepoint`로 다시 올린다. 링크는 `mobile_release.android.sharepointUrl`에 남는다(웹 `/apps`에는 안 보여 줌 — 배포 경로는 여전히 `/apps`의 APK 받기). 프로젝트 **전역** 파일 상한(Storage 설정 `fileSizeLimit`)이 50MB라 59MB APK가 거부돼 Management API(`PATCH /v1/projects/<ref>/config/storage {"fileSizeLimit":209715200}`)로 200MB로 올렸다 — 버킷 상한은 전역 상한을 넘을 수 없다.
 
 ### 매 릴리스
 1. `mobile/pubspec.yaml`의 `version: X.Y.Z+N`을 올린다(빌드 번호 `+N`은 항상 증가 — 앱은 이 숫자로 새 버전을 판단한다). 커밋.
 2. `mobile/scripts/release-mobile.sh all --notes "변경 요약"`. TestFlight 공개 링크는 심사 승인 뒤에 생기므로 빌드와 따로 `release-mobile.sh link --testflight-url <공개 링크>`로 저장한다(이후 릴리스에는 다시 줄 필요 없음). `android`/`ios`만도 된다. `--dry-run`으로 단계만 볼 수 있다. 스크립트가 `flutter test`·`analyze`를 먼저 돌리고, 같은 빌드 번호의 APK가 이미 있으면 멈춘다.
 3. iOS: App Store Connect → TestFlight에서 빌드 처리(≈10분) 후 외부 그룹에 추가(첫 빌드는 Beta App Review, 보통 하루 안팎). 이후 빌드는 그룹에 추가만 하면 된다. 스크립트가 업로드 직후 `mobile_release.ios`를 쓰므로 **그룹에 추가하기 전까지 iOS 앱 배너가 먼저 뜰 수 있다** — TestFlight가 자동 갱신하므로 무해하고, 늦추고 싶으면 `ios`는 그룹 추가 직후 돌린다.
-4. Teams 공지: 스크립트가 마지막에 문구 예시를 출력한다. 설치·업데이트 안내는 항상 `https://inje-playground.vercel.app/apps`.
+4. Android는 끝에 SharePoint 사본(`innogrid-app-X.Y.Z.apk`)이 자동으로 올라간다 — 출력의 "링크:" 줄이 그 주소다. 실패 문구가 보이면 `release-mobile.sh sharepoint`.
+5. Teams 공지: 스크립트가 마지막에 문구 예시를 출력한다. 설치·업데이트 안내는 항상 `https://inje-playground.vercel.app/apps`.
 
 ### 운영 주의
 - TestFlight 빌드는 **90일 만료** — 분기마다 한 번은 빌드 번호를 올려 다시 올린다(만료되면 앱이 열리지 않는다).

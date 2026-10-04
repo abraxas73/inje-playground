@@ -14,7 +14,8 @@
   - `~/Repos/inje-playground/mobile/android/upload-keystore.jks`
   - `~/Repos/inje-playground/mobile/android/key.properties` (비밀번호가 이 안에 있다)
   - 왜: 첫 APK가 이 키로 서명됐다. 잃으면 전 직원이 앱을 지우고 다시 설치해야 한다.
-- [ ] **A2. Teams 공지(Android 먼저 열어도 되면)** — 예시: `[이노그리드 앱] Android 먼저 배포합니다. 설치: https://inje-playground.vercel.app/apps (로그인 후 'APK 받기' → 알림에서 열기 → 설치). iPhone은 TestFlight 준비 중.`
+- [ ] **A2. SharePoint 폴더 지정** — SharePoint에서 APK 사본을 둘 폴더(예: 사내 공유 문서 → `앱`)를 열고 **링크 복사** → `cd ~/Repos/inje-playground && mobile/scripts/release-mobile.sh sharepoint-folder "<복사한 링크>"` → 이어서 지금 올라간 1.0.0을 바로 올리려면 `mobile/scripts/release-mobile.sh sharepoint` (파일명 `innogrid-app-1.0.0.apk`). 조건: 웹 설정의 Microsoft 계정 연결(이미 돼 있음)과 그 계정의 폴더 쓰기 권한.
+- [ ] **A3. Teams 공지(Android 먼저 열어도 되면)** — 예시: `[이노그리드 앱] Android 먼저 배포합니다. 설치: https://inje-playground.vercel.app/apps (로그인 후 'APK 받기' → 알림에서 열기 → 설치). iPhone은 TestFlight 준비 중.`
 
 ## B. Apple — 한 번만 (약 30분 + 심사 대기 하루 안팎)
 사용 계정: 개인 Apple Developer 계정(팀 `LME2TNRC9G`, 이 Mac에 Apple Distribution 인증서 있음).
@@ -54,6 +55,7 @@
 - [ ] `mobile/pubspec.yaml`의 `version: X.Y.Z+N`에서 **`+N`을 1 올리고** 커밋·푸시.
 - [ ] `mobile/scripts/release-mobile.sh all --notes "변경 요약"` (Android만/iOS만이면 `android`/`ios`).
 - [ ] iOS는 App Store Connect → TestFlight → 그룹 `이노그리드 구성원` → 빌드 추가(두 번째부터는 심사 없음). 추가 전까지 iOS 앱 배너가 먼저 뜰 수 있지만 TestFlight가 자동 갱신하므로 무해.
+- [ ] Android는 SharePoint 사본(`innogrid-app-X.Y.Z.apk`)이 자동으로 올라간다. "실패"가 보이면 `mobile/scripts/release-mobile.sh sharepoint`.
 - [ ] 스크립트가 마지막에 출력한 공지 문구를 Teams에 올린다.
 
 ## D. 분기마다

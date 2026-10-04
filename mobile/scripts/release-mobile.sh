@@ -2,16 +2,20 @@
 # 모바일 앱 릴리스(운영자 Mac). 사용법:
 #   mobile/scripts/release-mobile.sh (android|ios|all) [--notes "…"] [--testflight-url URL] [--dry-run] [--allow-dirty]
 #   mobile/scripts/release-mobile.sh link --testflight-url URL      # 빌드 없이 TestFlight 공개 링크만 저장(심사 승인 뒤 링크가 생기므로 따로 둔다)
+#   mobile/scripts/release-mobile.sh sharepoint-folder <폴더 링크>   # APK 사본을 올릴 SharePoint 폴더 링크 저장(한 번)
+#   mobile/scripts/release-mobile.sh sharepoint                      # 현재 Android 릴리스 APK 사본을 SharePoint에 innogrid-app-<X.Y.Z>.apk로 올림(android/all 뒤 자동, 실패 시 재시도용)
 # 1) 작업 트리 확인 2) flutter test·analyze 3) pubspec version → APP_VERSION/APP_BUILD
 # 4) android: APK 빌드 → Supabase 스토리지 mobile/android/innogrid-<v>+<b>.apk 업로드 → settings.mobile_release.android 갱신
 # 5) ios: IPA 빌드 → App Store Connect 업로드(xcrun altool, API 키) → settings.mobile_release.ios 갱신 6) 다음 할 일 출력
-# 환경: frontend/.env.local(NEXT_PUBLIC_SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY), mobile/.env.release(ASC_KEY_ID·ASC_ISSUER_ID — iOS만, .p8은 ~/.private_keys/AuthKey_<ID>.p8)
+# 환경: frontend/.env.local(NEXT_PUBLIC_SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY·CRON_SECRET — SharePoint 단계), mobile/.env.release(OPERATOR_EMAIL — SharePoint 단계의 Microsoft 연결 주인(관리자); ASC_KEY_ID·ASC_ISSUER_ID — iOS만, .p8은 ~/.private_keys/AuthKey_<ID>.p8)
 # 비밀 값은 절대 출력하지 않는다. 버전 올리기는 pubspec.yaml을 손으로 고친다. 런북 docs/mobile-app.md §배포
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 MOBILE="$ROOT/mobile"
+APP_URL="https://inje-playground.vercel.app"
 TARGET=${1:-}; [ $# -gt 0 ] && shift
+FOLDER_URL=""; if [ "$TARGET" = sharepoint-folder ]; then FOLDER_URL=${1:-}; [ $# -gt 0 ] && shift; case "$FOLDER_URL" in http://*|https://*) ;; *) echo "sharepoint-folder에는 폴더 링크(https://…)가 필요합니다." >&2; exit 2;; esac; fi
 NOTES=""; TF_URL=""; DRY=0; ALLOW_DIRTY=0
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -28,7 +32,8 @@ case "$TARGET" in
   ios) DO_IOS=1;;
   all) DO_ANDROID=1; DO_IOS=1;;
   link) [ -n "$TF_URL" ] || { echo "link에는 --testflight-url URL 이 필요합니다." >&2; exit 2; };;
-  *) echo "사용법: $0 (android|ios|all) [--notes \"…\"] [--testflight-url URL] [--dry-run] [--allow-dirty] | $0 link --testflight-url URL" >&2; exit 2;;
+  sharepoint|sharepoint-folder) ;;
+  *) echo "사용법: $0 (android|ios|all) [--notes \"…\"] [--testflight-url URL] [--dry-run] [--allow-dirty] | $0 link --testflight-url URL | $0 sharepoint-folder <링크> | $0 sharepoint" >&2; exit 2;;
 esac
 say() { printf '\n▶ %s\n' "$*"; }
 
@@ -43,6 +48,11 @@ envval() { { grep -E "^$2=" "$1" 2>/dev/null || true; } | tail -1 | cut -d= -f2-
 SUPABASE_URL=$(envval "$ROOT/frontend/.env.local" NEXT_PUBLIC_SUPABASE_URL)
 SERVICE_KEY=$(envval "$ROOT/frontend/.env.local" SUPABASE_SERVICE_ROLE_KEY)
 [ -n "$SUPABASE_URL" ] && [ -n "$SERVICE_KEY" ] || { echo "frontend/.env.local에 NEXT_PUBLIC_SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY가 필요합니다." >&2; exit 1; }
+CRON_SECRET=$(envval "$ROOT/frontend/.env.local" CRON_SECRET)
+OPERATOR_EMAIL=$(envval "$MOBILE/.env.release" OPERATOR_EMAIL)
+if [ "$TARGET" = sharepoint ]; then
+  [ -n "$CRON_SECRET" ] && [ -n "$OPERATOR_EMAIL" ] || { echo "SharePoint 단계에는 frontend/.env.local의 CRON_SECRET과 mobile/.env.release의 OPERATOR_EMAIL(관리자, Microsoft 연결됨)이 필요합니다." >&2; exit 1; }
+fi
 ASC_KEY_ID=""; ASC_ISSUER_ID=""
 if [ "$DO_IOS" = 1 ]; then
   ASC_KEY_ID=$(envval "$MOBILE/.env.release" ASC_KEY_ID); ASC_ISSUER_ID=$(envval "$MOBILE/.env.release" ASC_ISSUER_ID)
@@ -57,8 +67,9 @@ VERSION=${VERSION_LINE%%+*}; BUILD=${VERSION_LINE##*+}
 say "버전 $VERSION (빌드 $BUILD) · 대상 $TARGET$([ "$DRY" = 1 ] && echo ' · dry-run')"
 DEFINES=(--dart-define=APP_VERSION="$VERSION" --dart-define=APP_BUILD="$BUILD")
 
-# 4. 게이트(link는 빌드가 없어 건너뜀)
-if [ "$TARGET" != link ]; then
+# 4. 게이트(link·sharepoint·sharepoint-folder는 빌드가 없어 건너뜀)
+case "$TARGET" in link|sharepoint|sharepoint-folder) GATE=0;; *) GATE=1;; esac
+if [ "$GATE" = 1 ]; then
 say "flutter test · analyze"
 if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter test && flutter analyze"; else
   (cd "$MOBILE" && flutter test >/dev/null && flutter analyze >/dev/null) || { echo "테스트/분석 실패 — 중단" >&2; exit 1; }
@@ -96,6 +107,32 @@ PY
   echo "  settings.mobile_release ← $merged"
 }
 
+# 전역 설정 한 키 쓰기(문자열)
+write_setting() {
+  local body; body=$(python3 -c 'import json,sys; print(json.dumps({"key":sys.argv[1],"value":sys.argv[2]}))' "$1" "$2")
+  if [ "$DRY" = 1 ]; then echo "  (dry-run) settings.$1 ← $2"; return; fi
+  curl -sf -X POST "${AUTH[@]}" -H "Content-Type: application/json" -H "Prefer: resolution=merge-duplicates,return=minimal" "$REST/settings?on_conflict=key" --data-binary "$body" >/dev/null
+  echo "  settings.$1 ← $2"
+}
+# SharePoint 사본: 서버(POST /api/mobile/release/sharepoint, CRON_SECRET)가 스토리지 APK를 읽어 Graph로 올린다. $1=soft면 실패해도 릴리스를 깨지 않는다.
+sharepoint_upload() {
+  say "SharePoint: APK 사본 업로드(innogrid-app-$VERSION.apk)"
+  if [ "$DRY" = 1 ]; then echo "  (dry-run) POST $APP_URL/api/mobile/release/sharepoint {operator: <관리자>}"; return 0; fi
+  if [ -z "$CRON_SECRET" ] || [ -z "$OPERATOR_EMAIL" ]; then
+    echo "  건너뜀 — frontend/.env.local CRON_SECRET, mobile/.env.release OPERATOR_EMAIL이 필요합니다. 나중에: $0 sharepoint" >&2
+    [ "$1" = soft ] && return 0 || exit 1
+  fi
+  local resp; resp=$(mktemp)
+  local code; code=$(curl -s --max-time 600 -o "$resp" -w '%{http_code}' -X POST "$APP_URL/api/mobile/release/sharepoint" -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" --data-binary "{\"operator\":\"$OPERATOR_EMAIL\"}" || true)
+  if [ "$code" = 200 ]; then
+    python3 -c 'import sys,json; j=json.load(open(sys.argv[1])); print("  올림:", j.get("folderName",""), "/", j.get("name",""), "\n  링크:", j.get("webUrl","")); w=j.get("warning"); print("  주의:", w) if w else None' "$resp"
+    rm -f "$resp"; return 0
+  fi
+  echo "  실패 (HTTP $code): $(head -c 300 "$resp")" >&2; rm -f "$resp"
+  echo "  다시 시도: $0 sharepoint   (폴더 링크가 없으면 먼저: $0 sharepoint-folder <링크>)" >&2
+  [ "$1" = soft ] && return 0 || exit 1
+}
+
 # 5. Android
 if [ "$DO_ANDROID" = 1 ]; then
   APK_NAME="innogrid-$VERSION+$BUILD.apk"; APK_PATH="android/$APK_NAME"; APK_URL_PATH="android/${APK_NAME//+/%2B}"
@@ -129,6 +166,7 @@ print(((d.get("android") or {}) if isinstance(d, dict) else {}).get("apkPath", "
   fi
   fi
   write_release android "$APK_PATH"
+  sharepoint_upload soft
 fi
 
 # 6. iOS
@@ -149,15 +187,21 @@ if [ "$DO_IOS" = 1 ]; then
   write_release ios
 fi
 
-# 6b. 공개 링크만 저장
+# 6b. 공개 링크만 저장 / SharePoint 폴더 저장 / SharePoint 사본만 다시
 if [ "$TARGET" = link ]; then
   say "TestFlight 공개 링크 저장"
   write_release link
 fi
+if [ "$TARGET" = sharepoint-folder ]; then
+  say "SharePoint 폴더 링크 저장"
+  write_setting mobile_sharepoint_folder "$FOLDER_URL"
+fi
+[ "$TARGET" = sharepoint ] && sharepoint_upload hard
 
 # 7. 다음 할 일
 say "다음 할 일"
 [ "$DO_ANDROID" = 1 ] && echo "  · Android: 웹 https://inje-playground.vercel.app/apps 에서 바로 받을 수 있습니다. 설치된 앱은 다음 실행 때 배너로 안내합니다."
+[ "$TARGET" = sharepoint-folder ] && echo "  · 다음 android 릴리스부터 APK 사본이 이 폴더에 innogrid-app-<X.Y.Z>.apk로 올라갑니다. 지금 것은: $0 sharepoint"
 [ "$TARGET" = link ] && echo "  · 웹 /apps의 'TestFlight에서 열기' 버튼과 iOS 앱 배너 링크가 이 주소를 씁니다."
 [ "$DO_IOS" = 1 ] && echo "  · iOS: App Store Connect → TestFlight에서 처리 완료(≈10분)를 기다린 뒤 외부 그룹 '이노그리드 구성원'에 빌드를 추가하세요(첫 빌드는 Beta App Review)."
 echo "  · 공지 예시: [이노그리드 앱 $VERSION] ${NOTES:-변경 내용} — 설치·업데이트: https://inje-playground.vercel.app/apps"

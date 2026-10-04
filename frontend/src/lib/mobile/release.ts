@@ -2,6 +2,11 @@
 export const MOBILE_RELEASE_KEY = "mobile_release";
 export const MOBILE_BUCKET = "mobile";
 export const APK_URL_TTL_SECONDS = 600;
+/** 전역 설정: 릴리스 APK 사본을 올릴 SharePoint 폴더 링크(릴리스 스크립트 `sharepoint-folder`가 저장) */
+export const MOBILE_SHAREPOINT_FOLDER_KEY = "mobile_sharepoint_folder";
+export const APK_MIME = "application/vnd.android.package-archive";
+/** SharePoint 사본 파일명 — 사용자 요청대로 major.minor.patch만(빌드 번호 없음). 같은 버전을 다시 올리면 덮어쓴다(SharePoint 버전 이력 보존). */
+export const apkFileName = (version: string) => `innogrid-app-${version}.apk`;
 
 export type PlatformRelease = { version: string; build: number; releasedAt: string | null };
 export type AndroidRelease = PlatformRelease & { apkPath: string };

@@ -93,7 +93,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `POST /api/auth/events` — 로그인 전(익명) 감사 기록: 로그인 시도·실패·차단만(event·provider 화이트리스트, IP당 5분 30건 상한). 성공 로그인은 `/auth/callback`이 `login_history`에 남긴다
 - `GET /api/admin/directory`, `POST /api/admin/directory/sync` — 사내 조직도 명부 조회/동기화(동기화는 관리자 세션 또는 수집 토큰; 로컬 `frontend/scripts/company-directory-sync.py`가 inno-creed MCP `find_person` 전사 명부를 밀어 넣음). 런북 `docs/company-directory.md`
 - `/api/ppt/uploads`(kind=template은 admin), `/api/ppt/decks[/[id]/(regenerate|versions/[no]/file|share|teams|sharepoint)]`, `/api/ppt/shared/[token][/file]`, `GET /api/admin/ppt/decks`(관리자 `/admin/ppt` 전체 덱 관리), `GET·POST /api/admin/ppt/templates`, `PATCH /api/admin/ppt/templates/[id]` — PPT 만들기(규칙 `.claude/rules/ppt-maker.md`)
-- `GET /api/mobile/release` — 플랫폼별 최신 앱 버전·설치 링크(user 이상, 쿠키·Bearer; `lib/mobile/release.ts`). 웹 `/apps`와 앱 시작 시 업데이트 확인이 쓴다
+- `GET /api/mobile/release` — 플랫폼별 최신 앱 버전·설치 링크(user 이상, 쿠키·Bearer; `lib/mobile/release.ts`). 웹 `/apps`와 앱 시작 시 업데이트 확인이 쓴다. `POST /api/mobile/release/sharepoint` — 최신 Android APK 사본을 SharePoint 폴더(settings `mobile_sharepoint_folder`)에 `innogrid-app-<X.Y.Z>.apk`로 올림(릴리스 스크립트가 `CRON_SECRET`+operator 관리자 이메일로, 또는 관리자 세션; 그 관리자의 Microsoft 연결 사용)
 - `POST /api/mobile/login`, `POST /api/mobile/web-token`, 페이지 `/auth/mobile` — 모바일 앱 인증(규칙 `.claude/rules/mobile.md`, 런북 `docs/mobile-app.md`). `/api/*`는 `Authorization: Bearer`도 받는다(`createServerSupabase`·미들웨어 분기)
 
 ### Supabase Tables (guide feature)

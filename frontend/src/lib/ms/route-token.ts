@@ -7,14 +7,8 @@ import { OAuthError, oauthErrorMessage } from "./oauth";
 
 export type GraphTokenResult = { ok: true; token: string } | { ok: false; response: NextResponse };
 
-/**
- * 라우트용: settings+env 설정을 읽고 세션 사용자의 Graph access 토큰을 발급한다.
- * 실패는 3단계 업로드 라우트와 같은 상태·문구·code로 응답을 만든다(500 설정 누락 / 400 not_connected / 409 reconnect / 502 OAuth).
- * 토큰은 로그에 쓰지 않는다.
- */
-export async function graphTokenForRoute(admin: SupabaseClient, userId: string): Promise<GraphTokenResult> {
-  const supabase = await createServerSupabase();
-  const cfg = await loadMsConfig(supabase);
+/** 세션·설정을 받아 토큰을 만든다(공통 오류 매핑). */
+async function graphTokenWithConfig(admin: SupabaseClient, userId: string, cfg: Awaited<ReturnType<typeof loadMsConfig>>): Promise<GraphTokenResult> {
   if (!cfg.ok) {
     console.error("[ms] 연결 설정 누락:", cfg.missing.join(", "));
     return { ok: false, response: NextResponse.json({ error: missingConfigMessage(cfg.missing) }, { status: 500 }) };
@@ -31,4 +25,19 @@ export async function graphTokenForRoute(admin: SupabaseClient, userId: string):
     }
     throw e;
   }
+}
+
+/**
+ * 라우트용: settings+env 설정을 읽고 세션 사용자의 Graph access 토큰을 발급한다.
+ * 실패는 3단계 업로드 라우트와 같은 상태·문구·code로 응답을 만든다(500 설정 누락 / 400 not_connected / 409 reconnect / 502 OAuth).
+ * 토큰은 로그에 쓰지 않는다.
+ */
+export async function graphTokenForRoute(admin: SupabaseClient, userId: string): Promise<GraphTokenResult> {
+  const supabase = await createServerSupabase();
+  return graphTokenWithConfig(admin, userId, await loadMsConfig(supabase));
+}
+
+/** 세션 없는 호출(릴리스 스크립트가 CRON_SECRET으로 부르는 라우트 등)용 — 설정을 service role로 읽어 지정 사용자의 토큰을 만든다. */
+export async function graphTokenForUser(admin: SupabaseClient, userId: string): Promise<GraphTokenResult> {
+  return graphTokenWithConfig(admin, userId, await loadMsConfig(admin as unknown as Parameters<typeof loadMsConfig>[0]));
 }
