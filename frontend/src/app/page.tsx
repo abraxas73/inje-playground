@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Database, Dice5, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Presentation, Newspaper, SquareTerminal, MessagesSquare, TrendingUp, MessageCircle } from "lucide-react";
+import { Database, Dice5, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Presentation, Newspaper, SquareTerminal, MessagesSquare, TrendingUp, MessageCircle, Smartphone } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 
 const FEATURES = [
@@ -52,6 +52,16 @@ const FEATURES = [
     bgAccent: "bg-emerald-50",
     iconColor: "text-emerald-600",
     delay: "delay-[450ms]",
+  },
+  {
+    href: "/apps",
+    title: "모바일 앱",
+    description: "이노그리드 앱을 휴대폰에 설치하세요. iPhone은 TestFlight, Android는 APK로 받습니다.",
+    icon: Smartphone,
+    gradient: "from-slate-600 to-slate-800",
+    bgAccent: "bg-slate-50",
+    iconColor: "text-slate-700",
+    delay: "delay-100",
   },
   {
     href: "/rfp",

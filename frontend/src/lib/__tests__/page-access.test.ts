@@ -31,7 +31,7 @@ describe("page access catalog", () => {
     expect(canOpenPage("user", "/admin/page-permissions")).toBe(false);
     expect(canOpenPage("user", "/guide/admin")).toBe(false);
   });
-  it.each(["food", "ladder", "team", "survey", "guide", "rfp", "people-news"])("matches /%s children on path boundaries", (prefix) => {
+  it.each(["food", "ladder", "team", "survey", "apps", "guide", "rfp", "people-news"])("matches /%s children on path boundaries", (prefix) => {
     expect(pagesForPath(`/${prefix}/detail`)).toHaveLength(1);
     expect(pagesForPath(`/${prefix}-unrelated`)).toEqual([]);
   });
