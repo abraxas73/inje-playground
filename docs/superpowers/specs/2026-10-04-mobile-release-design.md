@@ -29,10 +29,13 @@
   ```
   릴리스 스크립트가 pubspec에서 읽어 `--dart-define`으로 넘긴다. define 없는 개발 빌드는 `dev`/0으로 보이고 **업데이트 확인을 건너뛴다**(0은 "모름"). User-Agent `InnogridApp/$appVersion`은 그대로(서버 UA 파서는 문자열이면 받는다).
 
-### 2. 앱 아이콘
+### 2. 앱 아이콘(이노그리드 CI 가이드 적용)
 
-- 원본 두 장을 `assets/brand/`에 둔다: `app_icon.png`(1024×1024, 네이비 `#0B1A3A` 바탕 + 흰 로고, 불투명), `app_icon_fg.png`(1024×1024 투명 바탕 + 흰 로고, 가운데 66% 안전 영역 안). 로고 PNG를 만들 때처럼 **Flutter 골든 렌더(일회용 테스트)** 로 뽑는다 — 이미지 도구 의존성 없음.
-- `flutter_launcher_icons`를 **dev 의존성**으로 추가(런타임 영향 없음)하고 pubspec에 설정: iOS 전 크기(`remove_alpha_ios: true`), Android 레거시 + 적응형(`adaptive_icon_background: "#0B1A3A"`, `adaptive_icon_foreground: assets/brand/app_icon_fg.png`). 로고가 바뀌면 원본 두 장을 다시 뽑고 `dart run flutter_launcher_icons`를 다시 돌린다. 이것이 pubspec 의존성 11개 규칙의 예외(스펙 변경)다.
+- 근거: 이노그리드 CI 디자인 가이드라인 ver 0.1(2021-10-08, https://www.innogrid.com/download/ci/Innogrid_CI_Guide.pdf). **워드마크만 있고 심볼 마크는 없다.** 전용 색상: Logo Color `#002447`, Background Color `#006cdb`, Point `#00a2ff`·`#00ccff`·`#13defc`. 금지: 로고 변형·회전·테두리·그림자·전용색 외 색, 배경과 구분되지 않는 조합. 그래픽 모티프(면형: SHARING 링·EXPANSION 별·CONNECTION 점 8개 링·PROGRESS 계단·FLEXIBILITY 꺾쇠·INTEGRATION 육각형)는 "보조적 수단"이며, 응용 예시가 바로 **브랜드 블루 타일 위 흰 모티프**다.
+- 아이콘: 가로 7.5:1 워드마크는 48~60px 아이콘에서 읽히지 않고 세로로 쌓거나 줄이는 건 금지규정(변형)에 걸리므로, **Background Color `#006cdb` 바탕 + 흰 CONNECTION 모티프**(그래픽_응용 타일 그대로)로 한다. 홈 화면 이름이 "이노그리드"라 글자는 넣지 않는다. 1024 기준 모티프 지름 560(55%), 점 반지름 56, 점 중심 반지름 224 — Android 적응형 아이콘 안전 영역(지름 676) 안.
+- 원본 두 장을 `assets/brand/`에 둔다: `app_icon.png`(1024×1024 불투명, 바탕 + 모티프), `app_icon_fg.png`(1024×1024 투명 + 흰 모티프). 이미지 도구 없이 **Flutter 골든 렌더(CustomPaint, 일회용 테스트)** 로 뽑는다.
+- `flutter_launcher_icons`를 **dev 의존성**으로 추가(런타임 영향 없음)하고 pubspec에 설정: iOS 전 크기(`remove_alpha_ios: true`), Android 레거시 + 적응형(`adaptive_icon_background: "#006cdb"`, `adaptive_icon_foreground: assets/brand/app_icon_fg.png`). 모티프나 색이 바뀌면 원본을 다시 뽑고 `dart run flutter_launcher_icons`를 다시 돌린다. 이것이 pubspec 의존성 11개 규칙의 예외(스펙 변경)다.
+- 앱 UI 팔레트(`Brand.navy #0B1A3A`·`Brand.blue #0441FF`, Claude Design 시안)는 이번에 바꾸지 않는다. CI 색(#002447·#006cdb)으로 맞출지는 별도 결정.
 
 ### 3. 릴리스 저장소·메타데이터(Supabase)
 
