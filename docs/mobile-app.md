@@ -63,7 +63,7 @@
 | Android에서 APK 설치 시 "앱이 설치되지 않았습니다" / 서명 불일치 | 기존 설치와 서명 키가 다름(디버그 빌드 위에 릴리스, 또는 키스토어 분실) | 기존 앱 삭제 후 설치. 키스토어는 1Password 백업본을 `mobile/android/`에 복원 |
 
 ## 배포(사내) (2026-10-04)
-스펙 `docs/superpowers/specs/2026-10-04-mobile-release-design.md`. iOS는 **TestFlight 외부 그룹 공개 링크**(개인 Apple 계정, 팀 `LME2TNRC9G`), Android는 **웹 `/apps`에서 APK 직접 받기**(로그인 필요, 비공개 버킷 `mobile`의 600초 서명 URL). 릴리스 메타데이터는 `settings` 키 `mobile_release`(문자열 JSON: `notes`·`testflightUrl`·`android{version,build,apkPath,releasedAt}`·`ios{version,build,releasedAt}`) 하나, 읽는 API는 `GET /api/mobile/release`(user 이상). 앱은 시작 때 이 API로 자기 플랫폼 빌드 번호를 비교해 홈 배너·더보기 "앱 버전" 줄에 업데이트 버튼을 보여 준다(개발 빌드 `dev`/0은 확인 안 함). 쓰는 쪽은 `mobile/scripts/release-mobile.sh`뿐.
+**운영자가 직접 할 일(App Store Connect·백업·공지)만 모은 체크리스트: `docs/mobile-release-checklist.md`.** 스펙 `docs/superpowers/specs/2026-10-04-mobile-release-design.md`. iOS는 **TestFlight 외부 그룹 공개 링크**(개인 Apple 계정, 팀 `LME2TNRC9G`), Android는 **웹 `/apps`에서 APK 직접 받기**(로그인 필요, 비공개 버킷 `mobile`의 600초 서명 URL). 릴리스 메타데이터는 `settings` 키 `mobile_release`(문자열 JSON: `notes`·`testflightUrl`·`android{version,build,apkPath,releasedAt}`·`ios{version,build,releasedAt}`) 하나, 읽는 API는 `GET /api/mobile/release`(user 이상). 앱은 시작 때 이 API로 자기 플랫폼 빌드 번호를 비교해 홈 배너·더보기 "앱 버전" 줄에 업데이트 버튼을 보여 준다(개발 빌드 `dev`/0은 확인 안 함). 쓰는 쪽은 `mobile/scripts/release-mobile.sh`뿐.
 
 ### 최초 1회 준비
 1. **Android 키스토어**: `mobile/android/upload-keystore.jks` + `key.properties`(둘 다 gitignore). 2026-10-04 생성(별칭 `upload`, RSA 2048, 10000일). **두 파일을 1Password에 백업** — 잃으면 서명이 바뀌어 전 직원이 앱을 지우고 다시 설치해야 한다. 새 Mac에서는 두 파일을 같은 자리에 복원하면 된다(없으면 디버그 키로 빌드돼 기존 설치 위에 업데이트가 안 된다). `key.properties` 형식(4줄): `storePassword=…` `keyPassword=…` `keyAlias=upload` `storeFile=../upload-keystore.jks`(`android/app` 기준 경로).
@@ -73,7 +73,7 @@
 
 ### 매 릴리스
 1. `mobile/pubspec.yaml`의 `version: X.Y.Z+N`을 올린다(빌드 번호 `+N`은 항상 증가 — 앱은 이 숫자로 새 버전을 판단한다). 커밋.
-2. `mobile/scripts/release-mobile.sh all --notes "변경 요약"` (처음 iOS는 `--testflight-url <공개 링크>` 추가). `android`/`ios`만도 된다. `--dry-run`으로 단계만 볼 수 있다. 스크립트가 `flutter test`·`analyze`를 먼저 돌리고, 같은 빌드 번호의 APK가 이미 있으면 멈춘다.
+2. `mobile/scripts/release-mobile.sh all --notes "변경 요약"`. TestFlight 공개 링크는 심사 승인 뒤에 생기므로 빌드와 따로 `release-mobile.sh link --testflight-url <공개 링크>`로 저장한다(이후 릴리스에는 다시 줄 필요 없음). `android`/`ios`만도 된다. `--dry-run`으로 단계만 볼 수 있다. 스크립트가 `flutter test`·`analyze`를 먼저 돌리고, 같은 빌드 번호의 APK가 이미 있으면 멈춘다.
 3. iOS: App Store Connect → TestFlight에서 빌드 처리(≈10분) 후 외부 그룹에 추가(첫 빌드는 Beta App Review, 보통 하루 안팎). 이후 빌드는 그룹에 추가만 하면 된다. 스크립트가 업로드 직후 `mobile_release.ios`를 쓰므로 **그룹에 추가하기 전까지 iOS 앱 배너가 먼저 뜰 수 있다** — TestFlight가 자동 갱신하므로 무해하고, 늦추고 싶으면 `ios`는 그룹 추가 직후 돌린다.
 4. Teams 공지: 스크립트가 마지막에 문구 예시를 출력한다. 설치·업데이트 안내는 항상 `https://inje-playground.vercel.app/apps`.
 

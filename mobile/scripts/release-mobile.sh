@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 모바일 앱 릴리스(운영자 Mac). 사용법:
 #   mobile/scripts/release-mobile.sh (android|ios|all) [--notes "…"] [--testflight-url URL] [--dry-run] [--allow-dirty]
+#   mobile/scripts/release-mobile.sh link --testflight-url URL      # 빌드 없이 TestFlight 공개 링크만 저장(심사 승인 뒤 링크가 생기므로 따로 둔다)
 # 1) 작업 트리 확인 2) flutter test·analyze 3) pubspec version → APP_VERSION/APP_BUILD
 # 4) android: APK 빌드 → Supabase 스토리지 mobile/android/innogrid-<v>+<b>.apk 업로드 → settings.mobile_release.android 갱신
 # 5) ios: IPA 빌드 → App Store Connect 업로드(xcrun altool, API 키) → settings.mobile_release.ios 갱신 6) 다음 할 일 출력
@@ -21,8 +22,14 @@ while [ $# -gt 0 ]; do
     *) echo "알 수 없는 옵션: $1" >&2; exit 2;;
   esac
 done
-case "$TARGET" in android|ios|all) ;; *) echo "사용법: $0 (android|ios|all) [--notes \"…\"] [--testflight-url URL] [--dry-run] [--allow-dirty]" >&2; exit 2;; esac
-DO_ANDROID=0; DO_IOS=0; [ "$TARGET" != ios ] && DO_ANDROID=1; [ "$TARGET" != android ] && DO_IOS=1
+DO_ANDROID=0; DO_IOS=0
+case "$TARGET" in
+  android) DO_ANDROID=1;;
+  ios) DO_IOS=1;;
+  all) DO_ANDROID=1; DO_IOS=1;;
+  link) [ -n "$TF_URL" ] || { echo "link에는 --testflight-url URL 이 필요합니다." >&2; exit 2; };;
+  *) echo "사용법: $0 (android|ios|all) [--notes \"…\"] [--testflight-url URL] [--dry-run] [--allow-dirty] | $0 link --testflight-url URL" >&2; exit 2;;
+esac
 say() { printf '\n▶ %s\n' "$*"; }
 
 # 1. 작업 트리
@@ -50,11 +57,13 @@ VERSION=${VERSION_LINE%%+*}; BUILD=${VERSION_LINE##*+}
 say "버전 $VERSION (빌드 $BUILD) · 대상 $TARGET$([ "$DRY" = 1 ] && echo ' · dry-run')"
 DEFINES=(--dart-define=APP_VERSION="$VERSION" --dart-define=APP_BUILD="$BUILD")
 
-# 4. 게이트
+# 4. 게이트(link는 빌드가 없어 건너뜀)
+if [ "$TARGET" != link ]; then
 say "flutter test · analyze"
 if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter test && flutter analyze"; else
   (cd "$MOBILE" && flutter test >/dev/null && flutter analyze >/dev/null) || { echo "테스트/분석 실패 — 중단" >&2; exit 1; }
   echo "  통과"
+fi
 fi
 
 REST="$SUPABASE_URL/rest/v1"; STORAGE="$SUPABASE_URL/storage/v1"
@@ -71,9 +80,10 @@ except Exception: cur = {}
 if not isinstance(cur, dict): cur = {}
 now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 p = os.environ["PLATFORM"]
-block = {"version": os.environ["VERSION"], "build": int(os.environ["BUILD"]), "releasedAt": now}
-if p == "android": block["apkPath"] = os.environ["APK_PATH"]
-cur[p] = block
+if p in ("android", "ios"):
+    block = {"version": os.environ["VERSION"], "build": int(os.environ["BUILD"]), "releasedAt": now}
+    if p == "android": block["apkPath"] = os.environ["APK_PATH"]
+    cur[p] = block
 if os.environ["NOTES"]: cur["notes"] = os.environ["NOTES"]
 if os.environ["TF_URL"]: cur["testflightUrl"] = os.environ["TF_URL"]
 cur.setdefault("notes", ""); cur.setdefault("testflightUrl", None)
@@ -139,8 +149,15 @@ if [ "$DO_IOS" = 1 ]; then
   write_release ios
 fi
 
+# 6b. 공개 링크만 저장
+if [ "$TARGET" = link ]; then
+  say "TestFlight 공개 링크 저장"
+  write_release link
+fi
+
 # 7. 다음 할 일
 say "다음 할 일"
 [ "$DO_ANDROID" = 1 ] && echo "  · Android: 웹 https://inje-playground.vercel.app/apps 에서 바로 받을 수 있습니다. 설치된 앱은 다음 실행 때 배너로 안내합니다."
+[ "$TARGET" = link ] && echo "  · 웹 /apps의 'TestFlight에서 열기' 버튼과 iOS 앱 배너 링크가 이 주소를 씁니다."
 [ "$DO_IOS" = 1 ] && echo "  · iOS: App Store Connect → TestFlight에서 처리 완료(≈10분)를 기다린 뒤 외부 그룹 '이노그리드 구성원'에 빌드를 추가하세요(첫 빌드는 Beta App Review)."
 echo "  · 공지 예시: [이노그리드 앱 $VERSION] ${NOTES:-변경 내용} — 설치·업데이트: https://inje-playground.vercel.app/apps"
