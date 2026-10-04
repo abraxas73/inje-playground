@@ -6,17 +6,24 @@ import '../config.dart';
 import 'release_check.dart';
 import 'release_provider.dart';
 
-/// Android: 서명 URL을 브라우저로 열어 내려받고 알림에서 설치. iOS: TestFlight 링크. 앱이 직접 설치하지는 않는다.
-Future<void> openRelease(ReleaseInfo r) async {
-  final u = r.url;
+/// 링크를 여는 함수(테스트 주입용). 기본은 외부 앱으로 — Android는 브라우저가 APK를 내려받고 알림에서 설치, iOS는 TestFlight.
+typedef LaunchFn = Future<void> Function(Uri uri);
+Future<void> _launchExternal(Uri uri) => launchUrl(uri, mode: LaunchMode.externalApplication);
+
+/// 업데이트 버튼: 캐시된 링크가 아니라 **서버에서 새로 받은** 링크를 연다 — APK 서명 URL은 600초 만료라 아침에 본 배너를 점심에 누르면 죽은 링크다(리뷰 1).
+/// 앱이 직접 설치하지는 않는다.
+Future<void> openRelease(WidgetRef ref, LaunchFn launch) async {
+  final r = await ref.refresh(releaseProvider.future);
+  final u = r?.url;
   if (u == null) return;
-  await launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication);
+  await launch(Uri.parse(u));
 }
 
 /// 홈 맨 위 "새 버전" 한 줄 카드. 서버 빌드가 앱 빌드보다 클 때만 보인다(개발 빌드 0은 안 보임).
 class UpdateBanner extends ConsumerWidget {
-  const UpdateBanner({super.key, this.appBuild = Config.appBuild});
+  const UpdateBanner({super.key, this.appBuild = Config.appBuild, this.launch = _launchExternal});
   final int appBuild;
+  final LaunchFn launch;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final r = ref.watch(releaseProvider).value;
@@ -35,7 +42,7 @@ class UpdateBanner extends ConsumerWidget {
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Brand.navy),
           ),
         ),
-        if (hasLink) TextButton(onPressed: () => openRelease(r), child: const Text('업데이트')),
+        if (hasLink) TextButton(onPressed: () => openRelease(ref, launch), child: const Text('업데이트')),
       ]),
     );
   }
@@ -43,9 +50,10 @@ class UpdateBanner extends ConsumerWidget {
 
 /// 더보기 "앱 버전" 줄의 trailing — 버전 글자, 새 버전이 있으면 업데이트 버튼(사용자 요청).
 class VersionTrailing extends ConsumerWidget {
-  const VersionTrailing({super.key, this.appVersion = Config.appVersion, this.appBuild = Config.appBuild});
+  const VersionTrailing({super.key, this.appVersion = Config.appVersion, this.appBuild = Config.appBuild, this.launch = _launchExternal});
   final String appVersion;
   final int appBuild;
+  final LaunchFn launch;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final r = ref.watch(releaseProvider).value;
@@ -56,7 +64,7 @@ class VersionTrailing extends ConsumerWidget {
     return Row(mainAxisSize: MainAxisSize.min, children: [
       Text(current, style: style),
       const SizedBox(width: 4),
-      TextButton(onPressed: () => openRelease(r), child: const Text('업데이트')),
+      TextButton(onPressed: () => openRelease(ref, launch), child: const Text('업데이트')),
     ]);
   }
 }

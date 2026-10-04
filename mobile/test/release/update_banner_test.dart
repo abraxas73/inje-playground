@@ -43,4 +43,24 @@ void main() {
     expect(find.text('dev'), findsOneWidget);
     expect(find.byType(TextButton), findsNothing);
   });
+  testWidgets('[리뷰1] 업데이트 버튼은 캐시된 링크가 아니라 서버에서 새로 받은 링크를 연다(서명 URL 600초 만료 대비)', (tester) async {
+    var n = 0;
+    final opened = <String>[];
+    await tester.pumpWidget(ProviderScope(
+      key: UniqueKey(),
+      overrides: [releaseProvider.overrideWith((_) async { n++; return ReleaseInfo(version: '1.1.0', build: 3, url: 'https://x/$n'); })],
+      child: MaterialApp(home: Scaffold(body: Column(children: [
+        UpdateBanner(appBuild: 2, launch: (u) async => opened.add(u.toString())),
+        VersionTrailing(appVersion: '1.0.0', appBuild: 2, launch: (u) async => opened.add(u.toString())),
+      ]))),
+    ));
+    await tester.pumpAndSettle();
+    expect(n, 1, reason: '화면이 뜰 때 1회 확인');
+    await tester.tap(find.widgetWithText(TextButton, '업데이트').first);
+    await tester.pumpAndSettle();
+    expect(opened, ['https://x/2'], reason: '누를 때 다시 받아 그 링크를 연다');
+    await tester.tap(find.widgetWithText(TextButton, '업데이트').last);
+    await tester.pumpAndSettle();
+    expect(opened, ['https://x/2', 'https://x/3']);
+  });
 }
