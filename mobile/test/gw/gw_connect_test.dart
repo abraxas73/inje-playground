@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -19,11 +20,24 @@ void main() {
     await expectLater(verifyGwCookies('nothing=1', MockClient((_) async => ok(session))), throwsA(isA<GwException>()));
     await expectLater(verifyGwCookies('oAuthToken=a; signKey=b', MockClient((_) async => http.Response('{}', 401))), throwsA(isA<GwUnauthorized>()));
   });
-  testWidgets('연결 화면: WebView 자리 주입, 안내 문구', (tester) async {
+  testWidgets('연결 화면: 저장된 로그인 정보가 없으면 WebView를 바로 보여 주고 안내 문구', (tester) async {
+    FlutterSecureStorage.setMockInitialValues({});
     await tester.pumpWidget(gwScope(http: MockClient((_) async => ok(session)), child: GwConnectScreen(webView: () => const Text('WEBVIEW'))));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.text('WEBVIEW'), findsOneWidget);
     expect(find.textContaining('아마란스에 로그인'), findsOneWidget);
+    expect(find.textContaining('자동 로그인 중'), findsNothing);
+  });
+  testWidgets('연결 화면: 저장된 로그인 정보가 있으면 WebView를 가리고 자동 로그인 패널', (tester) async {
+    FlutterSecureStorage.setMockInitialValues({'gw.loginId': 'me', 'gw.loginPw': 'pw'});
+    await tester.pumpWidget(gwScope(http: MockClient((_) async => ok(session)), child: GwConnectScreen(webView: () => const Text('WEBVIEW'))));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100)); // 진행 표시가 돌고 있어 settle은 안 된다
+    expect(find.textContaining('자동 로그인 중'), findsOneWidget);
+    expect(find.text('직접 로그인'), findsOneWidget); // 수동 전환 버튼
+    await tester.tap(find.text('직접 로그인'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('자동 로그인 중'), findsNothing);
   });
   testWidgets('GwGate: 미연결이면 연결 안내, 연결되면 builder', (tester) async {
     await tester.pumpWidget(gwScope(http: MockClient((_) async => ok(session)), child: GwGate(title: '미결 결재', builder: (_, api) => const Text('BODY'))));
