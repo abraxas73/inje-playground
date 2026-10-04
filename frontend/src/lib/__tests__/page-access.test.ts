@@ -44,6 +44,7 @@ describe("page access catalog", () => {
     expect(pagesForPath("/api/people-news/email")).toEqual(["people_news"]);
     expect(pagesForPath("/api/usage/office")).toEqual(["usage_chat"]);
     expect(pagesForPath("/api/team-attendance")).toEqual(["team"]);
+    expect(pagesForPath("/api/teams/mentions")).toEqual(["teams_chat"]);
     expect(pagesForPath("/api/usage/scope")).toEqual(["usage_code", "usage_chat", "usage_perf"]);
     expect(pagesForPath("/api/cron/yonhap-notice-email")).toEqual([]);
   });

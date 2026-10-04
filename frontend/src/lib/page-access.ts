@@ -50,7 +50,7 @@ export function pagesForPath(path: string): PageKey[] {
     ["/api/food", ["food"]], ["/api/ladder-sessions", ["ladder"]],
     ["/api/team-sessions", ["team"]], ["/api/team-attendance", ["team"]],
     ["/api/team-comments", ["team"]], ["/api/team-notify", ["team"]],
-    ["/api/surveys", ["survey"]], ["/api/guide", ["guide"]], ["/api/teams/chat", ["teams_chat"]],
+    ["/api/surveys", ["survey"]], ["/api/guide", ["guide"]], ["/api/teams/chat", ["teams_chat"]], ["/api/teams/mentions", ["teams_chat"]],
     ["/api/rfp", ["rfp"]], ["/api/ppt", ["ppt"]], ["/api/people-news", ["people_news"]],
     ["/api/marketing", ["marketing"]],
     ["/media-directory", ["people_news"]], ["/api/media-directory", ["people_news"]],
