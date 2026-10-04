@@ -14,6 +14,18 @@
 
 하단 바 2단 메뉴(2026-10-04, 사용자 요청 "웹처럼 2단 메뉴로, 그룹을 누르면 하위 메뉴가 부채꼴로"): `mobile/lib/app/tab_shell.dart`. 바는 홈 · 일상 · AI · 업무 · 더보기(그룹은 웹 `PAGE_GROUPS`와 같은 id, 라벨만 짧게 — `lib/more/catalog.dart`의 `pageGroups`, 볼 수 있는 페이지가 없는 그룹은 웹처럼 숨긴다). 그룹을 누르면 본문 위에 네이비 스크림이 깔리고 하위 메뉴가 누른 탭(경첩)에서 부채꼴로 펼쳐진다(흰 원 46px 아이콘 + 라벨 10px 최대 2줄, 보고 있는 네이티브 화면은 블루 테두리; 탭과 항목을 잇는 살 선은 2026-10-04 사용자 요청으로 뺐다). 애니메이션은 셸의 AnimationController 하나로, 항목 i는 `Interval(i·60ms, +220ms, easeOutBack)` 구간에서만 움직여 왼쪽부터 하나씩 스르륵 펼쳐지고(5개 460ms), 접힘은 같은 컨트롤러 reverse(0.7배)라 마지막 항목부터 역순으로 접힌다 — 접히는 동안 항목 탭은 무시, 다른 그룹을 누르면 바로 그 그룹을 펼친다(`orCancel`). 좌표는 `lib/app/fan_layout.dart`의 순수 함수 — 기본 반지름 96, 이웃 각도 최대 34°(항목이 적으면 좁은 부채), 90° 중심, 항목 중심은 바에서 60px 이상 위, 가장자리 탭은 항목이 화면 밖으로 안 나가게 안쪽으로 기운 부채가 되고, 이웃 간격(56px)이 안 나오면 반지름을 10씩 키운다(+140 상한 — 390px 폭에서 일상 4개·AI 3개는 96, 업무 5개는 126; 그룹에 항목이 더 늘면 두 줄 반지름 등으로 손봐야 한다). "너무 퍼지지 않게, 간격 좁게"가 사용자 요구라 숫자를 키울 때는 확인하고 바꾼다. 항목을 고르면 네이티브(뭐 먹지·사다리·커피 타임)는 탭 브랜치로, 나머지는 WebView로 열고 접힌다. 같은 그룹 다시 누름·바깥 터치·Android 뒤로가기로 접힌다. 라우트 브랜치는 그대로 5개(home·food·ladder·team·more)라 `/food` 등 딥링크·`context.go`는 그대로 동작한다. 테스트 `test/app/fan_layout_test.dart`(기하)·`test/app/tab_shell_test.dart`(펼침·이동·숨김). 로그인 없이 모양을 보려면 런북 §디자인의 골든 PNG 방법.
 
+## 아마란스(그룹웨어) 연동 (2026-10-04)
+
+설계 `docs/superpowers/specs/2026-10-04-amaranth-app-integration-design.md`, 계획 `docs/superpowers/plans/2026-10-04-amaranth-app-integration.md`. 사용자가 더보기 → 계정 → "아마란스"(또는 홈 카드 "연결하기", 하단 바 그룹 아마란스의 아무 항목)에서 WebView로 gw.innogrid.com에 로그인하면 `document.cookie`의 `oAuthToken`·`signKey`(없으면 `BIZCUBE_AT`/`HK`)를 읽어 `gw050A02`로 검증(이름·이메일·근태 코드 확보)하고 기기(shared_preferences, Supabase 세션과 같은 저장소)에 저장한다. 그 뒤 앱이 **직접** GW API를 부른다 — 서버 미경유, MCP(inno-creed) 불필요. 코드 `mobile/lib/gw/`: 서명 `gw_sign.dart`(골든 테스트 값은 inno-creed `sign.rs`에서), 관문 `gw_client.dart`(`call`/`callForm`만, 401 → `needsRelogin`, 세션 10분 캐시), 기능 `gw_api.dart`(결재·근태·일정·회의실·메일, 캘린더 10분·회의실 30분·INBOX seq 캐시)·정제 `gw_models.dart`, 입구 `gw_gate.dart`(미연결/재연결 안내), 화면 `approvals_screen` `attendance_screen` `today_screen` `mail_screen`, 홈 카드 `gw_today_card.dart`, 연결 `gw_connect_screen.dart`. 하단 바에 웹에 없는 앱 전용 그룹 "아마란스"가 추가돼 6칸(`catalog.dart`의 `appPages` — 사내 서비스 카드에는 섞이지 않는다). 엔드포인트·필드·함정의 출처는 https://github.com/zilhak/inno-creed (`docs/api-reference.md`). 쓰기는 출퇴근 기록 하나(확인 다이얼로그 → 기록 전 가드 → read-back). 메일 본문(`mail002A01`)은 열지 않는다(서버가 읽음 처리). 토큰 만료 주기는 미측정(세션 쿠키, 최소 며칠).
+
+| 증상 | 확인 | 조치 |
+|---|---|---|
+| 연결 화면에서 로그인했는데 연결이 안 됨 | 쿠키 이름이 `oAuthToken`/`signKey`(또는 `BIZCUBE_AT`/`HK`)인지, HttpOnly로 바뀌지 않았는지(PC Chrome DevTools → Application → Cookies) | 오른쪽 위 "쿠키 지우고 로그인"으로 재시도. 이름이 바뀌었으면 `parseGwCookies` 수정 |
+| 모든 화면이 "다시 연결" | 토큰 만료(HTTP 401, resultCode 140/112). 만료 주기는 아직 미측정 | 다시 연결. 자주 나면 만료 주기를 기록해 선제 안내 검토 |
+| 특정 화면만 오류(resultCode≠0 메시지) | 서버 `resultMsg`가 그대로 보인다 — 엔드포인트·필드가 바뀌었을 수 있음 | inno-creed 최신 소스와 비교 후 `gw_api.dart` 수정 |
+| "그룹웨어에 연결할 수 없습니다 (XxxException)" | 네트워크·타임아웃(15초). 괄호 안은 원인 종류 | 사내망/VPN 확인. 테스트에서 나오면 `http.Response(String)`이 한글을 latin1로 인코딩하는 함정 — `Response.bytes(utf8)` 사용 |
+| 출퇴근 "반영이 확인되지 않았습니다" | read-back(`getTodayComeLeaveInfo`)에 comeTm/leaveTm 없음 | 아마란스에서 직접 확인 — 응답 successCount는 믿지 않는다 |
+
 앱 WebView 안의 웹 페이지(2026-10-03): 루트 레이아웃(`frontend/src/app/layout.tsx`)이 요청 UA로 앱을 판별해(`isInnogridAppUA`) 웹 헤더·하단 탭을 그리지 않고(`Navigation chromeless` — 접근 권한 검사는 그대로) `<body data-app="1">`을 단다. 앱 전용 스타일이 필요하면 `[data-app]` 선택자. 표는 좁은 화면에서 열을 짜부라뜨리지 말고 `min-w` + 가로 스크롤(내 덱 표가 글자 단위로 깨진 사례).
 
 ## 사내망이 필요한 기능 안내
