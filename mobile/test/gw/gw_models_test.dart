@@ -21,7 +21,7 @@ void main() {
   test('결재 상세: contentsWord 우선, 비면 HTML 본문을 평문으로', () {
     expect(ApprovalDetail.fromData({'docTitle': 't', 'contentsWord': ' 평문 ', 'docContents': '<p>html</p>', 'attachCnt': 1}).content, '평문');
     final d = ApprovalDetail.fromData({'docTitle': 't', 'contentsWord': '', 'docContents': '<p>a&nbsp;b</p><br>c &amp; d', 'lineName': '박'});
-    expect(d.content, 'a b c & d');
+    expect(d.content, 'a b\n\nc & d'); // 블록 경계는 줄바꿈으로(</p><br> → 빈 줄 1개)
     expect((d.title, d.currentApprover, d.attachCount), ('t', '박', 0));
   });
   test('미처리 카운트 menuNo → 라벨, 없으면 0, 숫자/문자열 혼용', () {
@@ -83,6 +83,19 @@ void main() {
   });
   test('게시글 상세: 게시판명은 board.cat_title, 본문 HTML → 평문, 댓글', () {
     final d = GwNoticeDetail.fromData({'art': {'art_seq_no': '1', 'art_title': 't', 'mbr_nick': '홍', 'write_date': '2026-10-04 09:00:00', 'read_cnt': 3, 'file_cnt': 0, 'art_content': '<div>안녕&nbsp;하세요<br>둘째 줄</div>', 'cat_title': null}, 'board': {'cat_title': '공지사항'}, 'remarkList': [{'mbr_nick': '김', 'write_date': '2026-10-04 10:00:00', 'remark_desc': '<p>확인했습니다</p>'}]});
-    expect((d.board, d.content, d.readCnt, d.comments.single.content, d.comments.single.writer), ('공지사항', '안녕 하세요 둘째 줄', 3, '확인했습니다', '김'));
+    expect((d.board, d.content, d.readCnt, d.comments.single.content, d.comments.single.writer), ('공지사항', '안녕 하세요\n둘째 줄', 3, '확인했습니다', '김'));
+  });
+  test('htmlToText — 블록 경계(<br>·</p>·</div>·</li>·</tr>)는 줄바꿈으로 남기고, 태그·엔티티는 지우며, HTML 소스의 줄바꿈·들여쓰기는 공백으로 본다', () {
+    expect(htmlToText('<p>첫 줄</p>\n  <p>둘째&nbsp;줄<br>셋째</p><div>넷째</div>'), '첫 줄\n둘째 줄\n셋째\n넷째');
+    expect(htmlToText('<p>a</p><p></p><p></p><p>b</p>'), 'a\n\nb', reason: '빈 문단은 한 줄 공백까지만');
+    expect(htmlToText('<span style="x">굵게</span> &amp; &lt;태그&gt;'), '굵게 & <태그>');
+    expect(htmlToText('  <br>  '), '');
+  });
+  test('oneLine — 미리보기용: 줄바꿈·연속 공백을 한 칸으로', () {
+    expect(oneLine('첫 줄\n둘째  줄\n\n셋째'), '첫 줄 둘째 줄 셋째');
+  });
+  test('GwNotice.preview는 본문에 줄바꿈이 있어도 한 줄', () {
+    final n = GwNotice.fromRow({'art_seq_no': '1', 'art_title': 't', 'art_content': '<p>첫 줄</p><p>둘째 줄</p>'});
+    expect(n.preview, '첫 줄 둘째 줄');
   });
 }

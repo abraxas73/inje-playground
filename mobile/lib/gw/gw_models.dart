@@ -24,12 +24,19 @@ int? daysBetween(String ymd8, DateTime today) {
   return DateTime(today.year, today.month, today.day).difference(a).inDays;
 }
 
+/// HTML → 평문. 블록 경계(<br>·</p>·</div>·</li>·</tr>)는 줄바꿈으로 남기고(상세 본문이 한 줄로 뭉치지 않게),
+/// HTML 소스 자체의 줄바꿈·들여쓰기는 공백으로 본다. 빈 줄은 최대 1개까지.
 String htmlToText(String html) {
-  var s = html.replaceAll(RegExp(r'<(br|/p|/div|/li|/tr)\s*/?>', caseSensitive: false), ' ').replaceAll(RegExp(r'<[^>]+>'), '');
+  var s = html.replaceAll(RegExp(r'\s+'), ' ');
+  s = s.replaceAll(RegExp(r'<(br|/p|/div|/li|/tr|/h[1-6])\s*/?>', caseSensitive: false), '\n').replaceAll(RegExp(r'<[^>]+>'), '');
   const ent = {'&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"};
   ent.forEach((k, v) => s = s.replaceAll(k, v));
-  return s.replaceAll(RegExp(r'\s+'), ' ').trim();
+  s = s.split('\n').map((l) => l.replaceAll(RegExp(r'[ \t]+'), ' ').trim()).join('\n');
+  return s.replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
 }
+
+/// 목록 미리보기용 — 줄바꿈·연속 공백을 한 칸으로.
+String oneLine(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
 
 /// 미결함 행(eap105A04 map.list[]). 대문자 컬럼명은 서버 그대로.
 class PendingApproval {
@@ -181,7 +188,7 @@ class GwNotice {
   factory GwNotice.fromRow(Map r) => GwNotice(
         artSeqNo: asStr(r['art_seq_no']), title: asStr(r['art_title']), board: asStr(r['cat_title']), boardId: asStr(r['cat_seq_no']), writer: asStr(r['mbr_nick']), dept: asStr(r['dept_name']),
         writeDate: niceDate(asStr(r['write_date'])), readCnt: asInt(r['read_cnt']), fileCnt: asInt(r['file_cnt']), attachmentUid: asStr(r['uid']),
-        isNew: asStr(r['is_new_yn']) == 'Y', read: asStr(r['art_read_yn']) == 'Y', preview: htmlToText(asStr(r['art_content'])));
+        isNew: asStr(r['is_new_yn']) == 'Y', read: asStr(r['art_read_yn']) == 'Y', preview: oneLine(htmlToText(asStr(r['art_content']))));
 }
 
 class GwComment {
