@@ -71,3 +71,48 @@ class PunchResult {
   final bool ok, already, verified;
   final String kind, comeTm, leaveTm, note;
 }
+
+/// 캘린더(sc111A02 resultList[]).
+class GwCalendar {
+  const GwCalendar({required this.mcalSeq, required this.title, required this.calType, required this.ownerEmpSeq, required this.color});
+  final String mcalSeq, title, calType, ownerEmpSeq, color;
+  bool get personal => calType == 'E';
+  factory GwCalendar.fromRow(Map r) => GwCalendar(mcalSeq: asStr(r['mcalSeq']), title: asStr(r['calTitle']), calType: asStr(r['calType']), ownerEmpSeq: asStr(r['empSeq']), color: asStr(r['calColor']));
+}
+
+/// sc111A03의 calList. 빈 calType은 'E'로 보정(안 하면 그 캘린더 일정이 조회에서 빠진다 — 실측), adminYn은 조회용 'Y'.
+List<Map<String, String>> calListFor(List<GwCalendar> cals) => [for (final c in cals) {'mcalSeq': c.mcalSeq, 'calType': c.calType.isEmpty ? 'E' : c.calType, 'adminYn': 'Y', 'color': c.color}];
+
+/// 일정(sc111A03 resultList[]). delYn은 이름과 달리 "내 일정(참석자/작성자)" 플래그.
+class GwEvent {
+  const GwEvent({required this.schSeq, required this.title, required this.start, required this.end, required this.allDay, required this.calendar, required this.mcalSeq, required this.mine, required this.createName, required this.place});
+  final String schSeq, title, start, end, calendar, mcalSeq, createName, place;
+  final bool allDay, mine;
+  factory GwEvent.fromRow(Map r) => GwEvent(
+        schSeq: asStr(r['schSeq']), title: asStr(r['schTitle']), start: asStr(r['startDate']), end: asStr(r['endDate']), allDay: asBool(r['alldayYn']), calendar: asStr(r['calTitle']), mcalSeq: asStr(r['mcalSeq']),
+        mine: asStr(r['delYn']) == 'Y', createName: asStr(r['createName']), place: asStr(r['schPlace']));
+}
+
+List<GwEvent> myEvents(List<GwEvent> all, List<GwCalendar> cals, String empSeq) {
+  final personal = {for (final c in cals) if (c.personal && c.ownerEmpSeq == empSeq) c.mcalSeq};
+  return [for (final e in all) if (e.mine || personal.contains(e.mcalSeq)) e];
+}
+
+class GwResource {
+  const GwResource({required this.resSeq, required this.resName, required this.attrSeq, required this.attrName});
+  final String resSeq, resName, attrSeq, attrName;
+  factory GwResource.fromRow(Map r) => GwResource(resSeq: asStr(r['resSeq']), resName: asStr(r['resName']), attrSeq: asStr(r['attrSeq']), attrName: asStr(r['attrName']));
+}
+
+/// 회의실 예약(rs121A05 resultList[]). 원본 74필드 중 표시에 쓰는 것만.
+class GwReservation {
+  const GwReservation({required this.resSeq, required this.resName, required this.start, required this.end, required this.title, required this.display, required this.owner, required this.ownerEmpSeq, required this.attendees, required this.allDay});
+  final String resSeq, resName, start, end, title, display, owner, ownerEmpSeq, attendees;
+  final bool allDay;
+  factory GwReservation.fromRow(Map r) {
+    final owner = asStr(r['empName']), name = asStr(r['resName']);
+    final disp = asStr(r['resTitleDisplay']);
+    return GwReservation(resSeq: asStr(r['resSeq']), resName: name, start: asStr(r['resStartDate']), end: asStr(r['resEndDate']), title: asStr(r['reqText']), display: disp.isEmpty ? '[$owner] $name' : disp,
+        owner: owner, ownerEmpSeq: asStr(r['empSeq']), attendees: asStr(r['resUserName']), allDay: asBool(r['alldayYn']));
+  }
+}

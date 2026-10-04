@@ -7,6 +7,8 @@ class GwApi {
   GwApi(this.client, {DateTime Function()? now}) : _now = now ?? DateTime.now;
   final GwClient client;
   final DateTime Function() _now;
+  final _cache = _GwCache();
+  static const _calTtl = Duration(minutes: 10), _resTtl = Duration(minutes: 30);
 
   // ── 전자결재 ──
   Future<Map<String, int>> approvalCounts() async {
@@ -66,6 +68,55 @@ class GwApi {
     final ok = now.isNotEmpty;
     return PunchResult(ok: ok, already: false, kind: kind, comeTm: after.comeTm, leaveTm: after.leaveTm, verified: ok, note: ok ? '$kind ${hm(now)} 기록됨' : '응답은 왔지만 반영이 확인되지 않았습니다. 아마란스에서 확인하세요.');
   }
+}
+
+extension GwScheduleApi on GwApi {
+  List<Map> _list(dynamic d) => ((d is Map ? d['resultList'] : null) as List? ?? const []).whereType<Map>().toList();
+
+  Future<List<GwCalendar>> calendars() async {
+    final c = _cache;
+    if (c.cals != null && c.calsAt != null && _now().difference(c.calsAt!) < GwApi._calTtl) return c.cals!;
+    final d = await client.call('/schres/sc111A02', {'companyInfo': await client.companyInfo(), 'calType': '', 'langCode': 'kr'});
+    c.cals = [for (final r in _list(d)) GwCalendar.fromRow(r)];
+    c.calsAt = _now();
+    return c.cals!;
+  }
+
+  /// 하루치 일정(전체 캘린더). "내 것"만 보려면 myEvents(…).
+  Future<List<GwEvent>> events(DateTime day) async {
+    final cals = await calendars();
+    final d = await client.call('/schres/sc111A03', {
+      'companyInfo': await client.companyInfo(), 'startDate': ymd(day), 'endDate': ymd(day), 'mySchYn': 'N', 'calList': calListFor(cals), 'tcalList': [], 'acalList': [], 'searchEmpSeq': '', 'sortDate': 'Y', 'langCode': 'kr',
+    });
+    return [for (final r in _list(d)) GwEvent.fromRow(r)]..sort((a, b) => a.start.compareTo(b.start));
+  }
+
+  Future<List<GwResource>> resources() async {
+    final c = _cache;
+    if (c.res != null && c.resAt != null && _now().difference(c.resAt!) < GwApi._resTtl) return c.res!;
+    final d = await client.call('/schres/rs121A01', {'companyInfo': await client.companyInfo(), 'searchText': '', 'attrUseYn': '', 'attrList': ['1', '3', 'ETC'], 'propList': [], 'langCode': 'kr'});
+    c.res = [for (final r in _list(d)) GwResource.fromRow(r)];
+    c.resAt = _now();
+    return c.res!;
+  }
+
+  /// 하루치 예약(전 회의실). 내 것은 ownerEmpSeq == creds.empSeq로 거른다.
+  Future<List<GwReservation>> reservations(DateTime day) async {
+    final rooms = await resources();
+    final d = await client.call('/schres/rs121A05', {
+      'companyInfo': await client.companyInfo(), 'startDate': ymd(day), 'endDate': ymd(day), 'statusType': ['10', '20'], 'resList': [for (final r in rooms) {'resSeq': r.resSeq}],
+      'statusCode': '', 'searchType': '', 'sechType': '', 'menuAuth': 'USER', 'langCode': 'kr',
+    });
+    return [for (final r in _list(d)) GwReservation.fromRow(r)]..sort((a, b) => a.start.compareTo(b.start));
+  }
+}
+
+/// 캘린더·회의실 목록 캐시(앱 생명주기, GwApi 인스턴스마다).
+class _GwCache {
+  List<GwCalendar>? cals;
+  DateTime? calsAt;
+  List<GwResource>? res;
+  DateTime? resAt;
 }
 
 final gwApiProvider = Provider<GwApi?>((ref) {

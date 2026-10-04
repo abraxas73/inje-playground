@@ -34,4 +34,23 @@ void main() {
     expect((b.clockedIn, b.clockedOut, b.holiday, hm(b.comeTm)), (true, false, true, '09:02'));
     expect(Attendance.fromData('20261004', null).clockedIn, false);
   });
+  test('캘린더 calList: 빈 calType은 E로 보정, adminYn Y', () {
+    final cals = [GwCalendar.fromRow({'mcalSeq': '1', 'calTitle': '개인', 'calType': '', 'empSeq': '7', 'calColor': '#fff'}), GwCalendar.fromRow({'mcalSeq': 2, 'calTitle': '팀', 'calType': 'M', 'empSeq': '9'})];
+    expect(calListFor(cals), [{'mcalSeq': '1', 'calType': 'E', 'adminYn': 'Y', 'color': '#fff'}, {'mcalSeq': '2', 'calType': 'M', 'adminYn': 'Y', 'color': ''}]);
+  });
+  test('일정: delYn Y는 내 일정, myEvents는 내 개인 캘린더 일정도 포함', () {
+    final cals = [GwCalendar.fromRow({'mcalSeq': '1', 'calType': 'E', 'empSeq': '7'}), GwCalendar.fromRow({'mcalSeq': '2', 'calType': 'M', 'empSeq': '9'})];
+    final all = [
+      GwEvent.fromRow({'schSeq': 'a', 'schTitle': '내것', 'startDate': '202610041000', 'endDate': '202610041100', 'delYn': 'Y', 'mcalSeq': '2', 'calTitle': '팀'}),
+      GwEvent.fromRow({'schSeq': 'b', 'schTitle': '개인캘린더', 'startDate': '202610040900', 'endDate': '202610040930', 'delYn': 'N', 'mcalSeq': '1', 'alldayYn': 'N'}),
+      GwEvent.fromRow({'schSeq': 'c', 'schTitle': '남의것', 'startDate': '202610041200', 'endDate': '202610041300', 'delYn': 'N', 'mcalSeq': '2'}),
+    ];
+    expect(all[0].mine, true);
+    expect(myEvents(all, cals, '7').map((e) => e.schSeq), ['a', 'b']);
+  });
+  test('회의실 예약: 표시명은 resTitleDisplay 우선, 없으면 [예약자] 회의실', () {
+    final r = GwReservation.fromRow({'resSeq': 45, 'resName': 'A-1', 'resStartDate': '202610041400', 'resEndDate': '202610041500', 'reqText': '주간회의', 'empName': '홍', 'empSeq': '7', 'resUserName': '홍, 김', 'alldayYn': 'N'});
+    expect((r.display, r.title, r.ownerEmpSeq, hm(r.start)), ('[홍] A-1', '주간회의', '7', '14:00'));
+    expect(GwReservation.fromRow({'resTitleDisplay': 'X'}).display, 'X');
+  });
 }

@@ -78,4 +78,28 @@ void main() {
     final r = await f.api().punch(clockIn: true);
     expect((r.ok, r.verified), (false, false));
   });
+  test('events: sc111A02 목록(10분 캐시) → sc111A03 calList/날짜', () async {
+    final f = Fake({'/gw/gw050A02': [session], '/schres/sc111A02': [{'resultList': [{'mcalSeq': '1', 'calType': '', 'empSeq': '7'}]}], '/schres/sc111A03': [{'resultList': [{'schSeq': 'a', 'schTitle': 't', 'startDate': '202610041000', 'endDate': '202610041100', 'delYn': 'Y'}]}]});
+    final api = f.api();
+    final ev = await api.events(DateTime(2026, 10, 4));
+    expect(ev.single.title, 't');
+    await api.events(DateTime(2026, 10, 4));
+    expect(f.count('/schres/sc111A02'), 1);
+    final body = f.calls.last.$2;
+    expect((body['startDate'], body['endDate'], body['mySchYn'], body['langCode']), ('20261004', '20261004', 'N', 'kr'));
+    expect(body['calList'], [{'mcalSeq': '1', 'calType': 'E', 'adminYn': 'Y', 'color': ''}]);
+    expect((body['companyInfo'] as Map)['compSeq'], '10');
+  });
+  test('reservations: rs121A01 자원 전체 → rs121A05, 시작 시각순', () async {
+    final f = Fake({'/gw/gw050A02': [session], '/schres/rs121A01': [{'resultList': [{'resSeq': '45', 'resName': 'A'}, {'resSeq': '46', 'resName': 'B'}]}], '/schres/rs121A05': [{'resultList': [
+      {'resSeq': '46', 'resName': 'B', 'resStartDate': '202610041500', 'resEndDate': '202610041600', 'empSeq': '9'},
+      {'resSeq': '45', 'resName': 'A', 'resStartDate': '202610041000', 'resEndDate': '202610041100', 'empSeq': '7'},
+    ]}]});
+    final rs = await f.api().reservations(DateTime(2026, 10, 4));
+    expect(rs.map((r) => r.resName), ['A', 'B']);
+    final body = f.calls.last.$2;
+    expect(body['resList'], [{'resSeq': '45'}, {'resSeq': '46'}]);
+    expect(body['statusType'], ['10', '20']);
+    expect((body['menuAuth'], body['startDate']), ('USER', '20261004'));
+  });
 }
