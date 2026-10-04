@@ -64,8 +64,9 @@ class GwClient {
     http.Response res;
     try {
       res = await httpClient.post(Uri.parse('$baseUrl$path'), headers: _signed(path, contentType), body: body).timeout(const Duration(seconds: 15));
-    } catch (_) {
-      throw GwException(0, -1, '그룹웨어에 연결할 수 없습니다');
+    } catch (e) {
+      // 원인 종류만 싣는다(토큰이 섞일 수 있는 원문은 넣지 않음)
+      throw GwException(0, -1, '그룹웨어에 연결할 수 없습니다 (${e.runtimeType})');
     }
     Map<String, dynamic> v = const {};
     try {

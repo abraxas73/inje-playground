@@ -9,7 +9,7 @@ import 'package:playground/gw/gw_connect_screen.dart';
 import 'package:playground/gw/gw_gate.dart';
 import 'fakes.dart';
 
-http.Response ok(Object data) => http.Response(jsonEncode({'resultCode': 0, 'resultData': data}), 200);
+http.Response ok(Object data) => http.Response.bytes(utf8.encode(jsonEncode({'resultCode': 0, 'resultData': data})), 200, headers: {'content-type': 'application/json; charset=utf-8'}) /* 한글 본문은 latin1 기본 인코딩에서 ArgumentError */;
 const session = {'sessionInfo': {'ucUserInfo': {'compSeq': '10', 'deptSeq': '20', 'empName': '홍길동', 'emailAdd': 'hong', 'emailDomain': 'innogrid.com', 'erpEmpSeq': 'E', 'erpDeptSeq': 'D', 'erpCompSeq': 'C'}}};
 
 void main() {
@@ -20,7 +20,7 @@ void main() {
     await expectLater(verifyGwCookies('oAuthToken=a; signKey=b', MockClient((_) async => http.Response('{}', 401))), throwsA(isA<GwUnauthorized>()));
   });
   testWidgets('연결 화면: WebView 자리 주입, 안내 문구', (tester) async {
-    await tester.pumpWidget(gwScope(http: MockClient((_) async => ok(session)), child: GwConnectScreen(webView: (_) => const Text('WEBVIEW'))));
+    await tester.pumpWidget(gwScope(http: MockClient((_) async => ok(session)), child: GwConnectScreen(webView: () => const Text('WEBVIEW'))));
     await tester.pump();
     expect(find.text('WEBVIEW'), findsOneWidget);
     expect(find.textContaining('아마란스에 로그인'), findsOneWidget);

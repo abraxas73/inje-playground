@@ -21,14 +21,14 @@ Future<GwCreds> verifyGwCookies(String cookieString, http.Client httpClient) asy
 class GwConnectScreen extends ConsumerStatefulWidget {
   const GwConnectScreen({super.key, this.webView});
 
-  /// 테스트용: WebView 자리에 끼울 위젯.
-  final Widget Function(WebViewController c)? webView;
+  /// 테스트용: WebView 자리에 끼울 위젯(플랫폼 WebView가 없는 테스트에서는 컨트롤러도 만들지 않는다).
+  final Widget Function()? webView;
   @override
   ConsumerState<GwConnectScreen> createState() => _GwConnectScreenState();
 }
 
 class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
-  late final WebViewController _c;
+  WebViewController? _c;
   Timer? _hintTimer;
   bool _busy = false, _hint = false;
   String? _error, _done;
@@ -36,10 +36,12 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
   @override
   void initState() {
     super.initState();
-    _c = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(NavigationDelegate(onPageFinished: (_) => _check()));
-    if (widget.webView == null) _c.loadRequest(Uri.parse('$gwOrigin/'));
+    if (widget.webView == null) {
+      _c = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(NavigationDelegate(onPageFinished: (_) => _check()))
+        ..loadRequest(Uri.parse('$gwOrigin/'));
+    }
     _hintTimer = Timer(const Duration(seconds: 60), () {
       if (mounted) setState(() => _hint = true);
     });
@@ -52,10 +54,11 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
   }
 
   Future<void> _check() async {
-    if (_busy || _done != null) return;
+    final c = _c;
+    if (c == null || _busy || _done != null) return;
     String raw;
     try {
-      raw = (await _c.runJavaScriptReturningResult('document.cookie')).toString();
+      raw = (await c.runJavaScriptReturningResult('document.cookie')).toString();
     } catch (_) {
       return;
     }
@@ -77,7 +80,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
 
   Future<void> _clearCookies() async {
     await WebViewCookieManager().clearCookies();
-    await _c.loadRequest(Uri.parse('$gwOrigin/'));
+    await _c?.loadRequest(Uri.parse('$gwOrigin/'));
   }
 
   @override
@@ -98,7 +101,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
         if (_done != null)
           Padding(padding: const EdgeInsets.all(16), child: FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('완료')))
         else
-          Expanded(child: widget.webView?.call(_c) ?? WebViewWidget(controller: _c)),
+          Expanded(child: widget.webView?.call() ?? WebViewWidget(controller: _c!)),
       ]),
     );
   }
