@@ -821,7 +821,7 @@ GwEvent _prefixed(GwEvent e, AbsenceKind k) => GwEvent(schSeq: e.schSeq, title: 
 
 /// 내 일정(myEvents) 시간순. 내 근태는 빼지 않고 "휴가: " 접두를 붙인다.
 List<GwEvent> myMeetings(BriefingData d) {
-  final list = [for (final e in myEvents(d.today ?? const [], d.cals ?? const [], d.empSeq)) switch (absenceKind(e.title, e.calendar)) { null => e, final k => _prefixed(e, k) }];
+  final list = [for (final e in myEvents(d.today ?? const [], d.cals ?? const [], d.empSeq)) switch (absenceKind(e.title, e.calendar)) { null => e, AbsenceKind k => _prefixed(e, k) }];
   list.sort((a, b) => a.start.compareTo(b.start));
   return list;
 }
@@ -1037,7 +1037,7 @@ void main() {
     expect(app.calls['/api/mobile/briefing'], 1);
     await c.read(summaryProvider.notifier).ensure(d, force: true);
     expect(app.calls['/api/mobile/briefing'], 2);
-    final saved = jsonDecode(SharedPreferences.getInstance().then((p) => p.getString('briefing.summary')).toString().isEmpty ? '{}' : (await SharedPreferences.getInstance()).getString('briefing.summary')!) as Map;
+    final saved = jsonDecode((await SharedPreferences.getInstance()).getString('briefing.summary')!) as Map;
     expect(saved['text'], '오늘 10시 주간회의가 있습니다.');
   });
   test('요약: 서버가 enabled:false거나 실패하면 null 유지, 캐시가 어제 것이면 무시', () async {
@@ -1193,7 +1193,7 @@ class SummaryNotifier extends AsyncNotifier<BriefingSummary?> {
 - [ ] **Step 4: 통과 확인 + 전체 + analyze**
 
 Run: `cd /Users/seunguk.kang/Repos/inje-playground/mobile && flutter test test/briefing/ 2>&1 | tail -1 && flutter test 2>&1 | tail -1 && flutter analyze 2>&1 | tail -1`
-Expected: `All tests passed!`(briefing 12), 전체 통과, `No issues found!`. 테스트 3번째의 `saved` 줄이 복잡하면 `(await SharedPreferences.getInstance()).getString('briefing.summary')!`로 단순화한다(의도는 "저장됐다"뿐).
+Expected: `All tests passed!`(briefing 12), 전체 통과, `No issues found!`. 
 
 - [ ] **Step 5: 커밋**
 
