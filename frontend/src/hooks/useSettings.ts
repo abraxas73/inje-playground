@@ -27,6 +27,8 @@ export const SETTING_KEYS = [
   "usd_krw_rate",
   // PPT 만들기 — LLM 규칙 텍스트(비어 있으면 코드 기본본)
   "ppt_llm_rules",
+  // 모바일 앱 홈 브리핑 — Claude '오늘의 한 마디' on(빈 값 포함)/off
+  "mobile_briefing_llm",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
