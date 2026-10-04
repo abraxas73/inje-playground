@@ -28,7 +28,7 @@ def get(path):
 apps = get("/v1/apps?filter[bundleId]=com.innogrid.playground&fields[apps]=name,bundleId")
 if not apps.get("data"): print("앱 레코드 없음(com.innogrid.playground)"); sys.exit(1)
 a = apps["data"][0]; print(f"앱: {a['attributes']['name']} ({a['attributes']['bundleId']}) id {a['id']}")
-b = get(f"/v1/builds?filter[app]={a['id']}&sort=-uploadedDate&limit=10&fields[builds]=version,uploadedDate,processingState,expired,expirationDate&include=preReleaseVersion&fields[preReleaseVersions]=version")
+b = get(f"/v1/builds?filter[app]={a['id']}&sort=-uploadedDate&limit=10&fields[builds]=version,uploadedDate,processingState,expired,expirationDate,preReleaseVersion&include=preReleaseVersion&fields[preReleaseVersions]=version")
 pre = {x["id"]: x["attributes"]["version"] for x in b.get("included", []) if x["type"] == "preReleaseVersions"}
 rows = b.get("data", [])
 print(f"빌드 {len(rows)}개" + (" — 아직 없음(업로드 후 처리 대기 10~60분, ITMS 메일 확인)" if not rows else ""))
