@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# 릴리스 스크립트 비밀(App Store Connect API 키 ID·발급자 ID)
+/.env.release
