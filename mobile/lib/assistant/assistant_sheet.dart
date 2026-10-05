@@ -1,3 +1,4 @@
+import 'dart:async';
 // mobile/lib/assistant/assistant_sheet.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -54,6 +55,9 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
   late final Speaker _speaker = ref.read(speakerProvider);
   bool _listening = false;
   int _listenSeq = 0; // 듣기 회차 — 멈춘 뒤 늦게 오는 인식 결과를 버린다
+  String _heard = ''; // 이번 말하기에서 확정된 앞부분(이어 들은 것을 붙인다)
+  Timer? _grace; // 명령 어미 없이 끝났을 때 보내기 전 기다림
+  static const _graceDelay = Duration(seconds: 2);
   int? _speaking; // 읽는 중인 말풍선(items 인덱스)
   String? _voiceNote;
   bool _showVoiceTip = false;
@@ -67,6 +71,7 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
 
   @override
   void dispose() {
+    _grace?.cancel();
     if (_listening) _voice.stop();
     if (_speaking != null) _speaker.stop();
     _input.dispose();
@@ -76,41 +81,61 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
 
   /// 말하기 — 듣는 동안 입력칸에 문장을 채우고, 인식이 끝나면 그대로 보낸다(보낸 문장은 말풍선으로 남아 "고쳐 줘"로 바로잡을 수 있다).
   Future<void> _stopListening() async {
+    _grace?.cancel();
     _listenSeq++;
     setState(() => _listening = false);
     await _voice.stop();
   }
 
+  /// 말하기 — 듣는 동안 입력칸에 문장을 채운다. 인식이 끝났을 때 명시적 명령 어미(~줘·~주세요·~실행)면 바로 보내고,
+  /// 아니면 이어서 듣다가 2초 동안 새 말이 없으면 보낸다(그 사이 말하면 붙이고 다시 판단).
   Future<void> _toggleListen() async {
     if (_listening) return _stopListening();
     await _stopSpeaking(); // 읽어 주는 소리를 인식하지 않게
-    final seq = ++_listenSeq;
+    _heard = '';
     setState(() {
       _listening = true;
       _voiceNote = null;
     });
-    final ok = await _voice.start(
-      (text, done) {
-        if (!mounted || seq != _listenSeq) return;
-        _input.text = text;
-        if (done) {
-          _listenSeq++;
-          setState(() => _listening = false);
-          _send();
-        }
-      },
-      () {
-        if (mounted && seq == _listenSeq && _listening) {
-          setState(() => _listening = false);
-        }
-      },
-    );
-    if (!ok && mounted) {
+    if (!await _listenOnce() && mounted) {
       setState(() {
         _listening = false;
         _voiceNote = '마이크·음성 인식 권한이 필요합니다. 휴대폰 설정에서 허용해 주세요.';
       });
     }
+  }
+
+  Future<bool> _listenOnce() {
+    final seq = ++_listenSeq;
+    return _voice.start(
+      (text, done) {
+        if (!mounted || seq != _listenSeq) return;
+        _grace?.cancel(); // 다시 말하기 시작 — 보내기 미룸
+        final full = [_heard, text.trim()].where((x) => x.isNotEmpty).join(' ');
+        _input.text = full;
+        if (!done) return;
+        _heard = full;
+        if (isCommandEnd(full)) return _finishListening();
+        _grace = Timer(_graceDelay, () {
+          if (mounted && _listening) _finishListening();
+        });
+        _listenOnce(); // 이어서 듣기(실패해도 타이머가 보낸다)
+      },
+      () {
+        if (!mounted || seq != _listenSeq || !_listening) return;
+        if (_grace?.isActive ?? false) return; // 기다리는 중의 무음 종료는 타이머가 처리
+        if (_input.text.trim().isNotEmpty) return _finishListening();
+        setState(() => _listening = false);
+      },
+    );
+  }
+
+  void _finishListening() {
+    _grace?.cancel();
+    _listenSeq++;
+    setState(() => _listening = false);
+    _voice.stop();
+    _send();
   }
 
   /// 읽어 주기 — 누를 때만 읽는다(자동 읽기 없음). 같은 말풍선을 다시 누르면 멈춘다.

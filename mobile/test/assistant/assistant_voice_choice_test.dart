@@ -17,8 +17,10 @@ class FakeVoice implements VoiceInput {
   void Function()? end;
   var allow = true;
   var stopped = 0;
+  var starts = 0;
   @override
   Future<bool> start(void Function(String text, bool done) onResult, void Function() onEnd) async {
+    starts++;
     cb = onResult;
     end = onEnd;
     return allow;
@@ -222,5 +224,51 @@ void main() {
     await tester.tap(find.byTooltip('읽어 주기').last);
     await tester.pump();
     expect(find.byTooltip('안내 닫기'), findsNothing);
+  });
+
+  test('isCommandEnd — 명시적 명령 어미(~줘·~주세요·~실행)로 끝나야 바로 보냄', () {
+    for (final t in ['오늘 일정 알려줘', '회의실 잡아줘.', '일정 등록해 주세요', '예약 실행', '바로 실행해', '잡아 줘!']) {
+      expect(isCommandEnd(t), isTrue, reason: t);
+    }
+    for (final t in ['오늘 오후 빈 회의실', '참석자는 우리팀', '', '줘서 고마워요']) {
+      expect(isCommandEnd(t), isFalse, reason: t);
+    }
+  });
+
+  testWidgets('말하기 — 명령 어미가 아니면 계속 듣고, 이어 말한 것을 붙여 명령이 끝나면 바로 보냄', (tester) async {
+    final brain = Brain([say('네.')]);
+    final v = FakeVoice();
+    await tester.pumpWidget(host(brain, scenarioGw(), v, FakeSpeaker()));
+    await tester.tap(find.byTooltip('말하기'));
+    await tester.pump();
+    v.cb!('오늘 오후 빈 회의실', true);
+    await tester.pump(const Duration(milliseconds: 1500));
+    expect(brain.received, isEmpty, reason: '명령이 끝나지 않았으니 기다린다');
+    expect(v.starts, 2, reason: '이어서 듣는다');
+    expect(find.byTooltip('듣기 멈추기'), findsOneWidget);
+    v.cb!('1시간 잡아줘', true);
+    await tester.pumpAndSettle();
+    expect(brain.received.single.single['content'], '오늘 오후 빈 회의실 1시간 잡아줘');
+  });
+
+  testWidgets('말하기 — 명령 어미 없이 2초 조용하면 그대로 보냄, 그 사이 말을 시작하면 기다림을 연장', (tester) async {
+    final brain = Brain([say('네.')]);
+    final v = FakeVoice();
+    await tester.pumpWidget(host(brain, scenarioGw(), v, FakeSpeaker()));
+    await tester.tap(find.byTooltip('말하기'));
+    await tester.pump();
+    v.cb!('오늘 오후 빈 회의실', true);
+    await tester.pump(const Duration(milliseconds: 1500));
+    v.cb!('한 시간', false); // 말하는 중 — 타이머 취소
+    await tester.pump(const Duration(milliseconds: 1500));
+    expect(brain.received, isEmpty);
+    expect(find.text('오늘 오후 빈 회의실 한 시간'), findsOneWidget);
+    v.cb!('한 시간', true);
+    await tester.pump(const Duration(milliseconds: 1999));
+    expect(brain.received, isEmpty);
+    await tester.pump(const Duration(milliseconds: 10));
+    await tester.pumpAndSettle();
+    expect(brain.received.single.single['content'], '오늘 오후 빈 회의실 한 시간');
+    expect(v.stopped, greaterThanOrEqualTo(1));
   });
 }

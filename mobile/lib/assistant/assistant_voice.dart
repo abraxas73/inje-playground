@@ -5,6 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
+/// 말한 문장이 명시적인 명령 어미(~줘·~주세요·~실행)로 끝났는지 — 그러면 바로 보내고, 아니면 잠깐 더 듣는다.
+bool isCommandEnd(String text) {
+  final t = text.trim().replaceAll(RegExp(r'[\s.!?~。]+$'), '');
+  return RegExp(r'(줘|주세요|실행|실행해|실행해요|실행해 줘)$').hasMatch(t);
+}
+
 abstract class VoiceInput {
   /// 듣기 시작. 권한 거부·인식기 없음이면 false. onResult(지금까지 문장, 끝났는지), onEnd는 결과 없이 끝나도(무음·오류·시간 초과) 불린다.
   Future<bool> start(
@@ -87,13 +93,14 @@ class DeviceVoiceInput implements VoiceInput {
     }
     if (!_ready) return false;
     try {
+      if (_stt.isListening) await _stt.stop(); // 이어 듣기 — 앞 세션을 닫고 새로
       await _stt.listen(
         onResult: (r) => onResult(r.recognizedWords, r.finalResult),
         listenOptions: SpeechListenOptions(
           localeId: 'ko_KR',
           partialResults: true,
           cancelOnError: true,
-          pauseFor: const Duration(seconds: 3),
+          pauseFor: const Duration(milliseconds: 1500),
           listenFor: const Duration(seconds: 30),
         ),
       );
