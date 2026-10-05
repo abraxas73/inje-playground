@@ -1,4 +1,5 @@
 // mobile/lib/assistant/gw_assistant_api.dart
+import 'dart:convert';
 import '../gw/gw_api.dart';
 import '../gw/gw_client.dart';
 import '../gw/gw_models.dart';
@@ -214,5 +215,99 @@ extension GwAssistantApi on GwApi {
     await client.call('/schres/sc111A06', {'mcalSeq': asStr(row['mcalSeq']), 'schmSeq': schSeq, 'schSeq': schSeq, 'rangeCode': '', 'langCode': 'kr'});
     final still = (await eventRows(day)).any((r) => asStr(r['schSeq']) == schSeq);
     return {'ok': !still, 'deleted': true};
+  }
+}
+
+/// 평문 → 메일 HTML(이스케이프 + 줄바꿈).
+String textToHtml(String s) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('\n', '<br>');
+
+/// mail014A04/A14 multipart 필드 — inno-creed ComposeForm.fields 실측 전 필드 재현(신규 작성: muid "0", mail_kind "plain", 첨부 없음).
+Map<String, String> composeFields(Map init, {required String fromName, required String bodyAuth, required String to, required String cc, required String subject, required String html}) {
+  final gm = init['groupMailOption'] is Map ? init['groupMailOption'] as Map : const {};
+  final inside = init['insideDomainArray'];
+  return {
+    'from': asStr(init['email']), 'fromName': fromName, 'to': to, 'cc': cc, 'bcc': '', 'htmlContents': html, 'email': asStr(init['email']),
+    'fileDir': asStr(init['filedir']), 'bigFile': '', 'bigFileDay': asStr(init['bigFileDay']), 'bigFileCnt': '0', 'bigFilePeriod': '', 'mail_kind': 'plain', 'uidAuthList': '', 'fwFile': '',
+    'urlList': '', 'fileNameList': '', 'receipt_notific': '', 'securitymailuse': '', 'securitymailpass_enc_web': '', 'immediately': 'false', 'toBeDeleted': 'false', 'expirationDate': 'Invalid date',
+    'importantmailuse': '', 'eachTrans': '', 'neobizaddr': asStr(gm['groupMailAddr']), 'neobizIntedAddr': asStr(gm['groupMailIntedAddr']), 'neobizOrg': asStr(gm['groupMailOrg']),
+    'muid': '0', 'domainSeq': '', 'mimeHeader': '', 'sessionKey': asStr(init['sessionKey']), 'externalSendLimit': asStr(init['externalSendLimit']),
+    'insideDomainArray': inside == null ? '[]' : jsonEncode(inside), 'aiResultJSON': '', 'subject': subject, 'authToken': bodyAuth,
+  };
+}
+
+/// 임시저장(A14)이 발송 폼에 덧붙이는 필드 — 신규 저장 기준(inno-creed DRAFT_FIELDS, isFirst "0"이 첫 저장).
+const draftFields = {'autoMUID': '', 'beforeMailType': 'plain', 'beforeMUID': '', 'mailKey': '', 'isFirst': '0', 'draftType': 'true', 'autoDraftType': 'false'};
+
+const _scopes = {'메일': '0', '결재': '6', '게시판': '9', '일정': '3', '자원': '13', '파일': '10'};
+String _sv(Map r, String k) { final v = r[k]; return v is Map ? asStr(v['kr']) : asStr(v); }
+
+extension GwAssistantMail on GwApi {
+  /// 메일 본문(mail002A01) — 비서가 사용자 요청으로만 부른다. 평문 파트 우선, 8,000자에서 자른다.
+  Future<Map<String, dynamic>> mailRead(String muid) async {
+    final d = await client.call('/mail/mail002A01', {'uid': muid});
+    final dm = d is Map && d['decodeMime'] is Map ? d['decodeMime'] as Map : const {};
+    final mime = d is Map && d['mime'] is Map ? d['mime'] as Map : const {};
+    final b = mime['body'] is Map ? mime['body'] as Map : const {};
+    final plain = asStr(b['plain']).trim();
+    var body = plain.isNotEmpty ? plain : htmlToText(asStr(b['html']));
+    if (body.length > 8000) body = '${body.substring(0, 8000)}…';
+    return {'muid': muid, 'subject': htmlToText(asStr(dm['subject'])), 'from': htmlToText(asStr(dm['from'])), 'date': asStr(dm['date']), 'body': body};
+  }
+
+  Future<Map<String, String>> _compose(List<String> to, List<String> cc, String subject, String body) async {
+    final init = await client.call('/mail/mail014A01', {'mainApiCode': 'mail014A01', 'mailKind': 'plain'});
+    if (init is! Map) throw GwException(200, 0, '메일 작성 폼을 열지 못했습니다');
+    final s = await client.session();
+    return composeFields(init, fromName: s.empName, bodyAuth: '${s.emailAddr}|${client.creds().authToken}', to: to.join(','), cc: cc.join(','), subject: subject.trim().isEmpty ? '(제목없음)' : subject, html: textToHtml(body));
+  }
+
+  /// 임시보관함에 저장(A14). 발송하지 않는다.
+  Future<Map<String, dynamic>> mailSaveDraft({required List<String> to, List<String> cc = const [], required String subject, required String body}) async {
+    final r = await client.callMultipart('/mail/mail014A14', {...await _compose(to, cc, subject, body), ...draftFields});
+    final muid = asStr(r is Map ? r['autoMUID'] : null);
+    if (muid.isEmpty) throw GwException(200, 0, '임시저장에 실패했습니다');
+    return {'ok': true, 'draftMuid': muid, 'subject': subject};
+  }
+
+  /// 발송(A01 → A04). 되돌릴 수 없다 — 호출 전에 사용자 확인을 받는다(비서 확인 카드). 판정은 resultData.result.
+  Future<Map<String, dynamic>> mailSend({required List<String> to, List<String> cc = const [], required String subject, required String body}) async {
+    final r = await client.callMultipart('/mail/mail014A04', await _compose(to, cc, subject, body));
+    if (r is! Map || r['result'] != true) throw GwException(200, 0, '메일 발송에 실패했습니다');
+    return {'ok': true, 'sent': true, 'to': to.join(','), 'cc': cc.join(','), 'subject': subject};
+  }
+
+  /// 통합검색(gw018A02). scope 전체면 6개 모듈을 차례로(모듈 하나 실패는 건너뛰고 전부 실패하면 예외, 인증 만료는 그대로 던짐). 날짜는 YYYY-MM-DD.
+  Future<Map<String, dynamic>> search(String query, {String scope = '전체', String from = '', String to = '', int limit = 10}) async {
+    final targets = scope.trim().isEmpty || scope == '전체' ? _scopes.entries.toList() : _scopes.entries.where((e) => e.key == scope.trim()).toList();
+    if (targets.isEmpty) throw GwException(200, 0, '알 수 없는 검색 범위입니다(메일·결재·게시판·일정·자원·파일·전체)');
+    var total = 0, ok = 0;
+    GwException? lastErr;
+    final items = <Map<String, dynamic>>[];
+    for (final t in targets) {
+      dynamic d;
+      try {
+        d = await client.call('/gw/APIHandler/gw018A02', {'header': {}, 'body': {'tsearchKeyword': query, 'tsearchSubKeyword': '', 'boardType': t.value, 'fromDate': from, 'toDate': to, 'dateDiv': '', 'detailSearchYn': 'N', 'selectDiv': 'S', 'orderDiv': 'B', 'syncTime': 'N', 'pageIndex': 1, 'hrSearchYn': 'N', 'hrEmpSeq': '', 'pageSize': limit, 'webMobileDiv': 'W'}});
+      } on GwUnauthorized {
+        rethrow;
+      } on GwException catch (e) {
+        lastErr = e; // 모듈 하나 실패는 건너뛰되, 전부 실패하면 아래서 던진다
+        continue;
+      }
+      ok++;
+      if (d is! Map) continue;
+      total += asInt(d['totalcount']);
+      for (final r in (d['resultgrid'] as List? ?? const []).whereType<Map>()) {
+        items.add(switch (t.value) {
+          '0' => {'module': '메일', 'title': _sv(r, 'subject'), 'date': _sv(r, 'rfc822date'), 'who': _sv(r, 'fromAddrName'), 'muid': _sv(r, 'muid')},
+          '6' => {'module': '결재', 'title': _sv(r, 'docTitle'), 'date': _sv(r, 'rep_dt'), 'who': _sv(r, 'userNm'), 'docId': _sv(r, 'docId'), 'formId': _sv(r, 'formId')},
+          '9' => {'module': '게시판', 'title': _sv(r, 'artTitle'), 'date': _sv(r, 'writeDate'), 'who': _sv(r, 'mbrNick'), 'artSeqNo': _sv(r, 'artSeqNo')},
+          '3' => {'module': '일정', 'title': _sv(r, 'schTitle'), 'date': _sv(r, 'startDate'), 'who': '', 'schSeq': _sv(r, 'schSeq')},
+          '13' => {'module': '자원', 'title': _sv(r, 'reqText'), 'date': _sv(r, 'startDate'), 'who': '', 'resSeq': _sv(r, 'resSeq')},
+          _ => {'module': '파일', 'title': _sv(r, 'fileName'), 'date': _sv(r, 'createDate'), 'who': _sv(r, 'empName')},
+        });
+      }
+    }
+    if (ok == 0 && lastErr != null) throw lastErr;
+    return {'query': query, 'total': total, 'items': items};
   }
 }
