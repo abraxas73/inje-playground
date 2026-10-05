@@ -28,6 +28,14 @@ void main() {
     expect(find.text('데일리 브리핑'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
   });
+  testWidgets('BriefingCard — onClockIn이 있으면 "출퇴근 바로 가기" 버튼, 누르면 호출; 없으면 버튼 없음', (tester) async {
+    var hits = 0;
+    await tester.pumpWidget(wrap(BriefingCard(summary: const SummaryText(text: '출근 기록을 남겨 주세요.', at: '08:40'), onClockIn: () => hits++)));
+    await tester.tap(find.text('출퇴근 바로 가기'));
+    expect(hits, 1);
+    await tester.pumpWidget(wrap(const BriefingCard(summary: SummaryText(text: '좋은 아침입니다.', at: '08:40'))));
+    expect(find.text('출퇴근 바로 가기'), findsNothing);
+  });
   testWidgets('FocusSection — 항목마다 이동 버튼, 없으면 안내 한 줄', (tester) async {
     await tester.pumpWidget(wrap(FocusSection(items: const [FocusItem(icon: Icons.event, text: '09:30 주간회의', route: '/gw/today')], onOpen: (_) {})));
     expect(find.text('지금 필요한 것'), findsOneWidget);

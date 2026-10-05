@@ -36,9 +36,11 @@ class QuoteCard extends StatelessWidget {
 
 /// "데일리 브리핑" — Claude가 하루 1회 쓴 2~3문장. 문장이 없으면 만드는 중일 때만 자리를 잡고, 아니면 숨긴다(다시 만들기 버튼 없음).
 class BriefingCard extends StatelessWidget {
-  const BriefingCard({super.key, required this.summary, this.busy = false});
+  const BriefingCard({super.key, required this.summary, this.busy = false, this.onClockIn});
   final SummaryText? summary;
   final bool busy;
+  /// 출근 기록이 없을 때만 넘긴다 — 문장 아래 "출퇴근 바로 가기"(앱 안 이동).
+  final VoidCallback? onClockIn;
   @override
   Widget build(BuildContext context) {
     final s = summary;
@@ -51,6 +53,10 @@ class BriefingCard extends StatelessWidget {
             ? const LinearProgressIndicator(minHeight: 2)
             : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(s.text, style: const TextStyle(fontSize: 15, height: 1.6, color: Brand.navy)),
+                if (onClockIn != null) ...[
+                  const SizedBox(height: 10),
+                  FilledButton.tonalIcon(onPressed: onClockIn, icon: const Icon(Icons.login, size: 18), label: const Text('출퇴근 바로 가기')),
+                ],
                 const SizedBox(height: 8),
                 Align(alignment: Alignment.centerRight, child: Text('Claude · ${s.at}', style: const TextStyle(fontSize: 12, color: Brand.muted))),
               ]),

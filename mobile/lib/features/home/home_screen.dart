@@ -85,7 +85,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Text(g.subtitle, style: theme.textTheme.bodySmall),
             const SizedBox(height: 16),
             QuoteCard(quote: q),
-            BriefingCard(summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at), busy: _summaryBusy),
+            BriefingCard(summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at), busy: _summaryBusy, onClockIn: data != null && clockInPending(data.attendance, data.now) ? () => open('/gw/attendance') : null),
             if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(top: 14), child: LinearProgressIndicator(minHeight: 2)),
             if (gw != null && gw.status != GwStatus.connected)
               GwConnectCard(relogin: gw.status == GwStatus.needsRelogin, onConnect: () => context.push('/gw/connect'))

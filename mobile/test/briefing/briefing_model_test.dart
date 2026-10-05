@@ -100,4 +100,12 @@ void main() {
     expect(TeamsMentions.parse('nope').connected, isFalse);
     expect(TeamsMentions.parse({'connected': false}).items, isEmpty);
   });
+  test('clockInPending — 평일·휴일 아님·출근 기록 없음(시각 무관), 브리핑 지침과 같은 조건', () {
+    const none = Attendance(workDt: '', comeTm: '', leaveTm: '', holiday: false);
+    expect(clockInPending(none, DateTime.utc(2026, 10, 5, 8)), isTrue, reason: '월 08시 — 09:30 전이라도');
+    expect(clockInPending(const Attendance(workDt: '', comeTm: '202610050850', leaveTm: '', holiday: false), DateTime.utc(2026, 10, 5, 9)), isFalse);
+    expect(clockInPending(const Attendance(workDt: '', comeTm: '', leaveTm: '', holiday: true), DateTime.utc(2026, 10, 5, 9)), isFalse);
+    expect(clockInPending(none, DateTime.utc(2026, 10, 4, 9)), isFalse, reason: '일요일');
+    expect(clockInPending(null, DateTime.utc(2026, 10, 5, 9)), isFalse);
+  });
 }

@@ -112,6 +112,9 @@ bool isSameDay(String s, DateTime now) {
 
 int unreadMailsToday(BriefingData d) => (d.inbox?.$2 ?? const <MailItem>[]).where((m) => !m.seen && isSameDay(m.tooltip.isNotEmpty ? m.tooltip : m.date, d.now)).length;
 
+/// 데일리 브리핑이 출근 안내를 하는 조건(서버 지침과 같음) — 평일, 휴일 아님, 출근 기록 없음. 시각은 보지 않는다.
+bool clockInPending(Attendance? a, DateTime now) => a != null && !a.holiday && !a.clockedIn && now.weekday <= DateTime.friday;
+
 /// 평일 09:30 이후, 휴일 아님, 출근 기록 없음.
 bool needsClockIn(Attendance? a, DateTime now) => a != null && !a.holiday && !a.clockedIn && now.weekday <= DateTime.friday && (now.hour > 9 || (now.hour == 9 && now.minute >= 30));
 

@@ -75,7 +75,7 @@
 
 ## 출근 Teams 알림 (2026-10-05)
 출퇴근 화면의 **출근 기록** 확인창에서 내 Teams 채팅방(그룹·1:1, `GET /api/teams/chat` — 본인 Microsoft 위임 토큰)을 한 번 골라 두면, "Teams에 알리기" 스위치(기억됨)와 **추가 문구(선택)** 입력이 나온다. 출근이 실제로 기록됐을 때만(`PunchResult.ok && !already`) `POST /api/teams/chat/messages`로 "9시 23분 출근했습니다."(정각은 "10시 출근했습니다.") + 추가 문구를 내 이름으로 보낸다. 전송 실패는 기록에 영향 없이 안내 문구만. 설정은 기기 SharedPreferences(`clockin.teams.*`)에만. 코드 `mobile/lib/gw/clockin_notify.dart`. 퇴근은 대상 아님(사용자 결정). 출근 기록 뒤에는 홈 브리핑을 다시 수집하고 데일리 브리핑도 한 번 다시 만든다(출근 안내 문장이 남지 않게).
-- 데일리 브리핑 지침: 평일·휴일 아님·출근 기록 없음이면 첫 문장에서 출근 기록을 남기라고 알린다(`briefingSystemPrompt`).
+- 데일리 브리핑 지침: 평일·휴일 아님·출근 기록 없음이면 첫 문장에서 출근 기록을 남기라고 알린다(`briefingSystemPrompt`). 같은 조건(`clockInPending`)이면 브리핑 카드에 "출퇴근 바로 가기" 버튼(앱 안 `/gw/attendance`)이 붙는다.
 
 ## 배포(사내) (2026-10-04)
 **운영자가 직접 할 일(App Store Connect·백업·공지)만 모은 체크리스트: `docs/mobile-release-checklist.md`.** 스펙 `docs/superpowers/specs/2026-10-04-mobile-release-design.md`. iOS는 **TestFlight 외부 그룹 공개 링크**(개인 Apple 계정, 팀 `LME2TNRC9G`), Android는 **웹 `/apps`에서 APK 직접 받기**(로그인 필요, 비공개 버킷 `mobile`의 600초 서명 URL). 릴리스 메타데이터는 `settings` 키 `mobile_release`(문자열 JSON: `notes`·`testflightUrl`·`android{version,build,apkPath,releasedAt}`·`ios{version,build,releasedAt}`) 하나, 읽는 API는 `GET /api/mobile/release`(user 이상). 앱은 시작 때 이 API로 자기 플랫폼 빌드 번호를 비교해 홈 배너·더보기 "앱 버전" 줄에 업데이트 버튼을 보여 준다(개발 빌드 `dev`/0은 확인 안 함). 쓰는 쪽은 `mobile/scripts/release-mobile.sh`뿐.
