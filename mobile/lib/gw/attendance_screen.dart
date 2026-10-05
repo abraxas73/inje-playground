@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../api/client.dart';
+import '../briefing/briefing_provider.dart';
+import '../briefing/summary_provider.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
+import 'clockin_notify.dart';
 import 'gw_api.dart';
 import 'gw_gate.dart';
 import 'gw_models.dart';
@@ -11,14 +16,14 @@ class AttendanceScreen extends StatelessWidget {
   Widget build(BuildContext context) => GwGate(title: '출퇴근', builder: (_, api) => _Body(api));
 }
 
-class _Body extends StatefulWidget {
+class _Body extends ConsumerStatefulWidget {
   const _Body(this.api);
   final GwApi api;
   @override
-  State<_Body> createState() => _BodyState();
+  ConsumerState<_Body> createState() => _BodyState();
 }
 
-class _BodyState extends State<_Body> {
+class _BodyState extends ConsumerState<_Body> {
   Attendance? _a;
   String? _error, _note;
   bool _busy = false;
@@ -38,7 +43,36 @@ class _BodyState extends State<_Body> {
     }
   }
 
+  /// 출근: 확인창에서 Teams 알림(채팅방·켜짐·추가 문구)까지 정한다. 기록이 실제로 남았을 때만 보내고, 전송 실패는 기록에 영향 없음.
+  Future<void> _clockIn() async {
+    final prefs = await ClockInNotifyPrefs.load();
+    if (!mounted) return;
+    final choice = await showDialog<ClockInChoice>(context: context, builder: (_) => ClockInDialog(prefs: prefs, pick: () => pickTeamsChat(context, ref.read(apiClientProvider))));
+    if (choice == null) return;
+    if (choice.prefs.hasChat) await choice.prefs.save();
+    setState(() { _busy = true; _note = null; });
+    try {
+      final r = await widget.api.punch(clockIn: true);
+      var note = r.note;
+      if (r.ok && !r.already) {
+        // 홈 브리핑 갱신 — "지금 필요한 것"의 출근 미기록 줄과 데일리 브리핑의 출근 안내가 남지 않게
+        ref.read(summaryProvider.notifier).stale();
+        ref.invalidate(briefingProvider);
+      }
+      if (r.ok && !r.already && choice.notify && r.comeTm.isNotEmpty) {
+        final err = await sendClockInToTeams(ref.read(apiClientProvider), choice.prefs.chatId, clockInMessage(r.comeTm, choice.extra));
+        note = err == null ? '$note\n${choice.prefs.topic}에 알렸습니다.' : '$note\nTeams 알림을 보내지 못했습니다: $err';
+      }
+      if (mounted) setState(() { _note = note; _a = Attendance(workDt: _a?.workDt ?? '', comeTm: r.comeTm, leaveTm: r.leaveTm, holiday: _a?.holiday ?? false); });
+    } catch (e) {
+      if (mounted) setState(() => _note = '기록하지 못했습니다: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _punch(bool clockIn) async {
+    if (clockIn) return _clockIn();
     final kind = clockIn ? '출근' : '퇴근';
     final ok = await showDialog<bool>(
       context: context,

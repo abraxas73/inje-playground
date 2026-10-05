@@ -8,6 +8,7 @@ import 'package:playground/gw/attendance_screen.dart';
 import 'package:playground/gw/board_screen.dart';
 import 'package:playground/gw/mail_screen.dart';
 import 'package:playground/gw/today_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'fakes.dart';
 
 http.Response ok(Object? data) => http.Response.bytes(utf8.encode(jsonEncode({'resultCode': 0, 'resultData': data})), 200, headers: {'content-type': 'application/json; charset=utf-8'}) /* 한글 본문은 latin1 기본 인코딩에서 ArgumentError */;
@@ -29,6 +30,7 @@ class Routes {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({})); // 출퇴근 확인창이 Teams 알림 설정을 읽는다
   testWidgets('미결 결재: 목록을 그리고 항목을 누르면 상세 시트(열람 처리 없음)', (tester) async {
     final r = Routes({'/gw/gw050A02': [session], '/eap/eap105A04': [{'map': {'totalCount': 1, 'list': [{'DOC_ID': 'D1', 'FORM_ID': '7', 'DOC_TITLE': '휴가 신청', 'FORM_NM': '휴가', 'USER_NM': '김민준', 'DEPT_NM': '팀', 'ARRIVED_DT': '20261001', 'READYN': 'N'}]}}], '/eap/eap111A04': [{'docTitle': '휴가 신청', 'contentsWord': '10월 10일 연차', 'empName': '김민준', 'lineName': '홍길동'}]});
     await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const ApprovalsScreen()));

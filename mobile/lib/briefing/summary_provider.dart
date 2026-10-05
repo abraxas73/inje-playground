@@ -34,6 +34,9 @@ class SummaryNotifier extends AsyncNotifier<BriefingSummary?> {
     return s != null && s.date == ymd(kstNow()) ? s : null;
   }
 
+  /// 내용이 바뀌는 일(출근 기록)이 있었다 — 다음 ensure에서 한 번 다시 만든다.
+  void stale() => _generatedThisRun = false;
+
   /// 이번 앱 실행에서 아직 안 만들었으면 만든다. 동시 호출은 한 번만 간다. 실패하면 다음 기회(새로고침)에 다시 시도한다.
   Future<void> ensure(BriefingData data) async {
     if (_generatedThisRun) return;

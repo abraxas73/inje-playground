@@ -38,4 +38,9 @@ describe("briefingEnabled / countsOf / prompt", () => {
     const s = briefingSystemPrompt();
     for (const w of ["지시", "질문", "2~3문장", "마크다운"]) expect(s).toContain(w);
   });
+  it("출근 기록이 없으면(평일·휴일 아님) 첫 문장에서 출근 기록을 남기라고 알리게 한다", () => {
+    const s = briefingSystemPrompt();
+    expect(s).toContain("attendance.clockedIn");
+    expect(s).toMatch(/출근 기록을 남기/);
+  });
 });

@@ -128,6 +128,17 @@ void main() {
     await c.read(summaryProvider.notifier).ensure(d);
     expect(app.calls['/api/mobile/briefing'], 1, reason: '켜져 있는 동안에는 다시 만들지 않는다');
   });
+  test('요약: 출근을 기록하면 stale()로 같은 실행 안에서도 한 번 다시 만든다("출근하세요" 문장이 남지 않게)', () async {
+    final app = AppApi({'/api/mobile/briefing': (200, {'enabled': true, 'text': '문장', 'model': 'm', 'at': 'x'})});
+    final c = scope(gw: gwRoutes(gwAll), api: app.client);
+    final d = await c.read(briefingProvider.future);
+    await c.read(summaryProvider.notifier).ensure(d);
+    await c.read(summaryProvider.notifier).ensure(d);
+    expect(app.calls['/api/mobile/briefing'], 1);
+    c.read(summaryProvider.notifier).stale();
+    await c.read(summaryProvider.notifier).ensure(d);
+    expect(app.calls['/api/mobile/briefing'], 2);
+  });
   test('요약: 옛 키(briefing.summary)에 남은 오늘 문장은 쓰지 않는다 — 1.1.2 이전 잘린 문장을 버리고 한 번 새로 만든다', () async {
     SharedPreferences.setMockInitialValues({'briefing.summary': jsonEncode({'date': ymd(kstNow()), 'text': '강승', 'at': '22:59'})});
     final app = AppApi({'/api/mobile/briefing': (200, {'enabled': true, 'text': '새 문장입니다.', 'model': 'm', 'at': 'x'})});
