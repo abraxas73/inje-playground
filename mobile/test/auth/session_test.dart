@@ -1,5 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:playground/gw/gw_creds.dart';
+import 'package:playground/gw/gw_login_store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:playground/auth/session.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'fake_auth.dart';
@@ -74,6 +78,24 @@ void main() {
       expect(calls.single.record, false);
       expect(calls.single.token, auth.current!.accessToken);
       expect(s?.role, 'user');
+    });
+    test('로그아웃하면 이전 사용자의 아마란스 연결·자동 로그인·비서 기록·알림 채팅·브리핑 캐시를 지운다(버튼 위치는 남김)', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues({
+        'gw.authToken': '1|2|s', 'gw.signKey': 'k', 'gw.empName': 'A',
+        'assistant.journal': '[]', 'clockin.teams.chatId': 'c', 'briefing.summary.v2': 'x',
+        'assistant.button.bottom': 120.0,
+      });
+      FlutterSecureStorage.setMockInitialValues({'gw.loginId': 'a', 'gw.loginPw': 'p'});
+      auth.current = session(expired: false);
+      await c.read(sessionProvider.future);
+      expect((await c.read(gwProvider.future)).creds, isNotNull);
+      await c.read(sessionProvider.notifier).signOut();
+      final p = await SharedPreferences.getInstance();
+      expect(p.getKeys(), {'assistant.button.bottom'});
+      expect(await const FlutterSecureStorage().readAll(), isEmpty);
+      expect((await c.read(gwProvider.future)).creds, isNull);
+      expect(await c.read(gwLoginProvider.future), isNull);
     });
   });
 }

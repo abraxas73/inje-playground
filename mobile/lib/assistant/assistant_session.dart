@@ -156,9 +156,15 @@ class AssistantSession extends Notifier<AssistantState> {
   _Pending? _pending;
   AssistantJournal? _journal;
 
+  /// Riverpod 3는 invalidate(로그아웃) 뒤에도 노티파이어 인스턴스를 재사용한다 — 필드도 여기서 비운다.
   @override
-  AssistantState build() =>
-      const AssistantState(items: [ChatItem(ChatKind.bot, '무엇을 도와드릴까요?')]);
+  AssistantState build() {
+    _messages.clear();
+    _pending = null;
+    _guard.reset();
+    _journal = null;
+    return const AssistantState(items: [ChatItem(ChatKind.bot, '무엇을 도와드릴까요?')]);
+  }
 
   void _set({
     List<ChatItem>? items,
@@ -189,9 +195,6 @@ class AssistantSession extends Notifier<AssistantState> {
 
   void reset() {
     if (state.busy) return;
-    _messages.clear();
-    _pending = null;
-    _guard.reset();
     state = build();
   }
 

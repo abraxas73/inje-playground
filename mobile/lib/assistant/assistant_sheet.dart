@@ -124,8 +124,13 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
       () {
         if (!mounted || seq != _listenSeq || !_listening) return;
         if (_grace?.isActive ?? false) return; // 기다리는 중의 무음 종료는 타이머가 처리
-        if (_input.text.trim().isNotEmpty) return _finishListening();
-        setState(() => _listening = false);
+        final heard = _input.text.trim();
+        if (heard.isEmpty) return setState(() => _listening = false);
+        if (isCommandEnd(heard)) return _finishListening();
+        // 종료가 최종 결과보다 먼저 올 수 있다 — 부분 문장을 바로 보내지 않고 2초 기다린다(그 사이 온 최종 결과가 이 타이머를 대신한다).
+        _grace = Timer(_graceDelay, () {
+          if (mounted && _listening) _finishListening();
+        });
       },
     );
   }

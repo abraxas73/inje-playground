@@ -58,11 +58,15 @@ PLAY_PACKAGE=com.innogrid.playground
 if [ "$TARGET" = sharepoint ]; then
   [ -n "$CRON_SECRET" ] && [ -n "$OPERATOR_EMAIL" ] || { echo "SharePoint 단계에는 frontend/.env.local의 CRON_SECRET과 mobile/.env.release의 OPERATOR_EMAIL(관리자, Microsoft 연결됨)이 필요합니다." >&2; exit 1; }
 fi
+# 서명 통일(§6-B): Android 배포는 Play가 만든 Google 서명 APK만 — 서비스 계정 키가 없으면 로컬 키 APK로 대신하지 않고 멈춘다.
+if [ "$DO_ANDROID" = 1 ] && [ "$DRY" != 1 ] && ! [ -f "$PLAY_SA" ]; then
+  echo "mobile/.env.release의 PLAY_SERVICE_ACCOUNT_JSON(서비스 계정 키 파일)이 없습니다 — 로컬 키 APK는 Play 설치본을 업데이트하지 못해 배포하지 않습니다(docs/play-console-guide.md §6-A)." >&2; exit 1
+fi
 ASC_KEY_ID=""; ASC_ISSUER_ID=""
 if [ "$DO_IOS" = 1 ]; then
   ASC_KEY_ID=$(envval "$MOBILE/.env.release" ASC_KEY_ID); ASC_ISSUER_ID=$(envval "$MOBILE/.env.release" ASC_ISSUER_ID)
   [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] || { echo "mobile/.env.release에 ASC_KEY_ID=…, ASC_ISSUER_ID=… 가 필요합니다(App Store Connect → Users and Access → Integrations)." >&2; exit 1; }
-  ls ~/.private_keys/AuthKey_"$ASC_KEY_ID".p8 ~/private_keys/AuthKey_"$ASC_KEY_ID".p8 >/dev/null 2>&1 || { echo "~/.private_keys/AuthKey_$ASC_KEY_ID.p8 가 없습니다." >&2; exit 1; }
+  [ -f ~/.private_keys/AuthKey_"$ASC_KEY_ID".p8 ] || [ -f ~/private_keys/AuthKey_"$ASC_KEY_ID".p8 ] || { echo "~/.private_keys/AuthKey_$ASC_KEY_ID.p8 가 없습니다." >&2; exit 1; }
 fi
 
 # 3. 버전
@@ -191,27 +195,18 @@ print(((d.get("android") or {}) if isinstance(d, dict) else {}).get("apkPath", "
     else echo "  없음"; fi
   fi
   if [ "$SKIP_UPLOAD" = 0 ]; then
-  if [ -n "$PLAY_SA" ] && [ -f "$PLAY_SA" ]; then
-    # 서명 통일(2026-10-06 사용자 결정 B): Play 앱 서명 키는 Google 생성 키 — /apps·SharePoint도 Google이 서명한 universal APK를 배포해
-    # 어느 경로로 깔든 서로 업데이트된다(로컬 업로드 키 APK는 더 배포하지 않음).
-    build_aab || exit 1
-    say "Google Play: 내부 테스트 트랙 업로드"
-    if [ "$DRY" = 1 ]; then echo "  (dry-run) play-upload.py → internal"; else
-      rc=0; python3 "$MOBILE/scripts/play-upload.py" "$PLAY_SA" "$AAB_OUT" "$PLAY_PACKAGE" "$VERSION — $NOTES" || rc=$?
-      case "$rc" in 0|3|4) ;; *) echo "  Play 업로드 실패 — 다시: $0 android" >&2; exit 1;; esac
-    fi
-    APK_FILE="$MOBILE/build/innogrid-$VERSION+$BUILD-play.apk"
-    say "Android: Google 서명 APK 받기(Play가 만든 universal APK)"
-    if [ "$DRY" = 1 ]; then echo "  (dry-run) play-upload.py apk → $APK_FILE"; else
-      python3 "$MOBILE/scripts/play-upload.py" apk "$PLAY_SA" "$PLAY_PACKAGE" "$BUILD" "$APK_FILE" || { echo "  Google 서명 APK를 받지 못했습니다 — 다시: $0 android" >&2; exit 1; }
-    fi
-  else
-    echo "  주의: PLAY_SERVICE_ACCOUNT_JSON이 없어 로컬 업로드 키로 서명한 APK를 올립니다 — Play 설치본과 서명이 달라 서로 업데이트되지 않습니다." >&2
-    APK_FILE="$MOBILE/build/app/outputs/flutter-apk/app-release.apk"
-    say "Android: flutter build apk --release"
-    if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter build apk --release ${DEFINES[*]}"; else
-      (cd "$MOBILE" && quiet flutter build apk --release "${DEFINES[@]}") || { echo "APK 빌드 실패" >&2; exit 1; }
-    fi
+  # 서명 통일(2026-10-06 사용자 결정 B): Play 앱 서명 키는 Google 생성 키 — /apps·SharePoint도 Google이 서명한 universal APK를 배포해
+  # 어느 경로로 깔든 서로 업데이트된다(로컬 업로드 키 APK는 더 배포하지 않음).
+  build_aab || exit 1
+  say "Google Play: 내부 테스트 트랙 업로드"
+  if [ "$DRY" = 1 ]; then echo "  (dry-run) play-upload.py → internal"; else
+    rc=0; python3 "$MOBILE/scripts/play-upload.py" "$PLAY_SA" "$AAB_OUT" "$PLAY_PACKAGE" "$VERSION — $NOTES" || rc=$?
+    case "$rc" in 0|3|4) ;; *) echo "  Play 업로드 실패 — 다시: $0 android" >&2; exit 1;; esac
+  fi
+  APK_FILE="$MOBILE/build/innogrid-$VERSION+$BUILD-play.apk"
+  say "Android: Google 서명 APK 받기(Play가 만든 universal APK)"
+  if [ "$DRY" = 1 ]; then echo "  (dry-run) play-upload.py apk → $APK_FILE"; else
+    python3 "$MOBILE/scripts/play-upload.py" apk "$PLAY_SA" "$PLAY_PACKAGE" "$BUILD" "$APK_FILE" || { echo "  Google 서명 APK를 받지 못했습니다 — 다시: $0 android" >&2; exit 1; }
   fi
   [ "$DRY" = 1 ] || ls -la "$APK_FILE" | awk '{print "  " $5 " bytes"}'
   say "Android: 스토리지 업로드 → mobile/$APK_PATH"

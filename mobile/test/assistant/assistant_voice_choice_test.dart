@@ -271,4 +271,34 @@ void main() {
     expect(brain.received.single.single['content'], '오늘 오후 빈 회의실 한 시간');
     expect(v.stopped, greaterThanOrEqualTo(1));
   });
+
+  testWidgets('말하기 — 종료 신호가 최종 결과보다 먼저 와도 부분 문장을 바로 보내지 않고, 늦게 온 최종 문장으로 보냄', (tester) async {
+    final brain = Brain([say('네.')]);
+    final v = FakeVoice();
+    await tester.pumpWidget(host(brain, scenarioGw(), v, FakeSpeaker()));
+    await tester.tap(find.byTooltip('말하기'));
+    await tester.pump();
+    v.cb!('오늘 오후 빈', false);
+    v.end!(); // 플러그인이 최종 결과보다 종료(done/notListening)를 먼저 알림
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(brain.received, isEmpty, reason: '부분 문장을 바로 보내지 않는다');
+    v.cb!('오늘 오후 빈 회의실 잡아줘', true); // 늦게 온 최종 결과
+    await tester.pumpAndSettle();
+    expect(brain.received.single.single['content'], '오늘 오후 빈 회의실 잡아줘');
+  });
+
+  testWidgets('말하기 — 종료 신호 뒤 최종 결과가 안 오면 2초 뒤 들은 데까지 보냄', (tester) async {
+    final brain = Brain([say('네.')]);
+    final v = FakeVoice();
+    await tester.pumpWidget(host(brain, scenarioGw(), v, FakeSpeaker()));
+    await tester.tap(find.byTooltip('말하기'));
+    await tester.pump();
+    v.cb!('오늘 오후 빈 회의실', false);
+    v.end!();
+    await tester.pump(const Duration(milliseconds: 1999));
+    expect(brain.received, isEmpty);
+    await tester.pump(const Duration(milliseconds: 10));
+    await tester.pumpAndSettle();
+    expect(brain.received.single.single['content'], '오늘 오후 빈 회의실');
+  });
 }
