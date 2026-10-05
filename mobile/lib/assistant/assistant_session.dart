@@ -34,11 +34,18 @@ class ChatItem {
 }
 
 class _Pending {
-  _Pending(this.order, this.results, this.writes, this.undoId);
+  _Pending(
+    this.order,
+    this.results,
+    this.writes,
+    this.undoIds,
+    this.undoWriteIds,
+  );
   final List<String> order; // 응답의 tool_use id 순서
   final Map<String, Map<String, dynamic>> results; // 이미 정해진 결과(조회 등)
   final List<ToolCall> writes; // 확인 대상(되돌리기면 반대 작업)
-  final String? undoId; // undo_last의 tool_use id(결과를 하나로 묶어 보냄)
+  final Set<String> undoIds; // undo_last의 tool_use id들(같은 결과를 각각에 붙임)
+  final Set<String> undoWriteIds; // 되돌리기 대상 쓰기의 id
 }
 
 class AssistantState {
@@ -65,11 +72,41 @@ List<Map<String, dynamic>> trimHistory(
 }) {
   if (m.length <= max) return m;
   for (var i = m.length - max; i < m.length; i++) {
-    if (m[i]['role'] == 'user' && m[i]['content'] is String) {
-      return m.sublist(i);
+    if (m[i]['role'] != 'user') continue;
+    final c = m[i]['content'];
+    if (c is String) return m.sublist(i);
+    if (c is List && c.any((b) => b is Map && b['type'] == 'text')) {
+      // 앞의 tool_result는 잘린 tool_use의 짝이므로 버린다
+      final head = {
+        ...m[i],
+        'content': [
+          for (final b in c)
+            if (!(b is Map && b['type'] == 'tool_result')) b,
+        ],
+      };
+      return [head, ...m.sublist(i + 1)];
     }
   }
-  return m.sublist(m.length - 1);
+  // 컷 지점이 없으면 마지막 user만 — 고아 tool_result는 절대 남기지 않는다
+  final u = m.lastWhere(
+    (x) => x['role'] == 'user',
+    orElse: () => {'role': 'user', 'content': <dynamic>[]},
+  );
+  final c = u['content'];
+  final text = c is List
+      ? [
+          for (final b in c)
+            if (b is Map && b['type'] == 'text') '${b['text']}',
+        ].join('\n')
+      : null;
+  return [
+    {
+      'role': 'user',
+      'content': c is String
+          ? c
+          : (text != null && text.isNotEmpty ? text : <dynamic>[]),
+    },
+  ];
 }
 
 final assistantSessionProvider =
@@ -113,6 +150,7 @@ class AssistantSession extends Notifier<AssistantState> {
   }
 
   void reset() {
+    if (state.busy) return;
     _messages.clear();
     _pending = null;
     _guard.reset();
@@ -155,6 +193,21 @@ class AssistantSession extends Notifier<AssistantState> {
     if (r['ok'] == false) 'is_error': true,
   };
 
+  /// 실패한 턴 뒤 history 정리 — 문자열 user는 버리고(다시 입력), tool_result가 든 user는 결과만 남겨 다음 입력과 합친다.
+  void _rollbackFailedTurn() {
+    if (_messages.isEmpty || _messages.last['role'] != 'user') return;
+    final c = _messages.removeLast()['content'];
+    if (c is! List) return;
+    final results = [
+      for (final b in c)
+        if (b is Map && b['type'] == 'tool_result')
+          Map<String, dynamic>.from(b),
+    ];
+    if (results.isEmpty) return;
+    _fixResults = results;
+    _set(awaitingFix: true);
+  }
+
   Future<void> _drive() async {
     _set(busy: true);
     try {
@@ -174,97 +227,29 @@ class AssistantSession extends Notifier<AssistantState> {
           );
         } on ApiException catch (e) {
           _add(ChatItem(ChatKind.notice, e.message));
-          _messages.removeLast(); // 보낸 user 메시지를 되돌려 다음 시도가 짝을 깨지 않게
+          _rollbackFailedTurn();
           return;
         } catch (_) {
           _add(const ChatItem(ChatKind.notice, '네트워크 연결을 확인하고 다시 시도해 주세요.'));
-          _messages.removeLast();
+          _rollbackFailedTurn();
           return;
         }
         if (res is! Map || res['enabled'] != true) {
           _add(const ChatItem(ChatKind.notice, '관리자가 비서를 꺼 두었습니다.'));
-          _messages.removeLast();
+          _rollbackFailedTurn();
           return;
         }
-        final msg = Map<String, dynamic>.from(res['message'] as Map);
-        _messages.add(msg);
-        final blocks = (msg['content'] as List? ?? const [])
-            .whereType<Map>()
-            .toList();
-        final text = [
-          for (final b in blocks)
-            if (b['type'] == 'text') '${b['text']}',
-        ].join('\n').trim();
-        if (text.isNotEmpty) _add(ChatItem(ChatKind.bot, text));
-        final calls = [
-          for (final b in blocks)
-            if (b['type'] == 'tool_use')
-              ToolCall(
-                '${b['id']}',
-                '${b['name']}',
-                Map<String, dynamic>.from(b['input'] as Map? ?? const {}),
-              ),
-        ];
-        if (res['stop_reason'] != 'tool_use' || calls.isEmpty) {
-          _set(
-            items: [...state.items.where((x) => x.kind != ChatKind.progress)],
-          );
-          return;
-        }
-        final runner = await _runner();
-        final results = <String, Map<String, dynamic>>{};
-        final writes = <ToolCall>[];
-        String? undoId;
-        for (final c in calls) {
-          final tier = tierOf(c.name);
-          if (tier == null) {
-            results[c.id] = {'ok': false, 'error': '모르는 도구입니다: ${c.name}'};
-          } else if (tier == ToolTier.read) {
-            _add(ChatItem(ChatKind.progress, progressText(c.name)));
-            results[c.id] = await runner.run(c);
-          } else if (tier == ToolTier.meta) {
-            final n = c.input['count'] is num
-                ? (c.input['count'] as num).toInt().clamp(1, 5)
-                : 1;
-            final targets = [
-              for (final e
-                  in (_journal ?? await AssistantJournal.load()).undoable(n))
-                ?undoFor(e),
-            ];
-            if (targets.isEmpty) {
-              results[c.id] = {'ok': false, 'error': '되돌릴 수 있는 최근 작업이 없습니다'};
-            } else {
-              undoId = c.id;
-              writes.addAll(targets.map((t) => t.call));
-            }
-          } else {
-            writes.add(c);
+        try {
+          if (!await _handle(res)) return;
+        } catch (_) {
+          // 도구 호출은 쓰기를 실행하지 않으므로 assistant 메시지를 버리면 history가 유효하다
+          if (_messages.isNotEmpty && _messages.last['role'] == 'assistant') {
+            _messages.removeLast();
           }
-        }
-        if (writes.isNotEmpty) {
-          _pending = _Pending(
-            [for (final c in calls) c.id],
-            results,
-            writes,
-            undoId,
-          );
-          _add(
-            ChatItem(
-              ChatKind.card,
-              '실행할까요?',
-              lines: [for (final w in writes) cardLine(w)],
-              irreversible: writes.any(
-                (w) => tierOf(w.name) == ToolTier.irreversible,
-              ),
-            ),
-          );
-          _set(pending: true);
+          _rollbackFailedTurn();
+          _add(const ChatItem(ChatKind.notice, '처리하지 못했습니다. 다시 시도해 주세요.'));
           return;
         }
-        _messages.add({
-          'role': 'user',
-          'content': [for (final c in calls) _result(c.id, results[c.id]!)],
-        });
       }
       _add(const ChatItem(ChatKind.notice, '요청이 너무 복잡합니다. 나눠서 다시 말씀해 주세요.'));
     } finally {
@@ -273,6 +258,95 @@ class AssistantSession extends Notifier<AssistantState> {
         items: [...state.items.where((x) => x.kind != ChatKind.progress)],
       );
     }
+  }
+
+  /// 응답 하나 처리. true면 다음 턴으로 계속, false면 멈춤(끝 또는 확인 대기).
+  Future<bool> _handle(Map res) async {
+    final msg = Map<String, dynamic>.from(res['message'] as Map);
+    _messages.add(msg);
+    final blocks = (msg['content'] as List? ?? const [])
+        .whereType<Map>()
+        .toList();
+    final text = [
+      for (final b in blocks)
+        if (b['type'] == 'text') '${b['text']}',
+    ].join('\n').trim();
+    if (text.isNotEmpty) _add(ChatItem(ChatKind.bot, text));
+    final calls = [
+      for (final b in blocks)
+        if (b['type'] == 'tool_use')
+          ToolCall(
+            '${b['id']}',
+            '${b['name']}',
+            Map<String, dynamic>.from(b['input'] as Map? ?? const {}),
+          ),
+    ];
+    if (res['stop_reason'] != 'tool_use' || calls.isEmpty) {
+      _set(items: [...state.items.where((x) => x.kind != ChatKind.progress)]);
+      return false;
+    }
+    final runner = await _runner();
+    final results = <String, Map<String, dynamic>>{};
+    final writes = <ToolCall>[];
+    final undoIds = <String>{}, undoWriteIds = <String>{}, seen = <String>{};
+    for (final c in calls) {
+      final tier = tierOf(c.name);
+      if (tier == null) {
+        results[c.id] = {'ok': false, 'error': '모르는 도구입니다: ${c.name}'};
+      } else if (tier == ToolTier.read) {
+        _add(ChatItem(ChatKind.progress, progressText(c.name)));
+        results[c.id] = await runner.run(c);
+      } else if (tier == ToolTier.meta) {
+        final n = c.input['count'] is num
+            ? (c.input['count'] as num).toInt().clamp(1, 5)
+            : 1;
+        final all = [
+          for (final e in (_journal ?? await AssistantJournal.load()).undoable(
+            n,
+          ))
+            ?undoFor(e),
+        ];
+        final targets = [
+          for (final t in all)
+            if (seen.add(t.call.id)) t.call,
+        ];
+        if (all.isEmpty) {
+          results[c.id] = {'ok': false, 'error': '되돌릴 수 있는 최근 작업이 없습니다'};
+        } else {
+          undoIds.add(c.id);
+          undoWriteIds.addAll(targets.map((t) => t.id));
+          writes.addAll(targets);
+        }
+      } else {
+        writes.add(c);
+      }
+    }
+    if (writes.isNotEmpty) {
+      _pending = _Pending(
+        [for (final c in calls) c.id],
+        results,
+        writes,
+        undoIds,
+        undoWriteIds,
+      );
+      _add(
+        ChatItem(
+          ChatKind.card,
+          '실행할까요?',
+          lines: [for (final w in writes) cardLine(w)],
+          irreversible: writes.any(
+            (w) => tierOf(w.name) == ToolTier.irreversible,
+          ),
+        ),
+      );
+      _set(pending: true);
+      return false;
+    }
+    _messages.add({
+      'role': 'user',
+      'content': [for (final c in calls) _result(c.id, results[c.id]!)],
+    });
+    return true;
   }
 
   void _markCardDone(String text) {
@@ -286,18 +360,22 @@ class AssistantSession extends Notifier<AssistantState> {
     _Pending p,
     Map<String, Map<String, dynamic>> writeResults,
   ) {
-    final undoResult = p.undoId == null
+    final undoWrites = [
+      for (final w in p.writes)
+        if (p.undoWriteIds.contains(w.id)) w,
+    ];
+    final undoResult = p.undoIds.isEmpty
         ? null
         : {
-            'ok': writeResults.values.every((r) => r['ok'] == true),
+            'ok': undoWrites.every((w) => writeResults[w.id]?['ok'] == true),
             'undone': [
-              for (final w in p.writes)
+              for (final w in undoWrites)
                 {'action': cardLine(w), 'result': writeResults[w.id]},
             ],
           };
     return [
       for (final id in p.order)
-        if (id == p.undoId)
+        if (p.undoIds.contains(id))
           _result(id, undoResult!)
         else
           _result(
@@ -334,7 +412,7 @@ class AssistantSession extends Notifier<AssistantState> {
         final r = await runner.run(w);
         out[w.id] = r;
         if (r['ok'] != true) failed = true;
-        if (p.undoId != null && r['ok'] == true) {
+        if (p.undoWriteIds.contains(w.id) && r['ok'] == true) {
           final j = _journal ?? await AssistantJournal.load();
           for (final e in j.undoable(AssistantJournal.max)) {
             if (undoFor(e)?.call.id == w.id) await j.remove(e);
