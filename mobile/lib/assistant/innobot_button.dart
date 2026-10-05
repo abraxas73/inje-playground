@@ -54,10 +54,12 @@ class _InnobotButtonState extends ConsumerState<InnobotButton> {
             child: Tooltip(
               message: '비서 이노봇',
               child: Material(
-                color: Colors.white,
-                shape: const CircleBorder(),
+                color: Brand.botViolet,
+                shape: const CircleBorder(
+                  side: BorderSide(color: Colors.white, width: 2),
+                ),
                 elevation: 6,
-                shadowColor: Brand.navy.withValues(alpha: 0.3),
+                shadowColor: Brand.botViolet.withValues(alpha: 0.5),
                 child: InkWell(
                   customBorder: const CircleBorder(),
                   onTap: () => showAssistantSheet(context),

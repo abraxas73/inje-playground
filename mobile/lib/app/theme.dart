@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 /// 웹 CI 블루(#0441FF)는 그대로, 앱다운 대비를 위해 딥 네이비 바탕을 더했다.
 abstract final class Brand {
   static const navy = Color(0xFF0B1A3A); // 로그인 바탕·제목·강조 버튼
+  static const botViolet = Color(
+    0xFF6268FF,
+  ); // 이노봇 버튼 바탕(SECloudit BI "iT" 바탕색)
   static const blue = Color(0xFF0441FF); // 주 버튼·선택 상태·링크
   static const blueTint = Color(0xFFE8EEFF); // 선택 탭·아이콘 배경
   static const sky = Color(0xFF68CAFF); // 어두운 바탕 위 포인트

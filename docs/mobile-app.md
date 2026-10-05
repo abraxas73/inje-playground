@@ -107,7 +107,7 @@
 ### 운영 주의
 - TestFlight 빌드는 **90일 만료** — 분기마다 한 번은 빌드 번호를 올려 다시 올린다(만료되면 앱이 열리지 않는다).
 - Android는 자동 업데이트가 없다. 앱 배너의 "업데이트"가 브라우저로 APK를 받고 알림에서 설치한다. 회사 MDM이 사이드로딩을 막으면 Google Play 비공개 트랙으로 가야 한다(비범위). 유니버설 APK 한 장(≈59MB).
-- 아이콘은 이노그리드 CI 가이드(`https://www.innogrid.com/download/ci/Innogrid_CI_Guide.pdf`, 전용색 Background `#006cdb`, 그래픽 모티프 CONNECTION)로 만들었다. 원본 `assets/brand/app_icon.png`·`app_icon_fg.png`(1024, Flutter 골든 렌더 — 재생성 코드는 계획 문서 `docs/superpowers/plans/2026-10-04-mobile-release.md` Task 5 Step 4의 일회용 테스트, 저장소에는 없음). 바뀌면 `dart run flutter_launcher_icons` — 이 도구가 `ios/Runner.xcodeproj/project.pbxproj`의 `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS`를 `AppIcon`으로 잘못 바꾸므로 `git checkout -- mobile/ios/Runner.xcodeproj/project.pbxproj`로 되돌린다.
+- 아이콘은 이노봇 캐릭터(`assets/brand/innobot.png`, 이노그리드 홍보 페이지)를 바탕 `#6268FF`(SECloudit BI "iT" 바탕색, 앱 안 이노봇 버튼과 같은 `Brand.botViolet`) 위에 올린 것(2026-10-05, 이전 CI `#006cdb` 아이콘 대체). 원본 `assets/brand/app_icon.png`(1024, 불투명, 캐릭터 폭 72%)·`app_icon_fg.png`(1024, 투명, 적응형 안전 영역에 맞춰 폭 50%) — innobot.png를 bbox로 자르고 LANCZOS로 키워 PIL로 합성. 바뀌면 `dart run flutter_launcher_icons` — 이 도구가 `ios/Runner.xcodeproj/project.pbxproj`의 `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS`를 `AppIcon`으로 잘못 바꾸므로 `git checkout -- mobile/ios/Runner.xcodeproj/project.pbxproj`로 되돌린다.
 - 릴리스 APK 서명 확인은 `apksigner verify --print-certs`(Android SDK build-tools). `keytool -printcert -jarfile`은 v2/v3 서명만 있는 APK에서 아무것도 안 보여 준다.
 - `altool`은 Xcode `ContentDelivery.framework`에 있다(`xcrun altool --version`). 없으면 Transporter 앱(`/Applications/Transporter.app`)으로 IPA를 수동 업로드하고 `settings.mobile_release.ios`는 스크립트 `ios --dry-run` 출력을 참고해 손으로 갱신한다.
 

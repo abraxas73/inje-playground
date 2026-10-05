@@ -1,7 +1,7 @@
 name: playground
 description: "A new Flutter project."
 publish_to: 'none'
-version: 1.2.0+11
+version: 1.2.1+12
 
 environment:
   sdk: ^3.12.0
@@ -33,11 +33,11 @@ flutter:
   assets:
     - assets/brand/
 
-# 앱 아이콘 — 이노그리드 CI 가이드(Background Color #006cdb + 흰 CONNECTION 모티프). 원본은 assets/brand/app_icon*.png(런북 §배포에 재생성 방법). 바뀌면 `dart run flutter_launcher_icons`.
+# 앱 아이콘 — 이노봇 캐릭터 + 바탕 #6268FF(SECloudit BI "iT" 바탕색, 2026-10-05 사용자 요청). 원본은 assets/brand/app_icon*.png(innobot.png에서 생성, 런북 §배포). 바뀌면 `dart run flutter_launcher_icons`.
 flutter_launcher_icons:
   image_path: assets/brand/app_icon.png
   android: true
   ios: true
   remove_alpha_ios: true
-  adaptive_icon_background: "#006cdb"
+  adaptive_icon_background: "#6268FF"
   adaptive_icon_foreground: assets/brand/app_icon_fg.png
