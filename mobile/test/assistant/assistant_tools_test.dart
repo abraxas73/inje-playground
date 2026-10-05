@@ -21,7 +21,7 @@ ApiClient app(Map<String, Object> routes, [List<Map<String, dynamic>>? sent]) =>
     }), tokens: _Tokens(), baseUrl: 'http://x', userAgent: 't');
 
 // 서버 assistant-tools.test.ts의 NAMES와 같은 목록.
-const names = ['approval_counts', 'approval_read', 'approvals_pending', 'attendance_today', 'cancel_reservation', 'clock_in', 'clock_out', 'create_event', 'delete_event', 'find_free_rooms', 'find_person', 'list_calendars', 'list_events', 'list_rooms', 'mail_list', 'mail_read', 'mail_save_draft', 'mail_send', 'my_reservations', 'notice_read', 'notices_list', 'reserve_room', 'search', 'teams_chats', 'teams_mentions', 'teams_send', 'undo_last'];
+const names = ['approval_counts', 'approval_read', 'approvals_pending', 'attendance_today', 'cancel_reservation', 'clock_in', 'clock_out', 'create_event', 'delete_event', 'find_free_rooms', 'find_person', 'list_calendars', 'list_events', 'list_rooms', 'mail_list', 'mail_read', 'mail_save_draft', 'mail_send', 'my_reservations', 'notice_read', 'notices_list', 'offer_choices', 'reserve_room', 'search', 'teams_chats', 'teams_mentions', 'teams_send', 'undo_last'];
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -32,6 +32,7 @@ void main() {
     expect(tierOf('mail_send'), ToolTier.irreversible);
     expect(tierOf('find_person'), ToolTier.read);
     expect(tierOf('undo_last'), ToolTier.meta);
+    expect(tierOf('offer_choices'), ToolTier.choice);
     expect(tierOf('rm_rf'), isNull);
     expect(serverToolNames, {'teams_chats', 'teams_mentions', 'teams_send'});
   });

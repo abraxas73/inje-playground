@@ -10,7 +10,8 @@ import 'gw_assistant_api.dart';
 
 /// 비서 도구 — 등급(앱 고정, 서버 TOOL_TIERS와 같은 이름)·진행 문구·확인 카드 문장·결과 슬림화·실행.
 /// Claude가 무엇을 주장하든 등급은 이 표로 판정한다(프롬프트 주입으로 쓰기를 바로 실행할 수 없다).
-enum ToolTier { read, write, irreversible, meta }
+/// choice = offer_choices(선택지마다 쓰기 묶음 — 사용자가 고른 선택지의 [실행]이 곧 확인).
+enum ToolTier { read, write, irreversible, meta, choice }
 
 const assistantToolTiers = <String, ToolTier>{
   'find_person': ToolTier.read, 'list_rooms': ToolTier.read, 'find_free_rooms': ToolTier.read, 'my_reservations': ToolTier.read, 'reserve_room': ToolTier.write, 'cancel_reservation': ToolTier.write,
@@ -20,7 +21,7 @@ const assistantToolTiers = <String, ToolTier>{
   'approvals_pending': ToolTier.read, 'approval_read': ToolTier.read, 'approval_counts': ToolTier.read,
   'notices_list': ToolTier.read, 'notice_read': ToolTier.read, 'search': ToolTier.read,
   'teams_chats': ToolTier.read, 'teams_mentions': ToolTier.read, 'teams_send': ToolTier.write,
-  'undo_last': ToolTier.meta,
+  'undo_last': ToolTier.meta, 'offer_choices': ToolTier.choice,
 };
 const serverToolNames = {'teams_chats', 'teams_mentions', 'teams_send'};
 ToolTier? tierOf(String name) => assistantToolTiers[name];
@@ -158,7 +159,8 @@ class AssistantToolRunner {
 
   /// 도구 하나 실행 → Claude에 보낼 결과(슬림화 전). 쓰기 성공은 실행 기록에 남긴다. 실패는 {ok:false,error}.
   Future<Map<String, dynamic>> run(ToolCall c) async {
-    if (tierOf(c.name) == null || c.name == 'undo_last') return {'ok': false, 'error': '모르는 도구입니다: ${c.name}'};
+    final t = tierOf(c.name);
+    if (t == null || t == ToolTier.meta || t == ToolTier.choice) return {'ok': false, 'error': '모르는 도구입니다: ${c.name}'};
     if ((c.name == 'mail_send' || c.name == 'mail_save_draft') && _strList(c.input['to']).isEmpty) return {'ok': false, 'error': '받는 사람이 없습니다'};
     if (serverToolNames.contains(c.name)) {
       try {

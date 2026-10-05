@@ -158,6 +158,7 @@ Gw scenarioGw() => Gw({
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  choiceTests();
 
   test(
     '대표 시나리오 — 조회는 바로, 예약+일정은 카드 하나로 묶어 대기, 실행하면 GW 쓰기 후 결과를 보내 마무리',
@@ -790,5 +791,104 @@ void main() {
     expect(c.read(assistantAvailableProvider), isFalse);
     c.read(assistantSessionProvider.notifier).reset();
     expect(c.read(assistantAvailableProvider), isFalse);
+  });
+}
+
+Map<String, dynamic> choices(String id, List<Map<String, dynamic>> options) =>
+    use([
+      (id, 'offer_choices', {'question': '어느 회의실로 할까요?', 'options': options}),
+    ]);
+Map<String, dynamic> roomOpt(String label, String resSeq, String modelName) => {
+  'label': label,
+  'calls': [
+    {
+      'name': 'reserve_room',
+      'input': {
+        'res_seq': resSeq,
+        'room_name': modelName,
+        'start': '2026-10-05T16:00',
+        'end': '2026-10-05T17:00',
+        'title': '회의',
+      },
+    },
+  ],
+};
+
+void choiceTests() {
+  test('선택지 — 선택지마다 실제 대상으로 카드, 고른 것만 실행, 결과는 tool_use 하나에', () async {
+    final brain = Brain([
+      choices('x', [roomOpt('16시 A', 'R1', '아무 이름'), roomOpt('16시 B', 'R2', '회의실B')]),
+      say('회의실B를 예약했습니다.'),
+    ]);
+    final gw = scenarioGw();
+    final c = scope(brain, gw);
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('오늘 16시 회의실');
+    final st = c.read(assistantSessionProvider);
+    expect(st.pending, isTrue);
+    final card = st.items.last;
+    expect(card.kind, ChatKind.card);
+    expect(card.choices.map((x) => x.label), ['16시 A', '16시 B']);
+    expect(card.choices.first.lines.single, contains('회의실A'), reason: '모델이 쓴 이름이 아니라 조회한 이름');
+    expect(gw.calls['/schres/rs121A06'], isNull);
+    await s.confirm(); // 선택지 카드는 번호 없이 실행하지 않는다
+    expect(gw.calls['/schres/rs121A06'], isNull);
+    await s.confirm(choice: 1);
+    expect(gw.calls['/schres/rs121A06']!.single['resSeq'], 'R2');
+    final r = toolResults(brain.received.last);
+    expect(r.map((b) => b['tool_use_id']), ['x']);
+    expect(r.single['content'], contains('16시 B'));
+    expect(c.read(assistantSessionProvider).items.last.text, '회의실B를 예약했습니다.');
+  });
+
+  test('선택지 — 확인 안 되는 선택지·쓰기가 아닌 호출은 빼고, 남는 게 없으면 카드 없이 오류 결과', () async {
+    final brain = Brain([
+      choices('x', [
+        roomOpt('없는 방', 'R9', '유령'),
+        {
+          'label': '조회 섞음',
+          'calls': [
+            {'name': 'find_person', 'input': {'query': 'a'}},
+          ],
+        },
+        {
+          'label': '되돌리기',
+          'calls': [
+            {'name': 'undo_last', 'input': {}},
+          ],
+        },
+        roomOpt('16시 B', 'R2', 'B'),
+      ]),
+      choices('y', [roomOpt('없는 방', 'R9', '유령')]),
+      say('다시 찾아볼게요.'),
+    ]);
+    final c = scope(brain, scenarioGw());
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('회의실');
+    expect(c.read(assistantSessionProvider).items.last.choices.map((x) => x.label), ['16시 B']);
+    await s.dismiss();
+    final r = toolResults(brain.received[1]).single;
+    expect(r['content'], contains('사용자가 취소함'));
+    final r2 = toolResults(brain.received[2]).single;
+    expect(r2['tool_use_id'], 'y');
+    expect(r2['is_error'], isTrue);
+    expect(c.read(assistantSessionProvider).pending, isFalse);
+  });
+
+  test('선택지 — 다른 도구와 함께 오면 모두 오류 결과(단독으로만)', () async {
+    final brain = Brain([
+      use([
+        ('a', 'find_person', {'query': '강승억'}),
+        ('x', 'offer_choices', {'question': 'q', 'options': [roomOpt('B', 'R2', 'B')]}),
+      ]),
+      say('알겠습니다.'),
+    ]);
+    final gw = scenarioGw();
+    final c = scope(brain, gw);
+    await c.read(assistantSessionProvider.notifier).send('회의실');
+    final r = toolResults(brain.received[1]);
+    expect(r.map((b) => b['tool_use_id']), ['a', 'x']);
+    expect(r.every((b) => b['is_error'] == true), isTrue);
+    expect(c.read(assistantSessionProvider).pending, isFalse);
   });
 }

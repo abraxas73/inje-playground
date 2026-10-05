@@ -2,6 +2,8 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- 이노봇 말하기(음성 인식) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <application
         android:label="이노그리드"
         android:name="${applicationName}"
@@ -50,6 +52,13 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- 이노봇 말하기·읽어 주기: Android 11+ 패키지 가시성(음성 인식기·TTS 엔진) -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
         </intent>
     </queries>
 </manifest>

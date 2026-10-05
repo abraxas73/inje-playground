@@ -12,6 +12,14 @@ import 'assistant_tools.dart';
 /// 조회 도구는 바로 실행, 쓰기·되돌릴 수 없음은 확인 카드로 멈춘다. 모든 tool_use에는 같은 순서로 tool_result를 짝지어 보낸다.
 enum ChatKind { user, bot, progress, card, notice }
 
+/// 선택지 카드의 한 선택지(화면용) — lines는 실제 대상으로 만든 카드 문장.
+class ChoiceView {
+  const ChoiceView(this.label, this.lines, this.irreversible);
+  final String label;
+  final List<String> lines;
+  final bool irreversible;
+}
+
 class ChatItem {
   const ChatItem(
     this.kind,
@@ -19,18 +27,29 @@ class ChatItem {
     this.lines = const [],
     this.irreversible = false,
     this.done = false,
+    this.choices = const [],
   });
   final ChatKind kind;
   final String text;
   final List<String> lines;
   final bool irreversible, done;
+  final List<ChoiceView> choices; // 비어 있지 않으면 선택지 카드(선택지마다 [실행])
   ChatItem copyWith({bool? done, String? text}) => ChatItem(
     kind,
     text ?? this.text,
     lines: lines,
     irreversible: irreversible,
     done: done ?? this.done,
+    choices: choices,
   );
+}
+
+class _Choice {
+  _Choice(this.label, this.writes, this.lines, this.irreversible);
+  final String label;
+  final List<ToolCall> writes;
+  final List<String> lines;
+  final bool irreversible;
 }
 
 class _Pending {
@@ -39,8 +58,12 @@ class _Pending {
     this.results,
     this.writes,
     this.undoIds,
-    this.undoWriteIds,
-  );
+    this.undoWriteIds, {
+    this.choiceId,
+    this.choices = const [],
+  });
+  final String? choiceId; // offer_choices의 tool_use id(선택지 카드일 때)
+  final List<_Choice> choices;
   final List<String> order; // 응답의 tool_use id 순서
   final Map<String, Map<String, dynamic>> results; // 이미 정해진 결과(조회 등)
   final List<ToolCall> writes; // 확인 대상(되돌리기면 반대 작업)
@@ -305,6 +328,20 @@ class AssistantSession extends Notifier<AssistantState> {
       return false;
     }
     final runner = await _runner();
+    if (calls.any((c) => tierOf(c.name) == ToolTier.choice)) {
+      if (calls.length == 1) return _offerChoices(calls.single, runner);
+      _messages.add({
+        'role': 'user',
+        'content': [
+          for (final c in calls)
+            _result(c.id, {
+              'ok': false,
+              'error': 'offer_choices는 다른 도구 없이 단독으로 불러야 합니다. 아무것도 실행하지 않았습니다',
+            }),
+        ],
+      });
+      return true;
+    }
     final results = <String, Map<String, dynamic>>{};
     final writes = <ToolCall>[];
     final undoIds = <String>{}, undoWriteIds = <String>{}, seen = <String>{};
@@ -394,6 +431,104 @@ class AssistantSession extends Notifier<AssistantState> {
     return true;
   }
 
+  /// 선택지 — 선택지마다 쓰기 호출을 실제 대상으로 확인해 카드로 보인다. 쓰기가 아닌 호출·확인 안 되는 대상이 든 선택지는 뺀다.
+  /// 남는 게 없으면 카드 없이 오류 결과로 이어간다(true = 다음 턴). 실행은 사용자가 고른 선택지의 [실행](confirm(choice:))뿐.
+  Future<bool> _offerChoices(ToolCall c, AssistantToolRunner runner) async {
+    final raw = c.input['options'];
+    final opts = raw is List
+        ? raw.whereType<Map>().take(4).toList()
+        : const <Map>[];
+    _add(const ChatItem(ChatKind.progress, '선택지 확인하는 중…'));
+    final good = <_Choice>[];
+    final notes = <String>[];
+    for (final (k, o) in opts.indexed) {
+      final label = '${o['label'] ?? ''}'.trim();
+      final cs = o['calls'];
+      final ws = <ToolCall>[];
+      var bad = label.isEmpty || cs is! List || cs.isEmpty || cs.length > 5;
+      if (!bad) {
+        for (final (j, x) in cs.indexed) {
+          final t = x is Map ? tierOf('${x['name']}') : null;
+          if (x is! Map ||
+              x['input'] is! Map ||
+              (t != ToolTier.write && t != ToolTier.irreversible)) {
+            bad = true;
+            break;
+          }
+          ws.add(
+            ToolCall(
+              '${c.id}#$k.$j',
+              '${x['name']}',
+              Map<String, dynamic>.from(x['input'] as Map),
+            ),
+          );
+        }
+      }
+      if (bad) {
+        notes.add(
+          '${label.isEmpty ? '(이름 없음)' : label}: 선택지에는 쓰기 도구 호출만 넣을 수 있습니다',
+        );
+        continue;
+      }
+      final lines = <String>[];
+      String? err;
+      for (final w in ws) {
+        final r = await runner.resolve(w);
+        if (r.error != null) {
+          err = r.error;
+          break;
+        }
+        lines.add(cardLine(w, r.facts));
+      }
+      if (err != null) {
+        notes.add('$label: $err');
+        continue;
+      }
+      good.add(
+        _Choice(
+          label,
+          ws,
+          lines,
+          ws.any((w) => tierOf(w.name) == ToolTier.irreversible),
+        ),
+      );
+    }
+    if (good.isEmpty) {
+      _messages.add({
+        'role': 'user',
+        'content': [
+          _result(c.id, {
+            'ok': false,
+            'error': '제시한 선택지를 하나도 확인하지 못했습니다',
+            'details': notes,
+          }),
+        ],
+      });
+      return true;
+    }
+    _pending = _Pending(
+      [c.id],
+      {},
+      const [],
+      {},
+      {},
+      choiceId: c.id,
+      choices: good,
+    );
+    final q = '${c.input['question'] ?? ''}'.trim();
+    _add(
+      ChatItem(
+        ChatKind.card,
+        q.isEmpty ? '어느 것으로 실행할까요?' : q,
+        choices: [
+          for (final g in good) ChoiceView(g.label, g.lines, g.irreversible),
+        ],
+      ),
+    );
+    _set(pending: true);
+    return false;
+  }
+
   void _markCardDone(String text) {
     final items = [...state.items];
     final i = items.lastIndexWhere((x) => x.kind == ChatKind.card);
@@ -433,17 +568,25 @@ class AssistantSession extends Notifier<AssistantState> {
   }
 
   /// 확인 카드 실행 — 순서대로, 앞 작업이 실패하면 뒤 작업은 건너뛴다.
-  Future<void> confirm() async {
+  /// 선택지 카드면 choice(0부터)가 있어야 하고 그 선택지의 쓰기만 실행한다.
+  Future<void> confirm({int? choice}) async {
     final p = _pending;
     if (p == null || state.busy) return;
+    final picked = p.choices.isEmpty
+        ? null
+        : (choice != null && choice >= 0 && choice < p.choices.length
+              ? p.choices[choice]
+              : null);
+    if (p.choices.isNotEmpty && picked == null) return;
+    final writes = picked?.writes ?? p.writes;
     _pending = null;
-    _markCardDone('실행 중…');
+    _markCardDone(picked == null ? '실행 중…' : '실행 중… — ${picked.label}');
     _set(busy: true);
     final out = <String, Map<String, dynamic>>{};
     var failed = false;
     try {
       final runner = await _runner();
-      for (final w in p.writes) {
+      for (final w in writes) {
         if (failed) {
           out[w.id] = {'ok': false, 'error': '앞 작업이 실패해 실행하지 않았습니다'};
           continue;
@@ -459,7 +602,7 @@ class AssistantSession extends Notifier<AssistantState> {
         if (r['ok'] != true) failed = true;
       }
     } catch (_) {
-      for (final w in p.writes) {
+      for (final w in writes) {
         out.putIfAbsent(w.id, () => {'ok': false, 'error': '실행되지 않았습니다'});
       }
     } finally {
@@ -468,15 +611,35 @@ class AssistantSession extends Notifier<AssistantState> {
         items: [...state.items.where((x) => x.kind != ChatKind.progress)],
       );
     }
-    final okCount = p.writes.where((w) => out[w.id]?['ok'] == true).length;
-    _markCardDone(
-      okCount == p.writes.length
-          ? '실행했습니다'
-          : out[p.writes.first.id]?['ok'] == true
-          ? '일부만 실행했습니다'
-          : '실행하지 못했습니다',
-    );
-    _messages.add({'role': 'user', 'content': _resultsFor(p, out)});
+    final okCount = writes.where((w) => out[w.id]?['ok'] == true).length;
+    final status = okCount == writes.length
+        ? '실행했습니다'
+        : out[writes.first.id]?['ok'] == true
+        ? '일부만 실행했습니다'
+        : '실행하지 못했습니다';
+    _markCardDone(picked == null ? status : '$status — ${picked.label}');
+    _messages.add({
+      'role': 'user',
+      'content': _resultsFor(
+        p,
+        picked == null
+            ? out
+            : {
+                p.choiceId!: {
+                  'ok': okCount == writes.length,
+                  'chosen': picked.label,
+                  'results': [
+                    for (final (j, w) in writes.indexed)
+                      {
+                        'action': picked.lines[j],
+                        'result':
+                            out[w.id] ?? {'ok': false, 'error': '실행되지 않았습니다'},
+                      },
+                  ],
+                },
+              },
+      ),
+    });
     await _drive();
   }
 
@@ -490,6 +653,7 @@ class AssistantSession extends Notifier<AssistantState> {
       'role': 'user',
       'content': _resultsFor(p, {
         for (final w in p.writes) w.id: {'ok': false, 'error': '사용자가 취소함'},
+        if (p.choiceId != null) p.choiceId!: {'ok': false, 'error': '사용자가 취소함'},
       }),
     });
     if (!silent) await _drive();
@@ -504,6 +668,8 @@ class AssistantSession extends Notifier<AssistantState> {
     _fixResults = _resultsFor(p, {
       for (final w in p.writes)
         w.id: {'ok': false, 'error': '사용자가 실행하지 않고 고칠 내용을 말함'},
+      if (p.choiceId != null)
+        p.choiceId!: {'ok': false, 'error': '사용자가 고르지 않고 고칠 내용을 말함'},
     });
     _set(awaitingFix: true);
   }

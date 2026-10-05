@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/theme.dart';
 import 'assistant_session.dart';
+import 'assistant_voice.dart';
 
 Future<void> showAssistantSheet(BuildContext context) =>
     showModalBottomSheet<void>(
@@ -28,12 +29,66 @@ class AssistantSheet extends ConsumerStatefulWidget {
 class _AssistantSheetState extends ConsumerState<AssistantSheet> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
+  late final VoiceInput _voice = ref.read(voiceInputProvider);
+  late final Speaker _speaker = ref.read(speakerProvider);
+  bool _listening = false;
+  int? _speaking; // 읽는 중인 말풍선(items 인덱스)
+  String? _voiceNote;
+
+  @override
+  void initState() {
+    super.initState();
+    _voice;
+    _speaker;
+  }
 
   @override
   void dispose() {
+    if (_listening) _voice.stop();
+    if (_speaking != null) _speaker.stop();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// 말하기 — 듣는 동안 입력칸에 문장을 채우고, 인식이 끝나면 그대로 보낸다(보낸 문장은 말풍선으로 남아 "고쳐 줘"로 바로잡을 수 있다).
+  Future<void> _toggleListen() async {
+    if (_listening) {
+      setState(() => _listening = false);
+      await _voice.stop();
+      return;
+    }
+    setState(() {
+      _listening = true;
+      _voiceNote = null;
+    });
+    final ok = await _voice.start((text, done) {
+      if (!mounted || !_listening) return;
+      _input.text = text;
+      if (done) {
+        setState(() => _listening = false);
+        _send();
+      }
+    });
+    if (!ok && mounted) {
+      setState(() {
+        _listening = false;
+        _voiceNote = '마이크·음성 인식 권한이 필요합니다. 휴대폰 설정에서 허용해 주세요.';
+      });
+    }
+  }
+
+  /// 읽어 주기 — 누를 때만 읽는다(자동 읽기 없음). 같은 말풍선을 다시 누르면 멈춘다.
+  Future<void> _toggleSpeak(int i, String text) async {
+    if (_speaking == i) {
+      setState(() => _speaking = null);
+      await _speaker.stop();
+      return;
+    }
+    if (_speaking != null) await _speaker.stop();
+    setState(() => _speaking = i);
+    await _speaker.speak(text);
+    if (mounted && _speaking == i) setState(() => _speaking = null);
   }
 
   Future<void> _send([String? text]) async {
@@ -92,7 +147,7 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
               controller: _scroll,
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
               children: [
-                for (final it in st.items)
+                for (final (i, it) in st.items.indexed)
                   _Bubble(
                     it,
                     pending:
@@ -100,7 +155,9 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                         !st.busy &&
                         it.kind == ChatKind.card &&
                         !it.done,
-                    onRun: s.confirm,
+                    speaking: _speaking == i,
+                    onSpeak: () => _toggleSpeak(i, it.text),
+                    onRun: (choice) => s.confirm(choice: choice),
                     onFix: s.fix,
                     onDismiss: s.dismiss,
                   ),
@@ -122,6 +179,14 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
               ],
             ),
           ),
+          if (_voiceNote != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: Text(
+                _voiceNote!,
+                style: const TextStyle(fontSize: 13, color: Brand.dangerText),
+              ),
+            ),
           SafeArea(
             top: false,
             child: Padding(
@@ -142,7 +207,11 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _send(),
                       decoration: InputDecoration(
-                        hintText: st.awaitingFix ? '어떻게 고칠까요?' : '이노봇에게 부탁하기',
+                        hintText: _listening
+                            ? '듣고 있어요…'
+                            : st.awaitingFix
+                            ? '어떻게 고칠까요?'
+                            : '이노봇에게 부탁하기',
                         isDense: true,
                         filled: true,
                         fillColor: Colors.white,
@@ -152,6 +221,14 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                         ),
                       ),
                     ),
+                  ),
+                  IconButton(
+                    tooltip: _listening ? '듣기 멈추기' : '말하기',
+                    icon: Icon(
+                      _listening ? Icons.stop_circle : Icons.mic,
+                      color: _listening ? Brand.danger : Brand.blue,
+                    ),
+                    onPressed: st.busy ? null : _toggleListen,
                   ),
                   IconButton(
                     tooltip: '보내기',
@@ -172,13 +249,16 @@ class _Bubble extends StatelessWidget {
   const _Bubble(
     this.it, {
     required this.pending,
+    required this.speaking,
+    required this.onSpeak,
     required this.onRun,
     required this.onFix,
     required this.onDismiss,
   });
   final ChatItem it;
-  final bool pending;
-  final VoidCallback onRun, onFix, onDismiss;
+  final bool pending, speaking;
+  final VoidCallback onSpeak, onFix, onDismiss;
+  final void Function(int? choice) onRun;
   @override
   Widget build(BuildContext context) {
     switch (it.kind) {
@@ -190,7 +270,24 @@ class _Bubble extends StatelessWidget {
       case ChatKind.bot:
         return Align(
           alignment: Alignment.centerLeft,
-          child: _box(it.text, Colors.white, Brand.navy),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Flexible(child: _box(it.text, Colors.white, Brand.navy)),
+              IconButton(
+                tooltip: speaking ? '그만 읽기' : '읽어 주기',
+                icon: Icon(
+                  speaking
+                      ? Icons.stop_circle_outlined
+                      : Icons.volume_up_outlined,
+                  size: 20,
+                  color: Brand.muted,
+                ),
+                onPressed: onSpeak,
+              ),
+            ],
+          ),
         );
       case ChatKind.progress:
         return Padding(
@@ -217,6 +314,90 @@ class _Bubble extends StatelessWidget {
             it.text,
             style: const TextStyle(fontSize: 13, color: Brand.dangerText),
           ),
+        );
+      case ChatKind.card when it.choices.isNotEmpty:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 2),
+              child: Text(
+                it.text,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Brand.navy,
+                ),
+              ),
+            ),
+            for (final (i, c) in it.choices.indexed)
+              Card(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                shape: c.irreversible
+                    ? RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: const BorderSide(color: Brand.danger, width: 1.5),
+                      )
+                    : null,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              c.label,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Brand.navy,
+                              ),
+                            ),
+                            for (final l in c.lines)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  '• $l',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            if (c.irreversible)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 4),
+                                child: Text(
+                                  '보내면 되돌릴 수 없습니다',
+                                  style: TextStyle(
+                                    color: Brand.dangerText,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (pending) ...[
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed: () => onRun(i),
+                          child: const Text('실행'),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            if (pending)
+              Wrap(
+                spacing: 8,
+                children: [
+                  OutlinedButton(onPressed: onFix, child: const Text('고쳐 줘')),
+                  TextButton(onPressed: onDismiss, child: const Text('그만두기')),
+                ],
+              ),
+          ],
         );
       case ChatKind.card:
         return Card(
@@ -263,7 +444,10 @@ class _Bubble extends StatelessWidget {
                   Wrap(
                     spacing: 8,
                     children: [
-                      FilledButton(onPressed: onRun, child: const Text('실행')),
+                      FilledButton(
+                        onPressed: () => onRun(null),
+                        child: const Text('실행'),
+                      ),
                       OutlinedButton(
                         onPressed: onFix,
                         child: const Text('고쳐 줘'),
