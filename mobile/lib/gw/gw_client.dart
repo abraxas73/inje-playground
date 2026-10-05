@@ -68,6 +68,10 @@ class GwClient {
       // 원인 종류만 싣는다(토큰이 섞일 수 있는 원문은 넣지 않음)
       throw GwException(0, -1, '그룹웨어에 연결할 수 없습니다 (${e.runtimeType})');
     }
+    return _decode(res);
+  }
+
+  dynamic _decode(http.Response res) {
     Map<String, dynamic> v = const {};
     try {
       final j = jsonDecode(utf8.decode(res.bodyBytes));
@@ -82,6 +86,19 @@ class GwClient {
     if (res.statusCode < 200 || res.statusCode >= 300) throw GwException(res.statusCode, code, msg.isEmpty ? '요청에 실패했습니다 (HTTP ${res.statusCode})' : msg);
     if (code != 0 && code != 200) throw GwException(res.statusCode, code, msg.isEmpty ? '요청에 실패했습니다 (resultCode $code)' : msg);
     return v['resultData'];
+  }
+
+  /// multipart/form-data POST(메일 발송 mail014A04·임시저장 A14). 서명 헤더는 같고, Content-Type(경계 포함)은 http가 채운다.
+  Future<dynamic> callMultipart(String path, Map<String, String> fields) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl$path'))..fields.addAll(fields);
+    req.headers.addAll(_signed(path, 'multipart/form-data')..remove('Content-Type'));
+    http.Response res;
+    try {
+      res = await http.Response.fromStream(await httpClient.send(req)).timeout(const Duration(seconds: 30));
+    } catch (e) {
+      throw GwException(0, -1, '그룹웨어에 연결할 수 없습니다 (${e.runtimeType})');
+    }
+    return _decode(res);
   }
 
   /// JSON POST → resultData.
