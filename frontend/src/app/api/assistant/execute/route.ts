@@ -8,6 +8,7 @@ import { CHAT_MESSAGE_MAX, listMyChats, sendChatMessage } from "@/lib/teams/chat
 import { parseChatId } from "@/lib/teams/chat-route";
 import { collectMentions } from "@/lib/teams/mentions-collect";
 import { SERVER_TOOLS } from "@/lib/assistant/tools";
+import { loadAssistantSettings } from "@/lib/assistant/settings";
 
 export const runtime = "nodejs";
 const NOT_CONNECTED = "Microsoft 계정이 연결되지 않았거나 Teams 채팅 권한이 없습니다. 웹 설정에서 다시 연결하세요.";
@@ -19,6 +20,9 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as { tool?: unknown; args?: unknown };
   const tool = typeof body.tool === "string" ? body.tool : "";
   if (!(SERVER_TOOLS as readonly string[]).includes(tool)) return NextResponse.json({ error: "지원하지 않는 도구입니다." }, { status: 400 });
+  const cfg = await loadAssistantSettings(r.admin);
+  if (!cfg.ok) return NextResponse.json({ error: "assistant unavailable" }, { status: 503 });
+  if (!cfg.enabled) return NextResponse.json({ enabled: false });
   const args = (body.args && typeof body.args === "object" ? body.args : {}) as Record<string, unknown>;
   const fail = (error: string) => NextResponse.json({ ok: false, error });
   try {

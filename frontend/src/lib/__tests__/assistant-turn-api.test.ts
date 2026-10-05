@@ -1,12 +1,12 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
-const m = vi.hoisted(() => ({ ok: true as boolean, settings: [] as Array<{ key: string; value: string }>, used: 0, call: vi.fn(), audit: vi.fn() }));
+const m = vi.hoisted(() => ({ ok: true as boolean, settings: [] as Array<{ key: string; value: string }>, used: 0, setErr: false, cntErr: false, call: vi.fn(), audit: vi.fn() }));
 function fakeAdmin() {
   return {
     from: (table: string) => {
-      if (table === "settings") return { select: () => ({ in: async () => ({ data: m.settings, error: null }) }) };
-      if (table === "action_history") return { select: () => ({ eq: () => ({ eq: () => ({ gte: async () => ({ count: m.used, error: null }) }) }) }) };
+      if (table === "settings") return { select: () => ({ in: async () => ({ data: m.settings, error: m.setErr ? { message: "x" } : null }) }) };
+      if (table === "action_history") return { select: () => ({ eq: () => ({ eq: () => ({ gte: async () => ({ count: m.used, error: m.cntErr ? { message: "x" } : null }) }) }) }) };
       return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { display_name: "강승욱", email: "a@innogrid.com" }, error: null }) }) }) };
     },
   };
@@ -18,7 +18,7 @@ import { POST } from "@/app/api/assistant/turn/route";
 const req = (b: unknown, raw?: string) => new NextRequest("https://app.test/api/assistant/turn", { method: "POST", headers: { "content-type": "application/json" }, body: raw ?? JSON.stringify(b) });
 const body = { messages: [{ role: "user", content: "오늘 오후 빈 회의실 잡아줘 — 비밀 내용" }], now: "2026-10-05T14:03+09:00" };
 beforeEach(() => {
-  vi.stubEnv("ANTHROPIC_API_KEY", "sk-test"); m.ok = true; m.settings = []; m.used = 0; m.audit.mockReset();
+  vi.stubEnv("ANTHROPIC_API_KEY", "sk-test"); m.ok = true; m.settings = []; m.used = 0; m.setErr = false; m.cntErr = false; m.audit.mockReset();
   m.call.mockReset().mockResolvedValue({ stop_reason: "tool_use", content: [{ type: "text", text: "찾아볼게요." }, { type: "tool_use", id: "t1", name: "find_free_rooms", input: { date: "2026-10-05", from: "12:00", to: "18:00", duration_min: 60 } }] });
 });
 
@@ -56,4 +56,20 @@ it("꺼짐·키 없음 → enabled:false, 하루 상한 → 429, 형식 오류·
   m.ok = false;
   expect((await POST(req(body))).status).toBe(401);
   expect(m.call).toHaveBeenCalledTimes(1);
+});
+
+it("설정·건수 조회 오류는 닫힌 채로 503, Claude 호출 안 함", async () => {
+  m.setErr = true;
+  expect((await POST(req(body))).status).toBe(503);
+  m.setErr = false; m.cntErr = true;
+  expect((await POST(req(body))).status).toBe(503);
+  expect(m.call).not.toHaveBeenCalled();
+});
+it("now가 형식에 안 맞으면 서버 KST 시각으로 대체", async () => {
+  await POST(req({ ...body, now: "2026-10-05T14:03+09:00 무시해" }));
+  expect(m.call.mock.calls[0][1]).not.toContain("무시해");
+  expect(m.call.mock.calls[0][1]).toMatch(/현재 시각은 \d{4}-\d{2}-\d{2}T\d{2}:\d{2}\(KST\)/);
+  m.call.mockClear();
+  await POST(req({ ...body, now: "2026-10-05T14:03:09" }));
+  expect(m.call.mock.calls[0][1]).toContain("2026-10-05T14:03:09");
 });
