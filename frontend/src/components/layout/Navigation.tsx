@@ -51,7 +51,7 @@ export default function Navigation({ chromeless = false }: { chromeless?: boolea
   };
 
   // 공유 링크 화면은 사외 열람용이라 사내 메뉴를 보여 주지 않는다(눌러도 로그인으로 튕긴다)
-  if (chromeless || pathname === "/login" || pathname === "/privacy" || pathname.startsWith("/rfp/shared/")) return null;
+  if (chromeless || pathname === "/login" || pathname === "/privacy" || pathname === "/account-deletion" || pathname.startsWith("/rfp/shared/")) return null;
 
   const groups = PAGE_GROUPS.map((group) => ({ ...group, pages: PAGES.filter((page) => page.group === group.id && !("hidden" in page && page.hidden) && canAccessPage(page.href)) })).filter((group) => group.pages.length > 0);
   function groupMenu(group: typeof groups[number], mobile = false) {

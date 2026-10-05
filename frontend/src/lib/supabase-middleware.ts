@@ -10,7 +10,7 @@ import type { UserRole } from "./roles";
  * 로그인 리다이렉트와 역할 검사를 모두 건너뛴다 — 실제 열람 권한은 라우트가 토큰으로 판단하고,
  * private 링크는 그 라우트에서 401(login_required)로 막는다.
  */
-const PUBLIC_PREFIXES = ["/login", "/auth", "/api", "/privacy", "/survey", "/rfp/shared", "/ppt/s"];
+const PUBLIC_PREFIXES = ["/login", "/auth", "/api", "/privacy", "/account-deletion", "/survey", "/rfp/shared", "/ppt/s"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));

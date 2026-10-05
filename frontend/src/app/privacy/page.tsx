@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     "이노그리드 워크샵 서비스의 개인정보 수집 및 이용에 관한 안내",
 };
 
-const EFFECTIVE_DATE = "2026-04-27";
+const EFFECTIVE_DATE = "2026-10-05";
 
 interface Section {
   id: string;
@@ -23,8 +23,9 @@ const sections: Section[] = [
     content: (
       <>
         <p>
-          이노그리드 워크샵 서비스(이하 &quot;서비스&quot;)는 이노그리드
-          구성원의 팀 활동과 일상 업무를 돕기 위한 사내 유틸리티 도구입니다.
+          이노그리드 워크샵 서비스와 모바일 앱 &quot;이노그리드&quot;(Android·iOS, 이하
+          함께 &quot;서비스&quot;)는 이노그리드 구성원의 팀 활동과 일상 업무를 돕기
+          위한 사내 유틸리티 도구입니다.
           수집한 개인정보는 다음의 목적을 위해서만 처리되며, 목적 외의 용도로는
           이용되지 않습니다.
         </p>
@@ -33,6 +34,11 @@ const sections: Section[] = [
           <li>사다리 게임, 커피 타임, 가이드 Q&amp;A 등 기능 제공</li>
           <li>이용 이력 기록 및 서비스 품질 개선</li>
           <li>관리자 기능을 위한 권한 관리</li>
+          <li>
+            모바일 앱: 그룹웨어(아마란스) 일정·메일·결재·게시판·출퇴근 조회와
+            기록, 홈 브리핑, AI 비서 &quot;이노봇&quot;(회의실 예약·일정 등록 등 사용자가
+            요청하고 확인한 작업 수행)
+          </li>
         </ul>
       </>
     ),
@@ -43,12 +49,12 @@ const sections: Section[] = [
     content: (
       <>
         <p>서비스는 다음과 같은 정보를 수집합니다.</p>
-        <h3>가. Google 계정 인증을 통해 자동 수집되는 항목</h3>
+        <h3>가. Microsoft(사내 조직 계정) 또는 Google 계정 인증을 통해 자동 수집되는 항목</h3>
         <ul>
           <li>이메일 주소</li>
           <li>이름(표시 이름)</li>
           <li>프로필 이미지 URL</li>
-          <li>Google 계정 고유 식별자(sub)</li>
+          <li>계정 고유 식별자</li>
         </ul>
         <h3>나. 서비스 이용 과정에서 생성·저장되는 항목</h3>
         <ul>
@@ -63,6 +69,32 @@ const sections: Section[] = [
         <ul>
           <li>Dooray API 토큰 및 프로젝트 ID(브라우저 localStorage에 저장)</li>
           <li>맛집/카페 검색 키워드 및 위치 정보</li>
+        </ul>
+        <h3>라. 모바일 앱에서 처리되는 항목</h3>
+        <ul>
+          <li>
+            <strong>위치</strong>: &quot;뭐 먹지&quot;에서 주변 식당·카페를 찾을 때만, 앱을
+            사용하는 동안 사용합니다. 검색에만 쓰고 서버에 저장하지 않습니다.
+          </li>
+          <li>
+            <strong>마이크·음성</strong>: 이노봇에게 말로 요청할 때(🎤를 누른 동안)만
+            사용합니다. 음성은 휴대폰 운영체제의 음성 인식 기능이 글자로 바꾸며,
+            운영체제 제공자(Apple·Google)의 서버에서 처리될 수 있습니다. 앱은 녹음을
+            저장하거나 우리 서버로 보내지 않습니다. 답변 읽어 주기(🔊)는 기기 안에서
+            처리됩니다.
+          </li>
+          <li>
+            <strong>그룹웨어(아마란스) 연결 정보</strong>: 사용자가 연결한 경우 로그인
+            정보는 기기의 보안 저장소(Keychain·Keystore)에만 저장되며 서버로 보내지
+            않습니다. 일정·메일·결재·게시판 등은 기기에서 그룹웨어로 직접 조회합니다.
+          </li>
+          <li>
+            <strong>비서·브리핑 처리 내용</strong>: 이노봇에게 한 요청과 그 처리에 필요한
+            조회 결과(예: 빈 회의실, 사용자가 읽어 달라고 한 메일), 홈 브리핑용 제목 수준
+            요약은 응답 생성을 위해 서버를 거쳐 AI 모델(Anthropic Claude)로 일시 전송되며,
+            서버는 대화 내용을 저장하지 않습니다(감사 기록에는 사용한 기능 이름·건수만
+            남습니다). 되돌리기용 최근 실행 기록(최대 20건)은 기기에만 저장됩니다.
+          </li>
         </ul>
       </>
     ),
@@ -110,7 +142,20 @@ const sections: Section[] = [
             데이터베이스 저장
           </li>
           <li>
-            <strong>Google OAuth</strong> — 사내 구성원 인증
+            <strong>Microsoft(Azure AD·Microsoft Graph) / Google OAuth</strong> — 사내
+            구성원 인증, 사용자가 연결한 경우 Teams 메시지·SharePoint 파일 처리
+          </li>
+          <li>
+            <strong>Anthropic(Claude)</strong> — 모바일 앱 비서·홈 브리핑, PPT 만들기 등
+            AI 응답 생성(요청 처리에 필요한 범위, 서비스가 대화 내용을 저장하지 않음)
+          </li>
+          <li>
+            <strong>더존 아마란스(그룹웨어)</strong> — 모바일 앱에서 사용자가 연결한
+            경우, 기기에서 직접 조회·기록
+          </li>
+          <li>
+            <strong>Apple·Google</strong> — 모바일 앱 배포(TestFlight·Google Play),
+            기기 음성 인식
           </li>
           <li>
             <strong>Google NotebookLM</strong> — 가이드 Q&amp;A 응답 생성(관리자가
@@ -145,7 +190,12 @@ const sections: Section[] = [
         </ul>
         <p>
           위 권리 행사는 서비스 내 프로필 페이지에서 직접 처리하거나, 아래 문의
-          창구를 통해 요청할 수 있습니다.
+          창구를 통해 요청할 수 있습니다. 계정 및 데이터 삭제 절차와 삭제·보관되는
+          항목은{" "}
+          <Link href="/account-deletion" className="underline">
+            계정 삭제 요청 안내
+          </Link>
+          에 있습니다.
         </p>
       </>
     ),
@@ -208,7 +258,8 @@ const sections: Section[] = [
             <strong>운영 주체</strong>: 이노그리드
           </li>
           <li>
-            <strong>문의</strong>: 사내 가이드 채널 또는 워크샵 운영 담당자
+            <strong>문의</strong>: 서비스 운영 담당자(seunguk.kang@innogrid.com) 또는 사내
+            가이드 채널
           </li>
         </ul>
       </>
