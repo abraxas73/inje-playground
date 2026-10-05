@@ -62,6 +62,7 @@
 - [ ] **B2-2.** 첫 버전 때 앱 서명은 **"Java 키 저장소에서 내보내기 및 업로드"**(지금 키 그대로 — SharePoint APK와 서로 업데이트 가능)
 - [ ] **B2-3.** `mobile/scripts/release-mobile.sh aab` → 내부 테스트에 AAB 올리기 → 출시
 - [ ] **B2-4.** 앱 콘텐츠 필수 선언(개인정보처리방침·앱 액세스·광고·등급·타겟층·데이터 보안)
+- [ ] **B2-6.** 자동 업로드: 서비스 계정 키 → `mobile/.env.release` `PLAY_SERVICE_ACCOUNT_JSON` (`docs/play-console-guide.md` §6-A). 이후 `release-mobile.sh all`이 `/apps`·SharePoint·Play·TestFlight 모두
 - [ ] **B2-5.** 테스터 이메일 목록(Play 스토어 Google 계정, 최대 100) → 참여 링크를 Teams로 공지
 
 ## C. 매 릴리스 (5~15분)

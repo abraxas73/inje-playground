@@ -3,7 +3,9 @@
 #   mobile/scripts/release-mobile.sh (android|ios|all) [--notes "…"] [--testflight-url URL] [--dry-run] [--allow-dirty]
 #   mobile/scripts/release-mobile.sh link --testflight-url URL      # 빌드 없이 TestFlight 공개 링크만 저장(심사 승인 뒤 링크가 생기므로 따로 둔다)
 #   mobile/scripts/release-mobile.sh sharepoint-folder <폴더 링크>   # APK 사본을 올릴 SharePoint 폴더 링크 저장(한 번)
-#   mobile/scripts/release-mobile.sh aab                             # Google Play 내부 테스트용 AAB만 빌드(업로드·설정 변경 없음 — Play Console에 손으로 올린다, docs/play-console-guide.md)
+#   mobile/scripts/release-mobile.sh aab                             # Google Play용 AAB만 빌드(업로드·설정 변경 없음)
+#   mobile/scripts/release-mobile.sh play                            # AAB 빌드 + Google Play 내부 테스트 트랙 업로드(android/all 뒤 자동, 실패 시 재시도용)
+#   Play 업로드는 mobile/.env.release의 PLAY_SERVICE_ACCOUNT_JSON(서비스 계정 키 경로, git 밖)이 있을 때만 — docs/play-console-guide.md §자동 업로드
 #   mobile/scripts/release-mobile.sh sharepoint                      # 현재 Android 릴리스 APK 사본을 SharePoint에 innogrid-app-<X.Y.Z>.apk로 올림(android/all 뒤 자동, 실패 시 재시도용)
 # 1) 작업 트리 확인 2) flutter test·analyze 3) pubspec version → APP_VERSION/APP_BUILD
 # 4) android: APK 빌드 → Supabase 스토리지 mobile/android/innogrid-<v>+<b>.apk 업로드 → settings.mobile_release.android 갱신
@@ -33,8 +35,8 @@ case "$TARGET" in
   ios) DO_IOS=1;;
   all) DO_ANDROID=1; DO_IOS=1;;
   link) [ -n "$TF_URL" ] || { echo "link에는 --testflight-url URL 이 필요합니다." >&2; exit 2; };;
-  sharepoint|sharepoint-folder|aab) ;;
-  *) echo "사용법: $0 (android|ios|all) [--notes \"…\"] [--testflight-url URL] [--dry-run] [--allow-dirty] | $0 link --testflight-url URL | $0 sharepoint-folder <링크> | $0 sharepoint | $0 aab" >&2; exit 2;;
+  sharepoint|sharepoint-folder|aab|play) ;;
+  *) echo "사용법: $0 (android|ios|all) [--notes \"…\"] [--testflight-url URL] [--dry-run] [--allow-dirty] | $0 link --testflight-url URL | $0 sharepoint-folder <링크> | $0 sharepoint | $0 aab | $0 play" >&2; exit 2;;
 esac
 say() { printf '\n▶ %s\n' "$*"; }
 
@@ -48,9 +50,11 @@ fi
 envval() { { grep -E "^$2=" "$1" 2>/dev/null || true; } | tail -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//'; }
 SUPABASE_URL=$(envval "$ROOT/frontend/.env.local" NEXT_PUBLIC_SUPABASE_URL)
 SERVICE_KEY=$(envval "$ROOT/frontend/.env.local" SUPABASE_SERVICE_ROLE_KEY)
-if [ "$TARGET" != aab ]; then [ -n "$SUPABASE_URL" ] && [ -n "$SERVICE_KEY" ] || { echo "frontend/.env.local에 NEXT_PUBLIC_SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY가 필요합니다." >&2; exit 1; }; fi
+if [ "$TARGET" != aab ] && [ "$TARGET" != play ]; then [ -n "$SUPABASE_URL" ] && [ -n "$SERVICE_KEY" ] || { echo "frontend/.env.local에 NEXT_PUBLIC_SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY가 필요합니다." >&2; exit 1; }; fi
 CRON_SECRET=$(envval "$ROOT/frontend/.env.local" CRON_SECRET)
 OPERATOR_EMAIL=$(envval "$MOBILE/.env.release" OPERATOR_EMAIL)
+PLAY_SA=$(envval "$MOBILE/.env.release" PLAY_SERVICE_ACCOUNT_JSON); PLAY_SA=${PLAY_SA/#\~/$HOME}
+PLAY_PACKAGE=com.innogrid.playground
 if [ "$TARGET" = sharepoint ]; then
   [ -n "$CRON_SECRET" ] && [ -n "$OPERATOR_EMAIL" ] || { echo "SharePoint 단계에는 frontend/.env.local의 CRON_SECRET과 mobile/.env.release의 OPERATOR_EMAIL(관리자, Microsoft 연결됨)이 필요합니다." >&2; exit 1; }
 fi
@@ -78,20 +82,36 @@ if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter test && flutter analyze"; else
 fi
 fi
 
-# AAB(Google Play): 빌드만 — 서명은 APK와 같은 업로드 키(key.properties), 버전 코드는 pubspec +N(APK·Play가 같은 번호를 공유하므로 Play에 올릴 때마다 새 번호)
-if [ "$TARGET" = aab ]; then
-  [ -f "$MOBILE/android/key.properties" ] || { echo "mobile/android/key.properties가 없습니다 — 디버그 키로 서명된 AAB는 Play가 받지 않습니다." >&2; exit 1; }
+# AAB(Google Play): 서명은 APK와 같은 업로드 키(key.properties), 버전 코드는 pubspec +N(APK·Play가 같은 번호를 공유 — Play는 이전에 올린 번호보다 커야 받는다)
+AAB_OUT="$MOBILE/build/innogrid-$VERSION+$BUILD.aab"
+build_aab() {
+  [ -f "$MOBILE/android/key.properties" ] || { echo "mobile/android/key.properties가 없습니다 — 디버그 키로 서명된 AAB는 Play가 받지 않습니다." >&2; return 1; }
   say "Android: flutter build appbundle --release"
-  if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter build appbundle --release ${DEFINES[*]}"; exit 0; fi
-  (cd "$MOBILE" && flutter build appbundle --release "${DEFINES[@]}" >/dev/null) || { echo "AAB 빌드 실패" >&2; exit 1; }
-  AAB="$MOBILE/build/app/outputs/bundle/release/app-release.aab"
-  OUT="$MOBILE/build/innogrid-$VERSION+$BUILD.aab"; cp "$AAB" "$OUT"
-  echo "  $OUT ($(du -h "$OUT" | cut -f1))"
-  say "다음 할 일"
-  echo "  · Play Console → 테스트 및 출시 → 테스트 → 내부 테스트 → 새 버전 만들기 → 위 파일을 끌어다 놓기 → 저장 → 검토 → 출시"
-  echo "  · 이미 Play에 같은 버전 코드($BUILD)를 올렸다면 pubspec의 +N을 올리고 다시 빌드"
+  if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter build appbundle --release ${DEFINES[*]}"; return 0; fi
+  (cd "$MOBILE" && flutter build appbundle --release "${DEFINES[@]}" >/dev/null) || { echo "AAB 빌드 실패" >&2; return 1; }
+  cp "$MOBILE/build/app/outputs/bundle/release/app-release.aab" "$AAB_OUT"
+  echo "  $AAB_OUT ($(du -h "$AAB_OUT" | cut -f1))"
+}
+# Google Play 내부 테스트 업로드. $1=soft면 키가 없거나 실패해도 릴리스를 깨지 않는다.
+play_upload() {
+  say "Google Play: 내부 테스트 트랙 업로드"
+  if [ -z "$PLAY_SA" ] || [ ! -f "$PLAY_SA" ]; then
+    echo "  건너뜀 — mobile/.env.release에 PLAY_SERVICE_ACCOUNT_JSON=<서비스 계정 키 경로>가 필요합니다(docs/play-console-guide.md §자동 업로드). 나중에: $0 play" >&2
+    [ "${1:-}" = soft ] && return 0 || exit 1
+  fi
+  build_aab || { [ "${1:-}" = soft ] && { echo "  나중에: $0 play" >&2; return 0; } || exit 1; }
+  if [ "$DRY" = 1 ]; then echo "  (dry-run) play-upload.py $PLAY_PACKAGE internal"; return 0; fi
+  local rc=0; python3 "$MOBILE/scripts/play-upload.py" "$PLAY_SA" "$AAB_OUT" "$PLAY_PACKAGE" "$VERSION — $NOTES" || rc=$?
+  if [ "$rc" = 0 ] || [ "$rc" = 3 ]; then return 0; fi
+  echo "  다시 시도: $0 play" >&2
+  [ "${1:-}" = soft ] && return 0 || exit 1
+}
+if [ "$TARGET" = aab ]; then
+  build_aab || exit 1
+  say "다음 할 일"; echo "  · 자동 업로드: $0 play  (또는 Play Console → 내부 테스트 → 새 버전 만들기에 위 파일)"
   exit 0
 fi
+if [ "$TARGET" = play ]; then play_upload; exit 0; fi
 
 REST="$SUPABASE_URL/rest/v1"; STORAGE="$SUPABASE_URL/storage/v1"
 AUTH=(-H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY")
@@ -136,7 +156,7 @@ sharepoint_upload() {
   if [ "$DRY" = 1 ]; then echo "  (dry-run) POST $APP_URL/api/mobile/release/sharepoint {operator: <관리자>}"; return 0; fi
   if [ -z "$CRON_SECRET" ] || [ -z "$OPERATOR_EMAIL" ]; then
     echo "  건너뜀 — frontend/.env.local CRON_SECRET, mobile/.env.release OPERATOR_EMAIL이 필요합니다. 나중에: $0 sharepoint" >&2
-    [ "$1" = soft ] && return 0 || exit 1
+    [ "${1:-}" = soft ] && return 0 || exit 1
   fi
   local resp; resp=$(mktemp)
   local code; code=$(curl -s --max-time 600 -o "$resp" -w '%{http_code}' -X POST "$APP_URL/api/mobile/release/sharepoint" -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" --data-binary "{\"operator\":\"$OPERATOR_EMAIL\"}" || true)
@@ -146,7 +166,7 @@ sharepoint_upload() {
   fi
   echo "  실패 (HTTP $code): $(head -c 300 "$resp")" >&2; rm -f "$resp"
   echo "  다시 시도: $0 sharepoint   (폴더 링크가 없으면 먼저: $0 sharepoint-folder <링크>)" >&2
-  [ "$1" = soft ] && return 0 || exit 1
+  [ "${1:-}" = soft ] && return 0 || exit 1
 }
 
 # 5. Android
@@ -183,6 +203,7 @@ print(((d.get("android") or {}) if isinstance(d, dict) else {}).get("apkPath", "
   fi
   write_release android "$APK_PATH"
   sharepoint_upload soft
+  play_upload soft
 fi
 
 # 6. iOS

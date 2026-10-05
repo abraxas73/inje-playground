@@ -110,6 +110,26 @@ A를 고르는 방법은 3단계 중간에 나오는 "앱 서명" 화면에서:
 2. 이어서 `mobile/scripts/release-mobile.sh aab`를 실행하고 Play Console → 내부 테스트 → **새 버전 만들기** → AAB 올리기 → 출시. 테스터 폰은 Play 자동 업데이트로 받는다.
 3. 빌드 번호(+N)는 APK와 Play가 같이 쓴다. Play는 **이전에 Play에 올린 번호보다 큰 번호**만 받는다. 매 릴리스마다 +N을 올리므로 따로 신경 쓸 일은 없다.
 
+## 6-A. 자동 업로드 설정 (한 번, 15분) — 이후 `release-mobile.sh android|all`이 Play에도 올린다
+TestFlight처럼 스크립트가 AAB를 만들어 **내부 테스트 트랙에 바로 출시**한다(Google Play Developer API, 서비스 계정). `/apps`·SharePoint는 그대로이고 그 뒤에 Play가 붙는다. 키가 없으면 Play 단계만 건너뛴다.
+1. https://console.cloud.google.com → 위쪽 프로젝트 선택 → **새 프로젝트** `innogrid-play`(이미 쓰는 프로젝트가 있으면 그걸 써도 된다).
+2. **API 및 서비스 → 라이브러리** → `Google Play Android Developer API` 검색 → **사용**.
+3. **IAM 및 관리자 → 서비스 계정 → 서비스 계정 만들기** → 이름 `play-release` → 역할은 비워 두고 **완료**.
+4. 만든 계정 → **키** 탭 → **키 추가 → 새 키 만들기 → JSON** → 내려받은 파일을 `~/.private_keys/play-release.json`으로 옮긴다(`chmod 600`). **git·채팅·문서에 붙이지 않는다.**
+   - 조직 정책 때문에 "서비스 계정 키 생성이 사용 중지됨"이 뜨면 Google Workspace/Cloud 관리자에게 이 프로젝트만 예외를 요청한다.
+5. Play Console → **사용자 및 권한 → 새 사용자 초대** → 이메일에 서비스 계정 주소(`play-release@<프로젝트>.iam.gserviceaccount.com`) → **앱 권한 → 앱 추가 → 이노그리드** → 권한 **"테스트 트랙에 앱 출시"**(+ "앱 정보 보기") → 초대.
+6. `mobile/.env.release`에 한 줄 추가:
+   ```
+   PLAY_SERVICE_ACCOUNT_JSON=~/.private_keys/play-release.json
+   ```
+7. 확인: `mobile/scripts/release-mobile.sh play` — "올림: versionCode N", "내부 테스트 트랙에 출시됨"이 보이면 끝. 이미 Play에 올린 번호면 "version code … already used" 오류 → pubspec +N을 올려 다음 릴리스 때.
+   - 권한이 반영되는 데 수 분~하루 걸릴 수 있다(403 "The caller does not have permission"이면 잠시 뒤 다시).
+
+## 6-B. 앱 서명 상태 (2026-10-05 확인)
+- 첫 버전 업로드 때 서명 선택 화면이 나오지 않아 **Google이 앱 서명 키를 자동 생성**했다(앱 서명 키 SHA-256 `18:6D:B8:8B:…:48:9D`). 업로드 키는 우리 키(`13:96:8D:…:1D:C8`)라 업로드는 정상이다.
+- 결과: **Play로 설치한 앱과 `/apps`·SharePoint APK는 서명이 다르다** — 한쪽으로 깐 사람은 다른 쪽 업데이트를 받으려면 앱을 지우고(로그인·설정 초기화) 다시 깔아야 한다.
+- 바꾸려면 지금(프로덕션 출시 전, 설치 0%)이 적기: **설정 > 앱 무결성 > 앱 서명 > 키 변경 → Java 키 저장소에서 내보내기 및 업로드**(2단계 A와 같은 PEPK 절차). 바꾸면 이미 올린 버전은 다시 올려야 하고, 내부 테스트로 이미 설치한 사람은 재설치해야 한다.
+
 ## 7. 자주 막히는 곳
 | 증상 | 원인 | 조치 |
 |---|---|---|
