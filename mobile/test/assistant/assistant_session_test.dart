@@ -590,6 +590,30 @@ void main() {
     expect(brain.received.last.last['content'], '다시');
   });
 
+  test('카드 문장 생성이 예외 → 대기 카드가 남지 않아 confirm은 아무것도 실행하지 않는다', () async {
+    final brain = Brain([
+      use([('w1', 'create_event', {'title': 't', 'start': '2026-10-05T15:00', 'end': '2026-10-05T16:00', 'attendees': '강승억'})]),
+      say('ok'),
+    ]);
+    final c = ProviderContainer(
+      overrides: [
+        apiClientProvider.overrideWithValue(brain.client),
+        gwStoreProvider.overrideWithValue(FakeGwStore(testCreds)),
+        gwHttpClientProvider.overrideWithValue(scenarioGw().client),
+      ],
+    );
+    addTearDown(c.dispose);
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('일정');
+    expect(c.read(assistantSessionProvider).pending, isFalse);
+    final sent = brain.received.length;
+    await s.confirm();
+    await s.dismiss();
+    expect(brain.received.length, sent);
+    await s.send('다시');
+    expectValid(brain.received.last);
+  });
+
   test('undo_last 두 번 → 대상 중복 제거, 결과는 되돌리기 대상만으로', () async {
     SharedPreferences.setMockInitialValues({
       'assistant.journal': jsonEncode([

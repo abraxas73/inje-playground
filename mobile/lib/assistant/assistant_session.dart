@@ -242,7 +242,8 @@ class AssistantSession extends Notifier<AssistantState> {
         try {
           if (!await _handle(res)) return;
         } catch (_) {
-          // 도구 호출은 쓰기를 실행하지 않으므로 assistant 메시지를 버리면 history가 유효하다
+          // 도구 호출은 쓰기를 실행하지 않으므로 assistant 메시지를 버리면 history가 유효하다. 보이지 않는 대기 카드도 버린다.
+          _pending = null;
           if (_messages.isNotEmpty && _messages.last['role'] == 'assistant') {
             _messages.removeLast();
           }
