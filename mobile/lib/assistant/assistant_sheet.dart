@@ -1,4 +1,5 @@
 // mobile/lib/assistant/assistant_sheet.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/theme.dart';
@@ -16,6 +17,21 @@ Future<void> showAssistantSheet(BuildContext context) =>
         child: const AssistantSheet(),
       ),
     );
+
+/// 고품질 음성 설치 안내는 앱 실행당 한 번.
+class _VoiceTipSeen extends Notifier<bool> {
+  @override
+  bool build() => false;
+  void seen() => state = true;
+}
+
+final _voiceTipSeenProvider = NotifierProvider<_VoiceTipSeen, bool>(
+  _VoiceTipSeen.new,
+);
+
+String _voiceTip() => defaultTargetPlatform == TargetPlatform.iOS
+    ? '더 자연스러운 목소리로 들으려면 설정 > 손쉬운 사용 > 읽기 및 말하기 > 음성 > 한국어에서 "유나(향상됨)" 또는 "유나(프리미엄)"를 내려받으세요. 내려받으면 바로 그 음성으로 읽습니다.'
+    : '더 자연스러운 목소리로 들으려면 설정에서 "텍스트 음성 변환"을 찾아 기본 엔진을 Google로 두고, 엔진 설정 > 음성 데이터 설치 > 한국어에서 고품질 음성을 내려받으세요.';
 
 const _examples = ['오늘 오후 빈 회의실 1시간 잡아줘', '안 읽은 메일 요약해줘', '오늘 내 일정 알려줘'];
 
@@ -35,6 +51,7 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
   int _listenSeq = 0; // 듣기 회차 — 멈춘 뒤 늦게 오는 인식 결과를 버린다
   int? _speaking; // 읽는 중인 말풍선(items 인덱스)
   String? _voiceNote;
+  bool _showVoiceTip = false;
 
   @override
   void initState() {
@@ -102,6 +119,13 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
     if (_speaking == i) return _stopSpeaking();
     await _stopSpeaking();
     setState(() => _speaking = i);
+    await _speaker.prepare();
+    if (mounted &&
+        _speaker.usingBasicVoice &&
+        !ref.read(_voiceTipSeenProvider)) {
+      ref.read(_voiceTipSeenProvider.notifier).seen();
+      setState(() => _showVoiceTip = true);
+    }
     try {
       await _speaker.speak(text);
     } finally {
@@ -203,6 +227,43 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
               ],
             ),
           ),
+          if (_showVoiceTip)
+            Container(
+              margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+              padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2, right: 8),
+                    child: Icon(
+                      Icons.record_voice_over_outlined,
+                      size: 18,
+                      color: Brand.blue,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      _voiceTip(),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.45,
+                        color: Brand.navy,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: '안내 닫기',
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () => setState(() => _showVoiceTip = false),
+                  ),
+                ],
+              ),
+            ),
           if (_voiceNote != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),

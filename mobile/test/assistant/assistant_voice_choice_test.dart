@@ -29,6 +29,12 @@ class FakeVoice implements VoiceInput {
 }
 
 class FakeSpeaker implements Speaker {
+  FakeSpeaker({this.basic = false});
+  final bool basic;
+  @override
+  bool get usingBasicVoice => basic;
+  @override
+  Future<void> prepare() async {}
   final spoken = <String>[];
   Completer<void>? running;
   var stops = 0;
@@ -183,5 +189,38 @@ void main() {
     expect(line < label, isTrue, reason: '조회한 대상이 위, 모델 문구는 아래');
     final mic = tester.widget<IconButton>(find.ancestor(of: find.byIcon(Icons.mic), matching: find.byType(IconButton)));
     expect(mic.onPressed, isNull);
+  });
+
+  testWidgets('기본 음성뿐이면 🔊 처음 누를 때 고품질 음성 설치 안내(앱 실행당 한 번, 닫기 가능)', variant: TargetPlatformVariant.only(TargetPlatform.iOS), (tester) async {
+    final brain = Brain([say('첫째.'), say('둘째.')]);
+    final sp = FakeSpeaker(basic: true);
+    await tester.pumpWidget(host(brain, scenarioGw(), FakeVoice(), sp));
+    for (final t in ['a', 'b']) {
+      await tester.enterText(find.byType(TextField), t);
+      await tester.tap(find.byTooltip('보내기'));
+      await tester.pumpAndSettle();
+    }
+    expect(find.textContaining('손쉬운 사용'), findsNothing);
+    await tester.tap(find.byTooltip('읽어 주기').first);
+    await tester.pump();
+    expect(find.textContaining('손쉬운 사용 > 읽기 및 말하기 > 음성 > 한국어'), findsOneWidget);
+    expect(find.textContaining('향상'), findsOneWidget);
+    await tester.tap(find.byTooltip('안내 닫기'));
+    await tester.pump();
+    expect(find.textContaining('손쉬운 사용'), findsNothing);
+    await tester.tap(find.byTooltip('읽어 주기').last);
+    await tester.pump();
+    expect(find.textContaining('손쉬운 사용'), findsNothing, reason: '한 번만');
+  });
+
+  testWidgets('고품질 음성이 있으면 안내 없음', (tester) async {
+    final brain = Brain([say('답.')]);
+    await tester.pumpWidget(host(brain, scenarioGw(), FakeVoice(), FakeSpeaker()));
+    await tester.enterText(find.byType(TextField), 'a');
+    await tester.tap(find.byTooltip('보내기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('읽어 주기').last);
+    await tester.pump();
+    expect(find.byTooltip('안내 닫기'), findsNothing);
   });
 }
