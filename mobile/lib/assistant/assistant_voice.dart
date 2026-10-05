@@ -1,5 +1,6 @@
 // 비서 음성 — 말하기(STT, speech_to_text)와 듣기(TTS, flutter_tts). 둘 다 기기 내장 엔진, 한국어.
 // 위젯은 이 인터페이스만 쓴다(테스트는 Provider를 가짜로 갈아 끼운다). 인식·읽기 문장은 로그에 남기지 않는다.
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -74,6 +75,16 @@ class DeviceSpeaker implements Speaker {
       await _tts.setLanguage('ko-KR');
       await _tts.awaitSpeakCompletion(true);
       _ready = true;
+    }
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      // iOS 기본 세션(soloAmbient)은 무음 스위치를 따르고, 음성 인식은 끝날 때 그 카테고리로 되돌리고 세션을 끈다 —
+      // 그러면 읽기는 진행되는데 소리가 안 난다(1.3.0 실기기). 사용자가 🔊를 누른 것이므로 매번 재생 카테고리로 켠 뒤 읽는다.
+      await _tts.setIosAudioCategory(
+        IosTextToSpeechAudioCategory.playback,
+        [IosTextToSpeechAudioCategoryOptions.duckOthers],
+        IosTextToSpeechAudioMode.spokenAudio,
+      );
+      await _tts.setSharedInstance(true);
     }
     await _tts.speak(text);
   }
