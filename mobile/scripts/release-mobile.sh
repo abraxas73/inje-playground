@@ -3,6 +3,7 @@
 #   mobile/scripts/release-mobile.sh (android|ios|all) [--notes "…"] [--testflight-url URL] [--dry-run] [--allow-dirty]
 #   mobile/scripts/release-mobile.sh link --testflight-url URL      # 빌드 없이 TestFlight 공개 링크만 저장(심사 승인 뒤 링크가 생기므로 따로 둔다)
 #   mobile/scripts/release-mobile.sh sharepoint-folder <폴더 링크>   # APK 사본을 올릴 SharePoint 폴더 링크 저장(한 번)
+#   mobile/scripts/release-mobile.sh aab                             # Google Play 내부 테스트용 AAB만 빌드(업로드·설정 변경 없음 — Play Console에 손으로 올린다, docs/play-console-guide.md)
 #   mobile/scripts/release-mobile.sh sharepoint                      # 현재 Android 릴리스 APK 사본을 SharePoint에 innogrid-app-<X.Y.Z>.apk로 올림(android/all 뒤 자동, 실패 시 재시도용)
 # 1) 작업 트리 확인 2) flutter test·analyze 3) pubspec version → APP_VERSION/APP_BUILD
 # 4) android: APK 빌드 → Supabase 스토리지 mobile/android/innogrid-<v>+<b>.apk 업로드 → settings.mobile_release.android 갱신
@@ -32,8 +33,8 @@ case "$TARGET" in
   ios) DO_IOS=1;;
   all) DO_ANDROID=1; DO_IOS=1;;
   link) [ -n "$TF_URL" ] || { echo "link에는 --testflight-url URL 이 필요합니다." >&2; exit 2; };;
-  sharepoint|sharepoint-folder) ;;
-  *) echo "사용법: $0 (android|ios|all) [--notes \"…\"] [--testflight-url URL] [--dry-run] [--allow-dirty] | $0 link --testflight-url URL | $0 sharepoint-folder <링크> | $0 sharepoint" >&2; exit 2;;
+  sharepoint|sharepoint-folder|aab) ;;
+  *) echo "사용법: $0 (android|ios|all) [--notes \"…\"] [--testflight-url URL] [--dry-run] [--allow-dirty] | $0 link --testflight-url URL | $0 sharepoint-folder <링크> | $0 sharepoint | $0 aab" >&2; exit 2;;
 esac
 say() { printf '\n▶ %s\n' "$*"; }
 
@@ -47,7 +48,7 @@ fi
 envval() { { grep -E "^$2=" "$1" 2>/dev/null || true; } | tail -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//'; }
 SUPABASE_URL=$(envval "$ROOT/frontend/.env.local" NEXT_PUBLIC_SUPABASE_URL)
 SERVICE_KEY=$(envval "$ROOT/frontend/.env.local" SUPABASE_SERVICE_ROLE_KEY)
-[ -n "$SUPABASE_URL" ] && [ -n "$SERVICE_KEY" ] || { echo "frontend/.env.local에 NEXT_PUBLIC_SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY가 필요합니다." >&2; exit 1; }
+if [ "$TARGET" != aab ]; then [ -n "$SUPABASE_URL" ] && [ -n "$SERVICE_KEY" ] || { echo "frontend/.env.local에 NEXT_PUBLIC_SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY가 필요합니다." >&2; exit 1; }; fi
 CRON_SECRET=$(envval "$ROOT/frontend/.env.local" CRON_SECRET)
 OPERATOR_EMAIL=$(envval "$MOBILE/.env.release" OPERATOR_EMAIL)
 if [ "$TARGET" = sharepoint ]; then
@@ -75,6 +76,21 @@ if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter test && flutter analyze"; else
   (cd "$MOBILE" && flutter test >/dev/null && flutter analyze >/dev/null) || { echo "테스트/분석 실패 — 중단" >&2; exit 1; }
   echo "  통과"
 fi
+fi
+
+# AAB(Google Play): 빌드만 — 서명은 APK와 같은 업로드 키(key.properties), 버전 코드는 pubspec +N(APK·Play가 같은 번호를 공유하므로 Play에 올릴 때마다 새 번호)
+if [ "$TARGET" = aab ]; then
+  [ -f "$MOBILE/android/key.properties" ] || { echo "mobile/android/key.properties가 없습니다 — 디버그 키로 서명된 AAB는 Play가 받지 않습니다." >&2; exit 1; }
+  say "Android: flutter build appbundle --release"
+  if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter build appbundle --release ${DEFINES[*]}"; exit 0; fi
+  (cd "$MOBILE" && flutter build appbundle --release "${DEFINES[@]}" >/dev/null) || { echo "AAB 빌드 실패" >&2; exit 1; }
+  AAB="$MOBILE/build/app/outputs/bundle/release/app-release.aab"
+  OUT="$MOBILE/build/innogrid-$VERSION+$BUILD.aab"; cp "$AAB" "$OUT"
+  echo "  $OUT ($(du -h "$OUT" | cut -f1))"
+  say "다음 할 일"
+  echo "  · Play Console → 테스트 및 출시 → 테스트 → 내부 테스트 → 새 버전 만들기 → 위 파일을 끌어다 놓기 → 저장 → 검토 → 출시"
+  echo "  · 이미 Play에 같은 버전 코드($BUILD)를 올렸다면 pubspec의 +N을 올리고 다시 빌드"
+  exit 0
 fi
 
 REST="$SUPABASE_URL/rest/v1"; STORAGE="$SUPABASE_URL/storage/v1"

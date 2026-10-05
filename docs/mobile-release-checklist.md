@@ -56,6 +56,14 @@
   이 순간부터 웹 `/apps`의 "TestFlight에서 열기" 버튼과 iOS 앱 배너가 켜진다.
 - [ ] **B9. Teams 공지(iPhone)** — `iPhone: App Store에서 TestFlight 설치 → https://inje-playground.vercel.app/apps 에서 'TestFlight에서 열기'`.
 
+## B2. Google Play 내부 테스트 — 한 번만 (약 40분, 선택)
+지금의 `/apps`·SharePoint APK 배포는 그대로 두고 **추가하는** 경로다. Play 스토어로 설치하면 Play 프로텍트 경고가 없고 자동 업데이트가 된다. 화면별 안내: **`docs/play-console-guide.md`**.
+- [ ] **B2-1.** Play Console에서 앱 만들기(이름 `이노그리드`, 한국어, 무료)
+- [ ] **B2-2.** 첫 버전 때 앱 서명은 **"Java 키 저장소에서 내보내기 및 업로드"**(지금 키 그대로 — SharePoint APK와 서로 업데이트 가능)
+- [ ] **B2-3.** `mobile/scripts/release-mobile.sh aab` → 내부 테스트에 AAB 올리기 → 출시
+- [ ] **B2-4.** 앱 콘텐츠 필수 선언(개인정보처리방침·앱 액세스·광고·등급·타겟층·데이터 보안)
+- [ ] **B2-5.** 테스터 이메일 목록(Play 스토어 Google 계정, 최대 100) → 참여 링크를 Teams로 공지
+
 ## C. 매 릴리스 (5~15분)
 - [ ] `mobile/pubspec.yaml`의 `version: X.Y.Z+N`에서 **`+N`을 1 올리고** 커밋·푸시.
 - [ ] `mobile/scripts/release-mobile.sh all --notes "변경 요약"` (Android만/iOS만이면 `android`/`ios`).

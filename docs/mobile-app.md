@@ -93,6 +93,7 @@
 - 관리자: `/admin/settings` "모바일 앱 — 비서(이노봇)" 스위치·사용자당 하루 턴 상한(기본 200, KST 하루, 설정·건수 조회 오류면 503으로 닫힘). 요청 하나는 보통 3~5턴, 한 번에 최대 10턴. 꺼져 있으면 앱 버튼이 숨는다.
 
 ## 배포(사내) (2026-10-04)
+- **Google Play 내부 테스트(선택, 추가 경로)**: `release-mobile.sh aab`가 AAB만 빌드(업로드·설정 변경 없음, `key.properties` 필수)한다 → Play Console 내부 테스트에 손으로 올린다. 앱 서명은 지금 키를 PEPK로 내보내 등록해 APK와 서명을 같게 둔다. 화면별 안내 `docs/play-console-guide.md`.
 **운영자가 직접 할 일(App Store Connect·백업·공지)만 모은 체크리스트: `docs/mobile-release-checklist.md`.** 스펙 `docs/superpowers/specs/2026-10-04-mobile-release-design.md`. iOS는 **TestFlight 외부 그룹 공개 링크**(개인 Apple 계정, 팀 `LME2TNRC9G`), Android는 **웹 `/apps`에서 APK 직접 받기**(로그인 필요, 비공개 버킷 `mobile`의 600초 서명 URL). 릴리스 메타데이터는 `settings` 키 `mobile_release`(문자열 JSON: `notes`·`testflightUrl`·`android{version,build,apkPath,releasedAt}`·`ios{version,build,releasedAt}`) 하나, 읽는 API는 `GET /api/mobile/release`(user 이상). 앱은 시작 때 이 API로 자기 플랫폼 빌드 번호를 비교해 홈 배너·더보기 "앱 버전" 줄에 업데이트 버튼을 보여 준다(개발 빌드 `dev`/0은 확인 안 함). 쓰는 쪽은 `mobile/scripts/release-mobile.sh`뿐.
 
 ### 최초 1회 준비
