@@ -12,7 +12,7 @@
 - [x] **1.1.1(빌드 4) 핫픽스 릴리스** — 2026-10-04 22:33: Android WebView 뒤로 가기 수정 + 브리핑 리뷰 반영(회의 판정·홈 탭 재수집·Teams 미연결). Android `/apps`·SharePoint `innogrid-app-1.1.1.apk`, iOS 업로드(Delivery ab68ea77…). **TestFlight 외부 그룹에는 최신 빌드(1.2.1 (12))를 쓴다**
 
 ## A. 지금 바로 (5분, Mac)
-- [ ] **A1. 키스토어 백업** — 1Password에 항목 "이노그리드 앱 Android 업로드 키"를 만들고 두 파일을 첨부한다.
+- [x] **A1. 키스토어 백업** — 1Password에 항목 "이노그리드 앱 Android 업로드 키"를 만들고 두 파일을 첨부한다.
   - `~/Repos/inje-playground/mobile/android/upload-keystore.jks`
   - `~/Repos/inje-playground/mobile/android/key.properties` (비밀번호가 이 안에 있다)
   - 왜: 첫 APK가 이 키로 서명됐다. 잃으면 전 직원이 앱을 지우고 다시 설치해야 한다.
