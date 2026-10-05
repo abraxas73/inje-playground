@@ -35,7 +35,7 @@ void main() {
       expect(raw, contains(w), reason: w);
     }
     final bad = Gw({...base(), '/mail/mail014A01': (_) => init, '/mail/mail014A04': (_) => {'result': false}});
-    await expectLater(bad.api().mailSend(to: ['a@x'], subject: 's', body: 'b'), throwsA(anything));
+    await expectLater(bad.api().mailSend(to: ['a@x'], subject: 's', body: 'b'), throwsA(isA<GwException>()));
   });
   test('mailSaveDraft — A14 + 임시저장 필드, autoMUID 반환', () async {
     final gw = Gw({...base(), '/mail/mail014A01': (_) => init, '/mail/mail014A14': (_) => {'autoMUID': 'D9'}});
@@ -45,7 +45,7 @@ void main() {
       expect(raw, contains(w));
     }
     final none = Gw({...base(), '/mail/mail014A01': (_) => init, '/mail/mail014A14': (_) => {'autoMUID': ''}});
-    await expectLater(none.api().mailSaveDraft(to: ['a@x'], subject: 's', body: 'b'), throwsA(anything));
+    await expectLater(none.api().mailSaveDraft(to: ['a@x'], subject: 's', body: 'b'), throwsA(isA<GwException>()));
   });
   test('search — gw018A02 {header, body}, 모듈별 정규화(다국어 객체는 kr)', () async {
     final gw = Gw({...base(), '/gw/APIHandler/gw018A02': (b) {
@@ -75,5 +75,12 @@ void main() {
     await expectLater(unauth.api().search('x'), throwsA(isA<GwUnauthorized>()));
     final down = Gw({...base(), '/gw/APIHandler/gw018A02': (_) => http.Response('{"resultCode":999,"resultMsg":"x"}', 200)});
     await expectLater(down.api().search('x'), throwsA(isA<GwException>()));
+  });
+  test('mailSend — A04 네트워크 오류는 발송 여부 불명 안내, A01 실패면 A04는 호출 안 함', () async {
+    final net = Gw({...base(), '/mail/mail014A01': (_) => init, '/mail/mail014A04': (_) => throw Exception('drop')});
+    await expectLater(net.api().mailSend(to: ['a@x'], subject: 's', body: 'b'), throwsA(isA<GwException>().having((e) => e.message, 'message', contains('보낸편지함'))));
+    final noInit = Gw({...base(), '/mail/mail014A01': (_) => http.Response('{"resultCode":999,"resultMsg":"x"}', 200)});
+    await expectLater(noInit.api().mailSend(to: ['a@x'], subject: 's', body: 'b'), throwsA(isA<GwException>()));
+    expect(noInit.calls['/mail/mail014A04'], isNull);
   });
 }

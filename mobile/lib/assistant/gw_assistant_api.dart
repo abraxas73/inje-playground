@@ -271,7 +271,15 @@ extension GwAssistantMail on GwApi {
 
   /// 발송(A01 → A04). 되돌릴 수 없다 — 호출 전에 사용자 확인을 받는다(비서 확인 카드). 판정은 resultData.result.
   Future<Map<String, dynamic>> mailSend({required List<String> to, List<String> cc = const [], required String subject, required String body}) async {
-    final r = await client.callMultipart('/mail/mail014A04', await _compose(to, cc, subject, body));
+    final fields = await _compose(to, cc, subject, body);
+    dynamic r;
+    try {
+      r = await client.callMultipart('/mail/mail014A04', fields);
+    } on GwException catch (e) {
+      // 요청을 보낸 뒤 연결이 끊기면(status 0) 이미 발송됐을 수 있다 — 실패로 단정하지 않는다.
+      if (e is! GwUnauthorized && e.status == 0) throw GwException(0, -1, '발송 결과를 확인할 수 없습니다. 보낸편지함을 확인한 뒤 다시 보내세요');
+      rethrow;
+    }
     if (r is! Map || r['result'] != true) throw GwException(200, 0, '메일 발송에 실패했습니다');
     return {'ok': true, 'sent': true, 'to': to.join(','), 'cc': cc.join(','), 'subject': subject};
   }
