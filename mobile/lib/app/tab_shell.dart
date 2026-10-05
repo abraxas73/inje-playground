@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../assistant/innobot_button.dart';
 import '../auth/session.dart';
 import '../more/catalog.dart';
 import '../more/service_grid.dart';
@@ -102,6 +103,7 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
       child: Scaffold(
         body: Stack(children: [
           widget.shell,
+          if (openIdx < 0) const InnobotButton(),
           if (openIdx >= 0)
             FanMenu(
               key: ValueKey(_open),
