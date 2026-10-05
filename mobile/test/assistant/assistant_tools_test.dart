@@ -38,7 +38,12 @@ void main() {
 
   test('cardLine — 앱이 인자로 만든 문장(참석자 부서, 메일 전문·경고)', () {
     expect(cardLine(const ToolCall('1', 'reserve_room', {'res_seq': 'R1', 'room_name': '회의실A', 'start': '2026-10-05T14:00', 'end': '2026-10-05T15:00', 'title': '주간회의'})), '회의실 예약 · 10/5(월) 14:00–15:00 · 회의실A · \'주간회의\'');
-    expect(cardLine(const ToolCall('2', 'create_event', {'title': '주간회의', 'start': '2026-10-05T14:00', 'end': '2026-10-05T15:00', 'attendees': [{'emp_seq': '31', 'dept_seq': '20', 'name': '강승억', 'dept_name': '클라우드팀'}, {'emp_seq': '32', 'dept_seq': '30', 'name': '정선미'}], 'place': '회의실A'})), '일정 등록 · 10/5(월) 14:00–15:00 · \'주간회의\' · 참석 강승억, 정선미 · 장소 회의실A');
+    // 참석자·회의실·채팅방·예약/일정 제목은 resolve()가 실행에 쓰일 id로 다시 읽은 값(모델이 쓴 이름이 아님)
+    expect(cardLine(const ToolCall('2', 'create_event', {'title': '주간회의', 'start': '2026-10-05T14:00', 'end': '2026-10-05T15:00', 'attendees': [{'emp_seq': '31', 'dept_seq': '20', 'name': '김아무개'}, {'emp_seq': '32', 'dept_seq': '30', 'name': '정선미'}], 'place': '회의실A'}), {'attendees': ['강승억(부서명)', '정선미(경영지원팀)']}), '일정 등록 · 10/5(월) 14:00–15:00 · \'주간회의\' · 참석 강승억(부서명), 정선미(경영지원팀) · 장소 회의실A');
+    expect(cardLine(const ToolCall('7', 'reserve_room', {'res_seq': 'R1', 'room_name': '대회의실', 'start': '2026-10-05T14:00', 'end': '2026-10-05T15:00', 'title': 't'}), {'room_name': '회의실A'}), '회의실 예약 · 10/5(월) 14:00–15:00 · 회의실A · \'t\'');
+    expect(cardLine(const ToolCall('8', 'teams_send', {'chat_id': 'c', 'chat_name': '사장님', 'text': '안녕'}), {'chat_name': '센터'}), 'Teams 보내기 · 센터 · "안녕"');
+    expect(cardLine(const ToolCall('9', 'cancel_reservation', {'res_seq': 'R1', 'label': '가짜'}), {'title': '내 회의', 'start': '2026-10-05T15:00', 'end': '2026-10-05T16:00', 'room_name': '회의실B'}), '예약 취소 · 10/5(월) 15:00–16:00 · 회의실B · \'내 회의\'');
+    expect(cardLine(const ToolCall('10', 'delete_event', {'sch_seq': '900', 'label': '가짜'}), {'title': '주간회의', 'start': '2026-10-05T14:00', 'end': '2026-10-05T15:00'}), '일정 삭제 · 10/5(월) 14:00–15:00 · \'주간회의\'');
     expect(cardLine(const ToolCall('3', 'mail_send', {'to': ['a@x'], 'subject': '회의록', 'body': '첫 줄\n둘째 줄'})), '메일 발송(되돌릴 수 없음) · 받는 사람 a@x · 제목 \'회의록\'\n첫 줄\n둘째 줄');
     expect(cardLine(const ToolCall('4', 'teams_send', {'chat_id': 'c', 'chat_name': '센터', 'text': '안녕하세요'})), 'Teams 보내기 · 센터 · "안녕하세요"');
     expect(cardLine(const ToolCall('5', 'clock_in', {'notify_teams': true, 'extra': '화이팅'})), '출근 기록 · Teams 알림(+화이팅)');
@@ -100,9 +105,11 @@ void main() {
     }
     final again = await AssistantJournal.load();
     expect(again.all.length, 20);
-    expect(again.undoable(2).map((e) => e.summary), ['s20', 's18']);
-    await again.remove(again.undoable(1).single);
-    expect((await AssistantJournal.load()).undoable(1).single.summary, 's18');
+    final now = DateTime.utc(2026, 10, 5, 12);
+    expect(again.undoable(2, now: now).map((e) => e.summary), ['s20', 's18']);
+    final top = again.undoable(1, now: now).single;
+    await again.removeWhere((e) => identical(e, top));
+    expect((await AssistantJournal.load()).undoable(1, now: now).single.summary, 's18');
   });
 
   test('실행기 — 서버 {enabled:false}·이상 응답은 정규화, 받는 사람 없는 메일은 GW 호출 전에 거부', () async {
@@ -136,5 +143,64 @@ void main() {
     expect(reserveUndo({'resSeq': 'R1', 'seqNum': 7, 'resIdx': '1'}, 'l'), isNotNull);
     expect(reserveUndo({'resSeq': 'R1', 'resIdx': '1'}, 'l'), isNull);
     expect(reserveUndo({'resSeq': 'R1', 'seqNum': 7, 'resIdx': ''}, 'l'), isNull);
+  });
+
+  test('resolve — 실행 id로 실제 대상을 읽어 카드 값을 만든다, 못 찾으면 error', () async {
+    final gw = Gw({...base(),
+      '/schres/rs121A10': (b) => b['resSeq'] == 'R2' ? {'reqText': '내 회의', 'empSeq': '7', 'resName': '회의실B', 'startDate': '202610051500', 'endDate': '202610051600'} : {'reqText': '남의 것', 'empSeq': '99'},
+      '/schres/sc111A03': (_) => {'resultList': [{'schSeq': '900', 'schTitle': '주간회의', 'createSeq': '7', 'mcalSeq': '1', 'startDate': '202610051400', 'endDate': '202610051500'}, {'schSeq': '901', 'schTitle': '남의 일정', 'createSeq': '99', 'mcalSeq': '9'}]},
+    });
+    final runner = AssistantToolRunner(gw: gw.api(), api: app({'/api/assistant/execute': {'ok': true, 'result': {'chats': [{'id': '19:a@thread.v2', 'name': '센터', 'type': 'group'}]}}}), journal: await AssistantJournal.load(), guard: MailReadGuard());
+    Future<({Map<String, dynamic> facts, String? error})> r(String n, Map<String, dynamic> i) => runner.resolve(ToolCall('x', n, i));
+    expect((await r('create_event', {'title': 't', 'start': '2026-10-05T14:00', 'end': '2026-10-05T15:00', 'attendees': [{'emp_seq': '34', 'name': '김민준'}]})).facts['attendees'], ['김민준(경영지원팀)']);
+    expect((await r('create_event', {'attendees': [{'emp_seq': '31', 'name': '강승억'}, {'emp_seq': '404', 'name': '유령'}]})).error, '참석자를 조직도에서 찾지 못했습니다: 유령(404)');
+    expect((await r('reserve_room', {'res_seq': 'R2', 'room_name': '대회의실'})).facts['room_name'], '회의실B');
+    expect((await r('reserve_room', {'res_seq': 'R9'})).error, startsWith('회의실을 찾지 못했습니다'));
+    expect((await r('cancel_reservation', {'res_seq': 'R2', 'seq_num': 6, 'res_idx': '1'})).facts, {'title': '내 회의', 'start': '2026-10-05T15:00', 'end': '2026-10-05T16:00', 'room_name': '회의실B'});
+    expect((await r('cancel_reservation', {'res_seq': 'R1', 'seq_num': 5, 'res_idx': '1'})).error, contains('본인 예약이 아니'));
+    expect((await r('delete_event', {'sch_seq': '900', 'date': '2026-10-05'})).facts['title'], '주간회의');
+    expect((await r('delete_event', {'sch_seq': '901', 'date': '2026-10-05'})).error, contains('내가 등록한 일정이 아니'));
+    expect((await r('delete_event', {'sch_seq': '902', 'date': '2026-10-05'})).error, contains('찾지 못했습니다'));
+    expect((await r('teams_send', {'chat_id': '19:a@thread.v2', 'chat_name': '가짜', 'text': 'x'})).facts['chat_name'], '센터');
+    expect((await r('teams_send', {'chat_id': '19:zz@thread.v2', 'text': 'x'})).error, startsWith('채팅방을 찾지 못했습니다'));
+    expect((await r('mail_send', {'to': ['a@x']})).error, isNull);
+    final down = AssistantToolRunner(gw: Gw({...base(), '/schres/rs121A01': (_) => http.Response('x', 500)}).api(), api: app({}), journal: await AssistantJournal.load(), guard: MailReadGuard());
+    expect((await down.resolve(const ToolCall('x', 'reserve_room', {'res_seq': 'R2'}))).error, '확인에 필요한 정보를 가져오지 못했습니다');
+  });
+
+  test('find_free_rooms — 오늘이면 지난 시각은 빼고 다음 10분 단위부터', () async {
+    final runner = AssistantToolRunner(gw: Gw(base()).api(), api: app({}), journal: await AssistantJournal.load(), guard: MailReadGuard(), now: () => DateTime.utc(2026, 10, 5, 14, 3));
+    final r = await runner.run(const ToolCall('1', 'find_free_rooms', {'date': '2026-10-05', 'from': '12:00', 'to': '18:00', 'duration_min': 30}));
+    final slots = [for (final room in r['rooms'] as List) for (final s in room['freeSlots'] as List) '${room['resName']}:${s['from']}-${s['to']}'];
+    expect(slots, ['회의실B:14:10-15:00', '회의실B:16:00-18:00', '회의실A:16:00-18:00']);
+    final tomorrow = await runner.run(const ToolCall('2', 'find_free_rooms', {'date': '2026-10-06', 'from': '12:00', 'to': '13:00', 'duration_min': 30}));
+    expect(((tomorrow['rooms'] as List).first['freeSlots'] as List).first['from'], '12:00');
+  });
+
+  test('실행 기록 — 24시간 지난 항목은 되돌리기 후보가 아니다', () async {
+    final j = await AssistantJournal.load();
+    Map<String, dynamic> u(String s) => {'tool': 'delete_event', 'args': {'sch_seq': s, 'date': '2026-10-05'}};
+    await j.add(JournalEntry(at: '2026-10-04T09:00:00.000Z', tool: 'create_event', summary: 'old', undo: u('1')));
+    await j.add(JournalEntry(at: '2026-10-04T11:00:00.000Z', tool: 'create_event', summary: 'fresh', undo: u('2')));
+    expect(j.undoable(5, now: DateTime.utc(2026, 10, 5, 10)).map((e) => e.summary), ['fresh']);
+  });
+
+  test('취소·삭제가 성공하면(직접이든 되돌리기든) 같은 대상의 실행 기록을 지운다', () async {
+    var gone = false, deleted = false;
+    final gw = Gw({...base(),
+      '/schres/rs121A10': (_) => gone ? http.Response('{"resultCode":1,"resultMsg":"x"}', 200) : {'reqText': '내 회의', 'empSeq': '7'},
+      '/schres/rs121A11': (_) { gone = true; return {}; },
+      '/schres/sc111A03': (_) => {'resultList': deleted ? [] : [{'schSeq': '900', 'schTitle': 't', 'createSeq': '7', 'mcalSeq': '1'}]},
+      '/schres/sc111A06': (_) { deleted = true; return {}; },
+    });
+    final j = await AssistantJournal.load();
+    final now = DateTime.utc(2026, 10, 5, 10);
+    await j.add(JournalEntry(at: '2026-10-05T09:00:00.000Z', tool: 'reserve_room', summary: 'r', undo: {'tool': 'cancel_reservation', 'args': {'res_seq': 'R2', 'seq_num': 6, 'res_idx': '1'}}));
+    await j.add(JournalEntry(at: '2026-10-05T09:01:00.000Z', tool: 'reserve_room', summary: 'other', undo: {'tool': 'cancel_reservation', 'args': {'res_seq': 'R2', 'seq_num': 7, 'res_idx': '1'}}));
+    await j.add(JournalEntry(at: '2026-10-05T09:02:00.000Z', tool: 'create_event', summary: 'e', undo: {'tool': 'delete_event', 'args': {'sch_seq': '900', 'date': '2026-10-05'}}));
+    final runner = AssistantToolRunner(gw: gw.api(), api: app({}), journal: j, guard: MailReadGuard(), now: () => now);
+    expect((await runner.run(const ToolCall('1', 'cancel_reservation', {'res_seq': 'R2', 'seq_num': '6', 'res_idx': '1'})))['ok'], isTrue);
+    expect((await runner.run(const ToolCall('2', 'delete_event', {'sch_seq': '900', 'date': '2026-10-05'})))['ok'], isTrue);
+    expect((await AssistantJournal.load()).undoable(5, now: now).map((e) => e.summary), ['other']);
   });
 }

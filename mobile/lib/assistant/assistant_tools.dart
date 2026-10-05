@@ -1,4 +1,5 @@
 // mobile/lib/assistant/assistant_tools.dart
+import 'dart:math' as math;
 import '../api/client.dart';
 import '../gw/clockin_notify.dart';
 import '../gw/gw_api.dart';
@@ -48,20 +49,22 @@ String _when(String startIso, String endIso) {
 String _s(Object? v) => v == null ? '' : '$v';
 List<String> _strList(Object? v) => v is List ? [for (final x in v) '$x'] : (v is String && v.isNotEmpty ? [v] : const []);
 
-/// 확인 카드 한 줄(앱 코드가 인자로 만든다 — Claude 문장 아님).
-String cardLine(ToolCall c) {
+/// 확인 카드 한 줄(앱 코드가 만든다 — Claude 문장 아님). resolved는 AssistantToolRunner.resolve가 실행에 쓰일 id로 다시 읽은
+/// 실제 대상(회의실·참석자·채팅방·예약/일정 제목과 시각) — 카드에는 반드시 이 값을 넘긴다. 없으면(진행 문구·결과 요약) 인자 값.
+String cardLine(ToolCall c, [Map<String, dynamic>? resolved]) {
   final i = c.input;
+  final r = resolved ?? const {};
   switch (c.name) {
     case 'reserve_room':
-      return "회의실 예약 · ${_when(_s(i['start']), _s(i['end']))} · ${_s(i['room_name'])} · '${_s(i['title'])}'";
+      return "회의실 예약 · ${_when(_s(i['start']), _s(i['end']))} · ${_s(r['room_name'] ?? i['room_name'])} · '${_s(i['title'])}'";
     case 'create_event':
-      final who = [for (final a in (i['attendees'] as List? ?? const [])) if (a is Map) _s(a['name'])];
+      final who = r['attendees'] is List ? [for (final a in r['attendees'] as List) '$a'] : [for (final a in (i['attendees'] as List? ?? const [])) if (a is Map) _s(a['name'])];
       final place = _s(i['place']);
       return "일정 등록 · ${_when(_s(i['start']), _s(i['end']))} · '${_s(i['title'])}'${who.isEmpty ? '' : ' · 참석 ${who.join(', ')}'}${place.isEmpty ? '' : ' · 장소 $place'}";
     case 'cancel_reservation':
-      return '예약 취소 · ${_s(i['label'])}';
+      return r.isEmpty ? '예약 취소 · ${_s(i['label'])}' : "예약 취소 · ${_when(_s(r['start']), _s(r['end']))} · ${_s(r['room_name'])} · '${_s(r['title'])}'";
     case 'delete_event':
-      return '일정 삭제 · ${_s(i['label'])}';
+      return r.isEmpty ? '일정 삭제 · ${_s(i['label'])}' : "일정 삭제 · ${_when(_s(r['start']), _s(r['end']))} · '${_s(r['title'])}'";
     case 'clock_in':
       final extra = _s(i['extra']).trim();
       return i['notify_teams'] == true ? '출근 기록 · Teams 알림${extra.isEmpty ? '' : '(+$extra)'}' : '출근 기록';
@@ -73,7 +76,7 @@ String cardLine(ToolCall c) {
       final cc = _strList(i['cc']);
       return "메일 발송(되돌릴 수 없음) · 받는 사람 ${_strList(i['to']).join(', ')}${cc.isEmpty ? '' : ' · 참조 ${cc.join(', ')}'} · 제목 '${_s(i['subject'])}'\n${_s(i['body'])}";
     case 'teams_send':
-      return 'Teams 보내기 · ${_s(i['chat_name'])} · "${_s(i['text'])}"';
+      return 'Teams 보내기 · ${_s(r['chat_name'] ?? i['chat_name'])} · "${_s(i['text'])}"';
     default:
       return c.name;
   }
@@ -129,7 +132,6 @@ Map<String, dynamic>? reserveUndo(Map<String, dynamic> r, String label) {
   return (call: ToolCall('undo:${e.at}', u['tool'] as String, Map<String, dynamic>.from(u['args'] as Map? ?? const {})), summary: e.summary);
 }
 
-String _ymd8(String date) => date.replaceAll('-', '');
 DateTime? _date(String s) {
   final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(s.trim());
   return m == null ? null : DateTime(int.parse(m[1]!), int.parse(m[2]!), int.parse(m[3]!));
@@ -189,6 +191,74 @@ class AssistantToolRunner {
     }
   }
 
+  static const _resolveFailed = '확인에 필요한 정보를 가져오지 못했습니다';
+
+  /// 확인 카드에 보일 실제 대상 — 실행에 쓰일 id(res_seq·emp_seq·sch_seq·chat_id)로 아마란스·서버를 다시 읽는다(조회만).
+  /// 못 찾거나 남의 것이면 error(카드를 띄우지 않고 그 도구의 결과로 Claude에 돌려준다). 조회 자체가 실패해도 error.
+  Future<({Map<String, dynamic> facts, String? error})> resolve(ToolCall c) async {
+    try {
+      return (facts: await _resolve(c), error: null);
+    } on _BadInput catch (e) {
+      return (facts: const <String, dynamic>{}, error: e.message);
+    } on GwUnauthorized {
+      return (facts: const <String, dynamic>{}, error: _resolveFailed);
+    } on GwException catch (e) {
+      // 우리 코드가 던진 판정(status 200, resultCode 0: 남의 것·없음)은 그대로, 나머지(네트워크·서버 오류)는 확인 실패.
+      return (facts: const <String, dynamic>{}, error: e.status == 200 && e.resultCode == 0 ? e.message : _resolveFailed);
+    } catch (_) {
+      return (facts: const <String, dynamic>{}, error: _resolveFailed);
+    }
+  }
+
+  GwApi _needGw() => gw ?? (throw const _BadInput(_gwMissing));
+  int _seqNum(Object? v) => v is num ? v.toInt() : int.tryParse(_s(v)) ?? -1;
+  String _resIdx(Object? v) => _s(v).isEmpty ? '1' : _s(v);
+
+  /// emp_seq → 조직도(캐시) 사람. 하나라도 없으면 거부.
+  Future<List<GwPerson>> _attendees(GwApi g, Object? raw) async {
+    if (raw != null && raw is! List) throw const _BadInput('참석자 형식이 올바르지 않습니다');
+    final list = [for (final a in (raw as List? ?? const [])) if (a is Map) a];
+    if (list.isEmpty) return const [];
+    final roster = {for (final p in await g.roster()) p.empSeq: p};
+    final missing = [for (final a in list) if (!roster.containsKey(_s(a['emp_seq']))) "${_s(a['name'])}(${_s(a['emp_seq'])})"];
+    if (missing.isNotEmpty) throw _BadInput('참석자를 조직도에서 찾지 못했습니다: ${missing.join(', ')}');
+    return [for (final a in list) roster[_s(a['emp_seq'])]!];
+  }
+
+  Future<Map<String, dynamic>> _resolve(ToolCall c) async {
+    final i = c.input;
+    switch (c.name) {
+      case 'reserve_room':
+        final room = (await _needGw().resources()).where((r) => r.resSeq == _s(i['res_seq'])).firstOrNull;
+        if (room == null) throw _BadInput('회의실을 찾지 못했습니다: ${_s(i['res_seq'])} — list_rooms·find_free_rooms 결과의 resSeq를 쓰세요');
+        return {'room_name': room.resName};
+      case 'create_event':
+        return {'attendees': [for (final p in await _attendees(_needGw(), i['attendees'])) '${p.name}(${p.deptName})']};
+      case 'cancel_reservation':
+        return _needGw().reservationFacts(_s(i['res_seq']), _seqNum(i['seq_num']), _resIdx(i['res_idx']));
+      case 'delete_event':
+        return _needGw().eventFacts(_s(i['sch_seq']), ymd(_day(i['date'])));
+      case 'teams_send':
+        final r = await api.postJson('/api/assistant/execute', {'tool': 'teams_chats', 'args': const {}});
+        if (r is! Map || r['ok'] != true) throw _BadInput(r is Map && r['error'] is String ? r['error'] as String : _resolveFailed);
+        final chats = (r['result'] is Map ? (r['result'] as Map)['chats'] : null) as List? ?? const [];
+        final chat = chats.whereType<Map>().where((x) => _s(x['id']) == _s(i['chat_id'])).firstOrNull;
+        if (chat == null) throw _BadInput('채팅방을 찾지 못했습니다: ${_s(i['chat_id'])} — teams_chats 결과의 id를 쓰세요');
+        return {'chat_name': _s(chat['name'])};
+    }
+    return const {};
+  }
+
+  /// 취소·삭제가 성공하면 같은 대상을 가리키는 되돌리기 기록을 지운다(직접 호출이든 되돌리기든).
+  Future<void> _forgetUndo(ToolCall c) => journal.removeWhere((e) {
+        final u = e.undo;
+        if (u == null || u['tool'] != c.name) return false;
+        final a = u['args'] is Map ? u['args'] as Map : const {};
+        return c.name == 'cancel_reservation'
+            ? _s(a['res_seq']) == _s(c.input['res_seq']) && _seqNum(a['seq_num']) == _seqNum(c.input['seq_num'])
+            : _s(a['sch_seq']) == _s(c.input['sch_seq']);
+      });
+
   String _stamp(Object? iso) {
     final t = parseLocal(_s(iso));
     if (t == null) throw const _BadInput('시각 형식이 올바르지 않습니다(YYYY-MM-DDTHH:mm)');
@@ -210,7 +280,10 @@ class AssistantToolRunner {
         final from = _hm(_s(i['from'])), to = _hm(_s(i['to']));
         if (from == null || to == null) throw const _BadInput('시간 창 형식이 올바르지 않습니다(HH:mm)');
         final dur = i['duration_min'] is num ? (i['duration_min'] as num).toInt() : 60;
-        return {'ok': true, 'date': _s(i['date']), 'lunchExcluded': '13:00–14:00', 'rooms': await g.freeRooms(_day(i['date']), from, to, dur, group: _s(i['group']))};
+        final day = _day(i['date']), now = _now();
+        // 오늘이면 지난 시각은 빼고 지금 이후 첫 10분 단위부터
+        final start = day.year == now.year && day.month == now.month && day.day == now.day ? math.max(from, ((now.hour * 60 + now.minute + 9) ~/ 10) * 10) : from;
+        return {'ok': true, 'date': _s(i['date']), 'lunchExcluded': '13:00–14:00', 'rooms': await g.freeRooms(day, start, to, dur, group: _s(i['group']))};
       case 'my_reservations':
         return {'ok': true, 'reservations': await g.myReservations(_day(i['from_date']), _day(i['to_date']))};
       case 'reserve_room':
@@ -222,7 +295,9 @@ class AssistantToolRunner {
         }
         return r;
       case 'cancel_reservation':
-        return g.cancelReservation(_s(i['res_seq']), i['seq_num'] is num ? (i['seq_num'] as num).toInt() : int.tryParse(_s(i['seq_num'])) ?? -1, _s(i['res_idx']).isEmpty ? '1' : _s(i['res_idx']));
+        final r = await g.cancelReservation(_s(i['res_seq']), _seqNum(i['seq_num']), _resIdx(i['res_idx']));
+        if (r['ok'] == true) await _forgetUndo(c);
+        return r;
       case 'list_calendars':
         return {'ok': true, 'calendars': [for (final c in await g.calendars()) {'mcalSeq': c.mcalSeq, 'title': c.title, 'personal': c.personal}]};
       case 'list_events':
@@ -239,18 +314,17 @@ class AssistantToolRunner {
         }
         return {'ok': true, 'events': out};
       case 'create_event':
-        final people = [
-          for (final a in (i['attendees'] as List? ?? const []))
-            if (a is Map) GwPerson(empSeq: _s(a['emp_seq']), name: _s(a['name']), deptSeq: _s(a['dept_seq']), deptName: '', email: '', duty: '', position: ''),
-        ];
-        if (people.any((p) => p.empSeq.isEmpty || p.deptSeq.isEmpty)) throw const _BadInput('참석자는 find_person 결과의 emp_seq·dept_seq가 필요합니다');
+        // 참석자는 확인 카드와 같은 출처(조직도의 emp_seq)로 — 모델이 쓴 이름·부서는 쓰지 않는다.
+        final people = await _attendees(g, i['attendees']);
         final r = await g.createEvent(title: _s(i['title']), start: _stamp(i['start']), end: _stamp(i['end']), attendees: people, place: _s(i['place']));
         if (r['ok'] == true) {
           await _log('create_event', cardLine(c), {'tool': 'delete_event', 'args': {'sch_seq': r['schSeq'], 'date': _s(i['start']).substring(0, 10), 'label': "${_when(_s(i['start']), '').trim()} '${_s(i['title'])}'"}});
         }
         return r;
       case 'delete_event':
-        return g.deleteEvent(_s(i['sch_seq']), _ymd8(_s(i['date'])));
+        final r = await g.deleteEvent(_s(i['sch_seq']), ymd(_day(i['date'])));
+        if (r['ok'] == true) await _forgetUndo(c);
+        return r;
       case 'attendance_today':
         final a = await g.attendanceToday();
         return {'ok': true, 'date': a.workDt, 'clockIn': a.comeTm, 'clockOut': a.leaveTm, 'holiday': a.holiday};

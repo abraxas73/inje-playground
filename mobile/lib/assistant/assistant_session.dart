@@ -109,6 +109,20 @@ List<Map<String, dynamic>> trimHistory(
   ];
 }
 
+/// 비서 시계(KST 벽시계 + UTC 플래그). 실행 기록 시각·24시간 되돌리기 창·빈 회의실의 "오늘"이 같은 시계를 쓴다(테스트에서 고정).
+final assistantClockProvider = Provider<DateTime Function()>((_) => kstNow);
+
+/// 서버가 비서를 꺼 두었다고 답하면({enabled:false}) 이번 앱 실행 동안 이노봇을 숨긴다(LLM 기능은 못 쓸 때 숨김 — 비활성 표시 금지).
+final assistantAvailableProvider = NotifierProvider<AssistantAvailable, bool>(
+  AssistantAvailable.new,
+);
+
+class AssistantAvailable extends Notifier<bool> {
+  @override
+  bool build() => true;
+  void disable() => state = false;
+}
+
 final assistantSessionProvider =
     NotifierProvider<AssistantSession, AssistantState>(AssistantSession.new);
 
@@ -146,6 +160,7 @@ class AssistantSession extends Notifier<AssistantState> {
       api: ref.read(apiClientProvider),
       journal: _journal!,
       guard: _guard,
+      now: ref.read(assistantClockProvider),
     );
   }
 
@@ -235,6 +250,9 @@ class AssistantSession extends Notifier<AssistantState> {
           return;
         }
         if (res is! Map || res['enabled'] != true) {
+          if (res is Map && res['enabled'] == false) {
+            ref.read(assistantAvailableProvider.notifier).disable();
+          }
           _add(const ChatItem(ChatKind.notice, '관리자가 비서를 꺼 두었습니다.'));
           _rollbackFailedTurn();
           return;
@@ -304,6 +322,7 @@ class AssistantSession extends Notifier<AssistantState> {
         final all = [
           for (final e in (_journal ?? await AssistantJournal.load()).undoable(
             n,
+            now: ref.read(assistantClockProvider)(),
           ))
             ?undoFor(e),
         ];
@@ -323,18 +342,43 @@ class AssistantSession extends Notifier<AssistantState> {
       }
     }
     if (writes.isNotEmpty) {
-      _pending = _Pending(
+      final p = _Pending(
         [for (final c in calls) c.id],
         results,
         writes,
         undoIds,
         undoWriteIds,
       );
+      // 카드는 유일한 안전장치 — 실행에 쓰일 id로 실제 대상을 다시 읽어 그 값으로 만든다. 하나라도 못 찾으면 카드 없이 결과로 돌려준다.
+      _add(const ChatItem(ChatKind.progress, '확인할 내용 보는 중…'));
+      final lines = <String>[];
+      final rejected = <String, Map<String, dynamic>>{};
+      for (final w in writes) {
+        final r = await runner.resolve(w);
+        if (r.error != null) {
+          rejected[w.id] = {'ok': false, 'error': r.error};
+        } else {
+          lines.add(cardLine(w, r.facts));
+        }
+      }
+      if (rejected.isNotEmpty) {
+        _messages.add({
+          'role': 'user',
+          'content': _resultsFor(p, {
+            for (final w in writes)
+              w.id:
+                  rejected[w.id] ??
+                  {'ok': false, 'error': '함께 요청한 다른 작업을 확인하지 못해 실행하지 않았습니다'},
+          }),
+        });
+        return true;
+      }
+      _pending = p;
       _add(
         ChatItem(
           ChatKind.card,
           '실행할까요?',
-          lines: [for (final w in writes) cardLine(w)],
+          lines: lines,
           irreversible: writes.any(
             (w) => tierOf(w.name) == ToolTier.irreversible,
           ),
@@ -393,7 +437,7 @@ class AssistantSession extends Notifier<AssistantState> {
     final p = _pending;
     if (p == null || state.busy) return;
     _pending = null;
-    _markCardDone('실행했습니다');
+    _markCardDone('실행 중…');
     _set(busy: true);
     final out = <String, Map<String, dynamic>>{};
     var failed = false;
@@ -410,15 +454,9 @@ class AssistantSession extends Notifier<AssistantState> {
             '${cardLine(w).split(' · ').first} 하는 중…',
           ),
         );
-        final r = await runner.run(w);
+        final r = await runner.run(w); // 취소·삭제 성공은 러너가 실행 기록에서 지운다
         out[w.id] = r;
         if (r['ok'] != true) failed = true;
-        if (p.undoWriteIds.contains(w.id) && r['ok'] == true) {
-          final j = _journal ?? await AssistantJournal.load();
-          for (final e in j.undoable(AssistantJournal.max)) {
-            if (undoFor(e)?.call.id == w.id) await j.remove(e);
-          }
-        }
       }
     } catch (_) {
       for (final w in p.writes) {
@@ -430,6 +468,14 @@ class AssistantSession extends Notifier<AssistantState> {
         items: [...state.items.where((x) => x.kind != ChatKind.progress)],
       );
     }
+    final okCount = p.writes.where((w) => out[w.id]?['ok'] == true).length;
+    _markCardDone(
+      okCount == p.writes.length
+          ? '실행했습니다'
+          : out[p.writes.first.id]?['ok'] == true
+          ? '일부만 실행했습니다'
+          : '실행하지 못했습니다',
+    );
     _messages.add({'role': 'user', 'content': _resultsFor(p, out)});
     await _drive();
   }

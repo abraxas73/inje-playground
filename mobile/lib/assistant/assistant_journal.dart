@@ -1,6 +1,8 @@
 // mobile/lib/assistant/assistant_journal.dart
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../gw/gw_models.dart';
+import 'gw_assistant_api.dart';
 
 /// 비서가 실행한 쓰기 작업 기록(기기, 최근 20건). undo = 반대 작업 {tool, args}, 되돌릴 수 없으면 null.
 class JournalEntry {
@@ -44,11 +46,19 @@ class AssistantJournal {
     await _save();
   }
 
-  /// 최근 것부터 되돌릴 수 있는 n개.
-  List<JournalEntry> undoable(int n) => _items.reversed.where((e) => e.undo != null).take(n).toList();
+  /// 최근 것부터 되돌릴 수 있는 n개 — 24시간 안의 것만. at은 kstNow() 규약(KST 벽시계 + UTC 플래그)으로 기록되므로 parseLocal로 같은 규약끼리 비교한다.
+  List<JournalEntry> undoable(int n, {DateTime? now}) {
+    final t = now ?? kstNow();
+    bool fresh(JournalEntry e) {
+      final at = parseLocal(e.at);
+      return at != null && t.difference(at) < const Duration(hours: 24);
+    }
+    return _items.reversed.where((e) => e.undo != null && fresh(e)).take(n).toList();
+  }
 
-  Future<void> remove(JournalEntry e) async {
-    _items.removeWhere((x) => identical(x, e) || (x.at == e.at && x.tool == e.tool && x.summary == e.summary));
-    await _save();
+  Future<void> removeWhere(bool Function(JournalEntry) test) async {
+    final before = _items.length;
+    _items.removeWhere(test);
+    if (_items.length != before) await _save();
   }
 }

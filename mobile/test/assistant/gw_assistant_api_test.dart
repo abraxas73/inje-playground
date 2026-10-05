@@ -141,6 +141,11 @@ void main() {
     expect(body, contains('안녕'));
   });
 
+  test('cancelReservation — 취소 뒤에도 재조회에 그대로 있으면 canceled:false', () async {
+    final gw = Gw({...base(), '/schres/rs121A10': (_) => {'reqText': '내 회의', 'empSeq': '7'}, '/schres/rs121A11': (_) => {}});
+    expect(await gw.api().cancelReservation('R2', 6, '1'), {'ok': false, 'canceled': false});
+  });
+
   test('cancelReservation — 재조회 네트워크 오류는 ok:false, 인증 만료는 다시 던진다', () async {
     var called = 0;
     final r = await Gw({...base(), '/schres/rs121A10': (_) => called++ == 0 ? {'reqText': 't', 'empSeq': '7'} : http.Response('boom', 500), '/schres/rs121A11': (_) => {}}).api().cancelReservation('R2', 6, '1');

@@ -157,10 +157,22 @@ extension GwAssistantApi on GwApi {
     return {'ok': ok, 'resSeq': resSeq, 'seqNum': seqNum, 'resIdx': resIdx, 'title': title, 'start': start, 'end': end};
   }
 
-  /// 내 예약 취소 — 상세 스냅샷(소유권 확인) → rs121A11 → 재조회가 실패하면 취소됨.
-  Future<Map<String, dynamic>> cancelReservation(String resSeq, int seqNum, String resIdx) async {
+  /// 내 예약 상세(rs121A10) — 남의 것이면 예외. 확인 카드(제목·시각·회의실)와 취소 스냅샷이 같이 쓴다.
+  Future<Map> myReservation(String resSeq, int seqNum, String resIdx) async {
     final d = await _reservationDetail(resSeq, seqNum, resIdx);
     if (d is! Map || asStr(d['empSeq']) != client.creds().empSeq) throw GwException(200, 0, '본인 예약이 아니라 취소할 수 없습니다');
+    return d;
+  }
+
+  /// 확인 카드용 예약 사실 — 실행에 쓰일 번호로 다시 읽은 값.
+  Future<Map<String, dynamic>> reservationFacts(String resSeq, int seqNum, String resIdx) async {
+    final d = await myReservation(resSeq, seqNum, resIdx);
+    return {'title': asStr(d['reqText']), 'start': _iso(asStr(d['startDate'])), 'end': _iso(asStr(d['endDate'])), 'room_name': asStr(d['resName'])};
+  }
+
+  /// 내 예약 취소 — 상세 스냅샷(소유권 확인) → rs121A11 → 재조회가 실패하면 취소됨.
+  Future<Map<String, dynamic>> cancelReservation(String resSeq, int seqNum, String resIdx) async {
+    final d = await myReservation(resSeq, seqNum, resIdx);
     await client.call('/schres/rs121A11', {
       'companyInfo': await client.companyInfo(), 'statusCode': 'CA', 'deleteRangeCode': 'UO',
       'resSeqList': [{'resSeq': resSeq, 'seqNum': seqNum, 'resIdx': resIdx, 'reqText': asStr(d['reqText']), 'startDate': asStr(d['startDate']), 'endDate': asStr(d['endDate']), 'createDate': asStr(d['createDate']), 'schmSeq': '', 'schSeq': '', 'resName': asStr(d['resName']), 'alldayYn': 'N'}],
@@ -179,7 +191,7 @@ extension GwAssistantApi on GwApi {
         return {'ok': false, 'canceled': false, 'message': '취소 요청은 보냈지만 취소됐는지 확인하지 못했습니다. 아마란스에서 확인하세요.'};
       }
     }
-    return {'ok': gone, 'canceled': true};
+    return {'ok': gone, 'canceled': gone};
   }
 
   /// 내 개인 캘린더에 일정 등록(sc111A05 신규). 주최 M(본인) + 참석 W(각자 부서, 중복 제거), mailSend N. read-back은 그날 목록의 제목.
@@ -206,15 +218,29 @@ extension GwAssistantApi on GwApi {
     return {'ok': row != null && asStr(row['schTitle']) == title, 'schSeq': schSeq, 'title': title, 'start': start, 'end': end, 'attendees': [for (final g in guests) g.name]};
   }
 
-  /// 내가 등록한 일정 삭제(sc111A06) — 그날 목록에서 createSeq 확인 → 삭제 → 다시 없으면 성공.
-  Future<Map<String, dynamic>> deleteEvent(String schSeq, String dateYmd8) async {
-    final day = DateTime(int.parse(dateYmd8.substring(0, 4)), int.parse(dateYmd8.substring(4, 6)), int.parse(dateYmd8.substring(6, 8)));
-    final row = (await eventRows(day)).where((r) => asStr(r['schSeq']) == schSeq).firstOrNull;
+  DateTime _day8(String ymd8) => DateTime(int.parse(ymd8.substring(0, 4)), int.parse(ymd8.substring(4, 6)), int.parse(ymd8.substring(6, 8)));
+
+  /// 그날 목록에서 내가 등록한 일정 행 — 없거나 남의 것이면 예외. 확인 카드와 삭제가 같이 쓴다.
+  Future<Map> myEvent(String schSeq, String dateYmd8) async {
+    final row = (await eventRows(_day8(dateYmd8))).where((r) => asStr(r['schSeq']) == schSeq).firstOrNull;
     if (row == null) throw GwException(200, 0, '그 날짜에서 일정을 찾지 못했습니다');
     if (asStr(row['createSeq']) != client.creds().empSeq) throw GwException(200, 0, '내가 등록한 일정이 아니라 삭제할 수 없습니다');
+    return row;
+  }
+
+  /// 확인 카드용 일정 사실.
+  Future<Map<String, dynamic>> eventFacts(String schSeq, String dateYmd8) async {
+    final row = await myEvent(schSeq, dateYmd8);
+    return {'title': asStr(row['schTitle']), 'start': _iso(asStr(row['startDate'])), 'end': _iso(asStr(row['endDate']))};
+  }
+
+  /// 내가 등록한 일정 삭제(sc111A06) — 그날 목록에서 createSeq 확인 → 삭제 → 다시 없으면 성공.
+  Future<Map<String, dynamic>> deleteEvent(String schSeq, String dateYmd8) async {
+    final row = await myEvent(schSeq, dateYmd8);
+    final day = _day8(dateYmd8);
     await client.call('/schres/sc111A06', {'mcalSeq': asStr(row['mcalSeq']), 'schmSeq': schSeq, 'schSeq': schSeq, 'rangeCode': '', 'langCode': 'kr'});
     final still = (await eventRows(day)).any((r) => asStr(r['schSeq']) == schSeq);
-    return {'ok': !still, 'deleted': true};
+    return {'ok': !still, 'deleted': !still};
   }
 }
 

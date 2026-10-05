@@ -71,10 +71,19 @@ class Brain {
             : turns.removeAt(0);
       } else {
         executed.add(b);
-        out = {
-          'ok': true,
-          'result': {'sent': true},
-        };
+        out = b['tool'] == 'teams_chats'
+            ? {
+                'ok': true,
+                'result': {
+                  'chats': [
+                    {'id': '19:a@thread.v2', 'name': '센터', 'type': 'group'},
+                  ],
+                },
+              }
+            : {
+                'ok': true,
+                'result': {'sent': true},
+              };
       }
       return http.Response.bytes(
         utf8.encode(jsonEncode(out)),
@@ -120,11 +129,15 @@ ProviderContainer scope(Brain brain, Gw gw, {GwCreds? creds = testCreds}) {
       apiClientProvider.overrideWithValue(brain.client),
       gwStoreProvider.overrideWithValue(FakeGwStore(creds)),
       gwHttpClientProvider.overrideWithValue(gw.client),
+      assistantClockProvider.overrideWithValue(() => t0),
     ],
   );
   addTearDown(c.dispose);
   return c;
 }
+
+/// 테스트 시계(KST 벽시계 + UTC 플래그) — 실행 기록의 24시간 창이 날짜와 무관하게 결정적이도록.
+final t0 = DateTime.utc(2026, 10, 5, 11);
 
 List toolResults(List msgs) => [
   for (final b in (msgs.last['content'] as List))
@@ -203,7 +216,8 @@ void main() {
       expect(st.pending, isTrue);
       expect(st.items.last.kind, ChatKind.card);
       expect(st.items.last.lines, hasLength(2));
-      expect(st.items.last.lines.last, contains('참석 강승억, 정선미'));
+      expect(st.items.last.lines.first, contains('회의실B'));
+      expect(st.items.last.lines.last, contains('참석 강승억(클라우드팀), 정선미(경영지원팀)'));
       expect(gw.calls['/schres/rs121A06'], isNull, reason: '확인 전에는 쓰기 없음');
       expect(
         toolResults(brain.received[1]).map((b) => b['tool_use_id']),
@@ -220,7 +234,7 @@ void main() {
         '16:00–17:00 회의실B를 예약하고 일정을 등록했습니다.',
       );
       expect(c.read(assistantSessionProvider).pending, isFalse);
-      expect((await AssistantJournal.load()).undoable(5).map((e) => e.tool), [
+      expect((await AssistantJournal.load()).undoable(5, now: t0).map((e) => e.tool), [
         'create_event',
         'reserve_room',
       ]);
@@ -333,7 +347,13 @@ void main() {
       ...base(),
       '/schres/rs121A10': (_) => gone
           ? http.Response('{"resultCode":1,"resultMsg":"x"}', 200)
-          : {'reqText': '내 회의', 'empSeq': '7'},
+          : {
+              'reqText': '내 회의',
+              'empSeq': '7',
+              'resName': '회의실B',
+              'startDate': '202610051500',
+              'endDate': '202610051600',
+            },
       '/schres/rs121A11': (_) {
         gone = true;
         return {};
@@ -347,12 +367,12 @@ void main() {
     await c.read(assistantSessionProvider.notifier).send('방금 거 취소해줘');
     expect(
       c.read(assistantSessionProvider).items.last.lines.single,
-      '예약 취소 · 10/5 회의실B',
+      "예약 취소 · 10/5(월) 15:00–16:00 · 회의실B · '내 회의'",
     );
     await c.read(assistantSessionProvider.notifier).confirm();
     expect(gw.calls['/schres/rs121A11'], hasLength(1));
     expect(toolResults(brain.received.last).single['tool_use_id'], 'u');
-    expect((await AssistantJournal.load()).undoable(5), isEmpty);
+    expect((await AssistantJournal.load()).undoable(5, now: t0), isEmpty);
   });
 
   test('되돌릴 게 없으면 바로 결과, 모르는 도구는 오류 결과로 이어감, 턴 상한 10', () async {
@@ -394,9 +414,9 @@ void main() {
     ]);
     final c = scope(brain, scenarioGw());
     await c.read(assistantSessionProvider.notifier).send('센터에 인사해줘');
-    expect(brain.executed, isEmpty);
+    expect(brain.executed.map((e) => e['tool']), ['teams_chats'], reason: '확인 전엔 채팅방 확인(조회)만');
     await c.read(assistantSessionProvider.notifier).confirm();
-    expect(brain.executed.single, {
+    expect(brain.executed.last, {
       'tool': 'teams_send',
       'args': {'chat_id': '19:a@thread.v2', 'chat_name': '센터', 'text': '안녕하세요'},
     });
@@ -669,5 +689,106 @@ void main() {
           .where((i) => i.kind == ChatKind.user),
       hasLength(1),
     );
+  });
+
+  List<dynamic> resultsOf(List msgs) => [
+    for (final b in toolResults(msgs)) jsonDecode(b['content'] as String),
+  ];
+
+  test('카드는 실제 대상 — 조직도에 없는 참석자는 카드 없이 ok:false, 이름이 틀려도 실제 사람(부서)을 보인다', () async {
+    final brain = Brain([
+      use([
+        ('e', 'create_event', {'title': '회의', 'start': '2026-10-05T16:00', 'end': '2026-10-05T17:00', 'attendees': [{'emp_seq': '31', 'dept_seq': '20', 'name': '강승억'}, {'emp_seq': '404', 'dept_seq': '20', 'name': '정선미'}]}),
+      ]),
+      use([
+        ('e2', 'create_event', {'title': '회의', 'start': '2026-10-05T16:00', 'end': '2026-10-05T17:00', 'attendees': [{'emp_seq': '33', 'dept_seq': '30', 'name': '김민준'}]}),
+      ]),
+    ]);
+    final gw = scenarioGw();
+    final c = scope(brain, gw);
+    await c.read(assistantSessionProvider.notifier).send('회의 잡아줘');
+    final first = resultsOf(brain.received[1]).single;
+    expect(first, {'ok': false, 'error': '참석자를 조직도에서 찾지 못했습니다: 정선미(404)'});
+    final st = c.read(assistantSessionProvider);
+    expect(st.pending, isTrue, reason: '두 번째 응답은 카드');
+    expect(st.items.where((i) => i.kind == ChatKind.card), hasLength(1));
+    expect(st.items.last.lines.single, contains('참석 김민준(클라우드팀)'), reason: '모델이 dept_seq 30이라 써도 emp_seq 33의 실제 부서');
+    expect(gw.calls['/schres/sc111A05'], isNull);
+  });
+
+  test('카드는 실제 대상 — 회의실 이름은 res_seq의 자원 목록에서, 모델이 쓴 room_name이 아니다', () async {
+    final brain = Brain([
+      use([('d', 'reserve_room', {'res_seq': 'R1', 'room_name': '회의실B', 'start': '2026-10-05T16:00', 'end': '2026-10-05T17:00', 'title': '회의'})]),
+      use([('d2', 'reserve_room', {'res_seq': 'R404', 'room_name': '회의실B', 'start': '2026-10-05T16:00', 'end': '2026-10-05T17:00', 'title': '회의'})]),
+    ]);
+    final c = scope(brain, scenarioGw());
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('잡아줘');
+    expect(c.read(assistantSessionProvider).items.last.lines.single, "회의실 예약 · 10/5(월) 16:00–17:00 · 회의실A · '회의'");
+    await s.dismiss();
+    expect(resultsOf(brain.received.last).single['error'], startsWith('회의실을 찾지 못했습니다'));
+    expect(c.read(assistantSessionProvider).pending, isFalse);
+  });
+
+  test('카드는 실제 대상 — 내 채팅 목록에 없는 chat_id의 teams_send는 거부, 있으면 실제 이름', () async {
+    final brain = Brain([
+      use([('t', 'teams_send', {'chat_id': '19:evil@thread.v2', 'chat_name': '센터', 'text': '안녕'})]),
+      use([('t2', 'teams_send', {'chat_id': '19:a@thread.v2', 'chat_name': '사장님', 'text': '안녕'})]),
+    ]);
+    final c = scope(brain, scenarioGw());
+    await c.read(assistantSessionProvider.notifier).send('보내줘');
+    expect(resultsOf(brain.received[1]).single['error'], startsWith('채팅방을 찾지 못했습니다'));
+    expect(c.read(assistantSessionProvider).items.last.lines.single, 'Teams 보내기 · 센터 · "안녕"');
+    expect(brain.executed.where((e) => e['tool'] == 'teams_send'), isEmpty);
+  });
+
+  test('확인 정보를 못 가져오면(네트워크) 카드 없이 ok:false, 함께 온 다른 쓰기도 실행 안 함', () async {
+    final brain = Brain([
+      use([
+        ('d', 'reserve_room', {'res_seq': 'R1', 'start': '2026-10-05T16:00', 'end': '2026-10-05T17:00', 'title': '회의'}),
+        ('m', 'mail_save_draft', {'to': ['a@x'], 'subject': 's', 'body': 'b'}),
+      ]),
+    ]);
+    final gw = Gw({...scenarioGw().routes, '/schres/rs121A01': (_) => http.Response('x', 500)});
+    final c = scope(brain, gw);
+    await c.read(assistantSessionProvider.notifier).send('잡아줘');
+    final rs = resultsOf(brain.received[1]);
+    expect(rs[0], {'ok': false, 'error': '확인에 필요한 정보를 가져오지 못했습니다'});
+    expect(rs[1]['ok'], isFalse);
+    expect(c.read(assistantSessionProvider).items.where((i) => i.kind == ChatKind.card), isEmpty);
+    expect(gw.calls['/mail/mail014A14'], isNull);
+  });
+
+  test('카드 상태 — 실행 중… → 전부 성공 "실행했습니다", 뒤가 실패 "일부만", 첫 작업 실패 "실행하지 못했습니다"', () async {
+    String cardText(ProviderContainer c) => c.read(assistantSessionProvider).items.lastWhere((i) => i.kind == ChatKind.card).text;
+    Future<String> run(List<(String, String, Map<String, dynamic>)> calls, {List<String>? during}) async {
+      late ProviderContainer c;
+      final routes = {...scenarioGw().routes};
+      final orig = routes['/schres/rs121A06']!;
+      routes['/schres/rs121A06'] = (b) {
+        during?.add(cardText(c));
+        return orig(b);
+      };
+      c = scope(Brain([use(calls), say('끝')]), Gw(routes));
+      await c.read(assistantSessionProvider.notifier).send('해줘');
+      await c.read(assistantSessionProvider.notifier).confirm();
+      return cardText(c);
+    }
+    const ok = ('d', 'reserve_room', {'res_seq': 'R2', 'start': '2026-10-05T16:00', 'end': '2026-10-05T17:00', 'title': '회의'});
+    const bad = ('e', 'create_event', {'title': '회의', 'start': 'bad', 'end': 'bad'});
+    final during = <String>[];
+    expect(await run([ok], during: during), '실행했습니다');
+    expect(during, ['실행 중…']);
+    expect(await run([ok, bad]), '일부만 실행했습니다');
+    expect(await run([bad, ok]), '실행하지 못했습니다');
+  });
+
+  test('서버가 {enabled:false}면 이노봇을 이번 실행 동안 숨긴다', () async {
+    final c = scope(Brain([{'enabled': false}]), scenarioGw());
+    expect(c.read(assistantAvailableProvider), isTrue);
+    await c.read(assistantSessionProvider.notifier).send('안녕');
+    expect(c.read(assistantAvailableProvider), isFalse);
+    c.read(assistantSessionProvider.notifier).reset();
+    expect(c.read(assistantAvailableProvider), isFalse);
   });
 }

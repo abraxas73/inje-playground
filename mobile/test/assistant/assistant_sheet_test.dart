@@ -59,4 +59,17 @@ void main() {
     expect(find.text('네.'), findsNothing);
     expect(find.text('무엇을 도와드릴까요?'), findsOneWidget);
   });
+
+  testWidgets('비서가 꺼져 있으면(서버 enabled:false) 이노봇 버튼을 숨긴다', (tester) async {
+    final brain = Brain([{'enabled': false}]);
+    await tester.pumpWidget(host(brain, const InnobotButton()));
+    await tester.tap(find.byTooltip('비서 이노봇'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('오늘 내 일정 알려줘'));
+    await tester.pumpAndSettle();
+    expect(find.text('관리자가 비서를 꺼 두었습니다.'), findsOneWidget);
+    Navigator.of(tester.element(find.text('관리자가 비서를 꺼 두었습니다.'))).pop();
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('비서 이노봇'), findsNothing);
+  });
 }
