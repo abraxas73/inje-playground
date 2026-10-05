@@ -114,9 +114,18 @@ class MailReadGuard {
 }
 
 /// 실행 기록 → 되돌리기 호출(확인 카드에 쓰일 ToolCall). 되돌릴 수 없으면 null.
+const _undoTools = {'cancel_reservation', 'delete_event'};
+
+/// 예약 되돌리기 기록 — 예약 번호·회차가 없으면 취소할 수 없으니 null(기록은 남기되 되돌리기 없음).
+Map<String, dynamic>? reserveUndo(Map<String, dynamic> r, String label) {
+  final seq = r['seqNum'];
+  if (seq is! int || seq < 0 || _s(r['resIdx']).isEmpty) return null;
+  return {'tool': 'cancel_reservation', 'args': {'res_seq': r['resSeq'], 'seq_num': seq, 'res_idx': r['resIdx'], 'label': label}};
+}
+
 ({ToolCall call, String summary})? undoFor(JournalEntry e) {
   final u = e.undo;
-  if (u == null || u['tool'] is! String) return null;
+  if (u == null || !_undoTools.contains(u['tool'])) return null;
   return (call: ToolCall('undo:${e.at}', u['tool'] as String, Map<String, dynamic>.from(u['args'] as Map? ?? const {})), summary: e.summary);
 }
 
@@ -157,6 +166,9 @@ class AssistantToolRunner {
         return {'ok': false, 'error': r is Map && r['enabled'] == false ? '비서 기능이 꺼져 있습니다' : '서버 응답이 올바르지 않습니다'};
       } on ApiException catch (e) {
         return {'ok': false, 'error': e.message};
+      } catch (e) {
+        // 연결 끊김 등 — 보내기는 서버에서 이미 처리됐을 수 있어 재시도를 권하지 않는다.
+        return {'ok': false, 'error': c.name == 'teams_send' ? '전송 결과를 확인할 수 없습니다. Teams에서 확인한 뒤 다시 보내세요' : '처리하지 못했습니다: ${e.runtimeType}'};
       }
     }
     final g = gw;
@@ -206,7 +218,7 @@ class AssistantToolRunner {
         final r = await g.reserveRoom(resSeq: _s(i['res_seq']), start: start, end: end, title: _s(i['title']));
         if (r['ok'] == true) {
           final label = "${_when(_s(i['start']), '').trim()} ${_s(i['room_name'])} '${_s(i['title'])}'";
-          await _log('reserve_room', cardLine(c), {'tool': 'cancel_reservation', 'args': {'res_seq': r['resSeq'], 'seq_num': r['seqNum'], 'res_idx': r['resIdx'], 'label': label}});
+          await _log('reserve_room', cardLine(c), reserveUndo(r, label));
         }
         return r;
       case 'cancel_reservation':

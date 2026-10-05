@@ -1,5 +1,6 @@
 // mobile/test/assistant/assistant_tools_test.dart
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -115,5 +116,25 @@ void main() {
       expect(await r.run(ToolCall('3', t, {'to': [], 'subject': 's', 'body': 'b'})), {'ok': false, 'error': '받는 사람이 없습니다'});
     }
     expect(gw.calls, isEmpty);
+  });
+
+  test('서버 도구 — 예외 없이 {ok:false}, teams_send는 전송 결과 불명 문구', () async {
+    final boom = ApiClient(httpClient: MockClient((r) async => throw const SocketException('x')), tokens: _Tokens(), baseUrl: 'http://x', userAgent: 't');
+    final runner = AssistantToolRunner(gw: null, api: boom, journal: await AssistantJournal.load(), guard: MailReadGuard());
+    final a = await runner.run(const ToolCall('1', 'teams_chats', {}));
+    expect(a['ok'], isFalse);
+    expect(a['error'], startsWith('처리하지 못했습니다'));
+    expect(await runner.run(const ToolCall('2', 'teams_send', {'chat_id': 'c', 'text': 't'})), {'ok': false, 'error': '전송 결과를 확인할 수 없습니다. Teams에서 확인한 뒤 다시 보내세요'});
+  });
+
+  test('되돌리기 — 허용 도구만, 예약 번호 없으면 기록하되 undo 없음', () {
+    JournalEntry e(String t) => JournalEntry(at: 'a', tool: 'x', summary: 's', undo: {'tool': t, 'args': {}});
+    expect(undoFor(e('cancel_reservation')), isNotNull);
+    expect(undoFor(e('delete_event')), isNotNull);
+    expect(undoFor(e('mail_send')), isNull);
+    expect(undoFor(e('teams_send')), isNull);
+    expect(reserveUndo({'resSeq': 'R1', 'seqNum': 7, 'resIdx': '1'}, 'l'), isNotNull);
+    expect(reserveUndo({'resSeq': 'R1', 'resIdx': '1'}, 'l'), isNull);
+    expect(reserveUndo({'resSeq': 'R1', 'seqNum': 7, 'resIdx': ''}, 'l'), isNull);
   });
 }
