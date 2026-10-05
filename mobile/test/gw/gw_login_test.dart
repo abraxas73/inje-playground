@@ -49,6 +49,10 @@ void main() {
     test('viewport 교정 JS는 device-width를 넣는다', () {
       expect(viewportFixJs, contains('width=device-width'));
       expect(viewportFixJs, contains("meta[name=viewport]"));
+      // 폰 폭에서 로그인 버튼을 덮는 하단 저작권 문구는 숨긴다(입력칸·버튼이 든 요소는 건드리지 않음, SPA 재렌더에도 다시 적용)
+      expect(viewportFixJs, contains('Copyright'));
+      expect(viewportFixJs, contains('MutationObserver'));
+      expect(viewportFixJs, contains('input,button,form'));
     });
     test('fillJs는 값을 JSON 문자열로 안전하게 넣고 선택자·버튼을 담는다', () {
       final js = fillJs(selector: '#reqLoginPw', value: 'a"b\'c</script>', submitText: '로그인');
