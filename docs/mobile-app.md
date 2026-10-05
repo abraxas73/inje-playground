@@ -67,6 +67,10 @@
 | "데일리 브리핑"(옛 이름 오늘의 한 마디)이 "강승"처럼 중간에 잘림(1.1.2 이전) | Sonnet 5.5는 생각이 기본으로 켜져 있어 `max_tokens` 400을 생각이 먼저 씀 | 서버가 `thinking: {type: "between_tools"}`로 생각을 끄고(이 모델은 `disabled`를 거부), `max_tokens`로 잘리면 502로 버린다. 앱 1.1.3은 캐시 키를 v2로 바꿔 잘린 문장을 한 번 버린다 |
 | 팀원 연차가 "오늘 일정"에 내 일정처럼 보임 | 아마란스가 `delYn='Y'`(mine)를 팀원 근태에도 준다 | 제목·캘린더명 키워드로 분류한다(`absenceKind`). 새 표현(예: "휴무")이 보이면 `_absenceWords`에 추가 |
 | Android에서 WebView 화면(설정 등)에 들어간 뒤 ←로 못 나감(같은 페이지가 다시 뜨거나 로그인 페이지가 보임) | 첫 로드(`/settings` → 307 `/login`)를 가로채도 Android WebView는 `/login`을 히스토리에 남겨 `canGoBack()`이 true — `goBack()`은 그 유령 항목을 실제로 연다(iOS WKWebView는 안 남김). `goBack`은 `onNavigationRequest`를 거치지 않는다 | `WebScreen`이 뒤로 가기 직후 `onPageStarted`가 `/login`·`/auth/mobile`(`isSessionBoundary`)이면 화면을 닫는다(`BackTracker`, 1.1.1). 재현은 가짜 서버 + `lib/_probe_main.dart`식 프로브(런북 §실기기 체크리스트 참고) |
+| 비서가 "아마란스가 연결되어 있지 않습니다" | 앱 아마란스 미연결·만료 | 더보기 > 아마란스에서 연결. Teams 도구만은 동작 |
+| 비서 "오늘 비서 사용 한도를 넘었습니다" | `assistant_daily_turns` 상한(감사 로그 "비서 턴" 건수) | 관리자 설정에서 상한 조정 |
+| 비서가 사람을 엉뚱하게 초대 | 동명이인 | 카드의 참석자는 조직도 실명(부서)으로 나온다 — 부서를 확인하고 "고쳐 줘" |
+| 이노봇 버튼이 안 보임 | 관리자가 비서를 꺼 둠(첫 응답 `{enabled:false}` 뒤 그 실행 동안 숨김) | `/admin/settings` 비서 스위치 확인 후 앱 재시작 |
 
 ## 홈 브리핑 (2026-10-04)
 스펙 `docs/superpowers/specs/2026-10-04-mobile-briefing-design.md`. 홈 탭 = 오늘의 브리핑: 인사말 → 오늘의 한 줄(격언, 그대로) → **데일리 브리핑** 카드(Claude Sonnet 5.5 2~3문장, **앱이 새로 시작될 때마다 1회** 생성 — 켜져 있는 동안 새로고침·탭 재터치·백그라운드 복귀로는 다시 만들지 않음, 시작 직후엔 오늘 저장된 직전 문장(`briefing.summary.v2`)을 먼저 보여 줌, 다시 만들기 버튼 없음; 꺼져 있거나 실패하면 카드 숨김. 격언 "오늘의 한 줄"은 날짜로 골라 하루 1회만 바뀜) → **지금 필요한 것**(규칙: 90분 안 회의 → 안 읽음·2일 이상 결재 → Teams 답장 대기 → 오늘 안 읽은 메일 → 09:30 이후 출근 미기록 → 새 공지, 최대 4) → 오늘 일정(내일 N건) → **팀원 부재**(남의 일정 중 연차·반차·휴가·병가·출장·외근·재택·교육·경조 키워드 — 아마란스 `mine` 플래그에 팀원 근태가 섞여 오는 문제의 답) → 결재 3 → 메일 3 → Teams 3 → 공지 3 → 바로 가기. 코드 `mobile/lib/briefing/`(순수 `briefing_model.dart`, 수집 `briefing_provider.dart`, 요약 `summary_provider.dart`, 위젯 `briefing_sections.dart`).
@@ -76,6 +80,12 @@
 ## 출근 Teams 알림 (2026-10-05)
 출퇴근 화면의 **출근 기록** 확인창에서 내 Teams 채팅방(그룹·1:1, `GET /api/teams/chat` — 본인 Microsoft 위임 토큰)을 한 번 골라 두면, "Teams에 알리기" 스위치(기억됨)와 **추가 문구(선택)** 입력이 나온다. 출근이 실제로 기록됐을 때만(`PunchResult.ok && !already`) `POST /api/teams/chat/messages`로 "9시 23분 출근했습니다."(정각은 "10시 출근했습니다.") + 추가 문구를 내 이름으로 보낸다. 전송 실패는 기록에 영향 없이 안내 문구만. 설정은 기기 SharedPreferences(`clockin.teams.*`)에만. 코드 `mobile/lib/gw/clockin_notify.dart`. 퇴근은 대상 아님(사용자 결정). 출근 기록 뒤에는 홈 브리핑을 다시 수집하고 데일리 브리핑도 한 번 다시 만든다(출근 안내 문장이 남지 않게).
 - 데일리 브리핑 지침: 평일·휴일 아님·출근 기록 없음이면 첫 문장에서 출근 기록을 남기라고 알린다(`briefingSystemPrompt`). 같은 조건(`clockInPending`)이면 브리핑 카드에 "출퇴근 바로 가기" 버튼(앱 안 `/gw/attendance`)이 붙는다.
+
+## 비서 이노봇 (2026-10-05)
+스펙 `docs/superpowers/specs/2026-10-05-mobile-assistant-design.md`. 모든 탭 오른쪽 아래 이노봇(길게 눌러 위아래 이동) → 대화 시트. 서버 `POST /api/assistant/turn`은 Claude(Sonnet 5.5, `thinking: between_tools`, 도구 27개) 한 번 호출을 중계만 하고(대화 저장 없음, 감사엔 도구 이름만), 앱 `lib/assistant/assistant_session.dart`가 턴 루프를 돈다. 아마란스 도구는 앱이 `GwClient`로 직접(`gw_assistant_api.dart` — inno-creed 실측 payload), Teams 도구는 `POST /api/assistant/execute`(Teams 채팅 페이지 권한 필요).
+- 등급(`assistant_tools.dart` = 서버 `TOOL_TIERS`): 조회 즉시 · 쓰기 확인 카드 · 메일 발송은 경고 · `undo_last`는 실행 기록(`assistant.journal`, 20건, 24시간 안)에서 반대 작업 카드. **카드 문장은 모델이 쓴 이름이 아니라 앱이 조회한 실제 대상**(참석자 조직도 이름(부서), 회의실 이름, 예약·일정 제목, Teams 채팅방 이름)으로 만들고, 조회되지 않으면 카드 없이 모델에 오류로 돌려준다. 앞 작업이 실패하면 뒤 작업은 실행하지 않는다.
+- 메일 본문은 같은 요청의 목록·검색 muid만 5통, 8,000자. 메일 발송이 시간 초과면 "보낸편지함 확인" 안내(자동 재시도 없음). 일정 등록은 `mailSend: N`, 예약 참석자는 본인. 점심 13:00–14:00과 오늘 지난 시각은 빈 회의실에서 뺀다.
+- 관리자: `/admin/settings` "모바일 앱 — 비서(이노봇)" 스위치·사용자당 하루 턴 상한(기본 200, KST 하루, 설정·건수 조회 오류면 503으로 닫힘). 요청 하나는 보통 3~5턴, 한 번에 최대 10턴. 꺼져 있으면 앱 버튼이 숨는다.
 
 ## 배포(사내) (2026-10-04)
 **운영자가 직접 할 일(App Store Connect·백업·공지)만 모은 체크리스트: `docs/mobile-release-checklist.md`.** 스펙 `docs/superpowers/specs/2026-10-04-mobile-release-design.md`. iOS는 **TestFlight 외부 그룹 공개 링크**(개인 Apple 계정, 팀 `LME2TNRC9G`), Android는 **웹 `/apps`에서 APK 직접 받기**(로그인 필요, 비공개 버킷 `mobile`의 600초 서명 URL). 릴리스 메타데이터는 `settings` 키 `mobile_release`(문자열 JSON: `notes`·`testflightUrl`·`android{version,build,apkPath,releasedAt}`·`ios{version,build,releasedAt}`) 하나, 읽는 API는 `GET /api/mobile/release`(user 이상). 앱은 시작 때 이 API로 자기 플랫폼 빌드 번호를 비교해 홈 배너·더보기 "앱 버전" 줄에 업데이트 버튼을 보여 준다(개발 빌드 `dev`/0은 확인 안 함). 쓰는 쪽은 `mobile/scripts/release-mobile.sh`뿐.
