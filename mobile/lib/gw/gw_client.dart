@@ -94,7 +94,7 @@ class GwClient {
     req.headers.addAll(_signed(path, 'multipart/form-data')..remove('Content-Type'));
     http.Response res;
     try {
-      res = await http.Response.fromStream(await httpClient.send(req)).timeout(const Duration(seconds: 30));
+      res = await httpClient.send(req).then(http.Response.fromStream).timeout(const Duration(seconds: 30));
     } catch (e) {
       throw GwException(0, -1, '그룹웨어에 연결할 수 없습니다 (${e.runtimeType})');
     }

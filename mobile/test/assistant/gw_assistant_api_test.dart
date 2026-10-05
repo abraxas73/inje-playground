@@ -99,7 +99,7 @@ void main() {
 
   test('cancelReservation — 소유권 가드, 스냅샷으로 rs121A11, 재조회 실패면 성공', () async {
     var gone = false;
-    final gw = Gw({...base(), '/schres/rs121A10': (_) => gone ? http.Response('{"resultCode":1,"resultMsg":"없음"}', 200) : {'reqText': '내 회의', 'empSeq': '7', 'resName': '회의실B', 'startDate': '202610051500', 'endDate': '202610051600', 'createDate': 'C1'}, '/schres/rs121A11': (_) { gone = true; return {}; }});
+    final gw = Gw({...base(), '/schres/rs121A10': (_) => gone ? http.Response.bytes(utf8.encode('{"resultCode":1,"resultMsg":"없음"}'), 200) : {'reqText': '내 회의', 'empSeq': '7', 'resName': '회의실B', 'startDate': '202610051500', 'endDate': '202610051600', 'createDate': 'C1'}, '/schres/rs121A11': (_) { gone = true; return {}; }});
     expect(await gw.api().cancelReservation('R2', 6, '1'), {'ok': true, 'canceled': true});
     final d = (gw.calls['/schres/rs121A11']!.single['resSeqList'] as List).single as Map;
     expect((d['resSeq'], d['seqNum'], d['reqText'], d['createDate']), ('R2', 6, '내 회의', 'C1'));
@@ -139,5 +139,37 @@ void main() {
     expect(sign, isNotEmpty);
     expect(body, contains('name="subject"'));
     expect(body, contains('안녕'));
+  });
+
+  test('cancelReservation — 재조회 네트워크 오류는 ok:false, 인증 만료는 다시 던진다', () async {
+    var called = 0;
+    final r = await Gw({...base(), '/schres/rs121A10': (_) => called++ == 0 ? {'reqText': 't', 'empSeq': '7'} : http.Response('boom', 500), '/schres/rs121A11': (_) => {}}).api().cancelReservation('R2', 6, '1');
+    expect(r['ok'], false);
+    expect(r['message'], contains('확인하지 못'));
+    called = 0;
+    await expectLater(
+        Gw({...base(), '/schres/rs121A10': (_) => called++ == 0 ? {'reqText': 't', 'empSeq': '7'} : http.Response('{"resultCode":140}', 401), '/schres/rs121A11': (_) => {}}).api().cancelReservation('R2', 6, '1'),
+        throwsA(isA<GwUnauthorized>()));
+  });
+
+  test('roster — 부서 실패는 캐시 안 함(재시도), 전부 실패면 예외, 인증 만료는 다시 던진다', () async {
+    var fail = true;
+    final gw = Gw({...base(), '/gw/APIHandler/gw102A02': (b) => b['selectedId'] == '30' && fail ? http.Response('x', 500) : base()['/gw/APIHandler/gw102A02']!(b)});
+    final api = gw.api();
+    expect((await api.roster()).length, 2);
+    fail = false;
+    expect((await api.roster()).length, 4, reason: '부분 결과는 캐시되지 않는다');
+    final all = Gw({...base(), '/gw/APIHandler/gw102A02': (_) => http.Response('x', 500)}).api();
+    await expectLater(all.roster(), throwsA(isA<GwException>()));
+    final un = Gw({...base(), '/gw/APIHandler/gw102A02': (_) => http.Response('{"resultCode":140}', 401)}).api();
+    await expectLater(un.roster(), throwsA(isA<GwUnauthorized>()));
+  });
+
+  test('freeRooms — 시각이 깨진 예약이 있는 방은 빈 방으로 보이지 않는다', () async {
+    final r = base();
+    r['/schres/rs121A05'] = (_) => {'resultList': [{'resSeq': 'R1', 'resStartDate': 'bad', 'resEndDate': '202610051600', 'empSeq': '1'}]};
+    final rooms = await Gw(r).api().freeRooms(DateTime(2026, 10, 5), 720, 1080, 60);
+    expect(rooms.map((x) => x['resSeq']), ['R2']);
+    expect(minutesOn('2026100510ab', '20261005'), isNull);
   });
 }

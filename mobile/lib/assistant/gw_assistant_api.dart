@@ -30,7 +30,7 @@ DateTime? parseLocal(String s) {
 
 /// 'YYYYMMDDHHmm'을 그날(ymd8) 기준 분으로. 전날 이전은 -무한, 다음 날 이후는 +무한(하루 전체 점유). 12자리가 아니면 null.
 int? minutesOn(String ts, String ymd8) {
-  if (ts.length != 12) return null;
+  if (ts.length != 12 || int.tryParse(ts) == null) return null;
   final day = ts.substring(0, 8);
   if (day.compareTo(ymd8) < 0) return -(1 << 40);
   if (day.compareTo(ymd8) > 0) return 1 << 40;
@@ -64,12 +64,17 @@ extension GwAssistantApi on GwApi {
     final nodes = (tree is Map ? tree['treeList'] : null) as List? ?? const [];
     final depts = [for (final d in nodes) if (d is Map && asStr(d['orgGubun']) == 'd' && asInt(d['childUserCnt']) > 0) asStr(d['id'])];
     final seen = <String>{};
+    var failed = 0;
     final people = <GwPerson>[];
     for (var i = 0; i < depts.length; i += 8) {
       final batch = depts.sublist(i, i + 8 > depts.length ? depts.length : i + 8);
       final results = await Future.wait(batch.map((id) => client.call('/gw/APIHandler/gw102A02', {
             'selectedId': id, 'orgGubun': 'd', 'popupType': 'main', 'selectedType': 'tree', 'searchDiv': 'all', 'searchText': '', 'isBdayOption': '1', 'isJoinDayOption': '0', 'isOrganizationDisplayOption': '5|0|1|3|', 'isGridListDisplayOption': '0', 'isLoginIdOption': '1',
-          }).then<List>((v) => v is List ? v : const []).catchError((_) => const [])));
+          }).then<List>((v) => v is List ? v : const []).catchError((Object e) {
+            if (e is GwUnauthorized) throw e;
+            failed++;
+            return const [];
+          })));
       for (final list in results) {
         for (final m in list) {
           if (m is! Map) continue;
@@ -78,7 +83,8 @@ extension GwAssistantApi on GwApi {
         }
       }
     }
-    _rosterCache[client] = (DateTime.now(), people);
+    if (people.isEmpty) throw GwException(200, 0, '명부를 불러오지 못했습니다');
+    if (failed == 0) _rosterCache[client] = (DateTime.now(), people); // 일부 부서 실패면 캐시하지 않는다(다음 호출이 다시 시도)
     return people;
   }
 
@@ -112,7 +118,8 @@ extension GwAssistantApi on GwApi {
       final busy = <(int, int)>[lunchBreak];
       for (final b in rows.where((b) => asStr(b['resSeq']) == room.resSeq)) {
         final s = minutesOn(asStr(b['resStartDate']), d8), e = minutesOn(asStr(b['resEndDate']), d8);
-        if (s != null && e != null) busy.add((s, e));
+        // 시각을 못 읽는 예약은 그 방을 하루 종일 점유로 본다(빈 방으로 잘못 보이지 않게)
+        busy.add(s == null || e == null ? (-(1 << 40), 1 << 40) : (s, e));
       }
       final slots = freeSlots(busy, fromMin, toMin, duration);
       if (slots.isNotEmpty) out.add({'resSeq': room.resSeq, 'resName': room.resName, 'group': room.attrName, 'freeSlots': [for (final (a, b) in slots) {'from': _hhmm(a), 'to': _hhmm(b)}]});
@@ -161,8 +168,15 @@ extension GwAssistantApi on GwApi {
     var gone = false;
     try {
       await _reservationDetail(resSeq, seqNum, resIdx);
-    } on GwException {
-      gone = true;
+    } on GwUnauthorized {
+      rethrow;
+    } on GwException catch (e) {
+      // 서버가 "없음"으로 답한 경우만 취소 완료. 네트워크·타임아웃(resultCode -1)·HTTP 오류는 확인 불가.
+      if (e.status == 200 && e.resultCode != -1 && e.resultCode != 0) {
+        gone = true;
+      } else {
+        return {'ok': false, 'canceled': false, 'message': '취소 요청은 보냈지만 취소됐는지 확인하지 못했습니다. 아마란스에서 확인하세요.'};
+      }
     }
     return {'ok': gone, 'canceled': true};
   }
