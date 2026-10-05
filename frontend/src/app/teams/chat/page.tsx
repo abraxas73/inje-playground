@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { initialChatId } from "@/lib/home";
 import { cn } from "@/lib/utils";
 
 /**
@@ -52,7 +53,9 @@ export default function TeamsChatPage() {
       const chats = (j as Info).chats ?? [];
       let last: string | null = null;
       try { last = localStorage.getItem(LAST_KEY); } catch { /* 저장소 없음 */ }
-      if (last && chats.some((c) => c.id === last)) setChatId((cur) => cur ?? last);
+      const requested = new URLSearchParams(window.location.search).get("chat");
+      const initial = initialChatId(chats.map((c) => c.id), requested, last);
+      if (initial) setChatId((cur) => cur ?? initial);
     } catch (e) {
       setInfoError(e instanceof Error ? e.message : "준비 상태를 확인하지 못했습니다.");
     } finally {

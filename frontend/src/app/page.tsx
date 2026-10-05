@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import DailyGreeting from "@/components/home/DailyGreeting";
+import TeamsReplyCard from "@/components/home/TeamsReplyCard";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Database, Dice5, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Presentation, Newspaper, SquareTerminal, MessagesSquare, TrendingUp, MessageCircle, Smartphone } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -128,6 +130,10 @@ export default function HomePage() {
           팀 활동, 일상의 고민을 해결하는 우리만의 도구
         </p>
       </div>
+
+      <DailyGreeting />
+      <TeamsReplyCard />
+      <p className="mb-6 text-sm text-muted-foreground">사용법이 궁금하면 <Link href="/manual" className="text-primary hover:underline">사용자 매뉴얼</Link>에서 찾아보세요.</p>
 
       {loading && <p role="status" className="text-center text-sm text-muted-foreground">접근 권한을 확인하고 있습니다.</p>}
       {error && <p role="alert" className="text-center text-sm text-destructive">접근 권한을 확인하지 못했습니다. 페이지를 새로고침해 주세요.</p>}
