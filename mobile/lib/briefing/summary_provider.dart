@@ -7,13 +7,27 @@ import 'briefing_model.dart';
 
 /// Claude "데일리 브리핑" — 앱이 새로 시작될 때마다 1회 생성(켜져 있는 동안 새로고침·탭 재터치로는 다시 만들지 않음). 시작 직후엔 오늘 저장된 직전 문장을 먼저 보여 준다. 서버가 enabled:false거나 실패하면 null(홈은 격언을 보여 준다). 로그 없음.
 class BriefingSummary {
-  const BriefingSummary({required this.date, required this.text, required this.at});
+  const BriefingSummary({
+    required this.date,
+    required this.text,
+    required this.at,
+  });
   final String date, text, at;
   Map<String, String> toJson() => {'date': date, 'text': text, 'at': at};
-  static BriefingSummary? fromJson(dynamic j) => j is Map && j['date'] is String && j['text'] is String ? BriefingSummary(date: j['date'] as String, text: j['text'] as String, at: '${j['at'] ?? ''}') : null;
+  static BriefingSummary? fromJson(dynamic j) =>
+      j is Map && j['date'] is String && j['text'] is String
+      ? BriefingSummary(
+          date: j['date'] as String,
+          text: j['text'] as String,
+          at: '${j['at'] ?? ''}',
+        )
+      : null;
 }
 
-final summaryProvider = AsyncNotifierProvider<SummaryNotifier, BriefingSummary?>(SummaryNotifier.new);
+final summaryProvider =
+    AsyncNotifierProvider<SummaryNotifier, BriefingSummary?>(
+      SummaryNotifier.new,
+    );
 
 class SummaryNotifier extends AsyncNotifier<BriefingSummary?> {
   // v2: 1.1.2 이전 서버가 생각 토큰에 밀려 잘린 문장("강승")을 저장했다 — 옛 키는 읽지 않는다
@@ -21,9 +35,15 @@ class SummaryNotifier extends AsyncNotifier<BriefingSummary?> {
   Future<void>? _inflight;
   // 이 프로세스(앱 실행)에서 이미 만들었는지 — Notifier는 앱이 켜져 있는 동안 살아 있으므로 "시작마다 1회"가 된다.
   bool _generatedThisRun = false;
+  // build(로그아웃 invalidate 포함)마다 올린다 — 이전 계정의 요청이 늦게 끝나도 새 계정 화면에 쓰지 않게.
+  int _epoch = 0;
 
   @override
   Future<BriefingSummary?> build() async {
+    // Riverpod 3는 invalidate 뒤에도 인스턴스를 재사용한다 — 계정이 바뀌었을 수 있으니 실행 상태도 새로.
+    _epoch++;
+    _generatedThisRun = false;
+    _inflight = null;
     final raw = (await SharedPreferences.getInstance()).getString(_key);
     BriefingSummary? s;
     try {
@@ -51,15 +71,26 @@ class SummaryNotifier extends AsyncNotifier<BriefingSummary?> {
   }
 
   Future<void> _generate(BriefingData data) async {
+    final epoch = _epoch;
     try {
-      final j = await ref.read(apiClientProvider).postJson('/api/mobile/briefing', summaryPayload(data));
+      final j = await ref
+          .read(apiClientProvider)
+          .postJson('/api/mobile/briefing', summaryPayload(data));
+      if (epoch != _epoch) return;
       if (j is! Map || j['enabled'] != true || j['text'] is! String) {
         _generatedThisRun = true; // 관리자가 껐거나 키 없음 — 이번 실행에선 다시 묻지 않는다
         return;
       }
       final now = kstNow();
-      final s = BriefingSummary(date: ymd(now), text: (j['text'] as String).trim(), at: '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}');
-      await (await SharedPreferences.getInstance()).setString(_key, jsonEncode(s.toJson()));
+      final s = BriefingSummary(
+        date: ymd(now),
+        text: (j['text'] as String).trim(),
+        at: '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+      );
+      await (await SharedPreferences.getInstance()).setString(
+        _key,
+        jsonEncode(s.toJson()),
+      );
       _generatedThisRun = true;
       state = AsyncData(s);
     } catch (_) {

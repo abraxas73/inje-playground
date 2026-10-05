@@ -8,6 +8,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../assistant/assistant_session.dart';
+import '../briefing/briefing_provider.dart';
+import '../briefing/summary_provider.dart';
 import '../config.dart';
 import '../gw/gw_creds.dart';
 import '../gw/gw_login_store.dart';
@@ -170,6 +172,8 @@ class SessionNotifier extends AsyncNotifier<AppSession?> {
     ref.invalidate(gwProvider);
     ref.invalidate(gwLoginProvider);
     ref.invalidate(assistantSessionProvider);
+    ref.invalidate(summaryProvider);
+    ref.invalidate(briefingProvider);
   }
 }
 
