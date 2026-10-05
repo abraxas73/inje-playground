@@ -95,7 +95,11 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                 for (final it in st.items)
                   _Bubble(
                     it,
-                    pending: st.pending && it.kind == ChatKind.card && !it.done,
+                    pending:
+                        st.pending &&
+                        !st.busy &&
+                        it.kind == ChatKind.card &&
+                        !it.done,
                     onRun: s.confirm,
                     onFix: s.fix,
                     onDismiss: s.dismiss,

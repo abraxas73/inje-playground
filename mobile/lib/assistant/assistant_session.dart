@@ -437,7 +437,7 @@ class AssistantSession extends Notifier<AssistantState> {
   /// 그만두기 — 모든 쓰기에 "사용자가 취소" 결과를 붙여 이어간다(silent면 새 입력 직전 정리용, 턴을 돌리지 않음).
   Future<void> dismiss({bool silent = false}) async {
     final p = _pending;
-    if (p == null) return;
+    if (p == null || state.busy) return;
     _pending = null;
     _markCardDone('그만두었습니다');
     _messages.add({
@@ -452,7 +452,7 @@ class AssistantSession extends Notifier<AssistantState> {
   /// 고쳐 줘 — 실행하지 않고, 다음 입력을 미실행 결과와 함께 보낸다.
   void fix() {
     final p = _pending;
-    if (p == null) return;
+    if (p == null || state.busy) return;
     _pending = null;
     _markCardDone('고칠 내용을 말씀해 주세요');
     _fixResults = _resultsFor(p, {

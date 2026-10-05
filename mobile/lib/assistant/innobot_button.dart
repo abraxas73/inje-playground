@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 // mobile/lib/assistant/innobot_button.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,6 +15,7 @@ class InnobotButton extends StatefulWidget {
 class _InnobotButtonState extends State<InnobotButton> {
   static const _key = 'assistant.button.bottom';
   double _bottom = 16;
+  double _dragStart = 16;
 
   @override
   void initState() {
@@ -29,12 +31,16 @@ class _InnobotButtonState extends State<InnobotButton> {
   @override
   Widget build(BuildContext context) => Positioned(
     right: 14,
-    bottom: _bottom,
+    bottom: _bottom.clamp(
+      8,
+      math.max(8.0, MediaQuery.of(context).size.height - 200),
+    ),
     child: GestureDetector(
+      onLongPressStart: (_) => _dragStart = _bottom,
       onLongPressMoveUpdate: (d) => setState(
-        () => _bottom = (_bottom - d.offsetFromOrigin.dy * 0.05).clamp(
+        () => _bottom = (_dragStart - d.offsetFromOrigin.dy).clamp(
           8,
-          MediaQuery.of(context).size.height - 200,
+          math.max(8.0, MediaQuery.of(context).size.height - 200),
         ),
       ),
       onLongPressEnd: (_) => SharedPreferences.getInstance()
