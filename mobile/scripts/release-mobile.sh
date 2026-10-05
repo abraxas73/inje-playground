@@ -71,13 +71,16 @@ VERSION=${VERSION_LINE%%+*}; BUILD=${VERSION_LINE##*+}
 [[ "$BUILD" =~ ^[0-9]+$ ]] && [ "$BUILD" != "$VERSION_LINE" ] || { echo "pubspec version 형식은 X.Y.Z+N 이어야 합니다: $VERSION_LINE" >&2; exit 1; }
 say "버전 $VERSION (빌드 $BUILD) · 대상 $TARGET$([ "$DRY" = 1 ] && echo ' · dry-run')"
 DEFINES=(--dart-define=APP_VERSION="$VERSION" --dart-define=APP_BUILD="$BUILD")
+# flutter 출력(플러그인 안내 경고 포함 — flutter_tts의 SwiftPM·KGP 안내는 최신 4.2.5에서도 나오며 지금 빌드엔 영향 없음)은 로그 파일로. 실패할 때만 끝부분을 보인다.
+mkdir -p "$MOBILE/build"; LOG="$MOBILE/build/release-$VERSION+$BUILD.log"
+quiet() { "$@" >>"$LOG" 2>&1 || { echo "  실패 — 로그 끝($LOG):" >&2; tail -25 "$LOG" >&2; return 1; }; }
 
 # 4. 게이트(link·sharepoint·sharepoint-folder는 빌드가 없어 건너뜀)
 case "$TARGET" in link|sharepoint|sharepoint-folder) GATE=0;; *) GATE=1;; esac
 if [ "$GATE" = 1 ]; then
 say "flutter test · analyze"
 if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter test && flutter analyze"; else
-  (cd "$MOBILE" && flutter test >/dev/null && flutter analyze >/dev/null) || { echo "테스트/분석 실패 — 중단" >&2; exit 1; }
+  (cd "$MOBILE" && quiet flutter test && quiet flutter analyze) || { echo "테스트/분석 실패 — 중단" >&2; exit 1; }
   echo "  통과"
 fi
 fi
@@ -88,7 +91,7 @@ build_aab() {
   [ -f "$MOBILE/android/key.properties" ] || { echo "mobile/android/key.properties가 없습니다 — 디버그 키로 서명된 AAB는 Play가 받지 않습니다." >&2; return 1; }
   say "Android: flutter build appbundle --release"
   if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter build appbundle --release ${DEFINES[*]}"; return 0; fi
-  (cd "$MOBILE" && flutter build appbundle --release "${DEFINES[@]}" >/dev/null) || { echo "AAB 빌드 실패" >&2; return 1; }
+  (cd "$MOBILE" && quiet flutter build appbundle --release "${DEFINES[@]}") || { echo "AAB 빌드 실패" >&2; return 1; }
   cp "$MOBILE/build/app/outputs/bundle/release/app-release.aab" "$AAB_OUT"
   echo "  $AAB_OUT ($(du -h "$AAB_OUT" | cut -f1))"
 }
@@ -188,29 +191,46 @@ print(((d.get("android") or {}) if isinstance(d, dict) else {}).get("apkPath", "
     else echo "  없음"; fi
   fi
   if [ "$SKIP_UPLOAD" = 0 ]; then
-  say "Android: flutter build apk --release"
-  if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter build apk --release ${DEFINES[*]}"; else
-    (cd "$MOBILE" && flutter build apk --release "${DEFINES[@]}" >/dev/null) || { echo "APK 빌드 실패" >&2; exit 1; }
-    ls -la "$MOBILE/build/app/outputs/flutter-apk/app-release.apk" | awk '{print "  " $5 " bytes"}'
+  if [ -n "$PLAY_SA" ] && [ -f "$PLAY_SA" ]; then
+    # 서명 통일(2026-10-06 사용자 결정 B): Play 앱 서명 키는 Google 생성 키 — /apps·SharePoint도 Google이 서명한 universal APK를 배포해
+    # 어느 경로로 깔든 서로 업데이트된다(로컬 업로드 키 APK는 더 배포하지 않음).
+    build_aab || exit 1
+    say "Google Play: 내부 테스트 트랙 업로드"
+    if [ "$DRY" = 1 ]; then echo "  (dry-run) play-upload.py → internal"; else
+      rc=0; python3 "$MOBILE/scripts/play-upload.py" "$PLAY_SA" "$AAB_OUT" "$PLAY_PACKAGE" "$VERSION — $NOTES" || rc=$?
+      case "$rc" in 0|3|4) ;; *) echo "  Play 업로드 실패 — 다시: $0 android" >&2; exit 1;; esac
+    fi
+    APK_FILE="$MOBILE/build/innogrid-$VERSION+$BUILD-play.apk"
+    say "Android: Google 서명 APK 받기(Play가 만든 universal APK)"
+    if [ "$DRY" = 1 ]; then echo "  (dry-run) play-upload.py apk → $APK_FILE"; else
+      python3 "$MOBILE/scripts/play-upload.py" apk "$PLAY_SA" "$PLAY_PACKAGE" "$BUILD" "$APK_FILE" || { echo "  Google 서명 APK를 받지 못했습니다 — 다시: $0 android" >&2; exit 1; }
+    fi
+  else
+    echo "  주의: PLAY_SERVICE_ACCOUNT_JSON이 없어 로컬 업로드 키로 서명한 APK를 올립니다 — Play 설치본과 서명이 달라 서로 업데이트되지 않습니다." >&2
+    APK_FILE="$MOBILE/build/app/outputs/flutter-apk/app-release.apk"
+    say "Android: flutter build apk --release"
+    if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter build apk --release ${DEFINES[*]}"; else
+      (cd "$MOBILE" && quiet flutter build apk --release "${DEFINES[@]}") || { echo "APK 빌드 실패" >&2; exit 1; }
+    fi
   fi
+  [ "$DRY" = 1 ] || ls -la "$APK_FILE" | awk '{print "  " $5 " bytes"}'
   say "Android: 스토리지 업로드 → mobile/$APK_PATH"
   if [ "$DRY" = 1 ]; then echo "  (dry-run) POST $STORAGE/object/mobile/$APK_URL_PATH"; else
     # 프로젝트 전역 파일 상한(Storage 설정 fileSizeLimit, 2026-10-04 200MB로 올림)을 넘으면 서버가 거부한다 — 상태 코드와 본문을 보여 준다
-    RESP=$(mktemp); CODE=$(curl -s --max-time 900 -o "$RESP" -w '%{http_code}' -X POST "${AUTH[@]}" -H "Content-Type: application/vnd.android.package-archive" -H "x-upsert: false" "$STORAGE/object/mobile/$APK_URL_PATH" --data-binary @"$MOBILE/build/app/outputs/flutter-apk/app-release.apk" || true)
+    RESP=$(mktemp); CODE=$(curl -s --max-time 900 -o "$RESP" -w '%{http_code}' -X POST "${AUTH[@]}" -H "Content-Type: application/vnd.android.package-archive" -H "x-upsert: false" "$STORAGE/object/mobile/$APK_URL_PATH" --data-binary @"$APK_FILE" || true)
     [ "$CODE" = 200 ] || { echo "업로드 실패 (HTTP $CODE): $(head -c 300 "$RESP")" >&2; rm -f "$RESP"; exit 1; }
     rm -f "$RESP"; echo "  완료"
   fi
   fi
   write_release android "$APK_PATH"
   sharepoint_upload soft
-  play_upload soft
 fi
 
 # 6. iOS
 if [ "$DO_IOS" = 1 ]; then
   say "iOS: flutter build ipa --release (App Store Connect 수출)"
   if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter build ipa --release ${DEFINES[*]}"; else
-    (cd "$MOBILE" && flutter build ipa --release "${DEFINES[@]}" >/dev/null) || { echo "IPA 빌드 실패 — Xcode 서명(팀·인증서)을 확인하세요" >&2; exit 1; }
+    (cd "$MOBILE" && quiet flutter build ipa --release "${DEFINES[@]}") || { echo "IPA 빌드 실패 — Xcode 서명(팀·인증서)을 확인하세요" >&2; exit 1; }
   fi
   IPA=$(ls "$MOBILE"/build/ios/ipa/*.ipa 2>/dev/null | head -1 || true)
   say "iOS: App Store Connect 업로드(altool)"

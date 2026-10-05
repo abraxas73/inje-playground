@@ -2,6 +2,9 @@
 """Google Play 내부 테스트 트랙에 AAB 올리기(Google Play Developer API v3, 서비스 계정).
 
 사용: play-upload.py <서비스계정.json> <aab 경로> <패키지> <출시 노트>
+      play-upload.py apk <서비스계정.json> <패키지> <versionCode> <저장할 apk 경로>
+        — Google(앱 서명 키)이 서명한 universal APK를 내려받는다(Play가 만드는 데 몇 분 걸려 기다린다).
+          /apps·SharePoint도 이 APK를 배포해 Play 설치본과 서명을 맞춘다.
 - 서비스 계정 JSON은 ~/.private_keys/ 같은 git 밖에 둔다. 키·토큰은 출력하지 않는다.
 - 서명은 openssl(RS256)로 — 추가 파이썬 패키지 없이 표준 라이브러리만.
 - 앱이 아직 초안이라 "draft만 가능" 오류가 나면 draft로 다시 올리고 콘솔에서 출시하라고 안내한다(종료 코드 3).
@@ -47,7 +50,32 @@ def call(method: str, url: str, tok: str, body=None, raw: bytes | None = None, c
         raise RuntimeError(f"HTTP {e.code} {method} {url.split('/applications/')[-1]}: {msg}") from None
 
 
+def download_apk(sa_path: str, pkg: str, vc: str, out: str) -> int:
+    sa = json.load(open(sa_path))
+    deadline = time.time() + 900
+    while True:
+        tok = token(sa)
+        apks = call("GET", f"{API}/{pkg}/generatedApks/{vc}", tok).get("generatedApks", [])
+        uni = next((a for a in apks if a.get("generatedUniversalApk", {}).get("downloadId")), None)
+        if uni:
+            break
+        if time.time() > deadline:
+            raise RuntimeError("Play가 서명한 APK가 15분 안에 준비되지 않았습니다")
+        print("  Play가 APK를 만드는 중 — 20초 뒤 다시 확인")
+        time.sleep(20)
+    did = uni["generatedUniversalApk"]["downloadId"]
+    req = urllib.request.Request(f"{API}/{pkg}/generatedApks/{vc}/downloads/{urllib.parse.quote(did, safe='')}:download?alt=media",
+                                 headers={"Authorization": f"Bearer {tok}"})
+    with urllib.request.urlopen(req, timeout=900) as r, open(out, "wb") as f:
+        f.write(r.read())
+    sha = uni.get("certificateSha256Hash", "")
+    print(f"  Google 서명 APK: {out} ({os.path.getsize(out) // 1024 // 1024}MB, 서명 SHA-256 {sha[:23]}…)")
+    return 0
+
+
 def main() -> int:
+    if len(sys.argv) == 6 and sys.argv[1] == "apk":
+        return download_apk(*sys.argv[2:])
     if len(sys.argv) != 5:
         print(__doc__, file=sys.stderr)
         return 2
@@ -55,8 +83,16 @@ def main() -> int:
     sa = json.load(open(sa_path))
     tok = token(sa)
     edit = call("POST", f"{API}/{pkg}/edits", tok, {})["id"]
-    with open(aab, "rb") as f:
-        vc = call("POST", f"{UPLOAD}/{pkg}/edits/{edit}/bundles?uploadType=media", tok, raw=f.read(), ctype="application/octet-stream")["versionCode"]
+    try:
+        with open(aab, "rb") as f:
+            vc = call("POST", f"{UPLOAD}/{pkg}/edits/{edit}/bundles?uploadType=media", tok, raw=f.read(), ctype="application/octet-stream")["versionCode"]
+    except RuntimeError as e:
+        # 같은 버전 코드가 이미 Play에 있으면(지난 실행이 업로드 뒤에 실패) 다시 올리지 않고 넘어간다
+        if "already been used" in str(e) or "already used" in str(e):
+            call("DELETE", f"{API}/{pkg}/edits/{edit}", tok)
+            print("  이미 Play에 있는 버전 코드 — 업로드는 건너뜀")
+            return 4
+        raise
     print(f"  올림: versionCode {vc}")
 
     def release(status: str):

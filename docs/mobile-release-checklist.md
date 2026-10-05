@@ -9,7 +9,7 @@
 - [x] **Android 1.0.0(빌드 1) 첫 릴리스 완료** — `/apps`에서 바로 받을 수 있음
 - [x] 앱 아이콘(CI 가이드 `#006cdb` + CONNECTION 모티프), 앱 안 업데이트 배너·버튼, 릴리스 스크립트 `mobile/scripts/release-mobile.sh`
 - [x] **1.1.0(빌드 3) 홈 브리핑 릴리스** — 2026-10-04 21:56: Android `/apps`·SharePoint `innogrid-app-1.1.0.apk`, iOS TestFlight 업로드(Delivery d263ecba…). 관리자 스위치는 `/admin/settings` "모바일 앱 — 홈 브리핑"
-- [x] **1.1.1(빌드 4) 핫픽스 릴리스** — 2026-10-04 22:33: Android WebView 뒤로 가기 수정 + 브리핑 리뷰 반영(회의 판정·홈 탭 재수집·Teams 미연결). Android `/apps`·SharePoint `innogrid-app-1.1.1.apk`, iOS 업로드(Delivery ab68ea77…). **TestFlight 외부 그룹에는 최신 빌드(1.3.3 (17))를 쓴다**
+- [x] **1.1.1(빌드 4) 핫픽스 릴리스** — 2026-10-04 22:33: Android WebView 뒤로 가기 수정 + 브리핑 리뷰 반영(회의 판정·홈 탭 재수집·Teams 미연결). Android `/apps`·SharePoint `innogrid-app-1.1.1.apk`, iOS 업로드(Delivery ab68ea77…). **TestFlight 외부 그룹에는 최신 빌드(1.3.4 (18))를 쓴다**
 
 ## A. 지금 바로 (5분, Mac)
 - [x] **A1. 키스토어 백업** — 1Password에 항목 "이노그리드 앱 Android 업로드 키"를 만들고 두 파일을 첨부한다.
@@ -43,7 +43,7 @@
   cd ~/Repos/inje-playground && mobile/scripts/release-mobile.sh ios --notes "첫 사내 배포"
   ```
   빌드 + 업로드 10분 안팎. Xcode 서명 오류가 나면 `open mobile/ios/Runner.xcworkspace` → Runner → Signing & Capabilities → Team이 `LME2TNRC9G`(Automatic)인지 본다.
-- [ ] **B7. TestFlight 그룹·심사 제출 — 최신 빌드 1.3.3 (17)를 그룹에 추가** — App Store Connect → INNOGRID → **TestFlight** 탭. (이전 빌드는 건너뛰고 최신 1.3.3 (17)를 쓴다.)
+- [ ] **B7. TestFlight 그룹·심사 제출 — 최신 빌드 1.3.4 (18)를 그룹에 추가** — App Store Connect → INNOGRID → **TestFlight** 탭. (이전 빌드는 건너뛰고 최신 1.3.4 (18)를 쓴다.)
   1. 빌드가 "처리 중"에서 벗어날 때까지 기다린다(≈10분, 메일도 온다).
   2. **외부 테스트** → `+` → 그룹 이름 `이노그리드 구성원` → 생성.
   3. 그룹 → **빌드 추가** → 방금 빌드 선택.
