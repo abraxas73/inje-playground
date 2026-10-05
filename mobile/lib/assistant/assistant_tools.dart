@@ -21,6 +21,7 @@ const assistantToolTiers = <String, ToolTier>{
   'reserve_room': ToolTier.write,
   'cancel_reservation': ToolTier.write,
   'list_calendars': ToolTier.read,
+  'my_team': ToolTier.read,
   'list_events': ToolTier.read,
   'create_event': ToolTier.write,
   'delete_event': ToolTier.write,
@@ -54,6 +55,7 @@ class ToolCall {
 
 const _progress = {
   'find_person': '사람 찾는 중…',
+  'my_team': '우리 팀 보는 중…',
   'list_rooms': '회의실 목록 보는 중…',
   'find_free_rooms': '빈 회의실 찾는 중…',
   'my_reservations': '내 예약 보는 중…',
@@ -104,7 +106,8 @@ String cardLine(ToolCall c, [Map<String, dynamic>? resolved]) {
                 if (a is Map) _s(a['name']),
             ];
       final place = _s(i['place']);
-      return "일정 등록 · ${_when(_s(i['start']), _s(i['end']))} · '${_s(i['title'])}'${who.isEmpty ? '' : ' · 참석 ${who.join(', ')}'}${place.isEmpty ? '' : ' · 장소 $place'}";
+      final cal = _s(r['calendar']);
+      return "일정 등록 · ${_when(_s(i['start']), _s(i['end']))} · '${_s(i['title'])}'${cal.isEmpty ? '' : ' · 캘린더 $cal'}${who.isEmpty ? '' : ' · 참석 ${who.join(', ')}'}${place.isEmpty ? '' : ' · 장소 $place'}";
     case 'cancel_reservation':
       return r.isEmpty
           ? '예약 취소 · ${_s(i['label'])}'
@@ -368,11 +371,23 @@ class AssistantToolRunner {
         }
         return {'room_name': room.resName};
       case 'create_event':
+        final calId = _s(i['calendar_id']).trim();
+        String? calTitle;
+        if (calId.isNotEmpty) {
+          calTitle = (await _needGw().calendars())
+              .where((x) => x.mcalSeq == calId)
+              .firstOrNull
+              ?.title;
+          if (calTitle == null) {
+            throw _BadInput('그 캘린더를 찾지 못했습니다 — list_calendars의 mcalSeq를 쓰세요');
+          }
+        }
         return {
           'attendees': [
             for (final p in await _attendees(_needGw(), i['attendees']))
               '${p.name}(${p.deptName})',
           ],
+          'calendar': ?calTitle,
         };
       case 'cancel_reservation':
         return _needGw().reservationFacts(
@@ -445,6 +460,11 @@ class AssistantToolRunner {
   Future<Map<String, dynamic>> _gw(GwApi g, ToolCall c) async {
     final i = c.input;
     switch (c.name) {
+      case 'my_team':
+        return {
+          'ok': true,
+          'people': [for (final p in await g.myTeam()) p.toJson()],
+        };
       case 'find_person':
         return {
           'ok': true,
@@ -557,6 +577,7 @@ class AssistantToolRunner {
           end: _stamp(i['end']),
           attendees: people,
           place: _s(i['place']),
+          calendarId: _s(i['calendar_id']).trim(),
         );
         if (r['ok'] == true) {
           await _log('create_event', cardLine(c), {

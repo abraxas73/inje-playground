@@ -171,6 +171,16 @@ extension GwAssistantApi on GwApi {
     return people;
   }
 
+  /// 우리 팀 — 내 부서(세션 deptSeq) 사람 전원, 나는 뺀다.
+  Future<List<GwPerson>> myTeam() async {
+    final s = await client.session();
+    final me = client.creds().empSeq;
+    return [
+      for (final p in await roster())
+        if (p.deptSeq == s.deptSeq && p.empSeq != me) p,
+    ];
+  }
+
   /// 이름 정확 일치가 있으면 그것만(동명이인 전부), 없으면 이름·이메일 부분 일치. 최대 10명.
   Future<List<GwPerson>> findPerson(String q) async {
     final query = q.trim().toLowerCase();
@@ -418,13 +428,24 @@ extension GwAssistantApi on GwApi {
     required String end,
     List<GwPerson> attendees = const [],
     String place = '',
+    String calendarId = '',
   }) async {
     final c = client.creds();
     final s = await client.session();
-    final cal = (await calendars())
-        .where((x) => x.personal && x.ownerEmpSeq == c.empSeq)
-        .firstOrNull;
-    if (cal == null) throw GwException(200, 0, '내 개인 캘린더를 찾지 못했습니다');
+    final cals = await calendars();
+    // 캘린더를 고르면 내가 볼 수 있는 캘린더 중 그 mcalSeq(쓰기 권한이 없으면 그룹웨어가 거절한다), 아니면 내 개인 캘린더.
+    final cal = calendarId.isEmpty
+        ? cals.where((x) => x.personal && x.ownerEmpSeq == c.empSeq).firstOrNull
+        : cals.where((x) => x.mcalSeq == calendarId).firstOrNull;
+    if (cal == null) {
+      throw GwException(
+        200,
+        0,
+        calendarId.isEmpty
+            ? '내 개인 캘린더를 찾지 못했습니다'
+            : '그 캘린더를 찾지 못했습니다(list_calendars의 mcalSeq를 쓰세요)',
+      );
+    }
     Map<String, String> part(
       String emp,
       String dept,
@@ -452,7 +473,7 @@ extension GwAssistantApi on GwApi {
       'schGbnCode': '10',
       'schTitle': title,
       'mcalSeq': cal.mcalSeq,
-      'calType': cal.calType,
+      'calType': cal.calType.isEmpty ? 'E' : cal.calType,
       'startDate': start,
       'endDate': end,
       'gbnCode': 'E',

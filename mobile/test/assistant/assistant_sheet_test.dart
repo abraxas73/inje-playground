@@ -26,6 +26,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('무엇을 도와드릴까요?'), findsOneWidget);
     expect(find.text('오늘 내 일정 알려줘'), findsOneWidget);
+    expect(find.text('오늘 오후 빈 회의실 1시간 잡고, 그에 맞는 일정을 등록해줘, 회의명은 내부회의, 참석자는 우리팀 전원. 캘린더는 이노그리드로 해줘'), findsOneWidget);
     await tester.tap(find.text('오늘 내 일정 알려줘'));
     await tester.pumpAndSettle();
     expect(find.text('오늘 일정은 없습니다.'), findsOneWidget);
