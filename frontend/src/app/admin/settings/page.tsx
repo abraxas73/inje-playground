@@ -8,10 +8,11 @@ import ExchangeRateSettings from "@/components/settings/ExchangeRateSettings";
 import PptRulesSettings from "@/components/settings/PptRulesSettings";
 import PptTemplatesCard from "@/components/settings/PptTemplatesCard";
 import MobileBriefingSettings from "@/components/settings/MobileBriefingSettings";
+import AssistantSettings from "@/components/settings/AssistantSettings";
 import { useSettings } from "@/hooks/useSettings";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Link2, MapPin, MessageSquare, Loader2, Save, Check, Route, Users, Coins, Presentation, FileText, Smartphone } from "lucide-react";
+import { Link2, MapPin, MessageSquare, Loader2, Save, Check, Route, Users, Coins, Presentation, FileText, Smartphone, Bot } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -159,6 +160,17 @@ export default function AdminSettingsPage() {
         </CardHeader>
         <CardContent>
           <MobileBriefingSettings settingsHook={settingsHook} />
+        </CardContent>
+      </Card>
+      <Card className="animate-fade-up delay-300 mt-6">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Bot className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">모바일 앱 — 비서(이노봇)</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <AssistantSettings settingsHook={settingsHook} />
         </CardContent>
       </Card>
 

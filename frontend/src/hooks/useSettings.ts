@@ -29,6 +29,9 @@ export const SETTING_KEYS = [
   "ppt_llm_rules",
   // 모바일 앱 홈 브리핑 — Claude '오늘의 한 마디' on(빈 값 포함)/off
   "mobile_briefing_llm",
+  // 모바일 앱 비서(이노봇) — on(빈 값 포함)/off, 사용자당 하루 턴 상한(빈 값=200)
+  "assistant_enabled",
+  "assistant_daily_turns",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
