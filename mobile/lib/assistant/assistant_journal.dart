@@ -6,12 +6,29 @@ import 'gw_assistant_api.dart';
 
 /// 비서가 실행한 쓰기 작업 기록(기기, 최근 20건). undo = 반대 작업 {tool, args}, 되돌릴 수 없으면 null.
 class JournalEntry {
-  const JournalEntry({required this.at, required this.tool, required this.summary, required this.undo});
+  const JournalEntry({
+    required this.at,
+    required this.tool,
+    required this.summary,
+    required this.undo,
+  });
   final String at, tool, summary;
   final Map<String, dynamic>? undo;
-  Map<String, dynamic> toJson() => {'at': at, 'tool': tool, 'summary': summary, 'undo': undo};
+  Map<String, dynamic> toJson() => {
+    'at': at,
+    'tool': tool,
+    'summary': summary,
+    'undo': undo,
+  };
   static JournalEntry? fromJson(dynamic j) => j is Map && j['tool'] is String
-      ? JournalEntry(at: '${j['at'] ?? ''}', tool: j['tool'] as String, summary: '${j['summary'] ?? ''}', undo: j['undo'] is Map ? Map<String, dynamic>.from(j['undo'] as Map) : null)
+      ? JournalEntry(
+          at: '${j['at'] ?? ''}',
+          tool: j['tool'] as String,
+          summary: '${j['summary'] ?? ''}',
+          undo: j['undo'] is Map
+              ? Map<String, dynamic>.from(j['undo'] as Map)
+              : null,
+        )
       : null;
 }
 
@@ -26,7 +43,9 @@ class AssistantJournal {
     try {
       final raw = (await SharedPreferences.getInstance()).getString(_key);
       final list = raw == null ? const [] : jsonDecode(raw) as List;
-      return AssistantJournal._([for (final x in list) ?JournalEntry.fromJson(x)]);
+      return AssistantJournal._([
+        for (final x in list) ?JournalEntry.fromJson(x),
+      ]);
     } catch (_) {
       return AssistantJournal._([]);
     }
@@ -34,7 +53,10 @@ class AssistantJournal {
 
   Future<void> _save() async {
     try {
-      await (await SharedPreferences.getInstance()).setString(_key, jsonEncode([for (final e in _items) e.toJson()]));
+      await (await SharedPreferences.getInstance()).setString(
+        _key,
+        jsonEncode([for (final e in _items) e.toJson()]),
+      );
     } catch (_) {}
   }
 
@@ -53,7 +75,11 @@ class AssistantJournal {
       final at = parseLocal(e.at);
       return at != null && t.difference(at) < const Duration(hours: 24);
     }
-    return _items.reversed.where((e) => e.undo != null && fresh(e)).take(n).toList();
+
+    return _items.reversed
+        .where((e) => e.undo != null && fresh(e))
+        .take(n)
+        .toList();
   }
 
   Future<void> removeWhere(bool Function(JournalEntry) test) async {

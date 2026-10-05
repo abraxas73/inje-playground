@@ -5,35 +5,58 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 abstract class VoiceInput {
-  /// 듣기 시작. 권한 거부·인식기 없음이면 false. onResult(지금까지 문장, 끝났는지).
-  Future<bool> start(void Function(String text, bool done) onResult);
+  /// 듣기 시작. 권한 거부·인식기 없음이면 false. onResult(지금까지 문장, 끝났는지), onEnd는 결과 없이 끝나도(무음·오류·시간 초과) 불린다.
+  Future<bool> start(
+    void Function(String text, bool done) onResult,
+    void Function() onEnd,
+  );
   Future<void> stop();
 }
 
 abstract class Speaker {
-  /// 읽기 — 끝나면(또는 stop) 완료되는 Future.
+  /// 읽기 — 다 읽으면 완료되는 Future(stop으로 멈추면 실제 플러그인은 완료하지 않을 수 있으니 기다림에 기대지 않는다).
   Future<void> speak(String text);
   Future<void> stop();
 }
 
 class DeviceVoiceInput implements VoiceInput {
   final _stt = SpeechToText();
-  bool? _ready;
+  bool _ready = false;
+  void Function()? _onEnd;
 
   @override
-  Future<bool> start(void Function(String text, bool done) onResult) async {
-    _ready ??= await _stt.initialize(onError: (_) {});
-    if (_ready != true) return false;
-    await _stt.listen(
-      onResult: (r) => onResult(r.recognizedWords, r.finalResult),
-      listenOptions: SpeechListenOptions(
-        localeId: 'ko_KR',
-        partialResults: true,
-        cancelOnError: true,
-        pauseFor: const Duration(seconds: 3),
-        listenFor: const Duration(seconds: 30),
-      ),
-    );
+  Future<bool> start(
+    void Function(String text, bool done) onResult,
+    void Function() onEnd,
+  ) async {
+    _onEnd = onEnd;
+    // 성공만 기억한다 — 권한을 거부했다가 설정에서 허용하고 돌아오면 다시 묻는다.
+    if (!_ready) {
+      _ready = await _stt.initialize(
+        onError: (_) => _onEnd?.call(),
+        onStatus: (s) {
+          if (s == SpeechToText.doneStatus ||
+              s == SpeechToText.notListeningStatus) {
+            _onEnd?.call();
+          }
+        },
+      );
+    }
+    if (!_ready) return false;
+    try {
+      await _stt.listen(
+        onResult: (r) => onResult(r.recognizedWords, r.finalResult),
+        listenOptions: SpeechListenOptions(
+          localeId: 'ko_KR',
+          partialResults: true,
+          cancelOnError: true,
+          pauseFor: const Duration(seconds: 3),
+          listenFor: const Duration(seconds: 30),
+        ),
+      );
+    } catch (_) {
+      return false;
+    }
     return true;
   }
 

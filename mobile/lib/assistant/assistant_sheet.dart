@@ -32,6 +32,7 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
   late final VoiceInput _voice = ref.read(voiceInputProvider);
   late final Speaker _speaker = ref.read(speakerProvider);
   bool _listening = false;
+  int _listenSeq = 0; // 듣기 회차 — 멈춘 뒤 늦게 오는 인식 결과를 버린다
   int? _speaking; // 읽는 중인 말풍선(items 인덱스)
   String? _voiceNote;
 
@@ -52,24 +53,36 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
   }
 
   /// 말하기 — 듣는 동안 입력칸에 문장을 채우고, 인식이 끝나면 그대로 보낸다(보낸 문장은 말풍선으로 남아 "고쳐 줘"로 바로잡을 수 있다).
+  Future<void> _stopListening() async {
+    _listenSeq++;
+    setState(() => _listening = false);
+    await _voice.stop();
+  }
+
   Future<void> _toggleListen() async {
-    if (_listening) {
-      setState(() => _listening = false);
-      await _voice.stop();
-      return;
-    }
+    if (_listening) return _stopListening();
+    await _stopSpeaking(); // 읽어 주는 소리를 인식하지 않게
+    final seq = ++_listenSeq;
     setState(() {
       _listening = true;
       _voiceNote = null;
     });
-    final ok = await _voice.start((text, done) {
-      if (!mounted || !_listening) return;
-      _input.text = text;
-      if (done) {
-        setState(() => _listening = false);
-        _send();
-      }
-    });
+    final ok = await _voice.start(
+      (text, done) {
+        if (!mounted || seq != _listenSeq) return;
+        _input.text = text;
+        if (done) {
+          _listenSeq++;
+          setState(() => _listening = false);
+          _send();
+        }
+      },
+      () {
+        if (mounted && seq == _listenSeq && _listening) {
+          setState(() => _listening = false);
+        }
+      },
+    );
     if (!ok && mounted) {
       setState(() {
         _listening = false;
@@ -79,19 +92,25 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
   }
 
   /// 읽어 주기 — 누를 때만 읽는다(자동 읽기 없음). 같은 말풍선을 다시 누르면 멈춘다.
+  Future<void> _stopSpeaking() async {
+    if (_speaking == null) return;
+    setState(() => _speaking = null);
+    await _speaker.stop();
+  }
+
   Future<void> _toggleSpeak(int i, String text) async {
-    if (_speaking == i) {
-      setState(() => _speaking = null);
-      await _speaker.stop();
-      return;
-    }
-    if (_speaking != null) await _speaker.stop();
+    if (_speaking == i) return _stopSpeaking();
+    await _stopSpeaking();
     setState(() => _speaking = i);
-    await _speaker.speak(text);
-    if (mounted && _speaking == i) setState(() => _speaking = null);
+    try {
+      await _speaker.speak(text);
+    } finally {
+      if (mounted && _speaking == i) setState(() => _speaking = null);
+    }
   }
 
   Future<void> _send([String? text]) async {
+    if (_listening) await _stopListening();
     final t = (text ?? _input.text).trim();
     if (t.isEmpty) return;
     _input.clear();
@@ -137,7 +156,12 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                 IconButton(
                   tooltip: '새 대화',
                   icon: const Icon(Icons.refresh),
-                  onPressed: st.busy ? null : s.reset,
+                  onPressed: st.busy
+                      ? null
+                      : () {
+                          _stopSpeaking();
+                          s.reset();
+                        },
                 ),
               ],
             ),
@@ -228,7 +252,10 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                       _listening ? Icons.stop_circle : Icons.mic,
                       color: _listening ? Brand.danger : Brand.blue,
                     ),
-                    onPressed: st.busy ? null : _toggleListen,
+                    // 대기 카드가 있으면 끔 — 잘못 들은 말이 카드를 조용히 그만두게 하지 않도록
+                    onPressed: st.busy || (st.pending && !_listening)
+                        ? null
+                        : _toggleListen,
                   ),
                   IconButton(
                     tooltip: '보내기',
@@ -346,13 +373,6 @@ class _Bubble extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              c.label,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: Brand.navy,
-                              ),
-                            ),
                             for (final l in c.lines)
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
@@ -364,6 +384,16 @@ class _Bubble extends StatelessWidget {
                                   ),
                                 ),
                               ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                c.label,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Brand.muted,
+                                ),
+                              ),
+                            ),
                             if (c.irreversible)
                               const Padding(
                                 padding: EdgeInsets.only(top: 4),

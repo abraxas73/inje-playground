@@ -14,11 +14,13 @@ import 'gw_assistant_api_test.dart' show Gw;
 
 class FakeVoice implements VoiceInput {
   void Function(String, bool)? cb;
+  void Function()? end;
   var allow = true;
   var stopped = 0;
   @override
-  Future<bool> start(void Function(String text, bool done) onResult) async {
+  Future<bool> start(void Function(String text, bool done) onResult, void Function() onEnd) async {
     cb = onResult;
+    end = onEnd;
     return allow;
   }
 
@@ -38,10 +40,7 @@ class FakeSpeaker implements Speaker {
   }
 
   @override
-  Future<void> stop() async {
-    stops++;
-    if (running?.isCompleted == false) running!.complete();
-  }
+  Future<void> stop() async => stops++; // 실제 플러그인도 stop으로 speak() Future를 끝내지 않는다
 }
 
 Widget host(Brain brain, Gw gw, FakeVoice v, FakeSpeaker sp) => ProviderScope(
@@ -121,5 +120,68 @@ void main() {
     await tester.pumpAndSettle();
     expect(sp.stops, 1);
     expect(find.byTooltip('그만 읽기'), findsNothing);
+  });
+
+  testWidgets('말하기 — 아무 말 없이 끝나면(오류·시간 초과) 듣기 상태가 풀린다', (tester) async {
+    final v = FakeVoice();
+    await tester.pumpWidget(host(Brain([]), scenarioGw(), v, FakeSpeaker()));
+    await tester.tap(find.byTooltip('말하기'));
+    await tester.pump();
+    expect(find.byTooltip('듣기 멈추기'), findsOneWidget);
+    v.end!();
+    await tester.pump();
+    expect(find.byTooltip('말하기'), findsOneWidget);
+  });
+
+  testWidgets('말하기 — 듣는 중 직접 보내면 듣기를 멈추고 늦게 온 인식 결과는 버린다', (tester) async {
+    final brain = Brain([say('네.')]);
+    final v = FakeVoice();
+    await tester.pumpWidget(host(brain, scenarioGw(), v, FakeSpeaker()));
+    await tester.tap(find.byTooltip('말하기'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), '직접 입력');
+    await tester.tap(find.byTooltip('보내기'));
+    await tester.pumpAndSettle();
+    expect(v.stopped, 1);
+    v.cb!('늦은 인식', true);
+    await tester.pumpAndSettle();
+    expect(brain.received, hasLength(1));
+    expect(brain.received.single.single['content'], '직접 입력');
+  });
+
+  testWidgets('읽는 중 다른 말풍선·새 대화 — 앞의 읽기를 멈추고 아이콘도 정리', (tester) async {
+    final brain = Brain([say('첫째 답.'), say('둘째 답.')]);
+    final sp = FakeSpeaker();
+    await tester.pumpWidget(host(brain, scenarioGw(), FakeVoice(), sp));
+    for (final t in ['a', 'b']) {
+      await tester.enterText(find.byType(TextField), t);
+      await tester.tap(find.byTooltip('보내기'));
+      await tester.pumpAndSettle();
+    }
+    final speakers = find.byTooltip('읽어 주기');
+    await tester.tap(speakers.at(1));
+    await tester.pump();
+    await tester.tap(find.byTooltip('읽어 주기').last);
+    await tester.pump();
+    expect(sp.spoken, ['첫째 답.', '둘째 답.']);
+    expect(sp.stops, 1);
+    expect(find.byTooltip('그만 읽기'), findsOneWidget);
+    await tester.tap(find.byTooltip('새 대화'));
+    await tester.pump();
+    expect(sp.stops, 2);
+    expect(find.byTooltip('그만 읽기'), findsNothing);
+  });
+
+  testWidgets('선택지 카드 — 실제 대상 줄이 먼저, 모델이 쓴 이름은 보조, 대기 카드 중엔 🎤 꺼짐', (tester) async {
+    final brain = Brain([choices('x', [roomOpt('엉뚱한 이름', 'R1', 'A'), roomOpt('둘째', 'R2', 'B')])]);
+    await tester.pumpWidget(host(brain, scenarioGw(), FakeVoice(), FakeSpeaker()));
+    await tester.enterText(find.byType(TextField), '회의실');
+    await tester.tap(find.byTooltip('보내기'));
+    await tester.pumpAndSettle();
+    final line = tester.getTopLeft(find.textContaining('회의실A').first).dy;
+    final label = tester.getTopLeft(find.text('엉뚱한 이름')).dy;
+    expect(line < label, isTrue, reason: '조회한 대상이 위, 모델 문구는 아래');
+    final mic = tester.widget<IconButton>(find.ancestor(of: find.byIcon(Icons.mic), matching: find.byType(IconButton)));
+    expect(mic.onPressed, isNull);
   });
 }

@@ -84,7 +84,7 @@
 - 데일리 브리핑 지침: 평일·휴일 아님·출근 기록 없음이면 첫 문장에서 출근 기록을 남기라고 알린다(`briefingSystemPrompt`). 같은 조건(`clockInPending`)이면 브리핑 카드에 "출퇴근 바로 가기" 버튼(앱 안 `/gw/attendance`)이 붙는다.
 
 ## 비서 이노봇 (2026-10-05)
-스펙 `docs/superpowers/specs/2026-10-05-mobile-assistant-design.md`. 모든 탭 오른쪽 아래 이노봇(길게 눌러 위아래 이동) → 대화 시트. 서버 `POST /api/assistant/turn`은 Claude(Sonnet 5.5, `thinking: between_tools`, 도구 27개) 한 번 호출을 중계만 하고(대화 저장 없음, 감사엔 도구 이름만), 앱 `lib/assistant/assistant_session.dart`가 턴 루프를 돈다. 아마란스 도구는 앱이 `GwClient`로 직접(`gw_assistant_api.dart` — inno-creed 실측 payload), Teams 도구는 `POST /api/assistant/execute`(Teams 채팅 페이지 권한 필요).
+스펙 `docs/superpowers/specs/2026-10-05-mobile-assistant-design.md`. 모든 탭 오른쪽 아래 이노봇(길게 눌러 위아래 이동) → 대화 시트. 서버 `POST /api/assistant/turn`은 Claude(Sonnet 5.5, `thinking: between_tools`, 도구 28개) 한 번 호출을 중계만 하고(대화 저장 없음, 감사엔 도구 이름만), 앱 `lib/assistant/assistant_session.dart`가 턴 루프를 돈다. 아마란스 도구는 앱이 `GwClient`로 직접(`gw_assistant_api.dart` — inno-creed 실측 payload), Teams 도구는 `POST /api/assistant/execute`(Teams 채팅 페이지 권한 필요).
 - 등급(`assistant_tools.dart` = 서버 `TOOL_TIERS`): 조회 즉시 · 쓰기 확인 카드 · 메일 발송은 경고 · `undo_last`는 실행 기록(`assistant.journal`, 20건, 24시간 안)에서 반대 작업 카드. **카드 문장은 모델이 쓴 이름이 아니라 앱이 조회한 실제 대상**(참석자 조직도 이름(부서), 회의실 이름, 예약·일정 제목, Teams 채팅방 이름)으로 만들고, 조회되지 않으면 카드 없이 모델에 오류로 돌려준다. 앞 작업이 실패하면 뒤 작업은 실행하지 않는다.
 - 메일 본문은 같은 요청의 목록·검색 muid만 5통, 8,000자. 메일 발송이 시간 초과면 "보낸편지함 확인" 안내(자동 재시도 없음). 일정 등록은 `mailSend: N`, 예약 참석자는 본인. 점심 13:00–14:00과 오늘 지난 시각은 빈 회의실에서 뺀다.
 - **선택지**: 대안이 여러 개면(빈 회의실 여러 곳 등) 모델이 `offer_choices`로 최대 4개를 내고, 앱은 선택지마다 실제 대상으로 만든 카드에 [실행]을 단다 — 누른 선택지만 실행. 대안이 하나면 기존 확인 카드, 정보가 모자라면 되묻기.

@@ -24,6 +24,8 @@ describe("도구 표", () => {
     const t = ASSISTANT_TOOLS.find((x) => x.name === "offer_choices")!;
     const opts = (t.input_schema.properties as Record<string, { maxItems?: number; items?: { properties?: Record<string, unknown>; required?: string[] } }>).options;
     expect(opts.maxItems).toBe(4);
+    expect((opts as { minItems?: number }).minItems).toBe(2);
+    expect((opts.items?.properties?.calls as { maxItems?: number }).maxItems).toBe(5);
     expect(opts.items?.required).toEqual(["label", "calls"]);
     expect(t.input_schema.required).toEqual(["question", "options"]);
   });

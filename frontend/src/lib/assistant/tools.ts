@@ -52,7 +52,7 @@ export const ASSISTANT_TOOLS: Anthropic.Tool[] = [
   tool("teams_send", "Teams 채팅에 메시지 보내기(쓰기, 내 이름으로).", { chat_id: S("teams_chats의 id"), chat_name: S("채팅 이름(확인 카드 표시용)"), text: S("보낼 내용") }, ["chat_id", "chat_name", "text"]),
   tool("offer_choices", "실행할 수 있는 대안이 여러 개일 때(빈 회의실·시간대 등) 사용자에게 고르게 한다. 선택지마다 그걸 고르면 실행할 쓰기 도구 호출을 calls에 모두 담는다(예: reserve_room + create_event). 앱이 선택지마다 실제 대상을 확인해 보여 주고 사용자가 누른 선택지만 실행한다. 단독으로 부른다.", {
     question: S("무엇을 고르는지(짧게)"),
-    options: { type: "array", maxItems: 4, description: "선택지 2~4개", items: { type: "object", properties: { label: S("선택지 한 줄 요약"), calls: { type: "array", description: "이 선택지를 고르면 실행할 쓰기 도구 호출", items: { type: "object", properties: { name: S("쓰기 도구 이름"), input: { type: "object", description: "그 도구의 입력" } }, required: ["name", "input"] } } }, required: ["label", "calls"] } },
+    options: { type: "array", minItems: 2, maxItems: 4, description: "선택지 2~4개", items: { type: "object", properties: { label: S("선택지 한 줄 요약"), calls: { type: "array", minItems: 1, maxItems: 5, description: "이 선택지를 고르면 실행할 쓰기 도구 호출(최대 5)", items: { type: "object", properties: { name: S("쓰기 도구 이름"), input: { type: "object", description: "그 도구의 입력" } }, required: ["name", "input"] } } }, required: ["label", "calls"] } },
   }, ["question", "options"]),
   tool("undo_last", "방금 비서가 실행한 작업(예약·일정 등)을 되돌린다. 앱이 실행 기록에서 대상을 고르고 확인받는다.", { count: I("되돌릴 개수(기본 1)") }),
 ];

@@ -580,7 +580,7 @@ class AssistantSession extends Notifier<AssistantState> {
     if (p.choices.isNotEmpty && picked == null) return;
     final writes = picked?.writes ?? p.writes;
     _pending = null;
-    _markCardDone(picked == null ? '실행 중…' : '실행 중… — ${picked.label}');
+    _markCardDone(picked == null ? '실행 중…' : '실행 중… — ${picked.lines.first}');
     _set(busy: true);
     final out = <String, Map<String, dynamic>>{};
     var failed = false;
@@ -617,7 +617,7 @@ class AssistantSession extends Notifier<AssistantState> {
         : out[writes.first.id]?['ok'] == true
         ? '일부만 실행했습니다'
         : '실행하지 못했습니다';
-    _markCardDone(picked == null ? status : '$status — ${picked.label}');
+    _markCardDone(picked == null ? status : '$status — ${picked.lines.first}');
     _messages.add({
       'role': 'user',
       'content': _resultsFor(
