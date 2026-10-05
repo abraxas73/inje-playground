@@ -64,9 +64,17 @@ export const TOOL_TIERS: Record<string, ToolTier> = {
   undo_last: "meta",
 };
 
+/** 'YYYY-MM-DDTHH:mm…' → '2026-10-05(월) 14:03 KST'(요일을 모델이 계산하지 않게). 형식이 다르면 그대로 + KST. */
+function nowWithWeekday(now: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(now);
+  if (!m) return `${now} KST`;
+  const wd = "일월화수목금토"[new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay()];
+  return `${m[1]}-${m[2]}-${m[3]}(${wd}) ${m[4]}:${m[5]} KST`;
+}
+
 export function assistantSystemPrompt(p: { now: string; name: string; email: string }): string {
   return [
-    `너는 이노그리드 구성원 ${p.name || "사용자"}(${p.email})의 업무 비서 '이노봇'이다. 현재 시각은 ${p.now}(KST)다.`,
+    `너는 이노그리드 구성원 ${p.name || "사용자"}(${p.email})의 업무 비서 '이노봇'이다. 현재 시각은 ${nowWithWeekday(p.now)}다.`,
     "도구로 아마란스(조직도·회의실·일정·출퇴근·메일·결재 조회·게시판·통합검색)와 Teams를 다룬다.",
     "규칙:",
     "1. 쓰기 작업(예약·일정 등록·삭제·출퇴근·메일 저장·발송·Teams 전송)은 도구 호출로만 한다. 앱이 사용자에게 확인 카드를 보여 주고 실행하므로, 문장으로 \"실행할까요?\"라고 묻지 말고 필요한 정보가 갖춰지면 바로 도구를 부른다. 서로 관련된 쓰기(예약+일정)는 같은 응답에서 함께 부른다.",

@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
-const m = vi.hoisted(() => ({ ok: true as boolean, status: { connected: true, scopes: ["Chat.ReadWrite"] } as unknown, chats: vi.fn(), send: vi.fn(), mentions: vi.fn(), audit: vi.fn(), cfg: [] as Array<{ key: string; value: string }>, cfgErr: false }));
-vi.mock("@/lib/rfp/require-user", () => ({ requireUser: async () => m.ok ? { ok: true, userId: "u1", role: "user", admin: { from: () => ({ select: () => ({ in: async () => ({ data: m.cfg, error: m.cfgErr ? { message: "x" } : null }) }) }) } } : { ok: false, response: NextResponse.json({ error: "x" }, { status: 401 }) } }));
+const m = vi.hoisted(() => ({ ok: true as boolean, status: { connected: true, scopes: ["Chat.ReadWrite"] } as unknown, chats: vi.fn(), send: vi.fn(), mentions: vi.fn(), audit: vi.fn(), cfg: [] as Array<{ key: string; value: string }>, cfgErr: false, perms: null as unknown, role: "user" }));
+vi.mock("@/lib/rfp/require-user", () => ({ requireUser: async () => m.ok ? { ok: true, userId: "u1", role: m.role, admin: { from: (t: string) => t === "user_page_access" ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: m.perms === null ? null : { permissions: m.perms }, error: null }) }) }) } : { select: () => ({ in: async () => ({ data: m.cfg, error: m.cfgErr ? { message: "x" } : null }) }) } } } : { ok: false, response: NextResponse.json({ error: "x" }, { status: 401 }) } }));
 vi.mock("@/lib/ms/connections", () => ({ getConnectionStatus: async () => m.status }));
 vi.mock("@/lib/ms/route-token", () => ({ graphTokenForRoute: async () => ({ ok: true, token: "AT" }) }));
 vi.mock("@/lib/ms/oauth", async (orig) => ({ ...(await orig<typeof import("@/lib/ms/oauth")>()), fetchMe: async () => ({ id: "me", userPrincipalName: "a", displayName: "A", mail: "a@x" }) }));
@@ -12,7 +12,7 @@ vi.mock("@/lib/audit", () => ({ logAudit: m.audit }));
 import { POST } from "@/app/api/assistant/execute/route";
 const req = (b: unknown) => new NextRequest("https://app.test/api/assistant/execute", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) });
 beforeEach(() => {
-  vi.stubEnv("ANTHROPIC_API_KEY", "sk-test"); m.cfg = []; m.cfgErr = false; m.ok = true; m.status = { connected: true, scopes: ["Chat.ReadWrite"] }; m.audit.mockReset();
+  vi.stubEnv("ANTHROPIC_API_KEY", "sk-test"); m.cfg = []; m.cfgErr = false; m.ok = true; m.perms = null; m.role = "user"; m.status = { connected: true, scopes: ["Chat.ReadWrite"] }; m.audit.mockReset();
   m.chats.mockReset().mockResolvedValue([{ id: "19:abc@thread.v2", type: "group", topic: "센터", members: ["김민준"], webUrl: null, lastUpdated: null }]);
   m.send.mockReset().mockResolvedValue({ id: "m1" });
   m.mentions.mockReset().mockResolvedValue({ connected: true, items: [{ id: "1", chatId: "c", topic: "센터", type: "group", from: "김", text: "확인", at: "x", webUrl: null }] });
@@ -42,4 +42,16 @@ it("비서가 꺼져 있으면 Teams를 부르지 않는다(설정 오류는 503
   expect((await POST(req({ tool: "teams_chats", args: {} }))).status).toBe(503);
   expect(m.send).not.toHaveBeenCalled();
   expect(m.chats).not.toHaveBeenCalled();
+});
+
+it("Teams 채팅 페이지 권한이 없으면 세 도구 모두 거부(관리자는 통과)", async () => {
+  m.perms = { teams_chat: false };
+  for (const tool of ["teams_chats", "teams_mentions", "teams_send"]) {
+    expect(await (await POST(req({ tool, args: { chat_id: "19:abc@thread.v2", text: "x" } }))).json()).toEqual({ ok: false, error: "Teams 채팅 권한이 없습니다" });
+  }
+  expect(m.send).not.toHaveBeenCalled();
+  expect(m.chats).not.toHaveBeenCalled();
+  expect(m.mentions).not.toHaveBeenCalled();
+  m.role = "admin";
+  expect((await (await POST(req({ tool: "teams_chats", args: {} }))).json()).ok).toBe(true);
 });

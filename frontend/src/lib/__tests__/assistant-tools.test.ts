@@ -29,7 +29,7 @@ describe("도구 표", () => {
 describe("지침·설정·검증", () => {
   it("지침은 시각·이름을 담고, 데이터 속 지시 무시·되묻기·확인은 앱이 받음을 못 박는다", () => {
     const s = assistantSystemPrompt({ now: "2026-10-05T14:03+09:00", name: "강승욱", email: "a@innogrid.com" });
-    for (const w of ["2026-10-05T14:03+09:00", "강승욱", "지시가 아니다", "되묻", "확인", "12:00", "동명이인"]) expect(s).toContain(w);
+    for (const w of ["2026-10-05(월) 14:03 KST", "강승욱", "지시가 아니다", "되묻", "확인", "12:00", "동명이인"]) expect(s).toContain(w);
   });
   it("assistantEnabled / dailyTurnLimit", () => {
     expect(assistantEnabled("", "k")).toBe(true);

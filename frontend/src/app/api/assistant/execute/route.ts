@@ -9,6 +9,7 @@ import { parseChatId } from "@/lib/teams/chat-route";
 import { collectMentions } from "@/lib/teams/mentions-collect";
 import { SERVER_TOOLS } from "@/lib/assistant/tools";
 import { loadAssistantSettings } from "@/lib/assistant/settings";
+import { canUsePage, isPagePermissions } from "@/lib/page-access";
 
 export const runtime = "nodejs";
 const NOT_CONNECTED = "Microsoft 계정이 연결되지 않았거나 Teams 채팅 권한이 없습니다. 웹 설정에서 다시 연결하세요.";
@@ -25,6 +26,11 @@ export async function POST(request: NextRequest) {
   if (!cfg.enabled) return NextResponse.json({ enabled: false });
   const args = (body.args && typeof body.args === "object" ? body.args : {}) as Record<string, unknown>;
   const fail = (error: string) => NextResponse.json({ ok: false, error });
+  // /api/teams/chat·mentions와 같은 페이지 권한(teams_chat) — 미들웨어는 /api/assistant를 페이지에 묶지 않으므로 여기서 본다.
+  if (r.role !== "admin") {
+    const access = await r.admin.from("user_page_access").select("permissions").eq("user_id", r.userId).maybeSingle();
+    if (access.error || (access.data && !isPagePermissions(access.data.permissions)) || !canUsePage(r.role, "teams_chat", access.data?.permissions ?? {})) return fail("Teams 채팅 권한이 없습니다");
+  }
   try {
     if (tool === "teams_mentions") {
       const m = await collectMentions(r.admin, r.userId, 2);

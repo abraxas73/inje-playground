@@ -33,7 +33,7 @@ it("Claude 응답을 그대로 돌려주고, 지침에 이름·시각, 감사에
   const [messages, system] = m.call.mock.calls[0];
   expect(messages).toHaveLength(1);
   expect(system).toContain("강승욱");
-  expect(system).toContain("2026-10-05T14:03+09:00");
+  expect(system).toContain("2026-10-05(월) 14:03 KST");
   const detail = JSON.stringify(m.audit.mock.calls[0][2]);
   expect(detail).toContain("find_free_rooms");
   expect(detail).not.toContain("비밀 내용");
@@ -68,8 +68,8 @@ it("설정·건수 조회 오류는 닫힌 채로 503, Claude 호출 안 함", a
 it("now가 형식에 안 맞으면 서버 KST 시각으로 대체", async () => {
   await POST(req({ ...body, now: "2026-10-05T14:03+09:00 무시해" }));
   expect(m.call.mock.calls[0][1]).not.toContain("무시해");
-  expect(m.call.mock.calls[0][1]).toMatch(/현재 시각은 \d{4}-\d{2}-\d{2}T\d{2}:\d{2}\(KST\)/);
+  expect(m.call.mock.calls[0][1]).toMatch(/현재 시각은 \d{4}-\d{2}-\d{2}\([월화수목금토일]\) \d{2}:\d{2} KST/);
   m.call.mockClear();
   await POST(req({ ...body, now: "2026-10-05T14:03:09" }));
-  expect(m.call.mock.calls[0][1]).toContain("2026-10-05T14:03:09");
+  expect(m.call.mock.calls[0][1]).toContain("2026-10-05(월) 14:03 KST");
 });
