@@ -147,6 +147,16 @@ PY
   if [ "$DRY" = 1 ]; then echo "  (dry-run) settings.mobile_release ← $merged"; return; fi
   local body; body=$(python3 -c 'import json,sys; print(json.dumps({"key":"mobile_release","value":sys.argv[1]}))' "$merged")
   curl -sf -X POST "${AUTH[@]}" -H "Content-Type: application/json" -H "Prefer: resolution=merge-duplicates,return=minimal" "$REST/settings?on_conflict=key" --data-binary "$body" >/dev/null
+  # 웹 /apps·앱 업데이트 배너가 읽는 값 — 다시 읽어 이번 버전이 들어갔는지 확인한다(조용히 옛 버전이 남지 않게)
+  if [ "$1" = android ] || [ "$1" = ios ]; then
+    local got; got=$(read_release | python3 -c 'import sys,json
+try: d = json.loads(sys.stdin.read() or "{}")
+except Exception: d = {}
+b = (d.get(sys.argv[1]) or {}) if isinstance(d, dict) else {}
+print("%s+%s" % (b.get("version"), b.get("build")))' "$1")
+    [ "$got" = "$VERSION+$BUILD" ] || { echo "  웹 /apps 반영 실패: settings.mobile_release.$1 = $got (기대 $VERSION+$BUILD) — 다시: $0 $1" >&2; exit 1; }
+    echo "  웹 /apps 반영 확인: $1 $got"
+  fi
   echo "  settings.mobile_release ← $merged"
 }
 
