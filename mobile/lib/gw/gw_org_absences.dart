@@ -54,7 +54,7 @@ Set<String> absenceDepartmentIds(
 extension GwOrgAbsenceApi on GwApi {
   /// gw102A02의 atNm이 조직도 profile_badge에 표시되는 현재 근태 태그다.
   /// 명부의 30분 캐시를 사용하지 않고 새로고침마다 해당 조직만 다시 읽는다.
-  Future<GwOrgAbsences> organizationAbsences() async {
+  Future<GwOrgAbsences> organizationAbsences({bool allCompany = false}) async {
     final me = client.creds().empSeq;
     final session = await client.session();
     Future<List<Map>> members(String dept) async {
@@ -85,13 +85,14 @@ extension GwOrgAbsenceApi on GwApi {
     if (session.deptSeq.isEmpty) throw GwException(200, 0, '소속 부서를 확인하지 못했습니다');
     final ownRows = await members(session.deptSeq);
     final self = ownRows.where((r) => asStr(r['empSeq']) == me).firstOrNull;
-    if (self == null || asStr(self['dutyName']).trim().isEmpty) {
+    if (!allCompany &&
+        (self == null || asStr(self['dutyName']).trim().isEmpty)) {
       throw GwException(200, 0, '내 조직도 정보를 확인하지 못했습니다');
     }
-    final center = asStr(self['dutyName']).trim() == '센터장';
-    var scopeName = asStr(self['deptName']);
+    final center = !allCompany && asStr(self?['dutyName']).trim() == '센터장';
+    var scopeName = asStr(self?['deptName']);
     var ids = {session.deptSeq};
-    if (center) {
+    if (center || allCompany) {
       final tree = await client.call('/gw/APIHandler/gw102A01', {
         'parentSeq': '0',
         'popupType': 'main',
@@ -109,11 +110,18 @@ extension GwOrgAbsenceApi on GwApi {
           .whereType<Map>()
           .where((n) => asStr(n['compSeq']) == session.compSeq)
           .toList();
-      ids = absenceDepartmentIds(
-        nodes,
-        session.deptSeq,
-        asStr(self['dutyName']),
-      );
+      ids = allCompany
+          ? {
+              for (final n in nodes)
+                if (asStr(n['orgGubun']) == 'd' && asStr(n['id']).isNotEmpty)
+                  asStr(n['id']),
+            }
+          : absenceDepartmentIds(
+              nodes,
+              session.deptSeq,
+              asStr(self?['dutyName']),
+            );
+      if (ids.isEmpty) throw GwException(200, 0, '회사 조직도를 확인하지 못했습니다');
       final root = nodes
           .where(
             (n) =>
@@ -122,7 +130,11 @@ extension GwOrgAbsenceApi on GwApi {
                 !ids.contains(asStr(n['parentSeq'])),
           )
           .firstOrNull;
-      scopeName = root == null ? scopeName : asStr(root['text']);
+      scopeName = allCompany
+          ? '회사 전체'
+          : root == null
+          ? scopeName
+          : asStr(root['text']);
     }
     final rows = [...ownRows];
     final rest = ids.where((id) => id != session.deptSeq).toList();

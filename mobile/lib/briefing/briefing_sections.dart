@@ -167,17 +167,27 @@ class MeetingsSection extends StatelessWidget {
 }
 
 class AbsenceSection extends StatelessWidget {
-  const AbsenceSection({super.key, required this.absences, this.title = '팀원 부재'});
+  const AbsenceSection({super.key, required this.absences, this.title = '팀원 부재', this.allCompany = false, this.loading = false, this.failed = false, this.onToggle, this.onRetry});
   final List<Absence> absences;
   final String title;
+  final bool allCompany, loading, failed;
+  final ValueChanged<bool>? onToggle;
+  final VoidCallback? onRetry;
   @override
-  Widget build(BuildContext context) => absences.isEmpty
+  Widget build(BuildContext context) => onToggle == null && absences.isEmpty
       ? const SizedBox.shrink()
       : _Section(
           title: title,
+          trailing: onToggle == null ? null : FilterChip(label: const Text('전체'), selected: allCompany, onSelected: onToggle),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-            child: Wrap(spacing: 8, runSpacing: 8, children: [for (final a in absences) Chip(avatar: InitialBadge(a.who, size: 22, circle: true), label: Text('${a.who} · ${a.what}'))]),
+            child: loading
+                ? const LinearProgressIndicator(minHeight: 2)
+                : failed
+                    ? TextButton(onPressed: onRetry, child: const Text('조직도 상태를 불러오지 못했습니다 · 다시 시도'))
+                    : absences.isEmpty
+                        ? const Text('현재 부재자가 없습니다.', style: TextStyle(color: Brand.muted))
+                        : Wrap(spacing: 8, runSpacing: 8, children: [for (final a in absences) Chip(avatar: InitialBadge(a.who, size: 22, circle: true), label: Text('${a.who} · ${a.what}'))]),
           ),
         );
 }
