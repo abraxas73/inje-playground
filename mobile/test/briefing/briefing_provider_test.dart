@@ -25,7 +25,7 @@ class _Tokens implements TokenSource {
 }
 /// 앱 서버 가짜: 경로 → (상태, 본문). 호출 기록.
 class AppApi {
-  AppApi(this.routes);
+  AppApi(Map<String, (int, Object)> routes) : routes = {'/api/jira/issues': (200, {'connected': false, 'items': []}), ...routes};
   final Map<String, (int, Object)> routes;
   final calls = <String, int>{};
   final bodies = <String, Object?>{};
@@ -56,6 +56,23 @@ ProviderContainer scope({GwCreds? creds = testCreds, required MockClient gw, req
 }
 
 void main() {
+  test('Jira는 아마란스 미연결이어도 진행 중 목록을 수집하고 요약에 포함한다', () async {
+    final app = AppApi({'/api/jira/issues': (200, {'connected': true, 'items': [{'key': 'AX-1', 'summary': '설계 검토', 'status': '진행 중'}]})});
+    final c = scope(creds: null, gw: gwRoutes({}), api: app.client);
+    final d = await c.read(briefingProvider.future);
+    expect(d.jira?.items.single.key, 'AX-1');
+    expect(summaryPayload(d)['jira'], [{'key': 'AX-1', 'title': '설계 검토', 'status': '진행 중', 'dueDate': null}]);
+  });
+  test('Jira 인증 만료는 재연결, 통신 오류는 소스별 오류로 구분한다', () async {
+    for (final code in [409, 502]) {
+      final app = AppApi({'/api/jira/issues': (code, {'error': 'failure'}), '/api/teams/mentions': (200, {'connected': false, 'items': []})});
+      final c = scope(creds: null, gw: gwRoutes({}), api: app.client);
+      final d = await c.read(briefingProvider.future);
+      expect(d.jira?.reconnect == true, code == 409);
+      expect(d.errors.containsKey('jira'), code == 502);
+    }
+  });
+
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   test('07:00 기준 날짜는 자정에 바뀌지 않고 기기 시간대와 무관하다', () {

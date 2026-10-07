@@ -7,7 +7,7 @@ describe("sanitizePayload", () => {
   it("알려진 키만, 문자열 120자·목록 8개·멘션 5·공지 3으로 자르고 타입을 맞춘다", () => {
     const big = { ...full, evil: "x", meetings: Array.from({ length: 12 }, (_, i) => ({ time: "t", title: "제".repeat(300), place: 1 })), mentions: Array(9).fill({ chat: "c", from: "f", text: "t" }), notices: Array(5).fill({ title: "n", board: "b" }), tomorrow: "3", attendance: { clockedIn: "yes" } };
     const p = sanitizePayload(big);
-    expect(Object.keys(p).sort()).toEqual(["absences", "approvals", "attendance", "date", "mails", "meetings", "mentions", "name", "notices", "tomorrow"]);
+    expect(Object.keys(p).sort()).toEqual(["absences", "approvals", "attendance", "date", "jira", "mails", "meetings", "mentions", "name", "notices", "tomorrow"]);
     expect(p.meetings).toHaveLength(8);
     expect(p.meetings[0].title).toHaveLength(121);
     expect(p.meetings[0].place).toBeUndefined();
@@ -18,7 +18,7 @@ describe("sanitizePayload", () => {
   });
   it("깨진 입력은 빈 payload", () => {
     const p = sanitizePayload("nope");
-    expect(p).toEqual({ date: "", name: "", meetings: [], tomorrow: 0, absences: [], approvals: [], mails: [], mentions: [], notices: [], attendance: null });
+    expect(p).toEqual({ date: "", name: "", meetings: [], tomorrow: 0, absences: [], approvals: [], mails: [], mentions: [], jira: [], notices: [], attendance: null });
   });
   it("결재 days는 정수 또는 null, unread는 불리언", () => {
     const p = sanitizePayload({ approvals: [{ title: "a", from: "b", days: null, unread: "Y" }, { title: "c", from: "d", days: 2.7, unread: true }] });
@@ -43,4 +43,11 @@ describe("briefingEnabled / countsOf / prompt", () => {
     expect(s).toContain("attendance.clockedIn");
     expect(s).toMatch(/출근 기록을 남기/);
   });
+});
+it('Jira 요약 입력은 최대 5개 제목 수준만 받고 본문·토큰은 제외', () => {
+  const result = sanitizePayload({ jira: Array.from({ length: 9 }, () => ({ key: 'AX-1', title: '가'.repeat(500), status: '진행 중', dueDate: '2026-10-08', description: 'private', token: 'secret' })) });
+  expect(result.jira).toHaveLength(5);
+  expect(result.jira[0].title.length).toBeLessThanOrEqual(121);
+  expect(result.jira[0]).not.toHaveProperty('description');
+  expect(result.jira[0]).not.toHaveProperty('token');
 });

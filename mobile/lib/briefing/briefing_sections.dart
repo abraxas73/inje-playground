@@ -1,3 +1,4 @@
+import 'jira_briefing.dart';
 import 'package:flutter/material.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
@@ -244,6 +245,40 @@ class TeamsSection extends StatelessWidget {
       child: Column(children: [
         for (final x in m.items.take(3)) ListTile(dense: true, leading: InitialBadge(x.from, size: 32, circle: true), title: Text(x.text, maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('${x.topic} · ${x.from}', style: const TextStyle(fontSize: 12)), onTap: onOpen),
       ]),
+    );
+  }
+}
+
+
+class JiraSection extends StatelessWidget {
+  const JiraSection({super.key, required this.data, required this.onConnect, required this.onMore, required this.onIssue});
+  final JiraBriefing data;
+  final VoidCallback onConnect, onMore;
+  final ValueChanged<String> onIssue;
+  @override
+  Widget build(BuildContext context) {
+    if (!data.connected) {
+      return _Section(
+      title: 'Jira',
+      child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(data.reconnect ? 'Jira 인증이 만료되었습니다. 새 토큰으로 다시 연결하세요.' : 'Jira를 연결하면 내 담당 진행 중 업무를 볼 수 있습니다.', style: const TextStyle(color: Brand.muted)),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(onPressed: onConnect, icon: const Icon(Icons.link), label: Text(data.reconnect ? '지라 다시 연결' : '지라 연결')),
+      ])),
+    );
+    }
+    return _Section(
+      title: 'Jira 진행 중 ${data.items.length}${data.hasMore ? '+' : ''}',
+      trailing: _more('전체 목록', onMore),
+      child: data.items.isEmpty
+        ? const Padding(padding: EdgeInsets.all(14), child: Text('담당한 진행 중 이슈가 없습니다.', style: TextStyle(color: Brand.muted)))
+        : Column(children: [for (final item in data.items.take(5)) ListTile(
+            dense: true,
+            title: Text(item.summary, maxLines: 2, overflow: TextOverflow.ellipsis),
+            subtitle: Text('${item.key} · ${item.status}${item.dueDate == null ? '' : ' · 마감 ${item.dueDate}'}', style: const TextStyle(fontSize: 12)),
+            trailing: const Icon(Icons.chevron_right, size: 18),
+            onTap: () => onIssue(item.key),
+          )]),
     );
   }
 }

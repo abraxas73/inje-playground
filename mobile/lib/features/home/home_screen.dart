@@ -106,10 +106,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     }
   }
 
-  /// Claude "오늘의 한 마디". 아마란스가 연결돼 있을 때만 — 미연결이면 payload가 비어 오해를 부르는 문장이 되므로 격언을 유지한다(스펙: 미연결 시 2~9 대신 연결 카드).
+  /// 아마란스 또는 Jira가 연결된 경우 실제 업무 데이터로 오늘의 한 마디를 만든다.
   Future<void> _summary(BriefingData d, {bool force = false}) async {
     if (briefingPeriod(d.now) != briefingPeriod(_now)) return;
-    if (ref.read(gwProvider).value?.status != GwStatus.connected) return;
+    if (ref.read(gwProvider).value?.status != GwStatus.connected && d.jira?.connected != true) return;
     final name = ref.read(sessionProvider).asData?.value?.name;
     if (name != null && name.isNotEmpty) d.name = name; // 첫 수집 때 세션이 아직 없었어도 payload에는 이름을 싣는다
     setState(() => _summaryRequests++);
@@ -140,7 +140,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       final d = next.value;
       if (!_manualBusy && d != null && d != prev?.value) _summary(d);
     });
-    void open(String route) => context.push(route);
+    Future<void> open(String route) async {
+      await context.push(route);
+      if (mounted && route.contains('/web?path=')) await _refresh();
+    }
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -155,7 +158,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             Text(g.subtitle, style: theme.textTheme.bodySmall),
             const SizedBox(height: 16),
             QuoteCard(quote: q),
-            BriefingCard(summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at), busy: _summaryBusy || _manualBusy, onRefresh: gw?.status == GwStatus.connected ? _forceSummary : null, onClockIn: data != null && clockInPending(data.attendance, data.now) ? () => open('/gw/attendance') : null),
+            BriefingCard(summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at), busy: _summaryBusy || _manualBusy, onRefresh: gw?.status == GwStatus.connected || data?.jira?.connected == true ? _forceSummary : null, onClockIn: data != null && clockInPending(data.attendance, data.now) ? () => open('/gw/attendance') : null),
             if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(top: 14), child: LinearProgressIndicator(minHeight: 2)),
             if (gw != null && gw.status != GwStatus.connected)
               GwConnectCard(relogin: gw.status == GwStatus.needsRelogin, onConnect: () => context.push('/gw/connect'))
@@ -178,6 +181,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               if (data.errors.containsKey('teams')) RetryLine(label: 'Teams', onTap: _refresh) else TeamsSection(mentions: data.mentions, onOpen: () => open(teamsRoute)),
             ],
             const GwNoticesCard(),
+            if (data != null && (session?.isAdmin == true || session?.permissions['jira'] != false))
+              if (data.errors.containsKey('jira'))
+                RetryLine(label: 'Jira', onTap: _refresh)
+              else if (data.jira != null)
+                JiraSection(data: data.jira!, onConnect: () => open('/web?path=${Uri.encodeComponent('/settings#jira')}'), onMore: () => open('/web?path=${Uri.encodeComponent('/jira')}'), onIssue: (key) => open('/web?path=${Uri.encodeComponent('/jira/$key')}')),
+
             const SizedBox(height: 20),
             Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('바로 가기', style: theme.textTheme.titleSmall)),
             GridView.count(

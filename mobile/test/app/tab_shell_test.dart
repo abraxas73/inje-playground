@@ -78,7 +78,7 @@ void main() {
     await tester.pumpAndSettle();
     final labels = tester.widgetList<FanItem>(find.byType(FanItem)).map((w) => w.page.label).toList();
     expect(labels.first, 'Teams 채팅');
-    expect(labels, containsAll(['RFP 분석', 'PPT 만들기', '인사·부고']));
+    expect(labels, containsAll(['Jira', 'RFP 분석', 'PPT 만들기', '인사·부고']));
     expect(labels, isNot(contains('마케팅 Master DB'))); // 기본 거부
     await tester.tapAt(const Offset(400, 60)); // 스크림
     await tester.pumpAndSettle();
