@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../gw/gw_client.dart' show asBool, asStr;
 import '../gw/gw_models.dart';
+import '../gw/gw_org_absences.dart';
 
 /// 홈 브리핑의 순수 로직 — 수집 결과(BriefingData)에서 섹션 데이터·"지금 필요한 것"·Claude용 압축 payload를 만든다. 네트워크·위젯 없음.
 
@@ -30,7 +31,7 @@ AbsenceKind? absenceKind(String title, String calendar) {
 class Absence {
   const Absence({required this.who, required this.what, required this.kind});
   final String who, what;
-  final AbsenceKind kind;
+  final AbsenceKind? kind;
 }
 
 class TeamsMention {
@@ -62,6 +63,7 @@ class BriefingData {
   MailSummary? mailSummary;
   (int, List<GwNotice>)? notices;
   Attendance? attendance;
+  GwOrgAbsences? orgAbsences;
   TeamsMentions? mentions;
   final errors = <String, String>{};
 }
@@ -86,17 +88,11 @@ List<GwEvent> myMeetings(BriefingData d) {
   return list;
 }
 
-/// 내 것이 아닌 일정 중 근태 키워드가 있는 것 — 아마란스 mine 플래그에 섞여 오는 팀원 연차·출장을 분리한다.
-List<Absence> teamAbsences(BriefingData d) {
-  final mine = {for (final e in myEvents(d.today ?? const [], d.cals ?? const [], d.empSeq)) e.schSeq};
-  final out = <Absence>[];
-  for (final e in d.today ?? const <GwEvent>[]) {
-    if (mine.contains(e.schSeq)) continue;
-    final k = absenceKind(e.title, e.calendar);
-    if (k != null) out.add(Absence(who: e.createName.isNotEmpty ? e.createName : e.title, what: e.title, kind: k));
-  }
-  return out;
-}
+/// 캘린더를 추측하지 않고, 소속 조직으로 제한된 조직도의 현재 근태 태그만 사용한다.
+List<Absence> teamAbsences(BriefingData d) => [
+  for (final p in d.orgAbsences?.members ?? const <GwOrgMemberStatus>[])
+    Absence(who: p.name, what: p.tag, kind: absenceKind(p.tag, '')),
+];
 
 const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 

@@ -159,7 +159,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             else if (data != null) ...[
               FocusSection(items: focusItems(data), onOpen: open),
               if (data.errors.containsKey('today')) RetryLine(label: '일정', onTap: _refresh) else MeetingsSection(meetings: myMeetings(data), tomorrowCount: myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).length, onMore: () => open('/gw/today')),
-              AbsenceSection(absences: teamAbsences(data)),
+              if (data.errors.containsKey('absences')) RetryLine(label: '조직도 부재 상태', onTap: _refresh) else AbsenceSection(absences: teamAbsences(data), title: data.orgAbsences?.isCenter == true ? '센터원 부재' : '팀원 부재'),
               if (data.errors.containsKey('approvals')) RetryLine(label: '미결 결재', onTap: _refresh) else ApprovalsSection(total: data.approvals?.$1 ?? 0, items: data.approvals?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals')),
               if (data.errors.containsKey('inbox')) RetryLine(label: '메일', onTap: _refresh) else MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail')),
             ],

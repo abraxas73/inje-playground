@@ -1,5 +1,6 @@
 // mobile/lib/assistant/assistant_session.dart
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/client.dart';
 import '../gw/gw_api.dart';
@@ -149,16 +150,35 @@ class AssistantAvailable extends Notifier<bool> {
 final assistantSessionProvider =
     NotifierProvider<AssistantSession, AssistantState>(AssistantSession.new);
 
+final assistantWaitTimeoutProvider = Provider<Duration>(
+  (_) => const Duration(seconds: 75),
+);
+
+class _Stopped implements Exception {}
+
+class _Run {
+  final stopped = Completer<void>();
+  List<Map<String, dynamic>> Function()? interruptedResults;
+}
+
 class AssistantSession extends Notifier<AssistantState> {
   static const maxTurns = 10;
   final _messages = <Map<String, dynamic>>[];
   final _guard = MailReadGuard();
   _Pending? _pending;
   AssistantJournal? _journal;
+  _Run? _run;
 
   /// Riverpod 3는 invalidate(로그아웃) 뒤에도 노티파이어 인스턴스를 재사용한다 — 필드도 여기서 비운다.
   @override
   AssistantState build() {
+    _run?.stopped.complete();
+    _run = null;
+    _fixResults = null;
+    ref.onDispose(() {
+      _run?.stopped.complete();
+      _run = null;
+    });
     _messages.clear();
     _pending = null;
     _guard.reset();
@@ -181,14 +201,82 @@ class AssistantSession extends Notifier<AssistantState> {
     items: [...state.items.where((x) => x.kind != ChatKind.progress), i],
   );
 
-  Future<AssistantToolRunner> _runner() async {
-    await ref.read(gwProvider.future);
-    _journal ??= await AssistantJournal.load();
+  bool _active(_Run run) => ref.mounted && identical(_run, run);
+
+  Future<T> _wait<T>(_Run run, Future<T> future) async {
+    try {
+      final result =
+          await Future.any<T>([
+            future,
+            run.stopped.future.then<T>((_) => throw _Stopped()),
+          ]).timeout(
+            ref.read(assistantWaitTimeoutProvider),
+            onTimeout: () {
+              if (_active(run)) stop(timedOut: true);
+              throw _Stopped();
+            },
+          );
+      if (!_active(run)) throw _Stopped();
+      return result;
+    } catch (_) {
+      if (!_active(run)) throw _Stopped();
+      rethrow;
+    }
+  }
+
+  /// 후속 작업과 응답 대기를 중지한다. 이미 전송된 쓰기 요청을 되돌리지는 않는다.
+  void stop({bool timedOut = false}) {
+    final run = _run;
+    if (run == null) return;
+    _run = null;
+    run.stopped.complete();
+    _pending = null;
+    if (_messages.isNotEmpty && _messages.last['role'] == 'assistant') {
+      final blocks = _messages.last['content'];
+      final calls = blocks is List
+          ? blocks.whereType<Map>().where((b) => b['type'] == 'tool_use')
+          : const <Map>[];
+      if (calls.isNotEmpty) {
+        _messages.add({
+          'role': 'user',
+          'content':
+              run.interruptedResults?.call() ??
+              [
+                for (final c in calls)
+                  _result('${c['id']}', {
+                    'ok': false,
+                    'error':
+                        '응답 대기를 중지했습니다. 이미 요청한 작업은 실행되었을 수 있습니다. 다시 실행하지 말고 실행 여부를 조회하세요.',
+                  }),
+              ],
+        });
+      }
+    }
+    _rollbackFailedTurn();
+    final executing = state.items.any(
+      (i) => i.kind == ChatKind.card && i.text.startsWith('실행 중'),
+    );
+    if (executing) _markCardDone('중지했습니다 · 실행 여부를 확인해 주세요');
+    _set(busy: false, pending: false);
+    _add(
+      ChatItem(
+        ChatKind.notice,
+        timedOut
+            ? '응답 시간이 초과되어 중지했습니다. 이미 실행된 작업은 유지됩니다. 실행 중이던 작업은 실행 여부를 확인해 주세요.'
+            : '중지했습니다. 이미 실행된 작업은 유지됩니다. 실행 중이던 작업은 실행 여부를 확인해 주세요.',
+      ),
+    );
+  }
+
+  Future<AssistantToolRunner> _runner(_Run run) async {
+    await _wait(run, ref.read(gwProvider.future));
+    _journal ??= await _wait(run, AssistantJournal.load());
     return AssistantToolRunner(
       gw: ref.read(gwApiProvider),
       api: ref.read(apiClientProvider),
       journal: _journal!,
       guard: _guard,
+      isActive: () => _active(run),
       now: ref.read(assistantClockProvider),
     );
   }
@@ -250,6 +338,7 @@ class AssistantSession extends Notifier<AssistantState> {
   }
 
   Future<void> _drive() async {
+    final run = _run = _Run();
     _set(busy: true);
     try {
       for (var turn = 0; turn < maxTurns; turn++) {
@@ -262,10 +351,16 @@ class AssistantSession extends Notifier<AssistantState> {
         }
         dynamic res;
         try {
-          res = await ref.read(apiClientProvider).postJson(
-            '/api/assistant/turn',
-            {'messages': _messages, 'now': nowIso()},
+          res = await _wait(
+            run,
+            ref.read(apiClientProvider).postJsonAbortable(
+              '/api/assistant/turn',
+              {'messages': _messages, 'now': nowIso()},
+              run.stopped.future,
+            ),
           );
+        } on _Stopped {
+          rethrow;
         } on ApiException catch (e) {
           _add(ChatItem(ChatKind.notice, e.message));
           _rollbackFailedTurn();
@@ -284,7 +379,9 @@ class AssistantSession extends Notifier<AssistantState> {
           return;
         }
         try {
-          if (!await _handle(res)) return;
+          if (!await _handle(res, run)) return;
+        } on _Stopped {
+          rethrow;
         } catch (_) {
           // 도구 호출은 쓰기를 실행하지 않으므로 assistant 메시지를 버리면 history가 유효하다. 보이지 않는 대기 카드도 버린다.
           _pending = null;
@@ -297,16 +394,21 @@ class AssistantSession extends Notifier<AssistantState> {
         }
       }
       _add(const ChatItem(ChatKind.notice, '요청이 너무 복잡합니다. 나눠서 다시 말씀해 주세요.'));
+    } on _Stopped {
+      return;
     } finally {
-      _set(
-        busy: false,
-        items: [...state.items.where((x) => x.kind != ChatKind.progress)],
-      );
+      if (_active(run)) {
+        _run = null;
+        _set(
+          busy: false,
+          items: [...state.items.where((x) => x.kind != ChatKind.progress)],
+        );
+      }
     }
   }
 
   /// 응답 하나 처리. true면 다음 턴으로 계속, false면 멈춤(끝 또는 확인 대기).
-  Future<bool> _handle(Map res) async {
+  Future<bool> _handle(Map res, _Run run) async {
     final msg = Map<String, dynamic>.from(res['message'] as Map);
     _messages.add(msg);
     final blocks = (msg['content'] as List? ?? const [])
@@ -330,9 +432,9 @@ class AssistantSession extends Notifier<AssistantState> {
       _set(items: [...state.items.where((x) => x.kind != ChatKind.progress)]);
       return false;
     }
-    final runner = await _runner();
+    final runner = await _runner(run);
     if (calls.any((c) => tierOf(c.name) == ToolTier.choice)) {
-      if (calls.length == 1) return _offerChoices(calls.single, runner);
+      if (calls.length == 1) return _offerChoices(calls.single, runner, run);
       _messages.add({
         'role': 'user',
         'content': [
@@ -354,16 +456,19 @@ class AssistantSession extends Notifier<AssistantState> {
         results[c.id] = {'ok': false, 'error': '모르는 도구입니다: ${c.name}'};
       } else if (tier == ToolTier.read) {
         _add(ChatItem(ChatKind.progress, progressText(c.name)));
-        results[c.id] = await runner.run(c);
+        results[c.id] = await _wait(run, runner.run(c));
       } else if (tier == ToolTier.meta) {
         final n = c.input['count'] is num
             ? (c.input['count'] as num).toInt().clamp(1, 5)
             : 1;
         final all = [
-          for (final e in (_journal ?? await AssistantJournal.load()).undoable(
-            n,
-            now: ref.read(assistantClockProvider)(),
-          ))
+          for (final e
+              in (_journal ??
+                      await _wait<AssistantJournal>(
+                        run,
+                        AssistantJournal.load(),
+                      ))
+                  .undoable(n, now: ref.read(assistantClockProvider)()))
             ?undoFor(e),
         ];
         final targets = [
@@ -394,7 +499,7 @@ class AssistantSession extends Notifier<AssistantState> {
       final lines = <String>[];
       final rejected = <String, Map<String, dynamic>>{};
       for (final w in writes) {
-        final r = await runner.resolve(w);
+        final r = await _wait(run, runner.resolve(w));
         if (r.error != null) {
           rejected[w.id] = {'ok': false, 'error': r.error};
         } else {
@@ -436,7 +541,11 @@ class AssistantSession extends Notifier<AssistantState> {
 
   /// 선택지 — 선택지마다 쓰기 호출을 실제 대상으로 확인해 카드로 보인다. 쓰기가 아닌 호출·확인 안 되는 대상이 든 선택지는 뺀다.
   /// 남는 게 없으면 카드 없이 오류 결과로 이어간다(true = 다음 턴). 실행은 사용자가 고른 선택지의 [실행](confirm(choice:))뿐.
-  Future<bool> _offerChoices(ToolCall c, AssistantToolRunner runner) async {
+  Future<bool> _offerChoices(
+    ToolCall c,
+    AssistantToolRunner runner,
+    _Run run,
+  ) async {
     final raw = c.input['options'];
     final opts = raw is List
         ? raw.whereType<Map>().take(4).toList()
@@ -476,7 +585,7 @@ class AssistantSession extends Notifier<AssistantState> {
       final lines = <String>[];
       String? err;
       for (final w in ws) {
-        final r = await runner.resolve(w);
+        final r = await _wait(run, runner.resolve(w));
         if (r.error != null) {
           err = r.error;
           break;
@@ -581,14 +690,44 @@ class AssistantSession extends Notifier<AssistantState> {
               ? p.choices[choice]
               : null);
     if (p.choices.isNotEmpty && picked == null) return;
+    final run = _run = _Run();
     final writes = picked?.writes ?? p.writes;
     _pending = null;
     _markCardDone(picked == null ? '실행 중…' : '실행 중… — ${picked.lines.first}');
     _set(busy: true);
     final out = <String, Map<String, dynamic>>{};
+    final started = <String>{};
+    run.interruptedResults = () {
+      final results = {
+        for (final w in writes)
+          w.id:
+              out[w.id] ??
+              {
+                'ok': false,
+                'error': started.contains(w.id)
+                    ? '응답 대기 중지. 실행 여부를 조회하세요. 자동으로 다시 실행하지 마세요.'
+                    : '중지되어 실행하지 않았습니다',
+              },
+      };
+      return _resultsFor(
+        p,
+        picked == null
+            ? results
+            : {
+                p.choiceId!: {
+                  'ok': false,
+                  'chosen': picked.label,
+                  'results': [
+                    for (final (j, w) in writes.indexed)
+                      {'action': picked.lines[j], 'result': results[w.id]},
+                  ],
+                },
+              },
+      );
+    };
     var failed = false;
     try {
-      final runner = await _runner();
+      final runner = await _runner(run);
       for (final w in writes) {
         if (failed) {
           out[w.id] = {'ok': false, 'error': '앞 작업이 실패해 실행하지 않았습니다'};
@@ -600,19 +739,25 @@ class AssistantSession extends Notifier<AssistantState> {
             '${cardLine(w).split(' · ').first} 하는 중…',
           ),
         );
-        final r = await runner.run(w); // 취소·삭제 성공은 러너가 실행 기록에서 지운다
+        started.add(w.id);
+        final r = await _wait(run, runner.run(w)); // 취소·삭제 성공은 러너가 실행 기록에서 지운다
         out[w.id] = r;
         if (r['ok'] != true) failed = true;
       }
+    } on _Stopped {
+      return;
     } catch (_) {
       for (final w in writes) {
         out.putIfAbsent(w.id, () => {'ok': false, 'error': '실행되지 않았습니다'});
       }
     } finally {
-      _set(
-        busy: false,
-        items: [...state.items.where((x) => x.kind != ChatKind.progress)],
-      );
+      if (_active(run)) {
+        _run = null;
+        _set(
+          busy: false,
+          items: [...state.items.where((x) => x.kind != ChatKind.progress)],
+        );
+      }
     }
     final okCount = writes.where((w) => out[w.id]?['ok'] == true).length;
     final status = okCount == writes.length

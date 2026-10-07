@@ -167,16 +167,17 @@ class MeetingsSection extends StatelessWidget {
 }
 
 class AbsenceSection extends StatelessWidget {
-  const AbsenceSection({super.key, required this.absences});
+  const AbsenceSection({super.key, required this.absences, this.title = '팀원 부재'});
   final List<Absence> absences;
+  final String title;
   @override
   Widget build(BuildContext context) => absences.isEmpty
       ? const SizedBox.shrink()
       : _Section(
-          title: '팀원 부재',
+          title: title,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-            child: Wrap(spacing: 8, runSpacing: 8, children: [for (final a in absences) Chip(avatar: InitialBadge(a.who, size: 22, circle: true), label: Text('${a.who} · ${a.kind.label}'))]),
+            child: Wrap(spacing: 8, runSpacing: 8, children: [for (final a in absences) Chip(avatar: InitialBadge(a.who, size: 22, circle: true), label: Text('${a.who} · ${a.what}'))]),
           ),
         );
 }

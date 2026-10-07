@@ -54,13 +54,13 @@ void main() {
   });
   testWidgets('AbsenceSection·ApprovalsSection·MailsSection·TeamsSection', (tester) async {
     await tester.pumpWidget(wrap(Column(children: [
-      const AbsenceSection(absences: [Absence(who: '김민준', what: '김민준 연차', kind: AbsenceKind.leave)]),
+      const AbsenceSection(absences: [Absence(who: '김민준', what: '연차', kind: AbsenceKind.leave)]),
       ApprovalsSection(total: 5, items: [PendingApproval(docId: 'd', formId: 'f', title: '휴가 신청', form: 'f', drafter: '이서연', dept: '', arrivedDt: '20261002', status: '', unread: true, fileCount: 0)], now: now, onMore: () {}),
       MailsSection(items: const [MailItem(muid: '1', subject: '견적', fromName: '박지훈', fromEmail: '', date: '', tooltip: '2026-10-05 09:12:00', seen: false, attach: false)], unreadTotal: 2, onMore: () {}),
       TeamsSection(mentions: const TeamsMentions(connected: true, items: [TeamsMention(chatId: 'c', topic: '센터', from: '김민준', text: '확인 부탁', at: '2026-10-05T00:00:00Z')]), onOpen: () {}),
       TeamsSection(mentions: const TeamsMentions(connected: false, items: []), onOpen: () {}),
     ])));
-    expect(find.text('김민준 · 휴가'), findsOneWidget);
+    expect(find.text('김민준 · 연차'), findsOneWidget);
     expect(find.textContaining('김민준'), findsWidgets);
     expect(find.textContaining('3일째'), findsOneWidget);
     expect(find.text('미결 결재 5'), findsOneWidget);

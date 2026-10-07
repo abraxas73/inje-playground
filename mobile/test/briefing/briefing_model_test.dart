@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:playground/briefing/briefing_model.dart';
 import 'package:playground/gw/gw_models.dart';
+import 'package:playground/gw/gw_org_absences.dart';
 
 GwEvent ev(String id, String title, {String start = '202610051000', String end = '202610051100', bool mine = true, String who = '', String cal = '내 캘린더', String mcal = '1', bool allDay = false, String place = ''}) =>
     GwEvent(schSeq: id, title: title, start: start, end: end, allDay: allDay, calendar: cal, mcalSeq: mcal, mine: mine, createName: who, place: place);
@@ -34,11 +35,14 @@ void main() {
     expect(gwTime('2026-10-05 10:30'), DateTime.utc(2026, 10, 5, 10, 30));
     expect(gwTime('20261005'), isNull);
   });
-  test('myMeetings는 내 것만 시간순·부재는 접두 표시, teamAbsences는 남의 근태만', () {
+  test('myMeetings는 내 것만 시간순·부재는 접두 표시, teamAbsences는 캘린더를 사용하지 않는다', () {
     final d = data(today: [ev('b', '점심', start: '202610051200', end: '202610051300'), ev('a', '주간회의'), ev('x', '김민준 연차', mine: false, who: '김민준', mcal: '9'), ev('y', '출장(부산)', mine: false, who: '', mcal: '9'), ev('z', '내 반차', start: '202610051400', end: '202610051800'), ev('w', '남의 회의', mine: false, mcal: '9')]);
     expect(myMeetings(d).map((e) => e.title).toList(), ['주간회의', '점심', '반차: 내 반차']);
     final abs = teamAbsences(d);
-    expect(abs.map((a) => '${a.who}|${a.kind.name}').toList(), ['김민준|leave', '출장(부산)|trip']);
+    expect(abs, isEmpty);
+    d.orgAbsences = const GwOrgAbsences(scopeName: '개발팀', isCenter: false, members: [GwOrgMemberStatus('2', '팀원', '외근'), GwOrgMemberStatus('3', '동료', '육아휴직')]);
+    expect(teamAbsences(d).map((a) => a.what), ['외근', '육아휴직']);
+    expect(summaryPayload(d)['absences'], [{'who':'팀원','what':'외근'}, {'who':'동료','what':'육아휴직'}]);
   });
   test('isSameDay — ISO·숫자·RFC822 형식 모두, 다른 날은 false', () {
     expect(isSameDay('2026-10-05 09:12:00', now), isTrue);

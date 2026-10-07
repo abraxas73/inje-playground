@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/client.dart';
 import '../gw/gw_api.dart';
+import '../gw/gw_org_absences.dart';
 import '../gw/gw_creds.dart';
 import 'summary_provider.dart' show briefingClockProvider;
 import 'briefing_model.dart';
@@ -56,6 +57,7 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
         src('approvals', () async => d.approvals = await api.pendingApprovals()),
         src('inbox', () async => d.inbox = await api.inbox()),
         src('notices', () async => d.notices = await api.notices(pageSize: 3)),
+        src('absences', () async => d.orgAbsences = await api.organizationAbsences()),
         src('attendance', () async => d.attendance = await api.attendanceToday()),
       ],
       src('teams', () async {

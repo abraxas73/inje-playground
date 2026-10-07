@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -20,6 +22,22 @@ class FakeTokens implements TokenSource {
 ApiClient client(http.Client h, FakeTokens t) => ApiClient(httpClient: h, tokens: t, baseUrl: 'https://x.test', userAgent: 'InnogridApp/t (test)');
 
 void main() {
+  test('응답 대기 중 취소하면 실제 HTTP 요청을 종료한다', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final transport = http.Client();
+    addTearDown(() async { transport.close(); await server.close(force: true); });
+    final received = Completer<void>();
+    server.listen((request) { received.complete(); });
+    final api = ApiClient(httpClient: transport, tokens: FakeTokens('t'),
+      baseUrl: 'http://127.0.0.1:${server.port}', userAgent: 'test');
+    final abort = Completer<void>();
+    final pending = api.postJsonAbortable('/turn', {}, abort.future);
+    final expectation = expectLater(pending, throwsA(isA<http.RequestAbortedException>()));
+    await received.future;
+    abort.complete();
+    await expectation;
+  });
+
   test('Bearer·User-Agent·쿼리를 붙이고 JSON을 돌려준다', () async {
     late http.Request seen;
     final c = client(MockClient((r) async { seen = r; return http.Response('{"ok":1}', 200); }), FakeTokens('tok'));

@@ -242,7 +242,10 @@ class AssistantToolRunner {
     required this.journal,
     required this.guard,
     DateTime Function()? now,
+    this.isActive,
   }) : _now = now ?? kstNow;
+  final bool Function()? isActive;
+  bool get _active => isActive?.call() ?? true;
   final GwApi? gw;
   final ApiClient api;
   final AssistantJournal journal;
@@ -253,6 +256,7 @@ class AssistantToolRunner {
 
   /// 도구 하나 실행 → Claude에 보낼 결과(슬림화 전). 쓰기 성공은 실행 기록에 남긴다. 실패는 {ok:false,error}.
   Future<Map<String, dynamic>> run(ToolCall c) async {
+    if (!_active) return {'ok': false, 'error': '중지되어 실행하지 않았습니다'};
     final t = tierOf(c.name);
     if (t == null || t == ToolTier.meta || t == ToolTier.choice) {
       return {'ok': false, 'error': '모르는 도구입니다: ${c.name}'};
@@ -293,7 +297,9 @@ class AssistantToolRunner {
     if (g == null) return {'ok': false, 'error': _gwMissing};
     try {
       final r = await _gw(g, c);
-      if (c.name == 'mail_list' || c.name == 'search') guard.allowFrom(r);
+      if (_active && (c.name == 'mail_list' || c.name == 'search')) {
+        guard.allowFrom(r);
+      }
       return r;
     } on _BadInput catch (e) {
       return {'ok': false, 'error': e.message};
@@ -571,6 +577,7 @@ class AssistantToolRunner {
       case 'create_event':
         // 참석자는 확인 카드와 같은 출처(조직도의 emp_seq)로 — 모델이 쓴 이름·부서는 쓰지 않는다.
         final people = await _attendees(g, i['attendees']);
+        if (!_active) return {'ok': false, 'error': '중지되어 실행하지 않았습니다'};
         final r = await g.createEvent(
           title: _s(i['title']),
           start: _stamp(i['start']),
@@ -611,7 +618,9 @@ class AssistantToolRunner {
         var note = r.note;
         if (isIn && r.ok && !r.already && i['notify_teams'] == true) {
           final p = await ClockInNotifyPrefs.load();
-          if (!p.hasChat) {
+          if (!_active) {
+            note = '$note (중지되어 Teams에 알리지 않았습니다)';
+          } else if (!p.hasChat) {
             note = '$note (Teams 채팅방이 설정되지 않아 알리지 않았습니다 — 출퇴근 화면에서 고르세요)';
           } else {
             final err = await sendClockInToTeams(
