@@ -192,7 +192,7 @@ void main() {
     await c.read(briefingProvider.notifier).refresh(); // 새로고침해도 같은 날이면 다시 만들지 않는다
     await c.read(summaryProvider.notifier).ensure(await c.read(briefingProvider.future));
     expect(app.calls['/api/mobile/briefing'], 1);
-    final saved = jsonDecode((await SharedPreferences.getInstance()).getString('briefing.summary.v2')!) as Map;
+    final saved = jsonDecode((await SharedPreferences.getInstance()).getString('briefing.summary.v3')!) as Map;
     expect(saved['text'], '오늘 10시 주간회의가 있습니다.');
   });
   test('요약: 로그아웃(invalidate) 뒤 다른 계정은 이전 요약을 보지 않고, 요청하면 새로 만든다', () async {
@@ -202,7 +202,7 @@ void main() {
     await c.read(summaryProvider.future);
     await c.read(summaryProvider.notifier).ensure(d);
     expect(c.read(summaryProvider).value!.text, 'A의 문장');
-    (await SharedPreferences.getInstance()).remove('briefing.summary.v2'); // 로그아웃이 지우는 저장분
+    (await SharedPreferences.getInstance()).remove('briefing.summary.v3'); // 로그아웃이 지우는 저장분
     c.invalidate(summaryProvider);
     expect(await c.read(summaryProvider.future), isNull);
     app.routes['/api/mobile/briefing'] = (200, {'enabled': true, 'text': 'B의 문장', 'model': 'm', 'at': 'x'});
@@ -211,7 +211,7 @@ void main() {
     expect(c.read(summaryProvider).value!.text, 'B의 문장');
   });
   test('요약: 앱을 새로 시작하면(새 컨테이너) 오늘 저장된 문장을 먼저 보여 주고, 서버에 한 번 새로 받아 바꾼다', () async {
-    SharedPreferences.setMockInitialValues({'briefing.summary.v2': jsonEncode({'date': ymd(kstNow()), 'text': '아침 문장', 'at': '08:40'})});
+    SharedPreferences.setMockInitialValues({'briefing.summary.v3': jsonEncode({'date': ymd(kstNow()), 'text': '아침 문장', 'at': '08:40'})});
     final app = AppApi({'/api/mobile/briefing': (200, {'enabled': true, 'text': '새로 시작한 뒤 문장', 'model': 'm', 'at': 'x'})});
     final c = scope(gw: gwRoutes(gwAll), api: app.client);
     expect((await c.read(summaryProvider.future))!.text, '아침 문장', reason: '받기 전엔 직전 문장');

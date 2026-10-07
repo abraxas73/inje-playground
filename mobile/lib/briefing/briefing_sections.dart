@@ -272,13 +272,34 @@ class JiraSection extends StatelessWidget {
       trailing: _more('전체 목록', onMore),
       child: data.items.isEmpty
         ? const Padding(padding: EdgeInsets.all(14), child: Text('담당한 미완료 이슈가 없습니다.', style: TextStyle(color: Brand.muted)))
-        : Column(children: [for (final item in data.items.take(5)) ListTile(
-            dense: true,
-            title: Text(item.summary, maxLines: 2, overflow: TextOverflow.ellipsis),
-            subtitle: Text('${item.key} · ${item.status}${item.dueDate == null ? '' : ' · 마감 ${item.dueDate}'}', style: const TextStyle(fontSize: 12)),
-            trailing: const Icon(Icons.chevron_right, size: 18),
-            onTap: () => onIssue(item.key),
-          )]),
+        : Padding(
+            padding: const EdgeInsets.all(12),
+            child: Table(
+              columnWidths: const {0: FlexColumnWidth(5), 1: FlexColumnWidth(2), 2: FixedColumnWidth(52)},
+              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+              border: const TableBorder(horizontalInside: BorderSide(color: Color(0xFFE5E7EB))),
+              children: [
+                const TableRow(children: [
+                  Padding(padding: EdgeInsets.only(bottom: 8), child: Text('업무', style: TextStyle(fontSize: 12, color: Brand.muted))),
+                  Padding(padding: EdgeInsets.only(bottom: 8), child: Text('상태', style: TextStyle(fontSize: 12, color: Brand.muted))),
+                  Padding(padding: EdgeInsets.only(bottom: 8), child: Text('링크', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Brand.muted))),
+                ]),
+                for (final item in data.items.take(5)) TableRow(children: [
+                  InkWell(onTap: () => onIssue(item.key), child: Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 10, 8, 10),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(item.key, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary, decoration: TextDecoration.underline)),
+                      const SizedBox(height: 3),
+                      Text(item.summary, style: const TextStyle(fontSize: 13)),
+                      if (item.dueDate != null) Text('마감 ${item.dueDate}', style: const TextStyle(fontSize: 11, color: Brand.muted)),
+                    ]),
+                  )),
+                  Padding(padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4), child: Text(item.status, style: const TextStyle(fontSize: 12))),
+                  TextButton(onPressed: () => onIssue(item.key), style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(48, 48)), child: const Text('보기')),
+                ]),
+              ],
+            ),
+          ),
     );
   }
 }

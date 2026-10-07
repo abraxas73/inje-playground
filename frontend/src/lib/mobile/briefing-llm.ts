@@ -12,7 +12,7 @@ export async function generateBriefing(p: BriefingPayload, deps: { client?: Pick
   const model = deps.model ?? briefingModel();
   const client = deps.client ?? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const msg = await client.messages.create({
-    model, max_tokens: 400, system: briefingSystemPrompt(), messages: [{ role: "user", content: JSON.stringify(p) }],
+    model, max_tokens: 400, system: briefingSystemPrompt(), messages: [{ role: "user", content: JSON.stringify({ ...p, jira: [] }) }],
     thinking: { type: "between_tools" } as unknown as Anthropic.Messages.ThinkingConfigParam,
   });
   const text = msg.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("").trim();
