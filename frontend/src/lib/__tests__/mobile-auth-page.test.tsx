@@ -53,3 +53,10 @@ describe("/auth/mobile (앱 WebView 부트스트랩)", () => {
     expect(window.location.hash).toBe("");
   });
 });
+
+it("Jira 로그인도 앱 복귀를 요청한다", async () => {
+  window.history.replaceState(null, "", "/auth/mobile?next=" + encodeURIComponent("/api/jira/connect"));
+  const navigate = vi.fn();
+  render(<MobileAuth navigate={navigate} />);
+  await waitFor(() => expect(navigate).toHaveBeenCalledWith("/api/jira/connect?app_return=1"));
+});

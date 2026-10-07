@@ -12,7 +12,7 @@ export async function GET(_request: NextRequest, context: Context) {
     const connection = await loadConnection(auth.admin, auth.userId);
     if (!connection) throw new JiraError("Jira 계정을 먼저 연결하세요.", 409, "not_connected");
     const { key } = await context.params;
-    return jiraJson(await issueDetail(connectionClient(connection), connection.account_id, key));
+    return jiraJson(await issueDetail(await connectionClient(connection, auth.admin, auth.userId), connection.account_id, key));
   } catch (e) { return jiraFailure(e); }
 }
 export async function POST(request: NextRequest, context: Context) {
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest, context: Context) {
     const { key } = await context.params;
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new JiraError("요청이 올바르지 않습니다.", 400);
-    await updateIssue(connectionClient(connection), connection.account_id, key, body);
+    await updateIssue(await connectionClient(connection, auth.admin, auth.userId), connection.account_id, key, body);
     await logAudit(auth.admin, request, { userId: auth.userId, action: body.action === "comment" ? "Jira 댓글 작성" : "Jira 상태 변경", category: "jira", detail: { key } });
     return jiraJson({ ok: true });
   } catch (e) { return jiraFailure(e); }

@@ -155,10 +155,16 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk   # 또는 APK 파일
 
 앱 실행 시 생성하고, 앱을 켜 둔 경우 한국 시간 오전 7시에 업무 데이터를 다시 수집하여 브리핑을 갱신한다. 백그라운드에서 이 시점을 넘긴 경우 앱 복귀 때 갱신한다. 운영체제가 앱 실행을 중지한 동안의 정시 백그라운드 실행은 보장하지 않는다. 카드의 새로고침 버튼은 당일 생성 여부와 무관하게 재생성하며, 처리 중에는 중복 입력을 막고 실패하면 직전 문장을 유지하며 재시도를 안내한다.
 
-## Jira 개인 연결 (1.4.0)
+## Jira Atlassian 로그인 연결 (1.4.1)
 
-설정의 Jira 계정 카드에 로그인한 회사 이메일의 개인 API 토큰을 한 번 입력한다. 대상 사이트는 `https://pms-innogrid.atlassian.net`으로 고정한다. 토큰은 서버에서 암호화하며 브라우저나 앱으로 다시 반환하지 않는다. `jira_connections`는 RLS와 클라이언트 권한 회수로 직접 접근을 막고, 서버에서 인증한 사용자 ID로만 조회한다. 암호화 키는 `JIRA_TOKEN_ENC_KEY`, 미설정 시 기존 `MS_TOKEN_ENC_KEY`에서 Jira 전용 키를 파생한다.
+설정 → Jira 계정 → ‘Atlassian으로 연결’에서 회사 계정으로 로그인하고 회사 사이트 권한에 동의한다. 개인 API 토큰은 사용하지 않는다. 기존 개인 토큰 연결은 한 번 OAuth로 다시 연결해야 한다. 앱은 외부 브라우저에 일회용 웹 세션을 만든 뒤 인증하고 고정 앱 딥링크로 복귀한다. iOS 앱 열기 확인이 표시될 수 있다.
 
-업무 → Jira에서 본인 담당 이슈를 필터·페이지별로 조회하고 상세 설명·댓글을 확인한다. 상태 변경과 댓글은 확인 후 본인 Jira 권한으로 실행한다. 필수 필드가 있는 상태 전환은 원문에서 처리한다. 처리 중 연결이 끊긴 경우 자동 재시도하지 않으며 실제 결과를 확인하도록 안내한다.
+관리자 최초 설정: Atlassian Developer Console에서 OAuth 2.0 앱(Resource-level)을 등록하고 콜백 `https://inje-playground.vercel.app/api/jira/callback`, Jira 클래식 권한 `read:jira-user`, `read:jira-work`, `write:jira-work` 및 Personal data reporting API의 `report:personal-data`를 추가한다. 회사 직원도 연결할 수 있도록 Distribution Sharing을 활성화한다. Vercel 서버 환경 변수 `JIRA_CLIENT_ID`, `JIRA_CLIENT_SECRET`, 선택적 `JIRA_REDIRECT_URI`를 설정한다. 요청은 `offline_access`를 포함하여 회전형 갱신 토큰을 받는다. 암호화 키는 `JIRA_TOKEN_ENC_KEY` 또는 기존 `MS_TOKEN_ENC_KEY`에서 Jira OAuth 전용 키를 파생한다. 시크릿은 사용자 설정 API나 클라이언트에 제공하지 않는다.
 
-데일리 브리핑의 마지막 업무 섹션에 진행 중 이슈 최대 5개를 표시하고 전체 목록으로 연결한다. 미연결이면 ‘지라 연결’ 버튼이 설정의 Jira 카드로 이동한다. 설정이나 이슈 화면에서 앱으로 돌아오면 데이터를 갱신한다. 요약에는 이슈 키·제목·상태·마감일만 포함하고 설명·댓글·토큰은 보내지 않는다.
+허용 사이트는 `https://pms-innogrid.atlassian.net`으로 고정하며 accessible-resources에서 회사 사이트와 동의 범위를 확인하고 회사 이메일을 검증한다. OAuth state는 서명·만료·현재 사용자·HttpOnly 브라우저 쿠키를 확인한다. 액세스·갱신 토큰은 서버 전용 `jira_connections`에 암호화하고 DB 임대 잠금으로 동시 회전을 막는다. 연결 해제·재연결 중 이전 갱신 응답이 연결을 복구하거나 덮어쓰지 못하도록 조건부 갱신한다.
+
+업무 → Jira에서 본인 담당 이슈를 필터·페이지별로 조회하고 상세 설명·댓글을 확인한다. 상태 변경·댓글은 확인 후 본인 권한으로 실행하며 필수 필드가 있는 전환은 원문에서 처리한다. 변경 응답이 끊기면 자동 재시도하지 않는다.
+
+브리핑 마지막에는 본인 담당 진행 중 이슈 최대 5개를 표시하며 미연결이면 ‘지라 연결’이 설정으로 이동한다. 설정·이슈 화면에서 복귀하면 갱신한다. 요약에는 키·제목·상태·마감일만 포함한다.
+
+개인정보 보고는 `/api/cron/jira-privacy`(CRON_SECRET 전용)에서 6시간마다 최대 90개 대상의 보고 시점을 확인하며, 계정별 기본 7일 또는 Atlassian `Cycle-Period`를 따른다. `closed`·`updated` 응답이면 오래된 연결 정보를 삭제하여 다음 연결에서 재동의하게 한다. 429는 `Retry-After` 이후로 미룬다. 갱신 권한이 철회되면 해당 연결 정보를 삭제한다.

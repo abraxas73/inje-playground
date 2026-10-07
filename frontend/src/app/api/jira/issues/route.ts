@@ -12,6 +12,6 @@ export async function GET(request: NextRequest) {
     if (!["open", "progress", "done", "all"].includes(scope) || (cursor?.length ?? 0) > 4000) throw new JiraError("목록 조건이 올바르지 않습니다.", 400);
     const connection = await loadConnection(auth.admin, auth.userId);
     if (!connection) return jiraJson({ connected: false, items: [], nextPageToken: null });
-    return jiraJson({ connected: true, ...await myIssues(connectionClient(connection), scope, cursor) });
+    return jiraJson({ connected: true, ...await myIssues(await connectionClient(connection, auth.admin, auth.userId), scope, cursor) });
   } catch (e) { return jiraFailure(e); }
 }

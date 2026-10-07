@@ -1,27 +1,22 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import JiraAccountCard from '@/components/settings/JiraAccountCard';
 afterEach(() => vi.unstubAllGlobals());
-it('미연결에서 개인 토큰을 비밀번호 입력으로 받고 저장 후 화면에서 지운다', async () => {
-  const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ connected: false, site: 'site', email: 'me@innogrid.com' }))).mockResolvedValueOnce(new Response('{"connected":true}')).mockResolvedValueOnce(new Response(JSON.stringify({ connected: true, site: 'site', email: 'me@innogrid.com', accountName: '홍길동' })));
-  vi.stubGlobal('fetch', fetch);
+it('설정에서는 토큰 입력 없이 Atlassian 로그인 링크를 제공', async () => {
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({connected:false,configured:true,email:'me@innogrid.com'})));
   render(<JiraAccountCard />);
-  const input = await screen.findByLabelText('개인 API 토큰');
-  expect(input).toHaveAttribute('type', 'password');
-  fireEvent.change(input, { target: { value: 'personal-token' } });
-  fireEvent.click(screen.getByRole('button', { name: '지라 연결' }));
-  await screen.findByText('Jira 계정이 연결되었습니다.');
-  await waitFor(() => expect(screen.queryByLabelText('개인 API 토큰')).toBeNull());
-  expect(fetch.mock.calls[1][1]).toMatchObject({ method: 'POST', body: '{"token":"personal-token"}' });
-  expect(screen.getByText('연결됨')).toBeInTheDocument();
+  expect(await screen.findByRole('link',{name:'Atlassian으로 연결'})).toHaveAttribute('href','/api/jira/connect');
+  expect(screen.queryByLabelText('개인 API 토큰')).toBeNull();
 });
-it('저장 실패는 성공 상태로 바꾸지 않으며 재입력을 위해 토큰을 지운다', async () => {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ connected: false, email: 'me@innogrid.com' }))).mockResolvedValueOnce(new Response('{"error":"토큰을 확인하세요"}', { status: 400 })));
+it('회사 OAuth 설정이 없으면 준비 안내를 보여주고 로그인 링크를 숨긴다', async () => {
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({connected:false,configured:false,email:'me@innogrid.com'})));
   render(<JiraAccountCard />);
-  const input = await screen.findByLabelText('개인 API 토큰');
-  fireEvent.change(input, { target: { value: 'bad-token' } });
-  fireEvent.click(screen.getByRole('button', { name: '지라 연결' }));
-  await screen.findByText('토큰을 확인하세요');
-  expect(input).toHaveValue('');
+  await screen.findByText(/회사 Jira 로그인 설정을 준비 중/);
+  expect(screen.queryByRole('link',{name:'Atlassian으로 연결'})).toBeNull();
+});
+it('기존 개인 토큰 연결은 한 번 로그인으로 전환하도록 안내한다', async () => {
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({connected:false,configured:true,needsReconnect:true,email:'me@innogrid.com'})));
+  render(<JiraAccountCard />);
+  await screen.findByText(/연결 방식이 Atlassian 로그인으로 변경/);
   expect(screen.queryByText('연결됨')).toBeNull();
 });

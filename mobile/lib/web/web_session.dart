@@ -1,6 +1,6 @@
 import '../api/client.dart';
 
-enum NavAction { inApp, external, loginRedirect, microsoftConnect }
+enum NavAction { inApp, external, loginRedirect, oauthConnect }
 
 /// WebView 내비게이션 정책(순수). 같은 오리진 페이지만 앱 안에서, /login으로 가면 세션이 없다는 뜻, 파일·다른 도메인·tel 등은 시스템으로.
 class WebNavPolicy {
@@ -9,7 +9,7 @@ class WebNavPolicy {
     if (target.scheme != 'http' && target.scheme != 'https') return NavAction.external;
     if (target.origin != appOrigin.origin) return NavAction.external;
     final p = target.path;
-    if (p == '/api/ms/connect') return NavAction.microsoftConnect;
+    if (p == '/api/ms/connect' || p == '/api/jira/connect') return NavAction.oauthConnect;
     if (p == '/login' || p.startsWith('/login/')) return NavAction.loginRedirect;
     if (p.endsWith('/file') || _fileExt.any((e) => p.toLowerCase().endsWith(e))) return NavAction.external;
     return NavAction.inApp;
