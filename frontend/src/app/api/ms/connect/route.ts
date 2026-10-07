@@ -1,3 +1,5 @@
+import { isInnogridAppUA } from "@/lib/mobile/app-ua";
+import { oauthNotice } from "@/lib/mobile/oauth-notice";
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
 import { createServerSupabase } from "@/lib/supabase-server";
@@ -13,6 +15,11 @@ export const runtime = "nodejs";
  * 400 허용되지 않은 오리진 / 500 설정 누락(항목명 포함).
  */
 export async function GET(request: NextRequest) {
+  // 최신 앱은 이 요청을 가로채 Safari/Chrome에 별도 세션을 먼저 만든다.
+  // 여기까지 WebView UA로 도달했다면 쿠키가 분리되는 구버전 경로다.
+  if (isInnogridAppUA(request.headers.get("user-agent") || "")) {
+    return oauthNotice("현재 앱에서는 안전한 계정 연결을 시작할 수 없습니다. 최신 앱이 필요합니다.", 426);
+  }
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
 
