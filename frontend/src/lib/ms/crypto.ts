@@ -54,6 +54,8 @@ export interface StatePayload {
   n: string;
   r: string;
   e: number;
+  /** 앱에서 시작한 연결만 인증 성공 후 고정 앱 딥링크로 복귀 */
+  a?: true;
 }
 
 function stateKey(key: Buffer): Buffer {
@@ -84,10 +86,11 @@ export function verifyState(token: string, key: Buffer, nowMs: number = Date.now
     return null;
   }
   if (!parsed || typeof parsed !== "object") return null;
-  const { u, n, r, e } = parsed as Record<string, unknown>;
+  const { u, n, r, e, a } = parsed as Record<string, unknown>;
   if (typeof u !== "string" || typeof n !== "string" || typeof r !== "string" || typeof e !== "number") return null;
   if (e * 1000 <= nowMs) return null;
-  return { u, n, r, e };
+  if (a !== undefined && a !== true) return null;
+  return { u, n, r, e, ...(a === true ? { a: true as const } : {}) };
 }
 
 /** 16바이트 난수 base64url(22자) */
