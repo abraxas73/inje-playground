@@ -4,6 +4,7 @@ import { documentText, UnsupportedDocumentError } from "@/lib/rfp/document-model
 import { PPT_SOURCE_EXTENSIONS_TEXT, SOURCE_MAX_CHARS } from "@/types/ppt";
 import type { PptSourceKind } from "@/types/ppt";
 import type { PptExtractSlide } from "./service";
+import { decodeBody, htmlToText } from "./web-source";
 
 export { SOURCE_MAX_CHARS, PPT_SOURCE_EXTENSIONS, PPT_SOURCE_EXTENSIONS_TEXT, SOURCE_KIND_LABEL } from "@/types/ppt";
 
@@ -23,10 +24,14 @@ export function sourceLengthError(text: string): string | null {
   return null;
 }
 
-/** docx·pdf·hwp·hwpx는 RFP 파서로, md·txt는 UTF-8로. 그 밖(xlsx 등)은 UnsupportedDocumentError. */
+/** docx·pdf·hwp·hwpx는 RFP 파서로, md·txt는 UTF-8로, html·htm은 URL 원고와 같은 본문 추출(태그·스크립트 제거, meta charset)로. 그 밖(xlsx 등)은 UnsupportedDocumentError. */
 export async function textFromDocument(buf: Buffer, fileName: string): Promise<string> {
   const ext = extensionOf(fileName);
   if (ext === "md" || ext === "txt") return buf.toString("utf8").replace(/^﻿/, "");
+  if (ext === "html" || ext === "htm") {
+    const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+    return htmlToText(decodeBody(ab, null, true).replace(/^﻿/, "")).text;
+  }
   if (ext === "docx" || ext === "pdf" || ext === "hwp" || ext === "hwpx") return documentText(await parseDocumentAsync(buf, fileName));
   throw new UnsupportedDocumentError(`${ext || "확장자 없는"} 파일은 PPT 원고로 지원하지 않습니다(${PPT_SOURCE_EXTENSIONS_TEXT}).`);
 }
