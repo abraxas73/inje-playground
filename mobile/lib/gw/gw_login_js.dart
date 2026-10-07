@@ -4,11 +4,21 @@
 import 'dart:convert';
 import 'gw_login_store.dart';
 
-/// viewport를 기기 폭으로. 페이지는 390px에서도 안 깨지는 유동 레이아웃(실측).
+/// 기기 폭으로 맞추고 고정 폭·휴대폰용 scale(2.5)을 해제한다. 작은 화면·키보드에서도 세로 스크롤을 허용한다.
 /// 폭을 줄이면 하단 고정 저작권 문구("Copyright 2020. DOUZONE…")가 로그인 버튼을 덮으므로 숨긴다 —
 /// 글자가 Copyright로 시작하고 입력칸·버튼이 들어 있지 않은 요소만, SPA가 다시 그려도 MutationObserver로 재적용.
 const viewportFixJs = '''
-(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.setAttribute('content','width=device-width, initial-scale=1, maximum-scale=1');
+(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.setAttribute('content','width=device-width, initial-scale=1, minimum-scale=1');
+var style=document.getElementById('__gwMobileLogin');
+if(!style){style=document.createElement('style');style.id='__gwMobileLogin';document.head.appendChild(style);}
+style.textContent=`@media(max-width:600px){
+.logintype-A{min-width:0!important;overflow:auto!important;}
+.logintype-A .userCustomBox,.logintype-A .corpArea{display:none!important;}
+.logintype-A .loginBox{position:relative!important;width:100%!important;min-height:100%!important;top:auto!important;right:auto!important;bottom:auto!important;overflow:auto!important;}
+.logintype-A .loginBox .loginForm{position:relative!important;left:auto!important;right:auto!important;top:auto!important;transform:none!important;width:calc(100% - 32px)!important;max-width:346px!important;margin:24px auto 80px!important;box-sizing:border-box!important;}
+.logintype-A .loginBox .loginForm input{font-size:16px!important;box-sizing:border-box!important;max-width:100%!important;}
+.logintype-A .loginBox .loginForm .textBox{position:relative!important;bottom:auto!important;margin-top:16px!important;}
+}`;
 function hide(){Array.prototype.forEach.call(document.body?document.body.querySelectorAll('*'):[],function(e){if(e.style.display!=='none'&&/^\\s*Copyright/i.test(e.textContent||'')&&!e.querySelector('input,button,form'))e.style.display='none';});}
 hide();if(!window.__gwCopyHide&&document.body){window.__gwCopyHide=new MutationObserver(hide);window.__gwCopyHide.observe(document.body,{childList:true,subtree:true});}})();''';
 

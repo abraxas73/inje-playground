@@ -1,5 +1,6 @@
 // mobile/test/assistant/assistant_session_test.dart
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -34,7 +35,8 @@ class _FlakyStore extends FakeGwStore {
 }
 
 class Brain {
-  Brain(this.turns);
+  Brain(this.turns, {this.waitForTurn});
+  final Future<void>? waitForTurn;
   final List<Map<String, dynamic>> turns;
   final received = <List<dynamic>>[];
   final executed = <Map<String, dynamic>>[];
@@ -43,6 +45,7 @@ class Brain {
       final b = jsonDecode(r.body) as Map<String, dynamic>;
       Object out;
       if (r.url.path == '/api/assistant/turn') {
+        if (waitForTurn != null) await waitForTurn;
         received.add(b['messages'] as List);
         final head = turns.isEmpty ? null : turns.first;
         if (head != null && head['__status'] != null) {
@@ -159,6 +162,193 @@ Gw scenarioGw() => Gw({
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
   choiceTests();
+
+  ApiClient stalledClient(
+    Future<http.Response> Function(http.Request) handler,
+  ) => ApiClient(
+    httpClient: MockClient(handler),
+    tokens: _Tokens(),
+    baseUrl: 'https://example.test',
+    userAgent: 'test',
+  );
+  http.Response response(Map<String, dynamic> body) =>
+      http.Response.bytes(utf8.encode(jsonEncode(body)), 200);
+
+  test('중지하면 즉시 입력 가능하고 늦은 응답은 새 요청을 덮지 않는다', () async {
+    final old = Completer<http.Response>(), next = Completer<http.Response>();
+    var calls = 0;
+    final c = ProviderContainer(
+      overrides: [
+        apiClientProvider.overrideWithValue(
+          stalledClient((_) => ++calls == 1 ? old.future : next.future),
+        ),
+      ],
+    );
+    addTearDown(c.dispose);
+    final s = c.read(assistantSessionProvider.notifier);
+    final first = s.send('첫 요청');
+    await Future<void>.delayed(Duration.zero);
+    s.stop();
+    await first;
+    expect(c.read(assistantSessionProvider).busy, false);
+    final second = s.send('다음 요청');
+    await Future<void>.delayed(Duration.zero);
+    old.complete(response(say('늦은 답변')));
+    await Future<void>.delayed(Duration.zero);
+    expect(c.read(assistantSessionProvider).busy, true);
+    expect(
+      c.read(assistantSessionProvider).items.any((x) => x.text == '늦은 답변'),
+      false,
+    );
+    next.complete(response(say('새 답변')));
+    await second;
+    expect(c.read(assistantSessionProvider).items.last.text, '새 답변');
+    expect(c.read(assistantSessionProvider).busy, false);
+  });
+
+  test('쓰기 중 중지하면 나머지 쓰기를 실행하지 않고 결과 불명 상태를 전달한다', () async {
+    final write = Completer<http.Response>();
+    final started = Completer<void>();
+    var turns = 0, writes = 0;
+    final received = <List<dynamic>>[];
+    final c = ProviderContainer(
+      overrides: [
+        gwStoreProvider.overrideWithValue(FakeGwStore(null)),
+        apiClientProvider.overrideWithValue(
+          stalledClient((r) async {
+            final b = jsonDecode(r.body) as Map;
+            if (r.url.path == '/api/assistant/turn') {
+              received.add(b['messages'] as List);
+              if (++turns == 1) {
+                return response(
+                  use([
+                    ('a', 'teams_send', {'chat_id': 'chat', 'text': 'first'}),
+                    ('b', 'teams_send', {'chat_id': 'chat', 'text': 'second'}),
+                  ]),
+                );
+              }
+              return response(say('실행 여부 확인'));
+            }
+            if (b['tool'] == 'teams_chats') {
+              return response({
+                'ok': true,
+                'result': {
+                  'chats': [
+                    {'id': 'chat', 'name': '테스트'},
+                  ],
+                },
+              });
+            }
+            writes++;
+            started.complete();
+            return write.future;
+          }),
+        ),
+      ],
+    );
+    addTearDown(c.dispose);
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('두 번 보내줘');
+    final pending = s.confirm();
+    await started.future;
+    s.stop();
+    await pending;
+    write.complete(response({'ok': true}));
+    await Future<void>.delayed(Duration.zero);
+    expect(writes, 1);
+    await s.send('상태 확인');
+    final results = toolResults(received.last);
+    expect(results.map((r) => r['tool_use_id']), ['a', 'b']);
+    expect(results.first['content'], contains('실행 여부'));
+    expect(results.last['content'], contains('실행하지 않았습니다'));
+  });
+
+  test('응답이 오지 않으면 시간 초과로 중지한다', () async {
+    final c = ProviderContainer(
+      overrides: [
+        apiClientProvider.overrideWithValue(
+          stalledClient((_) => Completer<http.Response>().future),
+        ),
+        assistantWaitTimeoutProvider.overrideWithValue(
+          const Duration(milliseconds: 10),
+        ),
+      ],
+    );
+    addTearDown(c.dispose);
+    await c.read(assistantSessionProvider.notifier).send('대기');
+    expect(c.read(assistantSessionProvider).busy, false);
+    expect(
+      c.read(assistantSessionProvider).items.last.text,
+      contains('시간이 초과'),
+    );
+    expect(
+      c
+          .read(assistantSessionProvider)
+          .items
+          .where((x) => x.kind == ChatKind.progress),
+      isEmpty,
+    );
+  });
+
+  test('실행 완료 뒤 후속 답변 중지에도 성공 카드와 도구 결과를 유지한다', () async {
+    final late = Completer<http.Response>();
+    final received = <List<dynamic>>[];
+    var turns = 0, writes = 0;
+    final c = ProviderContainer(
+      overrides: [
+        gwStoreProvider.overrideWithValue(FakeGwStore(null)),
+        apiClientProvider.overrideWithValue(
+          stalledClient((r) async {
+            final b = jsonDecode(r.body) as Map;
+            if (r.url.path != '/api/assistant/turn') {
+              if (b['tool'] == 'teams_chats') {
+                return response({
+                  'ok': true,
+                  'result': {
+                    'chats': [
+                      {'id': 'chat', 'name': '테스트'},
+                    ],
+                  },
+                });
+              }
+              writes++;
+              return response({'ok': true});
+            }
+            received.add(b['messages'] as List);
+            turns++;
+            if (turns == 1) {
+              return response(
+                use([
+                  ('send', 'teams_send', {'chat_id': 'chat', 'text': 'hello'}),
+                ]),
+              );
+            }
+            if (turns == 2) return late.future;
+            return response(say('확인했습니다'));
+          }),
+        ),
+      ],
+    );
+    addTearDown(c.dispose);
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('보내줘');
+    expect(c.read(assistantSessionProvider).pending, true);
+    final pending = s.confirm();
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    s.stop();
+    await pending;
+    final before = writes;
+    expect(
+      c.read(assistantSessionProvider).items.any((x) => x.text == '실행했습니다'),
+      true,
+    );
+    await s.send('결과 알려줘');
+    expect(writes, before);
+    expect(toolResults(received.last), isNotEmpty);
+    late.complete(response(say('지연 응답')));
+    await Future<void>.delayed(Duration.zero);
+    expect(c.read(assistantSessionProvider).items.last.text, '확인했습니다');
+  });
 
   test(
     '대표 시나리오 — 조회는 바로, 예약+일정은 카드 하나로 묶어 대기, 실행하면 GW 쓰기 후 결과를 보내 마무리',

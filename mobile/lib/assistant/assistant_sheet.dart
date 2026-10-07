@@ -67,6 +67,11 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
     super.initState();
     _voice;
     _speaker;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _scroll.hasClients) {
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      }
+    });
   }
 
   @override
@@ -354,9 +359,12 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                         : _toggleListen,
                   ),
                   IconButton(
-                    tooltip: '보내기',
-                    icon: const Icon(Icons.send, color: Brand.blue),
-                    onPressed: st.busy ? null : _send,
+                    tooltip: st.busy ? '응답 중지' : '보내기',
+                    icon: Icon(
+                      st.busy ? Icons.stop_circle_outlined : Icons.send,
+                      color: Brand.blue,
+                    ),
+                    onPressed: st.busy ? s.stop : _send,
                   ),
                 ],
               ),
