@@ -6,6 +6,7 @@ import { verifyState } from "@/lib/ms/crypto";
 import { exchangeCode, fetchMe, MS_SCOPES, OAuthError, oauthErrorMessage } from "@/lib/ms/oauth";
 import { appendQuery, requestOrigin, resolveRedirectOrigin, sanitizeReturnTo } from "@/lib/ms/origin";
 import { saveConnection } from "@/lib/ms/connections";
+import { mobileConnectionComplete } from "@/lib/ms/mobile-return";
 
 export const runtime = "nodejs";
 
@@ -62,6 +63,7 @@ export async function GET(request: NextRequest) {
       accountName: me.displayName || null,
       scopes: tok.scope || MS_SCOPES.join(" "),
     });
+    if (state.a) return mobileConnectionComplete();
     return back(returnTo, "ms_connected", "1");
   } catch (e) {
     if (e instanceof OAuthError) {

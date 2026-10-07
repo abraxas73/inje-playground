@@ -58,6 +58,12 @@ describe("signState/verifyState", () => {
     expect(verifyState(tok, key, payload.e * 1000)).toBeNull();
     expect(verifyState(tok, key, payload.e * 1000 - 1)).toEqual(payload);
   });
+  it("앱 복귀 표시는 서명에 포함되며 추가·변조할 수 없다", () => {
+    expect(verifyState(signState({ ...payload, a: true }, key), key, now)).toEqual({ ...payload, a: true });
+    const [, signature] = signState(payload, key).split(".");
+    const changed = Buffer.from(JSON.stringify({ ...payload, a: true })).toString("base64url");
+    expect(verifyState(`${changed}.${signature}`, key, now)).toBeNull();
+  });
   it("변조·다른 키·형식 오류는 null", () => {
     const tok = signState(payload, key);
     const [body, sig] = tok.split(".");

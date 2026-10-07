@@ -43,4 +43,13 @@ describe("/auth/mobile (앱 WebView 부트스트랩)", () => {
     await waitFor(() => expect(screen.getByText(/세션을 만들지 못했습니다: Token has expired/)).toBeTruthy());
     expect(navigate).not.toHaveBeenCalled();
   });
+
+  it("Microsoft 연결 시작은 앱 복귀 표시를 붙이고 returnTo를 유지한다", async () => {
+    window.history.replaceState(null, "", "/auth/mobile?next=" + encodeURIComponent("/api/ms/connect?returnTo=%2Fteams%2Fchat") + "#token=once");
+    verifyOtp.mockResolvedValue({ error: null });
+    const navigate = vi.fn();
+    render(<MobileAuth navigate={navigate} />);
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/api/ms/connect?returnTo=%2Fteams%2Fchat&app_return=1"));
+    expect(window.location.hash).toBe("");
+  });
 });
