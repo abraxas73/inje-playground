@@ -42,8 +42,8 @@ final summaryProvider =
     );
 
 class SummaryNotifier extends AsyncNotifier<BriefingSummary?> {
-  // v2: 1.1.2 이전 서버가 생각 토큰에 밀려 잘린 문장("강승")을 저장했다 — 옛 키는 읽지 않는다
-  static const _key = 'briefing.summary.v2';
+  // v3: Jira가 포함된 기존 요약문은 읽지 않는다 — 업무는 아래 표에서만 표시한다
+  static const _key = 'briefing.summary.v3';
   Future<bool>? _inflight;
   String? _inflightPeriod;
   // 이번 실행에서 마지막으로 생성한 07:00 기준 날짜.
