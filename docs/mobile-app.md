@@ -63,7 +63,7 @@
 | `release-mobile.sh` 업로드가 "업로드 실패 (HTTP 413…)" 또는 오래 멈춤 | APK가 프로젝트 전역 파일 상한을 넘음(초기 50MB) | Supabase 대시보드 Storage 설정 또는 Management API로 `fileSizeLimit`을 올린다(2026-10-04 200MB). 10MB 조각으로 업로드 속도를 먼저 확인 |
 | `release-mobile.sh`가 `flutter test`에서 `No space left on device`(errno 28)로 죽음 | 디스크 가득 참. 2026-10-04 실측: 미사용 시뮬레이터 런타임(`/Library/Developer/CoreSimulator/Volumes`, 런타임당 ≈22GB)·Antigravity 브라우저 녹화(`~/.gemini/*/browser_recordings`)·uv 캐시(`~/.cache/uv`)가 각각 수십 GB | `df -h /System/Volumes/Data`로 확인 → `xcrun simctl runtime list`에서 기기 없는 런타임을 `xcrun simctl runtime delete <UUID>`(현재 시뮬레이터가 쓰는 버전은 남김), `rm -rf mobile/build ~/Library/Developer/Xcode/DerivedData`, `uv cache clean`(Serena MCP가 잠금을 쥐면 `~/.cache/uv/archive-v0`의 실행 중 항목만 빼고 지움). `~/Library/Developer/CoreDevice/DeviceFS`는 시뮬레이터 파일시스템의 가상 마운트라 `du`에 중복 집계될 뿐 실제 용량이 아니다. iOS 빌드엔 최소 10GB 여유 |
 | Android에서 APK 설치 시 "앱이 설치되지 않았습니다" / 서명 불일치 | 기존 설치와 서명 키가 다름(디버그 빌드 위에 릴리스, 또는 키스토어 분실) | 기존 앱 삭제 후 설치. 키스토어는 1Password 백업본을 `mobile/android/`에 복원 |
-| 홈 "데일리 브리핑" 카드가 안 보임 | 설정 off, 서버 `ANTHROPIC_API_KEY` 없음, 또는 오늘 이미 실패해 조용히 격언 유지 | `/admin/settings` 스위치·Vercel env 확인 → 앱을 완전히 종료 후 다시 열면 다시 생성. 감사 로그 "모바일 브리핑 생성"이 없으면 서버까지 못 간 것(앱 로그인·네트워크) |
+| 홈 "데일리 브리핑" 카드가 안 보임 | 설정 off, 서버 `ANTHROPIC_API_KEY` 없음, 또는 오늘 이미 실패해 조용히 격언 유지 | `/admin/settings` 스위치·Vercel env 확인 → 브리핑 카드의 새로고침 버튼을 누르면 최신 업무 데이터를 수집해 다시 생성. 감사 로그 "모바일 브리핑 생성"이 없으면 서버까지 못 간 것(앱 로그인·네트워크) |
 | "데일리 브리핑"(옛 이름 오늘의 한 마디)이 "강승"처럼 중간에 잘림(1.1.2 이전) | Sonnet 5.5는 생각이 기본으로 켜져 있어 `max_tokens` 400을 생각이 먼저 씀 | 서버가 `thinking: {type: "between_tools"}`로 생각을 끄고(이 모델은 `disabled`를 거부), `max_tokens`로 잘리면 502로 버린다. 앱 1.1.3은 캐시 키를 v2로 바꿔 잘린 문장을 한 번 버린다 |
 | 팀원 연차가 "오늘 일정"에 내 일정처럼 보임 | 아마란스가 `delYn='Y'`(mine)를 팀원 근태에도 준다 | 제목·캘린더명 키워드로 분류한다(`absenceKind`). 새 표현(예: "휴무")이 보이면 `_absenceWords`에 추가 |
 | Android에서 WebView 화면(설정 등)에 들어간 뒤 ←로 못 나감(같은 페이지가 다시 뜨거나 로그인 페이지가 보임) | 첫 로드(`/settings` → 307 `/login`)를 가로채도 Android WebView는 `/login`을 히스토리에 남겨 `canGoBack()`이 true — `goBack()`은 그 유령 항목을 실제로 연다(iOS WKWebView는 안 남김). `goBack`은 `onNavigationRequest`를 거치지 않는다 | `WebScreen`이 뒤로 가기 직후 `onPageStarted`가 `/login`·`/auth/mobile`(`isSessionBoundary`)이면 화면을 닫는다(`BackTracker`, 1.1.1). 재현은 가짜 서버 + `lib/_probe_main.dart`식 프로브(런북 §실기기 체크리스트 참고) |
@@ -76,7 +76,7 @@
 | 이노봇 버튼이 안 보임 | 관리자가 비서를 꺼 둠(첫 응답 `{enabled:false}` 뒤 그 실행 동안 숨김) | `/admin/settings` 비서 스위치 확인 후 앱 재시작 |
 
 ## 홈 브리핑 (2026-10-04)
-스펙 `docs/superpowers/specs/2026-10-04-mobile-briefing-design.md`. 홈 탭 = 오늘의 브리핑: 인사말 → 오늘의 한 줄(격언, 그대로) → **데일리 브리핑** 카드(Claude Sonnet 5.5 2~3문장, **앱이 새로 시작될 때마다 1회** 생성 — 켜져 있는 동안 새로고침·탭 재터치·백그라운드 복귀로는 다시 만들지 않음, 시작 직후엔 오늘 저장된 직전 문장(`briefing.summary.v2`)을 먼저 보여 줌, 다시 만들기 버튼 없음; 꺼져 있거나 실패하면 카드 숨김. 격언 "오늘의 한 줄"은 날짜로 골라 하루 1회만 바뀜) → **지금 필요한 것**(규칙: 90분 안 회의 → 안 읽음·2일 이상 결재 → Teams 답장 대기 → 오늘 안 읽은 메일 → 09:30 이후 출근 미기록 → 새 공지, 최대 4) → 오늘 일정(내일 N건) → **팀원 부재**(남의 일정 중 연차·반차·휴가·병가·출장·외근·재택·교육·경조 키워드 — 아마란스 `mine` 플래그에 팀원 근태가 섞여 오는 문제의 답) → 결재 3 → 메일 3 → Teams 3 → 공지 3 → 바로 가기. 코드 `mobile/lib/briefing/`(순수 `briefing_model.dart`, 수집 `briefing_provider.dart`, 요약 `summary_provider.dart`, 위젯 `briefing_sections.dart`).
+스펙 `docs/superpowers/specs/2026-10-04-mobile-briefing-design.md`. 홈 탭 = 오늘의 브리핑: 인사말 → 오늘의 한 줄(격언, 그대로) → **데일리 브리핑** 카드(Claude Sonnet 5.5 2~3문장, **앱 시작 시와 매일 한국 시간 07:00**에 생성 — 백그라운드에서 07:00을 넘기면 복귀 때 갱신, 카드의 새로고침 버튼으로 최신 업무 데이터를 수집해 강제 재생성 가능. 일반 당겨서 새로고침·탭 재터치는 같은 브리핑 시간대의 문장을 재사용. 시작 직후엔 오늘 저장된 직전 문장(`briefing.summary.v2`)을 먼저 보여 줌. 실패하면 직전 문장을 유지하고 수동 새로고침 시 오류 안내. 격언 "오늘의 한 줄"은 날짜로 골라 하루 1회만 바뀜) → **지금 필요한 것**(규칙: 90분 안 회의 → 안 읽음·2일 이상 결재 → Teams 답장 대기 → 오늘 안 읽은 메일 → 09:30 이후 출근 미기록 → 새 공지, 최대 4) → 오늘 일정(내일 N건) → **팀원 부재**(남의 일정 중 연차·반차·휴가·병가·출장·외근·재택·교육·경조 키워드 — 아마란스 `mine` 플래그에 팀원 근태가 섞여 오는 문제의 답) → 결재 3 → 메일 3 → Teams 3 → 공지 3 → 바로 가기. 코드 `mobile/lib/briefing/`(순수 `briefing_model.dart`, 수집 `briefing_provider.dart`, 요약 `summary_provider.dart`, 위젯 `briefing_sections.dart`).
 - 서버: `POST /api/mobile/briefing`(제목 수준 payload ≤16KB → 서버가 다시 자름 → Claude, 감사엔 건수만; settings `mobile_briefing_llm=off` 또는 `ANTHROPIC_API_KEY` 없음이면 `{enabled:false}`), `GET /api/teams/mentions?days=2`(기존 Microsoft 연결, 그룹은 내 이름(Graph displayName·메일 로컬파트·앱 표시 이름) 멘션, 1:1은 전부, 내가 그 뒤에 답했으면 제외). 관리자: `/admin/settings` "모바일 앱 — 홈 브리핑" 스위치. 모델은 env `MOBILE_BRIEFING_MODEL`(기본 `claude-sonnet-5-5`).
 - 소스 하나가 실패해도 나머지는 보이고 그 섹션만 "다시 시도". Teams 401/403은 오류가 아니라 미연결(섹션 숨김). 수집은 홈을 열 때·홈 탭 재터치·당겨서 새로고침(`BriefingNotifier.refresh` — 첫 로딩 중이면 이름만 반영하고 중복 수집 없음).
 
@@ -144,3 +144,7 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk   # 또는 APK 파일
 - [ ] 1시간 이상 지난 뒤 콜드 스타트 → 스플래시 → 자동 갱신 → 탭 표시(로그인 화면 아님); 이어서 로그아웃 → 재로그인하면 바로 탭으로
 - [ ] iOS WebView: 세션 만료를 재현(앱 데이터 삭제 후 WebView 열기 등)했을 때 두 번째 `/login` 튕김에서 오류 화면 + "다시 시도"로 멈추는지(무한 반복 금지)
 - [ ] 사다리·커피 타임 설정 화면에 내 팀 칩이 보이고, 커피 타임은 전원 기본 참석·서버 법카 표시가 반영되는지
+
+### 데일리 브리핑 자동 갱신
+
+앱 실행 시 생성하고, 앱을 켜 둔 경우 한국 시간 오전 7시에 업무 데이터를 다시 수집하여 브리핑을 갱신한다. 백그라운드에서 이 시점을 넘긴 경우 앱 복귀 때 갱신한다. 운영체제가 앱 실행을 중지한 동안의 정시 백그라운드 실행은 보장하지 않는다. 카드의 새로고침 버튼은 당일 생성 여부와 무관하게 재생성하며, 처리 중에는 중복 입력을 막고 실패하면 직전 문장을 유지하며 재시도를 안내한다.

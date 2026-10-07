@@ -34,24 +34,27 @@ class QuoteCard extends StatelessWidget {
       );
 }
 
-/// "데일리 브리핑" — Claude가 하루 1회 쓴 2~3문장. 문장이 없으면 만드는 중일 때만 자리를 잡고, 아니면 숨긴다(다시 만들기 버튼 없음).
+/// "데일리 브리핑" — Claude가 하루 1회 쓴 2~3문장. 최신 업무 데이터로 다시 생성할 수 있다.
 class BriefingCard extends StatelessWidget {
-  const BriefingCard({super.key, required this.summary, this.busy = false, this.onClockIn});
+  const BriefingCard({super.key, required this.summary, this.busy = false, this.onClockIn, this.onRefresh});
   final SummaryText? summary;
   final bool busy;
+  final VoidCallback? onRefresh;
   /// 출근 기록이 없을 때만 넘긴다 — 문장 아래 "출퇴근 바로 가기"(앱 안 이동).
   final VoidCallback? onClockIn;
   @override
   Widget build(BuildContext context) {
     final s = summary;
-    if (s == null && !busy) return const SizedBox.shrink();
+    if (s == null && !busy && onRefresh == null) return const SizedBox.shrink();
     return _Section(
       title: '데일리 브리핑',
+      trailing: onRefresh == null ? null : IconButton(tooltip: '브리핑 새로고침', onPressed: busy ? null : onRefresh, icon: const Icon(Icons.refresh)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
         child: s == null
-            ? const LinearProgressIndicator(minHeight: 2)
+            ? (busy ? const LinearProgressIndicator(minHeight: 2) : const Text('새로고침을 눌러 브리핑을 받아보세요.'))
             : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (busy) const LinearProgressIndicator(minHeight: 2),
                 Text(s.text, style: const TextStyle(fontSize: 15, height: 1.6, color: Brand.navy)),
                 if (onClockIn != null) ...[
                   const SizedBox(height: 10),
