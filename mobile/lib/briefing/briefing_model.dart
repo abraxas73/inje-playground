@@ -1,3 +1,4 @@
+import 'jira_briefing.dart';
 import 'package:flutter/material.dart';
 import '../gw/gw_client.dart' show asBool, asStr;
 import '../gw/gw_models.dart';
@@ -65,6 +66,7 @@ class BriefingData {
   Attendance? attendance;
   GwOrgAbsences? orgAbsences;
   TeamsMentions? mentions;
+  JiraBriefing? jira;
   final errors = <String, String>{};
 }
 
@@ -164,6 +166,7 @@ Map<String, dynamic> summaryPayload(BriefingData d) {
     'absences': [for (final a in teamAbsences(d).take(8)) {'who': _cut(a.who, 40), 'what': _cut(a.what)}],
     'approvals': [for (final a in (d.approvals?.$2 ?? const <PendingApproval>[]).take(8)) {'title': _cut(a.title), 'from': _cut(a.drafter, 40), 'days': a.waitingDays(d.now), 'unread': a.unread}],
     'mails': [for (final m in (d.inbox?.$2 ?? const <MailItem>[]).where((m) => !m.seen).take(8)) {'from': _cut(m.fromName, 40), 'subject': _cut(m.subject), 'when': _cut(m.tooltip.isNotEmpty ? m.tooltip : m.date, 40)}],
+    'jira': [for (final x in (d.jira?.items ?? const <JiraBriefingIssue>[]).take(5)) {'key': x.key, 'title': _cut(x.summary), 'status': _cut(x.status, 40), 'dueDate': x.dueDate}],
     'mentions': [for (final x in (d.mentions?.items ?? const <TeamsMention>[]).take(5)) {'chat': _cut(x.topic, 40), 'from': _cut(x.from, 40), 'text': _cut(x.text, 80)}],
     'notices': [for (final x in (d.notices?.$2 ?? const <GwNotice>[]).take(3)) {'title': _cut(x.title), 'board': _cut(x.board, 40)}],
     'attendance': d.attendance == null ? null : {'clockedIn': d.attendance!.clockedIn, 'holiday': d.attendance!.holiday},

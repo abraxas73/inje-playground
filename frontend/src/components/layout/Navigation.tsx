@@ -19,7 +19,8 @@ import { logAction } from "@/lib/action-log";
 import { useUserRole } from "@/hooks/useUserRole";
 import { PAGE_GROUPS, PAGES, matchesPath, pagesForPath, type PageKey } from "@/lib/page-access";
 
-const PAGE_ICONS: Record<PageKey, typeof Coffee> = { food: UtensilsCrossed, ladder: Dice5, team: Coffee, survey: ClipboardList, apps: Smartphone, usage_code: SquareTerminal, usage_chat: MessagesSquare, usage_perf: TrendingUp, rfp: FileSearch, ppt: Presentation, people_news: Newspaper, marketing: Database, guide: BookOpen, teams_chat: MessageCircle };
+const PAGE_ICONS: Record<PageKey, typeof Coffee> = {
+  jira: BriefcaseBusiness, food: UtensilsCrossed, ladder: Dice5, team: Coffee, survey: ClipboardList, apps: Smartphone, usage_code: SquareTerminal, usage_chat: MessagesSquare, usage_perf: TrendingUp, rfp: FileSearch, ppt: Presentation, people_news: Newspaper, marketing: Database, guide: BookOpen, teams_chat: MessageCircle };
 const GROUP_ICONS = { daily: Users, ai: ChartNoAxesCombined, work: BriefcaseBusiness };
 
 /** chromeless: 앱 WebView — 접근 권한 검사(effect)는 그대로 돌리고 헤더·하단 탭만 그리지 않는다. */

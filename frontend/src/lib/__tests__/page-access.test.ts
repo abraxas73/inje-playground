@@ -65,3 +65,10 @@ it("marketing requires explicit server permission even for admins", () => {
   }
   expect(canUsePage("guest", "marketing", { marketing: true })).toBe(false);
 });
+it('Jira 목록·상세·연결 API는 Jira 페이지 권한을 함께 적용', () => {
+  for (const path of ['/jira', '/jira/AX-1', '/api/jira/issues', '/api/jira/issues/AX-1', '/api/jira/connection']) {
+    expect(pagesForPath(path)).toEqual(['jira']);
+    expect(canOpenPage('user', path, { jira: false })).toBe(false);
+    expect(canOpenPage('guest', path)).toBe(false);
+  }
+});

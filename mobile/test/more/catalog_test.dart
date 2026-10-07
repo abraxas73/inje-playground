@@ -5,6 +5,12 @@ import 'package:playground/more/catalog.dart';
 AppSession s(String role, [Map<String, bool> p = const {}]) => AppSession(email: 'x@innogrid.com', role: role, permissions: p);
 
 void main() {
+  test('Jira는 업무 메뉴에 있고 권한으로 숨길 수 있다', () {
+    final work = visibleGroups(s('user')).firstWhere((g) => g.$1.id == 'work');
+    expect(work.$2.any((p) => p.key == 'jira' && p.href == '/jira'), true);
+    expect(visiblePages(s('user', {'jira': false})).any((p) => p.key == 'jira'), false);
+  });
+
   test('guest는 일상 항목만, 숨김 항목(guide)은 아무도 못 본다', () {
     final keys = visiblePages(s('guest')).map((e) => e.key).toList();
     expect(keys, ['food', 'ladder', 'team', 'survey']);

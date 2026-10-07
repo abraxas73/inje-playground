@@ -2,6 +2,7 @@
 
 import { Settings } from "lucide-react";
 import MyTeamCard from "@/components/settings/MyTeamCard";
+import JiraAccountCard from "@/components/settings/JiraAccountCard";
 import MicrosoftAccountCard from "@/components/settings/MicrosoftAccountCard";
 import SharepointFolderCard from "@/components/settings/SharepointFolderCard";
 import NotifyChannelCard from "@/components/settings/NotifyChannelCard";
@@ -19,6 +20,7 @@ export default function UserSettingsPage() {
 
       {/* Microsoft 계정 (SharePoint 업로드) */}
       <MicrosoftAccountCard />
+      <JiraAccountCard />
 
       {/* SharePoint 업로드 기본 폴더 */}
       <SharepointFolderCard />

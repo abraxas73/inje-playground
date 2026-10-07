@@ -5,6 +5,7 @@ import '../gw/gw_org_absences.dart';
 import '../gw/gw_creds.dart';
 import 'summary_provider.dart' show briefingClockProvider;
 import 'briefing_model.dart';
+import 'jira_briefing.dart';
 
 /// 홈 브리핑 수집 — 소스별로 독립(try/catch)·병렬. 실패한 소스는 errors[소스]에만 남고 값은 null이라 나머지 섹션은 그려진다.
 /// Teams는 서버 라우트(/api/teams/mentions); 400·401·403·409는 "미연결"로 본다(오류 아님).
@@ -60,6 +61,17 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
         src('absences', () async => d.orgAbsences = await api.organizationAbsences()),
         src('attendance', () async => d.attendance = await api.attendanceToday()),
       ],
+      src('jira', () async {
+        try {
+          d.jira = JiraBriefing.parse(await ref.read(apiClientProvider).getJson('/api/jira/issues', query: {'scope': 'progress'}));
+        } on ApiException catch (e) {
+          if (e.status == 409) {
+            d.jira = const JiraBriefing(connected: false, reconnect: true);
+          } else {
+            rethrow;
+          }
+        }
+      }),
       src('teams', () async {
         try {
           d.mentions = TeamsMentions.parse(await ref.read(apiClientProvider).getJson('/api/teams/mentions', query: {'days': '2'}));
