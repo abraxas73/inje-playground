@@ -17,7 +17,14 @@ const EXPIRED = "연결 요청이 만료되었습니다. 다시 시도하세요.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireUser();
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) {
+    // 브라우저 간 쿠키가 공유되지 않거나 세션이 만료된 경우. state만으로 계정을 연결하지 않는다.
+    if (auth.response.status !== 401 && auth.response.status !== 403) return auth.response;
+    return new NextResponse(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Microsoft 연결 안내</title></head><body style="font-family:system-ui;padding:24px;max-width:480px;margin:40px auto;line-height:1.7"><h1>Microsoft 연결을 완료하지 못했습니다</h1><p>이 브라우저에서 앱 로그인 상태를 확인할 수 없습니다. 앱을 최신 버전으로 업데이트한 뒤 설정에서 다시 연결해 주세요.</p><p>웹에서는 아래 설정 화면에 로그인한 뒤 Microsoft 계정을 다시 연결할 수 있습니다.</p><a href="/settings">설정으로 이동</a></body></html>`, {
+      status: auth.response.status,
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" },
+    });
+  }
 
   const origin = resolveRedirectOrigin(requestOrigin(request));
   if (!origin) return NextResponse.json({ error: "허용되지 않은 오리진입니다." }, { status: 400 });
