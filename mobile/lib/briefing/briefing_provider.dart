@@ -63,7 +63,7 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
       ],
       src('jira', () async {
         try {
-          d.jira = JiraBriefing.parse(await ref.read(apiClientProvider).getJson('/api/jira/issues', query: {'scope': 'progress'}));
+          d.jira = JiraBriefing.parse(await ref.read(apiClientProvider).getJson('/api/jira/issues', query: {'scope': 'open'}));
         } on ApiException catch (e) {
           if (e.status == 409) {
             d.jira = const JiraBriefing(connected: false, reconnect: true);

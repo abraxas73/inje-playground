@@ -49,3 +49,9 @@ it('경로 조작과 빈 댓글·초과 댓글을 거부하고 본문은 실행�
   for (const text of ['', 'a'.repeat(4001)]) await expect(updateIssue(fetch, 'me', 'AX-12', { action: 'comment', text })).rejects.toMatchObject({ status: 400 });
   expect(adfText(issue.fields.description)).toBe('<script>내용</script>\n');
 });
+it('미완료 조회는 To Do와 진행 중을 포함하고 Done만 제외한다', async () => {
+  const fetch = vi.fn().mockResolvedValue({ issues: [] });
+  await myIssues(fetch, 'open');
+  const body = JSON.parse(fetch.mock.calls[0][1].body);
+  expect(body.jql).toBe('assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC');
+});

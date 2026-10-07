@@ -261,17 +261,17 @@ class JiraSection extends StatelessWidget {
       return _Section(
       title: 'Jira',
       child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(data.reconnect ? 'Jira 인증이 만료되었습니다. Atlassian 로그인으로 다시 연결하세요.' : 'Jira를 연결하면 내 담당 진행 중 업무를 볼 수 있습니다.', style: const TextStyle(color: Brand.muted)),
+        Text(data.reconnect ? 'Jira 인증이 만료되었습니다. Atlassian 로그인으로 다시 연결하세요.' : 'Jira를 연결하면 내 담당 미완료 업무를 볼 수 있습니다.', style: const TextStyle(color: Brand.muted)),
         const SizedBox(height: 10),
         OutlinedButton.icon(onPressed: onConnect, icon: const Icon(Icons.link), label: Text(data.reconnect ? '지라 다시 연결' : '지라 연결')),
       ])),
     );
     }
     return _Section(
-      title: 'Jira 진행 중 ${data.items.length}${data.hasMore ? '+' : ''}',
+      title: 'Jira 미완료 ${data.items.length}${data.hasMore ? '+' : ''}',
       trailing: _more('전체 목록', onMore),
       child: data.items.isEmpty
-        ? const Padding(padding: EdgeInsets.all(14), child: Text('담당한 진행 중 이슈가 없습니다.', style: TextStyle(color: Brand.muted)))
+        ? const Padding(padding: EdgeInsets.all(14), child: Text('담당한 미완료 이슈가 없습니다.', style: TextStyle(color: Brand.muted)))
         : Column(children: [for (final item in data.items.take(5)) ListTile(
             dense: true,
             title: Text(item.summary, maxLines: 2, overflow: TextOverflow.ellipsis),

@@ -11,7 +11,7 @@ void main() {
     expect(connected, true);
     await show(const JiraBriefing(connected: true));
     expect(find.text('지라 연결'), findsNothing);
-    expect(find.text('담당한 진행 중 이슈가 없습니다.'), findsOneWidget);
+    expect(find.text('담당한 미완료 이슈가 없습니다.'), findsOneWidget);
   });
   testWidgets('이슈 선택은 해당 키, 전체 목록은 목록 동작으로 연결', (tester) async {
     String? selected; var list = false;

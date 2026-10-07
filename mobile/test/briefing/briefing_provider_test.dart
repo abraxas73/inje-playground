@@ -29,7 +29,9 @@ class AppApi {
   final Map<String, (int, Object)> routes;
   final calls = <String, int>{};
   final bodies = <String, Object?>{};
+  final queries = <String, Map<String, String>>{};
   ApiClient get client => ApiClient(httpClient: MockClient((r) async {
+        queries[r.url.path] = r.url.queryParameters;
         calls[r.url.path] = (calls[r.url.path] ?? 0) + 1;
         if (r.body.isNotEmpty) bodies[r.url.path] = jsonDecode(r.body);
         final (code, body) = routes[r.url.path] ?? (404, {'error': 'no route'});
@@ -56,12 +58,16 @@ ProviderContainer scope({GwCreds? creds = testCreds, required MockClient gw, req
 }
 
 void main() {
-  test('Jira는 아마란스 미연결이어도 진행 중 목록을 수집하고 요약에 포함한다', () async {
-    final app = AppApi({'/api/jira/issues': (200, {'connected': true, 'items': [{'key': 'AX-1', 'summary': '설계 검토', 'status': '진행 중'}]})});
+  test('Jira 브리핑은 To Do와 진행 중을 함께 조회하고 요약에 포함한다', () async {
+    final app = AppApi({'/api/jira/issues': (200, {'connected': true, 'items': [
+      {'key': 'AXTF-1', 'summary': 'ipipeline MVP 1차', 'status': 'To Do'},
+      {'key': 'AXTF-2', 'summary': '설계 검토', 'status': 'In Progress'},
+    ]})});
     final c = scope(creds: null, gw: gwRoutes({}), api: app.client);
     final d = await c.read(briefingProvider.future);
-    expect(d.jira?.items.single.key, 'AX-1');
-    expect(summaryPayload(d)['jira'], [{'key': 'AX-1', 'title': '설계 검토', 'status': '진행 중', 'dueDate': null}]);
+    expect(app.queries['/api/jira/issues'], {'scope': 'open'});
+    expect(d.jira?.items.map((x) => x.key), ['AXTF-1', 'AXTF-2']);
+    expect((summaryPayload(d)['jira'] as List).map((x) => x['status']), ['To Do', 'In Progress']);
   });
   test('Jira 인증 만료는 재연결, 통신 오류는 소스별 오류로 구분한다', () async {
     for (final code in [409, 502]) {
