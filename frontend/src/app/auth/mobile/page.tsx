@@ -25,7 +25,7 @@ export function MobileAuth({ navigate = defaultNavigate }: { navigate?: (url: st
     let next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
     // 1.3.10 앱도 이미 이 경로로 외부 브라우저 세션을 만든다. 앱 재빌드 없이 복귀 의도를 전달한다.
     const target = new URL(next, window.location.origin);
-    if (target.pathname === "/api/ms/connect") {
+    if (["/api/ms/connect", "/api/jira/connect"].includes(target.pathname)) {
       target.searchParams.set("app_return", "1");
       next = target.pathname + target.search;
     }

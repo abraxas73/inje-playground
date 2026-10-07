@@ -29,8 +29,8 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
   int _loadSeq = 0;
   Timer? _errTimer;
   final _back = BackTracker();
-  bool _openingMicrosoft = false;
-  bool _refreshAfterMicrosoft = false;
+  bool _openingOAuth = false;
+  bool _refreshAfterOAuth = false;
 
   @override
   void initState() {
@@ -92,8 +92,8 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
   Future<NavigationDecision> _onNav(NavigationRequest req) async {
     final uri = Uri.parse(req.url);
     switch (WebNavPolicy.decide(uri, appOrigin: _origin)) {
-      case NavAction.microsoftConnect:
-        if (req.isMainFrame) unawaited(_connectMicrosoft(uri));
+      case NavAction.oauthConnect:
+        if (req.isMainFrame) unawaited(_connectOAuth(uri));
         return NavigationDecision.prevent;
       case NavAction.inApp:
         return NavigationDecision.navigate;
@@ -107,30 +107,30 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
   }
 
   // OAuth 시작·콜백이 같은 브라우저의 쿠키를 사용하도록 먼저 별도 웹 세션을 만든다.
-  Future<void> _connectMicrosoft(Uri uri) async {
-    if (_openingMicrosoft) return;
-    _openingMicrosoft = true;
+  Future<void> _connectOAuth(Uri uri) async {
+    if (_openingOAuth) return;
+    _openingOAuth = true;
     try {
       final next = Uri(path: uri.path, query: uri.hasQuery ? uri.query : null).toString();
       final url = await webBootstrapUrl(ref.read(apiClientProvider), Config.apiBase, next);
       if (!mounted) return;
-      _refreshAfterMicrosoft = true;
+      _refreshAfterOAuth = true;
       if (!await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)) {
         throw StateError('브라우저를 열지 못했습니다');
       }
     } catch (_) {
-      _refreshAfterMicrosoft = false;
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Microsoft 연결을 시작하지 못했습니다. 다시 시도해 주세요.')));
+      _refreshAfterOAuth = false;
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('계정 연결을 시작하지 못했습니다. 다시 시도해 주세요.')));
     } finally {
-      _openingMicrosoft = false;
+      _openingOAuth = false;
       if (mounted) setState(() { _loading = false; });
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _refreshAfterMicrosoft) {
-      _refreshAfterMicrosoft = false;
+    if (state == AppLifecycleState.resumed && _refreshAfterOAuth) {
+      _refreshAfterOAuth = false;
       unawaited(_reload());
     }
   }

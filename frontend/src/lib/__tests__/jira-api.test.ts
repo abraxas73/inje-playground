@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 const m = vi.hoisted(() => ({ authorized: true, load: vi.fn(), validate: vi.fn(), upsert: vi.fn(), remove: vi.fn(), eq: vi.fn(), from: vi.fn(), client: vi.fn(), issues: vi.fn(), update: vi.fn(), user: vi.fn(), audit: vi.fn() }));
 vi.mock("@/lib/rfp/require-user", () => ({ requireUser: async () => m.authorized ? { ok: true, userId: 'session-user', admin: { from: m.from, auth: { admin: { getUserById: m.user } } } } : { ok: false, response: NextResponse.json({}, { status: 401 }) } }));
-vi.mock("@/lib/jira/client", async orig => ({ ...await orig<typeof import('@/lib/jira/client')>(), loadConnection: m.load, validateToken: m.validate, connectionClient: () => m.client }));
+vi.mock("@/lib/jira/client", async orig => ({ ...await orig<typeof import('@/lib/jira/client')>(), loadConnection: m.load, connectionClient: () => m.client }));
 vi.mock("@/lib/jira/issues", async orig => ({ ...await orig<typeof import('@/lib/jira/issues')>(), myIssues: m.issues, updateIssue: m.update }));
 vi.mock("@/lib/audit", () => ({ logAudit: m.audit }));
 import { GET, POST, DELETE } from '@/app/api/jira/connection/route';
@@ -13,7 +13,7 @@ const req = (body: unknown, path = '/api/jira/connection') => new NextRequest('h
 afterEach(() => vi.unstubAllEnvs());
 beforeEach(() => {
   vi.clearAllMocks(); m.authorized = true;
-  vi.stubEnv('MS_TOKEN_ENC_KEY', '01'.repeat(32));
+  vi.stubEnv('MS_TOKEN_ENC_KEY', '01'.repeat(32)); vi.stubEnv('JIRA_CLIENT_ID','client'); vi.stubEnv('JIRA_CLIENT_SECRET','secret');
   m.user.mockResolvedValue({ data: { user: { email: 'me@innogrid.com' } } });
   m.load.mockResolvedValue(null);
   m.validate.mockResolvedValue({ account_id: 'jira-me', account_name: '홍길동', email: 'me@innogrid.com', api_base: 'https://pms-innogrid.atlassian.net' });
@@ -21,23 +21,19 @@ beforeEach(() => {
 });
 it('미인증은 모든 Jira 엔드포인트에서 차단', async () => {
   m.authorized = false;
-  for (const response of [await GET(), await POST(req({ token: 't' })), await DELETE(req({})), await list(new NextRequest('https://app.test/api/jira/issues')), await update(req({}), { params: Promise.resolve({ key: 'AX-1' }) })]) expect(response.status).toBe(401);
+  for (const response of [await GET(), await POST(), await DELETE(req({})), await list(new NextRequest('https://app.test/api/jira/issues')), await update(req({}), { params: Promise.resolve({ key: 'AX-1' }) })]) expect(response.status).toBe(401);
   expect(m.load).not.toHaveBeenCalled(); expect(m.validate).not.toHaveBeenCalled(); expect(m.update).not.toHaveBeenCalled();
 });
 it('연결 조회는 비밀을 반환하지 않고 세션 사용자 범위만 조회', async () => {
-  m.load.mockResolvedValue({ account_name: '홍길동', token_enc: 'encrypted-secret', email: 'me@innogrid.com', account_id: 'id', api_base: 'base', connected_at: 'today' });
+  m.load.mockResolvedValue({ auth_type: 'oauth', account_name: '홍길동', token_enc: 'encrypted-secret', email: 'me@innogrid.com', account_id: 'id', api_base: 'base', connected_at: 'today' });
   const response = await GET(); const body = await response.json();
-  expect(body).toEqual({ connected: true, site: 'https://pms-innogrid.atlassian.net', email: 'me@innogrid.com', accountName: '홍길동', connectedAt: 'today' });
+  expect(body).toEqual({ connected: true, configured: true, needsReconnect: false, site: 'https://pms-innogrid.atlassian.net', email: 'me@innogrid.com', accountName: '홍길동', connectedAt: 'today' });
   expect(m.load.mock.calls[0][1]).toBe('session-user');
   expect(response.headers.get('cache-control')).toBe('private, no-store');
 });
-it('연결은 세션 이메일로 검증하고 암호문만 저장한다. 요청 user_id는 무시', async () => {
-  const response = await POST(req({ token: 'personal-token', email: 'other@example.com', user_id: 'other' }));
-  expect(response.status).toBe(200);
-  expect(m.validate).toHaveBeenCalledWith('me@innogrid.com', 'personal-token');
-  expect(m.upsert.mock.calls[0][0]).toMatchObject({ user_id: 'session-user', account_id: 'jira-me' });
-  expect(JSON.stringify(m.upsert.mock.calls)).not.toContain('personal-token');
-  expect(JSON.stringify(m.audit.mock.calls)).not.toContain('personal-token');
+it('개인 토큰 등록 엔드포인트는 폐기하여 저장하지 않는다', async () => {
+  expect((await POST()).status).toBe(410);
+  expect(m.upsert).not.toHaveBeenCalled();
 });
 it('연결 해제도 세션 사용자만 삭제', async () => {
   expect((await DELETE(req({ user_id: 'other' }))).status).toBe(200);

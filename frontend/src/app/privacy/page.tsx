@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     "이노그리드 워크샵 서비스의 개인정보 수집 및 이용에 관한 안내",
 };
 
-const EFFECTIVE_DATE = "2026-10-05";
+const EFFECTIVE_DATE = "2026-10-07";
 
 interface Section {
   id: string;
@@ -70,7 +70,13 @@ const sections: Section[] = [
           <li>Dooray API 토큰 및 프로젝트 ID(브라우저 localStorage에 저장)</li>
           <li>맛집/카페 검색 키워드 및 위치 정보</li>
         </ul>
-        <h3>라. 모바일 앱에서 처리되는 항목</h3>
+        <h3>라. Jira 연결 시 처리되는 항목</h3>
+        <ul>
+          <li>Atlassian 계정 식별자, 이름, 회사 이메일, 연결 일시와 암호화된 OAuth 인증 정보</li>
+          <li>본인 담당 이슈의 제목·상태·마감일·설명·댓글을 조회하고 사용자가 확인한 상태 변경·댓글 작성을 Jira에 전송합니다.</li>
+          <li>브리핑 생성 시 진행 중 이슈의 키·제목·상태·마감일을 AI 모델에 전달하며 설명·댓글·인증 정보는 포함하지 않습니다.</li>
+        </ul>
+        <h3>마. 모바일 앱에서 처리되는 항목</h3>
         <ul>
           <li>
             <strong>위치</strong>: &quot;뭐 먹지&quot;에서 주변 식당·카페를 찾을 때만, 앱을
@@ -110,6 +116,9 @@ const sections: Section[] = [
         </p>
         <ul>
           <li>
+            <strong>Jira 연결 정보</strong>: 설정에서 연결 해제하거나 서비스 계정을 삭제하면 삭제됩니다. Atlassian 계정의 연결된 앱에서도 권한을 철회할 수 있습니다.
+          </li>
+          <li>
             <strong>계정 정보</strong>: 회원 탈퇴 또는 퇴사 시까지
           </li>
           <li>
@@ -148,6 +157,9 @@ const sections: Section[] = [
           <li>
             <strong>Anthropic(Claude)</strong> — 모바일 앱 비서·홈 브리핑, PPT 만들기 등
             AI 응답 생성(요청 처리에 필요한 범위, 서비스가 대화 내용을 저장하지 않음)
+          </li>
+          <li>
+            <strong>Atlassian Jira</strong> — 사용자가 연결한 회사 Jira 계정의 담당 업무 조회 및 요청한 상태 변경·댓글 처리
           </li>
           <li>
             <strong>더존 아마란스(그룹웨어)</strong> — 모바일 앱에서 사용자가 연결한
