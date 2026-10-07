@@ -44,13 +44,16 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center dot-grid px-4">
+    <div className="min-h-screen grid grid-rows-[auto_1fr] lg:grid-rows-1 lg:grid-cols-2">
+      <Hero />
+      <div className="flex flex-col items-center justify-start lg:justify-center dot-grid px-4 py-10">
       <Card className="w-full max-w-sm animate-fade-up">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4">
             <Image src="/logo.svg" alt="이노그리드" width={130} height={18} priority />
           </div>
-          <CardDescription>이노크루를 위한 서비스에 로그인하세요</CardDescription>
+          <CardTitle className="text-lg">반가워요, 이노크루!</CardTitle>
+          <CardDescription>회사 Microsoft 계정으로 로그인하세요</CardDescription>
         </CardHeader>
         <CardContent>
           {showGoogle && (
@@ -100,6 +103,49 @@ export default function LoginPage() {
           개인정보처리방침
         </Link>
       </p>
+      </div>
     </div>
+  );
+}
+
+/** 이노그리드 캐릭터(홍보센터 www.innogrid.com/pr/character) — 이노크루 다섯 친구. 위치는 넓은 화면 무대 기준 %. */
+const CREW = [
+  { src: "/characters/innobot.png", name: "이노봇", w: 367, h: 323, cls: "left-[34%] top-[30%] w-[34%]", delay: "0s" },
+  { src: "/characters/clara.png", name: "클라라", w: 390, h: 301, cls: "left-[4%] top-[8%] w-[30%]", delay: "0.6s" },
+  { src: "/characters/udy.png", name: "우디", w: 370, h: 334, cls: "right-[4%] top-[4%] w-[28%]", delay: "1.2s" },
+  { src: "/characters/louduck.png", name: "라우덕", w: 527, h: 321, cls: "left-[2%] bottom-[6%] w-[36%]", delay: "1.8s" },
+  { src: "/characters/gri.png", name: "그리", w: 218, h: 238, cls: "right-[10%] bottom-[10%] w-[18%]", delay: "2.4s" },
+];
+
+function Hero() {
+  return (
+    <section className="relative overflow-hidden bg-gradient-to-br from-primary to-[oklch(0.42_0.22_264)] text-primary-foreground px-6 pt-8 pb-6 lg:p-12 flex flex-col">
+      <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full bg-white/10 blur-2xl" />
+      <div className="pointer-events-none absolute -left-16 bottom-0 size-56 rounded-full bg-white/10 blur-2xl" />
+      <Image src="/logo-white.svg" alt="이노그리드" width={110} height={15} className="relative" />
+      <div className="relative mt-6 lg:mt-16 max-w-md animate-fade-up">
+        <p className="text-xs font-semibold tracking-[0.2em] text-white/70">INNO CREW</p>
+        <h1 className="mt-2 text-2xl lg:text-4xl font-bold leading-tight">
+          이노크루의 하루를
+          <br />
+          조금 더 가볍게
+        </h1>
+        <p className="mt-3 text-sm lg:text-base text-white/80">
+          점심 메뉴부터 팀 나누기, 사내 가이드, PPT 만들기까지 — 이노크루를 위한 도구를 한곳에 모았어요.
+        </p>
+      </div>
+      {/* 휴대폰: 한 줄 / 넓은 화면: 무대 위에 흩어져 둥실 */}
+      <div className="relative mt-5 flex items-end justify-center gap-1.5 lg:hidden" aria-hidden>
+        {CREW.map((c, i) => (
+          <Image key={c.name} src={c.src} alt="" width={c.w} height={c.h} className="h-11 w-auto animate-float drop-shadow-lg" style={{ animationDelay: `${i * 0.5}s` }} />
+        ))}
+      </div>
+      <div className="relative hidden lg:block flex-1 mt-8 min-h-[320px]">
+        {CREW.map((c) => (
+          <Image key={c.name} src={c.src} alt={c.name} title={c.name} width={c.w} height={c.h} className={`absolute h-auto animate-float drop-shadow-2xl ${c.cls}`} style={{ animationDelay: c.delay }} />
+        ))}
+      </div>
+      <p className="relative mt-4 hidden lg:block text-xs text-white/60">이노봇 · 클라라 · 우디 · 라우덕 · 그리 — 이노그리드 캐릭터 이노크루</p>
+    </section>
   );
 }

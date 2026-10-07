@@ -177,6 +177,18 @@ body {
   animation: scale-in 0.4s ease-out both;
 }
 
+/* 로그인 화면 캐릭터가 둥실 떠 있게 — 움직임 줄이기 설정이면 멈춘다 */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-float { animation: none; }
+}
+
 .delay-100 { animation-delay: 100ms; }
 .delay-200 { animation-delay: 200ms; }
 .delay-300 { animation-delay: 300ms; }
