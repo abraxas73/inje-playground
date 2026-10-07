@@ -15,7 +15,7 @@ import { DEFAULT_PPT_MODEL, PPT_MODEL_OPTIONS, PPT_SOURCE_EXTENSIONS_TEXT, SOURC
 
 const BUILTIN = "builtin";
 
-const ACCEPT = ".docx,.pdf,.hwp,.hwpx,.pptx,.md,.txt";
+const ACCEPT = ".docx,.pdf,.hwp,.hwpx,.pptx,.md,.txt,.html,.htm";
 
 export default function NewDeckForm({ llmAvailable, templates, onCreated }: { llmAvailable: boolean; templates: PptTemplateOption[]; onCreated: (deckId: string) => void }) {
   const [tab, setTab] = useState<"text" | "file" | "url">("file");

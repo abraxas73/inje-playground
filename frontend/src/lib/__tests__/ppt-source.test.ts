@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { extractionText, sourceKindFor, sourceLengthError, textFromDocument, SOURCE_MAX_CHARS } from "@/lib/ppt/source";
+import { extractionText, sourceKindFor, sourceLengthError, textFromDocument, SOURCE_MAX_CHARS, PPT_SOURCE_EXTENSIONS } from "@/lib/ppt/source";
 
 describe("source", () => {
+  it("html·htm 파일은 태그·스크립트를 걷어 본문 텍스트로(제목 구조·목록 유지, meta charset 존중)", async () => {
+    expect(PPT_SOURCE_EXTENSIONS).toContain("html");
+    expect(PPT_SOURCE_EXTENSIONS).toContain("htm");
+    const html = '<html><head><title>T</title><style>p{}</style></head><body><script>alert(1)</script><h1>개요</h1><p>본문 &amp; 설명</p><ul><li>하나</li><li>둘</li></ul></body></html>';
+    expect(await textFromDocument(Buffer.from(html, "utf8"), "a.html")).toBe("# 개요\n\n본문 & 설명\n\n- 하나\n- 둘");
+    const euc = Buffer.concat([Buffer.from('<meta charset="euc-kr"><p>'), Buffer.from([0xc7, 0xd1]), Buffer.from("</p>")]);
+    expect(await textFromDocument(euc, "b.HTM")).toBe("한");
+  });
+
   it("classifies file kinds", () => {
     expect(sourceKindFor("a.pptx")).toBe("pptx");
     expect(sourceKindFor("A.PPTX")).toBe("pptx");
