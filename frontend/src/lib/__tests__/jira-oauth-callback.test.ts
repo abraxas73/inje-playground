@@ -48,3 +48,10 @@ it('앱에서 시작하면 비밀 없는 고정 딥링크로 자동 복귀한다
 it('미인증 콜백은 UTF-8 복구 안내를 표시하고 저장하지 않는다',async()=>{
  m.authorized=false;const r=await callback(req());expect(r.status).toBe(401);expect(r.headers.get('content-type')).toContain('charset=utf-8');expect(m.upsert).not.toHaveBeenCalled();
 });
+
+it('구버전 WebView는 Atlassian 동의 전에 업데이트 안내로 중단한다', async () => {
+ const r=await connect(new NextRequest(origin+'/api/jira/connect', {headers:{'user-agent':'Mozilla/5.0 InnogridApp/dev (ios)'}}));
+ expect(r.status).toBe(426);expect(r.headers.get('location')).toBeNull();
+ expect(r.headers.get('set-cookie')).toBeNull();expect(await r.text()).toContain('최신 앱');
+ expect(m.exchange).not.toHaveBeenCalled();
+});

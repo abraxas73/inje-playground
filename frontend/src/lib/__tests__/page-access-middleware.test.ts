@@ -58,3 +58,16 @@ it.each(["user", "admin"])("blocks non-allowlisted %s on marketing page and APIs
   m.fail = true;
   expect((await visit("/api/marketing")).status).toBe(503);
 });
+
+it("OAuth navigation failures render UTF-8 guidance without bypassing page permissions", async () => {
+  m.user = false;
+  const anonymous = await visit("/api/jira/callback?code=secret");
+  expect(anonymous.status).toBe(401);
+  expect(anonymous.headers.get("content-type")).toBe("text/html; charset=utf-8");
+  expect(await anonymous.text()).not.toContain("secret");
+  expect((await visit("/api/jira/issues")).headers.get("content-type")).toContain("application/json");
+  m.user = true; m.denied = { jira: false };
+  const denied = await visit("/api/jira/connect");
+  expect(denied.status).toBe(403);
+  expect(await denied.text()).toContain("이 페이지에 접근할 권한이 없습니다.");
+});

@@ -1,3 +1,4 @@
+import { isOAuthNavigation, oauthNotice } from "./mobile/oauth-notice";
 import { createServerClient } from "@supabase/ssr";
 import { after, NextResponse, type NextRequest } from "next/server";
 import { auditProxyRequest } from "./audit-proxy";
@@ -35,7 +36,7 @@ export async function updateSession(request: NextRequest) {
   const adminPath = matchesPath(pathname, "/admin") || matchesPath(pathname, "/guide/admin");
   const publicSurvey = matchesPath(pathname, "/survey") || matchesPath(pathname, "/api/surveys");
   function deny(status: number, message: string) {
-    const response = api ? NextResponse.json({ error: message }, { status }) : NextResponse.redirect(new URL(status === 401 ? "/login" : "/access-denied", request.url));
+    const response = isOAuthNavigation(pathname, request.method) ? oauthNotice(message, status) : api ? NextResponse.json({ error: message }, { status }) : NextResponse.redirect(new URL(status === 401 ? "/login" : "/access-denied", request.url));
     supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
     return response;
   }
