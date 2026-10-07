@@ -37,8 +37,11 @@ class QuoteCard extends StatelessWidget {
 
 /// "데일리 브리핑" — Claude가 하루 1회 쓴 2~3문장. 최신 업무 데이터로 다시 생성할 수 있다.
 class BriefingCard extends StatelessWidget {
-  const BriefingCard({super.key, required this.summary, this.busy = false, this.onClockIn, this.onRefresh});
+  const BriefingCard({super.key, required this.summary, this.busy = false, this.onClockIn, this.onRefresh, this.jira, this.onJiraMore, this.onJiraIssue});
   final SummaryText? summary;
+  final JiraBriefing? jira;
+  final VoidCallback? onJiraMore;
+  final ValueChanged<String>? onJiraIssue;
   final bool busy;
   final VoidCallback? onRefresh;
   /// 출근 기록이 없을 때만 넘긴다 — 문장 아래 "출퇴근 바로 가기"(앱 안 이동).
@@ -46,15 +49,17 @@ class BriefingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = summary;
-    if (s == null && !busy && onRefresh == null) return const SizedBox.shrink();
+    final showJira = jira?.connected == true && jira!.items.isNotEmpty && onJiraMore != null && onJiraIssue != null;
+    if (s == null && !busy && onRefresh == null && !showJira) return const SizedBox.shrink();
     return _Section(
       title: '데일리 브리핑',
       trailing: onRefresh == null ? null : IconButton(tooltip: '브리핑 새로고침', onPressed: busy ? null : onRefresh, icon: const Icon(Icons.refresh)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-        child: s == null
-            ? (busy ? const LinearProgressIndicator(minHeight: 2) : const Text('새로고침을 눌러 브리핑을 받아보세요.'))
-            : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (s == null)
+            (busy ? const LinearProgressIndicator(minHeight: 2) : const Text('새로고침을 눌러 브리핑을 받아보세요.'))
+          else Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 if (busy) const LinearProgressIndicator(minHeight: 2),
                 Text(s.text, style: const TextStyle(fontSize: 15, height: 1.6, color: Brand.navy)),
                 if (onClockIn != null) ...[
@@ -64,6 +69,11 @@ class BriefingCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Align(alignment: Alignment.centerRight, child: Text('Claude · ${s.at}', style: const TextStyle(fontSize: 12, color: Brand.muted))),
               ]),
+          if (showJira) ...[
+            const Divider(height: 24),
+            JiraSection(data: jira!, onMore: onJiraMore!, onIssue: onJiraIssue!),
+          ],
+        ]),
       ),
     );
   }
@@ -251,30 +261,19 @@ class TeamsSection extends StatelessWidget {
 
 
 class JiraSection extends StatelessWidget {
-  const JiraSection({super.key, required this.data, required this.onConnect, required this.onMore, required this.onIssue});
+  const JiraSection({super.key, required this.data, required this.onMore, required this.onIssue});
   final JiraBriefing data;
-  final VoidCallback onConnect, onMore;
+  final VoidCallback onMore;
   final ValueChanged<String> onIssue;
   @override
   Widget build(BuildContext context) {
-    if (!data.connected) {
-      return _Section(
-      title: 'Jira',
-      child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(data.reconnect ? 'Jira 인증이 만료되었습니다. Atlassian 로그인으로 다시 연결하세요.' : 'Jira를 연결하면 내 담당 미완료 업무를 볼 수 있습니다.', style: const TextStyle(color: Brand.muted)),
-        const SizedBox(height: 10),
-        OutlinedButton.icon(onPressed: onConnect, icon: const Icon(Icons.link), label: Text(data.reconnect ? '지라 다시 연결' : '지라 연결')),
-      ])),
-    );
-    }
-    return _Section(
-      title: 'Jira 미완료 ${data.items.length}${data.hasMore ? '+' : ''}',
-      trailing: _more('전체 목록', onMore),
-      child: data.items.isEmpty
-        ? const Padding(padding: EdgeInsets.all(14), child: Text('담당한 미완료 이슈가 없습니다.', style: TextStyle(color: Brand.muted)))
-        : Padding(
-            padding: const EdgeInsets.all(12),
-            child: Table(
+    if (!data.connected || data.items.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Expanded(child: Text('Jira 미완료·진행 중 ${data.items.length}${data.hasMore ? '+' : ''}', style: Theme.of(context).textTheme.titleSmall)),
+        _more('전체 목록', onMore),
+      ]),
+      Table(
               columnWidths: const {0: FlexColumnWidth(5), 1: FlexColumnWidth(2), 2: FixedColumnWidth(52)},
               defaultVerticalAlignment: TableCellVerticalAlignment.middle,
               border: const TableBorder(horizontalInside: BorderSide(color: Color(0xFFE5E7EB))),
@@ -298,8 +297,7 @@ class JiraSection extends StatelessWidget {
                   TextButton(onPressed: () => onIssue(item.key), style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(48, 48)), child: const Text('보기')),
                 ]),
               ],
-            ),
-          ),
-    );
+      ),
+    ]);
   }
 }
