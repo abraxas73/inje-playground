@@ -2,8 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "계정 삭제 요청 | 이노그리드",
-  description: "이노그리드 앱·워크샵 서비스 계정 및 데이터 삭제 요청 방법",
+  title: "계정 삭제 요청 | 이노크루 (InnoCrew)",
+  description: "이노크루(InnoCrew) 앱·이노그리드 워크샵 서비스 계정 및 데이터 삭제 요청 방법",
 };
 
 // Google Play 데이터 보안 '계정 삭제 URL' — 로그인 없이 열려야 한다(supabase-middleware PUBLIC_PREFIXES).
@@ -13,14 +13,14 @@ export default function AccountDeletionPage() {
       <main className="max-w-3xl mx-auto px-4 md:px-8 py-10 md:py-14 space-y-8 text-sm leading-relaxed text-foreground/85">
         <header className="text-center">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">계정 삭제 요청</h1>
-          <p className="mt-3 text-muted-foreground">앱 &quot;이노그리드&quot;(Android·iOS)와 이노그리드 워크샵 웹 서비스 · 운영 이노그리드</p>
+          <p className="mt-3 text-muted-foreground">Google Play 앱 &quot;이노크루&quot;(InnoCrew, 앱 내 표시 이름: 이노그리드, Android·iOS)와 이노그리드 워크샵 웹 서비스 · 운영 이노그리드</p>
         </header>
 
         <section className="space-y-2">
           <h2 className="text-lg font-semibold text-foreground">요청 방법</h2>
           <ol className="list-decimal pl-5 space-y-1">
             <li>
-              회사 이메일로 <strong>seunguk.kang@innogrid.com</strong>에 제목 &quot;이노그리드 앱 계정 삭제 요청&quot;으로
+              회사 이메일로 <strong>seunguk.kang@innogrid.com</strong>에 제목 &quot;이노크루 앱 계정 삭제 요청&quot;으로
               메일을 보냅니다(로그인에 쓰는 이메일 주소를 적어 주세요).
             </li>
             <li>운영 담당자가 본인 여부를 확인한 뒤 <strong>7일 이내</strong>에 삭제하고 결과를 회신합니다.</li>
