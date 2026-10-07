@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import JiraWorkCard from '@/components/home/JiraWorkCard';
 const user = vi.hoisted(() => ({ id: 'self', allowed: true }));
 vi.mock('@/hooks/useUserRole', () => ({ useUserRole: () => ({ userId: user.id, canAccessPage: () => user.allowed }) }));
@@ -21,12 +21,28 @@ it('To Do와 진행 중을 보여주고 완료를 제외하며 새로고침으�
   fireEvent.click(screen.getByRole('button',{name:'새로고침'}));
   await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
 });
-it('미연결이면 설정으로 안내하고 권한이 없으면 요청하지 않는다', async () => {
-  const fetch = vi.fn().mockImplementation(async () => Response.json({connected:false,items:[]}));
-  vi.stubGlobal('fetch',fetch);
+it.each([
+  {connected:false,items:[]},
+  {connected:true,items:[]},
+  {connected:true,items:[{key:'AX-3', summary:'완료', status:'Done', category:'done'}]},
+])('표시할 업무가 없으면 홈 카드 전체를 숨긴다: %j', async data => {
+  const fetch = vi.fn().mockImplementation(async () => Response.json(data));
+  vi.stubGlobal('fetch', fetch);
   const view = render(<JiraWorkCard />);
-  expect(await screen.findByRole('link',{name:'지라 연결'})).toHaveAttribute('href','/settings#jira');
+  await act(async () => {});
+  expect(view.container).toBeEmptyDOMElement();
   view.unmount(); user.allowed=false;
   render(<JiraWorkCard />);
   expect(fetch).toHaveBeenCalledTimes(1);
+});
+it('새로고침 후 마지막 업무가 완료되면 카드가 사라진다', async () => {
+  const fetch = vi.fn()
+    .mockImplementationOnce(async () => Response.json({connected:true,items:[{key:'AX-1',summary:'할 일',status:'To Do',category:'new'}]}))
+    .mockImplementation(async () => Response.json({connected:true,items:[]}));
+  vi.stubGlobal('fetch', fetch);
+  const view = render(<JiraWorkCard />);
+  await screen.findByText('할 일');
+  fireEvent.click(screen.getByRole('button',{name:'새로고침'}));
+  await act(async () => {});
+  expect(view.container).toBeEmptyDOMElement();
 });

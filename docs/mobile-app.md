@@ -113,7 +113,7 @@
 ### 매 릴리스
 1. `mobile/pubspec.yaml`의 `version: X.Y.Z+N`을 올린다(빌드 번호 `+N`은 항상 증가 — 앱은 이 숫자로 새 버전을 판단한다). 커밋.
 2. `mobile/scripts/release-mobile.sh all --notes "변경 요약"`. TestFlight 공개 링크는 심사 승인 뒤에 생기므로 빌드와 따로 `release-mobile.sh link --testflight-url <공개 링크>`로 저장한다(이후 릴리스에는 다시 줄 필요 없음). `android`/`ios`만도 된다. `--dry-run`으로 단계만 볼 수 있다. 스크립트가 `flutter test`·`analyze`를 먼저 돌리고, 같은 빌드 번호의 APK가 이미 있으면 멈춘다.
-3. iOS: App Store Connect → TestFlight에서 빌드 처리(≈10분) 후 외부 그룹에 추가(첫 빌드는 Beta App Review, 보통 하루 안팎). 이후 빌드는 그룹에 추가만 하면 된다. 스크립트가 업로드 직후 `mobile_release.ios`를 쓰므로 **그룹에 추가하기 전까지 iOS 앱 배너가 먼저 뜰 수 있다** — TestFlight가 자동 갱신하므로 무해하고, 늦추고 싶으면 `ios`는 그룹 추가 직후 돌린다.
+3. iOS: 빌드 처리 완료 후 **내부 테스트만 진행**한다(2026-10-07 운영자 지시). 외부 테스트 심사 제출은 운영자가 명시적으로 요청할 때만 한다. 외부 그룹 추가나 심사 제출을 업로드 후 자동 후속 작업으로 실행하지 않는다.
 4. Android는 끝에 SharePoint 사본(`innogrid-app-X.Y.Z.apk`)이 자동으로 올라간다 — 출력의 "링크:" 줄이 그 주소다. 실패 문구가 보이면 `release-mobile.sh sharepoint`.
 5. Teams 공지: 스크립트가 마지막에 문구 예시를 출력한다. 설치·업데이트 안내는 항상 `https://inje-playground.vercel.app/apps`.
 
@@ -165,7 +165,7 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk   # 또는 APK 파일
 
 업무 → Jira에서 본인 담당 이슈를 필터·페이지별로 조회하고 상세 설명·댓글을 확인한다. 상태 변경·댓글은 확인 후 본인 권한으로 실행하며 필수 필드가 있는 전환은 원문에서 처리한다. 변경 응답이 끊기면 자동 재시도하지 않는다.
 
-브리핑 요약문 아래에는 본인 담당 미완료 이슈 최대 5개를 업무·상태·상세 링크 표로 표시하며 미연결이면 ‘지라 연결’이 설정으로 이동한다. 설정·이슈 화면에서 복귀하면 갱신한다. 요약에는 키·제목·상태·마감일만 포함한다.
+데일리 브리핑 카드 안에서 요약문 아래에 본인 담당 미완료·진행 중 이슈 최대 5개를 업무·상태·상세 링크 표로 표시한다. 업무가 없거나 미연결·조회 실패이면 Jira 부분을 숨긴다. 웹 홈은 기존 별도 카드 위치를 유지하되 표시할 업무가 있을 때만 보인다. 설정·이슈 화면에서 복귀하면 갱신한다. Jira는 AI 요약문에 중복 언급하지 않는다.
 
 개인정보 보고는 `/api/cron/jira-privacy`(CRON_SECRET 전용)에서 6시간마다 최대 90개 대상의 보고 시점을 확인하며, 계정별 기본 7일 또는 Atlassian `Cycle-Period`를 따른다. `closed`·`updated` 응답이면 오래된 연결 정보를 삭제하여 다음 연결에서 재동의하게 한다. 429는 `Retry-After` 이후로 미룬다. 갱신 권한이 철회되면 해당 연결 정보를 삭제한다.
 

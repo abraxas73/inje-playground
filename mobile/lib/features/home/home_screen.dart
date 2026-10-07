@@ -158,12 +158,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             Text(g.subtitle, style: theme.textTheme.bodySmall),
             const SizedBox(height: 16),
             QuoteCard(quote: q),
-            BriefingCard(summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at), busy: _summaryBusy || _manualBusy, onRefresh: gw?.status == GwStatus.connected || data?.jira?.connected == true ? _forceSummary : null, onClockIn: data != null && clockInPending(data.attendance, data.now) ? () => open('/gw/attendance') : null),
-            if (data != null && (session?.isAdmin == true || session?.permissions['jira'] != false))
-              if (data.errors.containsKey('jira'))
-                RetryLine(label: 'Jira', onTap: _refresh)
-              else if (data.jira != null)
-                JiraSection(data: data.jira!, onConnect: () => open('/web?path=${Uri.encodeComponent('/settings#jira')}'), onMore: () => open('/web?path=${Uri.encodeComponent('/jira')}'), onIssue: (key) => open('/web?path=${Uri.encodeComponent('/jira/$key')}')),
+            BriefingCard(
+              summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at),
+              busy: _summaryBusy || _manualBusy,
+              onRefresh: gw?.status == GwStatus.connected || data?.jira?.connected == true ? _forceSummary : null,
+              onClockIn: data != null && clockInPending(data.attendance, data.now) ? () => open('/gw/attendance') : null,
+              jira: data != null && !data.errors.containsKey('jira') && (session?.isAdmin == true || session?.permissions['jira'] != false) ? data.jira : null,
+              onJiraMore: () => open('/web?path=${Uri.encodeComponent('/jira')}'),
+              onJiraIssue: (key) => open('/web?path=${Uri.encodeComponent('/jira/$key')}'),
+            ),
             if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(top: 14), child: LinearProgressIndicator(minHeight: 2)),
             if (gw != null && gw.status != GwStatus.connected)
               GwConnectCard(relogin: gw.status == GwStatus.needsRelogin, onConnect: () => context.push('/gw/connect'))
