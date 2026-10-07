@@ -51,11 +51,14 @@ export default function JiraAccountCard() {
       {!status ? <Button variant="outline" onClick={load}>연결 상태 다시 확인</Button> : <>
         <div className="space-y-1 break-words text-sm"><p>사이트: pms-innogrid.atlassian.net</p><p>계정: {status.accountName ? `${status.accountName} · ` : ""}{status.email}</p></div>
         {status.needsReconnect && <p className="text-sm">연결 방식이 Atlassian 로그인으로 변경되었습니다. 한 번 다시 연결해 주세요.</p>}
-        {!status.configured ? <p className="text-sm text-muted-foreground">회사 Jira 로그인 설정을 준비 중입니다. 관리자 설정이 완료되면 연결할 수 있습니다.</p> : <div className="flex flex-wrap gap-2">
-          <Button asChild disabled={busy}><a href="/api/jira/connect">{status.connected ? "Atlassian 다시 연결" : "Atlassian으로 연결"}</a></Button>
-          {status.connected && <Button asChild variant="outline"><Link href="/jira">내 Jira 업무</Link></Button>}
-        </div>}
-        {(status.connected || status.needsReconnect) && <AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" disabled={busy}>해제</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Jira 연결을 해제할까요?</AlertDialogTitle><AlertDialogDescription>앱에 저장된 연결 정보가 삭제됩니다. Jira 이슈와 댓글은 유지됩니다. Atlassian 계정의 연결된 앱에서도 접근 권한을 철회할 수 있습니다.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>취소</AlertDialogCancel><AlertDialogAction onClick={() => void disconnect()}>연결 해제</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>}
+        {!status.configured && <p className="text-sm text-muted-foreground">회사 Jira 로그인 설정을 준비 중입니다. 관리자 설정이 완료되면 연결할 수 있습니다.</p>}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
+            {status.configured && <Button asChild disabled={busy}><a href="/api/jira/connect">{status.connected ? "다시 연결" : "연결"}</a></Button>}
+            {(status.connected || status.needsReconnect) && <AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" disabled={busy}>해제</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Jira 연결을 해제할까요?</AlertDialogTitle><AlertDialogDescription>앱에 저장된 연결 정보가 삭제됩니다. Jira 이슈와 댓글은 유지됩니다. Atlassian 계정의 연결된 앱에서도 접근 권한을 철회할 수 있습니다.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>취소</AlertDialogCancel><AlertDialogAction onClick={() => void disconnect()}>연결 해제</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>}
+          </div>
+          {status.configured && status.connected && <Button asChild variant="outline"><Link href="/jira">내 Jira 업무</Link></Button>}
+        </div>
       </>}
     </CardContent>
   </Card>;
