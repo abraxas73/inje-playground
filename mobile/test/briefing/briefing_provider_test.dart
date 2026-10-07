@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:playground/api/client.dart';
 import 'package:playground/briefing/briefing_provider.dart';
+import 'package:playground/briefing/briefing_model.dart';
 import 'package:playground/briefing/summary_provider.dart';
 import 'package:playground/gw/gw_client.dart';
 import 'package:playground/gw/gw_creds.dart';
@@ -54,6 +56,47 @@ ProviderContainer scope({GwCreds? creds = testCreds, required MockClient gw, req
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  test('07:00 기준 날짜는 자정에 바뀌지 않고 기기 시간대와 무관하다', () {
+    expect(briefingPeriod(DateTime.utc(2026, 10, 7, 6, 59, 59)), '20261006');
+    expect(briefingPeriod(DateTime.utc(2026, 10, 7, 7)), '20261007');
+    expect(untilNextBriefing(DateTime.utc(2026, 10, 7, 6, 59, 59)), const Duration(seconds: 1));
+    expect(untilNextBriefing(DateTime.utc(2026, 10, 7, 7)), const Duration(days: 1));
+  });
+
+  test('07:00 이전의 지연 응답은 버리고 새 시간대의 동시 요청은 합친다', () async {
+    var now = DateTime.utc(2026, 10, 7, 6, 59);
+    final gate = Completer<void>();
+    var calls = 0;
+    final api = ApiClient(httpClient: MockClient((r) async {
+      final call = ++calls;
+      if (call == 1) await gate.future;
+      return http.Response(jsonEncode({'enabled': true, 'text': 'briefing $call'}), 200);
+    }), tokens: _Tokens(), baseUrl: 'http://x', userAgent: 'test');
+    final c = ProviderContainer(overrides: [
+      apiClientProvider.overrideWithValue(api),
+      briefingClockProvider.overrideWithValue(() => now),
+    ]);
+    addTearDown(c.dispose);
+    await c.read(summaryProvider.future);
+    final notifier = c.read(summaryProvider.notifier);
+    final old = notifier.ensure(BriefingData(now: now, empSeq: '7'));
+    await Future<void>.delayed(Duration.zero);
+    now = DateTime.utc(2026, 10, 7, 7);
+    final fresh = BriefingData(now: now, empSeq: '7');
+    final a = notifier.ensure(fresh);
+    final b = notifier.ensure(fresh);
+    gate.complete();
+    expect(await old, isFalse);
+    expect(await a, isTrue);
+    expect(await b, isTrue);
+    expect(calls, 2);
+    expect(c.read(summaryProvider).value!.text, 'briefing 2');
+    await notifier.ensure(fresh);
+    expect(calls, 2);
+    await notifier.ensure(fresh, force: true);
+    expect(calls, 3);
+  });
 
   test('소스별 병렬 수집 — 하나(메일함 목록)가 실패해도 나머지는 채워지고 errors에만 남는다', () async {
     final gw = Map.of(gwAll)..remove('/mail/mail000A01');

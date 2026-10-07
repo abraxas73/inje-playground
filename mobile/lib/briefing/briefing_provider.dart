@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/client.dart';
 import '../gw/gw_api.dart';
 import '../gw/gw_creds.dart';
-import '../gw/gw_models.dart';
+import 'summary_provider.dart' show briefingClockProvider;
 import 'briefing_model.dart';
 
 /// 홈 브리핑 수집 — 소스별로 독립(try/catch)·병렬. 실패한 소스는 errors[소스]에만 남고 값은 null이라 나머지 섹션은 그려진다.
@@ -40,7 +40,7 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
   Future<BriefingData> _load() async {
     await ref.read(gwProvider.future); // 크레덴셜 로딩이 끝나야 gwApiProvider가 결정된다
     final api = ref.read(gwApiProvider);
-    final d = BriefingData(now: kstNow(), empSeq: api?.client.creds().empSeq ?? '');
+    final d = BriefingData(now: ref.read(briefingClockProvider)(), empSeq: api?.client.creds().empSeq ?? '');
     Future<void> src(String key, Future<void> Function() f) async {
       try {
         await f();
