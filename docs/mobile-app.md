@@ -171,3 +171,7 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk   # 또는 APK 파일
 
 ### 인증 후 앱 복귀 경로
 Jira/Microsoft 연결 완료 URL(`innogrid://login-callback`)은 화면 경로가 아니다. iOS `FlutterDeepLinkingEnabled=false`, Android `flutter_deeplinking_enabled=false`를 유지해 Supabase의 app_links 처리와 Flutter 기본 라우터 처리가 중복되지 않게 한다. 로그인 콜백은 Supabase가 처리하고 계정 연결 복귀는 기존 WebScreen이 resumed에서 상태를 새로 읽는다. 검증 시 앱 실행 중 및 종료 상태에서 `xcrun simctl openurl <UDID> 'innogrid://login-callback/?jira_connected=1'`로 오류 화면이 뜨지 않는지 확인한다.
+
+### Android 업데이트 링크 (2026-10-07)
+
+앱 업데이트 배너·더보기 및 웹 `/apps`의 Android 설치 버튼은 `https://play.google.com/apps/internaltest/4701070333674267983`(Google Play 내부 테스트)로 이동한다. API에서 링크를 내려주므로 기존 설치 앱에도 서버 배포만으로 적용된다. APK·SharePoint 사본 업로드는 릴리스 백업용으로 유지하며 업데이트 버튼은 해당 파일로 연결하지 않는다.

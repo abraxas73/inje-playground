@@ -1,4 +1,5 @@
 /** settings 키 `mobile_release`(문자열 JSON) ↔ GET /api/mobile/release 응답. 쓰는 쪽은 릴리스 스크립트(mobile/scripts/release-mobile.sh)뿐. */
+export const ANDROID_INTERNAL_TEST_URL = "https://play.google.com/apps/internaltest/4701070333674267983";
 export const MOBILE_RELEASE_KEY = "mobile_release";
 export const MOBILE_BUCKET = "mobile";
 export const APK_URL_TTL_SECONDS = 600;
