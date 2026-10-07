@@ -175,3 +175,9 @@ Jira/Microsoft 연결 완료 URL(`innogrid://login-callback`)은 화면 경로�
 ### Android 업데이트 링크 (2026-10-07)
 
 앱 업데이트 배너·더보기 및 웹 `/apps`의 Android 설치 버튼은 `https://play.google.com/apps/internaltest/4701070333674267983`(Google Play 내부 테스트)로 이동한다. API에서 링크를 내려주므로 기존 설치 앱에도 서버 배포만으로 적용된다. APK·SharePoint 사본 업로드는 릴리스 백업용으로 유지하며 업데이트 버튼은 해당 파일로 연결하지 않는다.
+
+### 앱 사용 신청
+
+웹 `/settings#app-request`에서 플랫폼별 스토어 이메일을 신청하고 처리 상태를 확인한다. 관리자는 `/admin/app-requests`에서 상태·플랫폼별 조회 및 처리 중/등록 완료/반려 처리와 사용자 안내를 저장한다. 스토어 등록·초대는 콘솔에서 별도 진행하며 외부 심사는 자동 제출하지 않는다.
+
+`mobile_app_requests`는 사용자·플랫폼별 한 행이며 revision 조건부 갱신으로 동시 처리 충돌을 막는다. 처리 중인 신청은 사용자 수정 불가, 이메일 변경·반려 후 재신청은 신청 대기로 초기화된다. RLS 활성화 및 anon/authenticated 직접 접근 차단, 서버 API에서 세션 소유권·관리자 권한을 확인한다. 마이그레이션 `20261007232109_mobile_app_requests.sql`. 기존 앱 설정은 웹 화면이므로 앱 재빌드 없이 적용된다.

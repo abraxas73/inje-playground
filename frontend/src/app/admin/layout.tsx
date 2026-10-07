@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
 
 const ADMIN_NAV = [
+  { href: "/admin/app-requests", label: "앱 사용 신청", icon: ClipboardList },
   { href: "/admin/users", label: "사용자 관리", icon: Users },
   { href: "/admin/page-permissions", label: "페이지 접근 권한", icon: ShieldAlert },
   { href: "/admin/settings", label: "시스템 설정", icon: Settings },

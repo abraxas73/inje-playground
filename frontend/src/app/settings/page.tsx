@@ -1,6 +1,7 @@
 "use client";
 
 import { Settings } from "lucide-react";
+import AppRequestCard from "@/components/settings/AppRequestCard";
 import MyTeamCard from "@/components/settings/MyTeamCard";
 import JiraAccountCard from "@/components/settings/JiraAccountCard";
 import MicrosoftAccountCard from "@/components/settings/MicrosoftAccountCard";
@@ -14,6 +15,8 @@ export default function UserSettingsPage() {
         <Settings className="h-5 w-5 text-muted-foreground" />
         <h1 className="text-xl font-bold">설정</h1>
       </div>
+
+      <AppRequestCard />
 
       {/* 내 팀 구성원 */}
       <MyTeamCard />
