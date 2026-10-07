@@ -102,9 +102,9 @@ export default function MicrosoftAccountCard() {
         ) : !status.connected ? (
           <>
             <p className="text-sm text-muted-foreground">연결된 계정이 없습니다.</p>
-            <Button size="sm" onClick={connect}>
+            <Button size="sm" variant="outline" onClick={connect}>
               <Link2 className="mr-1 h-4 w-4" />
-              Microsoft 계정 연결
+              연결
             </Button>
           </>
         ) : (
