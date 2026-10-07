@@ -93,6 +93,12 @@
 - **말하기·읽어 주기**: 입력칸 옆 🎤(기기 음성 인식 — 인식이 끝났을 때 "~줘·~주세요·~실행"으로 끝나면 바로 보내고, 아니면 이어서 듣다가 2초 동안 새 말이 없으면 보냄, `isCommandEnd`), 봇 답 끝 🔊(기기 TTS, 누를 때만). 음성은 설치된 한국어 중 가장 좋은 것을 자동 선택(`pickKoreanVoice` — iOS 프리미엄 > 향상 > 기본, Android very high > high, 같으면 오프라인). 기본 음성뿐이면 🔊를 처음 누를 때(앱 실행당 한 번) 설치 안내: iOS 설정 > 손쉬운 사용 > 읽기 및 말하기 > 음성 > 한국어 > 유나(향상됨/프리미엄), Android 텍스트 음성 변환 > Google 엔진 > 음성 데이터 설치 > 한국어. 내려받으면 다음 🔊부터 바로 그 음성(고품질을 찾을 때까지 매번 다시 고름). 서버 TTS(Supertonic 3, 약 400MB ONNX)는 검토 후 보류. 코드 `assistant_voice.dart`(`VoiceInput`·`Speaker` 인터페이스 — 테스트는 Provider로 가짜). 권한 문구는 Info.plist·AndroidManifest.
 - 관리자: `/admin/settings` "모바일 앱 — 비서(이노봇)" 스위치·사용자당 하루 턴 상한(기본 200, KST 하루, 설정·건수 조회 오류면 503으로 닫힘). 요청 하나는 보통 3~5턴, 한 번에 최대 10턴. 꺼져 있으면 앱 버튼이 숨는다.
 
+## 더보기 프로필·Microsoft 연결 (2026-10-07)
+- 더보기 머리에는 아마란스 조직도 이름 → 앱 계정 이름 순으로 표시한다. 이메일은 아래 줄에 유지한다.
+- 아바타는 연결된 Microsoft 계정의 사진을 사용한다(`GET /api/users/profile/photo`, Graph `/me/photos/96x96/$value`). 미연결·사진 없음·조회 실패 시 이름의 첫 글자를 표시한다. 서버는 현재 사용자만 조회하며 사진·토큰을 공유 캐시에 저장하지 않는다.
+- 앱 설정의 Microsoft 연결은 외부 브라우저에 일회용 웹 세션을 만든 뒤 시작한다. 인증 시작과 콜백이 같은 브라우저에서 이어지며 앱에 돌아오면 연결 상태를 갱신한다. 콜백의 세션 사용자·서명된 state 일치 검사는 유지한다.
+- 사용자 설정에서 Dooray 연동·Dooray 본인 인증 카드를 제거했다.
+
 ## 배포(사내) (2026-10-04)
 - **Google Play 내부 테스트 + 서명 통일(2026-10-06)**: `release-mobile.sh android|all`이 AAB → Play 내부 테스트 자동 출시(`play-upload.py`, 서비스 계정 `PLAY_SERVICE_ACCOUNT_JSON`) → **Play가 Google 앱 서명 키로 만든 universal APK를 받아 `/apps`·SharePoint에 배포**(어느 경로로 깔든 서로 업데이트). 1.3.3 이하 로컬 키 APK 설치자는 1.3.4로 한 번 재설치. flutter 출력은 `mobile/build/release-<버전>.log`로(실패 시에만 끝부분 표시 — flutter_tts의 SwiftPM·KGP 안내 경고는 최신 4.2.5에서도 나오며 무해). 화면별 안내 `docs/play-console-guide.md`.
 **운영자가 직접 할 일(App Store Connect·백업·공지)만 모은 체크리스트: `docs/mobile-release-checklist.md`.** 스펙 `docs/superpowers/specs/2026-10-04-mobile-release-design.md`. iOS는 **TestFlight 외부 그룹 공개 링크**(개인 Apple 계정, 팀 `LME2TNRC9G`), Android는 **웹 `/apps`에서 APK 직접 받기**(로그인 필요, 비공개 버킷 `mobile`의 600초 서명 URL). 릴리스 메타데이터는 `settings` 키 `mobile_release`(문자열 JSON: `notes`·`testflightUrl`·`android{version,build,apkPath,releasedAt}`·`ios{version,build,releasedAt}`) 하나, 읽는 API는 `GET /api/mobile/release`(user 이상). 앱은 시작 때 이 API로 자기 플랫폼 빌드 번호를 비교해 홈 배너·더보기 "앱 버전" 줄에 업데이트 버튼을 보여 준다(개발 빌드 `dev`/0은 확인 안 함). 쓰는 쪽은 `mobile/scripts/release-mobile.sh`뿐.

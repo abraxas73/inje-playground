@@ -3,6 +3,17 @@ import 'package:playground/web/web_session.dart';
 
 void main() {
   final origin = Uri.parse('https://inje-playground.vercel.app');
+  test('Microsoft 연결은 동일 오리진에서만 별도 브라우저 세션으로 시작한다', () {
+    expect(WebNavPolicy.decide(origin.resolve('/api/ms/connect?returnTo=%2Fsettings'), appOrigin: origin), NavAction.microsoftConnect);
+    expect(WebNavPolicy.decide(origin.resolve('/api/ms/callback?code=x'), appOrigin: origin), NavAction.inApp);
+    for (final url in ['https://other.test/api/ms/connect', 'http://inje-playground.vercel.app/api/ms/connect', 'https://inje-playground.vercel.app:444/api/ms/connect']) {
+      expect(WebNavPolicy.decide(Uri.parse(url), appOrigin: origin), NavAction.external);
+    }
+    final next = Uri(path: '/api/ms/connect', query: 'returnTo=%2Fteams%2Fchat').toString();
+    final bootstrap = Uri.parse(bootstrapUrl(apiBase: origin.toString(), nextPath: next, tokenHash: 'once'));
+    expect(bootstrap.queryParameters['next'], '/api/ms/connect?returnTo=%2Fteams%2Fchat');
+    expect(bootstrap.fragment, 'token=once');
+  });
   test('같은 오리진 페이지는 앱 안, /login은 세션 부트스트랩 신호, 다른 도메인·파일은 외부', () {
     expect(WebNavPolicy.decide(Uri.parse('https://inje-playground.vercel.app/ppt/abc'), appOrigin: origin), NavAction.inApp);
     expect(WebNavPolicy.decide(Uri.parse('https://inje-playground.vercel.app/login?next=/ppt'), appOrigin: origin), NavAction.loginRedirect);

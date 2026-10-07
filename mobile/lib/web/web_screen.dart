@@ -18,7 +18,7 @@ class WebScreen extends ConsumerStatefulWidget {
   ConsumerState<WebScreen> createState() => _WebScreenState();
 }
 
-class _WebScreenState extends ConsumerState<WebScreen> {
+class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserver {
   late final WebViewController _c;
   final _origin = Uri.parse(Config.apiBase);
   String _title = '';
@@ -29,10 +29,13 @@ class _WebScreenState extends ConsumerState<WebScreen> {
   int _loadSeq = 0;
   Timer? _errTimer;
   final _back = BackTracker();
+  bool _openingMicrosoft = false;
+  bool _refreshAfterMicrosoft = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _c = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(NavigationDelegate(
@@ -76,6 +79,7 @@ class _WebScreenState extends ConsumerState<WebScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _errTimer?.cancel();
     super.dispose();
   }
@@ -88,6 +92,9 @@ class _WebScreenState extends ConsumerState<WebScreen> {
   Future<NavigationDecision> _onNav(NavigationRequest req) async {
     final uri = Uri.parse(req.url);
     switch (WebNavPolicy.decide(uri, appOrigin: _origin)) {
+      case NavAction.microsoftConnect:
+        if (req.isMainFrame) unawaited(_connectMicrosoft(uri));
+        return NavigationDecision.prevent;
       case NavAction.inApp:
         return NavigationDecision.navigate;
       case NavAction.external:
@@ -96,6 +103,35 @@ class _WebScreenState extends ConsumerState<WebScreen> {
       case NavAction.loginRedirect:
         _bootstrap(uri.queryParameters['next'] ?? widget.path);
         return NavigationDecision.prevent;
+    }
+  }
+
+  // OAuth 시작·콜백이 같은 브라우저의 쿠키를 사용하도록 먼저 별도 웹 세션을 만든다.
+  Future<void> _connectMicrosoft(Uri uri) async {
+    if (_openingMicrosoft) return;
+    _openingMicrosoft = true;
+    try {
+      final next = Uri(path: uri.path, query: uri.hasQuery ? uri.query : null).toString();
+      final url = await webBootstrapUrl(ref.read(apiClientProvider), Config.apiBase, next);
+      if (!mounted) return;
+      _refreshAfterMicrosoft = true;
+      if (!await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)) {
+        throw StateError('브라우저를 열지 못했습니다');
+      }
+    } catch (_) {
+      _refreshAfterMicrosoft = false;
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Microsoft 연결을 시작하지 못했습니다. 다시 시도해 주세요.')));
+    } finally {
+      _openingMicrosoft = false;
+      if (mounted) setState(() { _loading = false; });
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _refreshAfterMicrosoft) {
+      _refreshAfterMicrosoft = false;
+      unawaited(_reload());
     }
   }
 

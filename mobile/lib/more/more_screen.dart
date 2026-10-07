@@ -8,6 +8,7 @@ import '../release/update_banner.dart';
 import '../gw/gw_creds.dart';
 import '../gw/gw_settings_sheet.dart';
 import 'catalog.dart';
+import 'profile.dart';
 
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
@@ -18,8 +19,13 @@ class MoreScreen extends ConsumerWidget {
     final admin = visibleAdminPages(session);
     final gw = ref.watch(gwProvider).value;
     final email = session.email ?? '';
-    final handle = email.contains('@') ? email.substring(0, email.indexOf('@')) : email;
-    void open(String path) => context.push('/web?path=${Uri.encodeComponent(path)}');
+    final name = profileDisplayName(organizationName: gw?.creds?.empName, accountName: session.name);
+    final photo = ref.watch(profilePhotoProvider).asData?.value;
+    final fallbackAvatar = Center(child: Text(name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)));
+    Future<void> open(String path) async {
+      await context.push('/web?path=${Uri.encodeComponent(path)}');
+      if (context.mounted) ref.invalidate(profilePhotoProvider);
+    }
     return Scaffold(
       body: ListView(padding: EdgeInsets.zero, children: [
         Container(
@@ -34,13 +40,13 @@ class MoreScreen extends ConsumerWidget {
                 height: 56,
                 alignment: Alignment.center,
                 decoration: const BoxDecoration(color: Brand.blue, shape: BoxShape.circle),
-                child: Text(handle.isEmpty ? '?' : handle.characters.first.toUpperCase(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
+                child: ClipOval(child: photo == null ? fallbackAvatar : Image.memory(photo, width: 56, height: 56, fit: BoxFit.cover, gaplessPlayback: false, errorBuilder: (_, _, _) => fallbackAvatar)),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Flexible(child: Text(handle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white), overflow: TextOverflow.ellipsis)),
+                    Flexible(child: Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white), overflow: TextOverflow.ellipsis)),
                     const SizedBox(width: 8),
                     Container(
                       height: 22,
