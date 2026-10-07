@@ -29,6 +29,8 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- app_links (Supabase) handles auth callbacks, not GoRouter. -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
             <!-- Supabase OAuth 복귀 딥링크 (innogrid://login-callback) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>

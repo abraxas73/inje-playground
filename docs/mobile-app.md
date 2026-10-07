@@ -168,3 +168,6 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk   # 또는 APK 파일
 브리핑 마지막에는 본인 담당 진행 중 이슈 최대 5개를 표시하며 미연결이면 ‘지라 연결’이 설정으로 이동한다. 설정·이슈 화면에서 복귀하면 갱신한다. 요약에는 키·제목·상태·마감일만 포함한다.
 
 개인정보 보고는 `/api/cron/jira-privacy`(CRON_SECRET 전용)에서 6시간마다 최대 90개 대상의 보고 시점을 확인하며, 계정별 기본 7일 또는 Atlassian `Cycle-Period`를 따른다. `closed`·`updated` 응답이면 오래된 연결 정보를 삭제하여 다음 연결에서 재동의하게 한다. 429는 `Retry-After` 이후로 미룬다. 갱신 권한이 철회되면 해당 연결 정보를 삭제한다.
+
+### 인증 후 앱 복귀 경로
+Jira/Microsoft 연결 완료 URL(`innogrid://login-callback`)은 화면 경로가 아니다. iOS `FlutterDeepLinkingEnabled=false`, Android `flutter_deeplinking_enabled=false`를 유지해 Supabase의 app_links 처리와 Flutter 기본 라우터 처리가 중복되지 않게 한다. 로그인 콜백은 Supabase가 처리하고 계정 연결 복귀는 기존 WebScreen이 resumed에서 상태를 새로 읽는다. 검증 시 앱 실행 중 및 종료 상태에서 `xcrun simctl openurl <UDID> 'innogrid://login-callback/?jira_connected=1'`로 오류 화면이 뜨지 않는지 확인한다.
