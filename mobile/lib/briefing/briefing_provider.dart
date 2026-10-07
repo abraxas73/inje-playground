@@ -77,3 +77,11 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
     return d;
   }
 }
+
+/// 전체 토글을 켰을 때만 회사 명부를 조회한다. 연결 계정 변경·토글 해제 시 캐시를 버린다.
+final companyAbsencesProvider = FutureProvider.autoDispose<GwOrgAbsences>((ref) async {
+  await ref.watch(gwProvider.future);
+  final api = ref.watch(gwApiProvider);
+  if (api == null) throw StateError('아마란스 연결이 필요합니다');
+  return api.organizationAbsences(allCompany: true);
+});

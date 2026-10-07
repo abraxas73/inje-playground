@@ -89,8 +89,10 @@ List<GwEvent> myMeetings(BriefingData d) {
 }
 
 /// 캘린더를 추측하지 않고, 소속 조직으로 제한된 조직도의 현재 근태 태그만 사용한다.
-List<Absence> teamAbsences(BriefingData d) => [
-  for (final p in d.orgAbsences?.members ?? const <GwOrgMemberStatus>[])
+List<Absence> teamAbsences(BriefingData d) => orgAbsencesList(d.orgAbsences);
+
+List<Absence> orgAbsencesList(GwOrgAbsences? org) => [
+  for (final p in org?.members ?? const <GwOrgMemberStatus>[])
     Absence(who: p.name, what: p.tag, kind: absenceKind(p.tag, '')),
 ];
 

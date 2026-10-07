@@ -32,6 +32,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   int _summaryRequests = 0;
   bool get _summaryBusy => _summaryRequests > 0;
   bool _manualBusy = false;
+  bool _allAbsences = false;
   Timer? _dailyTimer;
   late String _period;
 
@@ -95,6 +96,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   }
 
   Future<void> _refresh() async {
+    if (_allAbsences) ref.invalidate(companyAbsencesProvider);
     await ref.read(briefingProvider.notifier).refresh(name: ref.read(sessionProvider).asData?.value?.name);
     if (!mounted) return;
     final data = ref.read(briefingProvider).value;
@@ -131,6 +133,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     final gw = ref.watch(gwProvider).value;
     final briefing = ref.watch(briefingProvider);
     final data = briefing.value;
+    final company = _allAbsences ? ref.watch(companyAbsencesProvider) : null;
     final summary = ref.watch(summaryProvider).value;
     ref.listen(tabTapProvider, (_, t) { if (t.branch == homeBranch) _refresh(); }); // 홈 탭을 눌렀을 때만(다른 브랜치 전환은 무시)
     ref.listen(briefingProvider, (prev, next) {
@@ -159,7 +162,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             else if (data != null) ...[
               FocusSection(items: focusItems(data), onOpen: open),
               if (data.errors.containsKey('today')) RetryLine(label: '일정', onTap: _refresh) else MeetingsSection(meetings: myMeetings(data), tomorrowCount: myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).length, onMore: () => open('/gw/today')),
-              if (data.errors.containsKey('absences')) RetryLine(label: '조직도 부재 상태', onTap: _refresh) else AbsenceSection(absences: teamAbsences(data), title: data.orgAbsences?.isCenter == true ? '센터원 부재' : '팀원 부재'),
+              AbsenceSection(
+                absences: _allAbsences ? orgAbsencesList(company?.asData?.value) : teamAbsences(data),
+                title: _allAbsences ? '회사 전체 부재' : data.orgAbsences?.isCenter == true ? '센터원 부재' : '팀원 부재',
+                allCompany: _allAbsences,
+                loading: _allAbsences && company?.isLoading == true,
+                failed: _allAbsences ? company?.hasError == true : data.errors.containsKey('absences'),
+                onToggle: (value) => setState(() => _allAbsences = value),
+                onRetry: _allAbsences ? () => ref.invalidate(companyAbsencesProvider) : _refresh,
+              ),
               if (data.errors.containsKey('approvals')) RetryLine(label: '미결 결재', onTap: _refresh) else ApprovalsSection(total: data.approvals?.$1 ?? 0, items: data.approvals?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals')),
               if (data.errors.containsKey('inbox')) RetryLine(label: '메일', onTap: _refresh) else MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail')),
             ],

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:playground/briefing/briefing_provider.dart';
+import 'package:playground/gw/gw_org_absences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:playground/api/client.dart';
@@ -13,7 +15,7 @@ import '../gw/fakes.dart';
 import 'briefing_provider_test.dart' show AppApi, gwAll, gwRoutes;
 
 /// 홈 화면 통합 — 수집·요약 배선. GW 연결 여부에 따라 Claude 호출(POST /api/mobile/briefing)이 달라진다.
-Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime Function()? clock}) async {
+Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime Function()? clock, Future<GwOrgAbsences> Function()? loadCompany}) async {
   SharedPreferences.setMockInitialValues({});
   final auth = FakeAuth()..current = session(expired: false);
   addTearDown(auth.ctrl.close);
@@ -25,6 +27,7 @@ Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime 
   });
   await tester.pumpWidget(ProviderScope(key: UniqueKey(), overrides: [
     if (clock != null) briefingClockProvider.overrideWithValue(clock),
+    if (loadCompany != null) companyAbsencesProvider.overrideWith((ref) => loadCompany()),
     authClientProvider.overrideWithValue(auth),
     sessionFetcherProvider.overrideWithValue((_, {required record}) async => user),
     apiClientProvider.overrideWithValue(app.client),
@@ -36,6 +39,50 @@ Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime 
 }
 
 void main() {
+  testWidgets('전체 토글: 부재자가 없어도 보이고, 켤 때만 회사 전체 조회·끄면 소속 복원', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 1800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    var calls = 0;
+    final app = await pumpHome(tester, creds: testCreds, loadCompany: () async {
+      calls++;
+      return const GwOrgAbsences(scopeName:'회사 전체',isCenter:false,members:[GwOrgMemberStatus('other','다른팀원','외근')]);
+    });
+    expect(calls, 0);
+    await tester.ensureVisible(find.byType(FilterChip));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(FilterChip)); await tester.pumpAndSettle();
+    expect(calls, 1);
+    expect(find.text('회사 전체 부재'), findsOneWidget);
+    expect(find.text('다른팀원 · 외근'), findsOneWidget);
+    expect(tester.widget<FilterChip>(find.byType(FilterChip)).selected, true);
+    await tester.tap(find.byType(FilterChip)); await tester.pumpAndSettle();
+    expect(find.text('팀원 부재'), findsOneWidget);
+    expect(find.text('다른팀원 · 외근'), findsNothing);
+    expect(tester.widget<FilterChip>(find.byType(FilterChip)).selected, false);
+    expect(app.calls['/api/mobile/briefing'], 1, reason:'전체 목록 전환은 소속 기준 브리핑을 바꾸지 않는다');
+    await tester.tap(find.byType(FilterChip)); await tester.pumpAndSettle();
+    expect(calls, 2, reason:'다시 켜면 최신 상태를 조회한다');
+  });
+
+  testWidgets('전체 조회 실패는 오류·재시도를 표시하고 소속 목록으로 돌아갈 수 있다', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 1800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    var calls = 0;
+    await pumpHome(tester, creds: testCreds, loadCompany: () async {
+      if (++calls == 1) throw StateError('offline');
+      return const GwOrgAbsences(scopeName:'회사 전체',isCenter:false,members:[]);
+    });
+    await tester.ensureVisible(find.byType(FilterChip));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(FilterChip)); await tester.pumpAndSettle();
+    expect(find.text('조직도 상태를 불러오지 못했습니다 · 다시 시도'), findsOneWidget);
+    await tester.tap(find.text('조직도 상태를 불러오지 못했습니다 · 다시 시도')); await tester.pumpAndSettle();
+    expect(calls, 2);
+    expect(find.text('현재 부재자가 없습니다.'), findsOneWidget);
+    await tester.tap(find.byType(FilterChip)); await tester.pumpAndSettle();
+    expect(find.text('팀원 부재'), findsOneWidget);
+  });
+
   testWidgets('07:00 타이머가 다음 날에도 원본 데이터와 브리핑을 다시 수집한다', (tester) async {
     var now = DateTime.utc(2026, 10, 6, 6, 59);
     final app = await pumpHome(tester, creds: testCreds, clock: () => now);

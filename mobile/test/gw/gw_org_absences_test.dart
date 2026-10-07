@@ -42,6 +42,17 @@ Gw source(Map<String, List<Map<String, dynamic>>> rows) => Gw({
 });
 
 void main() {
+  test('전체 조회는 같은 회사의 다른 센터까지 포함하고 타 회사는 제외한다', () async {
+    final gw = source({
+      '20':[person('7','20',''),person('8','20','연차')],
+      '201':[person('9','201','외근'),person('10','201','출장',comp:'other')],
+    });
+    final r = await gw.api().organizationAbsences(allCompany: true);
+    expect(r.scopeName, '회사 전체');
+    expect(r.members.map((m)=>m.empSeq), unorderedEquals(['8','9']));
+    expect(gw.calls['/gw/APIHandler/gw102A02']!.map((b)=>b['selectedId']), contains('201'));
+  });
+
   for (final duty in ['팀원', '팀장']) {
     test('$duty: 소속 부서만 조회하고 다른 조직·자기 자신·빈 태그를 제외한다', () async {
       final gw = source({
