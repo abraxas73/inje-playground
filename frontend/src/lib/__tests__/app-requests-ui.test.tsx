@@ -40,3 +40,16 @@ it('관리자는 실제 등록 완료 확인 후에만 완료 처리한다',asyn
  const call=fetch.mock.calls.find(x=>x[1]?.method==='PATCH')!;
  expect(JSON.parse(call[1]!.body as string)).toEqual({revision:1,status:'approved',note:''});
 });
+it('처리 중 신청은 상태를 그대로 두고 안내만 저장한다',async()=>{
+ const fetch=vi.fn().mockImplementation(async(_url:string,init?:RequestInit)=>Response.json(init?.method==='PATCH'?{item:{...row,status:'processing'}}:{items:[{...row,status:'processing',applicant:{name:'김사용',email:'work@example.com'}}],total:1}));
+ vi.stubGlobal('fetch',fetch);render(<AdminPage/>);
+ await screen.findByText('김사용 · iOS');
+ expect(screen.getByLabelText('처리 결과')).toHaveValue('processing');
+ expect(screen.queryByRole('checkbox')).toBeNull();
+ fireEvent.change(screen.getByLabelText('신청자에게 보여줄 안내'),{target:{value:'초대 수락 대기 중입니다.'}});
+ fireEvent.click(screen.getByRole('button',{name:'처리 결과 저장'}));
+ await waitFor(()=>expect(fetch.mock.calls.some(x=>x[1]?.method==='PATCH')).toBe(true));
+ await act(async()=>{});
+ const call=fetch.mock.calls.find(x=>x[1]?.method==='PATCH')!;
+ expect(JSON.parse(call[1]!.body as string)).toEqual({revision:1,status:'processing',note:'초대 수락 대기 중입니다.'});
+});

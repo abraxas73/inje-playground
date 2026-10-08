@@ -71,3 +71,14 @@ it('관리자 목록은 필터와 페이지를 적용하고 신청자를 함께 
   expect((await res.json()).items[0].applicant.name).toBe('신청자');
   expect(m.calls).toContainEqual(['eq','status','pending']);expect(m.calls).toContainEqual(['range',50,99]);
 });
+it('처리 중 안내만 수정할 때 상태와 기존 처리일을 유지하고 충돌을 방지한다',async()=>{
+  m.results=[{data:{status:'processing',revision:2},error:null},{data:{id},error:null}];
+  expect((await patch({status:'processing',note:'초대 수락 대기',revision:2})).status).toBe(200);
+  const update=m.calls.find(x=>x[0]==='update')?.[1];
+  expect(update).toMatchObject({status:'processing',admin_note:'초대 수락 대기',revision:3});
+  expect(update).not.toHaveProperty('reviewed_at');expect(update).not.toHaveProperty('reviewed_by');
+  expect(m.calls).toContainEqual(['eq','revision',2]);
+  m.calls=[];m.results=[{data:{status:'processing',revision:3},error:null}];
+  expect((await patch({status:'processing',note:'오래된 안내',revision:2})).status).toBe(409);
+  expect(m.calls.some(x=>x[0]==='update')).toBe(false);
+});
