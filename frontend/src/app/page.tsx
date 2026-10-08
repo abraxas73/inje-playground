@@ -140,22 +140,22 @@ export default function HomePage() {
       {loading && <p role="status" className="text-center text-sm text-muted-foreground">접근 권한을 확인하고 있습니다.</p>}
       {error && <p role="alert" className="text-center text-sm text-destructive">접근 권한을 확인하지 못했습니다. 페이지를 새로고침해 주세요.</p>}
       {!loading && !error && !visibleFeatures.length && <p className="text-center text-sm text-muted-foreground">표시할 서비스가 없습니다. 접근 권한은 관리자에게 문의해 주세요.</p>}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))] gap-3">
         {visibleFeatures.map((feature) => {
           const Icon = feature.icon;
           return (
             <Link key={feature.href} href={feature.href} className={`animate-fade-up ${feature.delay}`}>
-              <Card className="group h-full hover-glow cursor-pointer overflow-hidden relative">
+              <Card className="group h-full gap-0 py-4 hover-glow cursor-pointer overflow-hidden relative">
                 <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-[0.03] transition-opacity duration-500`} />
-                <CardHeader className="relative">
-                  <div className={`h-12 w-12 rounded-xl ${feature.bgAccent} flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300`}>
-                    <Icon className={`h-6 w-6 ${feature.iconColor}`} />
+                <CardHeader className="relative gap-2 px-4">
+                  <div className={`h-10 w-10 rounded-xl ${feature.bgAccent} flex items-center justify-center mb-1 group-hover:scale-110 transition-transform duration-300`}>
+                    <Icon className={`h-5 w-5 ${feature.iconColor}`} />
                   </div>
-                  <CardTitle className="flex items-center justify-between">
+                  <CardTitle className="flex items-center justify-between text-base">
                     {feature.title}
                     <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
                   </CardTitle>
-                  <CardDescription className="leading-relaxed">{feature.description}</CardDescription>
+                  <CardDescription className="leading-relaxed text-sm">{feature.description}</CardDescription>
                 </CardHeader>
               </Card>
             </Link>

@@ -1,3 +1,4 @@
+import '../../app/service_card_grid.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -193,13 +194,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
 
             const SizedBox(height: 20),
             Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('바로 가기', style: theme.textTheme.titleSmall)),
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
-              childAspectRatio: 1.5,
+            ServiceCardGrid(
               children: [
                 // Teams 채팅이 맨 앞(사용자 요청) — 권한이 있을 때만. WebView로 연다.
                 if (session != null && canUsePage(session, teamsChatEntry))

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -64,7 +65,9 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
           });
         },
       ));
-    _setUserAgent().then((_) => _c.loadRequest(Uri.parse('${Config.apiBase}${widget.path}')));
+    _setUserAgent().then((_) {
+      if (mounted) _c.loadRequest(Uri.parse('${Config.apiBase}${widget.path}'));
+    });
     if (Platform.isAndroid) {
       (_c.platform as AndroidWebViewController).setOnShowFileSelector((params) async {
         if (params.mode == FileSelectorMode.openMultiple) {
@@ -144,8 +147,10 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
       final url = await webBootstrapUrl(ref.read(apiClientProvider), Config.apiBase, nextPath.startsWith('/') ? nextPath : widget.path);
       await _c.loadRequest(Uri.parse(url));
     } on ApiException catch (e) {
+      if (!mounted) return;
       setState(() { _loading = false; _error = e.message; });
     } catch (e) {
+      if (!mounted) return;
       setState(() { _loading = false; _error = '로그인 상태를 만들지 못했습니다: $e'; });
     }
   }
@@ -164,20 +169,33 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
     _c.loadRequest(Uri.parse('${Config.apiBase}${widget.path}'));
   }
 
+  Future<void> _goBack() async {
+    final canGoBack = await _c.canGoBack();
+    if (!mounted) return;
+    if (canGoBack) {
+      _back.begin();
+      await _c.goBack();
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
-  Widget build(BuildContext context) => PopScope(
+  Widget build(BuildContext context) => CallbackShortcuts(
+    bindings: Platform.isMacOS ? {
+      const SingleActivator(LogicalKeyboardKey.keyR, meta: true): () => unawaited(_reload()),
+      const SingleActivator(LogicalKeyboardKey.bracketLeft, meta: true): () => unawaited(_goBack()),
+    } : {},
+    child: Focus(
+      autofocus: Platform.isMacOS,
+      child: PopScope(
         canPop: false,
-        onPopInvokedWithResult: (didPop, _) async {
-          if (didPop) return;
-          if (await _c.canGoBack()) {
-            _back.begin();
-            _c.goBack();
-          } else if (context.mounted) {
-            Navigator.of(context).pop();
-          }
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) unawaited(_goBack());
         },
         child: Scaffold(
           appBar: AppBar(
+            leading: BackButton(onPressed: _goBack),
             title: Text(webTitleFor(title: _title, loading: _loading, path: widget.path), overflow: TextOverflow.ellipsis),
             actions: [
               IconButton(icon: const Icon(Icons.refresh), tooltip: '새로고침', onPressed: _reload),
@@ -193,5 +211,7 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
                 ])))
               : WebViewWidget(controller: _c),
         ),
-      );
+      ),
+    ),
+  );
 }

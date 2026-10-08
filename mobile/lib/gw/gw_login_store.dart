@@ -10,7 +10,10 @@ class GwLogin {
 /// iOS Keychain · Android Keystore(flutter_secure_storage). 토큰(shared_preferences)보다 민감해서 따로 둔다.
 class GwLoginStore {
   static const _id = 'gw.loginId', _pw = 'gw.loginPw';
-  final _s = const FlutterSecureStorage();
+  final _s = const FlutterSecureStorage(
+    // The desktop app does not share credentials with other apps.
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
   Future<GwLogin?> load() async {
     final id = await _s.read(key: _id), pw = await _s.read(key: _pw);
     if (id == null || id.isEmpty) return null;
