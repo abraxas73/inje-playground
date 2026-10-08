@@ -172,6 +172,13 @@ export const manualSections: ManualSection[] = [
     links: [{ href: "/settings#app-request", label: "앱 사용 신청" }],
   },
   {
+    id: "desktop-install", title: "데스크톱 앱 설치·다운로드", category: "시작하기",
+    description: "Mac과 Windows에서 이노크루 앱을 설치하고 사용합니다.",
+    steps: ["아래 앱 설치·다운로드 메뉴에서 운영체제에 맞는 설치 파일과 현재 버전을 확인합니다.", "macOS는 DMG를 열어 INNOGRID를 Applications 폴더로 옮긴 뒤 실행합니다. macOS 12 이상이며 Apple Silicon과 Intel을 지원합니다.", "Windows는 설치 파일을 실행한 뒤 시작 메뉴에서 INNOGRID를 엽니다. Windows 10 1809 이상 또는 11, x64 환경과 Microsoft Edge WebView2 Runtime이 필요합니다.", "Microsoft 계정으로 로그인하고 브라우저의 앱 열기를 허용합니다. 아마란스는 앱에서 별도로 연결합니다.", "업데이트할 때는 앱을 종료하고 이 페이지의 새 설치 파일로 다시 설치합니다."],
+    note: "Windows는 내부 테스트 버전입니다. 아직 설치 파일이 배포되지 않았다면 준비 중으로 표시됩니다.",
+    links: [{ href: "/apps#desktop", label: "데스크톱 앱 다운로드" }],
+  },
+  {
     id: "apps", title: "모바일 앱 설치와 업데이트", category: "모바일 앱",
     description: "설치 안내 페이지에서 iPhone과 Android 앱의 최신 배포 정보를 확인합니다.",
     steps: ["웹 ‘모바일 앱’ 페이지에 로그인하고 현재 버전·변경 내용을 확인합니다.", "iPhone은 안내된 TestFlight 링크를 열어 참여·설치합니다. 링크가 아직 없다면 관리자에게 배포 상태를 문의합니다.", "Android는 ‘Google Play에서 열기’를 누르고 내부 테스터로 등록된 Google 계정으로 테스트에 참여한 뒤 설치·업데이트합니다.", "앱에서 Microsoft 로그인 후 홈과 서비스 메뉴를 이용합니다. 아마란스는 별도로 연결해야 합니다. 더보기 상단에는 이름과 연결된 Microsoft 계정의 프로필 사진이 표시되며, 사진이 없으면 이름의 첫 글자가 표시됩니다.", "홈의 업데이트 배너 또는 더보기의 앱 버전에서 새 버전을 확인합니다. Android 업데이트 버튼은 Google Play 내부 테스트로 이동합니다."],

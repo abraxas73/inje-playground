@@ -56,3 +56,17 @@ Release 빌드 → 내부 바이너리와 앱 서명 → 앱 공증/티켓 첨�
 Xcode 27의 다중 `lipo -verify_arch` 오류는 Flutter assembly 단계에만 적용하는
 `scripts/macos-toolchain/lipo`로 우회한다. 요청한 아키텍처 각각을 원래 lipo로
 검증하며, 하나라도 없으면 빌드가 실패한다. 시스템 도구나 Flutter SDK는 수정하지 않는다.
+
+### Windows 내부 테스트 설치 파일
+
+Windows 10 1809 이상 / Windows 11 x64를 대상으로 한다. macOS에서 크로스 빌드하지 않고 `.github/workflows/windows-app.yml`의 Windows runner에서 빌드한다. 수동 빌드는 Flutter 3.44.0, Visual Studio 2022 C++ desktop workload, NuGet, Inno Setup 6 설치 후 `pwsh -File scripts/build-windows.ps1`로 실행한다.
+
+산출물: `build/windows/distribution/INNOGRID-Windows-<version>-Setup.exe`와 SHA-256. 설치 프로그램은 사용자별 설치 및 `innogrid://` 로그인 콜백 주소를 등록한다. WebView2 Runtime이 필요하며, 미설치 시 앱 웹 화면에 설치 안내가 표시된다. 현재 Windows 설치 파일은 코드 서명 전 내부 테스트용이다.
+
+Windows 웹 화면은 WebView2, macOS/iOS/Android는 기존 WebView 엔진을 사용한다. Windows 웹 프로필은 앱 실행·로그아웃마다 분리해 이전 사용자의 웹 인증 데이터를 재사용하지 않는다. 로그인을 포함한 실제 Windows 실행 검증은 별도 환경에서 진행한다. 확인 항목: 최초 설치/업데이트/삭제, Microsoft 로그인 앱 복귀(앱 실행 중/종료 중), Jira 재연결, 아마란스 연결·로그아웃·다른 사용자 전환, RFP 파일 선택·다운로드, Teams 입력, 마이크·위치 권한 및 실패 처리.
+
+### 웹 다운로드 게시
+
+웹의 `/manual#desktop-install` → `/apps#desktop`에서 배포 파일을 제공한다. 사내 사용자 권한 확인 후 private `desktop-releases` 버킷의 5분 서명 링크를 발급한다. 파일 검증 해시도 다운로드 페이지에 표시한다.
+
+`frontend` 디렉터리에서 `node --env-file=.env.local scripts/publish-desktop.mjs macos 1.4.5 /absolute/path/INNOGRID-macOS-1.4.5.dmg`를 실행한다. Windows는 첫 인자를 `windows`, 파일을 Setup.exe로 바꾼다. 게시 스크립트는 업로드 후 다시 다운로드해 SHA-256을 비교한 다음 배포 메타데이터를 갱신한다. 서명 키와 서비스 키는 배포 산출물·저장소에 포함하지 않는다.

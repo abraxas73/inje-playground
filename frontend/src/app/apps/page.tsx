@@ -1,5 +1,6 @@
 "use client";
 
+import { DesktopDownloads } from "./DesktopDownloads";
 import { useCallback, useEffect, useState } from "react";
 import { Apple, Download, Loader2, Smartphone } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,9 +45,12 @@ export function AppsPageView({ navigate = (url: string) => window.location.assig
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-bold">모바일 앱</h1>
-        <p className="text-sm text-muted-foreground">이노그리드 앱을 휴대폰에 설치하세요. 사내 구성원용 테스트 앱입니다.</p>
+        <h1 className="text-2xl font-bold">앱 설치·다운로드</h1>
+        <p className="text-sm text-muted-foreground">이노크루 앱을 Mac, Windows PC 또는 휴대폰에 설치하세요. 사내 구성원용 앱입니다.</p>
       </div>
+      <DesktopDownloads />
+      <h2 className="text-xl font-semibold">모바일 앱</h2>
+      <p className="text-sm text-muted-foreground">iPhone·Android는 먼저 설정에서 앱 사용을 신청하고 초대를 수락해 주세요.</p>
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error} <Button variant="link" size="sm" onClick={load}>다시 시도</Button>

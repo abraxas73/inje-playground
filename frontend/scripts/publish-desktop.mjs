@@ -1,0 +1,30 @@
+// From frontend: node --env-file=.env.local scripts/publish-desktop.mjs macos 1.4.5 /path/file.dmg
+import { createClient } from '@supabase/supabase-js';
+import { readFile } from 'node:fs/promises';
+import { basename } from 'node:path';
+import { createHash } from 'node:crypto';
+const [platform, version, file] = process.argv.slice(2);
+if (!['macos', 'windows'].includes(platform) || !/^\d+\.\d+\.\d+$/.test(version ?? '') || !file) throw new Error('platform version file required');
+const filename = basename(file);
+if (!/^INNOGRID-[A-Za-z0-9.+-]+\.(dmg|exe)$/.test(filename)) throw new Error('Invalid filename');
+const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+const bucket = 'desktop-releases';
+const { data: existing, error: bucketError } = await client.storage.getBucket(bucket);
+if (bucketError) {
+  const { error } = await client.storage.createBucket(bucket, { public: false, fileSizeLimit: 209715200 });
+  if (error) throw error;
+} else if (existing.public) throw new Error('Release bucket must be private');
+const body = await readFile(file), path = `${platform}/${version}/${filename}`;
+const sha256 = createHash('sha256').update(body).digest('hex');
+const { error: uploadError } = await client.storage.from(bucket).upload(path, body, { contentType: 'application/octet-stream', upsert: false });
+if (uploadError && String(uploadError.statusCode) !== '409') throw uploadError;
+const { data: downloaded, error: downloadError } = await client.storage.from(bucket).download(path);
+if (downloadError) throw downloadError;
+if (createHash('sha256').update(Buffer.from(await downloaded.arrayBuffer())).digest('hex') !== sha256) throw new Error('Uploaded file hash mismatch');
+const { data, error: readError } = await client.from('settings').select('value').eq('key', 'desktop_app_release').maybeSingle();
+if (readError) throw readError;
+const release = JSON.parse(data?.value ?? '{}');
+release[platform] = { version, filename, path, sha256, bytes: body.length, releasedAt: new Date().toISOString() };
+const { error } = await client.from('settings').upsert({ key: 'desktop_app_release', value: JSON.stringify(release) }, { onConflict: 'key' });
+if (error) throw error;
+console.log(JSON.stringify({ platform, filename, bytes: body.length, sha256, verified: true }));
