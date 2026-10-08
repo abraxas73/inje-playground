@@ -50,7 +50,7 @@ ASC 키 설정을 사용한다. 비밀 키는 저장소에 포함하지 않는�
 Release 빌드 → 내부 바이너리와 앱 서명 → 앱 공증/티켓 첨부 → Gatekeeper 검사
 → DMG 생성/서명 → DMG 공증/티켓 첨부 → 무결성 검사를 수행한다.
 공증이 Accepted가 아니면 중단하며, 서버 업로드나 외부 테스트 심사 제출은 하지 않는다.
-결과는 `build/macos/distribution/INNOGRID-macOS.dmg`과 SHA-256 파일이다.
+결과는 `build/macos/distribution/INNOGRID-macOS-<version>.dmg`과 SHA-256 파일이다.
 
 `./scripts/build-macos-preview.sh --preview`는 공증 전 로컬 QA용으로만 사용한다.
 Xcode 27의 다중 `lipo -verify_arch` 오류는 Flutter assembly 단계에만 적용하는

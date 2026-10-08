@@ -4,6 +4,7 @@ from pathlib import Path
 import hashlib
 import json
 import os
+import plistlib
 import shutil
 import subprocess
 import tempfile
@@ -68,7 +69,9 @@ def main():
         run('xcrun', 'stapler', 'validate', app)
         run('spctl', '--assess', '--type', 'execute', '--verbose=2', app)
         (stage / 'Applications').symlink_to('/Applications')
-        dmg = output / 'INNOGRID-macOS.dmg'
+        with (app / 'Contents/Info.plist').open('rb') as source:
+            version = plistlib.load(source)['CFBundleShortVersionString']
+        dmg = output / f'INNOGRID-macOS-{version}.dmg'
         # Build without mounting a temporary filesystem (Disk Arbitration may stall).
         hybrid = output / 'INNOGRID-hybrid.dmg'
         hybrid.unlink(missing_ok=True)
