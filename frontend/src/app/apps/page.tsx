@@ -4,6 +4,8 @@ import { DesktopDownloads } from "./DesktopDownloads";
 import { useCallback, useEffect, useState } from "react";
 import { Apple, Download, Loader2, Smartphone } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { REQUEST_STATUS, type AppRequest, type AppPlatform } from "@/lib/mobile/app-requests";
 import { Button } from "@/components/ui/button";
 
 type Platform = { version: string; build: number; releasedAt: string | null; url: string | null } | null;
@@ -18,29 +20,62 @@ async function fetchRelease(): Promise<Release> {
   return j;
 }
 
-/**
- * 모바일 앱 설치 안내(사내 전용, 스토어 미게시). iPhone은 TestFlight 공개 링크, Android는 Google Play 내부 테스트 링크.
- * 새 버전은 iOS는 TestFlight가, Android는 앱 안 배너가 알려 준다. 런북 docs/mobile-app.md §배포.
- */
+async function fetchRequests(): Promise<AppRequest[]> {
+  const res = await fetch("/api/mobile/app-requests", { cache: "no-store" });
+  const data = await res.json();
+  if (!res.ok || !Array.isArray(data.items)) throw new Error(data.error ?? "신청 상태를 불러오지 못했습니다.");
+  return data.items;
+}
+
 export function AppsPageView({ navigate = (url: string) => window.location.assign(url) }: { navigate?: (url: string) => void }) {
   const [rel, setRel] = useState<Release | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [requests, setRequests] = useState<AppRequest[] | null>(null);
+  const [requestLoading, setRequestLoading] = useState(true);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const loadRequests = useCallback(async () => {
+    setRequestLoading(true); setRequestError(null); setRequests(null);
+    try { setRequests(await fetchRequests()); }
+    catch (e) { setRequestError(e instanceof Error ? e.message : "신청 상태를 불러오지 못했습니다."); }
+    finally { setRequestLoading(false); }
+  }, []);
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try { setRel(await fetchRelease()); } catch (e) { setError(e instanceof Error ? e.message : "버전 정보를 불러오지 못했습니다."); } finally { setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); void loadRequests(); }, [load, loadRequests]);
   const openPlay = async () => {
     setBusy(true);
     setError(null);
     try {
+      const current = await fetchRequests();
+      setRequests(current);
+      if (current.find(item => item.platform === "android")?.status !== "approved") {
+        navigate("/settings#app-request"); return;
+      }
       const fresh = await fetchRelease();
       if (!fresh.android?.url) throw new Error("Google Play 링크를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
       navigate(fresh.android.url);
     } catch (e) { setError(e instanceof Error ? e.message : "Google Play 링크를 불러오지 못했습니다."); } finally { setBusy(false); }
+  };
+  const applicationAction = (platform: AppPlatform) => {
+    const item = requests?.find(x => x.platform === platform);
+    const approved = item?.status === "approved";
+    const title = requestError ? "신청 상태 확인" : !item ? (platform === "ios" ? "TestFlight 신청하기" : "앱 사용 신청하기")
+      : item.status === "rejected" ? "다시 신청하기" : approved ? "TestFlight 설치 안내" : "신청 상태 확인";
+    return <div className="space-y-3">
+      <Badge variant={item?.status === "rejected" ? "destructive" : "secondary"}>{requestLoading ? "상태 확인 중" : requestError ? "상태 확인 필요" : item ? REQUEST_STATUS[item.status] : "미신청"}</Badge>
+      {item && <p className="break-all text-xs text-muted-foreground">신청 계정: {item.store_email}</p>}
+      <div>{requestLoading ? <Button disabled>신청 상태 확인 중…</Button>
+        : platform === "android" && approved ? <Button onClick={openPlay} disabled={!rel?.android?.url || busy}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {rel?.android?.url ? `Google Play에서 열기 · ${label(rel.android)}` : "Google Play 준비 중"}
+        </Button> : <Button asChild><a href="/settings#app-request">{title}</a></Button>}</div>
+      {approved && platform === "android" && <a href="/settings#app-request" className="block text-sm text-primary hover:underline">신청 상태 확인</a>}
+    </div>;
   };
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
@@ -56,6 +91,7 @@ export function AppsPageView({ navigate = (url: string) => window.location.assig
           {error} <Button variant="link" size="sm" onClick={load}>다시 시도</Button>
         </p>
       )}
+      {requestError && <p role="alert" className="text-sm text-destructive">{requestError} <Button variant="link" size="sm" onClick={loadRequests}>신청 상태 다시 확인</Button></p>}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -67,7 +103,7 @@ export function AppsPageView({ navigate = (url: string) => window.location.assig
               <li>App Store에서 <b>TestFlight</b> 앱을 설치합니다.</li>
               <li>아래 버튼에서 iOS 앱 사용을 신청하고, 초대를 수락한 뒤 TestFlight에서 <b>설치</b>를 누릅니다.</li>
             </ol>
-            <Button asChild><a href="/settings#app-request">TestFlight 신청하기</a></Button>
+            {applicationAction("ios")}
           </CardContent>
         </Card>
         <Card>
@@ -77,13 +113,10 @@ export function AppsPageView({ navigate = (url: string) => window.location.assig
           </CardHeader>
           <CardContent className="space-y-3">
             <ol className="list-decimal space-y-1 pl-5 text-sm">
-              <li>내부 테스터로 등록된 Google 계정으로 로그인합니다.</li>
-              <li>아래 버튼에서 테스트에 참여한 뒤 Google Play에서 <b>설치</b> 또는 <b>업데이트</b>를 누릅니다.</li>
+              <li>앱 사용을 신청하고 등록 완료 후, 신청한 Google 계정으로 로그인합니다.</li>
+              <li>등록 완료되면 아래 Google Play 버튼에서 테스트에 참여한 뒤 <b>설치</b> 또는 <b>업데이트</b>를 누릅니다.</li>
             </ol>
-            <Button onClick={openPlay} disabled={!rel?.android || busy}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {rel?.android ? `Google Play에서 열기 · ${label(rel.android)}` : "Google Play 준비 중"}
-            </Button>
+            {applicationAction("android")}
           </CardContent>
         </Card>
       </div>
