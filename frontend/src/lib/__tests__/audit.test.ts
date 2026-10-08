@@ -17,10 +17,10 @@ describe("requestContext", () => {
 });
 
 describe("shouldAuditRequest", () => {
-  it("변경 요청만 기록한다", () => {
+  it("조회·변경 요청을 기록한다", () => {
     expect(shouldAuditRequest("POST", "/api/settings")).toBe(true);
     expect(shouldAuditRequest("delete", "/api/rfp/mappings/abc")).toBe(true);
-    expect(shouldAuditRequest("GET", "/api/settings")).toBe(false);
+    expect(shouldAuditRequest("GET", "/api/settings")).toBe(true);
     expect(shouldAuditRequest("POST", "/admin/audit")).toBe(false);
   });
   it("수집·프록시·자기기록·익명 설문은 빼고 기록한다", () => {
@@ -95,8 +95,8 @@ describe("kstRange", () => {
 });
 
 describe("searchOrFilter · pageRange", () => {
-  it("검색 대상 열 5개를 ilike로 잇는다", () => {
-    expect(searchOrFilter("kang")).toBe("action.ilike.*kang*,user_email.ilike.*kang*,user_name.ilike.*kang*,ip_address.ilike.*kang*,detail_text.ilike.*kang*");
+  it("검색 대상 열 6개를 ilike로 잇는다", () => {
+    expect(searchOrFilter("kang")).toBe("action.ilike.*kang*,user_email.ilike.*kang*,user_name.ilike.*kang*,ip_address.ilike.*kang*,detail_text.ilike.*kang*,user_agent.ilike.*kang*");
     expect(searchOrFilter(null)).toBeNull();
   });
   it("페이지는 0-based 끝 포함 범위", () => {

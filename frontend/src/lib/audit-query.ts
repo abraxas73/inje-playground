@@ -65,7 +65,7 @@ export function kstRange(from: string | null, to: string | null): { gte: string 
 export function searchOrFilter(q: string | null): string | null {
   if (!q) return null;
   const like = `*${q}*`;
-  return ["action", "user_email", "user_name", "ip_address", "detail_text"].map((c) => `${c}.ilike.${like}`).join(",");
+  return ["action", "user_email", "user_name", "ip_address", "detail_text", "user_agent"].map((c) => `${c}.ilike.${like}`).join(",");
 }
 
 /** 0-based range(끝 포함) */

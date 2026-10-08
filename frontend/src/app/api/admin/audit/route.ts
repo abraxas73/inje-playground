@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminClientOr500, requireAdmin } from "@/lib/claude-usage/require-admin";
 import { kstRange, pageRange, parseAuditQuery, searchOrFilter } from "@/lib/audit-query";
+import { auditPlatformFilter, parseAuditClient } from "@/lib/audit-client";
 import type { AuditResponse, AuditRow } from "@/types/audit";
 
 export const runtime = "nodejs";
@@ -40,6 +41,8 @@ export async function GET(request: NextRequest) {
   if (query.category) q = q.eq("category", query.category);
   if (gte) q = q.gte("at", gte);
   if (lte) q = q.lte("at", lte);
+  const platformFilter = auditPlatformFilter(request.nextUrl.searchParams.get("platform"));
+  if (platformFilter) q = q.or(platformFilter);
   const or = searchOrFilter(query.q);
   if (or) q = q.or(or);
 
@@ -62,6 +65,7 @@ export async function GET(request: NextRequest) {
     detail: r.detail ?? {},
     ipAddress: r.ip_address,
     userAgent: r.user_agent,
+    client: parseAuditClient(r.user_agent),
   }));
 
   const body: AuditResponse = { rows, total: count ?? rows.length, page: query.page, pageSize: query.pageSize, categories };

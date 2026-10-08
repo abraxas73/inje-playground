@@ -1,3 +1,4 @@
+import type { AuditClient } from "@/lib/audit-client";
 /** 어드민 Audit 로그(뷰 audit_log) 한 행 */
 export interface AuditRow {
   id: string;
@@ -13,6 +14,7 @@ export interface AuditRow {
   detail: Record<string, unknown>;
   ipAddress: string | null;
   userAgent: string | null;
+  client: AuditClient;
 }
 
 /** GET /api/admin/audit */

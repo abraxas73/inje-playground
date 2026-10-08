@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { GeistMono } from "geist/font/mono";
 import "./globals.css";
+import PageAudit from "@/components/layout/PageAudit";
 import Navigation from "@/components/layout/Navigation";
 import { isInnogridAppUA } from "@/lib/mobile/app-ua";
 
@@ -32,6 +33,7 @@ export default async function RootLayout({
       </head>
       <body className={`${geistMono.variable} antialiased`} data-app={inApp ? "1" : undefined}>
         <div className="min-h-screen dot-grid">
+          <PageAudit />
           <Navigation chromeless={inApp} />
           <main className={inApp ? "max-w-full mx-auto px-4 py-4 pb-8" : "max-w-full mx-auto px-4 md:px-8 py-6 md:py-8 pb-20 md:pb-8"}>{children}</main>
         </div>

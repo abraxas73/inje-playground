@@ -10,7 +10,7 @@
 | 로그인 실패 | `action_history` (`detail.result` = `failure`·`blocked`) | 콜백의 세 갈래 실패(공급자 거절 `?error=`, 코드 교환 실패, 코드 없음)와 GW 로그인 실패·차단(사내 이메일 아님·GW 인증 실패·세션 무효·관리자 GW 금지·세션 발급 실패), 그리고 화면에서 `signInWithOAuth`가 오류를 낸 경우 |
 | 로그인 시도 | `action_history` (`detail.result` = `attempt`) | 로그인 화면에서 Google·Microsoft 버튼을 눌러 리다이렉트하기 직전(`keepalive` fetch) |
 | 액션 | `action_history` (`source='app'`) | 화면의 `logAction()`(사다리·팀·뭐먹지)과 서버 라우트의 `logAudit()` — 뜻이 있는 행위에 사람이 읽는 이름을 붙인다 |
-| API 호출 | `action_history` (`source='api'`) | proxy(`lib/supabase-middleware.ts` → `lib/audit-proxy.ts`)가 로그인 사용자의 **변경 요청**(POST·PUT·PATCH·DELETE)을 자동으로 남긴다 |
+| API 호출 | `action_history` (`source='api'`) | proxy(`lib/supabase-middleware.ts` → `lib/audit-proxy.ts`)가 로그인 사용자의 **조회·변경 요청**(GET·POST·PUT·PATCH·DELETE)을 자동으로 남긴다 |
 
 로그인 시도·실패는 세션이 없어(익명) `login_history`에 남길 수 없다. 그래서 `action_history`에 category `auth`로 남기고, **무엇이었는지는 `detail.result`(attempt·failure·blocked)** 로 표시한다 — 뷰가 그 값으로 kind를 나누므로 화면 문구를 바꿔도 조회가 깨지지 않는다. 실패 사유는 `detail.reason`(200자), 공급자는 `detail.provider`(google·azure·gw·unknown)이고 아는 경우 이메일은 `user_email`에 넣어 검색된다.
 
@@ -43,3 +43,13 @@
 - "API 호출"이 많아 눈에 걸리면 구분을 "액션"·"로그인"으로 좁힌다.
 - 보존 정책은 아직 없다(무기한). 행이 많아지면 `action_history`를 기간으로 지우는 배치를 검토한다 — 인덱스 `action_history_created_at_idx`가 있다.
 - 침입 흔적을 볼 때는 구분 "로그인 실패"로 좁히고 IP로 검색한다. "로그인 시도" 대비 "로그인"(성공)이 없는 IP·이메일이 눈에 걸리는 조합이다.
+
+## 플랫폼 및 페이지 접근 (2026-10-08)
+
+- 로그인·액션·API 로그의 기존 `user_agent`를 공통 파서로 해석해 플랫폼(Windows/macOS/iOS/Android/Linux), 앱/앱 WebView/웹 브라우저, 앱 버전·빌드 및 브라우저를 표시한다. CSV에도 별도 열로 제공한다.
+- 기존 이력도 조회 시 해석한다. iOS의 `Mac OS X`나 Android의 `Linux`보다 실제 플랫폼을 우선하고, 앱이 선언한 플랫폼이 WebView UA보다 우선한다. 정보가 없으면 추측하지 않고 알 수 없음으로 표시한다. iPad의 데스크톱 모드처럼 UA만으로 구별할 수 없는 환경은 제한이 있다.
+- 플랫폼 필터는 서버에서 페이지네이션 전에 적용하며 과거 로그에도 적용된다. 검색 대상에 원본 User-Agent를 추가했다(예: Windows, macOS, iOS, Android, InnogridApp, 앱 버전). 앱 새 빌드는 `InnogridBuild/<build>`도 전송한다.
+- 웹은 실제 pathname 변경 시, 네이티브 앱은 확정된 라우터 이동 시 `POST /api/page-views`로 기록한다. `page` 카테고리에서 조회한다. WebView는 웹에서 기록하므로 앱의 `/web` 진입은 중복 기록하지 않는다.
+- 페이지 접근은 로그인 사용자만 기록하며 쿼리·해시는 제거한다. 로그인·OAuth 경로, 익명 설문과 공개 공유 링크는 제외한다. API도 요청 본문·쿼리를 저장하지 않는다.
+- GET API도 기록하되 Audit 조회 자체·페이지 수집 API 및 기존 제외 목록은 기록하지 않는다. API 기록은 요청 발생을 뜻하며 처리 성공을 보증하지 않는다.
+- 플랫폼 정보는 클라이언트가 보낸 진단 정보이며 권한 판정에 사용하지 않는다. DB 스키마 변경은 없다.

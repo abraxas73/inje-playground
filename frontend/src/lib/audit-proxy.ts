@@ -1,5 +1,5 @@
 /**
- * proxy(구 middleware)에서 변경 요청을 자동으로 감사 기록한다 — 라우트마다 손으로 넣지 않아도
+ * proxy(구 middleware)에서 조회·변경 요청을 자동으로 감사 기록한다 — 라우트마다 손으로 넣지 않아도
  * "누가 언제 무엇을 바꿨는지"가 남는다(source "api"). 의미 있는 행위 이름은 라우트가 따로 `logAudit`으로 남긴다.
  *
  * 기록하지 않는 것
@@ -11,10 +11,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAudit } from "./audit";
 
-const AUDITED_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const AUDITED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
 /** 앞부분이 일치하면 자동 기록에서 뺀다 */
 const SKIP_PREFIXES = [
+  "/api/admin/audit",
+  "/api/page-views",
+  "/api/rfp/shared/",
+  "/api/ppt/shared/",
   "/api/otel/",
   "/api/cron/",
   "/api/action-history",
