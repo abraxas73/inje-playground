@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import '../web/app_webview.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../api/client.dart';
@@ -21,7 +22,7 @@ class WebScreen extends ConsumerStatefulWidget {
 }
 
 class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserver {
-  late final WebViewController _c;
+  late final AppWebController _c;
   final _origin = Uri.parse(Config.apiBase);
   String _title = '';
   bool _loading = true;
@@ -39,9 +40,9 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _c = WebViewController()
+    _c = AppWebController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(NavigationDelegate(
+      ..setNavigationDelegate(AppNavigationDelegate(
         onNavigationRequest: _onNav,
         onPageStarted: (u) {
           if (!mounted) return;
@@ -252,7 +253,7 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
                   const SizedBox(height: 12),
                   FilledButton(onPressed: _retry, child: const Text('다시 시도')),
                 ])))
-              : WebViewWidget(controller: _c),
+              : _c.build(context),
         ),
       ),
     ),

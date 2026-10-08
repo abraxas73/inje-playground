@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import '../web/app_webview.dart';
 import '../assistant/assistant_session.dart';
 import '../briefing/briefing_provider.dart';
 import '../briefing/summary_provider.dart';
@@ -139,8 +139,7 @@ class SessionNotifier extends AsyncNotifier<AppSession?> {
   /// 앱 세션 종료 + WebView 쿠키·localStorage 정리(같은 기기에서 다른 계정이 이전 사용자의 웹 세션·설정을 보지 않게).
   Future<void> signOut() async {
     try {
-      await WebViewCookieManager().clearCookies();
-      await WebViewController().clearLocalStorage();
+      await AppWebController.clearSession();
     } catch (_) {}
     await _clearUserData();
     await _auth.signOut();

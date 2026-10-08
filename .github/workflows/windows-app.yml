@@ -1,0 +1,31 @@
+name: Windows app
+on:
+  workflow_dispatch:
+  push:
+    branches: [abraxas73/mobile]
+    paths: ['mobile/**', '.github/workflows/windows-app.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          channel: stable
+          cache: true
+      - name: Install packaging tools
+        shell: pwsh
+        run: choco install innosetup nuget.commandline -y --no-progress
+      - name: Build installer
+        shell: pwsh
+        run: ./mobile/scripts/build-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: INNOGRID-Windows
+          path: mobile/build/windows/distribution/*
+          if-no-files-found: error
+          retention-days: 30
