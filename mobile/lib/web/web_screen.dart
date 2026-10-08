@@ -247,13 +247,14 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
             ],
             bottom: _loading ? const PreferredSize(preferredSize: Size.fromHeight(2), child: LinearProgressIndicator(minHeight: 2)) : null,
           ),
-          body: _error != null
-              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+          body: Stack(fit: StackFit.expand, children: [
+            Offstage(offstage: _error != null, child: _c.build(context)),
+            if (_error != null) Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Text(_error!, textAlign: TextAlign.center),
                   const SizedBox(height: 12),
                   FilledButton(onPressed: _retry, child: const Text('다시 시도')),
-                ])))
-              : _c.build(context),
+                ]))),
+          ]),
         ),
       ),
     ),
