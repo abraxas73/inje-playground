@@ -64,6 +64,7 @@ class AppWebController {
   }
 
   Future<void> loadRequest(Uri url) async {
+    if (native == null && _unavailable) return;
     if (native != null) {
       await native!.loadRequest(url);
       return;
@@ -73,12 +74,15 @@ class AppWebController {
     );
   }
 
-  Future<String?> getUserAgent() async => native != null
+  Future<String?> getUserAgent() async => _unavailable && native == null
+      ? null
+      : native != null
       ? native!.getUserAgent()
       : (await (await _ready.future).evaluateJavascript(
           source: 'navigator.userAgent',
         ))?.toString();
   Future<void> setUserAgent(String value) async {
+    if (native == null && _unavailable) return;
     if (native != null) {
       await native!.setUserAgent(value);
       return;
@@ -90,16 +94,29 @@ class AppWebController {
 
   Future<String?> getTitle() async =>
       native != null ? native!.getTitle() : (await _ready.future).getTitle();
-  Future<String?> currentUrl() async => native != null
+  Future<String?> currentUrl() async => _unavailable && native == null
+      ? null
+      : native != null
       ? native!.currentUrl()
       : (await (await _ready.future).getUrl())?.toString();
-  Future<void> reload() async =>
-      native != null ? native!.reload() : (await _ready.future).reload();
-  Future<bool> canGoBack() async =>
-      native != null ? native!.canGoBack() : (await _ready.future).canGoBack();
+  Future<void> reload() async {
+    if (native == null && _unavailable) return;
+    if (native != null) {
+      await native!.reload();
+    } else {
+      await (await _ready.future).reload();
+    }
+  }
+
+  Future<bool> canGoBack() async => _unavailable && native == null
+      ? false
+      : native != null
+      ? native!.canGoBack()
+      : (await _ready.future).canGoBack();
   Future<void> goBack() async =>
       native != null ? native!.goBack() : (await _ready.future).goBack();
   Future<void> runJavaScript(String source) async {
+    if (native == null && _unavailable) return;
     if (native != null) {
       await native!.runJavaScript(source);
       return;
@@ -108,7 +125,9 @@ class AppWebController {
   }
 
   Future<Object> runJavaScriptReturningResult(String source) async =>
-      native != null
+      _unavailable && native == null
+      ? ''
+      : native != null
       ? native!.runJavaScriptReturningResult(source)
       : (await (await _ready.future).evaluateJavascript(source: source)) ?? '';
 
@@ -188,12 +207,16 @@ class AppWebController {
   }
 
   static Future<void> clearSession() async {
-    await clearCookies();
     if (Platform.isWindows) {
-      // Each app session gets a separate profile; no previous user's web storage is reused.
-      await _environment?.dispose();
+      // Rotate even if old-profile cleanup fails; never reuse another user's web session.
+      try {
+        await clearCookies();
+        await _environment?.dispose();
+      } catch (_) {}
+      _environment = null;
       await initializeWindows();
     } else {
+      await clearCookies();
       await WebViewController().clearLocalStorage();
     }
   }
