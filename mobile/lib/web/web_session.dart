@@ -11,7 +11,7 @@ class WebNavPolicy {
     final p = target.path;
     if (p == '/api/ms/connect' || p == '/api/jira/connect') return NavAction.oauthConnect;
     if (p == '/login' || p.startsWith('/login/')) return NavAction.loginRedirect;
-    if (p.endsWith('/file') || _fileExt.any((e) => p.toLowerCase().endsWith(e))) return NavAction.external;
+    if (p.endsWith('/file') || p.endsWith('/xlsx') || _fileExt.any((e) => p.toLowerCase().endsWith(e))) return NavAction.external;
     return NavAction.inApp;
   }
 }
@@ -73,4 +73,15 @@ class BackTracker {
     _at = null;
     return at != null && _now().difference(at) <= window;
   }
+}
+
+/// Only same-origin HTTP(S) destinations may receive an authenticated bootstrap.
+String? browserSessionPath(Uri target, {required Uri appOrigin}) {
+  if ((target.scheme != 'http' && target.scheme != 'https') ||
+      target.origin != appOrigin.origin) {
+    return null;
+  }
+  if (isSessionBoundary(target.toString(), appOrigin: appOrigin)) return null;
+  return Uri(path: target.path, query: target.hasQuery ? target.query : null,
+      fragment: target.hasFragment ? target.fragment : null).toString();
 }

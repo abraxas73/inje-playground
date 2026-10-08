@@ -3,6 +3,17 @@ import 'package:playground/web/web_session.dart';
 
 void main() {
   final origin = Uri.parse('https://inje-playground.vercel.app');
+  test('browser session keeps local path but never bootstraps external origins', () {
+    expect(browserSessionPath(origin.resolve('/rfp/123?tab=files#results'), appOrigin: origin),
+        '/rfp/123?tab=files#results');
+    for (final target in ['https://other.test/rfp', 'http://inje-playground.vercel.app/rfp',
+      'https://inje-playground.vercel.app:444/rfp', 'blob:https://inje-playground.vercel.app/id',
+      'file:///tmp/private', 'https://inje-playground.vercel.app/auth/mobile']) {
+      expect(browserSessionPath(Uri.parse(target), appOrigin: origin), isNull);
+    }
+    expect(WebNavPolicy.decide(origin.resolve('/api/rfp/projects/123/xlsx'), appOrigin: origin),
+        NavAction.external);
+  });
   test('Microsoft 연결은 동일 오리진에서만 별도 브라우저 세션으로 시작한다', () {
     expect(WebNavPolicy.decide(origin.resolve('/api/jira/connect'), appOrigin: origin), NavAction.oauthConnect);
     expect(WebNavPolicy.decide(origin.resolve('/api/ms/connect?returnTo=%2Fsettings'), appOrigin: origin), NavAction.oauthConnect);

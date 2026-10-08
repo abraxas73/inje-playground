@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../api/client.dart';
 import '../config.dart';
@@ -31,6 +32,7 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
   Timer? _errTimer;
   final _back = BackTracker();
   bool _openingOAuth = false;
+  bool _openingBrowser = false;
   bool _refreshAfterOAuth = false;
 
   @override
@@ -53,6 +55,17 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
           setState(() { _loading = true; _error = null; });
         },
         onPageFinished: (_) async {
+          if (Platform.isMacOS) {
+            try {
+              await const MethodChannel('com.innogrid.playground/webview').invokeMethod<void>(
+                'enableFilePicker', (_c.platform as WebKitWebViewController).webViewIdentifier);
+            } on PlatformException catch (_) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('파일 선택창을 준비하지 못했습니다. 브라우저로 열어 이용해 주세요.')));
+              }
+            }
+          }
           final t = await _c.getTitle();
           if (mounted) setState(() { _loading = false; _title = t ?? ''; });
         },
@@ -101,11 +114,41 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
       case NavAction.inApp:
         return NavigationDecision.navigate;
       case NavAction.external:
-        launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (req.isMainFrame) unawaited(_openInBrowser(uri));
         return NavigationDecision.prevent;
       case NavAction.loginRedirect:
         _bootstrap(uri.queryParameters['next'] ?? widget.path);
         return NavigationDecision.prevent;
+    }
+  }
+
+  Future<void> _openInBrowser([Uri? destination]) async {
+    if (_openingBrowser) return;
+    setState(() => _openingBrowser = true);
+    try {
+      var target = destination ?? Uri.tryParse(await _c.currentUrl() ?? '') ??
+          _origin.resolve(widget.path);
+      if (!target.hasScheme || isSessionBoundary(target.toString(), appOrigin: _origin)) {
+        target = _origin.resolve(widget.path);
+      }
+      // Blob URLs belong to the WebView process; open the source page instead.
+      if (target.scheme == 'blob') {
+        target = Uri.tryParse(await _c.currentUrl() ?? '') ?? _origin.resolve(widget.path);
+      }
+      final next = browserSessionPath(target, appOrigin: _origin);
+      final url = next == null ? target : Uri.parse(await webBootstrapUrl(
+        ref.read(apiClientProvider), Config.apiBase, next));
+      if (!mounted) return;
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        throw StateError('Browser unavailable');
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('브라우저로 열지 못했습니다. 다시 시도해 주세요.')));
+      }
+    } finally {
+      if (mounted) setState(() => _openingBrowser = false);
     }
   }
 
@@ -199,7 +242,7 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
             title: Text(webTitleFor(title: _title, loading: _loading, path: widget.path), overflow: TextOverflow.ellipsis),
             actions: [
               IconButton(icon: const Icon(Icons.refresh), tooltip: '새로고침', onPressed: _reload),
-              IconButton(icon: const Icon(Icons.open_in_browser), tooltip: '브라우저로 열기', onPressed: () => launchUrl(Uri.parse('${Config.apiBase}${widget.path}'), mode: LaunchMode.externalApplication)),
+              IconButton(icon: const Icon(Icons.open_in_browser), tooltip: '브라우저로 열기', onPressed: _openingBrowser ? null : () => _openInBrowser()),
             ],
             bottom: _loading ? const PreferredSize(preferredSize: Size.fromHeight(2), child: LinearProgressIndicator(minHeight: 2)) : null,
           ),
