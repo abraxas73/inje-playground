@@ -172,7 +172,7 @@ export default function TeamsChatPage() {
         </div>
       </Card>
 
-      <Card className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", !chatId && "hidden md:flex")}>
+      <Card className={cn("flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden py-0", !chatId && "hidden md:flex")}>
         {!current ? (
           <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">왼쪽에서 채팅을 고르세요.</div>
         ) : (
@@ -187,7 +187,7 @@ export default function TeamsChatPage() {
                 <Button asChild variant="outline" size="sm"><a href={current.webUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-1 h-4 w-4" />Teams에서 열기</a></Button>
               )}
             </div>
-            <div className="flex-1 space-y-3 overflow-y-auto p-4">
+            <div className="min-w-0 flex-1 space-y-3 overflow-y-auto px-2 py-3 sm:px-3">
               {!loaded && !error && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />메시지를 불러오고 있습니다…</div>}
               {loaded && !messages.length && <p className="text-center text-sm text-muted-foreground">아직 메시지가 없습니다. 첫 인사를 남겨 보세요.</p>}
               {messages.map((m) => {
@@ -198,14 +198,14 @@ export default function TeamsChatPage() {
                 return (
                   <div key={m.id}>
                     {showDay && <div className="my-2 text-center text-xs text-muted-foreground">{day}</div>}
-                    <div className={cn("flex flex-col gap-1", mine ? "items-end" : "items-start")}>
-                      {!mine && <span className="px-1 text-xs font-medium text-muted-foreground">{m.from?.name ?? "알 수 없음"}</span>}
-                      <div className={cn("flex max-w-[85%] items-end gap-2", mine && "flex-row-reverse")}>
-                        <div className={cn("whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm", mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted")}>
-                          {m.text || (m.attachments ? "" : "(내용 없음)")}
-                          {m.attachments > 0 && <span className={cn("mt-1 flex items-center gap-1 text-xs", mine ? "text-primary-foreground/80" : "text-muted-foreground")}><Paperclip className="h-3 w-3" />첨부 {m.attachments}개 — Teams에서 확인</span>}
-                        </div>
-                        <span className="shrink-0 pb-0.5 text-[11px] text-muted-foreground">{fmtTime(m.createdAt)}</span>
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <div className="flex min-w-0 items-baseline gap-2 px-1 text-xs text-muted-foreground">
+                        <span className="truncate font-medium">{m.from?.name ?? "알 수 없음"}</span>
+                        <time dateTime={m.createdAt} className="shrink-0 text-[11px]">{fmtTime(m.createdAt)}</time>
+                      </div>
+                      <div className={cn("w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-2xl px-3 py-2 text-sm", mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted")}>
+                        {m.text || (m.attachments ? "" : "(내용 없음)")}
+                        {m.attachments > 0 && <span className={cn("mt-1 flex items-center gap-1 text-xs", mine ? "text-primary-foreground/80" : "text-muted-foreground")}><Paperclip className="h-3 w-3 shrink-0" />첨부 {m.attachments}개 — Teams에서 확인</span>}
                       </div>
                     </div>
                   </div>
@@ -219,7 +219,7 @@ export default function TeamsChatPage() {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }}
-                placeholder="메시지 입력 (Enter 전송, Shift+Enter 줄바꿈)"
+                placeholder="메시지 입력"
                 rows={1}
                 className="min-h-10 max-h-40 resize-none"
                 aria-label="메시지"
