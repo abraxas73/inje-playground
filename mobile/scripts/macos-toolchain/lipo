@@ -1,0 +1,13 @@
+#!/bin/bash
+# Xcode 27 lipo rejects multiple -verify_arch arguments despite advertising them.
+# Verify every requested architecture separately; never bypass verification.
+set -euo pipefail
+if [[ $# -gt 3 && "$2" == -verify_arch ]]; then
+  binary="$1"
+  shift 2
+  for arch in "$@"; do
+    /usr/bin/lipo "$binary" -verify_arch "$arch"
+  done
+else
+  exec /usr/bin/lipo "$@"
+fi
