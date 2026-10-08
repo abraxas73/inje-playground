@@ -73,14 +73,18 @@ class AppWebController {
     );
   }
 
-  Future<String?> getUserAgent() async => native?.getUserAgent();
+  Future<String?> getUserAgent() async => native != null
+      ? native!.getUserAgent()
+      : (await (await _ready.future).evaluateJavascript(
+          source: 'navigator.userAgent',
+        ))?.toString();
   Future<void> setUserAgent(String value) async {
     if (native != null) {
       await native!.setUserAgent(value);
       return;
     }
     await (await _ready.future).setSettings(
-      settings: ia.InAppWebViewSettings(applicationNameForUserAgent: value),
+      settings: ia.InAppWebViewSettings(userAgent: value),
     );
   }
 
