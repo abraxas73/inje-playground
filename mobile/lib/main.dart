@@ -6,9 +6,11 @@ import 'app/router.dart';
 import 'app/theme.dart';
 import 'auth/session.dart';
 import 'config.dart';
+import 'web/app_webview.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppWebController.initializeWindows();
   await Supabase.initialize(url: Config.supabaseUrl, publishableKey: Config.supabaseAnonKey);
   runApp(const ProviderScope(child: App()));
 }

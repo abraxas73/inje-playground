@@ -14,10 +14,11 @@ export default function ManualPage() {
   return (
     <div id="manual-top" className="mx-auto max-w-4xl py-8 md:py-12">
       <header className="mb-8 space-y-3">
-        <p className="text-sm font-medium text-primary">웹 · 모바일 사용 가이드</p>
+        <p className="text-sm font-medium text-primary">웹 · 모바일 · 데스크톱 사용 가이드</p>
         <h1 className="text-3xl font-bold tracking-tight">이노그리드 사용자 매뉴얼</h1>
         <p className="text-muted-foreground">처음 연결하는 방법부터 팀 활동, AI 도구, 앱 이노봇까지 필요한 작업을 찾아보세요.</p>
-        <p className="text-xs text-muted-foreground">2026년 10월 6일 기준 · 메뉴와 기능은 계정 권한 및 운영 설정에 따라 달라집니다.</p>
+        <p className="text-xs text-muted-foreground">2026년 10월 8일 기준 · 메뉴와 기능은 계정 권한 및 운영 설정에 따라 달라집니다.</p>
+        <Button asChild variant="outline"><Link href="/apps">앱 설치·다운로드 <ArrowRight className="h-4 w-4" /></Link></Button>
       </header>
       <div className="mb-8 rounded-xl border bg-card p-5">
         <label htmlFor="manual-search" className="mb-2 block text-sm font-semibold">사용법 검색</label>

@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import '../web/app_webview.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../api/client.dart';
 import '../config.dart';
@@ -19,7 +22,7 @@ class WebScreen extends ConsumerStatefulWidget {
 }
 
 class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserver {
-  late final WebViewController _c;
+  late final AppWebController _c;
   final _origin = Uri.parse(Config.apiBase);
   String _title = '';
   bool _loading = true;
@@ -30,15 +33,16 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
   Timer? _errTimer;
   final _back = BackTracker();
   bool _openingOAuth = false;
+  bool _openingBrowser = false;
   bool _refreshAfterOAuth = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _c = WebViewController()
+    _c = AppWebController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(NavigationDelegate(
+      ..setNavigationDelegate(AppNavigationDelegate(
         onNavigationRequest: _onNav,
         onPageStarted: (u) {
           if (!mounted) return;
@@ -52,6 +56,17 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
           setState(() { _loading = true; _error = null; });
         },
         onPageFinished: (_) async {
+          if (Platform.isMacOS) {
+            try {
+              await const MethodChannel('com.innogrid.playground/webview').invokeMethod<void>(
+                'enableFilePicker', (_c.platform as WebKitWebViewController).webViewIdentifier);
+            } on PlatformException catch (_) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('파일 선택창을 준비하지 못했습니다. 브라우저로 열어 이용해 주세요.')));
+              }
+            }
+          }
           final t = await _c.getTitle();
           if (mounted) setState(() { _loading = false; _title = t ?? ''; });
         },
@@ -64,7 +79,9 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
           });
         },
       ));
-    _setUserAgent().then((_) => _c.loadRequest(Uri.parse('${Config.apiBase}${widget.path}')));
+    _setUserAgent().then((_) {
+      if (mounted) _c.loadRequest(Uri.parse('${Config.apiBase}${widget.path}'));
+    });
     if (Platform.isAndroid) {
       (_c.platform as AndroidWebViewController).setOnShowFileSelector((params) async {
         if (params.mode == FileSelectorMode.openMultiple) {
@@ -98,11 +115,41 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
       case NavAction.inApp:
         return NavigationDecision.navigate;
       case NavAction.external:
-        launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (req.isMainFrame) unawaited(_openInBrowser(uri));
         return NavigationDecision.prevent;
       case NavAction.loginRedirect:
         _bootstrap(uri.queryParameters['next'] ?? widget.path);
         return NavigationDecision.prevent;
+    }
+  }
+
+  Future<void> _openInBrowser([Uri? destination]) async {
+    if (_openingBrowser) return;
+    setState(() => _openingBrowser = true);
+    try {
+      var target = destination ?? Uri.tryParse(await _c.currentUrl() ?? '') ??
+          _origin.resolve(widget.path);
+      if (!target.hasScheme || isSessionBoundary(target.toString(), appOrigin: _origin)) {
+        target = _origin.resolve(widget.path);
+      }
+      // Blob URLs belong to the WebView process; open the source page instead.
+      if (target.scheme == 'blob') {
+        target = Uri.tryParse(await _c.currentUrl() ?? '') ?? _origin.resolve(widget.path);
+      }
+      final next = browserSessionPath(target, appOrigin: _origin);
+      final url = next == null ? target : Uri.parse(await webBootstrapUrl(
+        ref.read(apiClientProvider), Config.apiBase, next));
+      if (!mounted) return;
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        throw StateError('Browser unavailable');
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('브라우저로 열지 못했습니다. 다시 시도해 주세요.')));
+      }
+    } finally {
+      if (mounted) setState(() => _openingBrowser = false);
     }
   }
 
@@ -144,8 +191,10 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
       final url = await webBootstrapUrl(ref.read(apiClientProvider), Config.apiBase, nextPath.startsWith('/') ? nextPath : widget.path);
       await _c.loadRequest(Uri.parse(url));
     } on ApiException catch (e) {
+      if (!mounted) return;
       setState(() { _loading = false; _error = e.message; });
     } catch (e) {
+      if (!mounted) return;
       setState(() { _loading = false; _error = '로그인 상태를 만들지 못했습니다: $e'; });
     }
   }
@@ -164,34 +213,50 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
     _c.loadRequest(Uri.parse('${Config.apiBase}${widget.path}'));
   }
 
+  Future<void> _goBack() async {
+    final canGoBack = await _c.canGoBack();
+    if (!mounted) return;
+    if (canGoBack) {
+      _back.begin();
+      await _c.goBack();
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
-  Widget build(BuildContext context) => PopScope(
+  Widget build(BuildContext context) => CallbackShortcuts(
+    bindings: Platform.isMacOS ? {
+      const SingleActivator(LogicalKeyboardKey.keyR, meta: true): () => unawaited(_reload()),
+      const SingleActivator(LogicalKeyboardKey.bracketLeft, meta: true): () => unawaited(_goBack()),
+    } : {},
+    child: Focus(
+      autofocus: Platform.isMacOS,
+      child: PopScope(
         canPop: false,
-        onPopInvokedWithResult: (didPop, _) async {
-          if (didPop) return;
-          if (await _c.canGoBack()) {
-            _back.begin();
-            _c.goBack();
-          } else if (context.mounted) {
-            Navigator.of(context).pop();
-          }
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) unawaited(_goBack());
         },
         child: Scaffold(
           appBar: AppBar(
+            leading: BackButton(onPressed: _goBack),
             title: Text(webTitleFor(title: _title, loading: _loading, path: widget.path), overflow: TextOverflow.ellipsis),
             actions: [
               IconButton(icon: const Icon(Icons.refresh), tooltip: '새로고침', onPressed: _reload),
-              IconButton(icon: const Icon(Icons.open_in_browser), tooltip: '브라우저로 열기', onPressed: () => launchUrl(Uri.parse('${Config.apiBase}${widget.path}'), mode: LaunchMode.externalApplication)),
+              IconButton(icon: const Icon(Icons.open_in_browser), tooltip: '브라우저로 열기', onPressed: _openingBrowser ? null : () => _openInBrowser()),
             ],
             bottom: _loading ? const PreferredSize(preferredSize: Size.fromHeight(2), child: LinearProgressIndicator(minHeight: 2)) : null,
           ),
-          body: _error != null
-              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+          body: Stack(fit: StackFit.expand, children: [
+            Offstage(offstage: _error != null, child: _c.build(context)),
+            if (_error != null) Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Text(_error!, textAlign: TextAlign.center),
                   const SizedBox(height: 12),
                   FilledButton(onPressed: _retry, child: const Text('다시 시도')),
-                ])))
-              : WebViewWidget(controller: _c),
+                ]))),
+          ]),
         ),
-      );
+      ),
+    ),
+  );
 }

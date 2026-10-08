@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:webview_flutter/webview_flutter.dart';
+import '../web/app_webview.dart';
 import '../app/theme.dart';
 import 'gw_client.dart';
 import 'gw_creds.dart';
@@ -31,7 +32,7 @@ class GwConnectScreen extends ConsumerStatefulWidget {
 }
 
 class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
-  WebViewController? _c;
+  AppWebController? _c;
   Timer? _poll, _hintTimer;
   bool _busy = false, _hint = false, _idDone = false, _pwDone = false, _manual = false, _loginChecked = false, _ticking = false;
   GwLogin? _login;
@@ -48,9 +49,9 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
       if (mounted) setState(() => _loginChecked = true);
     });
     if (widget.webView == null) {
-      _c = WebViewController()
+      _c = AppWebController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setNavigationDelegate(NavigationDelegate(
+        ..setNavigationDelegate(AppNavigationDelegate(
           onPageStarted: (_) => _fixViewport(),
           onPageFinished: (_) { _fixViewport(); _tick(); },
           onUrlChange: (_) => _tick(), // SPA 라우팅은 onPageFinished가 안 온다
@@ -132,7 +133,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
   }
 
   Future<void> _clearCookies() async {
-    await WebViewCookieManager().clearCookies();
+    await AppWebController.clearCookies();
     setState(() { _idDone = false; _pwDone = false; _error = null; });
     await _c?.loadRequest(Uri.parse('$gwOrigin/'));
   }
@@ -157,7 +158,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
         ),
         Expanded(
           child: Stack(fit: StackFit.expand, children: [
-            widget.webView?.call() ?? WebViewWidget(controller: _c!),
+            widget.webView?.call() ?? _c!.build(context),
             if (_auto || _busy)
               ColoredBox(
                 color: Brand.ground,

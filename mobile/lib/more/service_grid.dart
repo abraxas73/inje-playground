@@ -1,3 +1,4 @@
+import '../app/service_card_grid.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../app/brand.dart';
@@ -33,7 +34,7 @@ const teamsChatEntry = PageEntry('teams_chat', '/teams/chat', 'Teams 채팅', 'w
 
 List<PageEntry> webServices(AppSession s) => visiblePages(s).where((p) => !quickKeys.contains(p.key)).toList();
 
-/// 웹 기능(WebView로 여는 것) 2열 카드 그리드.
+/// 웹 기능(WebView로 여는 것)의 반응형 카드 그리드.
 class ServiceGrid extends StatelessWidget {
   const ServiceGrid({super.key, required this.session});
   final AppSession session;
@@ -41,13 +42,7 @@ class ServiceGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final services = webServices(session);
     if (services.isEmpty) return const SizedBox.shrink();
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
-      childAspectRatio: 1.45,
+    return ServiceCardGrid(
       children: [for (final p in services) _card(context, p)],
     );
   }
