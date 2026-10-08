@@ -65,13 +65,9 @@ export function AppsPageView({ navigate = (url: string) => window.location.assig
           <CardContent className="space-y-3">
             <ol className="list-decimal space-y-1 pl-5 text-sm">
               <li>App Store에서 <b>TestFlight</b> 앱을 설치합니다.</li>
-              <li>아래 버튼을 누르고 TestFlight에서 <b>설치</b>를 누릅니다.</li>
+              <li>아래 버튼에서 iOS 앱 사용을 신청하고, 초대를 수락한 뒤 TestFlight에서 <b>설치</b>를 누릅니다.</li>
             </ol>
-            {rel?.ios?.url ? (
-              <Button asChild><a href={rel.ios.url} target="_blank" rel="noreferrer">TestFlight에서 열기 · {label(rel.ios)}</a></Button>
-            ) : (
-              <Button disabled>TestFlight 준비 중</Button>
-            )}
+            <Button asChild><a href="/settings#app-request">TestFlight 신청하기</a></Button>
           </CardContent>
         </Card>
         <Card>
