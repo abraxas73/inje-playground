@@ -25,7 +25,11 @@ Developer ID 서명과 Apple 공증을 완료한 배포본이 아닙니다.
 다른 직원에게 배포하지 마세요. 보안 설정을 끄지 마세요.
 NOTICE
 mac_dmg="$mac_output/INNOGRID-macOS-local-preview.dmg"
-hdiutil create -volname 'INNOGRID Local Preview' -srcfolder "$mac_stage" -ov -format UDZO "$mac_dmg"
+mac_hybrid="$mac_output/INNOGRID-preview-hybrid.dmg"
+rm -f "$mac_hybrid"
+hdiutil makehybrid -hfs -hfs-volume-name 'INNOGRID Local Preview' -o "$mac_hybrid" "$mac_stage"
+hdiutil convert "$mac_hybrid" -format UDZO -ov -o "$mac_dmg"
+rm -f "$mac_hybrid"
 hdiutil verify "$mac_dmg"
 shasum -a 256 "$mac_dmg" > "$mac_dmg.sha256"
 echo "Local preview: $mac_dmg"

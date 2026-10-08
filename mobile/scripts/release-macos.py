@@ -69,8 +69,12 @@ def main():
         run('spctl', '--assess', '--type', 'execute', '--verbose=2', app)
         (stage / 'Applications').symlink_to('/Applications')
         dmg = output / 'INNOGRID-macOS.dmg'
-        run('hdiutil', 'create', '-volname', 'INNOGRID', '-srcfolder', stage,
-            '-ov', '-format', 'UDZO', dmg)
+        # Build without mounting a temporary filesystem (Disk Arbitration may stall).
+        hybrid = output / 'INNOGRID-hybrid.dmg'
+        hybrid.unlink(missing_ok=True)
+        run('hdiutil', 'makehybrid', '-hfs', '-hfs-volume-name', 'INNOGRID', '-o', hybrid, stage)
+        run('hdiutil', 'convert', hybrid, '-format', 'UDZO', '-ov', '-o', dmg)
+        hybrid.unlink()
         run('codesign', '--force', '--timestamp', '--sign', IDENTITY, dmg)
         notarize(dmg, credentials)
         run('xcrun', 'stapler', 'staple', dmg)
