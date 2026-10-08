@@ -22,6 +22,7 @@ export const AUDIT_KIND_LABEL: Record<string, string> = {
 };
 
 export const AUDIT_CATEGORY_LABEL: Record<string, string> = {
+  page: "페이지 접근",
   auth: "인증",
   admin: "어드민",
   users: "사용자",

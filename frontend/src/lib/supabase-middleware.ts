@@ -71,7 +71,7 @@ export async function updateSession(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // 변경 요청(POST·PUT·PATCH·DELETE)은 응답을 보낸 뒤 감사 기록한다 — 응답을 늦추지 않는다.
+    // 조회·변경 요청(GET·POST·PUT·PATCH·DELETE)은 응답을 보낸 뒤 감사 기록한다 — 응답을 늦추지 않는다.
     // 이 블록은 자체 try/catch로 격리한다: 감사 기록이 실패해도 아래 로그인·권한 검사를 건너뛰면 안 된다.
     if (user) {
       try {

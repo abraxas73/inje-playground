@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronLeft, ChevronRight, Download, Loader2, RotateCcw, ScrollText, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AUDIT_CATEGORY_LABEL, AUDIT_KIND_LABEL } from "@/lib/audit";
+import { AUDIT_PLATFORMS } from "@/lib/audit-client";
 import { AUDIT_PAGE_SIZE_DEFAULT } from "@/lib/audit-query";
 import type { AuditResponse, AuditRow } from "@/types/audit";
 
@@ -24,14 +25,6 @@ const KST = "ko-KR";
 
 function formatAt(iso: string): string {
   return new Date(iso).toLocaleString(KST, { timeZone: "Asia/Seoul", year: "2-digit", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
-/** UA는 길어서 브라우저·OS만 짧게 */
-function shortUa(ua: string | null): string {
-  if (!ua) return "";
-  const browser = /Edg\/|Edge\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : /Firefox\//.test(ua) ? "Firefox" : ua.split("/")[0];
-  const os = /Macintosh|Mac OS X/.test(ua) ? "macOS" : /Windows/.test(ua) ? "Windows" : /iPhone|iPad/.test(ua) ? "iOS" : /Android/.test(ua) ? "Android" : /Linux/.test(ua) ? "Linux" : "";
-  return [browser, os].filter(Boolean).join(" · ");
 }
 
 function detailText(detail: Record<string, unknown>): string {
@@ -52,6 +45,7 @@ export default function AdminAuditPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [kind, setKind] = useState("all");
+  const [platform, setPlatform] = useState("all");
   const [category, setCategory] = useState("all");
   const [q, setQ] = useState("");
   const [search, setSearch] = useState("");
@@ -62,12 +56,13 @@ export default function AdminAuditPage() {
 
   const params = useMemo(() => {
     const p = new URLSearchParams({ kind, page: String(page), pageSize: String(pageSize) });
+    if (platform !== "all") p.set("platform", platform);
     if (category !== "all") p.set("category", category);
     if (search.trim()) p.set("q", search.trim());
     if (from) p.set("from", from);
     if (to) p.set("to", to);
     return p;
-  }, [kind, category, search, from, to, page, pageSize]);
+  }, [kind, category, platform, search, from, to, page, pageSize]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,6 +90,7 @@ export default function AdminAuditPage() {
   };
   const reset = () => {
     setKind("all");
+    setPlatform("all");
     setCategory("all");
     setQ("");
     setSearch("");
@@ -107,10 +103,10 @@ export default function AdminAuditPage() {
   const downloadCsv = () => {
     const rows = data?.rows ?? [];
     if (!rows.length) return;
-    const head = ["시각(KST)", "구분", "사용자", "이메일", "카테고리", "액션", "상세", "IP", "User-Agent"];
+    const head = ["시각(KST)", "구분", "사용자", "이메일", "카테고리", "액션", "상세", "IP", "플랫폼", "접속 방식", "앱 버전", "앱 빌드", "브라우저", "User-Agent"];
     const body = rows.map((r) => [
       formatAt(r.at), AUDIT_KIND_LABEL[r.kind] ?? r.kind, r.userName ?? (r.userEmail ? "" : "비로그인"), r.userEmail ?? "",
-      AUDIT_CATEGORY_LABEL[r.category] ?? r.category, r.action, detailText(r.detail), r.ipAddress ?? "", r.userAgent ?? "",
+      AUDIT_CATEGORY_LABEL[r.category] ?? r.category, r.action, detailText(r.detail), r.ipAddress ?? "", r.client.platform, r.client.clientType, r.client.appVersion ?? "", r.client.appBuild ?? "", r.client.browser ?? "", r.userAgent ?? "",
     ]);
     const csv = [head, ...body].map((cols) => cols.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" }));
@@ -140,7 +136,7 @@ export default function AdminAuditPage() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          로그인(성공·실패·시도)과 액션 이력을 함께 봅니다. “API 호출”은 변경 요청(POST·PUT·PATCH·DELETE)을 서버가 자동으로 남긴 것이고,
+          로그인(성공·실패·시도)과 액션 이력을 함께 봅니다. “API 호출”은 조회·변경 요청을 서버가 자동으로 남긴 것이고,
           “액션”은 화면·서버가 뜻을 붙여 남긴 것입니다. 로그인 실패는 사유(공급자 거절·코드 만료 등)가 상세에 남습니다.
           익명 설문 응답은 익명성 보장을 위해 기록하지 않습니다.
         </p>
@@ -175,6 +171,16 @@ export default function AdminAuditPage() {
             </Select>
           </div>
           <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">플랫폼</label>
+            <Select value={platform} onValueChange={(v) => { setPlatform(v); setPage(1); }}>
+              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체</SelectItem>
+                {AUDIT_PLATFORMS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
             <label className="text-xs text-muted-foreground">기간(KST)</label>
             <div className="flex items-center gap-1">
               <Input type="date" value={from} max={to} onChange={(e) => { setFrom(e.target.value); setPage(1); }} className="h-8 w-36 text-xs" />
@@ -183,11 +189,11 @@ export default function AdminAuditPage() {
             </div>
           </div>
           <div className="min-w-0 flex-1 space-y-1">
-            <label className="text-xs text-muted-foreground">검색(사용자·액션·IP·상세)</label>
+            <label className="text-xs text-muted-foreground">검색(사용자·액션·IP·플랫폼·상세)</label>
             <div className="flex items-center gap-1">
               <Input
                 value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && applySearch()}
-                placeholder="이메일·이름·액션·경로·IP·상세 내용" className="h-8 min-w-[12rem] text-xs"
+                placeholder="이메일·경로·IP·Windows·macOS·iOS·Android" className="h-8 min-w-[12rem] text-xs"
               />
               <Button size="sm" className="h-8 text-xs" onClick={applySearch}>
                 <Search className="mr-1 h-3.5 w-3.5" />검색
@@ -214,7 +220,7 @@ export default function AdminAuditPage() {
                   <th className="px-2 py-2 font-medium">사용자</th>
                   <th className="px-2 py-2 font-medium">카테고리</th>
                   <th className="px-2 py-2 font-medium">액션</th>
-                  <th className="px-2 py-2 font-medium">IP · 브라우저</th>
+                  <th className="px-2 py-2 font-medium">IP · 플랫폼 · 접속 환경</th>
                 </tr>
               </thead>
               <tbody>
@@ -242,7 +248,8 @@ export default function AdminAuditPage() {
                     </td>
                     <td className="px-2 py-2 text-[11px] text-muted-foreground">
                       <div className="tabular-nums">{r.ipAddress ?? "-"}</div>
-                      <div title={r.userAgent ?? undefined}>{shortUa(r.userAgent)}</div>
+                      <div title={r.userAgent ?? undefined}>{r.client.platform} · {r.client.clientType}{r.client.browser ? ` · ${r.client.browser}` : ""}</div>
+                      {r.client.appVersion && <div>앱 {r.client.appVersion}{r.client.appBuild ? ` (${r.client.appBuild})` : ""}</div>}
                     </td>
                   </tr>
                 ))}

@@ -44,7 +44,11 @@ def main():
     env = dict(os.environ)
     env['PATH'] = str(ROOT / 'scripts/macos-toolchain') + os.pathsep + env['PATH']
     run('flutter', 'pub', 'get', '--enforce-lockfile')
-    subprocess.run(['flutter', 'build', 'macos', '--release'], cwd=ROOT, env=env, check=True)
+    version_line = next(line.split(':', 1)[1].strip() for line in (ROOT / 'pubspec.yaml').read_text().splitlines() if line.startswith('version:'))
+    version, build = version_line.split('+')
+    subprocess.run(['flutter', 'build', 'macos', '--release',
+                    f'--dart-define=APP_VERSION={version}', f'--dart-define=APP_BUILD={build}'],
+                   cwd=ROOT, env=env, check=True)
     output = ROOT / 'build/macos/distribution'
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='innocrew-release-') as temporary:
