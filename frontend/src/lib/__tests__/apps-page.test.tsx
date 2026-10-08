@@ -21,6 +21,7 @@ it("iOS는 릴리스가 없어도 신청 가능하고 Android는 준비 중", as
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ notes: "", ios: null, android: null }) })));
   render(<AppsPageView navigate={vi.fn()} />);
   expect(screen.getByRole("link", { name: "TestFlight 신청하기" })).toHaveAttribute("href", "/settings#app-request");
+  await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
   expect(screen.getByRole("button", { name: "Google Play 준비 중" })).toBeDisabled();
 });
 it("권한 오류(403)는 서버 문구와 다시 시도 버튼", async () => {
