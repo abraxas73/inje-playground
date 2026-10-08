@@ -46,7 +46,7 @@ export default function AppRequestsAdmin() {
   </div>;
 }
 function RequestEditor({ item, onSaved }: { item: AdminAppRequest; onSaved: () => void }) {
-  const [next, setNext] = useState<RequestStatus>(item.status === 'pending' ? 'processing' : 'approved');
+  const [next, setNext] = useState<RequestStatus>('processing');
   const [note, setNote] = useState(item.admin_note);
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -70,7 +70,7 @@ function RequestEditor({ item, onSaved }: { item: AdminAppRequest; onSaved: () =
     <div className="text-sm"><p className="text-muted-foreground">스토어 계정 이메일</p><div className="flex flex-wrap items-center gap-2"><span className="break-all font-medium">{item.store_email}</span><Button type="button" size="sm" variant="ghost" onClick={async () => { try { await navigator.clipboard.writeText(item.store_email); setCopied(true); } catch { setError('복사하지 못했습니다. 이메일을 직접 복사하세요.'); } }}>{copied ? '복사됨' : '복사'}</Button></div></div>
     <p className="text-xs text-muted-foreground">신청: {new Date(item.submitted_at).toLocaleString('ko-KR')}{item.reviewed_at && <> · 처리: {new Date(item.reviewed_at).toLocaleString('ko-KR')}</>}</p>
     {active ? <>
-      <label className="block space-y-1 text-sm"><span>처리 결과</span><select className={`${selectStyle} w-full`} value={next} disabled={busy} onChange={e => { setNext(e.target.value as RequestStatus); setConfirmed(false); }}>{item.status === 'pending' && <option value="processing">처리 중</option>}<option value="approved">등록 완료</option><option value="rejected">반려</option></select></label>
+      <label className="block space-y-1 text-sm"><span>처리 결과</span><select className={`${selectStyle} w-full`} value={next} disabled={busy} onChange={e => { setNext(e.target.value as RequestStatus); setConfirmed(false); }}><option value="processing">처리 중</option><option value="approved">등록 완료</option><option value="rejected">반려</option></select></label>
       <label className="block space-y-1 text-sm"><span>신청자에게 보여줄 안내{next === 'rejected' ? ' (필수)' : ''}</span><Textarea maxLength={2000} value={note} onChange={e => setNote(e.target.value)} required={next === 'rejected'} disabled={busy} placeholder="초대 확인 방법 또는 반려 사유" /></label>
       {next === 'approved' && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirmed} disabled={busy} onChange={e => setConfirmed(e.target.checked)} className="mt-1" />해당 이메일로 스토어 테스터 등록·초대를 완료했습니다.</label>}
       <Button type="submit" variant="outline" size="sm" disabled={busy || (next === 'approved' && !confirmed)}>{busy ? '저장 중…' : '처리 결과 저장'}</Button>

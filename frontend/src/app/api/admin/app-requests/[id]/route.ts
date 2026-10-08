@@ -16,7 +16,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (!row) return fail('신청을 찾을 수 없습니다.', 404);
   if (row.revision !== body.revision || !canProcess(row.status, body.status)) return fail('신청 상태가 변경되었거나 처리할 수 없는 상태입니다. 새로고침하세요.', 409);
   const now = new Date().toISOString();
-  const { data, error: updateError } = await r.admin.from('mobile_app_requests').update({ status: body.status, admin_note: note, reviewed_by: auth.userId, reviewed_at: now, updated_at: now, revision: row.revision + 1 }).eq('id', id).eq('revision', row.revision).select(REQUEST_FIELDS).maybeSingle();
+  const { data, error: updateError } = await r.admin.from('mobile_app_requests').update({ status: body.status, admin_note: note, ...(row.status !== body.status ? { reviewed_by: auth.userId, reviewed_at: now } : {}), updated_at: now, revision: row.revision + 1 }).eq('id', id).eq('revision', row.revision).select(REQUEST_FIELDS).maybeSingle();
   if (updateError) return fail('처리 결과를 저장하지 못했습니다.', 500);
   if (!data) return fail('다른 작업으로 신청이 변경되었습니다. 새로고침하세요.', 409);
   return NextResponse.json({ item: data });

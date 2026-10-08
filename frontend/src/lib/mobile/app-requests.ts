@@ -16,5 +16,5 @@ export function normalizeStoreEmail(v: unknown): string | null {
   return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
 }
 export function canProcess(from: RequestStatus, to: unknown): to is RequestStatus {
-  return (from === 'pending' || from === 'processing') && (to === 'processing' || to === 'approved' || to === 'rejected') && from !== to;
+  return (from === 'pending' || from === 'processing') && (to === 'processing' || to === 'approved' || to === 'rejected');
 }
