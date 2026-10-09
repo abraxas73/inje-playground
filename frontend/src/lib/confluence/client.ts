@@ -30,7 +30,7 @@ export async function confluenceRequest(base: string, token: string, path: strin
   return res.status === 204 ? null : res.json();
 }
 
-export interface ConfluenceSession { request: ConfluenceFetch; canWrite: boolean }
+export interface ConfluenceSession { request: ConfluenceFetch; canWrite: boolean; accountId: string }
 
 /** 로그인 사용자의 Confluence 세션. 미연결·기능 꺼짐·권한 부족은 각각 다른 안내(code)로 */
 export async function confluenceFor(admin: SupabaseClient, userId: string): Promise<ConfluenceSession> {
@@ -40,7 +40,7 @@ export async function confluenceFor(admin: SupabaseClient, userId: string): Prom
   if (!hasConfluenceScopes(conn.scopes)) throw new JiraError("Confluence 권한을 추가하려면 설정에서 Atlassian 계정을 다시 연결하세요.", 409, "confluence_scope");
   const token = await accessTokenFor(conn, admin, userId);
   const base = confluenceBase(conn.api_base);
-  return { request: (path, init) => confluenceRequest(base, token, path, init), canWrite: canWriteConfluence(conn.scopes) };
+  return { request: (path, init) => confluenceRequest(base, token, path, init), canWrite: canWriteConfluence(conn.scopes), accountId: conn.account_id };
 }
 
 const qs = (o: Record<string, string>) => new URLSearchParams(o).toString();
@@ -69,16 +69,29 @@ export async function readPage(request: ConfluenceFetch, id: string, maxChars = 
 }
 
 export interface ConfluenceSpace { key: string; name: string; type: string }
-/** 내가 볼 수 있는 공간 — 검색 API(type=space, search:confluence)로. 개인 OAuth에서는 /wiki/rest/api/space가 실패했다(2026-10-10 실측, 공용 계정 Basic은 정상). */
-export async function listSpaces(request: ConfluenceFetch): Promise<ConfluenceSpace[]> {
-  const j = await request(`/wiki/rest/api/search?${qs({ cql: "type = space order by title", limit: "1000" })}`);
+/**
+ * 페이지를 만들 수 있는 공간 — 검색 API(type=space, search:confluence)로, 다음 쪽(_links.next)을 따라 최대 4쪽.
+ * 개인 OAuth에서는 /wiki/rest/api/space가 실패했다(2026-10-10 실측, 공용 계정 Basic은 정상).
+ * 개인 공간은 내 것(key에 내 Atlassian accountId)만 — 남의 개인 공간 수백 개가 목록을 덮지 않게.
+ */
+export async function listSpaces(request: ConfluenceFetch, accountId = ""): Promise<ConfluenceSpace[]> {
+  const out: ConfluenceSpace[] = [];
   const seen = new Set<string>();
-  return results(j).flatMap((r) => {
-    const o = ((r as Record<string, unknown>)?.space ?? {}) as Record<string, unknown>;
-    if (typeof o.key !== "string" || typeof o.name !== "string" || seen.has(o.key)) return [];
-    seen.add(o.key);
-    return [{ key: o.key, name: o.name, type: String(o.type ?? "") }];
-  });
+  let path: string | null = `/wiki/rest/api/search?${qs({ cql: "type = space order by title", limit: "250" })}`;
+  for (let page = 0; path && page < 4; page++) {
+    const j = (await request(path)) as { _links?: { next?: unknown } } | null;
+    for (const r of results(j)) {
+      const o = ((r as Record<string, unknown>)?.space ?? {}) as Record<string, unknown>;
+      if (typeof o.key !== "string" || typeof o.name !== "string" || seen.has(o.key)) continue;
+      const type = String(o.type ?? "");
+      if (type === "personal" && !(accountId && o.key.includes(accountId))) continue;
+      seen.add(o.key);
+      out.push({ key: o.key, name: o.name, type });
+    }
+    const next = j?._links?.next;
+    path = typeof next === "string" && next.startsWith("/rest/api/search?") ? `/wiki${next}` : null;
+  }
+  return out;
 }
 
 export interface NewPage { spaceKey: string; parentId?: string | null; title: string; markdown: string }

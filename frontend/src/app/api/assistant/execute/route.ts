@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
         result = { items: await feed(c.request, kind, 10) };
       } else if (tool === "confluence_spaces") {
         // key: 확인 카드용 정확히 한 공간, query: 이름·key 일부로 좁히기(공간이 수백 개라 전부 주지 않는다)
-        const all = await listSpaces(c.request);
+        const all = await listSpaces(c.request, c.accountId);
         const key = str("key"), q = str("query").toLowerCase();
         const spaces = key ? all.filter((x) => x.key === key) : q ? all.filter((x) => x.name.toLowerCase().includes(q) || x.key.toLowerCase().includes(q)) : all;
         result = { spaces: spaces.slice(0, 80), total: spaces.length, canWrite: c.canWrite };
