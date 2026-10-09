@@ -1,0 +1,98 @@
+name: Windows signed release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sign:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2022
+    environment: windows-signing
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      WINDOWS_SIGNING_SUBJECT: ${{ vars.WINDOWS_SIGNING_SUBJECT }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check signing configuration
+        shell: pwsh
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          SIGNING_ENDPOINT: ${{ vars.SIGNING_ENDPOINT }}
+          SIGNING_ACCOUNT: ${{ vars.SIGNING_ACCOUNT }}
+          SIGNING_PROFILE: ${{ vars.SIGNING_PROFILE }}
+        run: |
+          foreach ($key in @('AZURE_CLIENT_ID','AZURE_TENANT_ID','AZURE_SUBSCRIPTION_ID','SIGNING_ENDPOINT','SIGNING_ACCOUNT','SIGNING_PROFILE','WINDOWS_SIGNING_SUBJECT')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($key))) { throw "Missing configuration: $key" }
+          }
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          channel: stable
+          cache: true
+      - name: Install packaging tools
+        shell: pwsh
+        run: choco install innosetup nuget.commandline -y --no-progress
+      - name: Build application
+        shell: pwsh
+        run: ./mobile/scripts/build-windows.ps1 -Phase Build
+      - name: Prepare unsigned payload list
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem mobile/build/windows/x64/runner/Release -Recurse -File | Where-Object { $_.Extension -in '.exe', '.dll' })
+          if (-not $files.Count) { throw 'No PE files found' }
+          $unsigned = foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+            if ($signature.Status -eq 'NotSigned') { [IO.Path]::GetRelativePath($env:RUNNER_TEMP, $file.FullName) }
+            elseif ($signature.Status -ne 'Valid') { throw "Invalid existing signature: $($file.Name)" }
+          }
+          if (-not $unsigned) { throw 'No unsigned payload files found' }
+          $unsigned | Set-Content -Encoding utf8 "$env:RUNNER_TEMP/signing-files.txt"
+      - name: Azure login using GitHub OIDC
+        uses: azure/login@935127ca5bb3c4b02c9c2c10060028383878f33f # v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign application and unsigned libraries
+        uses: azure/artifact-signing-action@c0ae2c1d0c1847ab81ac0ab8521bee597cfedd30 # v2
+        with:
+          endpoint: ${{ vars.SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.SIGNING_PROFILE }}
+          files-catalog: ${{ runner.temp }}\signing-files.txt
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+      - name: Verify payload and package installer
+        shell: pwsh
+        run: ./mobile/scripts/build-windows.ps1 -Phase Package -RequireSignedPayload
+      - name: Sign installer
+        uses: azure/artifact-signing-action@c0ae2c1d0c1847ab81ac0ab8521bee597cfedd30 # v2
+        with:
+          endpoint: ${{ vars.SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\mobile\build\windows\distribution
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+      - name: Verify installer and hash signed bytes
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem mobile/build/windows/distribution/*.exe)
+          if ($files.Count -ne 1) { throw 'Expected one installer' }
+          ./mobile/scripts/verify-windows-signatures.ps1 -Path mobile/build/windows/distribution -PrimaryFile $files[0].Name
+          $hash = (Get-FileHash $files[0].FullName -Algorithm SHA256).Hash.ToLower()
+          "$hash  $($files[0].Name)" | Set-Content -Encoding ascii "$($files[0].FullName).sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: INNOGRID-Windows-Signed
+          path: mobile/build/windows/distribution/*
+          if-no-files-found: error
+          retention-days: 30
