@@ -72,7 +72,7 @@ export interface ConfluenceSpace { key: string; name: string; type: string }
 /**
  * 페이지를 만들 수 있는 공간 — 검색 API(type=space, search:confluence)로, 다음 쪽(_links.next)을 따라 최대 4쪽.
  * 개인 OAuth에서는 /wiki/rest/api/space가 실패했다(2026-10-10 실측, 공용 계정 Basic은 정상).
- * 개인 공간은 내 것(key에 내 Atlassian accountId)만 — 남의 개인 공간 수백 개가 목록을 덮지 않게.
+ * 개인 공간은 내 것만 — 남의 개인 공간 수백 개가 목록을 덮지 않게.
  */
 export async function listSpaces(request: ConfluenceFetch, accountId = ""): Promise<ConfluenceSpace[]> {
   const out: ConfluenceSpace[] = [];
@@ -84,7 +84,8 @@ export async function listSpaces(request: ConfluenceFetch, accountId = ""): Prom
       const o = ((r as Record<string, unknown>)?.space ?? {}) as Record<string, unknown>;
       if (typeof o.key !== "string" || typeof o.name !== "string" || seen.has(o.key)) continue;
       const type = String(o.type ?? "");
-      if (type === "personal" && !(accountId && o.key.includes(accountId))) continue;
+      // 개인 공간 key = "~" + accountId에서 ":"·"-"를 뺀 값(2026-10-10 실측)
+      if (type === "personal" && !(accountId && o.key === `~${accountId.replace(/[:-]/g, "")}`)) continue;
       seen.add(o.key);
       out.push({ key: o.key, name: o.name, type });
     }
