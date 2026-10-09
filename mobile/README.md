@@ -65,6 +65,10 @@ Windows 10 1809 이상 / Windows 11 x64를 대상으로 한다. macOS에서 크�
 
 Windows 웹 화면은 WebView2, macOS/iOS/Android는 기존 WebView 엔진을 사용한다. Windows 웹 프로필은 앱 실행·로그아웃마다 분리해 이전 사용자의 웹 인증 데이터를 재사용하지 않는다. 로그인을 포함한 실제 Windows 실행 검증은 별도 환경에서 진행한다. 확인 항목: 최초 설치/업데이트/삭제, Microsoft 로그인 앱 복귀(앱 실행 중/종료 중), Jira 재연결, 아마란스 연결·로그아웃·다른 사용자 전환, RFP 파일 선택·다운로드, Teams 입력, 마이크·위치 권한 및 실패 처리.
 
+### TODO: Windows 코드 서명 (보류)
+
+2026-10-09: Windows 동작은 사용자 확인 완료. 최초 설치 경고 개선을 위한 회사 명의 코드 서명은 후속 TODO로 보류한다. 관리자 준비사항, 인증·CI 설정, 서명 검증·재배포 체크리스트는 [Windows 코드 서명 TODO](../docs/windows-signing.md)에 정리했다. 현재 배포본은 서명 전 내부 테스트 빌드이며, 자동 서명 코드는 검증 전 초안이다.
+
 ### 웹 다운로드 게시
 
 웹의 `/manual#desktop-install` → `/apps#desktop`에서 배포 파일을 제공한다. 사내 사용자 권한 확인 후 private `desktop-releases` 버킷의 5분 서명 링크를 발급한다. 파일 검증 해시도 다운로드 페이지에 표시한다.
