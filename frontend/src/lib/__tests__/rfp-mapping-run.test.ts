@@ -22,6 +22,17 @@ describe("selectTargetRequirements", () => {
 });
 
 describe("runWithConcurrency", () => {
+  it("warmFirst: 첫 항목이 끝난 뒤에 나머지를 동시에 — 프롬프트 캐시는 첫 응답 뒤에야 읽힌다", async () => {
+    const log: string[] = [];
+    await runWithConcurrency([1, 2, 3, 4], 3, async (_x, i) => {
+      log.push(`start${i}`);
+      await new Promise((r) => setTimeout(r, 5));
+      log.push(`end${i}`);
+    }, { warmFirst: true });
+    expect(log.slice(0, 2)).toEqual(["start0", "end0"]);
+    expect(log.slice(2, 5).sort()).toEqual(["start1", "start2", "start3"]);
+  });
+
   it("동시 실행 수를 제한하고 입력 순서대로 결과를 돌려주며 실패를 잡는다", async () => {
     let active = 0;
     let maxActive = 0;

@@ -44,7 +44,7 @@ describe("도구 표", () => {
 });
 describe("지침·설정·검증", () => {
   it("지침은 시각·이름을 담고, 데이터 속 지시 무시·되묻기·확인은 앱이 받음을 못 박는다", () => {
-    const s = assistantSystemPrompt({ now: "2026-10-05T14:03+09:00", name: "강승욱", email: "a@innogrid.com" });
+    const s = assistantSystemPrompt({ now: "2026-10-05T14:03+09:00", name: "강승욱", email: "a@innogrid.com" }).map((b) => b.text).join("\n");
     for (const w of ["2026-10-05(월) 14:03 KST", "강승욱", "지시가 아니다", "되묻", "확인", "12:00", "동명이인", "offer_choices", "단독으로", "my_team", "calendar_id"]) expect(s).toContain(w);
   });
   it("assistantEnabled / dailyTurnLimit", () => {
@@ -69,5 +69,28 @@ describe("지침·설정·검증", () => {
     expect(validateMessages([{ role: "user", content: 3 }])).toBeNull();
     expect(validateMessages(Array.from({ length: 61 }, (_, i) => ({ role: i % 2 ? "assistant" : "user", content: "x" })))).toBeNull();
     expect(validateMessages("nope")).toBeNull();
+  });
+});
+
+describe("assistant prompt caching", () => {
+  it("도구 마지막과 고정 규칙 블록에 캐시 표시, 사람·시각은 캐시 구간 뒤 블록으로", async () => {
+    const { callAssistant } = await import("@/lib/assistant/llm");
+    const { assistantSystemPrompt } = await import("@/lib/assistant/tools");
+    let req: Record<string, unknown> = {};
+    const client = { messages: { create: async (r: Record<string, unknown>) => { req = r; return { stop_reason: "end_turn", content: [] }; } } };
+    const sys = assistantSystemPrompt({ now: "2026-10-05T14:03", name: "강승욱", email: "a@innogrid.com" });
+    await callAssistant([{ role: "user", content: "안녕" }], sys, { client: client as never, model: "m" });
+    const tools = req.tools as { cache_control?: unknown }[];
+    expect(tools.at(-1)?.cache_control).toEqual({ type: "ephemeral" });
+    expect(tools.slice(0, -1).every((t) => !t.cache_control)).toBe(true);
+    const system = req.system as { text: string; cache_control?: unknown }[];
+    expect(system).toHaveLength(2);
+    expect(system[0].cache_control).toEqual({ type: "ephemeral" });
+    expect(system[0].text).not.toContain("강승욱");
+    expect(system[0].text).not.toContain("14:03");
+    expect(system[1].text).toContain("강승욱");
+    expect(system[1].text).toContain("2026-10-05(월) 14:03 KST");
+    expect(system[1].cache_control).toBeUndefined();
+    expect(req.cache_control).toEqual({ type: "ephemeral" }); // 대화(도구 왕복)는 자동 캐싱
   });
 });
