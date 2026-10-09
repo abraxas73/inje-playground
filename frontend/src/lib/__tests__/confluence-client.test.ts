@@ -35,10 +35,11 @@ it("페이지 읽기는 숫자 id만, 본문은 텍스트로 바꿔 자른다", 
   expect(p.text.length).toBeLessThanOrEqual(5);
 });
 it("공간 목록·페이지 만들기(제목·공간·상위 페이지·저장 형식 본문)", async () => {
-  const f = vi.fn().mockResolvedValueOnce(Response.json({ results: [{ key: "D", name: "개발", type: "global" }, { key: "~me", name: "내 공간", type: "personal" }] }))
+  const f = vi.fn().mockResolvedValueOnce(Response.json({ results: [{ entityType: "space", space: { key: "D", name: "개발", type: "global" } }, { space: { key: "~me", name: "내 공간", type: "personal" } }, { space: { key: "D", name: "개발" } }, { title: "x" }] }))
     .mockResolvedValueOnce(Response.json({ id: "99", title: "회의록", _links: { webui: "/spaces/D/pages/99" } }));
   const r = req(f);
   expect(await listSpaces(r)).toEqual([{ key: "D", name: "개발", type: "global" }, { key: "~me", name: "내 공간", type: "personal" }]);
+  expect(new URL(f.mock.calls[0][0]).searchParams.get("cql")).toBe("type = space order by title");
   const made = await createPage(r, { spaceKey: "D", parentId: "5", title: "회의록", markdown: "# 안건\n- 배포" });
   const [url, init] = f.mock.calls[1];
   expect(url).toBe(base + "/wiki/rest/api/content");

@@ -25,7 +25,7 @@ export async function confluenceRequest(base: string, token: string, path: strin
     if (res.status === 404) throw new JiraError("Confluence 문서를 찾을 수 없거나 볼 권한이 없습니다.", 404);
     if (res.status === 429) throw new JiraError("Confluence 요청이 많습니다. 잠시 후 다시 시도하세요.", 429);
     if (res.status === 400) throw new JiraError("Confluence가 요청을 처리하지 못했습니다(같은 공간에 같은 제목의 페이지가 있거나 입력이 올바르지 않음).", 400);
-    throw new JiraError("Confluence 요청에 실패했습니다. 잠시 후 다시 시도하세요.");
+    throw new JiraError(`Confluence 요청에 실패했습니다(HTTP ${res.status}). 잠시 후 다시 시도하세요.`);
   }
   return res.status === 204 ? null : res.json();
 }
@@ -69,11 +69,15 @@ export async function readPage(request: ConfluenceFetch, id: string, maxChars = 
 }
 
 export interface ConfluenceSpace { key: string; name: string; type: string }
+/** 내가 볼 수 있는 공간 — 검색 API(type=space, search:confluence)로. 개인 OAuth에서는 /wiki/rest/api/space가 실패했다(2026-10-10 실측, 공용 계정 Basic은 정상). */
 export async function listSpaces(request: ConfluenceFetch): Promise<ConfluenceSpace[]> {
-  const j = await request(`/wiki/rest/api/space?${qs({ limit: "200", status: "current" })}`);
-  return results(j).flatMap((s) => {
-    const o = s as Record<string, unknown>;
-    return typeof o?.key === "string" && typeof o?.name === "string" ? [{ key: o.key, name: o.name, type: String(o.type ?? "") }] : [];
+  const j = await request(`/wiki/rest/api/search?${qs({ cql: "type = space order by title", limit: "200" })}`);
+  const seen = new Set<string>();
+  return results(j).flatMap((r) => {
+    const o = ((r as Record<string, unknown>)?.space ?? {}) as Record<string, unknown>;
+    if (typeof o.key !== "string" || typeof o.name !== "string" || seen.has(o.key)) return [];
+    seen.add(o.key);
+    return [{ key: o.key, name: o.name, type: String(o.type ?? "") }];
   });
 }
 
