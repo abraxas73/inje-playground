@@ -42,7 +42,7 @@ export default function JiraDetailPage() {
     } catch (e) { setError(e instanceof Error ? e.message : "응답을 확인하지 못했습니다. Jira에서 반영 여부를 확인한 뒤 다시 시도하세요."); }
     finally { setBusy(false); }
   }
-  return <main className="mx-auto max-w-3xl space-y-5 px-4 py-6">
+  return <div className="animate-fade-up space-y-5">
     <div className="flex justify-between gap-2"><Button asChild variant="ghost"><Link href="/jira">← 내 Jira 업무</Link></Button><Button variant="outline" disabled={busy} onClick={() => void load()}>새로고침</Button></div>
     {error && <div role="alert" className="rounded-xl border border-destructive p-4 text-sm">{error}<Link className="ml-2 underline" href="/settings#jira">연결 설정</Link></div>}
     {notice && <p role="status" className="text-sm">{notice}</p>}
@@ -57,5 +57,5 @@ export default function JiraDetailPage() {
       </CardContent></Card>
     </>}
     <AlertDialog open={!!confirm} onOpenChange={open => { if (!open) setConfirm(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{confirm?.label}할까요?</AlertDialogTitle><AlertDialogDescription>{data?.key} · {data?.summary}<br />연결한 본인의 Jira 계정으로 처리됩니다.</AlertDialogDescription></AlertDialogHeader>{confirm?.action === "comment" && <p className="max-h-40 overflow-auto whitespace-pre-wrap break-words text-sm">{text}</p>}<AlertDialogFooter><AlertDialogCancel>취소</AlertDialogCancel><AlertDialogAction onClick={() => void execute()}>실행</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-  </main>;
+  </div>;
 }
