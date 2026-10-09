@@ -86,7 +86,7 @@ class MoreScreen extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.settings_outlined),
                   title: const Text('설정'),
-                  subtitle: const Text('내 팀 · 알림 채널 · Microsoft 연결'),
+                  subtitle: const Text('내 팀 · 알림 채널 · Microsoft·Atlassian 연결'),
                   trailing: const Icon(Icons.chevron_right, color: Brand.faint),
                   onTap: () => open('/settings'),
                 ),

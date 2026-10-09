@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { connectionClient, jiraRequest, sealToken, type JiraConnection } from "@/lib/jira/client";
-import { authorizeUrl, companyResource, exchangeCode } from "@/lib/jira/oauth";
+import { authorizeUrl, companyResource, companyResourceInfo, exchangeCode } from "@/lib/jira/oauth";
 const base = 'https://api.atlassian.com/ex/jira/11111111-1111-1111-1111-111111111111';
 const m = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock('@/lib/jira/oauth', async orig => ({ ...await orig<typeof import('@/lib/jira/oauth')>(), refreshToken: m.refresh }));
@@ -22,6 +22,21 @@ it('OAuth 로그인 URL은 offline_access와 고정 콜백·사용자 state를 �
   expect(url.searchParams.get('state')).toBe('signed-state');
   expect(url.searchParams.get('redirect_uri')).toBe('https://inje-playground.vercel.app/api/jira/callback');
   expect(url.toString()).not.toContain('secret');
+});
+it('CONFLUENCE_ENABLED=true면 같은 로그인에 Confluence 권한도 요청한다', () => {
+  vi.stubEnv('CONFLUENCE_ENABLED', 'true');
+  const scope = new URL(authorizeUrl('s')).searchParams.get('scope')!.split(' ');
+  expect(scope).toEqual(expect.arrayContaining(['read:jira-work', 'offline_access', 'read:confluence-content.all', 'search:confluence', 'write:confluence-content']));
+});
+it('사이트 정보에 실제로 받은 권한(같은 사이트 항목 합집합)을 함께 돌려준다', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json([
+    { id: '11111111-1111-1111-1111-111111111111', url: 'https://pms-innogrid.atlassian.net', scopes: ['read:jira-user','read:jira-work','write:jira-work'] },
+    { id: '11111111-1111-1111-1111-111111111111', url: 'https://pms-innogrid.atlassian.net/', scopes: ['search:confluence','read:confluence-content.all'] },
+    { id: '22222222-2222-2222-2222-222222222222', url: 'https://other.atlassian.net', scopes: ['write:confluence-content'] },
+  ])));
+  const info = await companyResourceInfo('access');
+  expect(info.base).toBe(base);
+  expect(info.scopes.sort()).toEqual(['read:confluence-content.all','read:jira-user','read:jira-work','search:confluence','write:jira-work']);
 });
 it('회사 사이트와 모든 동의 범위를 확인한다. 다른 사이트만 있으면 거부', async () => {
   const fetch = vi.fn().mockResolvedValueOnce(Response.json([{ id: '11111111-1111-1111-1111-111111111111', url: 'https://pms-innogrid.atlassian.net', scopes: ['read:jira-user','read:jira-work','write:jira-work'] }])).mockResolvedValueOnce(Response.json([{ url: 'https://other.atlassian.net' }]));

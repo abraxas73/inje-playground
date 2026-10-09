@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../app/brand.dart';
 import '../../app/router.dart' show homeBranch, tabTapProvider;
 import '../../app/theme.dart';
@@ -168,6 +169,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               onJiraMore: () => open('/web?path=${Uri.encodeComponent('/jira')}'),
               onJiraIssue: (key) => open('/web?path=${Uri.encodeComponent('/jira/$key')}'),
             ),
+            if (data != null && !data.errors.containsKey('confluence') && (session?.isAdmin == true || session?.permissions['confluence'] != false))
+              ConfluenceSection(
+                data: data.confluence,
+                onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication),
+                onMore: () => open('/web?path=${Uri.encodeComponent('/confluence')}'),
+              ),
             if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(top: 14), child: LinearProgressIndicator(minHeight: 2)),
             if (gw != null && gw.status != GwStatus.connected)
               GwConnectCard(relogin: gw.status == GwStatus.needsRelogin, onConnect: () => context.push('/gw/connect'))

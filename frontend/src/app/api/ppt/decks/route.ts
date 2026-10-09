@@ -7,6 +7,7 @@ import { createAnthropicDeckLlm, LlmUnavailableError, type DeckLlm } from "@/lib
 import { parseCreateRequest, provisionalTitle } from "@/lib/ppt/request";
 import { clampSourceText, fetchUrlSource, UrlSourceError } from "@/lib/ppt/web-source";
 import type { PptSourceImage } from "@/types/ppt";
+import { confluenceSource, isCompanyConfluenceUrl } from "@/lib/confluence/ppt-source";
 import { createPptServiceClient, PptServiceError, type PptServiceClient } from "@/lib/ppt/service";
 import { DECK_COLUMNS, failStaleVersions, hasActiveVersion, loadActiveTemplates, mapDeck, templateOptions, type DeckRow, type TemplateRow, type VersionRow } from "@/lib/ppt/store";
 import { BUILTIN_TEMPLATE_LABEL, type PptListResponse } from "@/types/ppt";
@@ -47,7 +48,11 @@ export async function POST(request: NextRequest) {
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
   // URL 원고는 여기서 바로 가져온다 — 못 가져오면 덱을 만들지 않고 사유를 돌려준다
   let fetched: { text: string; title: string | null; images: PptSourceImage[] } | null = null;
-  if (parsed.kind === "url" && parsed.url) {
+  if (parsed.kind === "url" && parsed.url && isCompanyConfluenceUrl(parsed.url)) {
+    const cf = await confluenceSource(auth.admin, auth.userId, parsed.url);
+    if (!cf.ok) return NextResponse.json({ error: cf.error }, { status: cf.status });
+    fetched = { text: cf.text, title: cf.title, images: [] };
+  } else if (parsed.kind === "url" && parsed.url) {
     try { fetched = await fetchUrlSource(parsed.url, undefined, { images: parsed.includeImages }); }
     catch (e) {
       if (e instanceof UrlSourceError) return NextResponse.json({ error: e.message }, { status: e.status });

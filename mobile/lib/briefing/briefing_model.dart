@@ -1,3 +1,4 @@
+import 'confluence_briefing.dart';
 import 'jira_briefing.dart';
 import 'package:flutter/material.dart';
 import '../gw/gw_client.dart' show asBool, asStr;
@@ -67,6 +68,7 @@ class BriefingData {
   GwOrgAbsences? orgAbsences;
   TeamsMentions? mentions;
   JiraBriefing? jira;
+  ConfluenceBriefing? confluence;
   final errors = <String, String>{};
 }
 

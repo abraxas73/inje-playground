@@ -5,7 +5,7 @@ import { signState } from '@/lib/ms/crypto';
 import { encryptionKey } from '@/lib/jira/config';
 const m=vi.hoisted(()=>({ authorized:true, exchange:vi.fn(), resource:vi.fn(), me:vi.fn(), upsert:vi.fn(), user:vi.fn() }));
 vi.mock('@/lib/rfp/require-user',()=>({requireUser:async()=>m.authorized ? {ok:true,userId:'user',admin:{from:()=>({upsert:m.upsert}),auth:{admin:{getUserById:m.user}}}} : {ok:false,response:NextResponse.json({}, {status:401})}}));
-vi.mock('@/lib/jira/oauth', async orig=>({...await orig<typeof import('@/lib/jira/oauth')>(),exchangeCode:m.exchange,companyResource:m.resource}));
+vi.mock('@/lib/jira/oauth', async orig=>({...await orig<typeof import('@/lib/jira/oauth')>(),exchangeCode:m.exchange,companyResource:m.resource,companyResourceInfo:async(t:string)=>({base:await m.resource(t),scopes:['read:jira-work','search:confluence']})}));
 vi.mock('@/lib/jira/client',async orig=>({...await orig<typeof import('@/lib/jira/client')>(),jiraRequest:m.me}));
 vi.mock('@/lib/audit',()=>({logAudit:vi.fn()}));
 import { GET as callback } from '@/app/api/jira/callback/route';
@@ -39,7 +39,7 @@ it('취소하거나 다른 회사 이메일이면 저장하지 않는다',async(
 });
 it('성공 시 현재 사용자 OAuth 연결을 암호화해 저장하고 state 쿠키를 소모한다',async()=>{
  const r=await callback(req());expect(r.headers.get('location')).toBe(origin+'/settings?jira_connected=1#jira');
- expect(r.headers.get('set-cookie')).toContain('Max-Age=0');expect(m.upsert.mock.calls[0][0]).toMatchObject({user_id:'user',auth_type:'oauth',account_id:'me'});
+ expect(r.headers.get('set-cookie')).toContain('Max-Age=0');expect(m.upsert.mock.calls[0][0]).toMatchObject({user_id:'user',auth_type:'oauth',account_id:'me',scopes:['read:jira-work','search:confluence']});
  expect(JSON.stringify(m.upsert.mock.calls)).not.toMatch(/private-access|private-refresh/);
 });
 it('앱에서 시작하면 비밀 없는 고정 딥링크로 자동 복귀한다',async()=>{

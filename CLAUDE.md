@@ -83,6 +83,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `POST /api/food/payco` — Proxies bizplus.payco.com for PAYCO 식권 merchant search
 - `GET /api/teams/members` — Microsoft Graph(app-only) 또는 멤버 목록 웹훅으로 `settings.teams_group_id` 그룹 멤버 조회 (`{id, name, email}`)
 - `GET /api/teams/chat`(내가 속한 채팅 목록), `GET·POST /api/teams/chat/messages?chat=` — Teams 그룹·1:1 채팅 읽기·보내기(본인 위임 토큰 `Chat.ReadWrite`, 관리자 동의 불필요; 페이지 `/teams/chat`). 런북 `docs/teams-integration.md` §3-D
+- `/api/confluence/{search,feed,spaces,pages,pages/[id],weekly-report}` — 개인 Confluence(Jira와 같은 Atlassian 연결·토큰, `jira_connections.scopes`에 Confluence 권한이 있을 때만, `CONFLUENCE_ENABLED=true`일 때 권한 요청): 검색·멘션/지켜보기/내 편집·공간·페이지 만들기(회의록·주간보고)·본문 읽기. 페이지 `/confluence`(+`/new`·`/weekly`), 이노봇 도구 `confluence_*`. 런북 `docs/mobile-app.md` §Confluence
 - `GET /api/members/users` — 앱 사용자 명단(user_profiles, guest 제외) → `{id, name, email}` (멤버 소스 provider `users`)
 - `GET /api/members/directory` — 사내 조직도 명부(company_directory active, service role로 읽음) → `{id: email, name, email, team}` (멤버 소스 provider `directory`)
 - `/api/users/members` — 내 팀(user_members: name, email, external_id, dooray_member_id, is_card_holder) GET/POST(교체)/PATCH(법카)/DELETE

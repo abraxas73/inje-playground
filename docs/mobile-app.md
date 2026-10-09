@@ -85,7 +85,7 @@
 - 데일리 브리핑 지침: 평일·휴일 아님·출근 기록 없음이면 첫 문장에서 출근 기록을 남기라고 알린다(`briefingSystemPrompt`). 같은 조건(`clockInPending`)이면 브리핑 카드에 "출퇴근 바로 가기" 버튼(앱 안 `/gw/attendance`)이 붙는다.
 
 ## 비서 이노봇 (2026-10-05)
-스펙 `docs/superpowers/specs/2026-10-05-mobile-assistant-design.md`. 모든 탭 오른쪽 아래 이노봇(길게 눌러 위아래 이동) → 대화 시트. 서버 `POST /api/assistant/turn`은 Claude(Sonnet 5.5, `thinking: between_tools`, 도구 29개) 한 번 호출을 중계만 하고(대화 저장 없음, 감사엔 도구 이름만), 앱 `lib/assistant/assistant_session.dart`가 턴 루프를 돈다. 아마란스 도구는 앱이 `GwClient`로 직접(`gw_assistant_api.dart` — inno-creed 실측 payload), Teams 도구는 `POST /api/assistant/execute`(Teams 채팅 페이지 권한 필요).
+스펙 `docs/superpowers/specs/2026-10-05-mobile-assistant-design.md`. 모든 탭 오른쪽 아래 이노봇(길게 눌러 위아래 이동) → 대화 시트. 서버 `POST /api/assistant/turn`은 Claude(Sonnet 5.5, `thinking: between_tools`, 도구 34개) 한 번 호출을 중계만 하고(대화 저장 없음, 감사엔 도구 이름만), 앱 `lib/assistant/assistant_session.dart`가 턴 루프를 돈다. 아마란스 도구는 앱이 `GwClient`로 직접(`gw_assistant_api.dart` — inno-creed 실측 payload), Teams·Confluence 도구는 `POST /api/assistant/execute`(각각 Teams 채팅·Confluence 페이지 권한 필요).
 - 등급(`assistant_tools.dart` = 서버 `TOOL_TIERS`): 조회 즉시 · 쓰기 확인 카드 · 메일 발송은 경고 · `undo_last`는 실행 기록(`assistant.journal`, 20건, 24시간 안)에서 반대 작업 카드. **카드 문장은 모델이 쓴 이름이 아니라 앱이 조회한 실제 대상**(참석자 조직도 이름(부서), 회의실 이름, 예약·일정 제목, Teams 채팅방 이름)으로 만들고, 조회되지 않으면 카드 없이 모델에 오류로 돌려준다. 앞 작업이 실패하면 뒤 작업은 실행하지 않는다.
 - 메일 본문은 같은 요청의 목록·검색 muid만 5통, 8,000자. 메일 발송이 시간 초과면 "보낸편지함 확인" 안내(자동 재시도 없음). 일정 등록은 `mailSend: N`, 예약 참석자는 본인. 점심 13:00–14:00과 오늘 지난 시각은 빈 회의실에서 뺀다.
 - **우리 팀·캘린더**: `my_team`(조직도에서 내 부서 전원, 나 제외)로 "우리팀 전원"을 참석자로, `create_event`의 `calendar_id`(list_calendars의 mcalSeq)로 공유 캘린더(예: 이노그리드)에 등록 — 카드에 "캘린더 <이름>"이 실제 조회 값으로 나오고, 볼 수 없는 캘린더면 카드 없이 오류. 쓰기 권한이 없는 캘린더는 그룹웨어가 거절한다(앞의 예약은 실행된 채 일정만 실패로 안내).
@@ -168,6 +168,18 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk   # 또는 APK 파일
 데일리 브리핑 카드 안에서 요약문 아래에 본인 담당 미완료·진행 중 이슈 최대 5개를 업무·상태·상세 링크 표로 표시한다. 업무가 없거나 미연결·조회 실패이면 Jira 부분을 숨긴다. 웹 홈은 기존 별도 카드 위치를 유지하되 표시할 업무가 있을 때만 보인다. 설정·이슈 화면에서 복귀하면 갱신한다. Jira는 AI 요약문에 중복 언급하지 않는다.
 
 개인정보 보고는 `/api/cron/jira-privacy`(CRON_SECRET 전용)에서 6시간마다 최대 90개 대상의 보고 시점을 확인하며, 계정별 기본 7일 또는 Atlassian `Cycle-Period`를 따른다. `closed`·`updated` 응답이면 오래된 연결 정보를 삭제하여 다음 연결에서 재동의하게 한다. 429는 `Retry-After` 이후로 미룬다. 갱신 권한이 철회되면 해당 연결 정보를 삭제한다.
+
+## Confluence 연동 (2026-10-10)
+
+Jira와 **같은 Atlassian 연결·토큰**(`jira_connections`, 같은 사이트 pms-innogrid)을 쓴다. 연결 때 받은 권한은 `jira_connections.scopes`(마이그레이션 `20261010030000_atlassian_connection_scopes.sql`)에 남고, Confluence 기능은 이 목록에 Confluence 권한이 있을 때만 쓴다(없으면 "다시 연결해 권한 추가" 안내). 공용 `ATLASSIAN_*` 계정은 쓰지 않는다(본인에게 보이는 문서만).
+
+관리자 최초 설정(순서 중요): ① Atlassian Developer Console → 같은 OAuth 앱 → Permissions → **Confluence API** 추가 → 클래식 권한 `read:confluence-content.all`, `read:confluence-content.summary`, `read:confluence-space.summary`, `search:confluence`, `write:confluence-content` 선택. ② 그다음 Vercel 환경 변수 `CONFLUENCE_ENABLED=true` → 재배포. ①보다 ②를 먼저 하면 로그인 요청에 등록되지 않은 권한이 들어가 **Jira 연결까지 실패**한다. ③ 사용자는 설정 → Atlassian 계정에서 한 번 ‘다시 연결’.
+
+기능(`lib/confluence/`, API `/api/confluence/{search,feed,spaces,pages,pages/[id],weekly-report}`, 페이지 키 `confluence`):
+- 웹 `/confluence`: 나를 멘션·지켜보는 문서(14일)·내가 편집 + 검색. `/confluence/new` 회의록 틀, `/confluence/weekly` 주간보고 초안(이번 주 Jira 담당·내가 쓴 문서 + 메모 → Claude Sonnet 5.5 초안, 키 없으면 틀만, `CONFLUENCE_WEEKLY_MODEL`로 모델 변경). 공간·상위 페이지는 브라우저에 기억. 본문은 마크다운 → storage(`markdownToStorage`).
+- 웹 홈: 나를 멘션한 문서 카드(있을 때만). 앱 홈: 브리핑 아래 'Confluence 멘션' 섹션(최대 3, 누르면 원문).
+- 이노봇: `confluence_search`·`confluence_read`·`confluence_feed`·`confluence_spaces`(읽기)·`confluence_create_page`(쓰기 — 앱이 서버에서 실제 공간 이름을 다시 조회해 확인 카드). 규칙 9·10(문서 답 + 링크, 회의록 구성).
+- PPT 만들기: 웹 주소 원고가 회사 Confluence 페이지면 본인 권한으로 REST에서 본문을 읽는다(`lib/confluence/ppt-source.ts`).
 
 ### 인증 후 앱 복귀 경로
 Jira/Microsoft 연결 완료 URL(`innogrid://login-callback`)은 화면 경로가 아니다. iOS `FlutterDeepLinkingEnabled=false`, Android `flutter_deeplinking_enabled=false`를 유지해 Supabase의 app_links 처리와 Flutter 기본 라우터 처리가 중복되지 않게 한다. 로그인 콜백은 Supabase가 처리하고 계정 연결 복귀는 기존 WebScreen이 resumed에서 상태를 새로 읽는다. 검증 시 앱 실행 중 및 종료 상태에서 `xcrun simctl openurl <UDID> 'innogrid://login-callback/?jira_connected=1'`로 오류 화면이 뜨지 않는지 확인한다.

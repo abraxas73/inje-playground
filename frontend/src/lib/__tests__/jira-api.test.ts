@@ -27,7 +27,7 @@ it('미인증은 모든 Jira 엔드포인트에서 차단', async () => {
 it('연결 조회는 비밀을 반환하지 않고 세션 사용자 범위만 조회', async () => {
   m.load.mockResolvedValue({ auth_type: 'oauth', account_name: '홍길동', token_enc: 'encrypted-secret', email: 'me@innogrid.com', account_id: 'id', api_base: 'base', connected_at: 'today' });
   const response = await GET(); const body = await response.json();
-  expect(body).toEqual({ connected: true, configured: true, needsReconnect: false, site: 'https://pms-innogrid.atlassian.net', email: 'me@innogrid.com', accountName: '홍길동', connectedAt: 'today' });
+  expect(body).toEqual({ connected: true, configured: true, needsReconnect: false, site: 'https://pms-innogrid.atlassian.net', email: 'me@innogrid.com', confluence: { enabled: false, granted: false, canWrite: false }, accountName: '홍길동', connectedAt: 'today' });
   expect(m.load.mock.calls[0][1]).toBe('session-user');
   expect(response.headers.get('cache-control')).toBe('private, no-store');
 });

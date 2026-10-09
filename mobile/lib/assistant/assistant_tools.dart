@@ -41,10 +41,24 @@ const assistantToolTiers = <String, ToolTier>{
   'teams_chats': ToolTier.read,
   'teams_mentions': ToolTier.read,
   'teams_send': ToolTier.write,
+  'confluence_search': ToolTier.read,
+  'confluence_read': ToolTier.read,
+  'confluence_feed': ToolTier.read,
+  'confluence_spaces': ToolTier.read,
+  'confluence_create_page': ToolTier.write,
   'undo_last': ToolTier.meta,
   'offer_choices': ToolTier.choice,
 };
-const serverToolNames = {'teams_chats', 'teams_mentions', 'teams_send'};
+const serverToolNames = {
+  'teams_chats',
+  'teams_mentions',
+  'teams_send',
+  'confluence_search',
+  'confluence_read',
+  'confluence_feed',
+  'confluence_spaces',
+  'confluence_create_page',
+};
 ToolTier? tierOf(String name) => assistantToolTiers[name];
 
 class ToolCall {
@@ -72,6 +86,10 @@ const _progress = {
   'search': '아마란스 검색 중…',
   'teams_chats': 'Teams 채팅 보는 중…',
   'teams_mentions': 'Teams 답장 대기 보는 중…',
+  'confluence_search': 'Confluence 찾는 중…',
+  'confluence_read': 'Confluence 문서 읽는 중…',
+  'confluence_feed': 'Confluence 소식 보는 중…',
+  'confluence_spaces': 'Confluence 공간 보는 중…',
 };
 String progressText(String name) => _progress[name] ?? '처리하는 중…';
 
@@ -130,6 +148,9 @@ String cardLine(ToolCall c, [Map<String, dynamic>? resolved]) {
       return "메일 발송(되돌릴 수 없음) · 받는 사람 ${_strList(i['to']).join(', ')}${cc.isEmpty ? '' : ' · 참조 ${cc.join(', ')}'} · 제목 '${_s(i['subject'])}'\n${_s(i['body'])}";
     case 'teams_send':
       return 'Teams 보내기 · ${_s(r['chat_name'] ?? i['chat_name'])} · "${_s(i['text'])}"';
+    case 'confluence_create_page':
+      final md = _s(i['markdown']);
+      return "Confluence 페이지 만들기 · 공간 '${_s(r['space_name'] ?? i['space_name'])}' · 제목 '${_s(i['title'])}'\n${md.length > 400 ? '${md.substring(0, 400)}…' : md}";
     default:
       return c.name;
   }
@@ -289,6 +310,8 @@ class AssistantToolRunner {
           'ok': false,
           'error': c.name == 'teams_send'
               ? '전송 결과를 확인할 수 없습니다. Teams에서 확인한 뒤 다시 보내세요'
+              : c.name == 'confluence_create_page'
+              ? '결과를 확인할 수 없습니다. Confluence에서 페이지가 만들어졌는지 확인하세요'
               : '처리하지 못했습니다: ${e.runtimeType}',
         };
       }
@@ -429,6 +452,36 @@ class AssistantToolRunner {
           );
         }
         return {'chat_name': _s(chat['name'])};
+      case 'confluence_create_page':
+        // 카드에는 모델이 쓴 이름이 아니라 서버에서 다시 조회한 실제 공간 이름을 보인다.
+        final r = await api.postJson('/api/assistant/execute', {
+          'tool': 'confluence_spaces',
+          'args': const {},
+        });
+        if (r is! Map || r['ok'] != true) {
+          throw _BadInput(
+            r is Map && r['error'] is String
+                ? r['error'] as String
+                : _resolveFailed,
+          );
+        }
+        final res = r['result'] is Map ? r['result'] as Map : const {};
+        if (res['canWrite'] != true) {
+          throw _BadInput(
+            'Confluence 쓰기 권한이 없습니다. 웹 설정에서 Atlassian 계정을 다시 연결하세요',
+          );
+        }
+        final space = (res['spaces'] as List? ?? const [])
+            .whereType<Map>()
+            .where((x) => _s(x['key']) == _s(i['space_key']))
+            .firstOrNull;
+        if (space == null) {
+          throw _BadInput(
+            '공간을 찾지 못했습니다: ${_s(i['space_key'])} — confluence_spaces 결과의 key를 쓰세요',
+          );
+        }
+        if (_s(i['title']).trim().isEmpty) throw _BadInput('페이지 제목이 없습니다');
+        return {'space_name': _s(space['name'])};
     }
     return const {};
   }

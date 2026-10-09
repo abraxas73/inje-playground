@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { encryptionKey, JiraError } from "./config";
 import { refreshToken } from "./oauth";
 export { JIRA_SITE, JiraError } from "./config";
-export type JiraConnection = { account_id: string; account_name: string; email: string; api_base: string; token_enc: string; connected_at: string; auth_type: string; refresh_token_enc: string | null; expires_at: string | null };
+export type JiraConnection = { account_id: string; account_name: string; email: string; api_base: string; token_enc: string; connected_at: string; auth_type: string; refresh_token_enc: string | null; expires_at: string | null; scopes?: string[] | null };
 export const sealToken = (token: string) => encryptSecret(token, encryptionKey());
 function allowedBase(base: string) {
   return /^https:\/\/api\.atlassian\.com\/ex\/jira\/[0-9a-f-]{36}$/.test(base);
@@ -28,7 +28,7 @@ export async function jiraRequest(base: string, token: string, path: string, ini
   return res.status === 204 ? null : res.json();
 }
 
-const columns = "account_id,account_name,email,api_base,token_enc,connected_at,auth_type,refresh_token_enc,expires_at";
+const columns = "account_id,account_name,email,api_base,token_enc,connected_at,auth_type,refresh_token_enc,expires_at,scopes";
 export async function loadConnection(admin: SupabaseClient, userId: string): Promise<JiraConnection | null> {
   const { data, error } = await admin.from("jira_connections").select(columns).eq("user_id", userId).maybeSingle();
   if (error) throw new JiraError("Jira 연결 정보를 불러오지 못했습니다.", 503);
