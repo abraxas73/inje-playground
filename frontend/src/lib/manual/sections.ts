@@ -61,6 +61,13 @@ export const manualSections: ManualSection[] = [
     links: [{ href: "/jira", label: "내 Jira 업무" }, { href: "/settings#jira", label: "Jira 연결 설정" }],
     note: "변경은 연결한 본인 계정 권한으로 실행됩니다. 응답이 끊기면 새로고침해 반영 여부를 확인한 뒤 다시 처리하세요.",
   },
+  {
+    id: "confluence", title: "Confluence — 문서 찾기·회의록·주간보고", category: "업무·소식",
+    description: "Jira와 같은 Atlassian 계정 연결로 회사 위키(Confluence)를 본인 권한으로 찾고, 회의록·주간보고 페이지를 만듭니다.",
+    steps: ["설정 → Atlassian 계정(Jira·Confluence)에서 ‘연결’(이미 Jira를 연결했다면 ‘다시 연결’)을 누르고 Confluence 권한에 동의합니다.", "업무 → Confluence에서 ‘나를 멘션’·‘지켜보는 문서’(최근 14일 변경)·‘내가 편집’ 목록을 보고, 검색창으로 문서를 찾습니다. 항목을 누르면 Confluence 원문이 열립니다.", "‘회의록 만들기’에서 회의명·날짜·시간·장소·참석자를 넣으면 표준 회의록 틀(개요·안건·논의·결정·액션 아이템)이 채워집니다. 공간과 상위 페이지(선택)를 고르고 ‘Confluence에 만들기’를 누릅니다.", "‘주간보고 초안’은 이번 주(월요일~오늘) 담당 Jira 업무와 내가 작성·수정한 문서를 모아 초안을 만듭니다. 메모를 더하고 본문을 고친 뒤 올립니다. 마지막에 고른 공간·상위 페이지는 기억됩니다.", "앱의 이노봇에게 “보안 점검 가이드 찾아서 요약해줘”, “오늘 2시 회의 회의록 만들어줘”처럼 말해도 됩니다. 페이지 만들기는 확인 카드에서 공간·제목을 확인한 뒤 실행됩니다.", "PPT 만들기의 웹 주소 원고에 Confluence 페이지 주소를 넣으면 본인 권한으로 본문을 가져옵니다."],
+    links: [{ href: "/confluence", label: "내 Confluence" }, { href: "/settings#jira", label: "Atlassian 연결 설정" }],
+    note: "본인에게 보이는 문서만 다룹니다. 같은 공간에 같은 제목의 페이지가 있으면 만들 수 없으니 제목에 날짜를 넣으세요.",
+  },
 
   {
     id: "food", title: "오늘 뭐 먹지?", category: "일상·팀 활동",

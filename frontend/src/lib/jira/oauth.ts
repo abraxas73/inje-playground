@@ -1,8 +1,12 @@
 import { JIRA_SCOPES, JIRA_SITE, JiraError, oauthConfig } from "./config";
+import { CONFLUENCE_SCOPES, confluenceEnabled } from "@/lib/confluence/core";
+
+/** Jira 권한 + (켜져 있으면) Confluence 권한 — 같은 Atlassian 사이트라 한 번의 로그인·토큰으로 둘 다 쓴다 */
+export const oauthScopes = () => [...JIRA_SCOPES, ...(confluenceEnabled() ? CONFLUENCE_SCOPES : [])];
 export type OAuthTokens = { accessToken: string; refreshToken: string; expiresIn: number };
 export function authorizeUrl(state: string, origin?: string) {
   const cfg = oauthConfig(origin);
-  return "https://auth.atlassian.com/authorize?" + new URLSearchParams({ audience: "api.atlassian.com", client_id: cfg.clientId, scope: JIRA_SCOPES.join(" "), redirect_uri: cfg.redirectUri, state, response_type: "code", prompt: "consent" });
+  return "https://auth.atlassian.com/authorize?" + new URLSearchParams({ audience: "api.atlassian.com", client_id: cfg.clientId, scope: oauthScopes().join(" "), redirect_uri: cfg.redirectUri, state, response_type: "code", prompt: "consent" });
 }
 export async function tokenRequest(params: Record<string, string>): Promise<OAuthTokens> {
   const cfg = oauthConfig();
@@ -19,11 +23,17 @@ export async function tokenRequest(params: Record<string, string>): Promise<OAut
 }
 export const exchangeCode = (code: string, origin?: string) => tokenRequest({ grant_type: "authorization_code", code, redirect_uri: oauthConfig(origin).redirectUri });
 export const refreshToken = (refresh: string) => tokenRequest({ grant_type: "refresh_token", refresh_token: refresh });
-export async function companyResource(accessToken: string) {
+/** 회사 사이트의 Jira API 주소와, 그 사이트에서 실제로 받은 권한(같은 사이트 항목의 합집합 — Confluence 권한 확인용) */
+export async function companyResourceInfo(accessToken: string): Promise<{ base: string; scopes: string[] }> {
   const res = await fetch("https://api.atlassian.com/oauth/token/accessible-resources", { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" }, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(12_000) });
   if (!res.ok) throw new JiraError("Jira 사이트 접근 권한을 확인하지 못했습니다.");
   const resources = await res.json();
-  const resource = Array.isArray(resources) && resources.find(r => r.url?.replace(/\/$/, "") === JIRA_SITE && /^[0-9a-f-]{36}$/.test(r.id) && JIRA_SCOPES.filter(s => s.endsWith(":jira-work") || s === "read:jira-user").every(s => r.scopes?.includes(s)));
+  const same = (Array.isArray(resources) ? resources : []).filter(r => r?.url?.replace(/\/$/, "") === JIRA_SITE && /^[0-9a-f-]{36}$/.test(r.id));
+  const resource = same.find(r => JIRA_SCOPES.filter(s => s.endsWith(":jira-work") || s === "read:jira-user").every(s => r.scopes?.includes(s)));
   if (!resource) throw new JiraError("회사 Jira 사이트(pms-innogrid.atlassian.net)를 선택하고 업무 조회·변경 권한에 동의하세요.", 403);
-  return `https://api.atlassian.com/ex/jira/${resource.id}`;
+  const scopes = [...new Set(same.filter(r => r.id === resource.id).flatMap(r => (Array.isArray(r.scopes) ? r.scopes : []).filter((s: unknown): s is string => typeof s === "string")))];
+  return { base: `https://api.atlassian.com/ex/jira/${resource.id}`, scopes };
+}
+export async function companyResource(accessToken: string) {
+  return (await companyResourceInfo(accessToken)).base;
 }

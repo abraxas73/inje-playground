@@ -145,7 +145,7 @@ curl -i -X POST "$TEAMS_DM_WEBHOOK_URL" -H "Content-Type: application/json" -d '
 
 > 3-A의 앱 권한과 달리 **위임된 권한**은 사용자가 스스로 동의한다. 테넌트가 사용자 동의를 막아 "관리자 승인 필요"가 뜨더라도 Application Administrator가 동의할 수 있다(GA 불필요). 설계: `docs/superpowers/specs/2026-09-05-rfp-analyzer-phase3-design.md`, 런북: `docs/rfp-analyzer.md`.
 
-1. Entra 앱 등록(3-A와 같은 앱) → 인증 → 플랫폼 "웹" 리디렉션 URI 추가: `https://inje-playground.vercel.app/api/ms/callback`, `http://localhost:3003/api/ms/callback` (다른 도메인을 쓰면 env `MS_ALLOWED_ORIGINS`에도 추가).
+1. Entra 앱 등록(3-A와 같은 앱) → 인증 → 플랫폼 "웹" 리디렉션 URI 추가: `https://innocrew.innogrid.com/api/ms/callback`(정식 도메인, 2026-10-10), `https://inje-playground.vercel.app/api/ms/callback`, `http://localhost:3003/api/ms/callback` (다른 도메인을 쓰면 env `MS_ALLOWED_ORIGINS`에도 추가 — 운영 값 `https://innocrew.innogrid.com,https://inje-playground.vercel.app,http://localhost:3003`; Supabase Auth Redirect URLs에도 `https://<도메인>/**` 추가해야 로그인 후 그 도메인으로 돌아온다).
 2. API 권한 → Microsoft Graph → **위임된 권한** → `Files.ReadWrite.All`, `Sites.Read.All`, `User.Read`, `offline_access` 추가. "관리자 동의 부여"는 누르지 않아도 된다.
 3. 인증서 및 암호 → 클라이언트 암호(없으면 새로) → `TEAMS_GRAPH_CLIENT_SECRET`. `openssl rand -hex 32` → `MS_TOKEN_ENC_KEY`. 둘 다 Vercel env(+로컬 `.env.local`), settings에는 저장하지 않는다.
 4. settings `teams_tenant_id`·`teams_graph_client_id`는 3-A와 공용.

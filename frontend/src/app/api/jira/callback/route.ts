@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
 import { verifyState } from "@/lib/ms/crypto";
 import { oauthConfig, JiraError } from "@/lib/jira/config";
-import { exchangeCode, companyResource } from "@/lib/jira/oauth";
+import { exchangeCode, companyResourceInfo } from "@/lib/jira/oauth";
 import { jiraRequest, sealToken } from "@/lib/jira/client";
 import { jiraFailure } from "@/lib/jira/route";
 import { jiraMobileComplete } from "@/lib/jira/mobile-return";
@@ -23,13 +23,13 @@ export async function GET(request: NextRequest) {
     if (!code || code.length > 4096) return back("인증 코드가 없습니다. 다시 연결하세요.");
     try {
       const tokens = await exchangeCode(code, cfg.origin);
-      const base = await companyResource(tokens.accessToken);
+      const { base, scopes } = await companyResourceInfo(tokens.accessToken);
       const me = await jiraRequest(base, tokens.accessToken, "/rest/api/3/myself");
       const user = await auth.admin.auth.admin.getUserById(auth.userId);
       const email = user.data.user?.email;
       if (user.error || !email) throw new JiraError("회사 로그인 이메일을 확인하지 못했습니다.", 503);
       if (!me?.accountId || me.active === false || typeof me.emailAddress !== "string" || me.emailAddress.toLowerCase() !== email.toLowerCase()) throw new JiraError("앱에 로그인한 회사 이메일과 같은 Atlassian 계정으로 연결하세요.", 400);
-      const { error } = await auth.admin.from("jira_connections").upsert({ user_id: auth.userId, account_id: me.accountId, account_name: me.displayName || email, email, api_base: base, auth_type: "oauth", token_enc: sealToken(tokens.accessToken), refresh_token_enc: sealToken(tokens.refreshToken), expires_at: new Date(Date.now() + tokens.expiresIn * 1000).toISOString(), connected_at: new Date().toISOString(), refresh_lock: null, refresh_lock_until: null, privacy_next_at: new Date().toISOString() }, { onConflict: "user_id" });
+      const { error } = await auth.admin.from("jira_connections").upsert({ user_id: auth.userId, account_id: me.accountId, account_name: me.displayName || email, email, api_base: base, scopes, auth_type: "oauth", token_enc: sealToken(tokens.accessToken), refresh_token_enc: sealToken(tokens.refreshToken), expires_at: new Date(Date.now() + tokens.expiresIn * 1000).toISOString(), connected_at: new Date().toISOString(), refresh_lock: null, refresh_lock_until: null, privacy_next_at: new Date().toISOString() }, { onConflict: "user_id" });
       if (error) throw new JiraError("Jira 연결을 저장하지 못했습니다.", 503);
       await logAudit(auth.admin, request, { userId: auth.userId, action: "Jira Atlassian 로그인 연결", category: "auth" });
       return state.a ? finish(jiraMobileComplete()) : back();

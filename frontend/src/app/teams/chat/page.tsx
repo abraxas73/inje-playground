@@ -145,10 +145,16 @@ export default function TeamsChatPage() {
   const chats = info.chats ?? [];
   let lastDay = "";
   return (
-    <div className="mx-auto flex h-[calc(100dvh-8.5rem)] min-h-[24rem] max-w-5xl gap-3">
+    <div className="animate-fade-up">
+    {/* PC 제목 줄(다른 페이지와 같은 형식) — 휴대폰은 화면 높이를 아끼려고 목록 카드 제목만 */}
+    <div className="mb-4 hidden items-center gap-3 md:flex">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50"><MessageCircle className="h-5 w-5 text-indigo-600" /></div>
+      <div><h1 className="text-2xl font-bold tracking-tight">Teams 채팅</h1><p className="text-sm text-muted-foreground">내가 속한 그룹·1:1 채팅 읽기·보내기</p></div>
+    </div>
+    <div className="flex h-[calc(100dvh-8.5rem)] min-h-[24rem] gap-3 md:h-[calc(100dvh-12.5rem)]">
       <Card className={cn("flex w-full flex-col overflow-hidden md:w-80 md:shrink-0", chatId && "hidden md:flex")}>
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <h1 className="flex items-center gap-2 font-semibold"><MessageCircle className="h-5 w-5 text-primary" />내 채팅</h1>
+          <h2 className="flex items-center gap-2 font-semibold"><MessageCircle className="h-5 w-5 text-primary md:hidden" />내 채팅</h2>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void loadInfo()} disabled={refreshing} aria-label="목록 새로고침">
             <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
           </Button>
@@ -231,6 +237,7 @@ export default function TeamsChatPage() {
           </>
         )}
       </Card>
+    </div>
     </div>
   );
 }

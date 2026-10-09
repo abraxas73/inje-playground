@@ -21,7 +21,7 @@ ApiClient app(Map<String, Object> routes, [List<Map<String, dynamic>>? sent]) =>
     }), tokens: _Tokens(), baseUrl: 'http://x', userAgent: 't');
 
 // 서버 assistant-tools.test.ts의 NAMES와 같은 목록.
-const names = ['approval_counts', 'approval_read', 'approvals_pending', 'attendance_today', 'cancel_reservation', 'clock_in', 'clock_out', 'create_event', 'delete_event', 'find_free_rooms', 'find_person', 'list_calendars', 'list_events', 'list_rooms', 'mail_list', 'mail_read', 'mail_save_draft', 'mail_send', 'my_reservations', 'my_team', 'notice_read', 'notices_list', 'offer_choices', 'reserve_room', 'search', 'teams_chats', 'teams_mentions', 'teams_send', 'undo_last'];
+const names = ['approval_counts', 'approval_read', 'approvals_pending', 'attendance_today', 'cancel_reservation', 'clock_in', 'clock_out', 'confluence_create_page', 'confluence_feed', 'confluence_read', 'confluence_search', 'confluence_spaces', 'create_event', 'delete_event', 'find_free_rooms', 'find_person', 'list_calendars', 'list_events', 'list_rooms', 'mail_list', 'mail_read', 'mail_save_draft', 'mail_send', 'my_reservations', 'my_team', 'notice_read', 'notices_list', 'offer_choices', 'reserve_room', 'search', 'teams_chats', 'teams_mentions', 'teams_send', 'undo_last'];
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -34,7 +34,8 @@ void main() {
     expect(tierOf('undo_last'), ToolTier.meta);
     expect(tierOf('offer_choices'), ToolTier.choice);
     expect(tierOf('rm_rf'), isNull);
-    expect(serverToolNames, {'teams_chats', 'teams_mentions', 'teams_send'});
+    expect(tierOf('confluence_create_page'), ToolTier.write);
+    expect(serverToolNames, {'teams_chats', 'teams_mentions', 'teams_send', 'confluence_search', 'confluence_read', 'confluence_feed', 'confluence_spaces', 'confluence_create_page'});
   });
 
   test('cardLine — 앱이 인자로 만든 문장(참석자 부서, 메일 전문·경고)', () {
@@ -167,6 +168,19 @@ void main() {
     expect((await r('mail_send', {'to': ['a@x']})).error, isNull);
     final down = AssistantToolRunner(gw: Gw({...base(), '/schres/rs121A01': (_) => http.Response('x', 500)}).api(), api: app({}), journal: await AssistantJournal.load(), guard: MailReadGuard());
     expect((await down.resolve(const ToolCall('x', 'reserve_room', {'res_seq': 'R2'}))).error, '확인에 필요한 정보를 가져오지 못했습니다');
+  });
+
+  test('confluence_create_page — 서버에서 다시 조회한 실제 공간 이름으로 카드, 없는 공간·쓰기 권한 없음은 거부', () async {
+    Future<({Map<String, dynamic> facts, String? error})> r(Map<String, dynamic> res, Map<String, dynamic> i) async {
+      final runner = AssistantToolRunner(gw: null, api: app({'/api/assistant/execute': {'ok': true, 'result': res}}), journal: await AssistantJournal.load(), guard: MailReadGuard());
+      return runner.resolve(ToolCall('x', 'confluence_create_page', i));
+    }
+    final spaces = {'canWrite': true, 'spaces': [{'key': 'DEV', 'name': '개발센터', 'type': 'global'}]};
+    final ok = await r(spaces, {'space_key': 'DEV', 'space_name': '가짜', 'title': '[회의록] 2026-10-10 주간회의', 'markdown': '## 안건'});
+    expect(ok.facts['space_name'], '개발센터');
+    expect(cardLine(const ToolCall('x', 'confluence_create_page', {'space_key': 'DEV', 'space_name': '가짜', 'title': '[회의록] 주간', 'markdown': '## 안건'}), ok.facts), "Confluence 페이지 만들기 · 공간 '개발센터' · 제목 '[회의록] 주간'\n## 안건");
+    expect((await r(spaces, {'space_key': 'NOPE', 'title': 't', 'markdown': 'x'})).error, startsWith('공간을 찾지 못했습니다'));
+    expect((await r({...spaces, 'canWrite': false}, {'space_key': 'DEV', 'title': 't', 'markdown': 'x'})).error, contains('쓰기 권한'));
   });
 
   test('find_free_rooms — 오늘이면 지난 시각은 빼고 다음 10분 단위부터', () async {

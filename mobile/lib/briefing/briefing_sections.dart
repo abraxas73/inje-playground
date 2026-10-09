@@ -1,3 +1,4 @@
+import 'confluence_briefing.dart';
 import 'jira_briefing.dart';
 import 'package:flutter/material.dart';
 import '../app/brand.dart';
@@ -299,5 +300,32 @@ class JiraSection extends StatelessWidget {
               ],
       ),
     ]);
+  }
+}
+
+/// Confluence에서 나를 멘션한 문서(최대 3) — 누르면 원문, '더 보기'는 웹 내 Confluence.
+class ConfluenceSection extends StatelessWidget {
+  const ConfluenceSection({super.key, required this.data, required this.onOpenUrl, required this.onMore});
+  final ConfluenceBriefing? data;
+  final ValueChanged<String> onOpenUrl;
+  final VoidCallback onMore;
+  @override
+  Widget build(BuildContext context) {
+    final d = data;
+    if (d == null || d.items.isEmpty) return const SizedBox.shrink();
+    return _Section(
+      title: 'Confluence 멘션 ${d.items.length}',
+      trailing: _more('더 보기', onMore),
+      child: Column(children: [
+        for (final x in d.items.take(3))
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.alternate_email, color: Brand.muted),
+            title: Text(x.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+            subtitle: Text([x.space, x.by].where((s) => s.isNotEmpty).join(' · '), style: const TextStyle(fontSize: 12)),
+            onTap: () => onOpenUrl(x.url),
+          ),
+      ]),
+    );
   }
 }

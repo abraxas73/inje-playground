@@ -33,6 +33,7 @@ const pages = <PageEntry>[
   PageEntry('usage_perf', '/usage/perf', '성과', 'ai', 'user'),
   PageEntry('teams_chat', '/teams/chat', 'Teams 채팅', 'work', 'user'),
   PageEntry('jira', '/jira', 'Jira', 'work', 'user'),
+  PageEntry('confluence', '/confluence', 'Confluence', 'work', 'user'),
   PageEntry('rfp', '/rfp', 'RFP 분석', 'work', 'user'),
   PageEntry('ppt', '/ppt', 'PPT 만들기', 'work', 'user'),
   PageEntry('people_news', '/people-news', '인사·부고', 'work', 'user'),

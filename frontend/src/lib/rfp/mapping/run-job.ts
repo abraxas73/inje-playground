@@ -39,9 +39,18 @@ export function selectTargetRequirements<T extends { id: string }>(
 }
 
 /** 동시 limit개까지 실행. 결과는 입력 순서대로 PromiseSettledResult(실패도 잡아서 돌려준다). */
-export async function runWithConcurrency<T, R>(items: readonly T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+/** warmFirst: 첫 항목을 혼자 끝낸 뒤 나머지를 동시에 — 프롬프트 캐시는 첫 응답이 시작된 뒤에야 읽히므로, 처음부터 동시에 보내면 모두 캐시를 새로 쓴다. */
+export async function runWithConcurrency<T, R>(items: readonly T[], limit: number, fn: (item: T, index: number) => Promise<R>, opts: { warmFirst?: boolean } = {}): Promise<PromiseSettledResult<R>[]> {
   const results: PromiseSettledResult<R>[] = new Array(items.length);
   let next = 0;
+  if (opts.warmFirst && items.length > 1) {
+    next = 1;
+    try {
+      results[0] = { status: "fulfilled", value: await fn(items[0], 0) };
+    } catch (reason) {
+      results[0] = { status: "rejected", reason };
+    }
+  }
   const worker = async () => {
     while (next < items.length) {
       const i = next++;
@@ -227,7 +236,7 @@ export async function runMapping(admin: SupabaseClient, projectId: string, mode:
         if (ie) throw new Error(ie.message);
       }
       return { warnings: v.warnings, rows: v.rows.length };
-    });
+    }, { warmFirst: engine === "llm" });
     const summary = summarizeChunkOutcomes(results, chunks);
     if (summary.succeeded === 0) return await fail(`모든 청크가 실패했습니다. ${summary.warnings[0] ?? ""}`.trim());
     if (summary.failed > 0) {
