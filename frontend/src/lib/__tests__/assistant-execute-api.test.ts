@@ -77,3 +77,13 @@ it("Confluence 도구 — 본인 세션으로 검색·페이지 만들기, 쓰�
   m.perms = { confluence: false };
   expect(await (await POST(req({ tool: "confluence_search", args: { query: "x" } }))).json()).toEqual({ ok: false, error: "Confluence 권한이 없습니다" });
 });
+
+it("confluence_spaces — key는 정확히 한 공간, query는 이름·key 일부로 좁힌다", async () => {
+  m.perms = null; m.canWrite = true;
+  m.conf.mockReset().mockImplementation(async () => ({ request: m.confReq, canWrite: true }));
+  const page = { results: [{ space: { key: "SS", name: "솔루션전략실", type: "global" } }, { space: { key: "DEV", name: "개발센터", type: "global" } }] };
+  m.confReq.mockReset().mockResolvedValue(page);
+  expect((await (await POST(req({ tool: "confluence_spaces", args: { key: "DEV" } }))).json()).result.spaces).toEqual([{ key: "DEV", name: "개발센터", type: "global" }]);
+  expect((await (await POST(req({ tool: "confluence_spaces", args: { query: "솔루션" } }))).json()).result.spaces.map((x: { key: string }) => x.key)).toEqual(["SS"]);
+  expect((await (await POST(req({ tool: "confluence_spaces", args: {} }))).json()).result.total).toBe(2);
+});

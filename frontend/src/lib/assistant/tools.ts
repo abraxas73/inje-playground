@@ -54,7 +54,7 @@ export const ASSISTANT_TOOLS: Anthropic.Tool[] = [
   tool("confluence_search", "회사 Confluence(위키)에서 문서를 찾는다(본인이 볼 수 있는 문서만, 최근 수정 순). 결과는 id·제목·공간·발췌·링크.", { query: S("검색어"), space_key: S("공간 key로 좁히기(선택)") }, ["query"]),
   tool("confluence_read", "Confluence 문서 본문(텍스트, 최대 2만 자). 사용자가 그 문서를 요청했거나 질문에 답하는 데 필요할 때 confluence_search·confluence_feed 결과의 id로 읽는다.", { page_id: S("문서 id(숫자)") }, ["page_id"]),
   tool("confluence_feed", "내 Confluence 소식 — mentions: 나를 멘션한 문서·댓글, watching: 내가 지켜보는 문서의 최근 14일 변경, recent: 내가 편집한 문서.", { kind: S("mentions|watching|recent") }, ["kind"]),
-  tool("confluence_spaces", "페이지를 만들 수 있는 Confluence 공간 목록(key·이름·종류 — personal은 개인 공간)."),
+  tool("confluence_spaces", "페이지를 만들 수 있는 Confluence 공간(key·이름·종류 — personal은 개인 공간). 공간이 수백 개라 query로 이름 일부를 넣어 좁힌다(최대 80개).", { query: S("공간 이름·key 일부(예: 솔루션전략, 개발)") }),
   tool("confluence_create_page", "Confluence에 새 페이지 만들기(쓰기, 내 이름으로 — 앱이 확인받는다). 본문은 마크다운(제목 #·##, 글머리 -, 번호 1., 표 |, **굵게**).", { space_key: S("confluence_spaces의 key"), space_name: S("공간 이름(확인 카드 표시용)"), parent_id: S("상위 페이지 id(선택)"), title: S("페이지 제목(같은 공간에 같은 제목이 있으면 실패하므로 날짜를 넣는다)"), markdown: S("본문 마크다운") }, ["space_key", "space_name", "title", "markdown"]),
   tool("offer_choices", "실행할 수 있는 대안이 여러 개일 때(빈 회의실·시간대 등) 사용자에게 고르게 한다. 선택지마다 그걸 고르면 실행할 쓰기 도구 호출을 calls에 모두 담는다(예: reserve_room + create_event). 앱이 선택지마다 실제 대상을 확인해 보여 주고 사용자가 누른 선택지만 실행한다. 단독으로 부른다.", {
     question: S("무엇을 고르는지(짧게)"),

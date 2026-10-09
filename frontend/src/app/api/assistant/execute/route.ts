@@ -50,7 +50,11 @@ export async function POST(request: NextRequest) {
         if (!FEED_KINDS.includes(kind)) return fail("kind는 mentions·watching·recent 중 하나입니다.");
         result = { items: await feed(c.request, kind, 10) };
       } else if (tool === "confluence_spaces") {
-        result = { spaces: (await listSpaces(c.request)).slice(0, 80), canWrite: c.canWrite };
+        // key: 확인 카드용 정확히 한 공간, query: 이름·key 일부로 좁히기(공간이 수백 개라 전부 주지 않는다)
+        const all = await listSpaces(c.request);
+        const key = str("key"), q = str("query").toLowerCase();
+        const spaces = key ? all.filter((x) => x.key === key) : q ? all.filter((x) => x.name.toLowerCase().includes(q) || x.key.toLowerCase().includes(q)) : all;
+        result = { spaces: spaces.slice(0, 80), total: spaces.length, canWrite: c.canWrite };
       } else {
         if (!c.canWrite) return fail("Confluence 쓰기 권한이 없습니다. 웹 설정에서 Atlassian 계정을 다시 연결하세요.");
         result = await createPage(c.request, { spaceKey: str("space_key"), parentId: str("parent_id") || null, title: str("title"), markdown: typeof args.markdown === "string" ? args.markdown.slice(0, 100_000) : "" });

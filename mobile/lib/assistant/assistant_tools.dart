@@ -456,7 +456,7 @@ class AssistantToolRunner {
         // 카드에는 모델이 쓴 이름이 아니라 서버에서 다시 조회한 실제 공간 이름을 보인다.
         final r = await api.postJson('/api/assistant/execute', {
           'tool': 'confluence_spaces',
-          'args': const {},
+          'args': {'key': _s(i['space_key'])},
         });
         if (r is! Map || r['ok'] != true) {
           throw _BadInput(
