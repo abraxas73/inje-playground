@@ -71,7 +71,7 @@ export async function readPage(request: ConfluenceFetch, id: string, maxChars = 
 export interface ConfluenceSpace { key: string; name: string; type: string }
 /** 내가 볼 수 있는 공간 — 검색 API(type=space, search:confluence)로. 개인 OAuth에서는 /wiki/rest/api/space가 실패했다(2026-10-10 실측, 공용 계정 Basic은 정상). */
 export async function listSpaces(request: ConfluenceFetch): Promise<ConfluenceSpace[]> {
-  const j = await request(`/wiki/rest/api/search?${qs({ cql: "type = space order by title", limit: "200" })}`);
+  const j = await request(`/wiki/rest/api/search?${qs({ cql: "type = space order by title", limit: "1000" })}`);
   const seen = new Set<string>();
   return results(j).flatMap((r) => {
     const o = ((r as Record<string, unknown>)?.space ?? {}) as Record<string, unknown>;
