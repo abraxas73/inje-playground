@@ -68,6 +68,13 @@ export const manualSections: ManualSection[] = [
     links: [{ href: "/confluence", label: "내 Confluence" }, { href: "/settings#jira", label: "Atlassian 연결 설정" }],
     note: "본인에게 보이는 문서만 다룹니다. 같은 공간에 같은 제목의 페이지가 있으면 만들 수 없으니 제목에 날짜를 넣으세요.",
   },
+  {
+    id: "sharepoint", title: "SharePoint 문서 — 자주 쓰는 문서·즐겨찾기·검색", category: "업무·소식",
+    description: "Microsoft 계정 연결(RFP·Teams 채팅과 같은 연결)로 회사 SharePoint·OneDrive 문서를 본인 권한으로 보고 찾습니다. 새 권한 동의는 필요 없습니다.",
+    steps: ["설정 → Microsoft 계정에서 ‘연결’을 누릅니다(이미 연결했다면 그대로 됩니다).", "업무 → SharePoint 문서에서 ‘자주 쓰는 문서’(최근 사용)·‘나와 공유’·‘주변에서 많이 보는’ 목록을 보고, 검색창으로 문서를 이름·본문으로 찾습니다. 항목을 누르면 SharePoint에서 열립니다.", "자주 여는 문서는 ★를 눌러 즐겨찾기에 두거나, 문서 링크를 붙여 넣어 추가합니다(최대 30개). 즐겨찾기는 홈 카드와 앱에서도 보입니다.", "앱의 이노봇에게 “지난주 고객 제안서 찾아줘”, “이 보고서 요약해줘”처럼 말하면 문서를 찾아 본문(docx·pdf·pptx·xlsx·hwp)을 읽고 답합니다.", "PPT 만들기의 웹 주소 원고에 SharePoint 문서 링크를 넣으면 본인 권한으로 내려받아 원고로 씁니다(pptx는 PPT 원고로)."],
+    links: [{ href: "/sharepoint", label: "SharePoint 문서" }, { href: "/settings", label: "Microsoft 연결 설정" }],
+    note: "본인에게 보이는 문서만 다룹니다. ‘자주 쓰는 문서’는 Microsoft 인사이트가 꺼진 조직이면 ‘최근 연 문서’로 대신 보입니다.",
+  },
 
   {
     id: "food", title: "오늘 뭐 먹지?", category: "일상·팀 활동",

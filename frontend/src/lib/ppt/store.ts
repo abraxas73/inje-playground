@@ -89,7 +89,7 @@ export function deckPaths(deckId: string, no: number) {
 }
 export const TEMPLATE_PATH_RE = /^templates\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.pptx$/;
 export function newTemplatePath(): string { return `templates/${crypto.randomUUID()}.pptx`; }
-export const SOURCE_PATH_RE = /^source\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(docx|pdf|hwp|hwpx|pptx|md|txt)$/;
+export const SOURCE_PATH_RE = /^source\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(docx|pdf|hwp|hwpx|pptx|md|txt|html|htm)$/;
 export function newSourcePath(ext: string): string { return `source/${crypto.randomUUID()}.${ext.toLowerCase()}`; }
 export function pptxFileName(title: string, no: number): string { return `${safeFileName(title)}_v${String(no).padStart(2, "0")}.pptx`; }
 

@@ -14,6 +14,7 @@ const serviceMeta = <String, (IconData, String)>{
   'survey': (Icons.poll_outlined, '진행 중인 설문 응답'),
   'jira': (Icons.task_alt, '내 담당 업무·상태 변경·댓글'),
   'confluence': (Icons.menu_book_outlined, '문서 찾기·회의록·주간보고'),
+  'sharepoint': (Icons.folder_open_outlined, '자주 쓰는 문서·즐겨찾기·검색'),
   'teams_chat': (Icons.forum_outlined, '지정 그룹 채팅 읽기·보내기'),
   'usage_code': (Icons.terminal, 'Claude Code 사용량'),
   'usage_chat': (Icons.chat_bubble_outline, 'Chat·Cowork 사용량'),

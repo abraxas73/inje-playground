@@ -8,6 +8,9 @@ import { parseCreateRequest, provisionalTitle } from "@/lib/ppt/request";
 import { clampSourceText, fetchUrlSource, UrlSourceError } from "@/lib/ppt/web-source";
 import type { PptSourceImage } from "@/types/ppt";
 import { confluenceSource, isCompanyConfluenceUrl } from "@/lib/confluence/ppt-source";
+import { sharepointSource } from "@/lib/sharepoint/ppt-source";
+import { isSharepointUrl } from "@/lib/sharepoint/core";
+import { sourceKindFor } from "@/lib/ppt/source";
 import { createPptServiceClient, PptServiceError, type PptServiceClient } from "@/lib/ppt/service";
 import { DECK_COLUMNS, failStaleVersions, hasActiveVersion, loadActiveTemplates, mapDeck, templateOptions, type DeckRow, type TemplateRow, type VersionRow } from "@/lib/ppt/store";
 import { BUILTIN_TEMPLATE_LABEL, type PptListResponse } from "@/types/ppt";
@@ -44,8 +47,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
-  const parsed = parseCreateRequest(await request.json().catch(() => null));
+  let parsed = parseCreateRequest(await request.json().catch(() => null));
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+  // SharePoint·OneDrive 문서 링크는 본인 Microsoft 권한으로 내려받아 업로드 원고와 같은 흐름(docx 등은 텍스트, pptx는 /extract)
+  if (parsed.kind === "url" && parsed.url && isSharepointUrl(parsed.url)) {
+    const sp = await sharepointSource(auth.admin, auth.userId, parsed.url);
+    if (!sp.ok) return NextResponse.json({ error: sp.error }, { status: sp.status });
+    parsed = { ...parsed, kind: sourceKindFor(sp.fileName), url: null, storagePath: sp.storagePath, fileName: sp.fileName, includeImages: false };
+  }
   // URL 원고는 여기서 바로 가져온다 — 못 가져오면 덱을 만들지 않고 사유를 돌려준다
   let fetched: { text: string; title: string | null; images: PptSourceImage[] } | null = null;
   if (parsed.kind === "url" && parsed.url && isCompanyConfluenceUrl(parsed.url)) {

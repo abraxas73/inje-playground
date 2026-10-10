@@ -41,6 +41,7 @@ const _examples = [
   '오늘 내 일정 알려줘',
   'Confluence에서 보안 점검 가이드 찾아서 요약해줘',
   '오늘 오후 회의 회의록 Confluence에 만들어줘',
+  'SharePoint에서 최근 제안서 찾아서 요약해줘',
 ];
 
 /// 비서 대화 시트 — 말풍선·진행 표시·확인 카드·입력창. 상태는 assistantSessionProvider(앱이 켜져 있는 동안 유지).

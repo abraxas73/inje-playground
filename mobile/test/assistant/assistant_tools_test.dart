@@ -21,7 +21,7 @@ ApiClient app(Map<String, Object> routes, [List<Map<String, dynamic>>? sent]) =>
     }), tokens: _Tokens(), baseUrl: 'http://x', userAgent: 't');
 
 // 서버 assistant-tools.test.ts의 NAMES와 같은 목록.
-const names = ['approval_counts', 'approval_read', 'approvals_pending', 'attendance_today', 'cancel_reservation', 'clock_in', 'clock_out', 'confluence_create_page', 'confluence_feed', 'confluence_read', 'confluence_search', 'confluence_spaces', 'create_event', 'delete_event', 'find_free_rooms', 'find_person', 'list_calendars', 'list_events', 'list_rooms', 'mail_list', 'mail_read', 'mail_save_draft', 'mail_send', 'my_reservations', 'my_team', 'notice_read', 'notices_list', 'offer_choices', 'reserve_room', 'search', 'teams_chats', 'teams_mentions', 'teams_send', 'undo_last'];
+const names = ['approval_counts', 'approval_read', 'approvals_pending', 'attendance_today', 'cancel_reservation', 'clock_in', 'clock_out', 'confluence_create_page', 'confluence_feed', 'confluence_read', 'confluence_search', 'confluence_spaces', 'create_event', 'delete_event', 'find_free_rooms', 'find_person', 'list_calendars', 'list_events', 'list_rooms', 'mail_list', 'mail_read', 'mail_save_draft', 'mail_send', 'my_reservations', 'my_team', 'notice_read', 'notices_list', 'offer_choices', 'reserve_room', 'search', 'sharepoint_read', 'sharepoint_recent', 'sharepoint_search', 'teams_chats', 'teams_mentions', 'teams_send', 'undo_last'];
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -35,7 +35,8 @@ void main() {
     expect(tierOf('offer_choices'), ToolTier.choice);
     expect(tierOf('rm_rf'), isNull);
     expect(tierOf('confluence_create_page'), ToolTier.write);
-    expect(serverToolNames, {'teams_chats', 'teams_mentions', 'teams_send', 'confluence_search', 'confluence_read', 'confluence_feed', 'confluence_spaces', 'confluence_create_page'});
+    expect(serverToolNames, {'teams_chats', 'teams_mentions', 'teams_send', 'confluence_search', 'confluence_read', 'confluence_feed', 'confluence_spaces', 'confluence_create_page', 'sharepoint_search', 'sharepoint_recent', 'sharepoint_read'});
+    expect(tierOf('sharepoint_read'), ToolTier.read);
   });
 
   test('cardLine — 앱이 인자로 만든 문장(참석자 부서, 메일 전문·경고)', () {

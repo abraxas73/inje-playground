@@ -1,5 +1,6 @@
 import 'confluence_briefing.dart';
 import 'jira_briefing.dart';
+import 'sharepoint_briefing.dart';
 import 'package:flutter/material.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
@@ -323,6 +324,40 @@ class ConfluenceSection extends StatelessWidget {
             leading: const Icon(Icons.alternate_email, color: Brand.muted),
             title: Text(x.title, maxLines: 2, overflow: TextOverflow.ellipsis),
             subtitle: Text([x.space, x.by].where((s) => s.isNotEmpty).join(' · '), style: const TextStyle(fontSize: 12)),
+            onTap: () => onOpenUrl(x.url),
+          ),
+      ]),
+    );
+  }
+}
+
+const _spIcons = <String, IconData>{
+  'docx': Icons.description_outlined,
+  'pptx': Icons.slideshow_outlined,
+  'xlsx': Icons.table_chart_outlined,
+  'pdf': Icons.picture_as_pdf_outlined,
+};
+
+/// 홈 — 자주 쓰는 SharePoint 문서(최대 3, 누르면 SharePoint에서 연다). 미연결·없음이면 숨긴다.
+class SharepointSection extends StatelessWidget {
+  const SharepointSection({super.key, required this.data, required this.onOpenUrl, required this.onMore});
+  final SharepointBriefing? data;
+  final ValueChanged<String> onOpenUrl;
+  final VoidCallback onMore;
+  @override
+  Widget build(BuildContext context) {
+    final d = data;
+    if (d == null || d.items.isEmpty) return const SizedBox.shrink();
+    return _Section(
+      title: d.source == 'recent' ? '최근 연 SharePoint 문서' : '자주 쓰는 SharePoint 문서',
+      trailing: _more('더 보기', onMore),
+      child: Column(children: [
+        for (final x in d.items.take(3))
+          ListTile(
+            dense: true,
+            leading: Icon(_spIcons[x.ext] ?? Icons.insert_drive_file_outlined, color: Brand.muted),
+            title: Text(x.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+            subtitle: x.container.isEmpty ? null : Text(x.container, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
             onTap: () => onOpenUrl(x.url),
           ),
       ]),

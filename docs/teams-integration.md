@@ -185,3 +185,7 @@ curl -i -X POST "$TEAMS_DM_WEBHOOK_URL" -H "Content-Type: application/json" -d '
 - **채널(팀 안)**로 넓히려면 읽기 스코프 `ChannelMessage.Read.All`이 테넌트 관리자 동의(GA)를 요구한다(§3-A.0 절차). 채팅은 그 절차가 없다.
 - **함정**: `GET /me/chats`에 `$expand=members($select=…)`처럼 중첩 `$select`를 넣으면 Graph가 400 BadRequest(2026-10-03 운영 재현) — `$expand=members`만 쓴다. Graph 오류는 서버 로그 `[teams-chat] Graph <status> <code> request-id=… — <message>`로 남는다(`vercel logs <배포 URL>`).
 - **한계(1차)**: 첨부·이미지는 "첨부 N개 — Teams에서 확인", 반응·답글 스레드는 표시하지 않음, 실시간 아님(폴링), 목록은 최근 50개. 변경 알림(webhook) 구독은 공개 수신점 + 리소스 데이터 암호화가 필요해 2단계.
+
+## 3-E. SharePoint 문서 `/sharepoint` — 자주 쓰는 문서·즐겨찾기·검색(위임 Graph, 추가 권한 없음) — 2026-10-10
+
+3-C의 연결(`ms_connections`, `Files.ReadWrite.All`·`Sites.Read.All`)을 그대로 쓴다. `GET /api/sharepoint/feed?kind=used|shared|trending|recent`(인사이트, 꺼진 테넌트는 recent 갈음), `GET /api/sharepoint/search?q=`(`/search/query` driveItem), `GET·POST·DELETE /api/sharepoint/favorites`(user_settings `sharepoint_favorites`). 이노봇 `sharepoint_*`와 PPT 만들기 URL 원고도 같은 토큰. 상세는 `docs/mobile-app.md` §SharePoint.

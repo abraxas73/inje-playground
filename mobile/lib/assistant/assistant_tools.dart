@@ -46,6 +46,9 @@ const assistantToolTiers = <String, ToolTier>{
   'confluence_feed': ToolTier.read,
   'confluence_spaces': ToolTier.read,
   'confluence_create_page': ToolTier.write,
+  'sharepoint_search': ToolTier.read,
+  'sharepoint_recent': ToolTier.read,
+  'sharepoint_read': ToolTier.read,
   'undo_last': ToolTier.meta,
   'offer_choices': ToolTier.choice,
 };
@@ -58,6 +61,9 @@ const serverToolNames = {
   'confluence_feed',
   'confluence_spaces',
   'confluence_create_page',
+  'sharepoint_search',
+  'sharepoint_recent',
+  'sharepoint_read',
 };
 ToolTier? tierOf(String name) => assistantToolTiers[name];
 
@@ -90,6 +96,9 @@ const _progress = {
   'confluence_read': 'Confluence 문서 읽는 중…',
   'confluence_feed': 'Confluence 소식 보는 중…',
   'confluence_spaces': 'Confluence 공간 보는 중…',
+  'sharepoint_search': 'SharePoint 문서 찾는 중…',
+  'sharepoint_recent': 'SharePoint 문서 보는 중…',
+  'sharepoint_read': 'SharePoint 문서 읽는 중…',
 };
 String progressText(String name) => _progress[name] ?? '처리하는 중…';
 

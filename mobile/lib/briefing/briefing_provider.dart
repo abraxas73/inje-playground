@@ -6,6 +6,7 @@ import '../gw/gw_creds.dart';
 import 'summary_provider.dart' show briefingClockProvider;
 import 'briefing_model.dart';
 import 'confluence_briefing.dart';
+import 'sharepoint_briefing.dart';
 import 'jira_briefing.dart';
 
 /// 홈 브리핑 수집 — 소스별로 독립(try/catch)·병렬. 실패한 소스는 errors[소스]에만 남고 값은 null이라 나머지 섹션은 그려진다.
@@ -80,6 +81,18 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
           // 미연결(400)·권한 추가 필요(409)·기능 준비 중(503)·페이지 권한 없음(401·403)·구 서버(404)는 오류가 아니라 "표시 안 함"
           if (const {400, 401, 403, 404, 409, 503}.contains(e.status)) {
             d.confluence = null;
+          } else {
+            rethrow;
+          }
+        }
+      }),
+      src('sharepoint', () async {
+        try {
+          d.sharepoint = SharepointBriefing.parse(await ref.read(apiClientProvider).getJson('/api/sharepoint/feed', query: {'kind': 'used', 'limit': '5'}));
+        } on ApiException catch (e) {
+          // 미연결(400)·토큰 만료(409)·설정 누락(500)·페이지 권한 없음(401·403)·구 서버(404)는 오류가 아니라 "표시 안 함"
+          if (const {400, 401, 403, 404, 409, 500}.contains(e.status)) {
+            d.sharepoint = null;
           } else {
             rethrow;
           }

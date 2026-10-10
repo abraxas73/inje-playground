@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { Cloud, Link2, Loader2, RefreshCw, Unlink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -87,7 +88,7 @@ export default function MicrosoftAccountCard() {
           )}
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          RFP 분석 결과를 SharePoint에 올릴 때 쓰는 계정입니다. 연결하면 서버가 갱신 토큰을 암호화해 보관하고, 업로드는 내 계정 권한으로 실행됩니다.
+          RFP 결과 SharePoint 업로드, Teams 채팅, SharePoint 문서(자주 쓰는 문서·검색)에 쓰는 계정입니다. 연결하면 서버가 갱신 토큰을 암호화해 보관하고, 모든 작업은 내 계정 권한으로 실행됩니다.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -130,6 +131,7 @@ export default function MicrosoftAccountCard() {
                 <RefreshCw className="mr-1 h-4 w-4" />
                 다시 연결
               </Button>
+              {!status.lastError && <Button asChild size="sm" variant="outline"><Link href="/sharepoint">내 SharePoint 문서</Link></Button>}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button size="sm" variant="ghost" disabled={busy}>

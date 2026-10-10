@@ -85,7 +85,7 @@
 - 데일리 브리핑 지침: 평일·휴일 아님·출근 기록 없음이면 첫 문장에서 출근 기록을 남기라고 알린다(`briefingSystemPrompt`). 같은 조건(`clockInPending`)이면 브리핑 카드에 "출퇴근 바로 가기" 버튼(앱 안 `/gw/attendance`)이 붙는다.
 
 ## 비서 이노봇 (2026-10-05)
-스펙 `docs/superpowers/specs/2026-10-05-mobile-assistant-design.md`. 모든 탭 오른쪽 아래 이노봇(길게 눌러 위아래 이동) → 대화 시트. 서버 `POST /api/assistant/turn`은 Claude(Sonnet 5.5, `thinking: between_tools`, 도구 34개) 한 번 호출을 중계만 하고(대화 저장 없음, 감사엔 도구 이름만), 앱 `lib/assistant/assistant_session.dart`가 턴 루프를 돈다. 아마란스 도구는 앱이 `GwClient`로 직접(`gw_assistant_api.dart` — inno-creed 실측 payload), Teams·Confluence 도구는 `POST /api/assistant/execute`(각각 Teams 채팅·Confluence 페이지 권한 필요).
+스펙 `docs/superpowers/specs/2026-10-05-mobile-assistant-design.md`. 모든 탭 오른쪽 아래 이노봇(길게 눌러 위아래 이동) → 대화 시트. 서버 `POST /api/assistant/turn`은 Claude(Sonnet 5.5, `thinking: between_tools`, 도구 37개) 한 번 호출을 중계만 하고(대화 저장 없음, 감사엔 도구 이름만), 앱 `lib/assistant/assistant_session.dart`가 턴 루프를 돈다. 아마란스 도구는 앱이 `GwClient`로 직접(`gw_assistant_api.dart` — inno-creed 실측 payload), Teams·Confluence·SharePoint 도구는 `POST /api/assistant/execute`(각각 Teams 채팅·Confluence·SharePoint 페이지 권한 필요).
 - 등급(`assistant_tools.dart` = 서버 `TOOL_TIERS`): 조회 즉시 · 쓰기 확인 카드 · 메일 발송은 경고 · `undo_last`는 실행 기록(`assistant.journal`, 20건, 24시간 안)에서 반대 작업 카드. **카드 문장은 모델이 쓴 이름이 아니라 앱이 조회한 실제 대상**(참석자 조직도 이름(부서), 회의실 이름, 예약·일정 제목, Teams 채팅방 이름)으로 만들고, 조회되지 않으면 카드 없이 모델에 오류로 돌려준다. 앞 작업이 실패하면 뒤 작업은 실행하지 않는다.
 - 메일 본문은 같은 요청의 목록·검색 muid만 5통, 8,000자. 메일 발송이 시간 초과면 "보낸편지함 확인" 안내(자동 재시도 없음). 일정 등록은 `mailSend: N`, 예약 참석자는 본인. 점심 13:00–14:00과 오늘 지난 시각은 빈 회의실에서 뺀다.
 - **우리 팀·캘린더**: `my_team`(조직도에서 내 부서 전원, 나 제외)로 "우리팀 전원"을 참석자로, `create_event`의 `calendar_id`(list_calendars의 mcalSeq)로 공유 캘린더(예: 이노그리드)에 등록 — 카드에 "캘린더 <이름>"이 실제 조회 값으로 나오고, 볼 수 없는 캘린더면 카드 없이 오류. 쓰기 권한이 없는 캘린더는 그룹웨어가 거절한다(앞의 예약은 실행된 채 일정만 실패로 안내).
@@ -193,3 +193,15 @@ Jira/Microsoft 연결 완료 URL(`innogrid://login-callback`)은 화면 경로�
 웹 `/settings#app-request`에서 플랫폼별 스토어 이메일을 신청하고 처리 상태를 확인한다. 관리자는 `/admin/app-requests`에서 상태·플랫폼별 조회 및 처리 중/등록 완료/반려 처리와 사용자 안내를 저장한다. 스토어 등록·초대는 콘솔에서 별도 진행하며 외부 심사는 자동 제출하지 않는다.
 
 `mobile_app_requests`는 사용자·플랫폼별 한 행이며 revision 조건부 갱신으로 동시 처리 충돌을 막는다. 처리 중인 신청은 사용자 수정 불가, 이메일 변경·반려 후 재신청은 신청 대기로 초기화된다. RLS 활성화 및 anon/authenticated 직접 접근 차단, 서버 API에서 세션 소유권·관리자 권한을 확인한다. 마이그레이션 `20261007232109_mobile_app_requests.sql`. 기존 앱 설정은 웹 화면이므로 앱 재빌드 없이 적용된다.
+
+## SharePoint 문서 연동 (2026-10-10, 1.5.0)
+
+RFP 업로드·Teams 채팅과 **같은 Microsoft 연결**(`ms_connections`, `graphTokenForRoute`)을 쓴다. 이미 받은 위임 권한 `Files.ReadWrite.All`·`Sites.Read.All`로 전부 되므로 콘솔 권한 추가·관리자 동의·재연결이 없다. 본인에게 보이는 문서만 다루고 본문·토큰은 저장·로그하지 않는다(즐겨찾기는 링크만 `user_settings.sharepoint_favorites`).
+
+기능(`lib/sharepoint/`, API `/api/sharepoint/{feed,search,favorites}`, 페이지 키 `sharepoint`):
+- 웹 `/sharepoint`: 즐겨찾기(목록 ★ 또는 링크 붙여 넣기, 최대 30, 폴더도 됨) · 자주 쓰는 문서(`/me/insights/used`) · 나와 공유(`insights/shared`) · 주변에서 많이 보는(`insights/trending`) · 검색(`POST /search/query`, driveItem). 인사이트를 끈 테넌트(403·404)면 used는 `/me/drive/recent`로 갈음하고(`source: "recent"`, 화면에 안내) shared·trending은 `unavailable`.
+- 웹 홈: 즐겨찾기 + 자주 쓰는 문서 카드(최대 6, 있을 때만). 앱 홈: 브리핑 아래 '자주 쓰는 SharePoint 문서'(최대 3, 누르면 SharePoint 앱·브라우저). 앱 수집은 400·401·403·404·409·500을 "표시 안 함"으로.
+- 이노봇: `sharepoint_search`·`sharepoint_recent(used|shared|trending|recent)`·`sharepoint_read`(모두 읽기 — docx·pdf·hwp·hwpx·xlsx·md·txt·html은 내려받아 RFP 파서, pptx는 Graph `@microsoft.graph.downloadUrl`을 ppt-service `/extract`에 넘겨 장표 텍스트, 20MiB·2만 자). 규칙 11(파일은 SharePoint, 위키는 Confluence, 답 끝에 파일 이름·링크).
+- PPT 만들기: 웹 주소 원고가 `*.sharepoint.com` 링크면 본인 권한으로 내려받아 `ppt` 버킷 `source/<uuid>.<ext>`에 두고 업로드 원고와 같은 흐름(`lib/sharepoint/ppt-source.ts`; pptx는 PPT 원고). 같은 작업에서 `SOURCE_PATH_RE`에 html·htm이 빠져 HTML 업로드 원고가 덱 만들기에서 거절되던 버그를 고쳤다.
+
+Graph 메모: 검색 hit·recent의 `remoteItem`(다른 드라이브 항목)은 그쪽 id·driveId를 쓴다. 인사이트 `resourceReference.id`는 `drives/{driveId}/items/{id}` 꼴만 문서(웹 링크는 제외). 위치 표시는 `resourceVisualization.containerDisplayName` 또는 webUrl 경로에서 `sites`·`Shared Documents`를 뺀 "사이트 › 폴더".

@@ -20,6 +20,7 @@ describe("store", () => {
     expect(deckPaths("d1", 3)).toEqual({ pptx: "decks/d1/v3/deck.pptx", yaml: "decks/d1/v3/deck.yaml" });
     expect(newSourcePath("pptx")).toMatch(SOURCE_PATH_RE);
     expect(SOURCE_PATH_RE.test("source/../etc.pptx")).toBe(false);
+    expect(newSourcePath("html")).toMatch(SOURCE_PATH_RE); // 업로드 허용 확장자와 같아야 덱 만들기에서 거절되지 않는다
     expect(pptxFileName("클라우드 전환", 2)).toBe("클라우드 전환_v02.pptx");
   });
   it("owner or admin can manage", () => {

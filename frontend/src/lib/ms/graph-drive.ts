@@ -32,7 +32,7 @@ export function encodeShareUrl(url: string): string {
   return "u!" + Buffer.from(url, "utf8").toString("base64").replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 
-async function readGraphError(res: Response): Promise<GraphError> {
+export async function readGraphError(res: Response): Promise<GraphError> {
   const requestId = res.headers.get("request-id");
   let code = `http_${res.status}`;
   let message = `Graph ${res.status}`;

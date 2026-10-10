@@ -84,7 +84,7 @@ export default function NewDeckForm({ llmAvailable, templates, onCreated }: { ll
             <p className="text-xs text-muted-foreground">{PPT_SOURCE_EXTENSIONS_TEXT} · 50MB 이하. PPT 원고는 장표 순서를 그대로 유지하고 그림·도식을 가져옵니다.</p>
           </TabsContent>
           <TabsContent value="url" className="space-y-2">
-            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://… 공개 웹 페이지·PDF·DOCX 주소" inputMode="url" autoComplete="off" />
+            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://… 공개 웹 페이지·PDF·DOCX 주소, 회사 Confluence 페이지·SharePoint 문서 링크" inputMode="url" autoComplete="off" />
             <label className="flex items-start gap-2 text-sm"><Checkbox checked={includeImages} onCheckedChange={(v) => setIncludeImages(v === true)} className="mt-0.5" /><span>페이지의 이미지도 가져와 PPT에 넣기 <span className="text-xs text-muted-foreground">— 본문 안의 이미지만(아이콘·로고 제외, 12장까지). 가져온 이미지는 이미지 장표에 모두 배치합니다.</span></span></label>
             <p className="text-xs text-muted-foreground">서버가 본문 글만 가져와 원고로 씁니다(메뉴·광고 제외, 60,000자까지). 로그인이 필요하거나 스크립트로만 그려지는 페이지는 가져오지 못합니다 — 그때는 내용을 복사해 텍스트 원고로 넣어 주세요. 사내망 주소는 받지 않습니다.</p>
           </TabsContent>

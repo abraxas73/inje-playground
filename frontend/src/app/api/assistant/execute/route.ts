@@ -13,9 +13,13 @@ import { canUsePage, isPagePermissions } from "@/lib/page-access";
 import { JiraError } from "@/lib/jira/config";
 import { confluenceFor, createPage, feed, listSpaces, readPage, searchPages } from "@/lib/confluence/client";
 import { FEED_KINDS, type FeedKind } from "@/lib/confluence/core";
+import { feed as spFeed, readDoc, searchDocs } from "@/lib/sharepoint/client";
+import { FEED_KINDS as SP_FEED_KINDS, SharepointError, type FeedKind as SpFeedKind } from "@/lib/sharepoint/core";
+import { pptxExtractor } from "@/lib/sharepoint/pptx";
 
 export const runtime = "nodejs";
 const NOT_CONNECTED = "Microsoft 계정이 연결되지 않았거나 Teams 채팅 권한이 없습니다. 웹 설정에서 다시 연결하세요.";
+const SP_NOT_CONNECTED = "Microsoft 계정이 연결되지 않았습니다. 웹 설정에서 연결하세요.";
 
 /** POST /api/assistant/execute — 비서의 서버 도구(Teams) 실행. 쓰기(teams_send)는 앱이 확인 카드를 받은 뒤에만 부른다. 결과는 {ok,result}|{ok:false,error}(도구 결과로 Claude에 간다). */
 export async function POST(request: NextRequest) {
@@ -29,11 +33,39 @@ export async function POST(request: NextRequest) {
   if (!cfg.enabled) return NextResponse.json({ enabled: false });
   const args = (body.args && typeof body.args === "object" ? body.args : {}) as Record<string, unknown>;
   const fail = (error: string) => NextResponse.json({ ok: false, error });
-  // 웹 API와 같은 페이지 권한(Teams 도구 → teams_chat, Confluence 도구 → confluence) — 미들웨어는 /api/assistant를 페이지에 묶지 않으므로 여기서 본다.
+  // 웹 API와 같은 페이지 권한(Teams 도구 → teams_chat, Confluence 도구 → confluence, SharePoint 도구 → sharepoint) — 미들웨어는 /api/assistant를 페이지에 묶지 않으므로 여기서 본다.
   const isConfluence = tool.startsWith("confluence_");
+  const isSharepoint = tool.startsWith("sharepoint_");
+  const pageKey = isConfluence ? "confluence" : isSharepoint ? "sharepoint" : "teams_chat";
   if (r.role !== "admin") {
     const access = await r.admin.from("user_page_access").select("permissions").eq("user_id", r.userId).maybeSingle();
-    if (access.error || (access.data && !isPagePermissions(access.data.permissions)) || !canUsePage(r.role, isConfluence ? "confluence" : "teams_chat", access.data?.permissions ?? {})) return fail(isConfluence ? "Confluence 권한이 없습니다" : "Teams 채팅 권한이 없습니다");
+    if (access.error || (access.data && !isPagePermissions(access.data.permissions)) || !canUsePage(r.role, pageKey, access.data?.permissions ?? {})) return fail(isConfluence ? "Confluence 권한이 없습니다" : isSharepoint ? "SharePoint 권한이 없습니다" : "Teams 채팅 권한이 없습니다");
+  }
+  if (isSharepoint) {
+    try {
+      const tok = await graphTokenForRoute(r.admin, r.userId);
+      if (!tok.ok) return fail(SP_NOT_CONNECTED);
+      const str = (k: string) => (typeof args[k] === "string" ? (args[k] as string).trim() : "");
+      let result: unknown;
+      if (tool === "sharepoint_search") {
+        if (!str("query")) return fail("검색어가 없습니다.");
+        result = { items: await searchDocs(tok.token, str("query"), 8) };
+      } else if (tool === "sharepoint_recent") {
+        const kind = str("kind") as SpFeedKind;
+        if (!SP_FEED_KINDS.includes(kind)) return fail("kind는 used·shared·trending·recent 중 하나입니다.");
+        result = await spFeed(tok.token, kind, 10);
+      } else {
+        const ref = str("drive_id") && str("item_id") ? { driveId: str("drive_id"), id: str("item_id") } : str("url") ? { url: str("url") } : null;
+        if (!ref) return fail("drive_id·item_id 또는 url이 필요합니다.");
+        result = await readDoc(tok.token, ref, 20_000, { extractPptx: pptxExtractor() });
+      }
+      await logAudit(r.admin, request, { userId: r.userId, action: "비서 실행", category: "assistant", detail: { tool } });
+      return NextResponse.json({ ok: true, result });
+    } catch (e) {
+      if (e instanceof SharepointError) return fail(e.message);
+      console.error("[assistant] 실행 실패:", tool, e instanceof Error ? e.message.slice(0, 200) : e);
+      return fail("SharePoint 요청이 실패했습니다.");
+    }
   }
   if (isConfluence) {
     try {

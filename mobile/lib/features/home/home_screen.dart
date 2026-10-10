@@ -175,6 +175,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication),
                 onMore: () => open('/web?path=${Uri.encodeComponent('/confluence')}'),
               ),
+            if (data != null && !data.errors.containsKey('sharepoint') && (session?.isAdmin == true || session?.permissions['sharepoint'] != false))
+              SharepointSection(
+                data: data.sharepoint,
+                onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication),
+                onMore: () => open('/web?path=${Uri.encodeComponent('/sharepoint')}'),
+              ),
             if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(top: 14), child: LinearProgressIndicator(minHeight: 2)),
             if (gw != null && gw.status != GwStatus.connected)
               GwConnectCard(relogin: gw.status == GwStatus.needsRelogin, onConnect: () => context.push('/gw/connect'))
