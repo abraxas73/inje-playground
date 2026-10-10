@@ -3,9 +3,10 @@
  * Confluence 권한은 CONFLUENCE_ENABLED=true일 때만 요청한다(Atlassian 개발자 콘솔에 권한을 등록한 뒤 켠다 — 미등록 상태로 요청하면 Jira 연결까지 실패).
  */
 export const CONFLUENCE_SITE = "https://pms-innogrid.atlassian.net";
-export const CONFLUENCE_SCOPES = ["read:confluence-content.all", "read:confluence-content.summary", "read:confluence-space.summary", "search:confluence", "write:confluence-content"] as const;
+// 검색(v1 search)은 클래식 권한, 페이지 읽기·만들기(v2 — v1 content는 개인 OAuth에서 410 Gone)는 세분화 권한이 필요하다(2026-10-10 실측).
+export const CONFLUENCE_SCOPES = ["read:confluence-content.all", "read:confluence-content.summary", "read:confluence-space.summary", "search:confluence", "write:confluence-content", "read:page:confluence", "write:page:confluence", "read:blogpost:confluence"] as const;
 /** 읽기 기능에 꼭 필요한 권한 — 쓰기는 따로 확인한다 */
-const READ_SCOPES = ["read:confluence-content.all", "search:confluence"];
+const READ_SCOPES = ["search:confluence", "read:page:confluence"];
 
 export function confluenceEnabled(env: Record<string, string | undefined> = process.env): boolean {
   return env.CONFLUENCE_ENABLED?.trim() === "true";
@@ -15,7 +16,7 @@ export function hasConfluenceScopes(scopes: readonly string[] | null | undefined
   return !!scopes && READ_SCOPES.every((s) => scopes.includes(s));
 }
 export function canWriteConfluence(scopes: readonly string[] | null | undefined): boolean {
-  return !!scopes && scopes.includes("write:confluence-content");
+  return !!scopes && scopes.includes("write:page:confluence");
 }
 
 /** Jira 연결의 api_base(…/ex/jira/{cloudId}) → 같은 사이트의 Confluence(…/ex/confluence/{cloudId}) */
