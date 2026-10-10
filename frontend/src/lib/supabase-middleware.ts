@@ -24,6 +24,7 @@ const PROTECTED_ROUTES: { prefix: string; minRole: string }[] = [
   { prefix: "/usage", minRole: "user" },
   { prefix: "/rfp", minRole: "user" },
   { prefix: "/people-news", minRole: "user" },
+  { prefix: "/oauth", minRole: "user" }, // OAuth 동의(Claude 커넥터) — /api/mcp와 같은 user 이상
 ];
 
 const ROLE_PRIORITY: Record<string, number> = { guest: 0, user: 1, admin: 2 };
@@ -124,7 +125,8 @@ export async function updateSession(request: NextRequest) {
 
         if (actual < required) {
           const url = request.nextUrl.clone();
-          url.pathname = "/";
+          url.pathname = route.prefix === "/oauth" ? "/access-denied" : "/"; // 동의 화면은 조용히 홈으로 보내면 Claude 연결이 이유 없이 멈춘다
+          url.search = "";
           return NextResponse.redirect(url);
         }
       }
