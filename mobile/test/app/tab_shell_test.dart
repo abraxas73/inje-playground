@@ -44,7 +44,7 @@ Finder tab(String label) => find.descendant(of: find.byType(NavigationBar), matc
 void main() {
   final user = AppSession(email: 'u@innogrid.com', role: 'user', permissions: const {});
 
-  testWidgets('부채꼴에는 탭과 항목을 잇는 선이 없다', (tester) async {
+  testWidgets('하위 메뉴에는 탭과 항목을 잇는 선이 없다', (tester) async {
     await pumpShell(tester, user);
     await tester.tap(tab('업무'));
     await tester.pumpAndSettle();
@@ -59,7 +59,7 @@ void main() {
     expect(find.byType(FanItem), findsNothing);
   });
 
-  testWidgets('일상을 누르면 하위 메뉴가 부채꼴로 펼쳐지고, 사다리를 고르면 그 탭으로 이동하며 접힌다', (tester) async {
+  testWidgets('일상을 누르면 하위 메뉴가 바 위에 펼쳐지고, 사다리를 고르면 그 탭으로 이동하며 접힌다', (tester) async {
     await pumpShell(tester, user);
     await tester.tap(tab('일상'));
     await tester.pumpAndSettle();

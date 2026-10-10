@@ -5,11 +5,11 @@ import '../assistant/innobot_button.dart';
 import '../auth/session.dart';
 import '../more/catalog.dart';
 import '../more/service_grid.dart';
-import 'fan_layout.dart';
+import 'menu_layout.dart';
 import 'router.dart';
 import 'theme.dart';
 
-/// 하단 바: 홈 · 그룹(일상/AI/업무 — 웹 2단 메뉴의 1단) · 더보기. 그룹을 누르면 하위 메뉴가 바 위로 부채꼴로 펼쳐지고,
+/// 하단 바: 홈 · 그룹(일상/AI/업무 — 웹 2단 메뉴의 1단) · 더보기. 그룹을 누르면 하위 메뉴가 바 위로 한두 줄로 펼쳐지고,
 /// 네이티브 화면(뭐 먹지·사다리·커피 타임)은 탭 브랜치로, 나머지는 WebView로 연다.
 class TabShell extends ConsumerStatefulWidget {
   const TabShell({super.key, required this.shell});
@@ -141,7 +141,7 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
   }
 }
 
-/// 바 위 스크림 + 부채꼴 항목(경첩은 누른 탭 가운데·바 윗변, 잇는 선은 없음). 항목 원의 중심이 fanLayout 좌표.
+/// 바 위 스크림 + 하위 메뉴 항목(바 위에 한 줄, 6개부터 두 줄 — rowLayout 좌표, 가로 중앙 정렬). 항목은 제자리에서 바 쪽으로부터 떠오른다(가로 이동 없음).
 /// [progress] 0→1 동안 항목 i는 [i·stagger, i·stagger+perItem] 구간에서만 움직인다(왼쪽부터 하나씩).
 class FanMenu extends StatelessWidget {
   const FanMenu({super.key, required this.pages, required this.slot, required this.slotCount, required this.currentBranch, required this.progress, required this.onSelect, required this.onDismiss});
@@ -165,8 +165,7 @@ class FanMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) {
         final origin = Offset((slot + 0.5) * box.maxWidth / slotCount, box.maxHeight);
-        // 6개 이상이면 두 줄(안쪽·바깥 반지름) — 좌표 순서는 안쪽 왼→오, 바깥 왼→오(시간차도 그 순서)
-        final pts = fanRings(count: pages.length, originX: origin.dx, width: box.maxWidth, itemWidth: itemWidth);
+        final pts = rowLayout(count: pages.length, originX: origin.dx, width: box.maxWidth);
         return AnimatedBuilder(
           animation: progress,
           builder: (_, _) {
@@ -176,7 +175,7 @@ class FanMenu extends StatelessWidget {
               GestureDetector(behavior: HitTestBehavior.opaque, onTap: onDismiss, child: ColoredBox(color: Brand.navy.withValues(alpha: 0.45 * scrim))),
               for (final (i, p) in pages.indexed)
                 Positioned(
-                  left: origin.dx + pts[i].dx * ts[i] - itemWidth / 2,
+                  left: origin.dx + pts[i].dx - itemWidth / 2,
                   top: origin.dy + pts[i].dy * ts[i] - circle / 2,
                   width: itemWidth,
                   height: itemHeight,
@@ -188,7 +187,7 @@ class FanMenu extends StatelessWidget {
       });
 }
 
-/// 부채꼴 항목: 흰 원 + 아이콘, 아래 라벨(긴 이름은 2줄). 지금 보고 있는 네이티브 화면이면 블루 테두리.
+/// 하위 메뉴 항목: 흰 원 + 아이콘, 아래 라벨(긴 이름은 2줄). 지금 보고 있는 네이티브 화면이면 블루 테두리.
 class FanItem extends StatelessWidget {
   const FanItem({super.key, required this.page, required this.onTap, this.active = false});
   final PageEntry page;

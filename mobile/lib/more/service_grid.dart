@@ -6,7 +6,7 @@ import '../app/theme.dart';
 import '../auth/session.dart';
 import 'catalog.dart';
 
-/// 페이지 아이콘·한 줄 설명(카탈로그 key 기준). 사내 서비스 카드와 하단 바 부채꼴 메뉴가 같이 쓴다.
+/// 페이지 아이콘·한 줄 설명(카탈로그 key 기준). 사내 서비스 카드와 하단 바 하위 메뉴가 같이 쓴다.
 const serviceMeta = <String, (IconData, String)>{
   'food': (Icons.restaurant, '주변 식당·카페'),
   'ladder': (Icons.stairs, '순서·당번 정하기'),
