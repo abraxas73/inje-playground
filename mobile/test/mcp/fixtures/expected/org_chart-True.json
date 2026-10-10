@@ -1,0 +1,26 @@
+{
+ "count": 75,
+ "depts": [
+  {
+   "deptId": "x",
+   "gubun": "c",
+   "level": 0,
+   "name": "x",
+   "parentSeq": "x",
+   "path": "1000|",
+   "userCount": 343
+  },
+  {
+   "deptId": "x",
+   "gubun": "b",
+   "level": 1,
+   "name": "x",
+   "parentSeq": "x",
+   "path": "1000|1000|",
+   "userCount": 343
+  }
+ ],
+ "kind": "deptList",
+ "note": "userCount는 하위 부서를 포함한 누적 인원",
+ "scope": "0"
+}

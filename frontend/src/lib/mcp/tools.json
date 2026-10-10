@@ -1,0 +1,1650 @@
+[
+ {
+  "name": "approval_counts",
+  "description": "전자결재 함별 미처리 건수를 조회한다(미결/기결/수신참조/시행/상신 등).",
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "attendance_clock_in",
+  "description": "출근(clock in)을 기록한다(attendFg 1). ⚠️ 실제 근태 punch — 실제 출근 시점에 사용자가 명시 지시할 때만. 이미 출근 기록(comeTm)이 있으면 재기록 안 함(덮어쓰기 방지). punch 후 read-back(comeTm)으로 확인.",
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "attendance_clock_out",
+  "description": "퇴근(clock out)을 기록한다(attendFg 4). ⚠️ 실제 근태 punch — 실제 퇴근 시점에 사용자가 명시 지시할 때만. 이미 퇴근 기록(leaveTm)이 있으면 재기록 안 함. punch 후 read-back(leaveTm)으로 확인.",
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "attendance_month",
+  "description": "[아마란스] 기간(월) 근태 현황을 조회한다. 일자별 출퇴근·근무시간·지각/연차 등 + 기간 합계. month=\"202608\" 또는 start/end(YYYYMMDD).",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "end": {
+     "default": "",
+     "description": "종료일 YYYYMMDD(선택)",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "month": {
+     "default": "",
+     "description": "조회 월 YYYYMM (예: \"202608\"). start/end를 주면 그쪽이 우선.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "start": {
+     "default": "",
+     "description": "시작일 YYYYMMDD(선택)",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "cancel_approval",
+  "description": "상신 문서를 취소한다. 문서 상태(doc_sts)에 따라 결재취소(eap110A54)→상신취소(eap110A18)→(purge시)임시보관삭제(eap110A19)를 순차 실행. ⚠️ doc_sts=30(결재 진행중) 문서는 결재취소가 선행돼야 하며 form_id 필요(list_approvals의 formId). 상신 직후(20)면 form_id 없이 상신취소만. purge=true면 임시보관 문서까지 완전 삭제. **검증은 도구가 한다** — 실행 후 문서 상태를 재조회해 `ok`/`verified_by_readback`(purge=false면 doc_sts 10 복귀, purge=true면 doc_sts 999=삭제)로 알려주므로 별도 확인 호출이 필요 없다. `ok:false`는 **반영이 확인되지 않았다**는 뜻이니(반영 실패이거나 확인 실패 — `postState`/`note`에 구분해 담긴다) 그대로 사용자에게 알릴 것. 없는 docId·남의 문서(기안자를 확인할 수 없는 경우 포함)·이미 삭제된 문서를 되돌리려는 요청은 **실행 없이 에러**로 끝난다. **취소가 실증된 상태는 10(임시보관)·20(상신)·30(결재 진행중)뿐**이라 종결(90)·반려(100) 등은 거동이 관측되지 않아 실행 없이 거부한다 — 그 문서는 아마란스 웹에서 처리할 것. 이미 삭제된 문서에 purge=true를 다시 걸면 `already:true`와 빈 `steps`로 '할 일이 없었다'를 알려준다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "doc_id": {
+     "description": "취소할 문서의 docId(list_approvals/read_approval의 docId).",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "form_id": {
+     "default": "",
+     "description": "form_id(list_approvals의 formId). doc_sts=30(결재 진행중) 문서의 결재취소(eap110A54)에 필요. 상신 직후(20) 문서만 취소할 땐 생략 가능.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "purge": {
+     "default": false,
+     "description": "true면 결재취소→상신취소 후 임시보관 문서까지 완전 삭제(eap110A19). false(기본)면 임시보관에 남긴다.",
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "doc_id"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "cancel_reservation",
+  "description": "회의실 예약을 취소한다(본인 소유만; 취소 후 재조회로 확인)",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "res_idx": {
+     "default": null,
+     "description": "예약 인덱스 (기본 \"1\")",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "res_seq": {
+     "description": "자원(회의실) ID",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "seq_num": {
+     "description": "예약 ID (seqNum)",
+     "format": "int64",
+     "type": [
+      "integer",
+      "string"
+     ]
+    }
+   },
+   "required": [
+    "res_seq",
+    "seq_num"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "create_calendar_event",
+  "description": "일정을 등록한다(등록 후 재조회로 확인). 시각 YYYYMMDDHHmm. calendar 미지정 시 본인 개인 캘린더, 지정 시 그 캘린더(mcalSeq 또는 이름)에 등록 — ⚠️ 공용 캘린더는 다른 사람에게도 보인다. participants로 참여자를 넣으면 그 사람들 일정에도 나타난다(메일 발송은 안 함). secret_memo는 본인만 보는 메모이나 **반영 확인이 불가능**하다. 수정(update_calendar_event)해도 참여자·화상회의는 보존된다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "allday": {
+     "default": null,
+     "description": "종일 일정 여부 \"Y\"/\"N\" (기본 \"N\")",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "calendar": {
+     "default": null,
+     "description": "등록할 캘린더 — mcalSeq 또는 캘린더 이름(부분 일치). 미지정 시 본인 개인 캘린더.\n공용 캘린더에 등록하려면 list_calendars로 확인 후 지정. ⚠️ 공용은 다른 사람에게도 보인다.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "contents": {
+     "default": "",
+     "description": "메모/내용(선택)",
+     "type": "string"
+    },
+    "end": {
+     "description": "종료 시각 YYYYMMDDHHmm",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "participants": {
+     "default": null,
+     "description": "참여자(선택) — 본인 외 참석자. 이름 또는 empSeq 목록.\n본인은 항상 주최자로 포함되므로 넣지 않아도 된다.\n이름이 명부에 없거나 동명이인이면 **등록하지 않고 실패**한다 — find_person으로 empSeq를 확인해 지정할 것.\n⚠️ 참여자로 지정된 사람의 아마란스 일정에 이 일정이 나타난다(메일 발송은 하지 않는다).",
+     "items": {
+      "type": [
+       "string",
+       "integer"
+      ]
+     },
+     "type": [
+      "array",
+      "null"
+     ]
+    },
+    "secret_memo": {
+     "default": null,
+     "description": "비밀메모(선택) — **작성자 본인만 볼 수 있다**. 참여자에게도 보이지 않는다.\n⚠️ 일정이 삭제되거나 본인이 참여자에서 빠지면 사라진다.\n⚠️ 조회 응답에 이 필드가 없어 **반영 여부를 확인할 수 없다**(응답의 secretMemo.verified=false).",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "start": {
+     "description": "시작 시각 YYYYMMDDHHmm (예: 202608071100)",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "title": {
+     "description": "일정 제목",
+     "type": "string"
+    },
+    "video": {
+     "default": null,
+     "description": "화상회의 사용 여부 \"Y\"/\"N\" (기본 \"N\").",
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   },
+   "required": [
+    "title",
+    "start",
+    "end"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "delete_approval_line",
+  "description": "개인결재라인을 삭제한다(eap102A09). row_json은 list_approval_lines 결과의 `_row` 객체 JSON(⚠️ lineId 숫자 아님).",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "row_json": {
+     "description": "삭제할 라인의 행 객체 JSON 문자열. ⚠️ lineId 숫자가 아니라 list_approval_lines 결과의 `_row` 객체를 그대로 넣을 것.",
+     "type": "string"
+    }
+   },
+   "required": [
+    "row_json"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "delete_calendar_event",
+  "description": "일정을 삭제한다(본인 작성만; 소프트 삭제 30일 휴지통, 삭제 후 재조회 확인)",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "date": {
+     "description": "대상 일정이 걸친 날짜 YYYYMMDD (원본 조회·소유권 확인용)",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "sch_seq": {
+     "description": "일정 ID (schSeq). list_events로 확인.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "sch_seq",
+    "date"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "delete_mail",
+  "description": "메일을 삭제한다(휴지통 이동). uids=콤마구분 muid. muid 출처는 list_mail_inbox, 또는 임시보관함 정리라면 list_mail_drafts(= save_mail_draft가 낸 draft_muid).",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "uids": {
+     "description": "삭제할 메일 muid 목록(콤마 구분). list_mail_inbox의 muid 사용.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "uids"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "delete_person_group",
+  "description": "사람 그룹을 지운다. 그룹 정의만 사라지고 사람·메일·일정에는 아무 영향이 없다. 없는 이름이면 실패한다(조용히 성공으로 보고하지 않는다). 멤버 일부만 빼려면 이 도구가 아니라 save_person_group(mode=\"remove\")를 쓴다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "name": {
+     "description": "지울 그룹 이름. 없는 이름이면 실패한다.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "name"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "delete_temp_approval",
+  "description": "임시보관 전자결재 문서를 삭제한다(eap107A25). doc_ids는 콤마구분 docId(list_approvals(box_name:\"draft\")에서 확인). ⚠️ 실제 삭제(복구 불가). 용도는 상신취소(purge=false)로 되돌아온 문서나 시험 잔여물 정리 — **상신 실패(2099)의 해결책이 아니다**(잔여 draft 원인설은 반증, 원인은 interlock 등록 누락). 삭제 후 draft 재조회로 검증.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "doc_ids": {
+     "description": "삭제할 임시보관 문서 docId. 여러 건은 콤마구분(예 \"140764,140716\"). list_approvals(box_name:\"draft\")의 docId.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "doc_ids"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "download_approval_attachment",
+  "description": "결재 첨부파일 1건을 다운로드해 out_path에 저장한다. **file_id 는 list_approval_attachments 결과 `files[].fileId`** — ⚠️ 게시판 download_notice_attachment의 file_sn(0-base 인덱스)과도, 메일 쪽 file_sn과도 다르다(결재는 fileId가 유일한 셀렉터). 한 번에 1건만 받을 수 있다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "file_id": {
+     "description": "list_approval_attachments 결과 `files[].fileId`(32자 토큰)를 그대로.\n⚠️ 1건만 — 콤마로 여러 개를 주면 서버가 zip으로 묶어 보내므로 도구가 거부한다.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "out_path": {
+     "description": "저장 경로(절대경로 권장). 예: /tmp/approval.pdf",
+     "type": "string"
+    }
+   },
+   "required": [
+    "file_id",
+    "out_path"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "download_body_image",
+  "description": "**본문에 삽입된 이미지**를 다운로드해 out_path에 저장한다 — 게시판·메일 공용. src에는 read_notice의 `images[]` 또는 read_mail의 `inlineImages[]` 값을 그대로 준다. 정식 첨부(`fileCnt`)와는 별개 경로라 download_*_attachment 로는 받을 수 없다. ⚠️ 외부 호스트 이미지(메일 서명 로고·추적 픽셀 등)는 거부한다 — 그래서 read_mail 은 그런 것을 `inlineImages`에 싣지 않고 `remoteResourceCount`로 개수만 알린다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "out_path": {
+     "description": "저장 경로(절대경로 권장). 확장자는 원본에 맞출 것. 예: /tmp/notice-img.png",
+     "type": "string"
+    },
+    "src": {
+     "description": "본문 이미지 경로. read_notice의 `images[]` 또는 read_mail의 `inlineImages[]` 값을 **그대로**.\n상대경로·`https://gw.innogrid.com/...` 둘 다 받는다. 외부 호스트 주소는 거부한다.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "src",
+    "out_path"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "download_mail_attachment",
+  "description": "메일 첨부파일을 다운로드해 out_path에 저장한다(실행하지 않고 저장만). **file_sn 은 순번이 아니라 read_mail 응답 `attachments[].fileSn` 의 긴 토큰 문자열을 그대로** 넣는다 — 숫자(0,1)를 넣으면 서버가 422로 거절한다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "file_sn": {
+     "description": "read_mail 응답 `attachments[].fileSn` 의 토큰 문자열을 **그대로** 붙여넣는다.\n⚠️ 순번(0,1,2)이 아니다 — 숫자를 주면 서버가 422로 거절한다.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "muid": {
+     "description": "메일 muid. read_mail/list_mail_inbox의 muid.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "out_path": {
+     "description": "저장 경로(절대경로 권장). 예: /tmp/attach.png",
+     "type": "string"
+    }
+   },
+   "required": [
+    "muid",
+    "file_sn",
+    "out_path"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "download_notice_attachment",
+  "description": "게시글 첨부파일을 다운로드해 out_path에 저장한다. **file_sn 은 list_notice_attachments 결과 `files[].fileSn`(0-base 인덱스)** — ⚠️ 메일 쪽 download_mail_attachment 의 file_sn(서버 토큰 문자열)과는 의미가 다르다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "art_seq_no": {
+     "description": "게시글 번호(art_seq_no). list_notice_attachments와 동일.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "file_sn": {
+     "default": 0,
+     "description": "list_notice_attachments 결과 `files[].fileSn`(0-base 인덱스)을 그대로. 기본 0.\n⚠️ 메일의 download_mail_attachment.file_sn(서버 토큰 문자열)과는 다른 값이다.",
+     "format": "int64",
+     "type": [
+      "integer",
+      "string"
+     ]
+    },
+    "out_path": {
+     "description": "저장 경로(절대경로 권장). 예: /tmp/notice.pdf",
+     "type": "string"
+    },
+    "uid": {
+     "description": "게시글 첨부 uid(attachmentUid). list_notice_attachments와 동일.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "art_seq_no",
+    "uid",
+    "out_path"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "find_free_rooms",
+  "description": "[아마란스] 회의실 빈 시간을 찾는다. 날짜·필요시간(분)·구간·건물을 주면 자원별 예약을 빼고 가능한 구간만 반환. 예: date=20260805, duration_min=120, window=\"0900-1200\", group=\"본사\". ⚠️ **점심시간 13:00~14:00은 예약과 동일하게 점유로 처리해 결과에서 제외**한다(응답의 lunchBreak/note 참조) — 점심시간에도 찾아야 하면 include_lunch=true로 호출한다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "date": {
+     "description": "날짜 YYYYMMDD",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "duration_min": {
+     "description": "필요한 시간(분). 예: 2시간=120",
+     "format": "int64",
+     "type": [
+      "integer",
+      "string"
+     ]
+    },
+    "group": {
+     "default": "",
+     "description": "건물/자원종류: \"\"(전체) | \"본사\" | \"구로\" | attrSeq 숫자",
+     "type": "string"
+    },
+    "include_lunch": {
+     "default": false,
+     "description": "점심시간(13:00~14:00)도 후보에 넣을지. 기본 false(제외).\n사용자가 점심시간에 회의를 잡겠다고 했을 때만 true로 준다.",
+     "type": "boolean"
+    },
+    "window": {
+     "default": "",
+     "description": "탐색 구간 HHmm-HHmm (기본 \"0900-1800\"). 오전만이면 \"0900-1200\".\n구간을 넓게 줘도 **점심시간 13:00~14:00은 항상 빠진다**.",
+     "type": "string"
+    }
+   },
+   "required": [
+    "date",
+    "duration_min"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "find_person",
+  "description": "[아마란스] 사람을 찾는다. **이름·로그인ID·이메일에 더해 조직정보(부서명·부서경로·직책·직급)까지** 부분일치(대소문자 무시)로 훑는다 — \"홍길동\"뿐 아니라 \"네이티브 플랫폼팀\"·\"팀장\"·\"책임연구원\"으로도 찾을 수 있다. 결재선 구성·회의 참석자·메일 수신자에 필요한 empSeq의 진입점. 사람마다 오는 필드 — `empSeq`(결재선·참석자·수신자에 넣는 사원 ID) / `name` / `loginId` / `email` / `mobile`, **조직정보** `deptId`·`deptName`·`deptPath`(이름 경로: 회사>부문>본부>센터>팀)·`duty`(직책: 팀원/팀장/센터장…)·`position`(직급: 책임연구원/부장…), `deptChain`(회사→…→본인 부서를 `{deptId,name}` 배열로 — 이 deptId를 org_chart의 parent_seq/dept_id에 그대로 넣을 수 있다), `note`(부재 표시 — 예: 육아휴직). **query에 숫자만 주면 empSeq 완전일치**로 그 사람을 되짚는다(결재선·일정·예약이 담고 있는 empSeq → 사람). 정렬은 empSeq·이름 완전일치 → 이름 부분일치 → 그 밖의 필드 순. **기본 20명까지만** 반환하고 잘리면 `truncated:true`·`matched`(전체 수)·`notice`가 붙는다 — 더 보려면 `limit`을 올리거나 `no_limit:true`. ⚠️ `dutyCode`도 오지만 **숫자 매핑이 불안정**하니 판단 근거로 쓰지 말 것 — 권위 필드는 `duty`(dutyName)다. ⚠️ 이름에 직책이 붙은 계정이 있다(예: \"홍길동 팀장\") — 완전일치를 전제하지 말 것. ⚠️ 명부는 부서 단위 순회로 조립해 **전사 인원보다 적다**(응답의 `rosterSize`로 확인) — **'명부에 없음'을 '재직하지 않음'으로 단정하지 말 것**. 첫 호출은 명부 조립에 수 초, 이후 30분 캐시.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "limit": {
+     "default": null,
+     "description": "반환할 최대 인원(기본 20). 잘리면 응답에 `truncated:true`와 안내가 붙는다.",
+     "format": "int64",
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "no_limit": {
+     "default": false,
+     "description": "true면 상한 없이 전부 반환(limit 무시). 부서 전체처럼 인원이 많으면 응답이 매우 커진다.",
+     "type": "boolean"
+    },
+    "query": {
+     "description": "이름·로그인ID·이메일 **또는 조직정보**(부서명·부서경로·직책·직급)의 일부. 예: \"홍길동\", \"네이티브 플랫폼팀\", \"팀장\", \"책임연구원\". **숫자만 주면 empSeq 완전일치**로 그 사람을 되짚는다. 예: \"3081\"",
+     "type": "string"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "get_approval_line_schema",
+  "description": "문서 종류별 결재라인 스키마(직책 기반) **원본**을 조회한다. branches[].line[]은 act(결재/합의)+pos(직책)만 담는다. ⭐ 사람까지 해석된 결과가 필요하면 이 도구 대신 **`suggest_approval_line`**을 쓸 것(본인 직책으로 branch 자동 선택 + 각 pos를 조직도로 후보 해석). 이 도구는 스키마 자체를 보고 싶을 때(규칙 확인·branch 수동 선택)용이다. pos 해석 규칙: `L_*`(relative)는 기안자 부서에서 상위로 올라가며 duty 보유자, 나머지(인사총무팀장 등 fixed)는 positions[].dept의 부서원에서 duty로 찾는다. ⛔ 서버 자동 결재선 신뢰 금지, 상신 전 사람 확인 필수. ℹ️ 양식필수 합의자·수신참조·시행자는 상신 시 서버(eap110A03)가 자동 병합하므로 개인결재라인에 중복 등록하지 말 것. 현재 근태 계열(외근/연차/출장/휴일근무)만 수록. 버전·출처는 반환 필드(version/source; 현재 위임전결 기준_260801.xlsx), 사용자 override(~/.config/inno-creed/approval_line.json)가 더 최신이면 그쪽 사용.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "doc_type": {
+     "description": "양식명 또는 form_id. 예: \"외근신청\", \"외근신청서\", \"41\", \"연차휴가신청\", \"출장신청\", \"휴일주말근무\". list_approval_line_schemas로 목록 확인.",
+     "type": "string"
+    }
+   },
+   "required": [
+    "doc_type"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "get_approval_submission_guide",
+  "description": "양식별 '신청 가이드'를 반환한다 — ⭐ **submit_approval 기안 데이터 채우는 법(draftHelp: 고정코드 fixed/채울필드 fill/복사용 실동작 예시 hpApplicationExample·bindDataExample/권장 제목 defaultDocTitle·titleHelp) = CLI --help 격**. 그 외 문서 본문 필수항목(requiredBody)·아마란스 웹 작성 절차(steps)·주의(notes)·결재라인 힌트(approvalLineHint) 포함. submit_approval 호출 전 이 도구로 draftHelp를 조회해 hp_application_json/bind_data_json/doc_title을 구성할 것. 결재라인은 get_approval_line_schema+save_approval_line로 준비. 수록 범위는 근태 4양식(연차36/출장40/외근41/휴일43) — list_approval_submission_guides로 확인.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "doc_type": {
+     "description": "양식명 또는 form_id. 예: \"외근신청\", \"외근\", \"41\", \"연차휴가신청\", \"출장신청\", \"휴일주말근무\". list_approval_submission_guides로 목록 확인.",
+     "type": "string"
+    }
+   },
+   "required": [
+    "doc_type"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "get_attendance_today",
+  "description": "오늘(또는 지정일)의 출퇴근 현황을 조회한다(읽기, 부작용 없음). comeTm(출근)/leaveTm(퇴근) YYYYMMDDHHmm, 빈값=미등록.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "work_dt": {
+     "default": "",
+     "description": "조회할 날짜 YYYYMMDD(선택, 비우면 오늘 KST).",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "list_approval_attachments",
+  "description": "결재 문서의 첨부파일 목록을 조회한다(다운로드는 download_approval_attachment). read_approval은 개수(attachCount)만 주므로 실제 파일은 이쪽으로 본다. 상신된 문서와 임시보관 문서는 서버 API가 다르지만 이 도구가 알아서 고른다. 결과 `files[].fileId`가 다운로드 열쇠다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "doc_id": {
+     "description": "문서 ID(docId). list_approvals 결과의 docId.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "form_id": {
+     "description": "양식 ID(formId). list_approvals 결과의 formId.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "doc_id",
+    "form_id"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "list_approval_line_schemas",
+  "description": "수록된 결재라인 스키마 목록(양식명/form_id/alias/버전/출처)을 조회한다. 어떤 문서 종류에 스키마가 있는지 확인용.",
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "list_approval_lines",
+  "description": "저장된 개인결재라인 목록을 조회한다(eap102A02). 각 항목의 lineId는 read/save에, `_row`는 delete에 사용. 상신 아님(재사용 config).",
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "list_approval_submission_guides",
+  "description": "신청 가이드가 수록된 양식 목록(양식명/form_id/alias)을 조회한다.",
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "list_approvals",
+  "description": "전자결재 함별 문서 목록을 조회한다. box_name=pending(미결)/approved(기결)/approved_ongoing/approved_done/reference(수신참조)/enforcement(시행)/sent(상신)/draft(임시보관). 상신 결과 확인은 sent, 취소 확인도 sent 감소로. draft는 상신 안 된 임시저장·상신취소(purge=false) 복귀 문서이며, 쌓여도 신규 상신을 막지 않는다(과거 '잔여 draft가 2099를 유발한다'는 설은 반증됨) — 정리는 delete_temp_approval.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "box_name": {
+     "default": "pending",
+     "description": "함: pending(미결)/approved(기결)/approved_ongoing(기결진행)/approved_done(기결종결)/reference(수신참조)/enforcement(시행)/sent(상신)/draft(임시보관). 기본 pending.",
+     "type": "string"
+    },
+    "from": {
+     "default": "",
+     "description": "기간 시작(선택, YYYY-MM-DD). 빈값이면 서버 기본 최근 3개월.",
+     "type": "string"
+    },
+    "page": {
+     "default": 1,
+     "description": "페이지 번호(기본 1)",
+     "format": "int64",
+     "type": [
+      "integer",
+      "string"
+     ]
+    },
+    "page_size": {
+     "default": 30,
+     "description": "페이지 크기(기본 30)",
+     "format": "int64",
+     "type": [
+      "integer",
+      "string"
+     ]
+    },
+    "to": {
+     "default": "",
+     "description": "기간 종료(선택, YYYY-MM-DD)",
+     "type": "string"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "list_calendars",
+  "description": "캘린더(일정 달력) 목록을 조회한다",
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "list_events",
+  "description": "기간 내 일정을 조회한다(전체 캘린더). 날짜 YYYYMMDD. `mine:true`는 **본인이 참석자/작성자인 일정** — 취소·삭제와 무관하다(삭제된 일정은 애초에 목록에 없다). '내 일정'을 물으면 이 플래그로 거른다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "end": {
+     "description": "종료일 YYYYMMDD",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "start": {
+     "description": "시작일 YYYYMMDD",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "start",
+    "end"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "list_mail_drafts",
+  "description": "임시보관함(DRAFTS) 최근 20통을 조회한다 — save_mail_draft로 저장한 초안을 발송 전에 사용자에게 확인받는 경로다. 확인되면 그 항목의 muid를 send_mail_from_draft(draft_muid)에 넘겨 초안 그대로 발송한다. ⚠️ 응답은 서버 원본 봉투 그대로다 — 메일 배열은 `Records`(list_mail_inbox와 동일), 각 항목의 `muid`가 read_mail/delete_mail의 키다. 메일함 번호는 계정마다 달라 이름(DRAFTS)으로 해석한다. ⚠️ 전자결재 임시보관함과는 무관하다(그쪽은 list_approvals(box_name=\"draft\")).",
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "list_mail_inbox",
+  "description": "받은메일함 최근 20통을 조회한다. 메일함 번호는 계정마다 달라 이름(INBOX)으로 해석한다. ⚠️ 응답은 서버 원본 봉투 그대로다 — 메일 배열은 `Records`(다른 목록 도구처럼 정규화돼 있지 않음), 각 항목의 `muid`가 read_mail/delete_mail 키, `attach`(bool)가 첨부 유무.",
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "list_mailboxes",
+  "description": "메일함(폴더) 목록을 조회한다",
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "list_notice_attachments",
+  "description": "게시글 첨부파일 목록을 조회한다. 응답 `{files[]}`의 각 항목에 **다운로드에 그대로 쓸 `fileSn`(0-base 인덱스)** 이 들어 있다. art_seq_no+uid(=목록의 attachmentUid) 필요.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "art_seq_no": {
+     "description": "게시글 번호(art_seq_no). list_notices/read_notice 결과의 artSeqNo 사용.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "uid": {
+     "description": "게시글 첨부 uid(attachmentUid). list_notices/read_notice 결과의 attachmentUid 사용.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "art_seq_no",
+    "uid"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "list_notices",
+  "description": "게시판 최근 공지/게시글 목록을 조회한다(본문 프리뷰 포함). 검색어(field로 제목/내용/작성자 지정)·등록일 범위로 필터 가능. 응답: `{totalCnt, articles[]}` — 첨부 유무는 `fileCnt`(숫자, 0이면 없음), 첨부 조회용 키는 `attachmentUid`.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "end_date": {
+     "default": "",
+     "description": "등록일 종료(선택, YYYY-MM-DD)",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "field": {
+     "default": "",
+     "description": "검색 대상(선택): \"title\"(제목)/\"content\"(내용)/\"author\"(작성자). 그 외/미지정은 통합검색.",
+     "type": "string"
+    },
+    "page": {
+     "default": 1,
+     "description": "페이지 번호(기본 1)",
+     "format": "int64",
+     "type": [
+      "integer",
+      "string"
+     ]
+    },
+    "page_size": {
+     "default": 20,
+     "description": "페이지 크기(기본 20)",
+     "format": "int64",
+     "type": [
+      "integer",
+      "string"
+     ]
+    },
+    "search": {
+     "default": "",
+     "description": "검색어(선택). field로 대상 지정.",
+     "type": "string"
+    },
+    "start_date": {
+     "default": "",
+     "description": "등록일 시작(선택, YYYY-MM-DD)",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "list_reservations",
+  "description": "기간·자원별 회의실 예약 현황을 조회한다",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "end": {
+     "description": "종료일 YYYYMMDD",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "res_seqs": {
+     "default": [],
+     "description": "조회할 자원 ID 목록(비우면 전체 회의실)",
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "start": {
+     "description": "시작일 YYYYMMDD",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "verbose": {
+     "default": false,
+     "description": "true면 서버 원본(74필드, 회의 안건 전문 포함)을 그대로 반환. 기본 false(슬림).",
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "start",
+    "end"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "list_resources",
+  "description": "회의실(자원) 목록을 조회한다",
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "mailbox_counts",
+  "description": "메일함별 미읽음·전체 개수와 계정 전체 집계를 조회한다(mail000A03, 부작용 없음). `list_mailboxes`에 없는 집계를 함께 준다 — 응답 배열의 각 항목은 boxnameSeq/count(=미읽음)/totalCount이고 **마지막 항목이 계정 전체 집계**(unreadCount·toMeCount=나에게 온 메일·flaggedCount·attachCount·totalCount)다. 메일함 이름은 주지 않으므로 이름이 필요하면 `list_mailboxes`의 mboxSeq와 맞춰볼 것.",
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ {
+  "name": "mark_mail_unread",
+  "description": "받은메일 1건을 **읽지 않음으로 되돌린다**(mail002A15). `read_mail`이 서버측 읽음 플래그를 세우므로, 대신 읽어준 메일을 사용자가 다시 '안 읽은 메일'로 만나게 하려면 이것을 쓴다. 반영 여부는 목록 재조회로 검증해 `verifiedByReadback`으로 보고한다 — 서버 응답 자체는 성패를 구분하지 못한다. 이미 미읽음이면 서버에 아무것도 보내지 않고 `already:true`. ⚠️ 받은메일함 **최근 200건** 안의 메일만 대상이다(그보다 오래되면 대상을 확인할 수 없어 거절).",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "muid": {
+     "description": "읽지 않음으로 되돌릴 메일 muid. list_mail_inbox 결과의 muid 사용.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "muid"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "my_reservations",
+  "description": "[아마란스] 본인이 예약한 회의실만 조회한다. 예약 수정·취소에 필요한 seqNum/resIdx를 얻는 경로. title=예약명, displayTitle=아마란스 화면 표시 문구(`[예약자] 자원명`).",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "end": {
+     "description": "종료일 YYYYMMDD",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "start": {
+     "description": "시작일 YYYYMMDD",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "start",
+    "end"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "org_chart",
+  "description": "조직도를 조회한다. dept_id 미지정 시 **중첩 부서 트리**(`tree`: 노드마다 deptId/name/gubun/userCount + `children`, 전체 펼침이라 말단팀까지 한 번에 나온다) — 평평한 목록을 받아 조립할 필요가 없다. `flat:true`면 대신 평면 목록(`depts`: path/parentSeq/level 포함)을 주니, 조직 구조를 보려면 트리·조건으로 훑거나 세려면 flat을 쓸 것. parent_seq에 deptId를 주면 그 부서와 하위만 잘라 준다(두 형태 모두 적용). dept_id 지정 시엔 그 부서의 사원+직책(duty=dutyName) 목록. ⚠️ userCount는 하위 부서를 포함한 **누적** 인원이다(부모 − 자식합 = 그 조직 직속). 결재선 직책→담당자 해석용 재료이자 본인 직급(grade) 확인 경로(dept_id=whoami.deptSeq). ⚠️ 직책으로 담당자를 '확정'하지 말고 후보로만 쓸 것(dutyName 권위, dutyCode 숫자 매핑 불안정). ℹ️ 결재라인 등록용 값 중 user_id=여기의 empSeq, co_id=\"1000\" 고정이고 grade_cd(직급코드)만 없다 — 정확한 값이 필요하면 read_approval_line의 기존 결재자 객체를 재사용.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "dept_id": {
+     "default": "",
+     "description": "부서 ID(deptId). 지정하면 그 부서의 **사원+직책 목록**(gw102A02). 비우면 부서 트리.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "flat": {
+     "default": false,
+     "description": "true면 계층 없이 **평면 목록**으로 준다(부서마다 path·parentSeq·level 포함). 부서를 조건으로 훑거나 셀 때. 기본 false(중첩 트리 — 조직 구조를 볼 때). dept_id가 지정되면 무시됨.",
+     "type": "boolean"
+    },
+    "parent_seq": {
+     "default": "",
+     "description": "트리 조회 시 뿌리로 삼을 부서(deptId). 비우면 전사 트리. 지정하면 **그 부서와 하위만** 잘라서 준다(예: \"2989\" → 클라우드 네이티브 센터와 그 팀들). dept_id가 지정되면 무시됨.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "pending_approvals",
+  "description": "[아마란스] 미결함 문서를 제목·기안자·대기일수와 함께 요약한다(오래 기다린 순). approval_counts는 건수만 주므로 실제 처리 판단에는 이쪽을 쓸 것.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "page_size": {
+     "default": null,
+     "description": "조회 건수(기본 20)",
+     "format": "int64",
+     "type": [
+      "integer",
+      "null"
+     ]
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "person_group",
+  "description": "자주 함께 지정하는 사람들의 **그룹**을 조회한다(`~/.config/inno-creed/person_groups.json`). 아마란스에 그룹메일이 없어서 두는 것이고, 메일 전용이 아니라 **범용**이다 — 메일 수신자·참조, 캘린더 참여자, 결재선 어디에나 쓴다. name을 비우면 그룹 목록(이름/인원수/메모), 주면 그 그룹의 멤버를 조직도 명부로 풀어서 준다: `members[]`(empSeq/name/email/dept/duty/status) + 바로 쓸 재료인 `empSeqs`(→ create_calendar_event의 participants, save_approval_line의 user_id)와 `emails`(→ **콤마로 이어** send_mail의 to/cc/bcc). ⚠️ 조립은 호출자가 한다 — 소비처마다 모양이 달라 도구가 미리 이어 붙이지 않는다. ⚠️ 명부에서 못 찾은 사람은 `status:\"not_found\"` 로 남고 `missing`에 실리며 **emails에서 빠진다** — 그대로 보내면 그 사람만 누락되니 사용자에게 알릴 것. 그룹을 만들거나 고치려면 응답의 `path` 파일을 직접 편집한다(이 도구는 쓰지 않는다). 멤버의 정본은 empSeq이며 find_person으로 얻는다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "name": {
+     "default": "",
+     "description": "조회할 그룹 이름. **비우면 그룹 목록**(이름/인원수/메모)을 준다.\n이름은 목록에 나온 것을 그대로 쓴다(부분 일치가 아니라 정확히 일치해야 한다).",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
+  "name": "read_approval",
+  "description": "전자결재 문서 1건의 본문(평문)·헤더·결재선을 조회한다(열람 부작용 없음). doc_id+form_id는 list_approvals 결과 사용. ⚠️ 첨부는 **개수(`attachCount`)만** 나온다 — 파일명·다운로드가 필요하면 `list_approval_attachments(doc_id, form_id)`를 이어서 부를 것(거기서 얻은 `fileId`가 `download_approval_attachment`의 열쇠다).",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "doc_id": {
+     "description": "문서 ID(docId). list_approvals 결과의 docId.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "form_id": {
+     "description": "양식 ID(formId). list_approvals 결과의 formId.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "doc_id",
+    "form_id"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "read_approval_line",
+  "description": "개인결재라인 1건의 결재자 구성을 조회한다(eap102A05). 반환 members[]는 등록에 필요한 원본 결재자 객체(user_id/co_id/grade_cd/duty_cd/act_id 등) — 신규 라인 만들 때 이걸 그대로 재사용해 detail_line에 넣으면 전 필드가 채워져 가장 안전하다. (user_id 자체는 org_chart의 empSeq와 동일하므로 새 인물은 org_chart로도 구성 가능 — 이쪽에만 있는 건 grade_cd 같은 표시용 필드.)",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "line_id": {
+     "description": "라인 ID(lineId). list_approval_lines 결과의 lineId 사용.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "line_id"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "read_mail",
+  "description": "⚠️ **읽음 처리된다** — 서버측 읽음 플래그가 세워진다(실증). 사용자가 아직 안 읽은 메일을 대신 열면 그 사람의 미읽음 표시가 사라진다. 되돌리려면 `mark_mail_unread` — ⚠️ **받은메일함 최근 200건 안의 메일만 되돌릴 수 있다**(그 밖이면 거절되므로 되돌림을 전제하고 열지 말 것). 메일 1건의 본문(평문)·헤더·첨부목록을 조회한다. 본문 HTML은 렌더링하지 않고 평문화(외부 이미지 자동로드 안 함, remoteResourceCount로 경고). 본문에 박힌 이미지 중 **이 서버가 가진 것**은 `inlineImages[]`로 나오고 `download_body_image`로 받아볼 수 있다(외부 호스트 이미지는 일부러 빼며, 그 개수가 remoteResourceCount다). 수신자는 to/cc/bcc로 낸다 — ⚠️ **받은 메일의 bcc는 대개 빈 값**이다(숨은참조는 수신자에게 보이지 않는 필드라 헤더에 남지 않는다). muid=list_mail_inbox의 muid.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "muid": {
+     "description": "메일 muid. list_mail_inbox 결과의 muid 사용.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "muid"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "read_notice",
+  "description": "게시글 1건의 본문(평문)·댓글을 조회한다. 본문 삽입 이미지는 평문에 `[이미지]`로 자리가 남고 경로는 `images[]`로 나온다(순서 일치) — `download_body_image`로 받아볼 수 있다. **이미지는 정식 첨부가 아니라 `fileCnt`에 안 잡히므로**, fileCnt=0이어도 본문에 이미지가 있을 수 있다. ⚠️ 호출 시 조회수 증가(실제 열람 처리).",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "art_seq_no": {
+     "description": "게시글 ID(artSeqNo). list_notices 결과의 artSeqNo 사용.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "art_seq_no"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "reserve_resource",
+  "description": "회의실을 예약한다(등록 후 재조회로 실제 생성 확인). 시각은 YYYYMMDDHHmm. ⚠️ **13:00~14:00은 점심시간** — 예약 구간이 여기 걸치면 응답에 lunchWarning이 실린다. 막지는 않으니 그 경우 사용자에게 의도한 것인지 확인할 것. 응답의 reqText=예약명, displayTitle=아마란스 화면에 실제로 찍히는 문구(`[예약자] 자원명`) — **화면은 예약명을 표시하지 않으므로**, 사용자가 \"예약명이 다르게 보인다\"고 하면 이 차이로 설명할 것. attendees에 **이름 또는 empSeq** 목록을 주면 참석자로 등록된다(person_group의 empSeqs를 그대로 넘겨도 된다). 본인은 항상 예약자로 들어가므로 넣지 않아도 된다. ⚠️ **참석자에 타인을 넣는 것은 바깥으로 나가는 행위**다 — 그 사람의 예약 목록에 뜨고 알림이 갈 수 있다(발송 여부 미실측). send_mail·submit_approval과 같은 급으로 다루고, 사용자가 명시적으로 지시할 때만 지정할 것. 응답의 attendees/attendeesVerified로 실제 반영을 확인한다(서버가 일부를 버리면 attendeesWarning이 실린다).",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "attendees": {
+     "default": null,
+     "description": "참석자(선택) — 본인 외. **이름 또는 empSeq** 목록(person_group의 empSeqs를 그대로 넘겨도 된다).\n본인은 항상 예약자로 들어가므로 넣지 않아도 된다.",
+     "items": {
+      "type": [
+       "string",
+       "integer"
+      ]
+     },
+     "type": [
+      "array",
+      "null"
+     ]
+    },
+    "desc": {
+     "default": "",
+     "description": "내용(선택)",
+     "type": "string"
+    },
+    "end": {
+     "description": "종료 시각 YYYYMMDDHHmm",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "req_text": {
+     "description": "예약명",
+     "type": "string"
+    },
+    "res_seq": {
+     "description": "자원(회의실) ID. list_resources로 확인.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "start": {
+     "description": "시작 시각 YYYYMMDDHHmm (예: 202608011000)",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "res_seq",
+    "req_text",
+    "start",
+    "end"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "save_approval_line",
+  "description": "개인결재라인을 생성/수정한다(eap102A10). line_id=0 신규, 기존 id면 수정. detail_line_json은 결재자 객체 JSON 배열(배열 순서=결재 순서, 순서 필드 자동 주입). ⚠️ 이건 재사용 config 저장이지 상신이 아님. 결재자 객체는 read_approval_line(기존 라인)에서 재사용하거나, org_chart로 새로 구성(user_id=empSeq, co_id=\"1000\", grade_cd만 없어 표시용 추정치 허용). 저장 후 read_approval_line로 순서 재확인 권장.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "detail_line_json": {
+     "description": "결재자 객체 배열의 JSON 문자열. ⚠️ **배열 순서 = 결재 순서**. read_approval_line 결과의 members 객체를 원하는 순서로 담을 것(user_id/co_id/duty_cd/dept_id/grade_cd/grade_nm/act_id 등 필드 포함). act_id 3000=결재/4000=합의. 순서 필드(doc_line_seq/doc_line_m_seq/line_seq)는 자동 주입됨. org_chart로 새 인물을 만들 땐 user_id=empSeq, co_id=\"1000\"이고 grade_cd(직급코드)만 org에 없어 표시용으로 추정치를 넣어도 됨(라우팅 무관).",
+     "type": "string"
+    },
+    "form_id": {
+     "description": "양식 ID(formId). 예: 41(외근)/36(연차). get_approval_line_schema/list_approvals의 formId.",
+     "format": "int64",
+     "type": [
+      "integer",
+      "string"
+     ]
+    },
+    "line_id": {
+     "default": 0,
+     "description": "라인 ID. 0이면 신규 생성, 기존 lineId면 수정. 기본 0.",
+     "format": "int64",
+     "type": [
+      "integer",
+      "string"
+     ]
+    },
+    "line_nm": {
+     "description": "라인 이름(예: \"외근-표준\").",
+     "type": "string"
+    },
+    "proc_id": {
+     "default": "",
+     "description": "프로세스 ID(기본 \"1000\" 기본프로세스).",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "line_nm",
+    "form_id",
+    "detail_line_json"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "save_mail_draft",
+  "description": "메일을 임시보관함(DRAFTS)에 저장한다 — **발송하지 않는다**(수신자에게 아무것도 가지 않는다). 발송 전 사람 확인을 받는 표준 경로라 send_mail보다 이 도구를 먼저 쓴다 — 초안을 만들고 list_mail_drafts로 사용자에게 확인받은 뒤, 확인되면 **send_mail_from_draft(draft_muid)로 그 초안을 그대로 발송**하거나 사용자가 아마란스 웹에서 직접 보낸다. 다만 사용자가 즉시 발송을 명시적으로 지시했다면 초안을 거치지 말고 곧바로 send_mail을 쓴다. 받는사람 미지정 시 본인. **여러 명이면 to에 콤마로 잇는다**; 참조는 cc, 숨은참조는 bcc에 같은 형식으로 — **여기 넣은 참조는 send_mail_from_draft가 그대로 승계해 발송한다.** attachments에 로컬 파일 경로를 주면 첨부까지 붙여 저장. 반환 draft_muid = 저장된 임시보관 메일의 muid. 아마란스에 등록해 둔 **서명이 기본으로 본문 끝에 붙어 저장된다**(웹에서 보낸 것과 같은 형상. send_mail_from_draft가 본문째로 승계하므로 두 번 붙지 않는다) — 붙지 않아야 하면 `signature:false`. 응답의 `signature_attached`가 실제로 붙었는지를 알려준다(서명 미등록 계정은 켜 두어도 false). ⚠️ 전자결재 임시보관함과는 무관하다(그쪽은 list_approvals(box_name=\"draft\")).",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "attachments": {
+     "default": [],
+     "description": "첨부할 로컬 파일 경로 목록(선택, 절대경로). 비우면 첨부 없음.",
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "bcc": {
+     "default": null,
+     "description": "숨은참조(bcc, 선택). 형식은 to와 같다(콤마 구분). 비우면 숨은참조 없음.\n여기 넣어두면 send_mail_from_draft가 **그대로 승계해** 발송한다.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "cc": {
+     "default": null,
+     "description": "참조(cc, 선택). 형식은 to와 같다(콤마 구분). 비우면 참조 없음.\n여기 넣어두면 send_mail_from_draft가 **그대로 승계해** 발송한다.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "html": {
+     "default": "",
+     "description": "본문 HTML(선택)",
+     "type": "string"
+    },
+    "signature": {
+     "default": true,
+     "description": "서명 자동 첨부 여부(선택, **기본 true**). 아마란스에 등록해 둔 서명을 본문 끝에 붙여\n**웹에서 보낼 때와 같은 형상**으로 저장한다 — 초안은 사람이 확인하고 보내는 것이므로\n켜 두는 것이 맞다. 여기 붙은 서명은 send_mail_from_draft가 **본문째로 승계**한다\n(그 도구는 서명을 다시 붙이지 않는다 — 두 번 붙는 일이 없다).\n서명이 등록돼 있지 않으면 아무것도 붙지 않는다(에러 아님).",
+     "type": "boolean"
+    },
+    "subject": {
+     "description": "제목. 비워두면 \"(제목없음)\"으로 저장된다.",
+     "type": "string"
+    },
+    "to": {
+     "default": null,
+     "description": "받는사람 (표시형 \"이름 <email>\" 또는 email). **여러 명이면 콤마로 잇는다** — 예:\n`\"홍길동 <hong@innogrid.com>,kim@innogrid.com\"`. 미지정 시 본인.",
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   },
+   "required": [
+    "subject"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "save_person_group",
+  "description": "사람 그룹을 **만들거나 고친다**(`~/.config/inno-creed/person_groups.json`). 사용자가 '이 사람들 그룹으로 묶어줘' / '누구누구 넣어줘' 라고 하면 이 도구로 저장하고, 이후 person_group(name)으로 꺼내 메일·일정에 쓴다. members는 **이름 또는 empSeq** 목록을 그대로 주면 된다(`[\"김철수\",\"3166\"]`) — 조직도 명부로 해석해 empSeq로 저장한다. mode: `replace`(기본, 새로 만들거나 멤버 통째 교체) · `add`(더하기) · `remove`(빼기); add/remove는 그룹이 이미 있어야 한다. note를 비우면 기존 메모를 유지한다. ⚠️ **저장 시점에 검증한다** — 명부에 없는 사람이거나 **동명이인이면 저장하지 않고 후보를 돌려준다**(그대로 저장하면 나중에 그 사람만 조용히 빠진다). 사용자가 파일을 손으로 편집할 수도 있으므로 이 도구는 다른 그룹을 건드리지 않는다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "members": {
+     "default": null,
+     "description": "멤버 — **이름 또는 empSeq** 목록. 예: `[\"김철수\", \"3166\"]`.\n저장되는 정본은 empSeq이고 이름은 사람이 파일을 읽을 때용 라벨로만 남는다.\n⚠️ 저장 시점에 조직도 명부로 검증한다 — 없는 사람이거나 **동명이인이면 저장하지 않고\n후보를 돌려준다**(누구인지는 사용자가 정한다).",
+     "items": {
+      "type": [
+       "string",
+       "integer"
+      ]
+     },
+     "type": [
+      "array",
+      "null"
+     ]
+    },
+    "mode": {
+     "default": "",
+     "description": "`replace`(기본) = 새로 만들거나 멤버를 통째로 교체 · `add` = 기존에 더하기 ·\n`remove` = 기존에서 빼기. add/remove는 그룹이 이미 있어야 한다.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "name": {
+     "description": "그룹 이름. 나중에 이 이름으로 부른다(예: \"네이티브플랫폼팀\", \"주간보고\").",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "note": {
+     "default": "",
+     "description": "그룹 메모(선택). 비우면 기존 메모를 유지한다.",
+     "type": "string"
+    }
+   },
+   "required": [
+    "name"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "search",
+  "description": "[아마란스] 메일·전자결재·게시판·일정·자원·파일을 한 번에 검색한다. 결과에 후속 조회용 ID 포함(메일 muid→read_mail, 결재 docId+formId→read_approval, 게시판 artSeqNo→read_notice). scope 미지정 시 전체 모듈.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "from": {
+     "default": "",
+     "description": "시작일 YYYY-MM-DD(선택)",
+     "type": "string"
+    },
+    "limit": {
+     "default": null,
+     "description": "모듈당 결과 수(기본 10, 최대 50)",
+     "format": "int64",
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "query": {
+     "description": "검색어",
+     "type": "string"
+    },
+    "scope": {
+     "default": "",
+     "description": "범위: \"\"/\"전체\" | \"메일\" | \"결재\" | \"게시판\" | \"일정\" | \"자원\" | \"파일\"",
+     "type": "string"
+    },
+    "to": {
+     "default": "",
+     "description": "종료일 YYYY-MM-DD(선택)",
+     "type": "string"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "send_mail",
+  "description": "메일을 **새로 조립해 발송한다**(2단계: 작성폼 초기화→발송). 받는사람 미지정 시 본인에게. **여러 명에게 보내려면 to에 콤마로 잇는다**(`\"홍길동 <hong@innogrid.com>,kim@innogrid.com\"` — 표시형과 순수 주소를 섞어도 된다). 참조는 cc, 숨은참조는 bcc에 같은 형식으로. attachments에 로컬 파일 경로를 주면 첨부 발송. ⚠️ 발송은 되돌릴 수 없다(수신자에게 나가면 회수 불가) — 곧바로 보내지 말고, 먼저 save_mail_draft로 보낼 형상을 임시보관함에 만들고 list_mail_drafts로 사용자에게 확인을 요청한 뒤, 확인받고 나서는 **이 도구가 아니라 send_mail_from_draft(draft_muid)로 그 초안을 그대로 발송한다**(확인받은 형상과 실제 발송물이 어긋날 여지가 없고, 원본 초안 정리도 그 도구가 한다). 이 도구는 **초안을 거치지 않는 직접 발송용**이다 — 사용자가 즉시 발송을 명시적으로 지시했거나, 본인 앞 메모·자동화처럼 사람 확인이 필요 없는 발송에 쓴다. 아마란스에 등록해 둔 **서명이 기본으로 본문 끝에 붙는다**(웹에서 보낸 것과 같은 형상) — 붙지 않아야 하면 `signature:false`. 응답의 `signature_attached`가 실제로 붙었는지를 알려준다(서명 미등록 계정은 켜 두어도 false).",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "attachments": {
+     "default": [],
+     "description": "첨부할 로컬 파일 경로 목록(선택, 절대경로). 비우면 첨부 없음.",
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "bcc": {
+     "default": null,
+     "description": "숨은참조(bcc, 선택). 형식은 to와 같다(콤마 구분). 비우면 숨은참조 없음.\n⚠️ 숨은참조는 다른 수신자에게 보이지 않지만 **발송 자체는 되돌릴 수 없다.**",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "cc": {
+     "default": null,
+     "description": "참조(cc, 선택). 형식은 to와 같다(콤마 구분). 비우면 참조 없음.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "html": {
+     "default": "",
+     "description": "본문 HTML(선택)",
+     "type": "string"
+    },
+    "signature": {
+     "default": true,
+     "description": "서명 자동 첨부 여부(선택, **기본 true**). 아마란스에 등록해 둔 서명을 본문 끝에 붙여\n**웹에서 보낼 때와 같은 형상**으로 만든다 — 사람이 보내는 메일이면 켜 두는 것이 맞다.\n서명이 등록돼 있지 않으면 아무것도 붙지 않는다(에러 아님).\n`false`는 시스템 알림·자동화처럼 서명이 없어야 하는 발송에만 쓴다.",
+     "type": "boolean"
+    },
+    "subject": {
+     "description": "제목",
+     "type": "string"
+    },
+    "to": {
+     "default": null,
+     "description": "받는사람 (표시형 \"이름 <email>\" 또는 email). **여러 명이면 콤마로 잇는다** — 예:\n`\"홍길동 <hong@innogrid.com>,kim@innogrid.com\"`. 미지정 시 본인에게 발송.",
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   },
+   "required": [
+    "subject"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "send_mail_from_draft",
+  "description": "임시보관함(DRAFTS)에 저장된 초안을 **실제로 발송한다** — ⚠️ 되돌릴 수 없다. save_mail_draft로 만든 초안을 사람이 확인한 뒤 '이제 보내라'고 지시할 때 쓰는 도구다. 제목·본문·수신자·첨부는 **초안에 저장된 것을 그대로** 쓴다(to 인자를 주면 수신자만 덮어쓴다). 발송 성공 후 임시보관함 원본을 삭제한다 — ⚠️ 이 삭제는 휴지통을 거치지 않는 것으로 보인다(발송 직후 휴지통 건수 불변 관측). 삭제가 실패하면 발송은 성공으로 보고하되 `draft_deleted:false`가 실리니, 그때는 사람이 임시보관함에서 지워야 같은 메일을 또 보내지 않는다. 제약 — ① **초안을 못 찾으면 보내지 않는다**: 실재 확인이 임시보관함 **최근 20건**만 훑으므로 초안이 21건 이상 쌓인 계정에서는 오래된 초안을 이 도구로 못 보낸다(웹에서 발송하거나 초안을 정리할 것). ② 본문·제목·첨부목록 중 하나라도 초안 응답에서 읽어내지 못하면 **보내지 않는다**(내용이 빈 메일·첨부 누락 방지). ③ 첨부는 승계하지만 **파일명에 콤마가 있거나, 같은 이름의 첨부가 둘 이상이거나, 대용량 첨부(bigFile)면 거부**한다(그 경로는 미실측 — 웹에서 발송할 것). ④ **참조(cc)·숨은참조(bcc)는 초안에 저장된 것을 그대로 승계**해 발송한다(반환값의 cc/bcc로 무엇이 실렸는지 확인할 것). 다만 참조를 응답에서 **읽어내지 못하면 보내지 않는다** — 참조가 빠진 채 나가는 것을 막기 위해서다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "draft_muid": {
+     "description": "발송할 임시보관 메일의 muid. save_mail_draft의 `draft_muid` 또는 list_mail_drafts 결과의 muid.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "to": {
+     "default": null,
+     "description": "받는사람(선택, 표시형 \"이름 <email>\" 또는 email). 미지정 시 **초안에 저장된 수신자**로 보낸다.\n초안에 수신자가 없으면 에러가 나므로 그때 지정할 것.",
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   },
+   "required": [
+    "draft_muid"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "submit_approval",
+  "description": "문서를 상신(제출)한다. ⚠️ 실제 결재요청·수신참조 통지가 나감 — 시험 상신은 본인/합의된 인원만 담은 별도 결재라인으로 하고, 끝나면 `cancel_approval(doc_id, form_id, purge=true)`로 되돌릴 것(상신 직후 문서는 doc_sts=30이라 form_id 필요). ⭐ **hp_application_json / bind_data_json 을 어떻게 채우는지는 `get_approval_submission_guide(양식명 또는 form_id)` 의 `draftHelp` 를 먼저 조회할 것** — 양식별 고정코드(atCd/linkAtCd 등)·의미별 채울 필드·복사용 실동작 예시(hpApplicationExample/bindDataExample)·권장 제목(defaultDocTitle)을 준다(CLI --help 격). 신원은 이 도구가 로그인 사용자 값으로 **자동 주입**한다 — 코드계(coCd/deptCd/empCd)·이름뿐 아니라 **문서에 렌더되는 표시문자열(부서명·직급·직책, `singleDeptNm`/`empNmDutyNm`/`employees` 등)까지** 조직도 값으로 덮어쓰므로 예시값을 그대로 둬도 됨. 결재라인은 `suggest_approval_line`으로 후보를 받아 **사용자 확인 후** save_approval_line으로 등록할 것. 흐름(근태): 0hr00011 → create(appSq 획득) → eap110A03(결재선 병합 + 양식별 form_d_tp 취득) → HP interlock 등록 3콜(GetLinkKey→saveAttendApplicationLinkKey→SetEnageGroup) → eap110A06 상신. **이 interlock 등록이 빠지면 2099(HP_HPD0110_000XX)** — 근태 상신 실패의 사실상 유일한 원인이었다(잔여 draft·날짜·payload 가설은 전부 반증됨). 성공 시 새 docId를 반환한다 — **docId 발급을 도구가 직접 판정하므로**(없으면 에러) 응답이 오면 상신된 것이다. 실증 범위: 근태 4양식(연차36/출장40/외근41/휴일43) 순수 API 상신·취소 e2e. HP 비연동(비근태) 양식은 hp_application_json 없이 호출하는 경로가 있으나 **미검증**. **첨부**는 `attachments`에 로컬 파일 경로를 주면 상신 직전에 ECM에 올려 문서에 붙인다 — 첨부 2건(한글 파일명 포함) e2e 실증 완료(상신→read-back→바이트 대조→취소). ⚠️ 상신이 실패하면 올라간 파일이 문서에 안 붙은 채 ECM에 남는다. ⚠️ **`cancel_approval(purge:true)`로 문서를 지워도 첨부는 ECM에 남는다** — 시험 상신을 되돌릴 때 첨부는 따로 정리해야 한다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "attachments": {
+     "default": [],
+     "description": "첨부할 로컬 파일 경로 목록(선택). 서버가 도는 머신 기준 절대경로. 비우면 첨부 없이 상신한다.\n파일은 상신 직전에 ECM 에 올라가며, 상신이 실패하면 **문서에 안 붙은 채 ECM 에 남는다**(고아).",
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "bind_data_json": {
+     "description": "폼 본문 데이터 JSON 텍스트. `{\"ITEMS\":{...},\"TABLE\":{\"dbTable1\":{...},\"dbTable2\":{...}}}`. ⭐ **양식별 예시는 `get_approval_submission_guide(form_id).draftHelp.bindDataExample`**. 실제 결재문서에 렌더되는 값이 이것(doc_contents_html이 아님). 서버엔 이중인코딩되어 전송됨.",
+     "type": "string"
+    },
+    "doc_contents_html": {
+     "description": "표시용 본문 HTML(raw). 내부에서 encodeURIComponent로 인코딩해 전송. 근태 양식은 본문이 bindData/HP연동으로 채워지므로 **한 줄 요약 HTML(예 `<div>2026-12-16 종일외근</div>`)로도 상신이 통과**한다(4양식 실증). 브라우저는 양식 표 전체를 조립해 보내므로, 문서 뷰 표시 품질까지 맞추려면 표 HTML이 필요(미검증). 빈 문자열 가능 여부는 미확인.",
+     "type": "string"
+    },
+    "doc_title": {
+     "description": "문서 제목. ⭐ 양식별 권장 형식은 `get_approval_submission_guide(form_id).draftHelp.defaultDocTitle`/`titleHelp`(예 연차 `[휴가신청] 00/00 오후반차_홍길동(인사&총무팀)`). 사내 관례이므로 사용자 확인 후 확정할 것.",
+     "type": "string"
+    },
+    "form_id": {
+     "description": "양식 ID(formId). 41(외근)/36(연차) 등.",
+     "format": "int64",
+     "type": [
+      "integer",
+      "string"
+     ]
+    },
+    "hp_application_json": {
+     "description": "HP 근태신청 저장 요청 body JSON(0hr00011 + create 두 콜에 쓰임). **근태 양식 전용** — 이걸 넘기면 상신 전에 HP 신청 레코드 생성 + interlock 등록(GetLinkKey→saveAttendApplicationLinkKey→SetEnageGroup)까지 수행한다. ⭐ **채우는 법·양식별 고정코드·복사용 예시는 `get_approval_submission_guide(form_id).draftHelp.hpApplicationExample`**(예: 출장 linkAtCd\"2010\"/atCd\"2101\", 외근 종일 atCd\"3101\"/linkAtCd\"3010\"). 신원 필드(coCd/deptCd/empCd/empNm/korNm)는 **submit_approval이 로그인 사용자 값으로 자동 덮어씀** — 예시값 그대로 둬도 됨. 형식: `{\"applicationList\":[{...,linkAtCd,atCd,atDt,startDt,endDt,startTm,endTm,appDyFg,appDy,appTm,...}],\"employeeList\":[{...}]}`. 빈 문자열이면 이 단계 전체 생략(= 비근태 양식 경로, 아직 미검증).",
+     "type": "string"
+    },
+    "line_id": {
+     "description": "사용할 개인결재라인 ID(save_approval_line으로 준비). 이 라인의 결재자는 eap110A03가 **양식필수 합의자·수신참조·시행자와 병합**해 돌려주고, 그 병합 결과가 그대로 결재선으로 실린다. 즉 라인에는 **결재(3000)만** 담으면 되고 양식필수 합의자를 또 넣으면 중복될 수 있음.",
+     "format": "int64",
+     "type": [
+      "integer",
+      "string"
+     ]
+    },
+    "numbering_id": {
+     "default": "",
+     "description": "채번 규칙 ID. 빈 문자열이면 \"1001\"(기본 채번)이 자동 적용된다 — 보통 그대로 두면 됨.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "form_id",
+    "doc_title",
+    "line_id",
+    "hp_application_json",
+    "bind_data_json",
+    "doc_contents_html"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "suggest_approval_line",
+  "description": "이 양식을 **내가 기안할 때의 결재선 후보**를 한 번에 제안한다(스키마 + 조직도 해석). 하는 일: 본인 직책(duty)으로 grade 구간 판정 → 해당 branch 선택(출장은 trip 국내/해외) → 각 직책을 실제 사람 후보로 해석(L_* 상대직책은 기안자 부서에서 상위로, 고정직책은 지정 부서에서). ⛔ **결과는 확정 결재선이 아니라 후보다** — 응답의 `verificationRequired:true`·`warnings`·단계별 `status`(후보1/후보다수/미해결)를 그대로 사용자에게 보여주고 **이름을 확인받은 뒤에** save_approval_line으로 등록할 것. 공석·겸직·대행·직책 라벨 차이(규칙 '사업부장' ↔ 조직 '센터장')·위임전결 개정 때문에 해석이 틀릴 수 있다. 등록 시에는 결재(3000) 노드만 담는다(양식필수 합의자·수신참조·시행자는 상신 때 서버가 자동 병합). 스키마 원본만 보려면 get_approval_line_schema.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "doc_type": {
+     "description": "양식명 또는 form_id. 예: \"외근신청\", \"41\", \"연차휴가신청\", \"출장신청\", \"휴일주말근무\".",
+     "type": "string"
+    },
+    "trip": {
+     "default": "",
+     "description": "출장신청 전용 — \"국내\" 또는 \"해외\"(결재선이 갈린다). 다른 양식은 비워둘 것. 빈값이면 해당 양식의 국내·해외 branch를 모두 반환한다.",
+     "type": "string"
+    }
+   },
+   "required": [
+    "doc_type"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "update_calendar_event",
+  "description": "일정의 제목/내용/시간을 수정한다(본인 작성만; 변경분만 지정, 수정 후 재조회 확인). 시각 YYYYMMDDHHmm",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "contents": {
+     "default": null,
+     "description": "새 내용 (미지정 시 기존 유지)",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "date": {
+     "description": "대상 일정이 걸친 날짜 YYYYMMDD (원본 조회·소유권 확인용)",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "end": {
+     "default": null,
+     "description": "새 종료 YYYYMMDDHHmm (미지정 시 기존 유지)",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "sch_seq": {
+     "description": "일정 ID (schSeq). list_events로 확인.",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "start": {
+     "default": null,
+     "description": "새 시작 YYYYMMDDHHmm (미지정 시 기존 유지)",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "title": {
+     "default": null,
+     "description": "새 제목 (미지정 시 기존 유지)",
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   },
+   "required": [
+    "sch_seq",
+    "date"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "update_reservation",
+  "description": "회의실 예약을 수정한다(본인 소유만; 변경분만 지정, 수정 후 재조회로 확인). 시각은 YYYYMMDDHHmm. ⚠️ 바꾼 시간이 **점심시간 13:00~14:00**에 걸치면 응답에 lunchWarning이 실린다 — 사용자에게 확인할 것. 참석자(attendees)는 **미지정 시 기존 참석자를 그대로 유지**하고, 지정하면 **통째로 교체**된다(빼려면 남길 사람만 나열). ⚠️ 참석자에 **타인을 넣는 것은 바깥으로 나가는 행위**다 — 그 사람의 예약 목록에 뜨고 알림이 갈 수 있으니(발송 여부 미실측) 사용자가 명시적으로 지시할 때만 지정할 것. 응답의 attendees/attendeesVerified로 실제 반영을 확인한다.",
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "attendees": {
+     "default": null,
+     "description": "새 참석자 목록 — **이름 또는 empSeq**. 미지정 시 기존 참석자를 유지한다.\n⚠️ 지정하면 **통째로 교체**된다(빼려면 남길 사람만 나열).",
+     "items": {
+      "type": [
+       "string",
+       "integer"
+      ]
+     },
+     "type": [
+      "array",
+      "null"
+     ]
+    },
+    "desc": {
+     "default": null,
+     "description": "새 내용 (미지정 시 기존 유지)",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "end": {
+     "default": null,
+     "description": "새 종료 YYYYMMDDHHmm (미지정 시 기존 유지)",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "req_text": {
+     "default": null,
+     "description": "새 예약명 (미지정 시 기존 유지)",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "res_idx": {
+     "default": null,
+     "description": "예약 인덱스 (기본 \"1\")",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "res_seq": {
+     "description": "자원(회의실) ID",
+     "type": [
+      "string",
+      "integer"
+     ]
+    },
+    "seq_num": {
+     "description": "예약 ID (seqNum)",
+     "format": "int64",
+     "type": [
+      "integer",
+      "string"
+     ]
+    },
+    "start": {
+     "default": null,
+     "description": "새 시작 YYYYMMDDHHmm (미지정 시 기존 유지)",
+     "type": [
+      "string",
+      "integer"
+     ]
+    }
+   },
+   "required": [
+    "res_seq",
+    "seq_num"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "whoami",
+  "description": "[아마란스] 로그인한 본인 정보를 반환한다 — empSeq/deptSeq/이메일, 근태용 empCd/deptCd/coCd, 그리고 **부서명·직책(duty)·직급(position)**. '내 예약', '내가 결재할 것' 류 필터의 기준값이자 결재선 grade 판정 근거. 직책·직급은 세션에 없어 조직도(gw102A02)에서 채우며(30분 캐시), 실패 시 `profileResolved:false`와 함께 빈 값이 온다.",
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ }
+]

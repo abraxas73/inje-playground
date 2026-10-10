@@ -1,0 +1,34 @@
+{
+ "resultList": [
+  {
+   "apprYn": "x",
+   "attrName": "x",
+   "attrSeq": "x",
+   "color": "x",
+   "compSeq": "x",
+   "createDate": "x",
+   "createSeq": "x",
+   "groupSeq": "x",
+   "modifyDate": "x",
+   "modifySeq": "x",
+   "orderNum": 2,
+   "resName": "x",
+   "resSeq": "x"
+  },
+  {
+   "apprYn": "x",
+   "attrName": "x",
+   "attrSeq": "x",
+   "color": "x",
+   "compSeq": "x",
+   "createDate": "x",
+   "createSeq": "x",
+   "groupSeq": "x",
+   "modifyDate": "x",
+   "modifySeq": "x",
+   "orderNum": 3,
+   "resName": "x",
+   "resSeq": "x"
+  }
+ ]
+}

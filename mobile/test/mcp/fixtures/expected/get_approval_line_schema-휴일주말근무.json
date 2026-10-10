@@ -1,0 +1,98 @@
+{
+ "docType": "휴일주말근무",
+ "note": "직책 스키마 — 사람은 org_chart 로 해석(후보). 상신 전 사람 확인 필수.",
+ "positions": {
+  "CFO": {
+   "dept": "x",
+   "desc": "x",
+   "duty": "x",
+   "kind": "fixed"
+  },
+  "L_본부장": {
+   "desc": "x",
+   "duty": "x",
+   "kind": "relative"
+  },
+  "L_부문장": {
+   "desc": "x",
+   "duty": "x",
+   "kind": "relative"
+  },
+  "L_센터장": {
+   "desc": "x",
+   "duty": "x",
+   "kind": "relative"
+  },
+  "L_팀장": {
+   "desc": "x",
+   "duty": "x",
+   "kind": "relative"
+  },
+  "기술운영부문장": {
+   "dept": "x",
+   "desc": "x",
+   "duty": "x",
+   "kind": "fixed"
+  },
+  "대표이사": {
+   "dept": "x",
+   "desc": "x",
+   "kind": "fixed"
+  },
+  "인사지원실장": {
+   "dept": "x",
+   "desc": "x",
+   "duty": "x",
+   "kind": "fixed"
+  },
+  "인사총무팀장": {
+   "dept": "x",
+   "desc": "x",
+   "duty": "x",
+   "kind": "fixed"
+  }
+ },
+ "schema": {
+  "aliases": [
+   "휴일/주말근무신청서",
+   "휴일주말근무신청"
+  ],
+  "branches": [
+   {
+    "line": [
+     {
+      "act": "x",
+      "pos": "x"
+     },
+     {
+      "act": "x",
+      "final": true,
+      "pos": "x"
+     }
+    ],
+    "when": {
+     "grade": "x"
+    }
+   },
+   {
+    "line": [
+     {
+      "act": "x",
+      "pos": "x"
+     },
+     {
+      "act": "x",
+      "pos": "x"
+     }
+    ],
+    "when": {
+     "grade": "x"
+    }
+   }
+  ],
+  "form_id": 43
+ },
+ "source": "위임전결 기준_260801.xlsx (사내규정 공지 art_seq_no=3009, 2026-08-01 시행). 구 0706 PDF 대체.",
+ "sourceOf": "bundled",
+ "version": "2026-08-01"
+}

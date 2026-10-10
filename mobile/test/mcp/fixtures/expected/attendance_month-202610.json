@@ -1,0 +1,35 @@
+{
+ "days": [
+  {
+   "come": "x",
+   "date": "x",
+   "dayType": "근로일",
+   "leave": "x",
+   "overtimeMin": 0,
+   "reason": null,
+   "result": "출근",
+   "workMin": 0
+  },
+  {
+   "come": "x",
+   "date": "x",
+   "dayType": "근로일",
+   "leave": "x",
+   "overtimeMin": 0,
+   "reason": null,
+   "result": "출근",
+   "workMin": 0
+  }
+ ],
+ "kind": "attendancePeriod",
+ "period": "20261001~20261031",
+ "rowCount": 9,
+ "summary": {
+  "absentCount": 0,
+  "lateCount": 0,
+  "overtimeMin": 0,
+  "totalWorkHours": "x",
+  "totalWorkMin": 480,
+  "workDays": 1
+ }
+}

@@ -1,0 +1,40 @@
+{
+ "box": "sent",
+ "documents": [
+  {
+   "arrivedDt": "x",
+   "commentCount": "x",
+   "currentApprover": "x",
+   "dept": "x",
+   "docId": "x",
+   "docNo": "x",
+   "drafter": "x",
+   "endDt": "x",
+   "fileCount": "x",
+   "form": "x",
+   "formId": "145",
+   "readYn": "x",
+   "repDt": "x",
+   "status": "진행",
+   "title": "x"
+  },
+  {
+   "arrivedDt": "x",
+   "commentCount": "x",
+   "currentApprover": "x",
+   "dept": "x",
+   "docId": "x",
+   "docNo": "x",
+   "drafter": "x",
+   "endDt": "x",
+   "fileCount": "x",
+   "form": "x",
+   "formId": "36",
+   "readYn": "x",
+   "repDt": "x",
+   "status": "종결",
+   "title": "x"
+  }
+ ],
+ "totalCount": 12
+}

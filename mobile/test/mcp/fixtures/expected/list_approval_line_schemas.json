@@ -1,0 +1,26 @@
+{
+ "bundledVersion": "2026-08-01",
+ "forms": [
+  {
+   "aliases": [
+    "연차휴가신청서",
+    "휴가신청"
+   ],
+   "docType": "연차휴가신청",
+   "formId": 36,
+   "sourceOf": "bundled",
+   "version": "2026-08-01"
+  },
+  {
+   "aliases": [
+    "외근신청서",
+    "외근"
+   ],
+   "docType": "외근신청",
+   "formId": 41,
+   "sourceOf": "bundled",
+   "version": "2026-08-01"
+  }
+ ],
+ "source": "위임전결 기준_260801.xlsx (사내규정 공지 art_seq_no=3009, 2026-08-01 시행). 구 0706 PDF 대체."
+}

@@ -1,0 +1,266 @@
+{
+ "docType": "연차휴가신청",
+ "guide": {
+  "aliases": [
+   "연차휴가신청서",
+   "휴가신청"
+  ],
+  "approvalLineHint": "x",
+  "draftHelp": {
+   "bindDataExample": {
+    "ITEMS": {
+     "appDay": "x",
+     "appMonth": "x",
+     "appYear": "x"
+    },
+    "TABLE": {
+     "dbTable1": {
+      "group": [
+       {
+        "group": [
+         {
+          "group": null,
+          "items": {
+           "appDy": "x",
+           "appRmkDc": "x",
+           "appTm": "x",
+           "appTmMinute": "x",
+           "atCdNm": "x",
+           "endDt": "x",
+           "endDtDayOfWeek": "x",
+           "endTm": "x",
+           "grupDt": "x",
+           "joinDt": "x",
+           "startDt": "x",
+           "startDtDayOfWeek": "x",
+           "startTm": "x",
+           "ycUseCnt": "x",
+           "year": "x"
+          }
+         }
+        ],
+        "items": {
+         "appexDy": null,
+         "aruseCnt": null,
+         "deptNm": "x",
+         "dutyNm": "x",
+         "empCd": "x",
+         "empNm": "x",
+         "grupDt": "x",
+         "hclsNm": null,
+         "hoprNm": "x",
+         "hrspNm": "x",
+         "htypNm": "x",
+         "joinDt": "x",
+         "listNum": 0,
+         "minusCnt": "x",
+         "positionNm": "x",
+         "progressCnt": "x",
+         "remainCnt": "x",
+         "sumDy": null,
+         "totalCnt": "x",
+         "unusedCnt": "x",
+         "usedCnt": "x"
+        }
+       }
+      ]
+     },
+     "dbTable2": {
+      "group": []
+     }
+    }
+   },
+   "defaultDocTitle": "x",
+   "fill": {
+    "appRmkDc": "x",
+    "startDt/endDt": "x",
+    "startTm/endTm": "x",
+    "휴가구분": "x"
+   },
+   "fixed": {
+    "note": "x",
+    "휴가구분별": {
+     "반반차": {
+      "appTm": 120,
+      "atCd": "x",
+      "startTm/endTm": "x",
+      "ycUseCnt": 0.25
+     },
+     "시간연차": {
+      "appTm": 60,
+      "atCd": "x",
+      "startTm/endTm": "x",
+      "ycUseCnt": 0.125
+     },
+     "연차": {
+      "appTm": 480,
+      "atCd": "x",
+      "startTm/endTm": "x",
+      "ycUseCnt": 1
+     },
+     "오전반차": {
+      "appTm": 240,
+      "atCd": "x",
+      "startTm/endTm": "x",
+      "ycUseCnt": 0.5
+     },
+     "오후반차": {
+      "appTm": 240,
+      "atCd": "x",
+      "startTm/endTm": "x",
+      "ycUseCnt": 0.5
+     }
+    }
+   },
+   "howto": "x",
+   "hpApplicationExample": {
+    "applicationList": [
+     {
+      "actAppTp": null,
+      "actEndTm": null,
+      "actStartTm": null,
+      "appAgeCnt": null,
+      "appDt": null,
+      "appDy": "x",
+      "appDyFg": "x",
+      "appNm": null,
+      "appProcTp": null,
+      "appRmkDc": "x",
+      "appRsrgNo": null,
+      "appSq": null,
+      "appTm": 480,
+      "appexCnt": null,
+      "appexDy": null,
+      "areaCd": null,
+      "arrivNm": null,
+      "aruseCnt": null,
+      "aruseDy": null,
+      "atCd": "x",
+      "atDt": "x",
+      "atSchYn": "x",
+      "atYm": null,
+      "attrNm": null,
+      "baNbTr": null,
+      "bankCd": null,
+      "baseAtDt": null,
+      "bgtCd": null,
+      "biztrAllowancePaidFg": null,
+      "biztrCommuteTp": null,
+      "biztrDc": null,
+      "biztrDistanceDc": null,
+      "biztrPpsDc": null,
+      "bottomCd": null,
+      "cancellationApplication": false,
+      "chargeFg": null,
+      "coCd": "x",
+      "comeStTm": "x",
+      "conFg": null,
+      "countryCd": null,
+      "dayOfWeek": null,
+      "depatNm": null,
+      "depositNm": null,
+      "deptCd": "x",
+      "deptNm": "x",
+      "detailJson": null,
+      "detailSq": null,
+      "driverCd": null,
+      "dueCnt": null,
+      "dueDt": null,
+      "ectCostAmt": null,
+      "ectRetunAm": null,
+      "ectRetunYn": null,
+      "ectUrl": null,
+      "eduCd": null,
+      "eduManagerNm": null,
+      "eduNo": null,
+      "eduTel": null,
+      "eduWayFg": null,
+      "empCd": "x",
+      "empNm": "x",
+      "endDt": "x",
+      "endTm": "x",
+      "extendYn": null,
+      "groupCd": "x",
+      "holidayYn": null,
+      "insertDt": null,
+      "insertId": null,
+      "insertIp": null,
+      "leaveStTm": "x",
+      "linkAtCd": "x",
+      "mgtCd": null,
+      "mgtFg": null,
+      "minusAnnualUsedYn": "x",
+      "modifyDt": null,
+      "modifyId": null,
+      "modifyIp": null,
+      "moveFg": null,
+      "nightworkTm": null,
+      "oriAppDetail": null,
+      "oriAppDt": null,
+      "oriAppSq": null,
+      "overworkTm": null,
+      "paymentAm": null,
+      "paymentDt": null,
+      "pregCnt": null,
+      "reatCd": null,
+      "regNb": null,
+      "repeatFg": null,
+      "repeatTp": null,
+      "reportCancYn": "x",
+      "reqAgencyTp": null,
+      "rmkDc": null,
+      "schSeq": null,
+      "schmSeq": null,
+      "startDt": "x",
+      "startTm": "x",
+      "stopvNm": null,
+      "sumDy": null,
+      "taskDc": null,
+      "timeCd": "x",
+      "trCd": null,
+      "trafFg": null,
+      "visitNm": null,
+      "workFg": null,
+      "workTp": "x",
+      "worktimeCd": null,
+      "ycGrantCnt": 0,
+      "ycUseCnt": 1,
+      "zoneNm": null
+     }
+    ],
+    "employeeList": [
+     {
+      "deptCd": "x",
+      "deptNm": "x",
+      "divNm": "x",
+      "empCd": "x",
+      "korNm": "x"
+     }
+    ]
+   },
+   "submitTool": "x",
+   "titleHelp": "x"
+  },
+  "entry": "x",
+  "form_id": 36,
+  "notes": [
+   "x"
+  ],
+  "requiredBody": [
+   "x",
+   "x"
+  ],
+  "steps": [
+   "x",
+   "x"
+  ]
+ },
+ "mcpStatus": {
+  "approvalLine": "✅ MCP 가능 — get_approval_line_schema(직책 라인) → org_chart(직책→사람) → save_approval_line(등록). 상신 전 사람 확인 필수.",
+  "documentBody": "✅ draftHelp로 필드 스키마 제공 — hp_application_json/bind_data_json 을 draftHelp.hpApplicationExample/bindDataExample 기준으로 구성.",
+  "submit": "x"
+ },
+ "note": "x",
+ "source": "실측 캡처 기준(KISS 근태폼 HPD0110, 위임전결 260801 개정). approvalLineHint는 위임전결 기준_260801 반영.",
+ "version": "2026-08-05c"
+}

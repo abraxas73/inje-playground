@@ -1,0 +1,35 @@
+{
+ "articles": [
+  {
+   "artSeqNo": "x",
+   "attachmentUid": "x",
+   "board": "x",
+   "boardId": "x",
+   "dept": "x",
+   "fileCnt": 4,
+   "isNew": false,
+   "preview": "x",
+   "read": true,
+   "readCnt": "x",
+   "title": "x",
+   "writeDate": "x",
+   "writer": "x"
+  },
+  {
+   "artSeqNo": "x",
+   "attachmentUid": "x",
+   "board": "x",
+   "boardId": "x",
+   "dept": "x",
+   "fileCnt": 1,
+   "isNew": false,
+   "preview": "x",
+   "read": true,
+   "readCnt": "x",
+   "title": "x",
+   "writeDate": "x",
+   "writer": "x"
+  }
+ ],
+ "totalCnt": 9
+}
