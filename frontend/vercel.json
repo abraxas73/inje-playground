@@ -18,6 +18,10 @@
     {
       "path": "/api/cron/jira-privacy",
       "schedule": "17 */6 * * *"
+    },
+    {
+      "path": "/api/cron/mcp-purge",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

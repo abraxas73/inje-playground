@@ -34,6 +34,8 @@ describe("page privacy and audit recursion", () => {
   });
   it('excludes ingestion, audit reads and anonymous survey reads', () => {
     expect(shouldAuditRequest('POST', '/api/page-views')).toBe(false);
+    expect(shouldAuditRequest('POST', '/api/mcp')).toBe(false);
+    expect(shouldAuditRequest('POST', '/api/mcpx')).toBe(true);
     expect(shouldAuditRequest('GET', '/api/admin/audit')).toBe(false);
     expect(shouldAuditRequest('GET', '/api/rfp/shared/secret')).toBe(false);
     expect(shouldAuditRequest('GET', '/api/ppt/shared/secret')).toBe(false);

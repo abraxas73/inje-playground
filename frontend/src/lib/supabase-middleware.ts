@@ -11,7 +11,7 @@ import type { UserRole } from "./roles";
  * 로그인 리다이렉트와 역할 검사를 모두 건너뛴다 — 실제 열람 권한은 라우트가 토큰으로 판단하고,
  * private 링크는 그 라우트에서 401(login_required)로 막는다.
  */
-const PUBLIC_PREFIXES = ["/login", "/auth", "/api", "/privacy", "/account-deletion", "/survey", "/rfp/shared", "/ppt/s"];
+const PUBLIC_PREFIXES = ["/login", "/auth", "/api", "/privacy", "/account-deletion", "/survey", "/rfp/shared", "/ppt/s", "/.well-known"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -85,11 +85,14 @@ export async function updateSession(request: NextRequest) {
     if (!user && !isPublicPath(pathname)) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
+      // OAuth 동의 화면은 로그인 후 같은 인가 요청으로 돌아와야 한다(스펙 §5.2).
+      if (matchesPath(pathname, "/oauth")) url.search = `?next=${encodeURIComponent(pathname + request.nextUrl.search)}`;
       return NextResponse.redirect(url);
     }
 
     // Page permissions also cover feature APIs; anonymous public surveys keep their own access_mode checks.
-    if (!user && pageKeys.length && !publicSurvey) return deny(401, "로그인이 필요합니다.");
+    // /api/mcp는 401에 WWW-Authenticate(OAuth 리소스 메타데이터)가 있어야 Claude가 사인인을 시작한다 — 미인증 응답은 라우트가 만든다.
+    if (!user && pageKeys.length && !publicSurvey && !matchesPath(pathname, "/api/mcp")) return deny(401, "로그인이 필요합니다.");
     if (user && (pageKeys.length || adminPath)) {
       const profile = await supabase.from("user_profiles").select("role").eq("user_id", user.id).single();
       if (profile.error || !["guest", "user", "admin"].includes(profile.data?.role)) return deny(503, "접근 권한을 확인하지 못했습니다.");

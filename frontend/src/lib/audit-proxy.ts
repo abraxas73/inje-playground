@@ -10,6 +10,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAudit } from "./audit";
+import { matchesPath } from "./page-access";
 
 const AUDITED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
@@ -32,6 +33,7 @@ const SKIP_PREFIXES = [
 export function shouldAuditRequest(method: string, pathname: string): boolean {
   if (!AUDITED_METHODS.has(method.toUpperCase())) return false;
   if (!pathname.startsWith("/api/")) return false;
+  if (matchesPath(pathname, "/api/mcp")) return false; // MCP 끝점은 라우트가 도구 이름·소요만 직접 감사한다
   return !SKIP_PREFIXES.some((p) => pathname.startsWith(p));
 }
 

@@ -190,7 +190,7 @@ export const manualSections: ManualSection[] = [
     description: "Mac과 Windows에서 이노크루 앱을 설치하고 사용합니다.",
     steps: ["아래 앱 설치·다운로드 메뉴에서 운영체제에 맞는 설치 파일과 현재 버전을 확인합니다.", "macOS는 DMG를 열어 INNOGRID를 Applications 폴더로 옮긴 뒤 실행합니다. macOS 12 이상이며 Apple Silicon과 Intel을 지원합니다.", "Windows는 설치 파일을 실행한 뒤 시작 메뉴에서 INNOGRID를 엽니다. Windows 10 1809 이상 또는 11, x64 환경과 Microsoft Edge WebView2 Runtime이 필요합니다.", "Microsoft 계정으로 로그인하고 브라우저의 앱 열기를 허용합니다. 아마란스는 앱에서 별도로 연결합니다.", "업데이트할 때는 앱을 종료하고 이 페이지의 새 설치 파일로 다시 설치합니다."],
     note: "Windows는 내부 테스트 버전입니다. 아직 설치 파일이 배포되지 않았다면 준비 중으로 표시됩니다.",
-    links: [{ href: "/apps#desktop", label: "데스크톱 앱 다운로드" }],
+    links: [{ href: "/apps#desktop", label: "데스크톱 앱 다운로드" }, { href: "/apps#mcp", label: "Claude 커넥터 연결 방법" }],
   },
   {
     id: "apps", title: "모바일 앱 설치와 업데이트", category: "모바일 앱",
