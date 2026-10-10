@@ -55,7 +55,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 
 ### App Router Pages (`frontend/src/app/`)
 - `/admin/page-permissions` — 사용자별 페이지 접근 권한. `lib/page-access.ts` 공용 카탈로그로 사용자 메뉴 2단계 그룹·홈 카드·페이지/API 검사를 통합. 기존 역할 기본값 유지, admin 전체 허용, RLS와 버전 검사 RPC. 런북 `docs/page-access.md`.
-- `/` — Home with feature cards linking to sub-pages. 데스크톱 브라우저(macOS·Windows)에서 이 계정으로 그 OS의 데스크톱 앱에 로그인한 기록(`login_history` User-Agent `InnogridApp/… (macos|windows)`)이 없으면 맨 위에 설치 안내 카드(`components/home/DesktopAppCard`, `GET /api/desktop/presence`; ‘다음에’는 localStorage 30일)
+- `/` — Home with feature cards linking to sub-pages. 데스크톱 브라우저(macOS·Windows)에서 이 계정으로 그 OS의 데스크톱 앱에 로그인한 기록(`login_history` User-Agent `InnogridApp/… (macOS|windows)`, 대소문자 무시)이 없으면 맨 위에 설치 안내 카드(`components/home/DesktopAppCard`, `GET /api/desktop/presence`; ‘다음에’는 localStorage 30일)
 - `/ladder` — Ladder game: participants + results matched via animated canvas ladder
 - `/team` — Team divider: random team assignment with card holder distribution and min/max constraints
 - `/food` — Restaurant/cafe finder with Kakao Maps integration + PAYCO 식권 가맹점 검색

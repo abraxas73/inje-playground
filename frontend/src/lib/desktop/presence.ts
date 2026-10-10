@@ -6,10 +6,11 @@ export const DISMISS_DAYS = 30;
 
 export type Presence = Record<DesktopPlatform, string | null>;
 
-/** 앱 로그인 User-Agent `InnogridApp/<ver> (<platform>) InnogridBuild/<n>`(mobile/lib/config.dart) → 데스크톱 플랫폼 */
+/** 앱 로그인 User-Agent `InnogridApp/<ver> (<platform>) InnogridBuild/<n>`(mobile/lib/config.dart) → 데스크톱 플랫폼.
+ *  platform은 Flutter `defaultTargetPlatform.name`이라 `macOS`·`windows`·`iOS`·`android`처럼 대소문자가 섞여 있다 — 실측(2026-10-10) 뒤 대소문자 무시. */
 export function appPlatform(ua: string | null | undefined): DesktopPlatform | null {
-  const m = /^InnogridApp\/\S+ \((macos|windows)\)/.exec(ua ?? "");
-  return m ? (m[1] as DesktopPlatform) : null;
+  const m = /^InnogridApp\/\S+ \((macos|windows)\)/i.exec(ua ?? "");
+  return m ? (m[1].toLowerCase() as DesktopPlatform) : null;
 }
 
 /** 브라우저 UA → 데스크톱 OS. 모바일·태블릿은 null. iPadOS Safari는 Macintosh로 위장하므로 터치 지점 수로 거른다. */

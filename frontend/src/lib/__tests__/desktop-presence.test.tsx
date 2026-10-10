@@ -18,9 +18,11 @@ afterEach(() => { vi.unstubAllGlobals(); user.allowed = true; });
 
 describe("presence 도우미", () => {
   it("앱 로그인 User-Agent에서 데스크톱 플랫폼을 읽고 모바일·브라우저는 무시한다", () => {
-    expect(appPlatform("InnogridApp/1.6.1 (macos) InnogridBuild/37")).toBe("macos");
-    expect(appPlatform("InnogridApp/1.6.1 (windows) InnogridBuild/37")).toBe("windows");
+    expect(appPlatform("InnogridApp/1.6.1 (macOS) InnogridBuild/37")).toBe("macos"); // 실제 기록은 Flutter 플랫폼 이름 그대로 macOS
+    expect(appPlatform("InnogridApp/dev (macos) InnogridBuild/0")).toBe("macos");
+    expect(appPlatform("InnogridApp/1.4.6 (windows) InnogridBuild/31")).toBe("windows");
     expect(appPlatform("InnogridApp/1.6.1 (android) InnogridBuild/37")).toBeNull();
+    expect(appPlatform("InnogridApp/dev (iOS) InnogridBuild/0")).toBeNull();
     expect(appPlatform(MAC_UA)).toBeNull();
     expect(appPlatform(null)).toBeNull();
   });
@@ -35,8 +37,9 @@ describe("presence 도우미", () => {
     expect(presenceFromRows([
       { user_agent: "InnogridApp/1.6.1 (windows) InnogridBuild/37", logged_in_at: "2026-10-10T01:00:00Z" },
       { user_agent: "InnogridApp/1.6.0 (windows) InnogridBuild/36", logged_in_at: "2026-10-01T01:00:00Z" },
-      { user_agent: "InnogridApp/1.6.1 (ios) InnogridBuild/37", logged_in_at: "2026-10-09T01:00:00Z" },
-    ])).toEqual({ macos: null, windows: "2026-10-10T01:00:00Z" });
+      { user_agent: "InnogridApp/1.6.1 (iOS) InnogridBuild/37", logged_in_at: "2026-10-09T01:00:00Z" },
+      { user_agent: "InnogridApp/1.6.1 (macOS) InnogridBuild/37", logged_in_at: "2026-10-08T01:00:00Z" },
+    ])).toEqual({ macos: "2026-10-08T01:00:00Z", windows: "2026-10-10T01:00:00Z" });
   });
   it("닫은 지 30일 안이면 숨기고, 그 뒤나 값이 없으면 다시 보인다", () => {
     const now = Date.parse("2026-10-10T00:00:00Z");
