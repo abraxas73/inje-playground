@@ -32,6 +32,20 @@ String asStr(Object? v) => v == null ? '' : v.toString();
 bool asBool(Object? v) => v == true || v == 1 || (v is String && (v == 'Y' || v == 'y' || v == '1' || v == 'true'));
 int asInt(Object? v, [int fallback = 0]) => v is int ? v : (v is num ? v.toInt() : int.tryParse(asStr(v)) ?? fallback);
 
+/// Content-Disposition → 파일명. `filename*=UTF-8''<퍼센트 인코딩>` 우선, 없으면 `filename="…"`, 둘 다 없으면 ''.
+String dispositionName(String cd) {
+  final star = RegExp(r"filename\*\s*=\s*[^']*'[^']*'([^;]+)", caseSensitive: false).firstMatch(cd)?.group(1);
+  if (star != null) {
+    try {
+      return Uri.decodeComponent(star.trim());
+    } catch (_) {
+      // 깨진 인코딩은 아래 filename으로
+    }
+  }
+  final m = RegExp(r'filename\s*=\s*"([^"]*)"|filename\s*=\s*([^;]+)', caseSensitive: false).firstMatch(cd);
+  return (m?.group(1) ?? m?.group(2) ?? '').trim();
+}
+
 /// 모든 아마란스 호출의 단일 관문. 서명 헤더 4종 → POST → 봉투({resultCode,resultMsg,resultData}) 해석.
 class GwClient {
   GwClient({required this.httpClient, required this.creds, this.baseUrl = 'https://gw.innogrid.com', DateTime Function()? now, String Function()? txId, this.onUnauthorized})
@@ -111,9 +125,13 @@ class GwClient {
   }
 
   /// 바이너리 받기 — form POST(ecm001A03 첨부). 실패 응답(JSON 봉투)은 그 메시지로 던진다.
-  Future<List<int>> formBytes(String path, Map<String, String> params) async {
+  Future<List<int>> formBytes(String path, Map<String, String> params) async => (await formFile(path, params)).$1;
+
+  /// formBytes + 서버 파일명(Content-Disposition `filename*=UTF-8''…` 우선, 없으면 `filename="…"`, 둘 다 없으면 '').
+  Future<(List<int>, String)> formFile(String path, Map<String, String> params) async {
     final body = params.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&');
-    return _bytes(await _send(() => httpClient.post(Uri.parse('$baseUrl$path'), headers: _signed(path, 'application/x-www-form-urlencoded')..['Accept'] = '*/*', body: body)));
+    final res = await _send(() => httpClient.post(Uri.parse('$baseUrl$path'), headers: _signed(path, 'application/x-www-form-urlencoded')..['Accept'] = '*/*', body: body));
+    return (_bytes(res), dispositionName(res.headers['content-disposition'] ?? ''));
   }
 
   /// 바이너리 받기 — 서명 GET(본문 삽입 이미지). pathAndQuery는 '/'로 시작하는 같은 호스트 경로.

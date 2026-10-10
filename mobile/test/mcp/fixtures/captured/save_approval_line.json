@@ -4,7 +4,7 @@
   "line_nm": "x",
   "form_id": 41,
   "line_id": 0,
-  "detail_line_json": "[{\"user_id\": \"3060\", \"co_id\": \"1000\", \"act_id\": \"3000\", \"duty_cd\": \"300\", \"duty_nm\": \"\", \"dept_id\": \"2989\", \"dept_nm\": \"클라우드 네이티브 센터\", \"user_nm\": \"강승억\", \"grade_nm\": \"상무\"}]"
+  "detail_line_json": "[{\"user_id\": \"3060\", \"co_id\": \"1000\", \"act_id\": \"3000\", \"duty_cd\": \"300\", \"duty_nm\": \"\", \"dept_id\": \"2989\", \"dept_nm\": \"x\", \"user_nm\": \"x\", \"grade_nm\": \"x\"}]"
  },
  "toolResult": {
   "createdLineId": 2470,

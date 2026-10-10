@@ -60,10 +60,20 @@ String _mailId(Map x, String k) {
 const _noGw = '아마란스가 연결되어 있지 않습니다. 앱 더보기 > 아마란스에서 연결하세요.';
 const _lunchNote = '점심시간(13:00~14:00)은 빈 구간에서 제외했습니다. 점심시간에도 찾으려면 include_lunch=true로 다시 호출하세요.';
 const _treeNote = 'userCount는 하위 부서를 포함한 누적 인원';
-const _boxLabels = {
-  '1001000': 'pending(미결)', '1001100': 'approved(기결)', '1001110': 'approved_ongoing(기결진행)', '1001120': 'approved_done(기결종결)',
-  '1001200': 'reference(수신참조)', '1001400': 'enforcement(시행)', '1000400': 'sent(상신)', '1000500': 'draft(임시보관)',
+/// list_approvals 함 — 경로·eaBoxId(=upperMenuNo)·menuNo(=nMenuID)·기간·정렬 기준(captured list_approvals-* 그대로)과 한글 이름.
+const _boxes = {
+  'pending': (path: '/eap/eap105A04', boxId: '1000900', menuNo: '1001000', sort: 'ARRIVED_DT', ko: '미결'),
+  'approved': (path: '/eap/eap105A04', boxId: '1000900', menuNo: '1001100', sort: 'ACTION_TIME', ko: '기결'),
+  'approved_ongoing': (path: '/eap/eap105A04', boxId: '1000900', menuNo: '1001110', sort: 'ACTION_TIME', ko: '기결진행'),
+  'approved_done': (path: '/eap/eap105A04', boxId: '1000900', menuNo: '1001120', sort: 'ACTION_TIME', ko: '기결종결'),
+  'reference': (path: '/eap/eap105A04', boxId: '1000900', menuNo: '1001200', sort: 'REP_DT', ko: '수신참조'),
+  'enforcement': (path: '/eap/eap105A04', boxId: '1000900', menuNo: '1001400', sort: 'REP_DT', ko: '시행'),
+  'sent': (path: '/eap/eap107A04', boxId: '1000300', menuNo: '1000400', sort: 'REP_DT', ko: '상신'),
+  'draft': (path: '/eap/eap107A06', boxId: '1000300', menuNo: '1000500', sort: 'REP_DT', ko: '임시보관'),
 };
+
+/// approval_counts 키(menuNo) → 'pending(미결)' 꼴.
+final _boxLabels = {for (final e in _boxes.entries) e.value.menuNo: '${e.key}(${e.value.ko})'};
 const _searchModules = {'메일': '0', '전자결재': '6', '게시판': '9', '일정': '3', '자원': '13', '파일': '10'};
 
 String _two(int v) => v.toString().padLeft(2, '0');
@@ -103,6 +113,21 @@ String _sv(Map r, String k) => r[k] is Map ? asStr((r[k] as Map)['kr']) : asStr(
 String _dashed(String v) {
   final d = a.ymd(v);
   return d.length == 8 ? '${d.substring(0, 4)}-${d.substring(4, 6)}-${d.substring(6, 8)}' : v;
+}
+
+/// 숫자 ID 인자(필수) — 숫자가 아니면 호출 전에 거절.
+String _num(Map args, String k) {
+  final v = _req(args, k);
+  if (!RegExp(r'^\d+$').hasMatch(v)) throw McpToolError('$k는 숫자여야 합니다.');
+  return v;
+}
+
+/// 숫자 인자(선택) — 비면 null, 숫자가 아니면 거절(조용히 기본값이 되지 않게).
+int? _optNum(Map args, String k) {
+  final v = a.str(args, k);
+  if (v.isEmpty) return null;
+  if (!RegExp(r'^\d+$').hasMatch(v)) throw McpToolError('$k는 숫자여야 합니다.');
+  return int.parse(v);
 }
 
 String _req(Map args, String k) {
@@ -216,6 +241,13 @@ class McpTools {
         'approval_counts' => _approvalCounts(),
         'pending_approvals' => _pendingApprovals(x),
         'read_approval' => _readApproval(x),
+        'list_approvals' => _listApprovals(x),
+        'list_approval_attachments' => _approvalAttachments(x),
+        'download_approval_attachment' => _downloadApprovalAttachment(x),
+        'list_approval_lines' => _approvalLines(),
+        'read_approval_line' => _readApprovalLine(x),
+        'save_approval_line' => _saveApprovalLine(x),
+        'delete_approval_line' => _deleteApprovalLine(x),
         'list_approval_line_schemas' => schemas.list(),
         'get_approval_line_schema' => schemas.schema(_req(x, 'doc_type')),
         'list_approval_submission_guides' => schemas.guides(),
@@ -223,6 +255,8 @@ class McpTools {
         'suggest_approval_line' => _suggest(x),
         'list_notices' => _listNotices(x),
         'read_notice' => _readNotice(x),
+        'list_notice_attachments' => _noticeAttachments(x),
+        'download_notice_attachment' => _downloadNoticeAttachment(x),
         'search' => _search(x),
         _ => throw McpToolError('모르는 도구입니다: $tool'),
       };
@@ -926,6 +960,153 @@ class McpTools {
     };
   }
 
+  /// 함별 문서 목록. 기간 기본은 오늘(KST)부터 3개월 전 같은 날까지(캡처 20260710~20261010, 그 달에 없는 날은 말일).
+  Future<Map<String, dynamic>> _listApprovals(Map x) async {
+    final box = a.str(x, 'box_name').isEmpty ? 'pending' : a.str(x, 'box_name').toLowerCase();
+    final b = _boxes[box] ?? (throw McpToolError('box_name은 ${_boxes.keys.join('/')} 중 하나입니다.'));
+    final today = m.kstNow(), back = DateTime.utc(today.year, today.month - 2, 0);
+    final from = a.str(x, 'from').isEmpty ? m.ymd(DateTime.utc(back.year, back.month, today.day > back.day ? back.day : today.day)) : _day(x, 'from');
+    final to = a.str(x, 'to').isEmpty ? m.ymd(today) : _day(x, 'to');
+    if (to.compareTo(from) < 0) throw McpToolError('to가 from보다 앞설 수 없습니다.');
+    final page = _optNum(x, 'page') ?? 1, size = (_optNum(x, 'page_size') ?? 30).clamp(1, 200);
+    if (page < 1) throw McpToolError('page는 1 이상입니다.');
+    final d = await _gw.approvalListRaw(path: b.path, boxId: b.boxId, menuNo: b.menuNo, period: b.sort, from8: from, to8: to, page: page, pageSize: size);
+    final Map c = d['list'] is Map ? d['list'] as Map : (d['map'] is Map ? d['map'] as Map : const {});
+    final rows = ((c['list'] as List?) ?? const []).whereType<Map>().toList();
+    String approver(Map r) {
+      final role = [asStr(r['LINE_USER_DUTY']), asStr(r['LINE_USER_GRADE'])].where((v) => v.isNotEmpty).join('/');
+      return [asStr(r['LINE_USER_NM']), role].where((v) => v.isNotEmpty).join(' ');
+    }
+
+    return {
+      'box': box, 'totalCount': asInt(c['totalCount'], rows.length),
+      'documents': [
+        for (final r in rows)
+          {
+            'arrivedDt': asStr(r['ARRIVED_DT']), 'commentCount': asStr(r['COMMENT_COUNT']), 'currentApprover': approver(r), 'dept': asStr(r['DEPT_NM']), 'docId': asStr(r['DOC_ID']), 'docNo': asStr(r['DOC_NO']),
+            'drafter': asStr(r['USER_NM']), 'endDt': asStr(r['END_DT']), 'fileCount': asStr(r['FILE_CNT']), 'form': asStr(r['FORM_NM']).isEmpty ? asStr(r['DRAFT_FORM_NM']) : asStr(r['FORM_NM']),
+            'formId': asStr(r['FORM_ID']), 'readYn': asStr(r['READYN']), 'repDt': asStr(r['REP_DT']), 'status': asStr(r['DOC_STSNM']), 'title': asStr(r['DOC_TITLE']),
+          },
+      ],
+    };
+  }
+
+  /// eap111A04 fileList(상신 문서). 임시보관 문서용 eap110A03 경로는 미실측 — fileList가 없으면 거절.
+  Future<Map<String, dynamic>> _approvalAttachments(Map x) async {
+    final docId = _num(x, 'doc_id'), d = await _gw.approvalDetailRaw(docId, _num(x, 'form_id'));
+    final list = d['fileList'];
+    if (list is! List) throw McpToolError('문서 $docId의 첨부 목록을 읽지 못했습니다. 임시보관 문서의 첨부 목록은 이 앱 버전에서 아직 지원하지 않습니다 — 아마란스에서 확인하세요.');
+    final files = [
+      for (final f in list.whereType<Map>())
+        {'fileExt': asStr(f['fileExtsn']), 'fileId': asStr(f['fileId']), 'fileName': asStr(f['dispFileNm']).isEmpty ? asStr(f['fileNm']) : asStr(f['dispFileNm']), 'fileSeq': asInt(f['fileSeq']), 'fileSize': asInt(f['fileSize'])},
+    ];
+    return {'count': files.length, 'docId': docId, 'files': files, 'source': 'eap111A04.fileList'};
+  }
+
+  /// ecm001A03(fileIds 1건) → 저장. 콤마(여러 건)는 서버가 zip으로 묶으므로 거절.
+  Future<Map<String, dynamic>> _downloadApprovalAttachment(Map x) async {
+    final id = _req(x, 'file_id'), out = _req(x, 'out_path');
+    if (id.contains(',')) throw McpToolError('file_id는 1건만 받습니다(여러 개를 콤마로 주면 서버가 zip으로 묶어 보냅니다). 하나씩 호출하세요.');
+    final (bytes, name) = await _gw.approvalAttachFile(id);
+    return {..._save(out, bytes), 'serverFileName': name};
+  }
+
+  Map<String, dynamic> _line(Map r) => {
+        '_row': r, 'formId': asStr(r['form_id']), 'formName': asStr(r['form_nm']), 'lineId': asStr(r['line_id']), 'lineKind': asStr(r['line_kind']), 'lineName': asStr(r['line_nm']),
+        'procId': asStr(r['proc_id']), 'procName': asStr(r['proc_nm']),
+      };
+
+  Future<Map<String, dynamic>> _approvalLines() async {
+    final rows = await _gw.approvalLinesRaw();
+    return {'count': rows.length, 'kind': 'approvalLines', 'lines': [for (final r in rows) _line(r)]};
+  }
+
+  Future<Map<String, dynamic>> _readApprovalLine(Map x) async {
+    final id = _req(x, 'line_id');
+    if (!RegExp(r'^\d+$').hasMatch(id)) throw McpToolError('line_id는 숫자 라인 ID입니다(list_approval_lines의 lineId).');
+    final rows = await _gw.approvalLineMembersRaw(id);
+    return {'count': rows.length, 'kind': 'approvalLineMembers', 'lineId': id, 'members': rows, 'note': '각 객체의 act_id 3000=결재/4000=합의. 이 객체들을 결재 순서대로 save_approval_line의 detail_line_json에 넣는다.'};
+  }
+
+  /// 쓰기 **뒤** 재조회(eap102A02). 이미 반영됐으므로 실패(세션 만료 401 포함)도 던지지 않는다 — 재시도로 이중 쓰기가 나지 않게.
+  Future<({List<Map>? rows, bool expired})> _linesReadback() async {
+    try {
+      return (rows: await _gw.approvalLinesRaw(), expired: false);
+    } on GwUnauthorized {
+      return (rows: null, expired: true);
+    } on GwException {
+      return (rows: null, expired: false);
+    }
+  }
+
+  /// JSON 문자열(또는 이미 풀린 값) 인자.
+  Object? _json(Map x, String k) {
+    final v = x[k];
+    return v is List || v is Map ? v : jsonDecode(_req(x, k));
+  }
+
+  /// eap102A10 신규 저장(line_id 0만 — 기존 라인 수정 본문은 미실측) → eap102A02 재조회로 새 lineId 확인.
+  Future<Map<String, dynamic>> _saveApprovalLine(Map x) async {
+    final name = _req(x, 'line_nm'), formId = a.intOf(x, 'form_id');
+    if (formId == null) throw McpToolError('form_id는 숫자 양식 ID입니다(예: 41 외근, 36 연차).');
+    final lineId = a.str(x, 'line_id').isEmpty ? 0 : a.intOf(x, 'line_id');
+    if (lineId == null) throw McpToolError('line_id는 숫자입니다(0이면 신규).');
+    if (lineId != 0) throw McpToolError('기존 라인 수정은 이 앱 버전에서 아직 지원하지 않습니다. line_id 0으로 새로 만든 뒤 delete_approval_line으로 옛 라인을 지우세요.');
+    final Object? v;
+    try {
+      v = _json(x, 'detail_line_json');
+    } on FormatException {
+      throw McpToolError('detail_line_json은 결재자 객체의 JSON 배열 문자열이어야 합니다.');
+    }
+    if (v is! List || v.isEmpty || v.any((e) => e is! Map)) throw McpToolError('detail_line_json은 결재자 객체를 하나 이상 담은 JSON 배열이어야 합니다.');
+    final members = v.cast<Map>();
+    if (members.any((e) => !RegExp(r'^\d+$').hasMatch(asStr(e['user_id'])) || !const {'3000', '4000'}.contains(asStr(e['act_id'])))) {
+      throw McpToolError('각 결재자에 user_id(empSeq)와 act_id(3000 결재/4000 합의)가 필요합니다. read_approval_line의 members 객체를 쓰세요.');
+    }
+    final detail = [for (final (i, e) in members.indexed) {...e, 'doc_line_m_seq': i + 1, 'doc_line_seq': i + 1, 'line_seq': i + 1}];
+    final procId = a.str(x, 'proc_id').isEmpty ? '1000' : a.str(x, 'proc_id');
+    final res = await _gw.saveApprovalLineRaw(formId: formId, lineName: name, procId: procId, detail: detail);
+    final created = asStr(res['createdLineId']);
+    // 이미 저장됐다 — 재조회만 실패하면 오류로 올리지 않는다(재시도로 같은 라인이 또 생기지 않게)
+    final (:rows, :expired) = await _linesReadback();
+    final verified = rows != null && created.isNotEmpty && rows.any((r) => asStr(r['line_id']) == created && asStr(r['line_nm']) == name && asStr(r['form_id']) == '$formId');
+    return {
+      'createdLineId': res['createdLineId'], 'insertDResult': res['insertDResult'], 'insertFormResult': res['insertFormResult'], 'kind': 'approvalLineSaved', 'ok': verified || rows == null,
+      'verified_by_readback': verified,
+      'note': expired
+          ? '결재선은 저장됐지만 확인 전에 아마란스 세션이 만료됐습니다. 다시 저장하지 말고 다시 로그인한 뒤 list_approval_lines로 확인하세요(상신 아님).'
+          : rows == null
+          ? '결재선은 저장됐지만 재조회에 실패해 확인하지 못했습니다. 다시 저장하지 말고 list_approval_lines로 확인하세요(상신 아님).'
+          : verified ? 'config 저장 완료(상신 아님). read_approval_line으로 결재자 순서를 확인하세요.' : '저장 응답은 받았지만 목록에서 새 라인을 찾지 못했습니다. list_approval_lines로 확인하세요.',
+    };
+  }
+
+  /// eap102A02(내 목록에서 line_id 행 찾기) → eap102A09(그 서버 행) → eap102A02 재조회로 사라졌는지 확인.
+  Future<Map<String, dynamic>> _deleteApprovalLine(Map x) async {
+    Object? v;
+    try {
+      v = _json(x, 'row_json');
+    } on FormatException {
+      v = null;
+    }
+    final lineId = v is Map ? asStr(v['line_id']) : '';
+    if (v is! Map || !RegExp(r'^\d+$').hasMatch(lineId)) throw McpToolError('row_json은 list_approval_lines 결과의 _row 객체 JSON이어야 합니다(lineId 숫자 아님).');
+    // 받은 행은 line_id만 믿는다 — 내 목록(eap102A02)에서 같은 line_id의 서버 행을 찾아 그 행을 보낸다(남의 라인·조작된 키가 삭제 API로 가지 않게)
+    final mine = (await _gw.approvalLinesRaw()).where((r) => asStr(r['line_id']) == lineId).firstOrNull ??
+        (throw McpToolError('내 결재선 목록에 없는 line_id($lineId)입니다. list_approval_lines로 확인하세요.'));
+    final res = await _gw.deleteApprovalLineRaw(mine);
+    final (:rows, :expired) = await _linesReadback();
+    final verified = rows != null && !rows.any((r) => asStr(r['line_id']) == lineId);
+    return {
+      'kind': 'approvalLineDeleted', 'resultCount': res['resultCount'], 'ok': verified || rows == null, 'verified_by_readback': verified,
+      'note': expired
+          ? '삭제 요청은 보냈지만 확인 전에 아마란스 세션이 만료됐습니다. 다시 삭제하지 말고 다시 로그인한 뒤 list_approval_lines로 확인하세요.'
+          : rows == null
+          ? '삭제 요청은 보냈지만 재조회에 실패해 확인하지 못했습니다. list_approval_lines로 확인하세요.'
+          : verified ? '삭제 완료(목록에서 사라진 것을 확인).' : '삭제 요청 뒤에도 목록에 라인 $lineId이(가) 남아 있습니다. 아마란스에서 확인하세요.',
+    };
+  }
+
   Future<Map<String, dynamic>> _suggest(Map x) async {
     final docType = _req(x, 'doc_type'), trip = a.str(x, 'trip');
     await schemas.schema(docType); // 모르는 양식이면 조직도를 훑기 전에 실패
@@ -970,6 +1151,26 @@ class McpTools {
           {'writer': asStr(r['mbr_nick']), 'writeDate': asStr(r['write_date']), 'content': m.htmlToText(firstOf(r, ['remark_desc', 'remark_content', 'content', 'art_content']))},
       ],
     };
+  }
+
+  /// ecm001A04 첨부 목록 — fileSn은 목록 순서(0-base), 다운로드에 그대로 쓴다.
+  Future<Map<String, dynamic>> _noticeAttachments(Map x) async {
+    final rows = await _gw.noticeAttachmentsRaw(_num(x, 'art_seq_no'), _req(x, 'uid'));
+    return {
+      'files': [
+        for (final (i, f) in rows.indexed)
+          {'fileExt': asStr(f['fileExtsn']), 'fileId': asStr(f['fileId']), 'fileName': asStr(f['originalFileName']), 'fileSize': asStr(f['fileSize']), 'fileSn': i, 'storagePath': asStr(f['linkedFilePath'])},
+      ],
+    };
+  }
+
+  /// ecm001A03(fileSn 인덱스) → 저장.
+  Future<Map<String, dynamic>> _downloadNoticeAttachment(Map x) async {
+    final art = _num(x, 'art_seq_no'), uid = _req(x, 'uid'), out = _req(x, 'out_path');
+    final sn = a.str(x, 'file_sn').isEmpty ? 0 : a.intOf(x, 'file_sn');
+    if (sn == null || sn < 0) throw McpToolError('file_sn은 list_notice_attachments의 fileSn(0부터 시작하는 숫자)입니다.');
+    final (bytes, name) = await _gw.noticeAttachFile(art, uid, sn);
+    return {..._save(out, bytes), 'serverFileName': name};
   }
 
   Future<Map<String, dynamic>> _search(Map x) async {

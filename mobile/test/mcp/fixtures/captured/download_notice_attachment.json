@@ -4,12 +4,12 @@
   "art_seq_no": "3068",
   "uid": "G8cc284c9F9572eDD2957FFe8aB5178D,B5F37c6a8556F26G8GaG8B71FBDe9eGF,968c5967ce5573BD1D74GFBa83D12BB9,e2836cF9c468B6Bc84accc5DGG645643",
   "file_sn": 0,
-  "out_path": "/private/tmp/claude-501/-Users-seunguk-kang-Repos-inje-playground/bb6d601b-c764-46a3-9d46-f193bc34c6f6/scratchpad/mitm/dl/notice-1. 이노그리드_퇴직연금규약(DC형)_2610"
+  "out_path": "/tmp/dl/x"
  },
  "toolResult": {
   "bytes": 290535,
   "ok": true,
-  "path": "/private/tmp/claude-501/-Users-seunguk-kang-Repos-inje-playground/bb6d601b-c764-46a3-9d46-f193bc34c6f6/scratchpad/mitm/dl/notice-1. 이노그리드_퇴직연금규약(DC형)_2610",
+  "path": "/tmp/dl/x",
   "serverFileName": "x"
  },
  "isError": false,
@@ -25,10 +25,23 @@
     "accept-encoding": "gzip",
     "content-length": "360"
    },
-   "body": "x",
+   "body": {
+    "moduleGbn": "BOARD",
+    "authKeyMap": {
+     "art_seq_no": "3068",
+     "cat_seq_no": "U",
+     "empSeq": "x",
+     "fileIds": "x",
+     "reply_seq_no": "",
+     "survey_no": ""
+    },
+    "fileSn": "0",
+    "condition": "99"
+   },
    "status": 200,
    "responseType": "application/octet-stream",
-   "response": "<binary 290535B>"
+   "response": "<binary 290535B>",
+   "bodyNote": "form 본문을 키 구조만 남기고 복원(값 가림)"
   }
  ]
 }

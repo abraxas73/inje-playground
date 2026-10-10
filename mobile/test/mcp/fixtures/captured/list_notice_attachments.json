@@ -29,7 +29,19 @@
     "accept-encoding": "gzip",
     "content-length": "360"
    },
-   "body": "x",
+   "body": {
+    "moduleGbn": "BOARD",
+    "authKeyMap": {
+     "art_seq_no": "3068",
+     "cat_seq_no": "U",
+     "empSeq": "x",
+     "fileIds": "x",
+     "reply_seq_no": "",
+     "survey_no": ""
+    },
+    "fileSn": "0",
+    "condition": "99"
+   },
    "status": 200,
    "responseType": "application/json",
    "response": {
@@ -59,7 +71,8 @@
      ]
     },
     "resultMsg": null
-   }
+   },
+   "bodyNote": "form 본문을 키 구조만 남기고 복원(값 가림)"
   }
  ]
 }

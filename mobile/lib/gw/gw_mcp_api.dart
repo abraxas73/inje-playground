@@ -194,6 +194,48 @@ extension GwMcpApi on GwApi {
     return d is Map ? d : const {};
   }
 
+  /// 함별 목록(eap107A04 상신·eap107A06 임시보관·eap105A04 그 외) — 본문은 캡처 그대로, 응답 봉투(list·map)째.
+  Future<Map> approvalListRaw({required String path, required String boxId, required String menuNo, required String period, required String from8, required String to8, required int page, required int pageSize}) async {
+    final d = await client.call(path, {
+      'docContentsData': {}, 'eaBoxId': boxId, 'fDocSts': [], 'item': {}, 'menuNo': menuNo, 'nMenuID': menuNo, 'page': '$page', 'pageCode': '', 'pageSize': '$pageSize', 'periodPicker': period,
+      'sFormId': ['0'], 'sfrDt': from8, 'sortField': period, 'sortType': 'DESC', 'stoDt': to8, 'upperMenuNo': boxId, 'useElasticSearch': true, 'useElasticSearch_new': true,
+    });
+    return d is Map ? d : const {};
+  }
+
+  /// 개인결재라인 목록(eap102A02, 본문 {}).
+  Future<List<Map>> approvalLinesRaw() async => _rows(await client.call('/eap/eap102A02', const <String, Object>{}), '');
+
+  /// 개인결재라인 결재자(eap102A05 aaData).
+  Future<List<Map>> approvalLineMembersRaw(String lineId) async => _rows(await client.call('/eap/eap102A05', {'lineId': lineId, 'line_id': lineId}), 'aaData');
+
+  /// 개인결재라인 저장(eap102A10) — 신규만(line_id 0, 캡처).
+  Future<Map> saveApprovalLineRaw({required int formId, required String lineName, required String procId, required List<Map> detail}) async {
+    final d = await client.call('/eap/eap102A10', {'detailLine': detail, 'formList': [formId], 'form_id': formId, 'line_id': 0, 'line_kind': '10', 'line_nm': lineName, 'proc_id': procId});
+    return d is Map ? d : const {};
+  }
+
+  /// 개인결재라인 삭제(eap102A09) — list 행(_row) 그대로.
+  Future<Map> deleteApprovalLineRaw(Map row) async {
+    final d = await client.call('/eap/eap102A09', {'lineIdList': [row]});
+    return d is Map ? d : const {};
+  }
+
+  /// 결재 첨부 바이트(ecm001A03, moduleGbn BOARD + fileIds 한 개 — 캡처 그대로)와 서버 파일명.
+  Future<(List<int>, String)> approvalAttachFile(String fileId) => client.formFile('/ecm/ecm001A03', {'moduleGbn': 'BOARD', 'authKeyMap': jsonEncode({'fileIds': fileId})});
+
+  /// 게시글 첨부 권한 키 — 키 순서·cat_seq_no 'U'·빈 reply/survey는 캡처 그대로.
+  String _noticeAuth(String artSeqNo, String uid) =>
+      jsonEncode({'art_seq_no': artSeqNo, 'cat_seq_no': 'U', 'empSeq': client.creds().empSeq, 'fileIds': uid, 'reply_seq_no': '', 'survey_no': ''});
+
+  /// 게시글 첨부 목록(ecm001A04 list).
+  Future<List<Map>> noticeAttachmentsRaw(String artSeqNo, String uid) async =>
+      _rows(await client.callForm('/ecm/ecm001A04', {'moduleGbn': 'BOARD', 'authKeyMap': _noticeAuth(artSeqNo, uid), 'fileSn': '0', 'condition': '99'}), 'list');
+
+  /// 게시글 첨부 바이트(ecm001A03, fileSn = 0-base 인덱스)와 서버 파일명.
+  Future<(List<int>, String)> noticeAttachFile(String artSeqNo, String uid, int fileSn) =>
+      client.formFile('/ecm/ecm001A03', {'moduleGbn': 'BOARD', 'authKeyMap': _noticeAuth(artSeqNo, uid), 'fileSn': '$fileSn', 'condition': '99'});
+
   // ── 게시판·검색 ──
   /// 전 게시판 공지·새 글. field: title/content/author, 그 외 통합검색. 날짜는 YYYY-MM-DD.
   Future<Map> noticeListRaw({int page = 1, int pageSize = 20, String search = '', String field = '', String start = '', String end = ''}) async {

@@ -2,12 +2,12 @@
  "tool": "download_approval_attachment",
  "args": {
   "file_id": "GF7GcF28G3F64ca8688FcF493624415c",
-  "out_path": "/private/tmp/claude-501/-Users-seunguk-kang-Repos-inje-playground/bb6d601b-c764-46a3-9d46-f193bc34c6f6/scratchpad/mitm/dl/approval-KakaoTalk_Photo_2026-07-31-10-02-47.png"
+  "out_path": "/tmp/dl/x.png"
  },
  "toolResult": {
   "bytes": 245733,
   "ok": true,
-  "path": "/private/tmp/claude-501/-Users-seunguk-kang-Repos-inje-playground/bb6d601b-c764-46a3-9d46-f193bc34c6f6/scratchpad/mitm/dl/approval-KakaoTalk_Photo_2026-07-31-10-02-47.png",
+  "path": "/tmp/dl/x.png",
   "serverFileName": "x"
  },
  "isError": false,
@@ -23,10 +23,16 @@
     "accept-encoding": "gzip",
     "content-length": "87"
    },
-   "body": "x",
+   "body": {
+    "moduleGbn": "BOARD",
+    "authKeyMap": {
+     "fileIds": "x"
+    }
+   },
    "status": 200,
    "responseType": "application/octet-stream",
-   "response": "<binary 245733B>"
+   "response": "<binary 245733B>",
+   "bodyNote": "form 본문을 키 구조만 남기고 복원(값 가림)"
   }
  ]
 }

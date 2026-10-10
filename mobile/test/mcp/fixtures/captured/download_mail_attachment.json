@@ -24,7 +24,15 @@
     "accept-encoding": "gzip",
     "content-length": "405"
    },
-   "body": "x",
+   "body": {
+    "moduleGbn": "MAIL",
+    "authKeyMap": {
+     "email": "user@example.com",
+     "empSeq": "x",
+     "muid": "14858746"
+    },
+    "fileSn": "x"
+   },
    "status": 200,
    "responseType": "application/json;charset=UTF-8",
    "response": {
@@ -55,7 +63,8 @@
       }
      ]
     }
-   }
+   },
+   "bodyNote": "form 본문을 키 구조만 남기고 복원(값 가림)"
   },
   {
    "method": "POST",
@@ -68,10 +77,20 @@
     "accept-encoding": "gzip",
     "content-length": "478"
    },
-   "body": "x",
+   "body": {
+    "moduleGbn": "MAIL",
+    "authKeyMap": {
+     "email": "user@example.com",
+     "empSeq": "x",
+     "muid": "14858746"
+    },
+    "fileSn": "x",
+    "condition": "99"
+   },
    "status": 200,
    "responseType": "application/octet-stream",
-   "response": "<binary 290535B>"
+   "response": "<binary 290535B>",
+   "bodyNote": "form 본문을 키 구조만 남기고 복원(값 가림)"
   }
  ]
 }
