@@ -26,26 +26,30 @@ it("검색은 CQL·상한을 넣고 결과를 항목으로", async () => {
   expect(url.searchParams.get("limit")).toBe("25");
   expect(items.map((i) => i.id)).toEqual(["1"]);
 });
-it("페이지 읽기는 숫자 id만, 본문은 텍스트로 바꿔 자른다", async () => {
+it("페이지 읽기는 숫자 id만, v2로 읽고 페이지가 아니면 블로그 글로, 본문은 텍스트로 바꿔 자른다", async () => {
   await expect(readPage(req(vi.fn()), "../x")).rejects.toMatchObject({ status: 400 });
-  const f = vi.fn().mockResolvedValue(Response.json({ id: "7", title: "가이드", space: { key: "D", name: "개발" }, version: { number: 3, when: "2026-10-01T00:00:00Z", by: { displayName: "김" } }, body: { storage: { value: "<h1>제목</h1><p>본문 &amp; 내용</p>" } }, _links: { webui: "/spaces/D/pages/7" } }));
+  const doc = { id: "7", title: "가이드", version: { number: 3, createdAt: "2026-10-01T00:00:00Z" }, body: { storage: { value: "<h1>제목</h1><p>본문 &amp; 내용</p>" } }, _links: { webui: "/spaces/D/pages/7" } };
+  const f = vi.fn().mockResolvedValueOnce(new Response("", { status: 404 })).mockResolvedValueOnce(Response.json(doc));
   const p = await readPage(req(f), "7", 5);
-  expect(f.mock.calls[0][0]).toContain("/wiki/rest/api/content/7?expand=body.storage%2Cspace%2Cversion");
-  expect(p).toMatchObject({ id: "7", title: "가이드", spaceKey: "D", url: "https://pms-innogrid.atlassian.net/wiki/spaces/D/pages/7", version: 3, truncated: true });
+  expect(f.mock.calls[0][0]).toBe(base + "/wiki/api/v2/pages/7?body-format=storage");
+  expect(f.mock.calls[1][0]).toBe(base + "/wiki/api/v2/blogposts/7?body-format=storage");
+  expect(p).toMatchObject({ id: "7", title: "가이드", url: "https://pms-innogrid.atlassian.net/wiki/spaces/D/pages/7", version: 3, truncated: true });
   expect(p.text.length).toBeLessThanOrEqual(5);
 });
 it("공간 목록·페이지 만들기(제목·공간·상위 페이지·저장 형식 본문)", async () => {
   const f = vi.fn().mockResolvedValueOnce(Response.json({ results: [{ entityType: "space", space: { key: "D", name: "개발", type: "global" } }, { space: { key: "~712020abcdef", name: "내 공간", type: "personal" } }, { space: { key: "~other", name: "남의 공간", type: "personal" } }, { space: { key: "D", name: "개발" } }, { title: "x" }], _links: { next: "/rest/api/search?cql=type&cursor=abc" } }))
     .mockResolvedValueOnce(Response.json({ results: [{ space: { key: "Z", name: "마지막", type: "global" } }] }))
+    .mockResolvedValueOnce(Response.json({ results: [{ space: { key: "D", id: 123456 } }] }))
     .mockResolvedValueOnce(Response.json({ id: "99", title: "회의록", _links: { webui: "/spaces/D/pages/99" } }));
   const r = req(f);
-  expect(await listSpaces(r, "712020:abc-def")).toEqual([{ key: "D", name: "개발", type: "global" }, { key: "~712020abcdef", name: "내 공간", type: "personal" }, { key: "Z", name: "마지막", type: "global" }]);
+  expect(await listSpaces(r, "712020:abc-def")).toEqual([{ key: "D", name: "개발", type: "global", id: "" }, { key: "~712020abcdef", name: "내 공간", type: "personal", id: "" }, { key: "Z", name: "마지막", type: "global", id: "" }]);
   expect(new URL(f.mock.calls[0][0]).searchParams.get("cql")).toBe("type = space order by title");
   expect(f.mock.calls[1][0]).toBe(base + "/wiki/rest/api/search?cql=type&cursor=abc");
   const made = await createPage(r, { spaceKey: "D", parentId: "5", title: "회의록", markdown: "# 안건\n- 배포" });
-  const [url, init] = f.mock.calls[2];
-  expect(url).toBe(base + "/wiki/rest/api/content");
+  expect(new URL(f.mock.calls[2][0]).searchParams.get("cql")).toBe('type = space and space = "D"');
+  const [url, init] = f.mock.calls[3];
+  expect(url).toBe(base + "/wiki/api/v2/pages");
   expect(init.method).toBe("POST");
-  expect(JSON.parse(init.body)).toEqual({ type: "page", title: "회의록", space: { key: "D" }, ancestors: [{ id: "5" }], body: { storage: { value: "<h1>안건</h1><ul><li>배포</li></ul>", representation: "storage" } } });
+  expect(JSON.parse(init.body)).toEqual({ spaceId: "123456", status: "current", title: "회의록", parentId: "5", body: { representation: "storage", value: "<h1>안건</h1><ul><li>배포</li></ul>" } });
   expect(made).toEqual({ id: "99", title: "회의록", url: "https://pms-innogrid.atlassian.net/wiki/spaces/D/pages/99" });
 });

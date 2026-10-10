@@ -65,7 +65,7 @@ it("Confluence 도구 — 본인 세션으로 검색·페이지 만들기, 쓰�
   const s = await (await POST(req({ tool: "confluence_search", args: { query: "회의록" } }))).json();
   expect(s.ok).toBe(true);
   expect(s.result.items[0]).toMatchObject({ id: "1", url: "https://pms-innogrid.atlassian.net/wiki/spaces/D/pages/1" });
-  m.confReq.mockResolvedValueOnce({ id: "9", title: "[회의록] 비밀회의", _links: { webui: "/spaces/D/pages/9" } });
+  m.confReq.mockResolvedValueOnce({ results: [{ space: { key: "D", id: 77 } }] }).mockResolvedValueOnce({ id: "9", title: "[회의록] 비밀회의", _links: { webui: "/spaces/D/pages/9" } });
   const c = await (await POST(req({ tool: "confluence_create_page", args: { space_key: "D", space_name: "개발", title: "[회의록] 비밀회의", markdown: "## 안건" } }))).json();
   expect(c).toEqual({ ok: true, result: { id: "9", title: "[회의록] 비밀회의", url: "https://pms-innogrid.atlassian.net/wiki/spaces/D/pages/9" } });
   expect(JSON.stringify(m.audit.mock.calls)).not.toContain("비밀");
@@ -83,7 +83,7 @@ it("confluence_spaces — key는 정확히 한 공간, query는 이름·key 일�
   m.conf.mockReset().mockImplementation(async () => ({ request: m.confReq, canWrite: true }));
   const page = { results: [{ space: { key: "SS", name: "솔루션전략실", type: "global" } }, { space: { key: "DEV", name: "개발센터", type: "global" } }] };
   m.confReq.mockReset().mockResolvedValue(page);
-  expect((await (await POST(req({ tool: "confluence_spaces", args: { key: "DEV" } }))).json()).result.spaces).toEqual([{ key: "DEV", name: "개발센터", type: "global" }]);
+  expect((await (await POST(req({ tool: "confluence_spaces", args: { key: "DEV" } }))).json()).result.spaces).toEqual([{ key: "DEV", name: "개발센터", type: "global", id: "" }]);
   expect((await (await POST(req({ tool: "confluence_spaces", args: { query: "솔루션" } }))).json()).result.spaces.map((x: { key: string }) => x.key)).toEqual(["SS"]);
   expect((await (await POST(req({ tool: "confluence_spaces", args: {} }))).json()).result.total).toBe(2);
 });
