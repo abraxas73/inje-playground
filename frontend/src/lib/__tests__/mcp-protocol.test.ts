@@ -27,12 +27,22 @@ it("answers ping, accepts notifications and rejects unknown methods", () => {
   expect(handleStateless(req("resources/list"))).toEqual({ kind: "error", body: { jsonrpc: "2.0", id: 1, error: { code: -32601, message: expect.any(String) } } });
 });
 
-it("lists the 57 tools in order", () => {
-  expect(listTools()).toHaveLength(57);
+it("lists the 54 implemented tools in order (approval submit/cancel/delete_temp withheld)", () => {
+  expect(listTools()).toHaveLength(54);
   expect(listTools()[0].name).toBe("approval_counts");
+  const names = listTools().map((t) => t.name);
+  expect(names).not.toContain("submit_approval");
+  expect(names).not.toContain("cancel_approval");
+  expect(names).not.toContain("delete_temp_approval");
   const r = handleStateless(req("tools/list"));
-  expect(r.kind === "respond" && (r.body as { result: { tools: unknown[] } }).result.tools).toHaveLength(57);
+  expect(r.kind === "respond" && (r.body as { result: { tools: unknown[] } }).result.tools).toHaveLength(54);
   expect(JSON.stringify(listTools())).not.toContain("~/.config/inno-creed");
+});
+
+it("rejects tools/call for withheld tools with -32602", () => {
+  for (const name of ["submit_approval", "cancel_approval", "delete_temp_approval"]) {
+    expect(handleStateless(req("tools/call", { name }))).toEqual({ kind: "error", body: { jsonrpc: "2.0", id: 1, error: { code: -32602, message: expect.stringContaining("아직 제공하지 않는 도구") } } });
+  }
 });
 
 it("routes tools/call and rejects unknown tools", () => {

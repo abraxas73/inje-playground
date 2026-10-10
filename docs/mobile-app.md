@@ -228,7 +228,7 @@ Graph 메모: 검색 hit는 `fields`에 file·folder를 넣어도 폴더에 `fol
 3. **사용자**: 앱(macOS·Windows) 설치·로그인·아마란스 연결 → claude.ai 맞춤 설정 > 커넥터 > 내 항목 > 연결 → 허용. Claude Code는 `claude mcp list`에 "claude.ai INNOGRID 아마란스"로 자동 등록된다(루프백 콜백 불필요).
 
 ### 도구
-inno-creed 2.2.0과 같은 57개 이름·스키마(`frontend/src/lib/mcp/tools.json`). 응답 형식은 `mobile/test/mcp/fixtures/expected`와 일치해야 한다.
+inno-creed 2.2.0과 같은 57개 이름·스키마(`frontend/src/lib/mcp/tools.json`). 응답 형식은 `mobile/test/mcp/fixtures/expected`와 일치해야 한다. 실측 캡처를 못 한 도구(현재 `submit_approval`·`cancel_approval`·`delete_temp_approval` — 상신은 타인에게 알림이 가서 사용자 승인 뒤에만 캡처)는 `frontend/src/lib/mcp/protocol.ts`의 `WITHHELD_TOOLS`에 두어 `tools/list`에서 빼고 `tools/call`도 -32602로 거부한다. 캡처·구현이 끝나면 그 집합에서 지우면 된다.
 
 ### 오류 문구
 | 상황 | 안내 |

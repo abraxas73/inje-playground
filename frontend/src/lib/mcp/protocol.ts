@@ -10,7 +10,9 @@ export type JsonRpcId = string | number | null;
 export type JsonRpcRequest = { jsonrpc: "2.0"; id?: JsonRpcId; method: string; params?: unknown };
 type Tool = { name: string; description: string; inputSchema: object };
 
-const TOOLS = tools as Tool[];
+/** 앱에 아직 구현하지 않은 도구(결재 상신·취소·임시 삭제 — 실측 캡처 전). tools/list에서 빼고 tools/call도 거부. */
+export const WITHHELD_TOOLS = new Set(["submit_approval", "cancel_approval", "delete_temp_approval"]);
+const TOOLS = (tools as Tool[]).filter((t) => !WITHHELD_TOOLS.has(t.name));
 const TOOL_NAMES = new Set(TOOLS.map((t) => t.name));
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
@@ -50,6 +52,7 @@ export function handleStateless(req: JsonRpcRequest):
       return { kind: "respond", body: rpcResult(id, { tools: TOOLS }) };
     case "tools/call": {
       const name = params.name;
+      if (typeof name === "string" && WITHHELD_TOOLS.has(name)) return { kind: "error", body: rpcError(id, -32602, `아직 제공하지 않는 도구입니다: ${name}`) };
       if (typeof name !== "string" || !TOOL_NAMES.has(name)) return { kind: "error", body: rpcError(id, -32602, `모르는 도구입니다: ${String(name)}`) };
       return { kind: "call", id, name, args: isObject(params.arguments) ? params.arguments : {} };
     }
