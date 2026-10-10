@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { logAudit } from "@/lib/audit";
 import { deckForRequest, shareUrlFor } from "@/lib/ppt/deck-access";
 import { loadVersions, mapDeck, mapVersion, PPT_BUCKET } from "@/lib/ppt/store";
+import { ownerLabels } from "@/lib/ppt/owner-label";
 import type { PptDeckDetail, PptSourceImage, PptStatusResponse } from "@/types/ppt";
 
 export const runtime = "nodejs";
@@ -18,8 +19,9 @@ export async function GET(request: NextRequest, { params }: Params) {
     return NextResponse.json(res, { headers: { "Cache-Control": "no-store" } });
   }
   const latest = versions.length ? versions[versions.length - 1] : null;
+  const ownerLabel = (await ownerLabels(r.auth.admin, [{ email: r.deck.owner_email, userId: r.deck.owner_id }])).get(r.deck.owner_email);
   const res: PptDeckDetail = {
-    deck: { ...mapDeck(r.deck, latest), shareUrl: shareUrlFor(request, r.deck), canManage: r.deck.owner_id !== null && r.deck.owner_id === r.auth.userId },
+    deck: { ...mapDeck(r.deck, latest), ownerLabel, shareUrl: shareUrlFor(request, r.deck), canManage: r.deck.owner_id !== null && r.deck.owner_id === r.auth.userId },
     versions: versions.map(mapVersion),
   };
   return NextResponse.json(res, { headers: { "Cache-Control": "no-store" } });

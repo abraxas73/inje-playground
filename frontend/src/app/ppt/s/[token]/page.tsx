@@ -52,7 +52,7 @@ export default function SharedDeckPage() {
         <>
           <div className="flex flex-wrap items-center gap-2">
             <Presentation className="h-5 w-5 text-sky-600" /><h1 className="text-lg font-semibold">{deck.title}</h1>
-            <span className="text-xs text-muted-foreground">{deck.ownerEmail} · v{deck.version} · {deck.slideCount ?? "-"}장</span>
+            <span className="text-xs text-muted-foreground" title={deck.ownerEmail}>{deck.ownerLabel ?? deck.ownerEmail} · v{deck.version} · {deck.slideCount ?? "-"}장</span>
             <Button size="sm" className="ml-auto" onClick={download}><Download className="mr-1 h-4 w-4" />PPTX 다운로드</Button>
           </div>
           {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}

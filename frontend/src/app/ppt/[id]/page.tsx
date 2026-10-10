@@ -79,7 +79,7 @@ export default function PptDeckPage() {
       <div className="flex flex-wrap items-center gap-2">
         <Button asChild variant="ghost" size="sm"><Link href="/ppt"><ChevronLeft className="mr-1 h-4 w-4" />내 덱</Link></Button>
         <h1 className="text-lg font-semibold">{data.deck.title}</h1>
-        <span className="text-xs text-muted-foreground">{data.deck.ownerEmail}</span>
+        <span className="text-xs text-muted-foreground" title={data.deck.ownerEmail}>{data.deck.ownerLabel ?? data.deck.ownerEmail}</span>
         <div className="ml-auto flex items-center gap-2">
           {version && <StatusBadge status={version.status} />}
           <Button variant="ghost" size="sm" onClick={remove} aria-label="삭제"><Trash2 className="h-4 w-4" /></Button>

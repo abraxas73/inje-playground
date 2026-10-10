@@ -78,6 +78,8 @@ export interface PptStatusResponse { versions: { no: number; status: PptVersionS
 export interface PptSharedDeck {
   title: string;
   ownerEmail: string;
+  /** "이름(팀)" — 화면은 이걸 보이고 이메일은 툴팁 */
+  ownerLabel?: string;
   version: number;
   slideCount: number | null;
   deckJson: DeckJson;

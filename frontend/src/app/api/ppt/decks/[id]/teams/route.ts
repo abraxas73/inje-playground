@@ -5,6 +5,7 @@ import { loadUserSettings } from "@/lib/settings-server";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { deckForRequest, shareUrlFor } from "@/lib/ppt/deck-access";
 import { buildTeamsNotice } from "@/lib/ppt/notice";
+import { ownerLabels } from "@/lib/ppt/owner-label";
 
 export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const shareUrl = deck.share_enabled || turnOn ? shareUrlFor(request, { ...deck, share_enabled: true }) : null;
   const { data: v } = await admin.from("ppt_deck_versions").select("slide_count, sharepoint_url").eq("deck_id", id).eq("no", deck.current_version).maybeSingle();
   const version = (v ?? { slide_count: null, sharepoint_url: null }) as { slide_count: number | null; sharepoint_url: string | null };
-  const msg = buildTeamsNotice({ title: deck.title || "제목 없음", slides: version.slide_count, no: deck.current_version, owner: deck.owner_email, shareUrl, sharepointUrl: version.sharepoint_url });
+  const msg = buildTeamsNotice({ title: deck.title || "제목 없음", slides: version.slide_count, no: deck.current_version, owner: (await ownerLabels(admin, [{ email: deck.owner_email, userId: deck.owner_id }])).get(deck.owner_email) ?? deck.owner_email, shareUrl, sharepointUrl: version.sharepoint_url });
   const sent = await notifier.sendChannel(msg);
   if (!sent.ok) {
     console.error("[ppt] Teams 전송 실패:", sent.error);
