@@ -42,7 +42,7 @@ export default function DeckList({ decks, showOwner, onDeleted, onError }: { dec
                   {d.shareEnabled && <Link2 className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="공유 켜짐" />}
                 </span>
               </td>
-              {showOwner && <td className="px-3 py-2 text-muted-foreground">{d.ownerEmail}</td>}
+              {showOwner && <td className="px-3 py-2 text-muted-foreground" title={d.ownerEmail}>{d.ownerLabel ?? d.ownerEmail}</td>}
               <td className="px-3 py-2">{d.latest ? `v${d.latest.no}` : "-"}</td>
               <td className="px-3 py-2">{d.latest?.slideCount ?? "-"}</td>
               <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{d.latest ? (!d.latest.templateName || d.latest.templateName === BUILTIN_TEMPLATE_LABEL ? "기본형" : d.latest.templateName) : "-"}</td>

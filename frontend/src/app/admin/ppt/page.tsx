@@ -34,13 +34,14 @@ export default function AdminPptPage() {
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  const owners = useMemo(() => [...new Set((decks ?? []).map((d) => d.ownerEmail))].sort(), [decks]);
+  const ownerOf = (d: PptAdminDecksResponse["decks"][number]) => d.ownerLabel ?? d.ownerEmail;
+  const owners = useMemo(() => [...new Set((decks ?? []).map(ownerOf))].sort((a, b) => a.localeCompare(b, "ko")), [decks]);
   const shown = useMemo(() => {
     const term = q.trim().toLowerCase();
     return (decks ?? []).filter((d) =>
-      (owner === ALL || d.ownerEmail === owner) &&
+      (owner === ALL || ownerOf(d) === owner) &&
       (status === ALL || d.latest?.status === status) &&
-      (!term || d.title.toLowerCase().includes(term) || d.ownerEmail.toLowerCase().includes(term)));
+      (!term || d.title.toLowerCase().includes(term) || ownerOf(d).toLowerCase().includes(term) || d.ownerEmail.toLowerCase().includes(term)));
   }, [decks, q, owner, status]);
   const stats = useMemo(() => ({
     decks: shown.length,

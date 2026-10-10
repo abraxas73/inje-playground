@@ -41,6 +41,8 @@ export interface PptDeckSummary {
   title: string;
   ownerId: string | null;
   ownerEmail: string;
+  /** 관리자 목록만: "이름(팀)" — 명부에 없으면 프로필 이름, 없으면 이메일 앞부분 */
+  ownerLabel?: string;
   currentVersion: number;
   shareEnabled: boolean;
   latest: { no: number; status: PptVersionStatus; slideCount: number | null; createdAt: string; llmModel: string | null; templateName: string | null } | null;
