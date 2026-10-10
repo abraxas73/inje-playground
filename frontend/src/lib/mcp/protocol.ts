@@ -10,8 +10,8 @@ export type JsonRpcId = string | number | null;
 export type JsonRpcRequest = { jsonrpc: "2.0"; id?: JsonRpcId; method: string; params?: unknown };
 type Tool = { name: string; description: string; inputSchema: object };
 
-/** 실측 캡처가 없어 아직 내놓지 않는 도구(결재 상신·취소·임시 삭제, 본문 인라인 이미지 내려받기). tools/list에서 빼고 tools/call도 거부. */
-export const WITHHELD_TOOLS = new Set(["submit_approval", "cancel_approval", "delete_temp_approval", "download_body_image"]);
+/** 실측 캡처가 없어 아직 내놓지 않는 도구(본문 인라인 이미지 내려받기 — 인라인 이미지 메일 실측 전). tools/list에서 빼고 tools/call도 거부. */
+export const WITHHELD_TOOLS = new Set(["download_body_image"]);
 const TOOLS = (tools as Tool[]).filter((t) => !WITHHELD_TOOLS.has(t.name));
 const TOOL_NAMES = new Set(TOOLS.map((t) => t.name));
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);

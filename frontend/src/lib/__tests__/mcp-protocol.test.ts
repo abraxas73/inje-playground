@@ -27,21 +27,21 @@ it("answers ping, accepts notifications and rejects unknown methods", () => {
   expect(handleStateless(req("resources/list"))).toEqual({ kind: "error", body: { jsonrpc: "2.0", id: 1, error: { code: -32601, message: expect.any(String) } } });
 });
 
-it("lists the 53 implemented tools in order (approval submit/cancel/delete_temp, download_body_image withheld)", () => {
-  expect(listTools()).toHaveLength(53);
+it("lists the 56 implemented tools in order (download_body_image withheld)", () => {
+  expect(listTools()).toHaveLength(56);
   expect(listTools()[0].name).toBe("approval_counts");
   const names = listTools().map((t) => t.name);
-  expect(names).not.toContain("submit_approval");
-  expect(names).not.toContain("cancel_approval");
-  expect(names).not.toContain("delete_temp_approval");
+  expect(names).toContain("submit_approval");
+  expect(names).toContain("cancel_approval");
+  expect(names).toContain("delete_temp_approval");
   expect(names).not.toContain("download_body_image");
   const r = handleStateless(req("tools/list"));
-  expect(r.kind === "respond" && (r.body as { result: { tools: unknown[] } }).result.tools).toHaveLength(53);
+  expect(r.kind === "respond" && (r.body as { result: { tools: unknown[] } }).result.tools).toHaveLength(56);
   expect(JSON.stringify(listTools())).not.toContain("~/.config/inno-creed");
 });
 
 it("rejects tools/call for withheld tools with -32602", () => {
-  for (const name of ["submit_approval", "cancel_approval", "delete_temp_approval", "download_body_image"]) {
+  for (const name of ["download_body_image"]) {
     expect(handleStateless(req("tools/call", { name }))).toEqual({ kind: "error", body: { jsonrpc: "2.0", id: 1, error: { code: -32602, message: expect.stringContaining("아직 제공하지 않는 도구") } } });
   }
 });
