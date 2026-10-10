@@ -77,7 +77,7 @@ export async function readPage(request: ConfluenceFetch, id: string, maxChars = 
   };
 }
 
-export interface ConfluenceSpace { key: string; name: string; type: string; id: string }
+export interface ConfluenceSpace { key: string; name: string; type: string }
 /**
  * 페이지를 만들 수 있는 공간 — 검색 API(type=space, search:confluence)로, 다음 쪽(_links.next)을 따라 최대 4쪽.
  * 개인 OAuth에서는 /wiki/rest/api/space가 실패했다(2026-10-10 실측, 공용 계정 Basic은 정상).
@@ -96,7 +96,7 @@ export async function listSpaces(request: ConfluenceFetch, accountId = ""): Prom
       // 개인 공간 key = "~" + accountId에서 ":"·"-"를 뺀 값(2026-10-10 실측)
       if (type === "personal" && !(accountId && o.key === `~${accountId.replace(/[:-]/g, "")}`)) continue;
       seen.add(o.key);
-      out.push({ key: o.key, name: o.name, type, id: String(o.id ?? "") });
+      out.push({ key: o.key, name: o.name, type });
     }
     const next = j?._links?.next;
     path = typeof next === "string" && next.startsWith("/rest/api/search?") ? `/wiki${next}` : null;
@@ -111,8 +111,9 @@ export async function createPage(request: ConfluenceFetch, p: NewPage): Promise<
   if (!title || title.length > 255) throw new JiraError("페이지 제목은 1~255자여야 합니다.", 400);
   if (!/^[~A-Za-z0-9_-]{1,255}$/.test(p.spaceKey)) throw new JiraError("Confluence 공간을 다시 고르세요.", 400);
   if (p.parentId && !/^\d{1,20}$/.test(p.parentId)) throw new JiraError("상위 페이지 번호가 올바르지 않습니다.", 400);
-  const found = await request(`/wiki/rest/api/search?${qs({ cql: `type = space and space = ${cqlString(p.spaceKey)}`, limit: "1" })}`);
-  const spaceId = String(((results(found)[0] as Record<string, any>)?.space?.id) ?? ""); // eslint-disable-line @typescript-eslint/no-explicit-any
+  // 공간 검색 결과에는 id가 없다 — 그 공간의 페이지(최소 홈페이지는 있다) 결과의 content.space.id를 쓴다(실측).
+  const found = await request(`/wiki/rest/api/search?${qs({ cql: `space = ${cqlString(p.spaceKey)} and type = page`, limit: "1", expand: "content.space" })}`);
+  const spaceId = String(((results(found)[0] as Record<string, any>)?.content?.space?.id) ?? ""); // eslint-disable-line @typescript-eslint/no-explicit-any
   if (!/^\d{1,20}$/.test(spaceId)) throw new JiraError("Confluence 공간을 찾지 못했습니다. 공간을 다시 고르세요.", 400);
   const body = { spaceId, status: "current", title, ...(p.parentId ? { parentId: p.parentId } : {}), body: { representation: "storage", value: markdownToStorage(p.markdown) } };
   const j = (await request("/wiki/api/v2/pages", { method: "POST", body: JSON.stringify(body) })) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any

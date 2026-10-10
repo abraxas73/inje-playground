@@ -39,14 +39,14 @@ it("페이지 읽기는 숫자 id만, v2로 읽고 페이지가 아니면 블로
 it("공간 목록·페이지 만들기(제목·공간·상위 페이지·저장 형식 본문)", async () => {
   const f = vi.fn().mockResolvedValueOnce(Response.json({ results: [{ entityType: "space", space: { key: "D", name: "개발", type: "global" } }, { space: { key: "~712020abcdef", name: "내 공간", type: "personal" } }, { space: { key: "~other", name: "남의 공간", type: "personal" } }, { space: { key: "D", name: "개발" } }, { title: "x" }], _links: { next: "/rest/api/search?cql=type&cursor=abc" } }))
     .mockResolvedValueOnce(Response.json({ results: [{ space: { key: "Z", name: "마지막", type: "global" } }] }))
-    .mockResolvedValueOnce(Response.json({ results: [{ space: { key: "D", id: 123456 } }] }))
+    .mockResolvedValueOnce(Response.json({ results: [{ content: { id: "1", space: { key: "D", id: 123456 } } }] }))
     .mockResolvedValueOnce(Response.json({ id: "99", title: "회의록", _links: { webui: "/spaces/D/pages/99" } }));
   const r = req(f);
-  expect(await listSpaces(r, "712020:abc-def")).toEqual([{ key: "D", name: "개발", type: "global", id: "" }, { key: "~712020abcdef", name: "내 공간", type: "personal", id: "" }, { key: "Z", name: "마지막", type: "global", id: "" }]);
+  expect(await listSpaces(r, "712020:abc-def")).toEqual([{ key: "D", name: "개발", type: "global" }, { key: "~712020abcdef", name: "내 공간", type: "personal" }, { key: "Z", name: "마지막", type: "global" }]);
   expect(new URL(f.mock.calls[0][0]).searchParams.get("cql")).toBe("type = space order by title");
   expect(f.mock.calls[1][0]).toBe(base + "/wiki/rest/api/search?cql=type&cursor=abc");
   const made = await createPage(r, { spaceKey: "D", parentId: "5", title: "회의록", markdown: "# 안건\n- 배포" });
-  expect(new URL(f.mock.calls[2][0]).searchParams.get("cql")).toBe('type = space and space = "D"');
+  expect(new URL(f.mock.calls[2][0]).searchParams.get("cql")).toBe('space = "D" and type = page');
   const [url, init] = f.mock.calls[3];
   expect(url).toBe(base + "/wiki/api/v2/pages");
   expect(init.method).toBe("POST");
