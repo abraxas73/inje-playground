@@ -73,8 +73,8 @@ export function mapDriveItem(raw: unknown): SharepointItem | null {
   const src = Object.keys(r).length ? { ...o, ...r } : o;
   const id = str(src.id), name = str(src.name), driveId = str(rec(src.parentReference).driveId);
   if (!id || !name || !driveId) return null;
-  // 검색 hit에는 file·folder 파셋이 안 온다(fields를 줘도, 2026-10-10 실측) — 확장자 없는 이름은 폴더로 본다
-  const kind = src.folder ? "folder" : src.file ? "file" : extOf(name) ? "file" : "folder";
+  // 검색 hit는 폴더에도 file 키가 오고 folder 파셋은 안 온다(fields를 줘도, 2026-10-10 실측) — folder 파셋이 없으면 확장자로 가른다
+  const kind = src.folder ? "folder" : extOf(name) ? "file" : "folder";
   const url = str(src.webUrl) || str(o.webUrl);
   return {
     id, driveId, name, url, kind, ext: kind === "file" ? extOf(name) : "",

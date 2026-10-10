@@ -37,8 +37,8 @@ it("인사이트 매핑 — drives/{d}/items/{i}만, 제목·컨테이너·사�
 it("검색 본문은 따옴표를 빼고 25개 상한, 응답은 폴더 제외·중복 제거", () => {
   expect(searchBody(' 제안서 "2026" \\x ', 99)).toEqual({ requests: [{ entityTypes: ["driveItem"], query: { queryString: "제안서 2026 x" }, from: 0, size: 25, fields: ["id", "name", "webUrl", "parentReference", "lastModifiedDateTime", "lastModifiedBy", "file", "folder", "size"] }] });
   const hit = (id: string, extra: object = {}) => ({ resource: { id, name: `${id}.docx`, webUrl: "https://x", parentReference: { driveId: "d" }, ...extra } });
-  const items = mapSearchResponse({ value: [{ hitsContainers: [{ hits: [hit("1"), hit("1"), hit("2", { folder: {} }), { resource: { id: "4", name: "제안", webUrl: "https://x", parentReference: { driveId: "d" } } }, hit("3")] }] }] });
-  expect(items.map((i) => `${i.id}:${i.kind}`)).toEqual(["1:file", "3:file", "2:folder", "4:folder"]); // 파셋이 없으면 확장자 없는 이름은 폴더, 파일이 먼저
+  const items = mapSearchResponse({ value: [{ hitsContainers: [{ hits: [hit("1"), hit("1"), hit("2", { folder: {} }), { resource: { id: "4", name: "제안", webUrl: "https://x", parentReference: { driveId: "d" }, file: {} } }, hit("3")] }] }] });
+  expect(items.map((i) => `${i.id}:${i.kind}`)).toEqual(["1:file", "3:file", "2:folder", "4:folder"]); // 폴더에도 file 키가 오므로 folder 파셋이 없으면 확장자로, 파일이 먼저
   expect(dedupe([null, items[0], items[0]])).toHaveLength(1);
 });
 it("즐겨찾기 — JSON 검증·상한·앞에 넣기·같은 문서 교체·빼기", () => {
