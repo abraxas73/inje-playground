@@ -1,0 +1,33 @@
+{
+ "tool": "delete_temp_approval",
+ "args": {
+  "doc_ids": "152980"
+ },
+ "toolResult": {
+  "deletedDocIds": [
+   "152980"
+  ],
+  "failCount": 0,
+  "kind": "tempApprovalDeleted",
+  "note": "임시보관 문서 삭제(eap107A25). list_approvals(box_name:\"draft\")로 사라졌는지 재확인 권장.",
+  "requested": "152980"
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "GET",
+   "path": "/eap/sse/eap107A25?docIdList=152980",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "accept": "text/event-stream",
+    "accept-encoding": "gzip"
+   },
+   "body": "",
+   "status": 200,
+   "responseType": "text/event-stream",
+   "response": "data:{\"resultCode\":0,\"resultData\":{\"failCnt\":0,\"returnValue\":1,\"docInfoArr\":[{\"DOC_ID\":\"152980\"}],\"docId\":\"152980\",\"page…",
+   "bodyNote": "원본 본문 그대로(개인정보 없음)"
+  }
+ ]
+}

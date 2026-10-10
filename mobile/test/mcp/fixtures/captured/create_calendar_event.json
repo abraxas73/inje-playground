@@ -7,7 +7,7 @@
   "contents": "x"
  },
  "toolResult": {
-  "calendar": "개인캘린더.강승억(993)",
+  "calendar": "개인캘린더.x(993)",
   "ok": true,
   "period": "202610122300~202610122330",
   "schSeq": "97461",
@@ -284,7 +284,7 @@
        "createDeptName": "x",
        "resYn": "N",
        "modifyDate": "202610101852",
-       "schUserList": "강승억",
+       "schUserList": "x",
        "lunarYn": "N",
        "createSeq": "3060",
        "attDivCode": "N",
@@ -331,7 +331,7 @@
        "createDeptName": "x",
        "resYn": "N",
        "modifyDate": "202610101457",
-       "schUserList": "강승억",
+       "schUserList": "x",
        "lunarYn": "N",
        "createSeq": "3060",
        "attDivCode": "N",

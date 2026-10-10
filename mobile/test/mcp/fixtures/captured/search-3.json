@@ -59,7 +59,7 @@
       "snippet": "결재라인 팀 원 / 팀 장 : 팀 장 결재 ▶ 재무&회계팀 > 경영지원본부장 합의 ▶ 본부장/센터장 결재 ▶ 그룹장 결재 본부장 / 센터장 : 재무&회계팀 > 경영지원본부장 합의 ▶ 그룹장 결재 ▶ 대표이사 결재 ※공석 or 비해당 생략 가능 기본정보 및 용도별합계 회계단위 (주)이노그",
       "status": "30",
       "title": "x",
-      "who": "강승억"
+      "who": "x"
      },
      {
       "date": "2026-09-21T10:03:44",
@@ -85,7 +85,7 @@
       "snippet": "[구매요청서] 품목명: Claude API 사용료 (Anthropic Claude Platform) 거래처: Anthropic PBC (해외 / platform.claude.com) 계약 형태: 선불 크레딧 충전 방식 (사용량 기반 과금, 최소 약정·구독료 없음) 요청 사항 1: 이노그",
       "status": "90",
       "title": "x",
-      "who": "강승억"
+      "who": "x"
      }
     ],
     "module": "전자결재",
@@ -201,7 +201,7 @@
        "toAddrEmail": "x",
        "emailAddr": "x",
        "boxName": "x",
-       "mailTo": "x <user@example.com>,x <user@example.com>,강승억<user@example.com>,송민호<user@example.com>,x <user@example.com>,x <user@example.com>,김재범<user@example.com>,정선미 <user@example.com",
+       "mailTo": "x <user@example.com>,x <user@example.com>,x<user@example.com>,송민호<user@example.com>,x <user@example.com>,x <user@example.com>,김재범<user@example.com>,정선미 <user@example.com",
        "rfc822date": "10-08 16:07",
        "mailFrom": "x <user@example.com>"
       },
@@ -269,10 +269,10 @@
      "resultgrid": [
       {
        "userNm": {
-        "jp": "강승억",
-        "kr": "강승억",
-        "en": "강승억",
-        "cn": "강승억"
+        "jp": "x",
+        "kr": "x",
+        "en": "x",
+        "cn": "x"
        },
        "lineCompSeq": "1000",
        "docEndDate": "",
@@ -296,7 +296,7 @@
        "docEtcContents": "x",
        "docDate": "20261006",
        "permList": "CU|1000|3071|,D|1000|2060|,CU|1000|2096|,CU|1000|2935|,CU|1000|2753|,D|1000|3055|,CU|1000|2176|,CU|1000|2935|,CU|1000|2933|,CU|1000|2933|,CU|1000|3060|,CU|1000|2748|,CU|1000|2868|,CU|1000|2753|,CU|1000|2868|",
-       "docNo": "클라우드 네이티브 센터-2610-002",
+       "docNo": "x-002",
        "arrivedDate": "2026-10-08T18:12:31",
        "migYn": "0",
        "docSts": "30",
@@ -363,10 +363,10 @@
       },
       {
        "userNm": {
-        "jp": "강승억",
-        "kr": "강승억",
-        "en": "강승억",
-        "cn": "강승억"
+        "jp": "x",
+        "kr": "x",
+        "en": "x",
+        "cn": "x"
        },
        "lineCompSeq": "1000",
        "docEndDate": "2026-09-18T16:56:39",
@@ -390,7 +390,7 @@
        "docEtcContents": "x",
        "docDate": "20260917",
        "permList": "CU|1000|2096|,D|1000|3055|,CU|1000|2098|,CU|1000|3060|,CU|1000|2748|,D|1000|3047|,CU|1000|2518|",
-       "docNo": "클라우드 네이티브 센터-2609-003",
+       "docNo": "x-003",
        "arrivedDate": "2026-09-18T16:56:39",
        "migYn": "0",
        "docSts": "90",

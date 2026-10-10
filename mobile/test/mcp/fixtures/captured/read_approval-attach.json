@@ -30,7 +30,7 @@
   "currentApprover": "x x/x",
   "dept": "x",
   "docId": "141373",
-  "docNo": "클라우드 네이티브 센터-2608-002",
+  "docNo": "x-002",
   "drafter": "x",
   "form": "출장정산서(이노그리드)",
   "repDt": "20260805141603",
@@ -252,7 +252,7 @@
       "numbering_id": "1001",
       "inservice_nm": "x",
       "rep_dt": "2026-08-05 14:16",
-      "doc_no": "클라우드 네이티브 센터-2608-002",
+      "doc_no": "x-002",
       "form_tp": "ea1001",
       "form_nm_print": "x",
       "modify_by": "2933",
@@ -320,7 +320,7 @@
      "cooperateCount": {
       "CNT": 0
      },
-     "docNo": "클라우드 네이티브 센터-2608-002",
+     "docNo": "x-002",
      "eaType": "1",
      "createdDt": "20260805141603",
      "docSts": "90",

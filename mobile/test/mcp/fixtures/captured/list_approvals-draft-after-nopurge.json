@@ -1,0 +1,110 @@
+{
+ "tool": "list_approvals",
+ "args": {
+  "box_name": "x",
+  "page_size": 5
+ },
+ "toolResult": {
+  "box": "draft",
+  "documents": [
+   {
+    "arrivedDt": "",
+    "commentCount": "",
+    "currentApprover": "",
+    "dept": "x",
+    "docId": "152980",
+    "docNo": "",
+    "drafter": "",
+    "endDt": "",
+    "fileCount": "0",
+    "form": "외근신청서",
+    "formId": "41",
+    "readYn": "",
+    "repDt": "",
+    "status": "저장",
+    "title": "x"
+   }
+  ],
+  "totalCount": 1
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/eap/eap107A06",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "337"
+   },
+   "body": {
+    "docContentsData": {},
+    "eaBoxId": "1000300",
+    "fDocSts": [],
+    "item": {},
+    "menuNo": "1000500",
+    "nMenuID": "1000500",
+    "page": "1",
+    "pageCode": "",
+    "pageSize": "5",
+    "periodPicker": "REP_DT",
+    "sFormId": [
+     "0"
+    ],
+    "sfrDt": "20260710",
+    "sortField": "REP_DT",
+    "sortType": "DESC",
+    "stoDt": "20261010",
+    "upperMenuNo": "1000300",
+    "useElasticSearch": true,
+    "useElasticSearch_new": true
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultData": {
+     "list": {
+      "startCount": 1,
+      "list": [
+       {
+        "FORM_D_TP": "HP_HPD0110_00031",
+        "FORM_MODE": "1",
+        "MENU_ID": null,
+        "DOC_WIDTH": 1035,
+        "DEPT_NM": "x",
+        "RECEIVE_TYPE": "",
+        "DRAFT_FORM_NM": "x",
+        "CREATED_NM": "x",
+        "DOC_TITLE": "x",
+        "FORM_ID": 41,
+        "PIC_FILE_ID": "47eca88e-7c2c-47ef-9d35-c87801617d54_jpg",
+        "DOC_ID": 152980,
+        "REQ_API_STS": "0",
+        "FILE_CNT": 0,
+        "MODIFY_DT": "2026-10-10",
+        "CO_NM": "x",
+        "CREATED_DT": "2026-10-10 21:40:08",
+        "DOC_STSNM": "x",
+        "MENU_NM": null,
+        "FORM_NM": "x",
+        "INTERLOCK_URL": "/#/HP/HPD0110/HPD0110",
+        "PATH_NAME": "x",
+        "MODIFY_NM": "x",
+        "DUTY_NM": "x",
+        "DOC_STS": "10",
+        "GRADE_NM": "x",
+        "FORM_TP": "ea1002"
+       }
+      ],
+      "totalCount": 1
+     }
+    },
+    "resultMsg": "성공하였습니다."
+   }
+  }
+ ]
+}

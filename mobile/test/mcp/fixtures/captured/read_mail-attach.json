@@ -39,7 +39,7 @@
   "muid": "14858746",
   "remoteResourceCount": 1,
   "subject": "x",
-  "to": "x <user@example.com>,x <user@example.com>,강승억<user@example.com>,송민호<user@example.com>,x <user@example.com>,이경윤 <us…"
+  "to": "x <user@example.com>,x <user@example.com>,x<user@example.com>,송민호<user@example.com>,x <user@example.com>,이경윤 <us…"
  },
  "isError": false,
  "calls": [
@@ -123,7 +123,7 @@
       "subject": "x",
       "from": "이미리 &lt;user@example.com&gt;",
       "empSeq": "3060",
-      "to": "백희선 &lt;user@example.com&gt;,현근주 &lt;user@example.com&gt;,강승억&lt;user@example.com&gt;,송민호&lt;user@example.com&gt;,김영도 &l…",
+      "to": "백희선 &lt;user@example.com&gt;,현근주 &lt;user@example.com&gt;,x&lt;user@example.com&gt;,송민호&lt;user@example.com&gt;,김영도 &l…",
       "isOrgMail": 1,
       "email": "x",
       "url": "/#/popup?callComp=UDAP007&muid=x&keep=false&MicroModuleCode=mail"

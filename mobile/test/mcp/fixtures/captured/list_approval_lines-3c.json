@@ -1,0 +1,112 @@
+{
+ "tool": "list_approval_lines",
+ "args": {},
+ "toolResult": {
+  "count": 2,
+  "kind": "approvalLines",
+  "lines": [
+   {
+    "_row": {
+     "code_form_nm": "x",
+     "code_proc_nm": "x",
+     "form_id": 41,
+     "form_list": "41. 외근신청서",
+     "form_nm": "x",
+     "form_use_yn": "1",
+     "line_id": 2482,
+     "line_kind": "10",
+     "line_kind_nm": "x",
+     "line_nm": "x",
+     "proc_id": 1000,
+     "proc_nm": "x",
+     "proc_use_yn": "1"
+    },
+    "formId": "41",
+    "formName": "x",
+    "lineId": "2482",
+    "lineKind": "10",
+    "lineName": "x",
+    "procId": "1000",
+    "procName": "x"
+   },
+   {
+    "_row": {
+     "code_form_nm": "x",
+     "code_proc_nm": "x",
+     "form_id": 41,
+     "form_list": "41. 외근신청서",
+     "form_nm": "x",
+     "form_use_yn": "1",
+     "line_id": 2485,
+     "line_kind": "10",
+     "line_kind_nm": "x",
+     "line_nm": "x",
+     "proc_id": 1000,
+     "proc_nm": "x",
+     "proc_use_yn": "1"
+    },
+    "formId": "41",
+    "formName": "x",
+    "lineId": "2485",
+    "lineKind": "10",
+    "lineName": "x",
+    "procId": "1000",
+    "procName": "x"
+   }
+  ]
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/eap/eap102A02",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "2"
+   },
+   "body": {},
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultData": [
+     {
+      "line_nm": "x",
+      "form_use_yn": "1",
+      "form_list": "41. 외근신청서",
+      "form_nm": "x",
+      "proc_nm": "x",
+      "form_id": 41,
+      "proc_id": 1000,
+      "proc_use_yn": "1",
+      "line_id": 2482,
+      "line_kind": "10",
+      "code_form_nm": "x",
+      "line_kind_nm": "x",
+      "code_proc_nm": "x"
+     },
+     {
+      "line_nm": "x",
+      "form_use_yn": "1",
+      "form_list": "41. 외근신청서",
+      "form_nm": "x",
+      "proc_nm": "x",
+      "form_id": 41,
+      "proc_id": 1000,
+      "proc_use_yn": "1",
+      "line_id": 2485,
+      "line_kind": "10",
+      "code_form_nm": "x",
+      "line_kind_nm": "x",
+      "code_proc_nm": "x"
+     }
+    ],
+    "resultMsg": "성공하였습니다."
+   }
+  }
+ ]
+}

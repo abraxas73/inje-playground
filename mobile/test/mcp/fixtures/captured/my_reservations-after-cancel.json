@@ -12,10 +12,10 @@
   "reservations": [
    {
     "allDay": false,
-    "attendees": "강승억",
+    "attendees": "x",
     "displayTitle": "x",
     "end": "2026-10-12T08:45",
-    "owner": "강승억",
+    "owner": "x",
     "ownerEmpSeq": "3060",
     "resIdx": "2",
     "resName": "x",

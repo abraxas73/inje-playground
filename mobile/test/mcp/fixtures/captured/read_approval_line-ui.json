@@ -1,0 +1,101 @@
+{
+ "tool": "read_approval_line",
+ "args": {
+  "line_id": 2482
+ },
+ "toolResult": {
+  "count": 1,
+  "kind": "approvalLineMembers",
+  "lineId": "2482",
+  "members": [
+   {
+    "act_id": 3000,
+    "act_nm": "x",
+    "act_order": "3000",
+    "act_type": "10",
+    "arbitary_yn": "0",
+    "co_id": "1000",
+    "co_nm": "x",
+    "dept_id": "2987",
+    "dept_nm": "x",
+    "div": "m",
+    "doc_line_m_seq": 1,
+    "doc_line_seq": 1,
+    "duty_cd": "200",
+    "duty_nm": "x",
+    "duty_order": "200",
+    "grade_cd": "120",
+    "grade_nm": "x",
+    "grade_order": "120",
+    "login_id": "x",
+    "org_div": "m",
+    "org_id": "2096",
+    "org_nm": "x",
+    "path_name": "x",
+    "private_line_id": 2482,
+    "user_id": "2096",
+    "user_nm": "x",
+    "work_status": "999"
+   }
+  ],
+  "note": "각 객체의 act_id 3000=결재/4000=합의. 이 객체들을 순서대로 detailLine에 넣고 save_line 호출."
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/eap/eap102A05",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "34"
+   },
+   "body": {
+    "lineId": "2482",
+    "line_id": "2482"
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultData": {
+     "aaData": [
+      {
+       "org_div": "m",
+       "doc_line_seq": 1,
+       "act_id": 3000,
+       "user_nm": "x",
+       "arbitary_yn": "0",
+       "div": "m",
+       "dept_nm": "x",
+       "co_nm": "x",
+       "doc_line_m_seq": 1,
+       "org_nm": "x",
+       "duty_order": "200",
+       "duty_cd": "200",
+       "work_status": "999",
+       "path_name": "x",
+       "grade_cd": "120",
+       "login_id": "x",
+       "private_line_id": 2482,
+       "act_order": "3000",
+       "act_nm": "x",
+       "co_id": "1000",
+       "grade_nm": "x",
+       "user_id": "2096",
+       "org_id": "2096",
+       "duty_nm": "x",
+       "grade_order": "120",
+       "act_type": "10",
+       "dept_id": "2987"
+      }
+     ]
+    },
+    "resultMsg": "성공하였습니다."
+   }
+  }
+ ]
+}

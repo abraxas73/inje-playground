@@ -1,0 +1,58 @@
+{
+ "tool": "delete_approval_line",
+ "args": {
+  "row_json": "{\"code_form_nm\": \"41. 외근신청서\", \"code_proc_nm\": \"1000. 기본프로세스\", \"form_id\": 41, \"form_list\": \"41. 외근신청서\", \"form_nm\": \"외근신청서\", \"form_use_yn\": \"1\", \"line_id\": 2488, \"line_kind\": \"10\", \"line_kind_nm\": \"개인\", \"line_nm\": \"[테스트] MCP 임시삭제 캡처\", \"proc_id\": 1000, \"proc_nm\": \"기본프로세스\", \"proc_use_yn\": \"1\"}"
+ },
+ "toolResult": {
+  "kind": "approvalLineDeleted",
+  "note": "삭제 완료. list_lines로 사라졌는지 확인 권장.",
+  "resultCount": {
+   "deleteResult": 1
+  }
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/eap/eap102A09",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "358"
+   },
+   "body": {
+    "lineIdList": [
+     {
+      "code_form_nm": "x",
+      "code_proc_nm": "x",
+      "form_id": 41,
+      "form_list": "41. 외근신청서",
+      "form_nm": "x",
+      "form_use_yn": "1",
+      "line_id": 2488,
+      "line_kind": "10",
+      "line_kind_nm": "x",
+      "line_nm": "x",
+      "proc_id": 1000,
+      "proc_nm": "x",
+      "proc_use_yn": "1"
+     }
+    ]
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultData": {
+     "resultCount": {
+      "deleteResult": 1
+     }
+    },
+    "resultMsg": "성공하였습니다."
+   }
+  }
+ ]
+}

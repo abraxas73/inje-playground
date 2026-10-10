@@ -143,6 +143,18 @@ class GwClient {
     return _bytes(await _send(() => httpClient.get(uri, headers: headers)));
   }
 
+  /// 서명 GET 텍스트(SSE `text/event-stream` — eap107A25). 응답에 charset이 없어 바이트를 UTF-8로 푼다. 401은 만료로 던진다.
+  Future<String> getText(String pathAndQuery, {String accept = 'text/event-stream'}) async {
+    final uri = Uri.parse('$baseUrl$pathAndQuery');
+    final headers = _signed(uri.path, '')
+      ..remove('Content-Type')
+      ..['Accept'] = accept;
+    final res = await _send(() => httpClient.get(uri, headers: headers), const Duration(seconds: 15));
+    if (res.statusCode == 401) _decode(res);
+    if (res.statusCode < 200 || res.statusCode >= 300) throw GwException(res.statusCode, -1, '요청에 실패했습니다 (HTTP ${res.statusCode})');
+    return utf8.decode(res.bodyBytes, allowMalformed: true);
+  }
+
   Future<http.Response> _send(Future<http.Response> Function() f, [Duration timeout = const Duration(seconds: 60)]) async {
     try {
       return await f().timeout(timeout);

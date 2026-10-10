@@ -89,9 +89,9 @@
       "date": "2026-10-10 18:52",
       "listDate": "18:52",
       "subject": "x",
-      "from": "강승억 &lt;user@example.com&gt;",
+      "from": "x &lt;user@example.com&gt;",
       "empSeq": "3060",
-      "to": "강승억 &lt;user@example.com&gt;",
+      "to": "x &lt;user@example.com&gt;",
       "isOrgMail": 1,
       "email": "x",
       "url": "/#/popup?callComp=UDAP007&muid=U%2Bw702oXibg9jylP94LlOKxB0stTvp4QEqibMhoaT9U%3D&keep=false&MicroModuleCode=mail"

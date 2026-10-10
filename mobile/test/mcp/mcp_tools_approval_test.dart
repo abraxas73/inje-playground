@@ -203,11 +203,18 @@ void main() {
     });
 
     /// A02는 부를 때마다 lists를 차례로(마지막은 반복). fail은 그 차례(0부터)에서 연결 실패, expire는 401.
-    Map<String, Object? Function(Map<String, dynamic>)> saveRoutes({List<String> lists = const ['list_approval_lines-after-save'], int? fail, int? expire}) {
+    /// save 재조회 A05: members(캡처 라벨, null이면 빈 aaData), a05Fail·a05Expire.
+    Map<String, Object? Function(Map<String, dynamic>)> saveRoutes(
+        {List<String> lists = const ['list_approval_lines-after-save'], int? fail, int? expire, String? members = 'read_approval_line-3c', bool a05Fail = false, bool a05Expire = false}) {
       var n = 0;
       return {
-        '/eap/eap102A10': (_) => cap('save_approval_line', '/eap/eap102A10'),
+        '/eap/eap102A10': (_) => cap('save_approval_line-3c', '/eap/eap102A10'),
         '/eap/eap102A09': (_) => cap('delete_approval_line', '/eap/eap102A09'),
+        '/eap/eap102A05': (_) {
+          if (a05Fail) throw const SocketException('x');
+          if (a05Expire) return http.Response('', 401);
+          return members == null ? {'aaData': []} : cap(members, '/eap/eap102A05');
+        },
         '/eap/eap102A02': (_) {
           final i = n++;
           if (i == fail) throw const SocketException('x');
@@ -217,14 +224,35 @@ void main() {
       };
     }
 
-    test('save_approval_line — eap102A10(순서 필드 주입, 캡처 본문) → eap102A02 재조회', () async {
+    /// 웹 UI로 만든 라인 2482를 읽은 members(캡처 read_approval_line-ui) — 3c 저장의 입력.
+    Map<String, dynamic> args3c() => {'line_nm': 'x', 'form_id': 41, 'line_id': 0, 'detail_line_json': jsonEncode((captured('read_approval_line-ui')['toolResult'] as Map)['members'])};
+
+    test('save_approval_line — read_approval_line members 입력 → eap102A10 본문이 캡처(3c, 결재자 등록 성공)와 같다 → eap102A05 재조회', () async {
       final gw = Gw(saveRoutes());
-      final r = await run(gw, 'save_approval_line', captured('save_approval_line')['args'] as Map<String, dynamic>);
-      expect(gwOrder(gw), ['/eap/eap102A10', '/eap/eap102A02']);
-      sameShape(me(gw.calls['/eap/eap102A10']!.single), me(body('save_approval_line', '/eap/eap102A10')));
-      hasKeys(r, captured('save_approval_line')['toolResult']);
-      expect((r['createdLineId'], r['insertDResult'], r['insertFormResult'], r['kind']), (2470, 1, 1, 'approvalLineSaved'));
+      final r = await run(gw, 'save_approval_line', args3c());
+      expect(gwOrder(gw), ['/eap/eap102A10', '/eap/eap102A05']);
+      expect(gw.calls['/eap/eap102A10']!.single, body('save_approval_line-3c', '/eap/eap102A10'));
+      expect(gw.calls['/eap/eap102A05']!.single, {'lineId': '2485', 'line_id': '2485'});
+      hasKeys(r, captured('save_approval_line-3c')['toolResult']);
+      expect((r['createdLineId'], r['insertDResult'], r['insertFormResult'], r['kind']), (2485, 1, 1, 'approvalLineSaved'));
       expect((r['ok'], r['verified_by_readback']), (true, true));
+    });
+
+    test('save — org_chart로 만든 최소 입력(10키)도 A05 members 형식 28키로 정규화', () async {
+      final gw = Gw(saveRoutes());
+      final minimal = {'user_id': '2096', 'co_id': '1000', 'dept_id': '2987', 'dept_nm': '본부', 'duty_cd': '200', 'duty_nm': '본부장', 'grade_cd': '120', 'grade_nm': '전무', 'act_id': '3000', 'user_nm': '권본부'};
+      // 28키 밖의 키(name·emp_seq)는 버린다 — 아래 완전 일치로 단정
+      await run(gw, 'save_approval_line', {'line_nm': 'x', 'form_id': 41, 'detail_line_json': jsonEncode([{...minimal, 'name': '조작', 'emp_seq': '99'}, {...minimal, 'user_id': '51', 'act_id': 4000}])});
+      final got = (gw.calls['/eap/eap102A10']!.single['detailLine'] as List).cast<Map>();
+      final want = ((body('save_approval_line-3c', '/eap/eap102A10')['detailLine'] as List).single as Map);
+      expect(got[0].keys.toSet(), want.keys.toSet());
+      expect(got[0].length, 28);
+      expect(got[0], {
+        'act_id': 3000, 'act_nm': '결재', 'act_order': '3000', 'act_type': '10', 'arbitary_yn': '0', 'co_id': '1000', 'co_nm': '(주)이노그리드', 'dept_id': '2987', 'dept_nm': '본부', 'div': 'm',
+        'doc_line_m_seq': 1, 'doc_line_seq': 1, 'duty_cd': '200', 'duty_nm': '본부장', 'duty_order': '200', 'grade_cd': '120', 'grade_nm': '전무', 'grade_order': '120', 'line_seq': 1, 'login_id': '',
+        'org_div': 'm', 'org_id': '2096', 'org_nm': '권본부', 'path_name': '', 'private_line_id': 0, 'user_id': '2096', 'user_nm': '권본부', 'work_status': '',
+      });
+      expect((got[1]['act_id'], got[1]['act_nm'], got[1]['act_order'], got[1]['act_type'], got[1]['org_id'], got[1]['line_seq']), (4000, '합의', '4000', '10', '51', 2));
     });
 
     test('save — 결재자 여럿은 배열 순서대로 1·2·3, proc_id 지정은 그대로', () async {
@@ -239,19 +267,24 @@ void main() {
       expect([for (final d in b['detailLine'] as List) (d['user_id'], d['doc_line_seq'], d['doc_line_m_seq'], d['line_seq'])], [('31', 1, 1, 1), ('41', 2, 2, 2), ('51', 3, 3, 3)]);
     });
 
-    test('save — 재조회 실패는 ok:true·verified false·note, 목록에 없으면 ok:false', () async {
-      final args = captured('save_approval_line')['args'] as Map<String, dynamic>;
-      var r = await run(Gw(saveRoutes(fail: 0)), 'save_approval_line', args);
+    test('save — 재조회에 결재자가 없으면(빈 라인) ok:false·note, 재조회 실패는 ok:true·verified false', () async {
+      var r = await run(Gw(saveRoutes(members: null)), 'save_approval_line', args3c());
+      expect((r['ok'], r['verified_by_readback']), (false, false));
+      expect(r['note'], contains('결재자가 등록되지 않았습니다'));
+      // 일부만 등록(입력 2명, 재조회 1명)·순서가 달라도 ok:false
+      final two = {...args3c(), 'detail_line_json': jsonEncode([...(captured('read_approval_line-ui')['toolResult'] as Map)['members'] as List, {'user_id': '51', 'act_id': 4000}])};
+      r = await run(Gw(saveRoutes()), 'save_approval_line', two);
+      expect((r['ok'], r['verified_by_readback']), (false, false));
+      expect(r['note'], contains('입력과 다릅니다'));
+      r = await run(Gw(saveRoutes(a05Fail: true)), 'save_approval_line', args3c());
       expect((r['ok'], r['verified_by_readback']), (true, false));
       expect(r['note'], contains('재조회'));
-      r = await run(Gw(saveRoutes(lists: ['list_approval_lines-after-delete'])), 'save_approval_line', args);
-      expect((r['ok'], r['verified_by_readback']), (false, false));
     });
 
     test('save·delete — 쓰기 뒤 재조회가 401(세션 만료)이면 던지지 않고 ok:true·verified false·만료 안내', () async {
-      var gw = Gw(saveRoutes(expire: 0));
-      var r = await run(gw, 'save_approval_line', captured('save_approval_line')['args'] as Map<String, dynamic>);
-      expect(gwOrder(gw), ['/eap/eap102A10', '/eap/eap102A02']);
+      var gw = Gw(saveRoutes(a05Expire: true));
+      var r = await run(gw, 'save_approval_line', args3c());
+      expect(gwOrder(gw), ['/eap/eap102A10', '/eap/eap102A05']);
       expect((r['ok'], r['verified_by_readback']), (true, false));
       expect(r['note'], allOf(contains('만료'), contains('다시 저장하지')));
       gw = Gw(saveRoutes(expire: 1));

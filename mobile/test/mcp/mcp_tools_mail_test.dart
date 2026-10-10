@@ -202,7 +202,7 @@ void main() {
       expect(jsonDecode(a08['authKeyMap']!), {'email': 'hong@innogrid.com', 'empSeq': '7', 'muid': '14874412'});
       final a04 = gw.raw['/mail/mail014A04']!;
       expect((part(a04, 'mail_kind'), part(a04, 'muid'), part(a04, 'to'), part(a04, 'bigFileCnt'), part(a04, 'fwFile'), part(a04, 'htmlContents')),
-          ('draft', '14874412', '강승억 <user@example.com>', '1', 'x', 'x'));
+          ('draft', '14874412', 'x <user@example.com>', '1', 'x', 'x'));
       expect(jsonDecode(part(a04, 'mimeHeader')!), init['mailInfo']['mime']['header']);
       expect(part(a04, 'mimeHeader')!.startsWith('{"cc":'), true, reason: '키 정렬');
       final auth = (jsonDecode(part(a04, 'uidAuthList')!) as List).single as Map;
@@ -211,7 +211,7 @@ void main() {
       expect(gw.calls['/mail/mail002A07']!.single, {'beforeMUID': 14874412, 'mailKey': init['mailkey']});
       expect(init['mailkey'], endsWith('.eml'));
       hasKeys(r, captured('send_mail_from_draft')['toolResult']);
-      expect((r['sent'], r['draft_deleted'], r['attachments'], r['draft_muid'], r['to'], r['cc'], r['bcc']), (true, true, 1, '14874412', '강승억 <user@example.com>', '', ''));
+      expect((r['sent'], r['draft_deleted'], r['attachments'], r['draft_muid'], r['to'], r['cc'], r['bcc']), (true, true, 1, '14874412', 'x <user@example.com>', '', ''));
     });
 
     test('to 인자는 수신자만 덮어쓰기 · 원본 삭제 실패는 sent:true·draft_deleted:false', () async {

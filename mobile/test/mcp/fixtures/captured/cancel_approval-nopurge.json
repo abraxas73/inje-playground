@@ -1,0 +1,123 @@
+{
+ "tool": "cancel_approval",
+ "args": {
+  "doc_id": 152980,
+  "form_id": 41,
+  "purge": false
+ },
+ "toolResult": {
+  "docId": "152980",
+  "kind": "approvalCancelled",
+  "note": "임시보관(doc_sts 10) 도달을 재조회로 확인했다.",
+  "ok": true,
+  "postDocSts": "10",
+  "postState": "found",
+  "preDocSts": "20",
+  "purged": false,
+  "steps": [
+   {
+    "api": "eap110A18",
+    "ok": true,
+    "returnValue": 1,
+    "step": "상신취소"
+   }
+  ],
+  "verified_by_readback": true
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/eap/eap110A98",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "39"
+   },
+   "body": {
+    "docId": "152980",
+    "pageCode": "UBAP002"
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultData": {
+     "repdt_mod_yn": "0",
+     "doc_sts": "20",
+     "receive_type": "",
+     "user_id": "3060",
+     "co_id": "1000",
+     "req_api_sts": "0",
+     "cooperate_doc_id": 0,
+     "doc_no_base": "x-",
+     "dept_id": "2989",
+     "biz_id": "1000"
+    },
+    "resultMsg": "성공하였습니다."
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/eap/eap110A18",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "39"
+   },
+   "body": {
+    "docID": "152980",
+    "pageCode": "UBAP002"
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultData": {
+     "returnValue": 1
+    },
+    "resultMsg": "성공하였습니다."
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/eap/eap110A98",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "39"
+   },
+   "body": {
+    "docId": "152980",
+    "pageCode": "UBAP002"
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultData": {
+     "repdt_mod_yn": "0",
+     "doc_sts": "10",
+     "receive_type": "",
+     "user_id": "3060",
+     "co_id": "1000",
+     "req_api_sts": "0",
+     "cooperate_doc_id": 0,
+     "doc_no_base": "",
+     "dept_id": "2989",
+     "biz_id": "1000"
+    },
+    "resultMsg": "성공하였습니다."
+   }
+  }
+ ]
+}

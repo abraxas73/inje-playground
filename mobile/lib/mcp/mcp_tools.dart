@@ -2,6 +2,7 @@
 // 응답 키는 inno-creed 실측 출력(test/mcp/fixtures)과 같게. 신규 엔드포인트 호출은 gw_mcp_api.dart(요청 본문은 captured 그대로).
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' show Random;
 import '../assistant/gw_assistant_api.dart' show GwAssistantApi, composeFields, draftFields, freeSlots, lunchBreak, minutesOn;
 import '../gw/gw_api.dart';
 import '../gw/gw_client.dart';
@@ -176,6 +177,26 @@ Map<String, dynamic> _reservation(Map r) {
 /// 서명(mail014A01 signature)은 `<div dze_signature><html><head></head><body>…</body></html>…</div>` — 본문에 끼울 때 문서 태그를 벗긴다(웹 작성기와 같은 형상).
 String _signature(Map init) => asStr(init['signature']).replaceAll(RegExp(r'<head\b[^>]*>.*?</head>', caseSensitive: false, dotAll: true), '').replaceAll(RegExp(r'</?(html|body)\b[^>]*>', caseSensitive: false), '');
 
+/// 맵 어디에 있든 ids의 키는 그 값으로(신원 덮어쓰기).
+Object? _overwrite(Object? v, Map<String, String> ids) => switch (v) {
+      Map mp => {for (final e in mp.entries) asStr(e.key): ids.containsKey(e.key) ? ids[e.key] : _overwrite(e.value, ids)},
+      List l => [for (final e in l) _overwrite(e, ids)],
+      _ => v,
+    };
+
+/// 키 정렬(캡처 bindData는 키가 정렬된 JSON — inno-creed serde 직렬화).
+Object? _sortKeys(Object? v) => switch (v) {
+      Map mp => {for (final k in (mp.keys.map(asStr).toList()..sort())) k: _sortKeys(mp[k])},
+      List l => [for (final e in l) _sortKeys(e)],
+      _ => v,
+    };
+
+/// 'ERP_' + uuid 형식(8-4-4-4-12 hex) 연동 키.
+String _approkey() {
+  final r = Random.secure(), h = [for (var i = 0; i < 16; i++) r.nextInt(256).toRadixString(16).padLeft(2, '0')].join();
+  return 'ERP_${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}';
+}
+
 class McpTools {
   McpTools({required this.gw, required String Function() appSupportDir, ApprovalSchemas? schemas, String Function()? downloadsDir})
       : groups = PersonGroups(appSupportDir),
@@ -190,7 +211,7 @@ class McpTools {
   static const _writeTools = {
     'reserve_resource', 'update_reservation', 'cancel_reservation', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event',
     'attendance_clock_in', 'attendance_clock_out', 'save_mail_draft', 'send_mail', 'send_mail_from_draft', 'mark_mail_unread', 'delete_mail',
-    'save_approval_line', 'delete_approval_line',
+    'save_approval_line', 'delete_approval_line', 'submit_approval', 'cancel_approval', 'delete_temp_approval',
   };
 
   GwApi get _gw => gw ?? (throw McpToolError(_noGw));
@@ -258,6 +279,9 @@ class McpTools {
         'read_approval_line' => _readApprovalLine(x),
         'save_approval_line' => _saveApprovalLine(x),
         'delete_approval_line' => _deleteApprovalLine(x),
+        'submit_approval' => _submitApproval(x),
+        'cancel_approval' => _cancelApproval(x),
+        'delete_temp_approval' => _deleteTempApproval(x),
         'list_approval_line_schemas' => schemas.list(),
         'get_approval_line_schema' => schemas.schema(_req(x, 'doc_type')),
         'list_approval_submission_guides' => schemas.guides(),
@@ -1038,15 +1062,20 @@ class McpTools {
     return {'count': rows.length, 'kind': 'approvalLineMembers', 'lineId': id, 'members': rows, 'note': '각 객체의 act_id 3000=결재/4000=합의. 이 객체들을 결재 순서대로 save_approval_line의 detail_line_json에 넣는다.'};
   }
 
-  /// 쓰기 **뒤** 재조회(eap102A02). 이미 반영됐으므로 실패(세션 만료 401 포함)도 던지지 않는다 — 재시도로 이중 쓰기가 나지 않게.
-  Future<({List<Map>? rows, bool expired})> _linesReadback() async {
+  /// 쓰기 **뒤** 재조회. 이미 반영됐으므로 실패(세션 만료 401 포함)도 던지지 않는다 — 재시도로 이중 쓰기가 나지 않게.
+  Future<({T? v, bool expired})> _readback<T>(Future<T> Function() f) async {
     try {
-      return (rows: await _gw.approvalLinesRaw(), expired: false);
+      return (v: await f(), expired: false);
     } on GwUnauthorized {
-      return (rows: null, expired: true);
+      return (v: null, expired: true);
     } on GwException {
-      return (rows: null, expired: false);
+      return (v: null, expired: false);
     }
+  }
+
+  Future<({List<Map>? rows, bool expired})> _linesReadback() async {
+    final r = await _readback(_gw.approvalLinesRaw);
+    return (rows: r.v, expired: r.expired);
   }
 
   /// JSON 문자열(또는 이미 풀린 값) 인자.
@@ -1055,7 +1084,8 @@ class McpTools {
     return v is List || v is Map ? v : jsonDecode(_req(x, k));
   }
 
-  /// eap102A10 신규 저장(line_id 0만 — 기존 라인 수정 본문은 미실측) → eap102A02 재조회로 새 lineId 확인.
+  /// eap102A10 신규 저장(line_id 0만 — 기존 라인 수정 본문은 미실측) → eap102A05 재조회로 결재자가 등록됐는지 확인.
+  /// 결재자 객체는 A05 members 형식 28키로 정규화한다(org_div·org_id·div·act_type이 없으면 서버가 결재자 없는 빈 라인을 저장한다 — 캡처 save_approval_line.json).
   Future<Map<String, dynamic>> _saveApprovalLine(Map x) async {
     final name = _req(x, 'line_nm'), formId = a.intOf(x, 'form_id');
     if (formId == null) throw McpToolError('form_id는 숫자 양식 ID입니다(예: 41 외근, 36 연차).');
@@ -1073,21 +1103,45 @@ class McpTools {
     if (members.any((e) => !RegExp(r'^\d+$').hasMatch(asStr(e['user_id'])) || !const {'3000', '4000'}.contains(asStr(e['act_id'])))) {
       throw McpToolError('각 결재자에 user_id(empSeq)와 act_id(3000 결재/4000 합의)가 필요합니다. read_approval_line의 members 객체를 쓰세요.');
     }
-    final detail = [for (final (i, e) in members.indexed) {...e, 'doc_line_m_seq': i + 1, 'doc_line_seq': i + 1, 'line_seq': i + 1}];
+    final detail = [for (final (i, e) in members.indexed) _lineMember(e, i + 1)];
     final procId = a.str(x, 'proc_id').isEmpty ? '1000' : a.str(x, 'proc_id');
     final res = await _gw.saveApprovalLineRaw(formId: formId, lineName: name, procId: procId, detail: detail);
     final created = asStr(res['createdLineId']);
     // 이미 저장됐다 — 재조회만 실패하면 오류로 올리지 않는다(재시도로 같은 라인이 또 생기지 않게)
-    final (:rows, :expired) = await _linesReadback();
-    final verified = rows != null && created.isNotEmpty && rows.any((r) => asStr(r['line_id']) == created && asStr(r['line_nm']) == name && asStr(r['form_id']) == '$formId');
+    final (v: rows, :expired) = created.isEmpty ? (v: const <Map>[], expired: false) : await _readback(() => _gw.approvalLineMembersRaw(created));
+    // 등록 인원·순서가 입력과 같아야 확인(일부만 등록된 라인도 잡는다)
+    final got = rows == null ? null : ([...rows]..sort((p, q) => asInt(p['doc_line_seq']).compareTo(asInt(q['doc_line_seq'])))).map((r) => asStr(r['user_id'])).toList();
+    final want = [for (final e in members) asStr(e['user_id'])];
+    final verified = got != null && got.join(',') == want.join(',');
     return {
       'createdLineId': res['createdLineId'], 'insertDResult': res['insertDResult'], 'insertFormResult': res['insertFormResult'], 'kind': 'approvalLineSaved', 'ok': verified || rows == null,
       'verified_by_readback': verified,
       'note': expired
-          ? '결재선은 저장됐지만 확인 전에 아마란스 세션이 만료됐습니다. 다시 저장하지 말고 다시 로그인한 뒤 list_approval_lines로 확인하세요(상신 아님).'
+          ? '결재선은 저장됐지만 확인 전에 아마란스 세션이 만료됐습니다. 다시 저장하지 말고 다시 로그인한 뒤 read_approval_line으로 확인하세요(상신 아님).'
           : rows == null
-          ? '결재선은 저장됐지만 재조회에 실패해 확인하지 못했습니다. 다시 저장하지 말고 list_approval_lines로 확인하세요(상신 아님).'
-          : verified ? 'config 저장 완료(상신 아님). read_approval_line으로 결재자 순서를 확인하세요.' : '저장 응답은 받았지만 목록에서 새 라인을 찾지 못했습니다. list_approval_lines로 확인하세요.',
+          ? '결재선은 저장됐지만 재조회에 실패해 확인하지 못했습니다. 다시 저장하지 말고 read_approval_line으로 확인하세요(상신 아님).'
+          : verified
+          ? 'config 저장 완료(상신 아님). 결재자 ${rows.length}명 등록을 재조회로 확인했습니다.'
+          : created.isEmpty
+          ? '저장 응답에 새 라인 ID가 없습니다. list_approval_lines로 확인하세요.'
+          : rows.isEmpty
+          ? '결재자가 등록되지 않았습니다 — 입력 객체를 확인하세요(read_approval_line의 members 형식). 빈 라인 $created은(는) delete_approval_line으로 지우세요.'
+          : '등록된 결재자 구성이 입력과 다릅니다(입력 ${want.length}명, 등록 ${rows.length}명 또는 순서 다름) — read_approval_line $created로 확인하고, 틀리면 delete_approval_line으로 지운 뒤 다시 저장하세요.',
+    };
+  }
+
+  /// 결재자 객체 → A05 members 형식(캡처 save_approval_line-3c detailLine 28키만). 28키 중 입력에 있는 키는 그대로, 없는 키는 기본값, 그 밖의 입력 키는 버린다.
+  /// act_id는 정수, 순서 필드는 배열 순서.
+  static Map<String, dynamic> _lineMember(Map e, int seq) {
+    final act = asInt(e['act_id']), uid = asStr(e['user_id']);
+    final d = <String, dynamic>{
+      'act_nm': act == 4000 ? '합의' : '결재', 'act_order': '$act', 'act_type': '10', 'arbitary_yn': '0', 'co_id': '1000', 'co_nm': '(주)이노그리드', 'dept_id': '', 'dept_nm': '', 'div': 'm',
+      'duty_cd': '', 'duty_nm': '', 'duty_order': e['duty_cd'] ?? '', 'grade_cd': '', 'grade_nm': '', 'grade_order': e['grade_cd'] ?? '', 'login_id': '', 'org_div': 'm', 'org_id': uid,
+      'org_nm': e['user_nm'] ?? '', 'path_name': '', 'private_line_id': 0, 'user_id': uid, 'user_nm': '', 'work_status': '',
+    };
+    return {
+      for (final k in d.keys) k: e.containsKey(k) ? e[k] : d[k],
+      'act_id': act, 'doc_line_m_seq': seq, 'doc_line_seq': seq, 'line_seq': seq,
     };
   }
 
@@ -1114,6 +1168,176 @@ class McpTools {
           : rows == null
           ? '삭제 요청은 보냈지만 재조회에 실패해 확인하지 못했습니다. list_approval_lines로 확인하세요.'
           : verified ? '삭제 완료(목록에서 사라진 것을 확인).' : '삭제 요청 뒤에도 목록에 라인 $lineId이(가) 남아 있습니다. 아마란스에서 확인하세요.',
+    };
+  }
+
+  // ── 상신·취소·임시 삭제 ──
+  /// 근태(HP 연동) 상신 — 캡처 submit_approval 7호출 순서 그대로: 0hr00011 → create → eap110A03 → GetLinkKey → saveAttendApplicationLinkKey → SetEnageGroup → eap110A06.
+  /// 비근태(hp_application_json 없음)·첨부는 미실측이라 거절. 신원 값은 로그인 사용자(whoami)로 덮어쓴다.
+  Future<Map<String, dynamic>> _submitApproval(Map x) async {
+    final formId = _num(x, 'form_id'), lineId = _num(x, 'line_id'), title = _req(x, 'doc_title'), html = _req(x, 'doc_contents_html');
+    if (a.strList(x, 'attachments').isNotEmpty) throw McpToolError('첨부(attachments) 상신은 이 앱 버전에서 아직 지원하지 않습니다 — 첨부가 필요하면 아마란스 웹에서 상신하세요.');
+    if (a.str(x, 'hp_application_json').isEmpty) throw McpToolError('근태 양식이 아닌(hp_application_json 없는) 상신은 이 앱 버전에서 아직 지원하지 않습니다 — 아마란스 웹에서 상신하세요.');
+    const hpMsg = 'hp_application_json은 applicationList·employeeList(각 1건 이상)를 담은 JSON 객체여야 합니다(get_approval_submission_guide의 hpApplicationExample).';
+    final Object? hpV, bindV;
+    try {
+      hpV = _json(x, 'hp_application_json');
+    } on FormatException {
+      throw McpToolError(hpMsg);
+    }
+    try {
+      bindV = _json(x, 'bind_data_json');
+    } on FormatException {
+      throw McpToolError('bind_data_json은 JSON 객체 문자열이어야 합니다(get_approval_submission_guide의 bindDataExample).');
+    }
+    bool rows(Object? l) => l is List && l.isNotEmpty && l.every((e) => e is Map);
+    if (hpV is! Map || !rows(hpV['applicationList']) || !rows(hpV['employeeList'])) throw McpToolError(hpMsg);
+    if (bindV is! Map) throw McpToolError('bind_data_json은 JSON 객체 문자열이어야 합니다(get_approval_submission_guide의 bindDataExample).');
+    final numbering = a.str(x, 'numbering_id').isEmpty ? '1001' : a.str(x, 'numbering_id');
+
+    final g = _gw, who = await _whoami();
+    final coCd = asStr(who['coCd']), empCd = asStr(who['empCd']), empNm = asStr(who['empName']), deptNm = asStr(who['deptName']);
+    final duty = asStr(who['duty']), position = asStr(who['position']);
+    if (who['profileResolved'] != true || coCd.isEmpty || empCd.isEmpty || asStr(who['deptCd']).isEmpty || deptNm.isEmpty) {
+      throw McpToolError('로그인 사용자의 회사·부서·사번·직책·직급을 확인하지 못해 상신하지 않았습니다(문서에 찍힐 신원 값). 잠시 뒤 다시 시도하세요.');
+    }
+    // 코드계와 문서에 렌더되는 표시 문자열까지 로그인 사용자 값으로(가이드 예시 인물 값이 남지 않게). hrspNm은 36·43 예시에서 직책 값("팀원")이라 직책으로 본다.
+    final ids = {
+      'coCd': coCd, 'deptCd': asStr(who['deptCd']), 'deptNm': deptNm, 'singleDeptNm': deptNm, 'empCd': empCd, 'empNm': empNm, 'korNm': empNm,
+      'dutyNm': duty, 'singleDutyNm': duty, 'hrspNm': duty, 'positionNm': position, 'singlePositionNm': position, 'empNmDutyNm': '$empNm $duty', 'employees': '$empNm $position',
+    };
+    final hp = _overwrite(hpV, ids) as Map, bind = _overwrite(bindV, ids);
+    // groupByKey가 '사번 5자리+YYYYMMDD'(43 예시 "1109720260803")면 내 사번 + 그 행의 dueDt(없으면 startDt, 그다음 atDt — 예시 날짜는 dueDt와 같다)로 다시 만든다. 다른 형식은 그대로.
+    for (final r in (hp['applicationList'] as List).whereType<Map>()) {
+      if (!RegExp(r'^\d{5}\d{8}$').hasMatch(asStr(r['groupByKey']))) continue;
+      final d = a.ymd([r['dueDt'], r['startDt'], r['atDt']].map(asStr).firstWhere((v) => v.isNotEmpty, orElse: () => ''));
+      if (d.length == 8) r['groupByKey'] = '$empCd$d';
+    }
+    final hpBody = <String, Object?>{'applicationList': hp['applicationList'], 'employeeList': hp['employeeList']};
+
+    await g.hpValidateRaw(hpBody);
+    final approkey = _approkey();
+    final Map created;
+    try {
+      created = await g.hpCreateRaw(hp: hpBody, empCd: empCd, lineId: lineId, title: title);
+    } on GwException catch (e) {
+      if (e.status != 0) rethrow;
+      throw McpToolError('${e.message} — 근태 신청이 생성됐을 수 있습니다. 다시 상신하기 전에 아마란스 웹 근태신청을 확인하세요.');
+    }
+    final appSq = asStr(created['appSq']), sq = appSq.isEmpty ? '' : '(appSq $appSq)';
+    // 여기부터는 HP 신청 레코드가 남는다 — 중단·실패 안내에 늘 싣는다. A06을 보낸 뒤 결과를 모르면 상신됐을 수 있어 지우라고 하지 않는다.
+    final orphan = '근태 신청 1건$sq이 생성됨 — 아마란스 웹 근태신청에서 삭제 필요.';
+    final maybe = '상신됐을 수 있음 — list_approvals(box_name:"sent")에 없을 때만 아마란스 웹 근태신청$sq에서 삭제하세요.';
+    if (appSq.isEmpty) throw McpToolError('근태 신청 생성 응답에 appSq가 없어 상신하지 않았습니다. $orphan');
+    var submitting = false;
+    try {
+      final info = await g.approvalDraftInfoRaw(lineId: lineId, approkey: approkey, formId: formId);
+      final rm = info['resultMap'] is Map ? info['resultMap'] as Map : const {};
+      List<Map> list(String k) => ((rm[k] as List?) ?? const []).whereType<Map>().toList();
+      final line = list('kyuljaeResult'), refer = [for (final r in list('m_Refer')) {...r, 'org_div': r['div']}];
+      if (line.isEmpty) throw McpToolError('결재선이 비어 있습니다(결재자가 등록된 결재선인지 read_approval_line로 확인). 상신하지 않았습니다. $orphan');
+      if (list('m_Receive').isNotEmpty || list('m_Oper').isNotEmpty) throw McpToolError('이 양식은 수신처·시행자 지정이 있어 이 앱 버전에서 아직 지원하지 않습니다(미실측). 상신하지 않았습니다. $orphan');
+      final fi = rm['form_info'] is Map ? rm['form_info'] as Map : const {};
+      final formDTp = asStr(fi['form_d_tp']), menu = RegExp(r'^HP_([A-Za-z0-9]+)_').firstMatch(formDTp)?.group(1);
+      if (menu == null) throw McpToolError('이 양식(form_id $formId)은 근태(HP) 연동 양식이 아니어서 이 앱 버전에서 아직 지원하지 않습니다. 상신하지 않았습니다. $orphan');
+      final ud = list('userDeptInfo').where((u) => asStr(u['main_dept_yn']) == 'Y').firstOrNull ?? list('userDeptInfo').firstOrNull ?? const {};
+      await g.hpInterlockRaw(approkey: approkey, coCd: coCd, menuCode: menu, created: created, title: title, formDTp: formDTp, formId: formId);
+      final level = asStr(fi['doc_level']).isEmpty ? '001' : asStr(fi['doc_level']), security = asStr(fi['doc_security']).isEmpty ? '0' : asStr(fi['doc_security']);
+      final now = m.kstNow();
+      submitting = true;
+      final res = await g.submitApprovalRaw({
+        'aiVerifyAutoOnSubmit': false, 'aiVerifyHistories': [], 'aiVerifyUseYn': '0', 'approkey': approkey, 'auditorYn': '0', 'bindData': jsonEncode(jsonEncode(_sortKeys(bind))),
+        'biz_id': asStr(ud['biz_seq']).isEmpty ? asStr(who['compSeq']) : asStr(ud['biz_seq']), 'co_id': asStr(who['compSeq']), 'co_nm': asStr(ud['comp_name']), 'contents_tp': '10', 'delFileSnList': [],
+        'dept_id': asStr(who['deptSeq']), 'dept_nm': deptNm, 'doc_contents': Uri.encodeComponent(html), 'doc_id': 0, 'doc_level': level, 'doc_security': security, 'doc_sts': '20', 'doc_title': title,
+        'emergency_level': '1', 'formLang': 'kr', 'form_id': formId, 'iframeHtml': '', 'inservice_time': '0', 'interDivId': 'divInterJson', 'interDocTp': 'json', 'isLatestVerContentsFile': true,
+        'modifyAddItem': 'Y', 'modifyAppLineYn': 'Y', 'modifyAttach': 'Y', 'modifyContent': 'Y',
+        'modifyDocInfo': {
+          'appdoc': {'doc_level': level, 'doc_security': security, 'doc_title': title, 'emergency_level': '1', 'inservice_time': '0'},
+          'appdocFileList': [], 'appdocFolderList': [{'menu_id': ''}],
+          'appdocLineList': [for (final l in line) {for (final k in const ['act_id', 'co_id', 'dept_id', 'doc_line_gb', 'doc_line_m_seq', 'doc_line_s_seq', 'user_id']) k: l[k]}],
+          'appdocReceiveList': [for (final r in refer) {'org_div': r['org_div'], 'org_id': r['org_id'], 'receive_div': '10'}],
+          'appdocRefList': [], 'docId': 0,
+        },
+        'modifyDoclevel': 'Y', 'modifyEabox': 'Y', 'modifyEmergency': 'Y', 'modifyFileList': '', 'modifyInservice': 'Y', 'modifyItemList': null, 'modifyReceive10': 'Y', 'modifyReceive20': 'Y',
+        'modifyReceive30': 'Y', 'modifyReceive40': 'Y', 'modifyRef': 'Y', 'modifySeal': 'Y', 'modifyTitle': 'Y', 'numbering_id': numbering, 'pDraftTp': '', 'pOper': [], 'pReceive': [], 'pRefer': refer,
+        'pTEAG_APPDOC_LINE': line, 'pTEAG_APPDOC_REF': [], 'pTEAG_TOC_FOLDER': '', 'pVCM_ATTACHFILEINFO': [], 'pVKD_TKDDITEM': [], 're_draft': '', 'receipient': '', 'receipt': '',
+        'rep_dt': '${now.year}-${_two(now.month)}-${_two(now.day)} ${_two(now.hour)}:${_two(now.minute)}:${_two(now.second)}', 'repdt_mod_yn': '0', 'seal_use_yn': '', 'use_yn': '1',
+        'user_id': g.client.creds().empSeq, 'user_nm': empNm, 'versionCheck': null,
+      });
+      final docId = res['result'];
+      if (asStr(docId).isEmpty) throw McpToolError('상신 응답에 docId가 없습니다. $maybe');
+      return {
+        'docId': docId, 'formId': int.parse(formId), 'kind': 'approvalSubmitted', 'lineCount': line.length,
+        'note': '상신 성공(docId 발급 확인). 상신 직후(doc_sts 20)면 cancel_approval(doc_id, purge)로 되돌릴 수 있습니다. 결재가 시작된 문서(30)의 결재취소는 아마란스 웹에서 하세요.',
+        'ok': true, 'referCount': refer.length, 'title': title,
+      };
+    } on GwUnauthorized {
+      throw McpToolError('아마란스 로그인이 만료되었습니다. 다시 상신하기 전에 다시 로그인한 뒤 list_approvals(box_name:"sent")로 상신 여부를 확인하세요. $orphan');
+    } on GwException catch (e) {
+      throw McpToolError(submitting && e.status == 0 ? '${e.message} — $maybe 다시 상신하기 전에 꼭 확인하세요.' : '${e.message} — 상신하지 못했습니다. $orphan');
+    } on McpToolError {
+      rethrow;
+    } catch (e) {
+      throw McpToolError('상신 처리 중 오류가 발생했습니다 (${e.runtimeType}). ${submitting ? maybe : orphan}');
+    }
+  }
+
+  /// 상태(eap110A98) → 20이면 상신취소(A18) → purge면 임시보관삭제(A19) → A98 재조회. 10은 purge일 때 A19만. 30(결재취소 eap110A54)은 미실측이라 거절.
+  Future<Map<String, dynamic>> _cancelApproval(Map x) async {
+    final docId = _num(x, 'doc_id'), purge = a.boolOf(x, 'purge');
+    _optNum(x, 'form_id'); // doc_sts 30 결재취소에만 쓰이는데 그 경로는 미실측 — 형식만 확인
+    final g = _gw, pre = await g.approvalStateRaw(docId), sts = asStr(pre['doc_sts']);
+    if (sts.isEmpty) throw McpToolError('문서 $docId를 찾지 못했습니다. list_approvals로 docId를 확인하세요.');
+    if (asStr(pre['user_id']) != g.client.creds().empSeq) throw McpToolError('본인이 기안한 문서만 취소할 수 있습니다(문서 $docId).');
+    if (sts == '999') throw McpToolError('이미 삭제된 문서입니다(문서 $docId, doc_sts 999).');
+    if (sts == '30') throw McpToolError('결재 진행중 문서 취소는 아직 지원하지 않습니다 — 아마란스 웹에서 결재취소하세요(문서 $docId).');
+    if (sts == '10' && !purge) throw McpToolError('이미 임시보관(doc_sts 10) 문서입니다. 지우려면 purge=true로 호출하세요.');
+    if (sts != '10' && sts != '20') throw McpToolError('이 상태(doc_sts $sts)의 문서는 이 앱에서 취소할 수 없는 상태입니다 — 아마란스 웹에서 처리하세요.');
+    final steps = <Map<String, dynamic>>[];
+    Future<bool> step(String api, String name, Future<Map> Function() f) async {
+      final rv = (await f())['returnValue'];
+      steps.add({'api': api, 'ok': asInt(rv) == 1, 'returnValue': rv, 'step': name});
+      return asInt(rv) == 1;
+    }
+
+    var done = sts != '20' || await step('eap110A18', '상신취소', () => g.withdrawApprovalRaw(docId));
+    if (done && purge) done = await step('eap110A19', '임시보관삭제', () => g.purgeApprovalRaw(docId));
+    final (v: post, :expired) = await _readback(() => g.approvalStateRaw(docId));
+    final want = purge ? '999' : '10', postSts = asStr(post?['doc_sts']), verified = post != null && postSts == want;
+    return {
+      'docId': docId, 'kind': 'approvalCancelled',
+      'note': verified
+          ? '${purge ? '삭제(doc_sts 999)' : '임시보관(doc_sts 10)'} 도달을 재조회로 확인했다.'
+          : post == null
+          ? '취소 요청은 보냈지만 ${expired ? '확인 전에 아마란스 세션이 만료돼' : '재조회에 실패해'} 확인하지 못했습니다. 다시 취소하지 말고 list_approvals로 확인하세요.'
+          : '취소 뒤에도 문서 상태가 $postSts입니다(기대 $want). 아마란스에서 확인하세요.',
+      'ok': done && (verified || post == null), 'postDocSts': postSts, 'postState': post != null ? 'found' : expired ? 'session_expired' : 'readback_failed', 'preDocSts': sts,
+      'purged': postSts == '999', 'steps': steps, 'verified_by_readback': verified,
+    };
+  }
+
+  /// eap107A25(SSE GET, 콤마 docId) → 임시보관함 재조회로 사라졌는지 확인.
+  Future<Map<String, dynamic>> _deleteTempApproval(Map x) async {
+    final ids = a.strList(x, 'doc_ids');
+    if (ids.isEmpty || ids.any((d) => !RegExp(r'^\d+$').hasMatch(d))) throw McpToolError('doc_ids는 콤마로 구분한 숫자 docId입니다(list_approvals(box_name:"draft")의 docId).');
+    final rd = await _gw.deleteTempApprovalsRaw(ids);
+    final deleted = [for (final d in ((rd['docInfoArr'] as List?) ?? const []).whereType<Map>()) asStr(d['DOC_ID'])];
+    final (v: list, :expired) = await _readback(() => _listApprovals({'box_name': 'draft', 'from': '20000101', 'page_size': 200}));
+    final docs = list == null ? const <Map>[] : (list['documents'] as List).whereType<Map>().toList();
+    final left = list == null ? null : {for (final d in docs) asStr(d['docId'])}.intersection(ids.toSet());
+    // 한 쪽(200건)에 다 못 담겼으면 남은 문서를 놓칠 수 있다 — 확인으로 치지 않는다
+    final partial = list != null && (docs.length >= 200 || asInt(list['totalCount']) > docs.length);
+    final verified = left != null && left.isEmpty && !partial && asInt(rd['failCnt']) == 0;
+    return {
+      'deletedDocIds': deleted, 'failCount': asInt(rd['failCnt']), 'kind': 'tempApprovalDeleted',
+      'note': verified
+          ? '임시보관 문서 삭제(eap107A25) — 임시보관함에서 사라진 것을 재조회로 확인했습니다.'
+          : left == null
+          ? '삭제 요청은 보냈지만 ${expired ? '확인 전에 아마란스 세션이 만료돼' : '재조회에 실패해'} 확인하지 못했습니다. 다시 삭제하지 말고 list_approvals(box_name:"draft")로 확인하세요.'
+          : partial && left.isEmpty && asInt(rd['failCnt']) == 0
+          ? '삭제 요청은 보냈지만 임시보관 문서가 200건 이상이라 재조회로 전부 확인하지 못했습니다. 다시 삭제하지 말고 list_approvals(box_name:"draft")로 확인하세요.'
+          : '삭제 요청 뒤에도 임시보관함에 남은 문서가 있습니다(${left.isEmpty ? '실패 ${rd['failCnt']}건' : left.join(',')}). 아마란스에서 확인하세요.',
+      'ok': verified || left == null || (partial && left.isEmpty && asInt(rd['failCnt']) == 0), 'requested': ids.join(','), 'verified_by_readback': verified,
     };
   }
 

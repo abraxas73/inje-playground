@@ -34,8 +34,11 @@ class Gw {
   final calls = <String, List<Map<String, dynamic>>>{};
   final raw = <String, String>{};
   final order = <String>[];
+  /// 'METHOD 경로?쿼리' 순서(GET 쿼리 단정용).
+  final urls = <String>[];
   MockClient get client => MockClient((r) async {
         order.add(r.url.path);
+        urls.add('${r.method} ${r.url.path}${r.url.hasQuery ? '?${r.url.query}' : ''}');
         Map<String, dynamic> b = {};
         try {
           final j = jsonDecode(r.body);

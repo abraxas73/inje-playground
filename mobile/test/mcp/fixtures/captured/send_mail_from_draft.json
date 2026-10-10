@@ -329,7 +329,7 @@
        "isEcmUploaded": false,
        "body": {
         "calendar": "",
-        "plain": "캡처용. 본인 발송.\n\t\n\t\t\n\t\t\t\n\t\t\t\t\n\t\t\t\t\t\n\t\t\t\t\t\n\t\t\t\t\t\n\t\t\t\t\t\n\t\t\t\t\t\t\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t강승억 Seunguk Kang\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\n\t\t\t\t\t\t\n\t\t\t\t\t\t\t\n…",
+        "plain": "캡처용. 본인 발송.\n\t\n\t\t\n\t\t\t\n\t\t\t\t\n\t\t\t\t\t\n\t\t\t\t\t\n\t\t\t\t\t\n\t\t\t\t\t\n\t\t\t\t\t\t\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\tx Seunguk Kang\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\n\t\t\t\t\t\t\n\t\t\t\t\t\t\t\n…",
         "html": "x"
        },
        "fileList": [
@@ -353,11 +353,11 @@
        "fromAddrName": "x",
        "listDate": "18:52",
        "subject": "x",
-       "listFrom": "강승억 &lt;user@example.com&gt;",
-       "from": "강승억 &lt;user@example.com&gt;",
+       "listFrom": "x &lt;user@example.com&gt;",
+       "from": "x &lt;user@example.com&gt;",
        "empSeq": "3060",
        "fromAddrEmail": "x",
-       "to": "강승억 &lt;user@example.com&gt;",
+       "to": "x &lt;user@example.com&gt;",
        "isOrgMail": 1,
        "email": "x",
        "url": "/#/popup?callComp=UDAP007&muid=x&keep=false&MicroModuleCode=mail"

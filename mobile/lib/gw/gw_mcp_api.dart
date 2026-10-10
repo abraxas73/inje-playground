@@ -221,6 +221,81 @@ extension GwMcpApi on GwApi {
     return d is Map ? d : const {};
   }
 
+  // ── 상신·취소·임시 삭제(캡처 submit_approval·cancel_approval·delete_temp_approval 본문 그대로) ──
+  /// 근태 HP 신청 검증(0hr00011, 응답 없음 — 실패는 resultCode로 던진다).
+  Future<void> hpValidateRaw(Map<String, Object?> hp) async => client.call('/human/attendapplication/0hr00011', hp);
+
+  /// 근태 HP 신청 생성(create) → appSq·appDt. ⚠️ 이 뒤로는 HP 신청 레코드가 남는다.
+  Future<Map> hpCreateRaw({required Map<String, Object?> hp, required String empCd, required String lineId, required String title}) async {
+    final d = await client.call('/human/attendapplication/create', {
+      'appDt': '', 'appEmpCd': empCd, 'applicationList': hp['applicationList'], 'approLineId': lineId, 'approState': '', 'calLinkKey': '', 'coCd': '', 'deptCd': '',
+      'employeeList': hp['employeeList'], 'fileGroup': 0, 'linkKey': '', 'titleDc': title, 'version': 'v2',
+    });
+    return d is Map ? d : const {};
+  }
+
+  /// eap110A03 작성 화면 정보(결재선 병합 kyuljaeResult·수신참조 m_Refer·form_info·userDeptInfo).
+  Future<Map> approvalDraftInfoRaw({required String lineId, required String approkey, required String formId}) async {
+    final d = await client.call('/eap/eap110A03', {'appLineId': lineId, 'approkey': approkey, 'docID': 0, 'docType': '', 'doc_auth': 0, 'draftTp': '', 'formID': formId, 'pageCode': 'UBAP001', 'reDraft': ''});
+    return d is Map ? d : const {};
+  }
+
+  /// HP interlock 등록 3콜: GetLinkKey → saveAttendApplicationLinkKey → SetEnageGroup. 돌려주는 값은 linkKey.
+  Future<String> hpInterlockRaw({required String approkey, required String coCd, required String menuCode, required Map created, required String title, required String formDTp, required String formId}) async {
+    final k = await client.call('/system/apiUtilEap/GetLinkKey', {'approKey': approkey, 'coCd': coCd, 'menuCode': menuCode, 'vPCoCd': coCd});
+    final linkKey = asStr(k is Map ? k['linkKey'] : null);
+    if (linkKey.isEmpty) throw GwException(200, 0, '근태 연동 키(linkKey)를 받지 못했습니다');
+    await client.call('/personal/${menuCode.toLowerCase()}/saveAttendApplicationLinkKey', {'appDt': created['appDt'], 'appSq': created['appSq'], 'coCd': coCd, 'linkKey': linkKey});
+    await client.call('/system/apiUtilEap/SetEnageGroup', {
+      'approKey': approkey, 'coCd': coCd, 'contents': '', 'contentsApi': '/human/attendapplication/interlock/getInterlockFormContents', 'docTitle': title, 'dummy1': '', 'formDTp': formDTp,
+      'formId': formId, 'formNm': title, 'link': '', 'linkKey': linkKey, 'statusApi': '/human/attendapplication/interlock/setInterlockSync', 'vPCoCd': coCd,
+    });
+    return linkKey;
+  }
+
+  /// eap110A06 상신 → resultData(result = 새 docId).
+  Future<Map> submitApprovalRaw(Map<String, Object?> paramItem) async {
+    final d = await client.call('/eap/eap110A06', {'pageCode': 'UBAP001', 'paramItem': paramItem});
+    return d is Map ? d : const {};
+  }
+
+  /// eap110A98 문서 상태(doc_sts·기안자 user_id).
+  Future<Map> approvalStateRaw(String docId) async {
+    final d = await client.call('/eap/eap110A98', {'docId': docId, 'pageCode': 'UBAP002'});
+    return d is Map ? d : const {};
+  }
+
+  /// eap110A18 상신취소.
+  Future<Map> withdrawApprovalRaw(String docId) async {
+    final d = await client.call('/eap/eap110A18', {'docID': docId, 'pageCode': 'UBAP002'});
+    return d is Map ? d : const {};
+  }
+
+  /// eap110A19 임시보관 문서 삭제.
+  Future<Map> purgeApprovalRaw(String docId) async {
+    final d = await client.call('/eap/eap110A19', {'docID': docId, 'pageCode': 'UBAP001'});
+    return d is Map ? d : const {};
+  }
+
+  /// eap107A25 임시보관 삭제(SSE GET, 콤마 docId). `data:` 줄의 JSON 봉투 중 마지막 것의 resultData.
+  Future<Map> deleteTempApprovalsRaw(List<String> docIds) async {
+    final text = await client.getText('/eap/sse/eap107A25?docIdList=${docIds.join(',')}');
+    Map? env;
+    for (final line in const LineSplitter().convert(text)) {
+      if (!line.startsWith('data:')) continue;
+      try {
+        final j = jsonDecode(line.substring(5));
+        if (j is Map) env = j;
+      } on FormatException {
+        continue; // 'data: complete' 같은 표시 줄
+      }
+    }
+    if (env == null) throw GwException(200, -1, '임시보관 삭제 응답을 읽지 못했습니다');
+    final code = asInt(env['resultCode'], -1);
+    if (code != 0 && code != 200) throw GwException(200, code, asStr(env['resultMsg']).isEmpty ? '임시보관 삭제에 실패했습니다 (resultCode $code)' : asStr(env['resultMsg']));
+    return env['resultData'] is Map ? env['resultData'] as Map : const {};
+  }
+
   /// 결재 첨부 바이트(ecm001A03, moduleGbn BOARD + fileIds 한 개 — 캡처 그대로)와 서버 파일명.
   Future<(List<int>, String)> approvalAttachFile(String fileId) => client.formFile('/ecm/ecm001A03', {'moduleGbn': 'BOARD', 'authKeyMap': jsonEncode({'fileIds': fileId})});
 
