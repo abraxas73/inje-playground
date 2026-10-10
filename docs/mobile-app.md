@@ -248,6 +248,24 @@ inno-creed 2.2.0과 같은 57개 이름·스키마(`frontend/src/lib/mcp/tools.j
 ### 실측 메모
 inno-creed 호출은 mitmproxy + `HTTPS_PROXY`로 캡처했다(rustls-platform-verifier라 키체인에 CA를 신뢰시키면 통과). 픽스처 `mobile/test/mcp/fixtures/captured`(개인정보 가림).
 
+### 전자결재 상신·취소·임시 삭제(1.6.1, 외근 양식 실측)
+- **submit_approval**(근태 HP 양식 36·40·41·43만; 외근 41만 종단 실측): `/human/attendapplication/0hr00011`(검증) → `/human/attendapplication/create`(appSq) → `eap110A03`(appLineId·approkey·formID — 응답 `resultMap.kyuljaeResult`가 비면 **여기서 중단**; 이 시점엔 근태 신청 레코드가 이미 생겨 있어 note에 "아마란스 웹 근태신청에서 정리"를 담는다) → `GetLinkKey` → `saveAttendApplicationLinkKey` → `SetEnageGroup` → `eap110A06`(상신, docId). 표시 문자열 신원 키(deptNm·dutyNm·positionNm·singleDeptNm·empNmDutyNm·employees 등)는 로그인 사용자 값으로 덮어쓴다. `attachments`·비근태 양식·수신처/시행자 지정 양식은 거절.
+- **cancel_approval**: `eap110A98`(상태) → doc_sts 20이면 `eap110A18`(상신취소) → purge면 `eap110A19`(임시보관 삭제) → `eap110A98` 재조회. doc_sts 10은 A18 생략. **30(결재 진행중)은 미실측(eap110A54)이라 거절** — 웹에서 결재취소. 남의 문서·없는 문서·999는 실행 없이 오류.
+- **delete_temp_approval**: `GET /eap/sse/eap107A25?docIdList=<콤마 docId>` — 응답은 SSE(`data:{…}`) 한 줄. 삭제 뒤 임시보관 목록 재조회로 검증.
+- **save_approval_line**: 서버는 결재자 객체에 `org_div:"m"`·`org_id`(=user_id)·`act_type`("10" 결재/합의, "40" 수신참조)·`act_nm`·`act_order` 등 **A05(read_approval_line) 형식 28키**가 있어야 결재자를 등록한다. 다른 형식이면 결재자 없는 빈 라인이 조용히 저장되고 상신 때 결재선이 비어 실패한다(inno-creed도 같음). 앱은 입력(org_chart로 만든 10키 또는 A05 members)을 28키로 정규화해 보내고 재조회로 인원·순서를 검증한다. 형식의 근거: 아마란스 웹 전자결재 > 결재설정 > 개인결재라인설정(UBA4010, 그리드는 캔버스)에서 만든 라인을 read_approval_line로 읽은 값.
+- 시험 상신은 결재자에게 "결재 요청"·"취소" 알림이 가고, 실패한 시험 상신은 미상신 근태 신청 레코드(현황·달력에 안 보임)를 남긴다 — 2026-10-10 시험으로 4건(12/16·12/17 외근) 남아 있음.
+
+### 실측 캡처 절차(도구 추가·변경 때)
+도구는 `mobile/scripts/mcp-capture/`(README 참고)로 inno-creed를 mitmproxy 뒤에서 돌려 요청·응답을 받는다: `mitmdump -p 8089 -q -w batch.mitm` → `HTTPS_PROXY=http://127.0.0.1:8089`로 `driver.py`의 `call(tool, args, label)` 호출(시간 창 기록) → `mitmdump -nr batch.mitm -s dump_addon.py --set dump_out=flows.json` → `merge.py flows.json log.json out/`(도구별 `{tool,args,toolResult,calls[]}`) → `sanitize.py out/ captured/`(이메일·이름·제목·본문·토큰·파일명 가림, 배열 3개; **calls는 자르지 않는다**) → `mobile/test/mcp/fixtures/captured/`. 쓰기 도구는 본인에게만 닿는 시험 대상으로 하고 끝나면 되돌린다(예약 수정 뒤 resIdx가 바뀌므로 취소 때 새 값). 커밋 전에 `grep -rE "authToken|@innogrid|실명"`으로 잔존 확인. 미실측 도구는 `frontend/src/lib/mcp/protocol.ts`의 `WITHHELD_TOOLS`에 두어 tools/list에서 뺀다.
+
+### 구현 결정 기록(2026-10-10)
+- 미실측이라 거절·제외: `download_body_image`(WITHHELD), 결재 진행중(doc_sts 30) 취소, 반복 예약(repeatType≠10) 수정, `send_mail`+attachments(초안 2단계로 안내), `update_calendar_event`의 contents·다른 참여자 일정, `create_calendar_event`의 allday·video·secret_memo, 임시보관 문서 첨부 목록, 기존 결재선 수정(line_id≠0). 각 제한은 `tools.json` 설명 끝 "(이 커넥터: …)"에 적혀 있다.
+- 파일 경계는 macOS·Windows 공통 Downloads(위 "파일 경계"). Downloads 안 같은 이름은 사용자가 지정한 경우에만 덮어쓴다(폴백은 `(1)` 번호).
+- 동의 화면 redirect 허용 목록(위 "인증"). 웹 분당 상한은 진행 중 행 수 기준 근사(초당 폭주는 못 막음 — 감사 로그 기준으로 바꾸는 후속 가능).
+- 워커는 클레임 즉시·실행 직렬. 시간 초과(90초) 뒤 실행이 백그라운드에서 이어질 수 있어 "다시 실행하지 말고 목록으로 확인" 문구를 낸다.
+- 미뤄 둔 소소한 지적: 첨부 크기 상한, 초안 발송 시 `to` 덮어쓰기 미실측, Content-Disposition 한글 파일명 표시(바이트는 정상), 테스트 헬퍼 중복.
+- 후속 후보: download_body_image·A54·연차(36) 양식 종단 실측, Teams/Confluence/SharePoint 도구 11개 노출, 앱 미실행 시 서버 폴백.
+
 ### 문제 해결
 | 증상 | 확인 |
 |---|---|

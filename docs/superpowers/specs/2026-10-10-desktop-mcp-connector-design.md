@@ -241,3 +241,6 @@ inno-creed는 `HTTPS_PROXY`를 따르고(실측: 닫힌 포트를 주면 요청 
 ## 14. 다음 단계 후보(이번 범위 밖)
 
 Teams·Confluence·SharePoint 11개 노출(서버 도구라 앱 없이도 웹이 직접 실행 가능), 앱 미실행 시 서버 폴백(조직도·사람 찾기는 `company_directory`로), Realtime 대신 Supabase Edge Function/WebSocket 중계(지연 0.5초가 문제될 때), 결재 승인·반려.
+
+## 15. 구현 결과(2026-10-10 완료)
+웹·앱 전부 구현·출시(모바일 1.6.0+36, 데스크탑 1.6.1). 도구 57개 중 56개 노출(`download_body_image`만 실측 전 보류). 스펙과 달라진 점: §8의 update_reservation 재조회는 rs121A10, save_approval_line은 서버 A05 형식으로 정규화, cancel_approval은 doc_sts 10·20만, 파일 경계는 macOS·Windows 공통 Downloads, 동의 화면은 redirect 허용 목록, 워커는 클레임 즉시·실행 직렬. 운영 세부·실측 절차·결정 기록은 런북 `docs/mobile-app.md` §Claude 커넥터.
