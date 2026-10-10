@@ -6,6 +6,8 @@ export type ManualSection = {
   steps: string[];
   note?: string;
   links?: { href: string; label: string }[];
+  /** 안내 화면(재현 이미지 포함). public/manual 아래 경로 */
+  images?: { src: string; alt: string; caption: string; width: number; height: number }[];
 };
 
 /** 화면·메뉴와 함께 관리하는 사용 안내. 과거 화면 캡처 대신 현재 작업 순서를 설명한다. */
@@ -188,8 +190,12 @@ export const manualSections: ManualSection[] = [
   {
     id: "desktop-install", title: "데스크톱 앱 설치·다운로드", category: "시작하기",
     description: "Mac과 Windows에서 이노크루 앱을 설치하고 사용합니다.",
-    steps: ["아래 앱 설치·다운로드 메뉴에서 운영체제에 맞는 설치 파일과 현재 버전을 확인합니다.", "macOS는 DMG를 열어 INNOGRID를 Applications 폴더로 옮긴 뒤 실행합니다. macOS 12 이상이며 Apple Silicon과 Intel을 지원합니다.", "Windows는 설치 파일을 실행한 뒤 시작 메뉴에서 INNOGRID를 엽니다. Windows 10 1809 이상 또는 11, x64 환경과 Microsoft Edge WebView2 Runtime이 필요합니다.", "Microsoft 계정으로 로그인하고 브라우저의 앱 열기를 허용합니다. 아마란스는 앱에서 별도로 연결합니다.", "업데이트할 때는 앱을 종료하고 이 페이지의 새 설치 파일로 다시 설치합니다."],
-    note: "Windows는 내부 테스트 버전입니다. 아직 설치 파일이 배포되지 않았다면 준비 중으로 표시됩니다.",
+    steps: ["아래 앱 설치·다운로드 메뉴에서 운영체제에 맞는 설치 파일과 현재 버전을 확인합니다.", "macOS는 DMG를 열어 INNOGRID를 Applications 폴더로 옮긴 뒤 실행합니다. macOS 12 이상이며 Apple Silicon과 Intel을 지원합니다.", "Windows는 설치 파일을 내려받을 때 브라우저가 ‘일반적으로 다운로드되지 않는 파일’이라고 경고할 수 있습니다. Edge는 다운로드 목록의 ‘…’ 메뉴 → 유지 → 그래도 유지, Chrome은 ‘유지’를 누릅니다. 파일이 맞는지 의심되면 다운로드 페이지의 ‘파일 검증 SHA-256’ 값과 비교합니다.", "Windows에서 설치 파일을 처음 실행하면 파란 ‘Windows의 PC 보호’ 창(Microsoft Defender SmartScreen)이 뜹니다. 설치 파일이 아직 코드 서명 전이라 나오는 안내입니다. 창의 ‘추가 정보’를 누르고, 앱 이름이 INNOGRID-Windows-<버전>-Setup.exe인지 확인한 뒤 ‘실행’을 누르면 설치가 이어집니다(아래 화면). 사용자 계정 컨트롤(UAC) 창은 뜨지 않습니다.", "설치가 끝나면 시작 메뉴에서 INNOGRID를 엽니다. Windows 10 1809 이상 또는 11, x64 환경과 Microsoft Edge WebView2 Runtime이 필요합니다.", "Microsoft 계정으로 로그인하고 브라우저의 앱 열기를 허용합니다. 아마란스는 앱에서 별도로 연결합니다.", "업데이트할 때는 앱을 종료하고 이 페이지의 새 설치 파일로 다시 설치합니다."],
+    note: "Windows 설치 파일은 코드 서명 전 내부 테스트 빌드라 위 보안 경고가 표시됩니다. 서명 배포로 바뀌면 경고는 사라집니다. 아래 화면은 Windows 11 한국어 환경의 창을 그대로 재현한 예시이며, ‘실행 안 함’을 누르면 설치가 취소될 뿐 PC에는 아무 변화가 없습니다.",
+    images: [
+      { src: "/manual/windows-smartscreen-1.png", alt: "Windows의 PC 보호 창. 추가 정보 링크가 표시돼 있다", caption: "① ‘Windows의 PC 보호’ 창이 뜨면 ‘추가 정보’를 누릅니다.", width: 558, height: 320 },
+      { src: "/manual/windows-smartscreen-2.png", alt: "앱 이름 INNOGRID-Windows-1.6.1-Setup.exe와 게시자 알 수 없는 게시자가 표시된 창. 실행 버튼이 강조돼 있다", caption: "② 앱 이름이 INNOGRID 설치 파일인지 확인하고 ‘실행’을 누릅니다.", width: 558, height: 360 },
+    ],
     links: [{ href: "/apps#desktop", label: "데스크톱 앱 다운로드" }, { href: "/apps#mcp", label: "Claude 커넥터 연결 방법" }],
   },
   {
@@ -234,7 +240,7 @@ export const manualSections: ManualSection[] = [
 export function searchManual(query: string) {
   const terms = query.trim().toLocaleLowerCase("ko-KR").split(/\s+/).filter(Boolean);
   return manualSections.filter((s) => {
-    const text = [s.title, s.category, s.description, ...s.steps, s.note ?? "", ...(s.links ?? []).map((l) => l.label)].join(" ").toLocaleLowerCase("ko-KR");
+    const text = [s.title, s.category, s.description, ...s.steps, s.note ?? "", ...(s.links ?? []).map((l) => l.label), ...(s.images ?? []).map((i) => i.caption)].join(" ").toLocaleLowerCase("ko-KR");
     return terms.every((term) => text.includes(term));
   });
 }

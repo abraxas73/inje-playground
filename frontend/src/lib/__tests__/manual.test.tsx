@@ -22,3 +22,9 @@ it("filters the table of contents and sections together, and resets an empty res
   fireEvent.click(screen.getByRole("button", { name: "검색 초기화" }));
   expect(screen.getByRole("heading", { name: "앱 이노봇·음성 명령·확인 카드" })).toBeInTheDocument();
 });
+it("shows the Windows SmartScreen guide images with captions in the desktop install section", () => {
+  render(<ManualPage />);
+  expect(screen.getByAltText(/Windows의 PC 보호 창/)).toHaveAttribute("src", expect.stringContaining("windows-smartscreen-1"));
+  expect(screen.getByText(/‘실행’을 누릅니다/)).toBeInTheDocument();
+  expect(searchManual("SmartScreen").map((s) => s.id)).toContain("desktop-install");
+});

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Search, ArrowUp, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -48,6 +49,12 @@ export default function ManualPage() {
             {section.steps.map((step) => <li key={step} className="pl-1 text-sm leading-7">{step}</li>)}
           </ol>
           {section.note && <p className="mt-5 rounded-lg bg-muted p-4 text-sm leading-relaxed"><strong>알아두세요. </strong>{section.note}</p>}
+          {section.images && <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            {section.images.map((img) => <figure key={img.src} className="rounded-lg border bg-muted/40 p-2">
+              <Image src={img.src} alt={img.alt} width={img.width} height={img.height} className="h-auto w-full rounded border" />
+              <figcaption className="mt-2 text-xs leading-relaxed text-muted-foreground">{img.caption}</figcaption>
+            </figure>)}
+          </div>}
           <div className="mt-5 flex flex-wrap items-center gap-4">
             {section.links?.map((link) => <Link key={link.href} href={link.href} className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">{link.label}<ArrowRight aria-hidden="true" className="h-3 w-3" /></Link>)}
             <a href="#manual-top" className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline"><ArrowUp aria-hidden="true" className="h-3 w-3" />목차로</a>

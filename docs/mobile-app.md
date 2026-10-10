@@ -214,6 +214,8 @@ Graph 메모: 검색 hit는 `fields`에 file·folder를 넣어도 폴더에 `fol
 - **데스크탑(macOS·Windows) OS 알림**: `talk_notifications.dart` — 아마란스가 연결돼 있으면 60초마다 확인해 새 멘션만 `flutter_local_notifications`로 띄운다(첫 실행은 기준만 잡고 과거 건은 알리지 않음, 기준은 shared_preferences `talk_alert_seen`). Windows는 `appUserModelId Innogrid.INNOGRID`. Android 빌드는 core library desugaring을 켜야 한다(`build.gradle.kts`).
 - **메신저 열기(흉내)**: 알림·섹션을 누르면 `messenger_open.dart` — macOS `open -b com.douzone.amaranth10beta`(설치된 AmaranthMessenger를 앞으로), Windows 설치 폴더의 `AmaranthMessenger*.exe` 실행, iOS `Amaranth10://`·Android `com.douzone.app.amaranth10://`(웹 번들의 모바일 열기 스킴), 실패하면 그룹웨어 웹. 특정 대화방 딥링크는 없다 — Mac 메신저(Electron, `com.douzone.amaranth10beta`)는 URL 스킴 미등록, 웹의 메신저 팝업(`/#popup?menuGubun=MSG&seq=3&d=<AES-CBC 키 "1023497555960596">`)은 이 테넌트에서 빈 화면.
 
+**Windows 설치 경고(SmartScreen)**: `windows-app.yml`의 설치 파일은 코드 서명이 없어 처음 실행할 때 "Windows의 PC 보호" 창이 뜬다(추가 정보 → 실행; `PrivilegesRequired=lowest`라 UAC 창은 없음). 브라우저도 다운로드 때 경고할 수 있다. 사용자 안내는 웹 매뉴얼 "데스크톱 앱 설치·다운로드"(재현 화면 `frontend/public/manual/windows-smartscreen-{1,2}.png` — 실제 캡처로 바꿔도 됨)와 /apps 카드에 있다. 경고를 없애려면 `windows-signed.yml`(Azure Trusted Signing, 변수 `SIGNING_ACCOUNT`·`SIGNING_PROFILE` 등 필요)로 서명 배포로 바꾼다.
+
 ## Claude 커넥터(아마란스 MCP) (2026-10-10)
 
 목적: inno-creed 바이너리를 대체한다. claude.ai 조직 커넥터 **"INNOGRID 아마란스"**(URL `https://innocrew.innogrid.com/api/mcp`)로 Claude(웹·Desktop·모바일·Claude Code)가 각자 아마란스(메일·일정·결재·조직도 등)를 부른다. 스펙 `docs/superpowers/specs/2026-10-10-desktop-mcp-connector-design.md`.
