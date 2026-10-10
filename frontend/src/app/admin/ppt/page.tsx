@@ -75,7 +75,7 @@ export default function AdminPptPage() {
           <SelectContent><SelectItem value={ALL}>모든 상태</SelectItem>{(Object.keys(STATUS_LABEL) as PptVersionStatus[]).map((s) => <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>)}</SelectContent>
         </Select>
       </div>
-      {decks && <DeckList decks={shown} showOwner onDeleted={() => void load()} onError={setError} />}
+      {decks && <DeckList decks={shown} showOwner showShared onDeleted={() => void load()} onError={setError} />}
     </div>
   );
 }
