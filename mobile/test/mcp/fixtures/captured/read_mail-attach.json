@@ -32,14 +32,14 @@
   ],
   "bcc": "",
   "body": "x",
-  "cc": "김문환 <user@example.com>,김대훈<user@example.com>",
+  "cc": "x <user@example.com>,x<user@example.com>",
   "date": "2026-10-08 16:07",
-  "from": "이미리 <user@example.com>",
+  "from": "x <user@example.com>",
   "inlineImages": [],
   "muid": "14858746",
   "remoteResourceCount": 1,
   "subject": "x",
-  "to": "백희선 <user@example.com>,현근주 <user@example.com>,강승억<user@example.com>,송민호<user@example.com>,김영도 <user@example.com>,이경윤 <us…"
+  "to": "x <user@example.com>,x <user@example.com>,강승억<user@example.com>,송민호<user@example.com>,x <user@example.com>,이경윤 <us…"
  },
  "isError": false,
  "calls": [
@@ -117,7 +117,7 @@
      "mailkey": "1791443243096_b6ba67d8-2480-453d-a79b-79c4547ca607.eml",
      "muid": 14858746,
      "decodeMime": {
-      "cc": "김문환 &lt;user@example.com&gt;,김대훈&lt;user@example.com&gt;",
+      "cc": "x &lt;user@example.com&gt;,x&lt;user@example.com&gt;",
       "date": "2026-10-08 16:07",
       "listDate": "10-08 16:07",
       "subject": "x",

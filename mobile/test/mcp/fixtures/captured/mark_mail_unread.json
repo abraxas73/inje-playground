@@ -172,7 +172,7 @@
        "mboxSeq": 25492,
        "toInAddrYN": "x",
        "context": "x",
-       "from": "강승억 <user@example.com>",
+       "from": "x <user@example.com>",
        "attach": true,
        "senderCountry": "",
        "senderIp": "",
@@ -190,7 +190,7 @@
        "muid": 14874418,
        "size": 11252,
        "toAddrEmail": "x",
-       "to": "강승억 <user@example.com>",
+       "to": "x <user@example.com>",
        "rfc822date": "18:52",
        "tooltipDate": "2026-10-10 18:52:45"
       },

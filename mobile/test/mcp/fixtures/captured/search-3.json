@@ -185,9 +185,9 @@
        "toAddrEmail": "x",
        "emailAddr": "x",
        "boxName": "x",
-       "mailTo": "강승억 <user@example.com>,권경민 <user@example.com>",
+       "mailTo": "x <user@example.com>,x <user@example.com>",
        "rfc822date": "10-08 16:19",
-       "mailFrom": "반일권 <user@example.com>"
+       "mailFrom": "x <user@example.com>"
       },
       {
        "fromAddrName": "x",
@@ -201,9 +201,9 @@
        "toAddrEmail": "x",
        "emailAddr": "x",
        "boxName": "x",
-       "mailTo": "백희선 <user@example.com>,현근주 <user@example.com>,강승억<user@example.com>,송민호<user@example.com>,김영도 <user@example.com>,이경윤 <user@example.com>,김재범<user@example.com>,정선미 <user@example.com",
+       "mailTo": "x <user@example.com>,x <user@example.com>,강승억<user@example.com>,송민호<user@example.com>,x <user@example.com>,x <user@example.com>,김재범<user@example.com>,정선미 <user@example.com",
        "rfc822date": "10-08 16:07",
-       "mailFrom": "이미리 <user@example.com>"
+       "mailFrom": "x <user@example.com>"
       },
       {
        "fromAddrName": "x",
@@ -217,9 +217,9 @@
        "toAddrEmail": "x",
        "emailAddr": "x",
        "boxName": "x",
-       "mailTo": "강승억 <user@example.com>",
+       "mailTo": "x <user@example.com>",
        "rfc822date": "10-08 14:38",
-       "mailFrom": "정성원 <user@example.com>"
+       "mailFrom": "x <user@example.com>"
       }
      ],
      "totalcount": 670,

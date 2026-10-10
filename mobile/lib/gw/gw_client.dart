@@ -121,7 +121,7 @@ class GwClient {
       ..fields.addAll(fields)
       ..files.addAll(files);
     req.headers.addAll(_signed(path, 'multipart/form-data')..remove('Content-Type'));
-    return _decode(await _send(() => httpClient.send(req).then(http.Response.fromStream), const Duration(seconds: 120)));
+    return _decode(await _send(() => httpClient.send(req).then(http.Response.fromStream), const Duration(seconds: 75))); // 워커 제한(90초)보다 짧게
   }
 
   /// 바이너리 받기 — form POST(ecm001A03 첨부). 실패 응답(JSON 봉투)은 그 메시지로 던진다.

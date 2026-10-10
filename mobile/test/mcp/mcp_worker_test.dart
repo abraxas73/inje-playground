@@ -71,7 +71,7 @@ void main() {
     expect(s.results['b']!.error, isNot(contains('secret')));
   });
 
-  test('④ 두 호출이 동시에 와도 직렬로 실행(실행 중 최대 1)', () async {
+  test('④ 두 호출이 동시에 와도 클레임은 즉시, 실행은 직렬(실행 중 최대 1)', () async {
     final s = FakeStore();
     var running = 0, maxRunning = 0;
     final w = McpWorker(fetchPending: s.fetchPending, claim: s.claim, complete: s.complete, execute: (_, _) async {
@@ -83,7 +83,9 @@ void main() {
     });
     await Future.wait([w.handle(s.call('a')), w.handle(s.call('b'))]);
     expect(maxRunning, 1);
-    expect(s.log, ['claim:a', 'complete:a', 'claim:b', 'complete:b']);
+    // b의 클레임이 a 실행 완료 전에 일어나야 웹이 10초 안에 클레임을 본다
+    expect(s.log.indexOf('claim:b'), lessThan(s.log.indexOf('complete:a')));
+    expect(s.log.indexOf('complete:a'), lessThan(s.log.indexOf('complete:b')));
   });
 
   test('⑤ 안전 폴링: fetchPending이 준 pending을 처리한다', () async {
@@ -101,7 +103,8 @@ void main() {
     final s = FakeStore();
     final w = McpWorker(fetchPending: s.fetchPending, claim: s.claim, complete: s.complete, timeout: const Duration(milliseconds: 20), execute: (_, _) => Completer<String>().future);
     await w.handle(s.call('a'));
-    expect(s.results['a'], (text: null, error: '앱 실행 시간 초과'));
+    expect(s.results['a'], (text: null, error: mcpTimeoutMessage));
+    expect(mcpTimeoutMessage, startsWith('앱 실행 시간 초과 — 쓰기 작업이었다면 이미 반영됐을 수 있으니 다시 실행하지 말고'));
   });
 
   test('⑦ 512KB 넘는 결과는 앞부분 + …(truncated), JSON이면 {"truncated":true,"text":…}', () async {

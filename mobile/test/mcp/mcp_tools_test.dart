@@ -422,7 +422,8 @@ void main() {
       final want = jsonDecode(File('$_fx/captured/read_mail-attach.json').readAsStringSync())['toolResult'];
       hasKeys(r, want);
       hasKeys((r['attachments'] as List).first, (want['attachments'] as List).first);
-      expect([r['muid'], r['remoteResourceCount'], r['inlineImages'], r['cc']], ['14858746', 1, [], '김문환 <user@example.com>,김대훈<user@example.com>']);
+      expect([r['muid'], r['remoteResourceCount'], r['inlineImages']], ['14858746', 1, []]);
+      expect(r['cc'], matches(RegExp(r'^[^,<]+ ?<user@example\.com>,[^,<]+<user@example\.com>$')), reason: '참조 2명(표시 이름 <주소>) — 이름 값은 픽스처 가림에 따라 바뀐다');
       expect((r['attachments'] as List).first['fileSizeApprox'], 298182);
       expect(r['attachments'].first['fileSn'], want['attachments'].first['fileSn']);
       expect(gw.calls['/mail/mail002A01']!.single, {'uid': '14858746'});
@@ -561,6 +562,29 @@ void main() {
       expect(gw.calls['/gw/APIHandler/gw018A02']!.first['body']['pageSize'], 3);
       final one = await run(gw, 'search', {'query': '회의', 'scope': '결재', 'from': '2026-10-01'});
       expect([(one['results'] as List).single['module'], one['period']], ['전자결재', {'from': '2026-10-01', 'to': ''}]);
+    });
+  });
+
+  group('오류 문장(M1·M3)', () {
+    McpTools withClient(MockClient c) => McpTools(gw: GwApi(GwClient(httpClient: c, creds: () => testCreds)), appSupportDir: () => Directory.systemTemp.path);
+    Future<String> err(McpTools t, String tool) async {
+      try {
+        await t.execute(tool, const {});
+      } on McpToolError catch (e) {
+        return e.message;
+      }
+      fail('McpToolError가 나야 함');
+    }
+
+    test('연결 끊김(status 0): 쓰기 도구엔 "이미 반영됐을 수 있음", 읽기 도구엔 없음', () async {
+      final t = withClient(MockClient((_) async => throw http.ClientException('down')));
+      expect(await err(t, 'attendance_clock_in'), allOf(startsWith('그룹웨어에 연결할 수 없습니다'), endsWith(' — 요청이 이미 반영됐을 수 있습니다. 다시 실행하기 전에 목록으로 확인하세요.')));
+      expect(await err(t, 'whoami'), isNot(contains('반영됐을 수')));
+    });
+
+    test('세션 만료(401)는 다시 연결할 곳(앱 더보기 > 아마란스)까지 안내', () async {
+      final t = withClient(MockClient((_) async => http.Response('{"resultCode":140}', 401)));
+      expect(await err(t, 'whoami'), '아마란스 로그인이 만료되었습니다. 앱 더보기 > 아마란스에서 다시 연결해 주세요.');
     });
   });
 }

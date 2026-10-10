@@ -186,6 +186,13 @@ class McpTools {
   final ApprovalSchemas schemas;
   final String Function() _downloadsDir;
 
+  /// 아마란스에 쓰는 도구(send_mail·send_mail_from_draft는 자체 "보낸편지함 확인" 문장으로 먼저 바꾼다).
+  static const _writeTools = {
+    'reserve_resource', 'update_reservation', 'cancel_reservation', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event',
+    'attendance_clock_in', 'attendance_clock_out', 'save_mail_draft', 'send_mail', 'send_mail_from_draft', 'mark_mail_unread', 'delete_mail',
+    'save_approval_line', 'delete_approval_line',
+  };
+
   GwApi get _gw => gw ?? (throw McpToolError(_noGw));
 
   /// 결과는 JSON 문자열. 실패는 사람이 읽을 McpToolError 한 문장(서버 resultMsg 또는 원인 종류만 — 토큰·원문 예외는 싣지 않는다).
@@ -194,8 +201,11 @@ class McpTools {
       return jsonEncode(await _run(tool, args));
     } on McpToolError {
       rethrow;
+    } on GwUnauthorized {
+      throw McpToolError('아마란스 로그인이 만료되었습니다. 앱 더보기 > 아마란스에서 다시 연결해 주세요.');
     } on GwException catch (e) {
-      throw McpToolError(e.message);
+      // 응답 직전에 끊긴 쓰기는 이미 반영됐을 수 있다 — 재시도로 중복이 생기지 않게
+      throw McpToolError(e.status == 0 && _writeTools.contains(tool) ? '${e.message} — 요청이 이미 반영됐을 수 있습니다. 다시 실행하기 전에 목록으로 확인하세요.' : e.message);
     } on FormatException {
       throw McpToolError('입력 형식이 올바르지 않습니다.'); // 원문(입력값이 섞일 수 있음)은 싣지 않는다
     } catch (e) {
@@ -887,7 +897,7 @@ class McpTools {
     final g = _gw, muid = _req(x, 'muid'), sn = _req(x, 'file_sn'), out = _req(x, 'out_path');
     final auth = await g.mailAuthKey(muid);
     final info = await g.mailAttachInfo(auth, sn);
-    return {..._save(out, await g.mailAttachBytes(auth, asStr(info['fileId']))), 'serverFileName': asStr(info['fileName'])};
+    return {...await _save(out, await g.mailAttachBytes(auth, asStr(info['fileId']))), 'serverFileName': asStr(info['fileName'])};
   }
 
   /// 본문 이미지 — 상대경로·그룹웨어 호스트만 서명 GET. 외부 호스트·data: 는 거절.
@@ -898,16 +908,16 @@ class McpTools {
       throw McpToolError('외부 호스트 이미지는 받지 않습니다. 그룹웨어($gwHost) 경로만 됩니다.');
     }
     final path = u.path.startsWith('/') ? u.path : '/${u.path}';
-    return _save(out, await g.client.getBytes(u.hasQuery ? '$path?${u.query}' : path));
+    return await _save(out, await g.client.getBytes(u.hasQuery ? '$path?${u.query}' : path));
   }
 
   /// out_path가 Downloads 폴더 아래면 거기 쓰고, 밖이거나(macOS 샌드박스와 같은 경계 — Windows도 동일) 쓰기에 실패하면
   /// Downloads/<이름>에 쓰고 savedPath로 알린다. 폴백 자리에 같은 이름이 있으면 `이름 (1).ext`부터 빈 이름을 찾는다.
-  Map<String, dynamic> _save(String out, List<int> bytes) {
-    String write(String p) {
+  Future<Map<String, dynamic>> _save(String out, List<int> bytes) async {
+    Future<String> write(String p) async {
       final f = File(p);
-      f.parent.createSync(recursive: true);
-      f.writeAsBytesSync(bytes, flush: true);
+      await f.parent.create(recursive: true);
+      await f.writeAsBytes(bytes, flush: true);
       return p;
     }
 
@@ -915,16 +925,16 @@ class McpTools {
     String saved;
     try {
       if (!_under(out, downloads)) throw const FileSystemException();
-      saved = write(out);
+      saved = await write(out);
     } on FileSystemException {
       final name = _base(out).isEmpty ? 'download' : _base(out), dot = name.lastIndexOf('.');
       final stem = dot > 0 ? name.substring(0, dot) : name, ext = dot > 0 ? name.substring(dot) : '';
       var target = '$downloads${Platform.pathSeparator}$name';
-      for (var i = 1; File(target).existsSync() || Directory(target).existsSync(); i++) {
+      for (var i = 1; await File(target).exists() || await Directory(target).exists(); i++) {
         target = '$downloads${Platform.pathSeparator}$stem ($i)$ext';
       }
       try {
-        saved = write(target);
+        saved = await write(target);
       } on FileSystemException {
         throw McpToolError('파일을 저장하지 못했습니다. out_path를 Downloads 폴더 아래로 지정해 다시 시도하세요.');
       }
@@ -1008,7 +1018,7 @@ class McpTools {
     final id = _req(x, 'file_id'), out = _req(x, 'out_path');
     if (id.contains(',')) throw McpToolError('file_id는 1건만 받습니다(여러 개를 콤마로 주면 서버가 zip으로 묶어 보냅니다). 하나씩 호출하세요.');
     final (bytes, name) = await _gw.approvalAttachFile(id);
-    return {..._save(out, bytes), 'serverFileName': name};
+    return {...await _save(out, bytes), 'serverFileName': name};
   }
 
   Map<String, dynamic> _line(Map r) => {
@@ -1170,7 +1180,7 @@ class McpTools {
     final sn = a.str(x, 'file_sn').isEmpty ? 0 : a.intOf(x, 'file_sn');
     if (sn == null || sn < 0) throw McpToolError('file_sn은 list_notice_attachments의 fileSn(0부터 시작하는 숫자)입니다.');
     final (bytes, name) = await _gw.noticeAttachFile(art, uid, sn);
-    return {..._save(out, bytes), 'serverFileName': name};
+    return {...await _save(out, bytes), 'serverFileName': name};
   }
 
   Future<Map<String, dynamic>> _search(Map x) async {

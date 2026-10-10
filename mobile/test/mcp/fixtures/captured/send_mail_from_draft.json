@@ -12,7 +12,7 @@
   "note": "발송 후 임시보관함 원본을 삭제했다(mail002A07). 이 삭제는 휴지통을 거치지 않는 것으로 보인다",
   "sent": true,
   "subject": "x",
-  "to": "강승억 <user@example.com>"
+  "to": "x <user@example.com>"
  },
  "isError": false,
  "calls": [
@@ -177,7 +177,7 @@
        "mboxSeq": 25498,
        "toInAddrYN": "x",
        "context": "x",
-       "from": "강승억 <user@example.com>",
+       "from": "x <user@example.com>",
        "attach": true,
        "senderCountry": "",
        "senderIp": "",
@@ -195,7 +195,7 @@
        "muid": 14874412,
        "size": 10168,
        "toAddrEmail": "x",
-       "to": "강승억 <user@example.com>",
+       "to": "x <user@example.com>",
        "rfc822date": "18:52",
        "tooltipDate": "2026-10-10 18:52:44"
       },
@@ -207,7 +207,7 @@
        "mboxSeq": 25498,
        "toInAddrYN": "x",
        "context": "x",
-       "from": "강승억 <user@example.com>",
+       "from": "x <user@example.com>",
        "attach": false,
        "senderCountry": "",
        "senderIp": "",
@@ -237,7 +237,7 @@
        "mboxSeq": 25498,
        "toInAddrYN": "x",
        "context": "x",
-       "from": "강승억 <user@example.com>",
+       "from": "x <user@example.com>",
        "attach": false,
        "senderCountry": "",
        "senderIp": "",
