@@ -25,6 +25,6 @@ it("filters the table of contents and sections together, and resets an empty res
 it("shows the Windows SmartScreen guide images with captions in the desktop install section", () => {
   render(<ManualPage />);
   expect(screen.getByAltText(/Windows의 PC 보호 창/)).toHaveAttribute("src", expect.stringContaining("windows-smartscreen-1"));
-  expect(screen.getByText(/‘실행’을 누릅니다/)).toBeInTheDocument();
+  expect(screen.getByText(/앱 이름이 INNOGRID 설치 파일인지 확인하고 ‘실행’을 누릅니다/)).toBeInTheDocument();
   expect(searchManual("SmartScreen").map((s) => s.id)).toContain("desktop-install");
 });

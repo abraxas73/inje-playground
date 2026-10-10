@@ -216,6 +216,8 @@ Graph 메모: 검색 hit는 `fields`에 file·folder를 넣어도 폴더에 `fol
 
 **Windows 설치 경고(SmartScreen)**: `windows-app.yml`의 설치 파일은 코드 서명이 없어 처음 실행할 때 "Windows의 PC 보호" 창이 뜬다(추가 정보 → 실행; `PrivilegesRequired=lowest`라 UAC 창은 없음). 브라우저도 다운로드 때 경고할 수 있다. 사용자 안내는 웹 매뉴얼 "데스크톱 앱 설치·다운로드"(재현 화면 `frontend/public/manual/windows-smartscreen-{1,2}.png` — 실제 캡처로 바꿔도 됨)와 /apps 카드에 있다. 경고를 없애려면 `windows-signed.yml`(Azure Trusted Signing, 변수 `SIGNING_ACCOUNT`·`SIGNING_PROFILE` 등 필요)로 서명 배포로 바꾼다.
 
+**웹 홈 설치 안내 카드(2026-10-10)**: 브라우저는 설치된 앱을 알 수 없으므로(표준 `getInstalledRelatedApps()`는 스토어·PWA 짝만, `innogrid://` 스킴 호출은 확인 창·오탐·앱 실행 부작용) 서버 신호를 쓴다 — 앱 로그인 `POST /api/mobile/login`이 `login_history`에 남기는 User-Agent `InnogridApp/<ver> (macos|windows) InnogridBuild/<n>`. `GET /api/desktop/presence`(`lib/desktop/presence.ts`)가 내 계정의 플랫폼별 최근 앱 로그인 시각을 돌려주고, 홈 `components/home/DesktopAppCard`는 데스크톱 브라우저(모바일·iPad 제외)에서 현재 OS 값이 null이면 맨 위에 설치를 권한다(/apps·/manual#desktop-install 링크, Windows는 SmartScreen 한 줄). ‘다음에’는 localStorage `desktop_app_card_dismissed_at`로 그 브라우저에서 30일 숨김. "설치됨"이 아니라 "로그인한 적 있음"이라 앱을 지웠거나 다른 PC면 카드가 안 뜰 수 있다 — 의도된 한계.
+
 ## Claude 커넥터(아마란스 MCP) (2026-10-10)
 
 목적: inno-creed 바이너리를 대체한다. claude.ai 조직 커넥터 **"INNOGRID 아마란스"**(URL `https://innocrew.innogrid.com/api/mcp`)로 Claude(웹·Desktop·모바일·Claude Code)가 각자 아마란스(메일·일정·결재·조직도 등)를 부른다. 스펙 `docs/superpowers/specs/2026-10-10-desktop-mcp-connector-design.md`.

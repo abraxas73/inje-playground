@@ -5,6 +5,7 @@ import JiraWorkCard from "@/components/home/JiraWorkCard";
 import ConfluenceMentionsCard from "@/components/home/ConfluenceMentionsCard";
 import SharepointDocsCard from "@/components/home/SharepointDocsCard";
 import DailyGreeting from "@/components/home/DailyGreeting";
+import DesktopAppCard from "@/components/home/DesktopAppCard";
 import TeamsReplyCard from "@/components/home/TeamsReplyCard";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Database, Dice5, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Presentation, Newspaper, SquareTerminal, MessagesSquare, TrendingUp, MessageCircle, Smartphone, BookText, FolderOpen } from "lucide-react";
@@ -137,6 +138,7 @@ export default function HomePage() {
       </div>
 
       <DailyGreeting />
+      <DesktopAppCard />
       <TeamsReplyCard />
       <JiraWorkCard />
       <ConfluenceMentionsCard />

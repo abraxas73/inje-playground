@@ -55,7 +55,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 
 ### App Router Pages (`frontend/src/app/`)
 - `/admin/page-permissions` — 사용자별 페이지 접근 권한. `lib/page-access.ts` 공용 카탈로그로 사용자 메뉴 2단계 그룹·홈 카드·페이지/API 검사를 통합. 기존 역할 기본값 유지, admin 전체 허용, RLS와 버전 검사 RPC. 런북 `docs/page-access.md`.
-- `/` — Home with feature cards linking to sub-pages
+- `/` — Home with feature cards linking to sub-pages. 데스크톱 브라우저(macOS·Windows)에서 이 계정으로 그 OS의 데스크톱 앱에 로그인한 기록(`login_history` User-Agent `InnogridApp/… (macos|windows)`)이 없으면 맨 위에 설치 안내 카드(`components/home/DesktopAppCard`, `GET /api/desktop/presence`; ‘다음에’는 localStorage 30일)
 - `/ladder` — Ladder game: participants + results matched via animated canvas ladder
 - `/team` — Team divider: random team assignment with card holder distribution and min/max constraints
 - `/food` — Restaurant/cafe finder with Kakao Maps integration + PAYCO 식권 가맹점 검색
@@ -69,7 +69,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/sharepoint` — SharePoint 문서(user 이상): 즐겨찾기(링크 붙여 넣기·★)·자주 쓰는/나와 공유/주변에서 많이 보는 문서·검색. 본인 Microsoft 연결 권한으로만. 홈 카드 `SharepointDocsCard`
 - `/teams/chat` — 내가 속한 Teams 그룹·1:1 채팅을 목록에서 골라 우리 화면에서 읽고 보내기(본인 Microsoft 위임 토큰, 5초 폴링). 런북 `docs/teams-integration.md` §3-D
 - `/apps` — 모바일 앱 설치 안내(user 이상): iPhone TestFlight 공개 링크, Android APK 받기(비공개 버킷 `mobile`의 600초 서명 URL, 누를 때 새로 발급), 현재 버전·릴리스 노트. 데이터는 settings `mobile_release`(릴리스 스크립트 `mobile/scripts/release-mobile.sh`가 씀). 런북 `docs/mobile-app.md` §배포
-- `/ppt` — PPT 만들기: 원고(텍스트·파일·URL)·프롬프트(모델·템플릿 선택) → 이노그리드 표준 템플릿 PPTX(ppt-service). 목록은 내 덱 / **공유된 덱**(`?all=1` — 누구나, share_enabled인 덱만, 남의 덱은 공유 뷰로 열고 삭제 불가; 전체 덱은 관리자 `/admin/ppt`). 소유자 칸은 이메일 대신 이름(팀)(`lib/ppt/owner-label.ts`). URL 원고는 서버가 본문을 가져와 저장(`lib/ppt/web-source.ts`, SSRF 가드는 알림 웹훅과 공유). /ppt/[id] 버전·구성 보기·피드백 재생성·공유·Teams·SharePoint, /ppt/s/[token] 로그인 필요 공유 뷰. 관리자는 `/admin/settings`에서 LLM 규칙(settings `ppt_llm_rules`)과 템플릿 업로드(`ppt_templates`, 샘플 덱 빌드로 검증)를 관리. 같은 페이지에 모바일 앱 홈 브리핑 Claude 스위치(settings `mobile_briefing_llm`)와 모바일 앱 비서(이노봇) 켜기·하루 상한(settings `assistant_enabled`·`assistant_daily_turns`)도 있다. 런북 `docs/ppt-maker.md`
+- `/ppt` — PPT 만들기: 원고(텍스트·파일·URL)·프롬프트(모델·템플릿 선택) → 이노그리드 표준 템플릿 PPTX(ppt-service). 목록은 내 덱 / **공유된 덱**(`?all=1` — 누구나, share_enabled인 덱만, 남의 덱은 공유 뷰로 열고 삭제 불가; 전체 덱은 관리자 `/admin/ppt` — 소유자·**공유 여부** 열 포함). 소유자 칸은 이메일 대신 이름(팀)(`lib/ppt/owner-label.ts`). URL 원고는 서버가 본문을 가져와 저장(`lib/ppt/web-source.ts`, SSRF 가드는 알림 웹훅과 공유). /ppt/[id] 버전·구성 보기·피드백 재생성·공유·Teams·SharePoint, /ppt/s/[token] 로그인 필요 공유 뷰. 관리자는 `/admin/settings`에서 LLM 규칙(settings `ppt_llm_rules`)과 템플릿 업로드(`ppt_templates`, 샘플 덱 빌드로 검증)를 관리. 같은 페이지에 모바일 앱 홈 브리핑 Claude 스위치(settings `mobile_briefing_llm`)와 모바일 앱 비서(이노봇) 켜기·하루 상한(settings `assistant_enabled`·`assistant_daily_turns`)도 있다. 런북 `docs/ppt-maker.md`
 
 ### API Routes (`frontend/src/app/api/`)
 - `GET /api/dooray/members?projectId=X` — Proxies Dooray API to fetch project members
@@ -97,6 +97,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `GET /api/admin/directory`, `POST /api/admin/directory/sync` — 사내 조직도 명부 조회/동기화(동기화는 관리자 세션 또는 수집 토큰; 로컬 `frontend/scripts/company-directory-sync.py`가 inno-creed MCP `find_person` 전사 명부를 밀어 넣음). 런북 `docs/company-directory.md`
 - `/api/ppt/uploads`(kind=template은 admin), `/api/ppt/decks[/[id]/(regenerate|versions/[no]/file|share|teams|sharepoint)]`, `/api/ppt/shared/[token][/file]`, `GET /api/admin/ppt/decks`(관리자 `/admin/ppt` 전체 덱 관리), `GET·POST /api/admin/ppt/templates`, `PATCH /api/admin/ppt/templates/[id]` — PPT 만들기(규칙 `.claude/rules/ppt-maker.md`)
 - `/api/mcp`(Streamable HTTP JSON-RPC, inno-creed 57개 중 56개 노출 — 본문 인라인 이미지 내려받기 1개는 실측 캡처 뒤 추가, `lib/mcp/protocol.ts` `WITHHELD_TOOLS`) · `/.well-known/oauth-protected-resource` · `/oauth/consent` · 크론 `/api/cron/mcp-purge` — claude.ai 조직 커넥터 "INNOGRID 아마란스"가 `mcp_calls` 중계로 데스크탑 앱의 아마란스를 부르는 Claude 커넥터(Supabase OAuth 2.1). 런북 `docs/mobile-app.md` §Claude 커넥터
+- `GET /api/desktop/presence` — 내 계정의 macOS·Windows 앱 최근 로그인 시각(홈 설치 안내 카드용, `lib/desktop/presence.ts`). `GET /api/desktop/release`·`/api/desktop/download/[platform]` — 데스크톱 앱 배포 정보·설치 파일
 - `GET /api/mobile/release` — 플랫폼별 최신 앱 버전·설치 링크(user 이상, 쿠키·Bearer; `lib/mobile/release.ts`). 웹 `/apps`와 앱 시작 시 업데이트 확인이 쓴다. `POST /api/mobile/release/sharepoint` — 최신 Android APK 사본을 SharePoint 폴더(settings `mobile_sharepoint_folder`)에 `innogrid-app-<X.Y.Z>.apk`로 올림(릴리스 스크립트가 `CRON_SECRET`+operator 관리자 이메일로, 또는 관리자 세션; 그 관리자의 Microsoft 연결 사용)
 - `POST /api/assistant/turn`, `POST /api/assistant/execute` — 모바일 비서 이노봇(user 이상): turn은 Claude 한 턴 중계(도구 스키마 포함, 무상태, settings `assistant_enabled`·`assistant_daily_turns`), execute는 Teams 서버 도구(teams_chats·teams_mentions·teams_send, `teams_chat` 페이지 권한). 런북 `docs/mobile-app.md` §비서
 - `POST /api/mobile/briefing` — 홈 '데일리 브리핑' 카드(user 이상, 제목 수준 payload ≤16KB → 서버가 다시 자름 → Claude Sonnet 5.5 2~3문장; settings `mobile_briefing_llm=off` 또는 `ANTHROPIC_API_KEY` 없음이면 `{enabled:false}`; 감사엔 건수만). `GET /api/teams/mentions?days=` — 홈 브리핑용 Teams 답장 대기(본인 위임 토큰, 그룹 멘션·1:1, 내가 답한 건 제외). 런북 `docs/mobile-app.md` §홈 브리핑
