@@ -73,7 +73,8 @@ export function mapDriveItem(raw: unknown): SharepointItem | null {
   const src = Object.keys(r).length ? { ...o, ...r } : o;
   const id = str(src.id), name = str(src.name), driveId = str(rec(src.parentReference).driveId);
   if (!id || !name || !driveId) return null;
-  const kind = src.folder ? "folder" : "file";
+  // 검색 hit에는 file·folder 파셋이 안 온다(fields를 줘도, 2026-10-10 실측) — 확장자 없는 이름은 폴더로 본다
+  const kind = src.folder ? "folder" : src.file ? "file" : extOf(name) ? "file" : "folder";
   const url = str(src.webUrl) || str(o.webUrl);
   return {
     id, driveId, name, url, kind, ext: kind === "file" ? extOf(name) : "",
@@ -117,11 +118,12 @@ export function searchBody(q: string, size: number) {
   // fields가 없으면 file·folder 파셋이 안 와서 폴더를 못 거른다(2026-10-10 실측)
   return { requests: [{ entityTypes: ["driveItem"], query: { queryString }, from: 0, size: Math.min(25, Math.max(1, size)), fields: ["id", "name", "webUrl", "parentReference", "lastModifiedDateTime", "lastModifiedBy", "file", "folder", "size"] }] };
 }
-/** 검색 응답 → 항목(폴더 제외) */
+/** 검색 응답 → 항목(폴더 포함 — 즐겨찾기에 넣을 수 있다, 파일이 먼저) */
 export function mapSearchResponse(j: unknown): SharepointItem[] {
   const hits: unknown[] = [];
   for (const v of (rec(j).value as unknown[]) ?? []) for (const c of (rec(v).hitsContainers as unknown[]) ?? []) hits.push(...(((rec(c).hits as unknown[]) ?? [])));
-  return dedupe(hits.map((h) => mapDriveItem(rec(h).resource))).filter((i) => i.kind === "file");
+  const items = dedupe(hits.map((h) => mapDriveItem(rec(h).resource)));
+  return [...items.filter((i) => i.kind === "file"), ...items.filter((i) => i.kind === "folder")];
 }
 
 export interface Favorite { driveId: string; id: string; name: string; url: string; container: string; kind: "file" | "folder"; addedAt: string }
