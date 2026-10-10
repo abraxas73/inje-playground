@@ -2,7 +2,7 @@
 
 import { DesktopDownloads } from "./DesktopDownloads";
 import { useCallback, useEffect, useState } from "react";
-import { Apple, Download, Loader2, Smartphone } from "lucide-react";
+import { Apple, Download, Loader2, Plug, Smartphone } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { REQUEST_STATUS, type AppRequest, type AppPlatform } from "@/lib/mobile/app-requests";
@@ -84,6 +84,22 @@ export function AppsPageView({ navigate = (url: string) => window.location.assig
         <p className="text-sm text-muted-foreground">이노크루 앱을 Mac, Windows PC 또는 휴대폰에 설치하세요. 사내 구성원용 앱입니다.</p>
       </div>
       <DesktopDownloads />
+      <Card id="mcp" className="scroll-mt-20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Plug className="h-5 w-5" /> Claude 커넥터</CardTitle>
+          <CardDescription>
+            claude.ai·Claude Desktop·Claude Code에서 <b>INNOGRID 아마란스</b> 커넥터를 연결하면 아마란스(메일·결재·일정·회의실·근태·게시판·조직도) 도구를 Claude가 쓸 수 있습니다. 실제 실행은 <b>이 PC의 INNOGRID 데스크탑 앱</b>이 맡습니다.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <ol className="list-decimal space-y-1 pl-5 text-sm">
+            <li>위 데스크탑 앱을 설치하고 로그인한 뒤 <b>더보기 &gt; 아마란스</b>에서 연결합니다.</li>
+            <li>claude.ai <b>맞춤 설정 &gt; 커넥터 &gt; 내 항목</b>에서 &quot;INNOGRID 아마란스&quot; <b>연결</b>을 누르고 INNOGRID 계정으로 로그인·허용합니다.</li>
+            <li>Claude에게 요청합니다(예: &quot;내 오늘 일정 알려줘&quot;). 앱이 꺼져 있으면 Claude가 &quot;데스크탑 앱이 실행 중이 아닙니다&quot;라고 알려 줍니다.</li>
+          </ol>
+          <p className="text-sm text-muted-foreground">쓰기 도구(메일 발송·결재 상신 등)도 열려 있으니 Claude의 도구 승인 프롬프트를 확인하고 쓰세요.</p>
+        </CardContent>
+      </Card>
       <h2 className="text-xl font-semibold">모바일 앱</h2>
       <p className="text-sm text-muted-foreground">iPhone·Android는 먼저 설정에서 앱 사용을 신청하고 초대를 수락해 주세요.</p>
       {error && (

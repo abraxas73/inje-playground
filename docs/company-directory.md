@@ -5,6 +5,7 @@
 ## 1. 최초 설정 (1회)
 1. Supabase SQL Editor에서 `docs/sql/2026-08-29-company-directory.sql` 실행 → `company_directory`, `company_directory_sync` + admin 읽기 RLS.
 2. 동기화를 실행할 PC에 `~/bin/inno-creed`가 있고 그룹웨어 크레덴셜을 스스로 취득할 수 있어야 한다(실행 시 stderr에 `크레덴셜 취득 완료`). 다른 경로면 `INNO_CREED=/path/to/inno-creed`.
+   - **커넥터 경로(선택)**: inno-creed 대신 앱의 MCP 끝점을 쓰려면 `INNO_MCP_URL=https://innocrew.innogrid.com/api/mcp`와 `INNO_MCP_TOKEN=<운영자 Supabase 세션 토큰>`을 함께 지정한다. 스크립트가 HTTP JSON-RPC로 `tools/call find_person {no_limit:true}`를 보내고, 실제 실행은 **운영자 PC에서 실행 중인 INNOGRID 데스크탑 앱**(더보기 > 아마란스 연결)이 맡으므로 앱이 켜져 있어야 한다. 세션 토큰은 만료되므로 무인 cron에는 기본 stdio 경로가 맞다. `INNO_MCP_URL`이 없으면 기존 stdio 경로 그대로.
 3. 토큰: `CLAUDE_OTEL_INGEST_TOKEN`(환경변수 또는 `frontend/.env.local`, Vercel과 동일 값) — 동기화 API가 관리자 세션 대신 이 토큰도 받는다.
 
 ## 2. 동기화 (수동, 1분)

@@ -5,8 +5,10 @@
   ./frontend/scripts/company-directory-sync.py            # 전사 명부(find_person 'innogrid') → 프로덕션 업로드
   ./frontend/scripts/company-directory-sync.py --dry-run  # 업로드 없이 통계만
   BASE_URL=http://localhost:3003 ./frontend/scripts/company-directory-sync.py
+  INNO_MCP_URL=https://innocrew.innogrid.com/api/mcp INNO_MCP_TOKEN=<운영자 Supabase 세션 토큰> ./frontend/scripts/company-directory-sync.py
 
-전제: ~/bin/inno-creed(또는 INNO_CREED 환경변수 경로)가 그룹웨어 로그인 크레덴셜을 스스로 취득할 수 있는 이 PC.
+전제(기본, stdio): ~/bin/inno-creed(또는 INNO_CREED 환경변수 경로)가 그룹웨어 로그인 크레덴셜을 스스로 취득할 수 있는 이 PC.
+전제(커넥터, INNO_MCP_URL 설정 시): HTTP JSON-RPC로 /api/mcp 호출 — 운영자 PC에서 INNOGRID 데스크탑 앱이 실행·아마란스 연결 중이어야 한다.
 토큰: CLAUDE_OTEL_INGEST_TOKEN 환경변수 또는 frontend/.env.local (Vercel과 동일 값).
 종료 코드: 0 성공 / 1 설정 오류 / 2 MCP 오류 / 3 서버 응답 오류
 Python 3.9+ 표준 라이브러리만 사용.
@@ -25,6 +27,8 @@ ENV_LOCAL = os.path.join(HERE, "..", ".env.local")
 MCP_BIN = os.environ.get("INNO_CREED", os.path.expanduser("~/bin/inno-creed"))
 BASE_URL = os.environ.get("BASE_URL", "https://inje-playground.vercel.app").rstrip("/")
 QUERY = os.environ.get("DIRECTORY_QUERY", "innogrid")  # find_person 광역 검색어(이메일 도메인) → 전사 명부
+MCP_URL = os.environ.get("INNO_MCP_URL")  # 설정 시 stdio 대신 커넥터(HTTP JSON-RPC)
+MCP_TOKEN = os.environ.get("INNO_MCP_TOKEN")
 DRY_RUN = "--dry-run" in sys.argv
 
 
@@ -101,25 +105,59 @@ class Mcp:
             pass
 
 
+def http_tool(name, arguments, timeout=120):
+    """커넥터 경로: /api/mcp에 tools/call 한 번(무상태 서버라 initialize 생략)."""
+    body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": arguments}}).encode("utf-8")
+    req = urllib.request.Request(MCP_URL, data=body, method="POST", headers={
+        "Authorization": "Bearer " + MCP_TOKEN, "Content-Type": "application/json", "Accept": "application/json, text/event-stream"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            msg = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise RuntimeError("HTTP %d: %s" % (e.code, e.read().decode("utf-8", "replace")[:300]))
+    except urllib.error.URLError as e:
+        raise RuntimeError("요청 실패: %s" % e)
+    if "error" in msg:
+        raise RuntimeError("MCP 오류: %s" % json.dumps(msg["error"], ensure_ascii=False)[:300])
+    res = msg["result"]
+    text = "".join(c.get("text", "") for c in res.get("content", []) if c.get("type") == "text")
+    if res.get("isError"):
+        raise RuntimeError("도구 %s 실패: %s" % (name, text[:300]))
+    return json.loads(text)
+
+
+def find_people():
+    """find_person 전사 명부 — INNO_MCP_URL이 있으면 커넥터, 없으면 inno-creed stdio."""
+    args = {"query": QUERY, "no_limit": True}  # 2026-09-16 inno-creed부터 기본 limit=20(truncated) — 전사 명부는 상한 없이
+    if MCP_URL:
+        print("커넥터(%s) → find_person('%s')" % (MCP_URL, QUERY))
+        return http_tool("find_person", args)
+    print("inno-creed(%s) 시작 → find_person('%s')" % (MCP_BIN, QUERY))
+    mcp = Mcp(MCP_BIN)
+    try:
+        mcp.initialize()
+        return mcp.tool("find_person", args, timeout=120)
+    finally:
+        mcp.close()
+
+
 def main():
-    if not os.path.exists(MCP_BIN):
-        print("inno-creed 바이너리가 없습니다: %s (INNO_CREED 환경변수로 지정)" % MCP_BIN)
+    if MCP_URL and not MCP_TOKEN:
+        print("INNO_MCP_URL을 쓰려면 INNO_MCP_TOKEN(운영자 Supabase 세션 토큰)이 필요합니다.")
+        return 1
+    if not MCP_URL and not os.path.exists(MCP_BIN):
+        print("inno-creed 바이너리가 없습니다: %s (INNO_CREED 환경변수로 지정, 또는 INNO_MCP_URL 커넥터 경로)" % MCP_BIN)
         return 1
     token = read_token()
     if not token and not DRY_RUN:
         print("CLAUDE_OTEL_INGEST_TOKEN이 없습니다(환경변수 또는 frontend/.env.local).")
         return 1
 
-    print("inno-creed(%s) 시작 → find_person('%s')" % (MCP_BIN, QUERY))
-    mcp = Mcp(MCP_BIN)
     try:
-        mcp.initialize()
-        result = mcp.tool("find_person", {"query": QUERY, "no_limit": True}, timeout=120)  # 2026-09-16 inno-creed부터 기본 limit=20(truncated) — 전사 명부는 상한 없이
+        result = find_people()
     except (RuntimeError, ValueError) as e:
         print("MCP 실패:", e)
-        mcp.close()
         return 2
-    mcp.close()
 
     people = result.get("people") or []
     roster = result.get("rosterSize")

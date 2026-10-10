@@ -81,7 +81,7 @@ Supabase 대시보드 Authentication > OAuth Server에서 켜고 Authorization p
 - **메서드**: `initialize`(요청의 `protocolVersion`을 그대로 되돌림, `capabilities:{tools:{}}`, `serverInfo:{name:"innogrid-app", version:<앱 릴리스와 무관한 끝점 버전>}`), `notifications/initialized` → 202 빈 응답, `ping` → `{}`, `tools/list` → `tools.json` 57개(설명 속 `~/.config/inno-creed/...` 문구는 "앱 설정 폴더"로 바꾼 사본), `tools/call` → §7 중계. 그 외 → -32601. 본문 상한 1MB(-32600), JSON 오류 -32700.
 - **인증**: §5. 사용자 역할 user 이상. 분당 60건/사용자(최근 1분 `mcp_calls` 건수) 초과 → `isError` "잠시 후 다시".
 - **결과 형식**: 성공 `{"content":[{"type":"text","text":<JSON 문자열>}]}`; 도구 실패 `{"content":[{"type":"text","text":"<오류 문장>"}],"isError":true}`. inno-creed처럼 성공 JSON 안의 `ok:false`(반영 미확인) 패턴은 그대로 둔다.
-- **감사**: `logAudit(category:"mcp", action:"tool.call", detail:{tool, ms, ok})` — 인자·결과·토큰 금지.
+- **감사**: `logAudit(category:"mcp", action:"mcp.tool", detail:{tool, ms, ok})` — 인자·결과·토큰 금지.
 
 ## 7. 중계(웹 ↔ 앱)
 
