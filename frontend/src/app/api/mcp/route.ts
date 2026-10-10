@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
-import { handleStateless, parseJsonRpc, rpcError, wwwAuthenticate } from "@/lib/mcp/protocol";
+import { handleStateless, parseJsonRpc, rpcError, rpcResult, wwwAuthenticate } from "@/lib/mcp/protocol";
+import { relayToolCall } from "@/lib/mcp/relay";
+import { logAudit } from "@/lib/audit";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
@@ -26,8 +28,16 @@ export async function POST(request: NextRequest) {
   if ("error" in req) return json(rpcError(null, req.error.code, req.error.message));
   const out = handleStateless(req);
   if (out.kind === "accepted") return new NextResponse(null, { status: 202, headers: NO_STORE });
-  // Task 3에서 mcp_calls 중계로 바꾼다.
-  if (out.kind === "call") return json(rpcError(out.id, -32603, "중계 미구현"));
+  if (out.kind === "call") {
+    // 도구 실패(앱 미실행·시간 초과 포함)는 JSON-RPC 오류가 아니라 isError 결과다.
+    const started = Date.now();
+    const result = await relayToolCall({ admin: auth.admin }, auth.userId, out.name, out.args);
+    await logAudit(auth.admin, request, {
+      userId: auth.userId, action: "mcp.tool", category: "mcp",
+      detail: { tool: out.name, ms: Date.now() - started, ok: !result.isError }, // 인자·결과는 남기지 않는다
+    });
+    return json(rpcResult(out.id, result));
+  }
   return json(out.body);
 }
 

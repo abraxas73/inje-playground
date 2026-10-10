@@ -7,6 +7,9 @@ vi.mock("@/lib/rfp/require-user", () => ({
     ? { ok: true, userId: "u1", role: "user", admin: {} }
     : { ok: false, response: NextResponse.json({ error: "인증이 필요합니다." }, { status: m.status }) },
 }));
+const relay = vi.hoisted(() => ({ fn: vi.fn(), audit: vi.fn() }));
+vi.mock("@/lib/mcp/relay", () => ({ relayToolCall: relay.fn }));
+vi.mock("@/lib/audit", () => ({ logAudit: relay.audit }));
 import { DELETE, GET, POST } from "@/app/api/mcp/route";
 import { GET as metadata } from "@/app/.well-known/oauth-protected-resource/route";
 import { GET as metadataMcp } from "@/app/.well-known/oauth-protected-resource/api/mcp/route";
@@ -44,9 +47,14 @@ it("returns 202 with an empty body for notifications", async () => {
   expect(await r.text()).toBe("");
 });
 
-it("leaves tools/call unimplemented for now", async () => {
-  const r = await post(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "approval_counts" } }));
-  expect(await r.json()).toMatchObject({ id: 2, error: { code: -32603 } });
+it("relays tools/call and returns tool errors as results, auditing only tool/ms/ok", async () => {
+  relay.fn.mockResolvedValueOnce({ content: [{ type: "text", text: "앱 꺼짐" }], isError: true });
+  const r = await post(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "approval_counts", arguments: { a: 1 } } }));
+  expect(await r.json()).toEqual({ jsonrpc: "2.0", id: 2, result: { content: [{ type: "text", text: "앱 꺼짐" }], isError: true } });
+  expect(relay.fn).toHaveBeenCalledWith({ admin: {} }, "u1", "approval_counts", { a: 1 });
+  expect(relay.audit).toHaveBeenCalledWith({}, expect.anything(), {
+    userId: "u1", action: "mcp.tool", category: "mcp", detail: { tool: "approval_counts", ms: expect.any(Number), ok: false },
+  });
 });
 
 it("405s GET and 200s DELETE", async () => {
