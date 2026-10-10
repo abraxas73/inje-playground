@@ -230,6 +230,8 @@ Graph 메모: 검색 hit는 `fields`에 file·folder를 넣어도 폴더에 `fol
 ### 도구
 inno-creed 2.2.0과 같은 57개 이름·스키마(`frontend/src/lib/mcp/tools.json`). 응답 형식은 `mobile/test/mcp/fixtures/expected`와 일치해야 한다. 실측 캡처를 못 한 도구(현재 `submit_approval`·`cancel_approval`·`delete_temp_approval` — 상신은 타인에게 알림이 가서 사용자 승인 뒤에만 캡처 — 와 `download_body_image` — 인라인 이미지 메일이 없어 미실측, 앱 구현은 있음)는 `frontend/src/lib/mcp/protocol.ts`의 `WITHHELD_TOOLS`에 두어 `tools/list`에서 빼고 `tools/call`도 -32602로 거부한다. 캡처·구현이 끝나면 그 집합에서 지우면 된다.
 
+**파일 경계(macOS·Windows 공통)**: 내려받기 도구의 `out_path`가 `~/Downloads`(Windows `%USERPROFILE%\Downloads`) 밖이면 쓰지 않고 `~/Downloads/<파일명>`으로 저장해 `savedPath`로 알린다(같은 이름이 있으면 `이름 (1).ext`). 첨부 업로드의 로컬 경로도 Downloads 아래만 읽는다(밖이면 "Downloads 폴더에 두고 다시"로 거절). macOS는 샌드박스가 같은 경계를 강제하고, Windows는 앱이 같은 규칙을 적용한다 — Claude가 유도한 임의 파일 읽기·쓰기를 막기 위한 것. `send_mail`에 `attachments`를 주면 거절한다(미실측·되돌릴 수 없음): 첨부 메일은 `save_mail_draft`(첨부 업로드 실측) → `send_mail_from_draft` 순서로 보낸다.
+
 ### 오류 문구
 | 상황 | 안내 |
 |---|---|

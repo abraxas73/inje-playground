@@ -101,6 +101,48 @@ class GwClient {
     return _decode(res);
   }
 
+  /// 파일을 실은 multipart POST(메일 첨부 업로드 mail014A06 — 파트 이름 `file[]`, application/octet-stream).
+  Future<dynamic> callMultipartFiles(String path, List<http.MultipartFile> files, [Map<String, String> fields = const {}]) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl$path'))
+      ..fields.addAll(fields)
+      ..files.addAll(files);
+    req.headers.addAll(_signed(path, 'multipart/form-data')..remove('Content-Type'));
+    return _decode(await _send(() => httpClient.send(req).then(http.Response.fromStream), const Duration(seconds: 120)));
+  }
+
+  /// 바이너리 받기 — form POST(ecm001A03 첨부). 실패 응답(JSON 봉투)은 그 메시지로 던진다.
+  Future<List<int>> formBytes(String path, Map<String, String> params) async {
+    final body = params.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&');
+    return _bytes(await _send(() => httpClient.post(Uri.parse('$baseUrl$path'), headers: _signed(path, 'application/x-www-form-urlencoded')..['Accept'] = '*/*', body: body)));
+  }
+
+  /// 바이너리 받기 — 서명 GET(본문 삽입 이미지). pathAndQuery는 '/'로 시작하는 같은 호스트 경로.
+  Future<List<int>> getBytes(String pathAndQuery) async {
+    final uri = Uri.parse('$baseUrl$pathAndQuery');
+    final headers = _signed(uri.path, '')
+      ..remove('Content-Type')
+      ..['Accept'] = '*/*';
+    return _bytes(await _send(() => httpClient.get(uri, headers: headers)));
+  }
+
+  Future<http.Response> _send(Future<http.Response> Function() f, [Duration timeout = const Duration(seconds: 60)]) async {
+    try {
+      return await f().timeout(timeout);
+    } catch (e) {
+      throw GwException(0, -1, '그룹웨어에 연결할 수 없습니다 (${e.runtimeType})');
+    }
+  }
+
+  List<int> _bytes(http.Response res) {
+    if (res.statusCode == 401 || (res.headers['content-type'] ?? '').contains('json')) {
+      _decode(res); // 401·오류 봉투는 여기서 던진다
+      throw GwException(res.statusCode, 0, '파일 대신 다른 응답을 받았습니다');
+    }
+    if (res.statusCode < 200 || res.statusCode >= 300) throw GwException(res.statusCode, -1, '파일을 받지 못했습니다 (HTTP ${res.statusCode})');
+    if ((res.headers['content-type'] ?? '').contains('text/html')) throw GwException(res.statusCode, -1, '파일 대신 웹 페이지를 받았습니다. 아마란스 로그인이 만료됐을 수 있습니다.');
+    return res.bodyBytes;
+  }
+
   /// JSON POST → resultData.
   Future<dynamic> call(String path, Object body) => _post(path, 'application/json', jsonEncode(body));
 

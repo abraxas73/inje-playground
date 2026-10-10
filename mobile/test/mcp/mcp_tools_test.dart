@@ -33,7 +33,9 @@ class Gw {
   final Map<String, Object? Function(Map<String, dynamic> body)> routes;
   final calls = <String, List<Map<String, dynamic>>>{};
   final raw = <String, String>{};
+  final order = <String>[];
   MockClient get client => MockClient((r) async {
+        order.add(r.url.path);
         Map<String, dynamic> b = {};
         try {
           final j = jsonDecode(r.body);
@@ -411,7 +413,7 @@ void main() {
       expect((gw.calls['/mail/mail003A01']!.last['mboxSeq'], gw.calls['/mail/mail003A01']!.last['boxName']), (25492, 'INBOX'));
       final drafts = await run(gw, 'list_mail_drafts');
       hasKeys(drafts, expected('list_mail_drafts'));
-      expect((gw.calls['/mail/mail003A01']!.last['mboxSeq'], gw.calls['/mail/mail003A01']!.last['boxName'], gw.calls['/mail/mail003A01']!.last['pageSize']), (25498, 'DRAFTS', 20));
+      expect((gw.calls['/mail/mail003A01']!.last['mboxSeq'], gw.calls['/mail/mail003A01']!.last['boxName'], gw.calls['/mail/mail003A01']!.last['pageSize']), (25498, 'INBOX', 20), reason: 'inno-creed 캡처: DRAFTS mboxSeq + boxName INBOX');
     });
 
     test('read_mail — 헤더·첨부(fileSn)·원격 리소스 수', () async {
@@ -426,17 +428,17 @@ void main() {
       expect(gw.calls['/mail/mail002A01']!.single, {'uid': '14858746'});
     });
 
-    test('save_mail_draft — 받는사람 기본 본인, 서명, read-back · 첨부는 거절', () async {
+    test('save_mail_draft — 받는사람 기본 본인, 서명, read-back', () async {
       final gw = Gw(mail());
       final r = await run(gw, 'save_mail_draft', {'subject': '제목', 'html': '<p>본문</p>', 'cc': 'a@x.com'});
       hasKeys(r, jsonDecode(File('$_fx/captured/save_mail_draft-plain.json').readAsStringSync())['toolResult']);
-      expect((r['ok'], r['sent'], r['draft_muid'], r['to'], r['cc'], r['signature_attached'], r['verified_by_readback'], r['mail_key']), (true, false, '14580025', 'hong@innogrid.com', 'a@x.com', true, true, 'K1'));
+      expect((r['ok'], r['sent'], r['draft_muid'], r['to'], r['cc'], r['signature_attached'], r['verified_by_readback']), (true, false, '14580025', 'hong@innogrid.com', 'a@x.com', true, true));
+      expect(r['mail_key'], jsonDecode(File('$_fx/captured/save_mail_draft-plain.json').readAsStringSync())['toolResult']['mail_key'], reason: 'A01 작성 폼 mailkey(A14 mailKey 아님)');
       final body = gw.raw['/mail/mail014A14']!;
       expect(body, contains('<p>본문</p><div class="dze_signature"'));
       expect(body, isNot(contains('<body>')));
       final nosig = await run(gw, 'save_mail_draft', {'subject': '제목', 'html': '<p>본문</p>', 'signature': false});
       expect(nosig['signature_attached'], false);
-      await expectLater(run(gw, 'save_mail_draft', {'subject': 's', 'attachments': ['/tmp/a.txt']}), throwsA(isA<McpToolError>().having((e) => e.message, 'm', contains('첨부'))));
     });
 
     test('send_mail — A04 발송, to·cc·bcc', () async {

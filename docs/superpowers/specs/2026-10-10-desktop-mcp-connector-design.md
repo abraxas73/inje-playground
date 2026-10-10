@@ -132,7 +132,7 @@ RLS: `user_id = auth.uid()`인 행만 SELECT·UPDATE(앱 세션). INSERT·DELETE
 | my_reservations | read | `myReservations` | `displayTitle` |
 | find_free_rooms | read | `freeRooms` + `group`·`include_lunch`·`window` | |
 | reserve_resource | write | `reserveRoom` + `attendees`(이름·empSeq)·`desc`·`req_text`, `lunchWarning` | |
-| update_reservation | write | **신규** `rs121A12`(실측) → `rs121A05` 재조회 `attendeesVerified` | 참석자 미지정 시 유지 |
+| update_reservation | write | **신규** `rs121A12`(실측) → 응답의 새 `seqNum`·`resIdx`로 `rs121A10` 재조회 `attendeesVerified`(캡처가 A05가 아니라 A10) | 참석자 미지정 시 유지, 반복 예약(repeatType≠10)은 거절(미실측) |
 | cancel_reservation | write | `cancelReservation` | |
 
 **일정**

@@ -9,7 +9,7 @@
     "fileExt": "pdf",
     "fileName": "x",
     "fileSizeApprox": 298182,
-    "fileSn": "Y6brjL28gF9m+f4puyp91Vw3dxUi+p2nOWOHWrYH/n47Lu/u6tFk5ANuumEIqdMrtz/fgeGhQOVSzo/Hl8pVxZ9cHLmanZigxrCttVOhg/m0SvO01wdlyf2Gn8FlpFNzHkefMRi7UCINN2IzX+drwiSJ7fPjCHORrd1IQuOAcB1Kwl7qcdRKKhI/0sDGXHZ80SstLkRKPqjHYUeB0NCVPRjsKuPr9te/l5JqYbt6+OU=",
+    "fileSn": "fileSn-1",
     "index": 0,
     "isImage": false
    },
@@ -17,7 +17,7 @@
     "fileExt": "pdf",
     "fileName": "x",
     "fileSizeApprox": 138513,
-    "fileSn": "0rm8YTLbLHWB6HyW3x/0o+eMYGj43kiP1FG/N1p25IooXyew6XnYS7595jqiQ1hEIrYQr2LHOzhXUxf8s67N5Mu6R63H/+fssTg/nH+ysx85VPs0qb2xVDMVoKjPVdekRF9YMT2Yl5Ewu1WIEGVLe6WomGR22fHA+jLEGuo/qqq9Rm5OjlzWuaPP0gbmfhG33pRP2TOn5te4DXIux3F/P4SGAMmDL5iTJM6pmM5Rm6980nxCZBXgvcyfATPTa5ib",
+    "fileSn": "fileSn-2",
     "index": 1,
     "isImage": false
    },
@@ -25,7 +25,7 @@
     "fileExt": "pdf",
     "fileName": "x",
     "fileSizeApprox": 104863,
-    "fileSn": "vR+fg+N773VcTOPXtaW4bwko6y/5rD+4/kLTjlXmtNSmfdSCbkevZIPKoPbZ4yc5yh9TCUcmTUpdtztLaLsS4J64gMl2cuoayWqrx1Po0VkFRxO1OgMS2HKCmx5G5cztXE0pwxGSPAtlEiFPoDoI2WxGkGJYhnKm17E9Igx04h/fNEnsYDugy6ve27Zp3PshNnSOrxkztaWDZGOQ7zkDfEIuIBSIQeR5X7XeoR+f/la3pSSlblpLtuuv+iyfcL6m",
+    "fileSn": "fileSn-3",
     "index": 2,
     "isImage": false
    }
@@ -94,19 +94,19 @@
         "originalFileName": "x",
         "fileSize": "397576",
         "fileExtsn": "pdf",
-        "fileSn": "Y6brjL28gF9m+f4puyp91Vw3dxUi+p2nOWOHWrYH/n47Lu/u6tFk5ANuumEIqdMrtz/fgeGhQOVSzo/Hl8pVxZ9cHLmanZigxrCttVOhg/m0SvO01wdlyf2Gn8FlpFNzHkefMRi7UCINN2IzX+drwiSJ7fPjCHORrd1IQuOAcB1Kwl7qcdRKKhI/0sDGXHZ80SstLkRKPqjHYUeB0NCVPRjsKuPr9te/l5JqYbt6+OU="
+        "fileSn": "fileSn-1"
        },
        {
         "originalFileName": "x",
         "fileSize": "184684",
         "fileExtsn": "pdf",
-        "fileSn": "0rm8YTLbLHWB6HyW3x/0o+eMYGj43kiP1FG/N1p25IooXyew6XnYS7595jqiQ1hEIrYQr2LHOzhXUxf8s67N5Mu6R63H/+fssTg/nH+ysx85VPs0qb2xVDMVoKjPVdekRF9YMT2Yl5Ewu1WIEGVLe6WomGR22fHA+jLEGuo/qqq9Rm5OjlzWuaPP0gbmfhG33pRP2TOn5te4DXIux3F/P4SGAMmDL5iTJM6pmM5Rm6980nxCZBXgvcyfATPTa5ib"
+        "fileSn": "fileSn-2"
        },
        {
         "originalFileName": "x",
         "fileSize": "139818",
         "fileExtsn": "pdf",
-        "fileSn": "vR+fg+N773VcTOPXtaW4bwko6y/5rD+4/kLTjlXmtNSmfdSCbkevZIPKoPbZ4yc5yh9TCUcmTUpdtztLaLsS4J64gMl2cuoayWqrx1Po0VkFRxO1OgMS2HKCmx5G5cztXE0pwxGSPAtlEiFPoDoI2WxGkGJYhnKm17E9Igx04h/fNEnsYDugy6ve27Zp3PshNnSOrxkztaWDZGOQ7zkDfEIuIBSIQeR5X7XeoR+f/la3pSSlblpLtuuv+iyfcL6m"
+        "fileSn": "fileSn-3"
        }
       ],
       "ecmFileIds": "32785:218ee269e7e49ec5B757eac6D9Ga87aF,755810:Fc823FaB7c95ecBe316e5G883F44aeBG,430657:88335a72B3914aa3Bc1DeBee942Ba53D,615645:22GeF1c159544D7F563e49e312Fc3e51"
@@ -126,7 +126,7 @@
       "to": "백희선 &lt;user@example.com&gt;,현근주 &lt;user@example.com&gt;,강승억&lt;user@example.com&gt;,송민호&lt;user@example.com&gt;,김영도 &l…",
       "isOrgMail": 1,
       "email": "x",
-      "url": "/#/popup?callComp=UDAP007&muid=yICB7wgf1k9TqkClwTxvuaobyeUyrXHugNRO8cnbWl0%3D&keep=false&MicroModuleCode=mail"
+      "url": "/#/popup?callComp=UDAP007&muid=x&keep=false&MicroModuleCode=mail"
      },
      "flagged": 0,
      "useAddressBookGw": true,

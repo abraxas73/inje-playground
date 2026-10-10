@@ -337,8 +337,8 @@
          "originalFileName": "x",
          "fileSize": "42",
          "fileExtsn": "txt",
-         "fileSn": "nXHjys5X7SiiBn/KeUyrt6RH2945OuqZ4ZO+8FCxbvUKeT81Zm5HX5MPTjcLMnO2WdN7cR2kGbuEiOrO3NhEtPmP3hTTS4C5jHQCI/8bB1nZfR+f/71g3abynxZIQEjlv/dkSIar4gYCQlg5nfRrn3t0JP/5CYQqIWkfTF0oDL/ZNiFEDoFYvBmHf2b93g/9",
-         "fileId": "88592e181326BD369715a9297Ba68B27"
+         "fileSn": "fileSn-1",
+         "fileId": "fileId-1"
         }
        ],
        "ecmFileIds": "attach-test.txt:88592e181326BD369715a9297Ba68B27"
@@ -360,7 +360,7 @@
        "to": "강승억 &lt;user@example.com&gt;",
        "isOrgMail": 1,
        "email": "x",
-       "url": "/#/popup?callComp=UDAP007&muid=ukQ5HKwENc7PK8rfIwxegJyriRbHvNwentX1UJH5C90%3D&keep=false&MicroModuleCode=mail"
+       "url": "/#/popup?callComp=UDAP007&muid=x&keep=false&MicroModuleCode=mail"
       },
       "flagged": 0,
       "useAddressBookGw": true,

@@ -1,5 +1,7 @@
 // mobile/lib/gw/gw_mcp_api.dart — Claude 커넥터(MCP)용 저수준 호출. inno-creed가 서버 원본 봉투를 그대로 내는 도구가 많아
 // 기존 GwApi(슬림 모델, 이노봇이 씀)를 바꾸지 않고 원본 resultData를 돌려주는 호출만 모았다. 요청 본문은 inno-creed 캡처(test/mcp/fixtures/captured) 그대로.
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'gw_api.dart';
 import 'gw_client.dart';
 import 'gw_models.dart' show calListFor, findMboxSeq;
@@ -69,6 +71,9 @@ extension GwMcpApi on GwApi {
   Future<dynamic> reservationDetailRaw(String resSeq, int seqNum, String resIdx) async =>
       client.call('/schres/rs121A10', {'companyInfo': await client.companyInfo(), 'resSeq': resSeq, 'seqNum': seqNum, 'resIdx': resIdx, 'langCode': 'kr'});
 
+  /// rs121A12 예약 수정 — 서버가 예약을 다시 발급할 수 있다(응답 seqNum·resIdx가 새 값). 본문 키는 캡처 그대로.
+  Future<dynamic> updateReservationRaw(Map<String, Object?> fields) async => client.call('/schres/rs121A12', {'companyInfo': await client.companyInfo(), ...fields, 'uidList': '', 'langCode': 'kr'});
+
   Future<dynamic> calendarsRaw() async => client.call('/schres/sc111A02', {'companyInfo': await client.companyInfo(), 'calType': '', 'langCode': 'kr'});
 
   /// sc111A03 기간 일정 원본 행(전체 캘린더).
@@ -90,7 +95,22 @@ extension GwMcpApi on GwApi {
     });
   }
 
+  /// sc111A05 수정 모드(rangeCode UO) — 바뀌는 것은 itemList 항목만. 나머지 키는 캡처 그대로.
+  Future<dynamic> updateEventRaw({required String schSeq, required String schmSeq, required String schGbnCode, required String videoYn, required List<Map<String, Object?>> items}) async {
+    final c = client.creds();
+    return client.call('/schres/sc111A05', {
+      'companyInfo': await client.companyInfo(), 'schSeq': schSeq, 'schmSeq': schmSeq, 'schGbnCode': schGbnCode, 'rangeCode': 'UO', 'repeatType': '10', 'repeatByDay': '', 'repeatEndDay': '',
+      'alarm_yn': 'N', 'alarmOnModify': false, 'itemList': items, 'groupSeq': c.groupSeq, 'empSeq': c.empSeq, 'videoYn': videoYn, 'videoTimeZone': 'Asia/Seoul', 'mailSend': 'N', 'langCode': 'kr',
+    });
+  }
+
   // ── 근태 ──
+  /// 기간 근태 원본 행(getWorkTimeStatusList) — 본인(ERP empCd)만.
+  Future<List<Map>> attendancePeriodRows(String from8, String to8) async {
+    final s = await client.session();
+    return _rows(await client.call('/human/openapi/worktime/status/getWorkTimeStatusList', {'coCd': s.coCd, 'empCdList': [s.empCd], 'startDate': from8, 'endDate': to8}), '');
+  }
+
   Future<Map> attendanceRaw(String workDt) async {
     final s = await client.session();
     final d = await client.call('/human/common/judgeTimeManagement/getTodayComeLeaveInfo', {'empCd': s.empCd, 'coCd': s.coCd, 'workDt': workDt});
@@ -102,11 +122,46 @@ extension GwMcpApi on GwApi {
   Future<dynamic> mailCountsRaw() => client.call('/mail/mail000A03', const <String, Object>{});
 
   /// 이름(INBOX·DRAFTS…)으로 메일함을 찾아 mail003A01 원본 봉투. 메일함 seq는 계정마다 달라 상수 금지.
-  Future<dynamic> mailListRaw(String boxName, {int pageSize = 20}) async {
-    final seq = findMboxSeq(await mailboxesRaw(), boxName);
-    if (seq == null) throw GwException(200, 0, '$boxName 메일함을 찾지 못했습니다');
-    return client.call('/mail/mail003A01', {'boxName': boxName, 'mainApiCode': 'mail003A01', 'mboxSeq': seq, 'page': 1, 'pageSize': pageSize, 'sort': 'rfc822date', 'sortType': 'desc', 'listType': '', 'showType': '', 'seen': false});
+  Future<dynamic> mailListRaw(String boxName, {int pageSize = 20}) async => mailListAt(boxName, await mailboxSeq(boxName), pageSize: pageSize);
+
+  Future<int> mailboxSeq(String boxName) async => findMboxSeq(await mailboxesRaw(), boxName) ?? (throw GwException(200, 0, '$boxName 메일함을 찾지 못했습니다'));
+
+  Future<dynamic> mailListAt(String boxName, int seq, {int pageSize = 20}) =>
+      client.call('/mail/mail003A01', {'boxName': boxName, 'mainApiCode': 'mail003A01', 'mboxSeq': seq, 'page': 1, 'pageSize': pageSize, 'sort': 'rfc822date', 'sortType': 'desc', 'listType': '', 'showType': '', 'seen': false});
+
+  /// mail002A15 읽지 않음으로(받은메일함).
+  Future<dynamic> mailMarkUnseen(String muid) => client.call('/mail/mail002A15', {'mbox': 'INBOX', 'type': 'unseen', 'uids': muid});
+
+  /// mail002A05 휴지통으로(uids 콤마 구분).
+  Future<dynamic> mailDelete(String uids) => client.call('/mail/mail002A05', {'boxName': '', 'mailKey': '', 'uids': uids});
+
+  /// mail014A01 초안 모드 — 초안 본문·헤더·첨부 목록(mailInfo)과 새 작성 세션.
+  Future<Map> draftInit(String muid) async {
+    final d = await client.call('/mail/mail014A01', {'domainSeq': '', 'fromFlag': true, 'mailKind': 'draft', 'mailTo': '(Unknown)', 'mbox': 'DRAFTS', 'readType': '', 'uid': muid, 'viewFlag': 'noRead'});
+    if (d is! Map) throw GwException(200, 0, '초안을 열지 못했습니다');
+    return d;
   }
+
+  /// mail002A07 발송한 초안 원본 삭제.
+  Future<dynamic> draftDelete(int muid, String mailKey) => client.call('/mail/mail002A07', {'beforeMUID': muid, 'mailKey': mailKey});
+
+  /// authKeyMap(메일 첨부 권한) — 키 순서 email·empSeq·muid(캡처 그대로).
+  Future<String> mailAuthKey(String muid) async => jsonEncode({'email': (await client.session()).email, 'empSeq': client.creds().empSeq, 'muid': muid});
+
+  /// mail014A08 첨부 정보(fileId·서버 파일명). condition은 초안 발송 때만 '99'(캡처 그대로).
+  Future<Map> mailAttachInfo(String authKey, String fileSn, {bool forDraft = false}) async {
+    final d = await client.callForm('/mail/mail014A08', {'moduleGbn': 'MAIL', 'authKeyMap': authKey, 'fileSn': fileSn, if (forDraft) 'condition': '99'});
+    final f = _rows(d, 'list').firstOrNull;
+    if (f == null) throw GwException(200, 0, '첨부 정보를 받지 못했습니다');
+    return f;
+  }
+
+  /// ecm001A03 첨부 파일 바이트(mail014A08의 fileId).
+  Future<List<int>> mailAttachBytes(String authKey, String fileId) => client.formBytes('/ecm/ecm001A03', {'moduleGbn': 'MAIL', 'authKeyMap': authKey, 'fileSn': fileId, 'condition': '99'});
+
+  /// mail014A06 첨부 업로드(한 요청에 file[] 여러 개) → 업로드된 항목(list).
+  Future<List<Map>> mailUpload(List<(String name, List<int> bytes)> files) async =>
+      _rows(await client.callMultipartFiles('/mail/mail014A06', [for (final (n, b) in files) http.MultipartFile.fromBytes('file[]', b, filename: n)]), 'list');
 
   /// mail002A01 원본 — ⚠️ 읽음 처리된다.
   Future<Map> mailReadRaw(String muid) async {

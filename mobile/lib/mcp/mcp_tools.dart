@@ -1,5 +1,5 @@
 // mobile/lib/mcp/mcp_tools.dart — Claude 커넥터(MCP) 도구 디스패치. 인자 이름은 inno-creed 2.2.0 스키마(frontend/src/lib/mcp/tools.json) 그대로,
-// 응답 키는 inno-creed 실측 출력(test/mcp/fixtures)과 같게. 신규 엔드포인트가 필요한 도구(update_*·list_approvals·첨부 등)는 이 파일에 아직 없다.
+// 응답 키는 inno-creed 실측 출력(test/mcp/fixtures)과 같게. 신규 엔드포인트 호출은 gw_mcp_api.dart(요청 본문은 captured 그대로).
 import 'dart:convert';
 import 'dart:io';
 import '../assistant/gw_assistant_api.dart' show GwAssistantApi, composeFields, draftFields, freeSlots, lunchBreak, minutesOn;
@@ -20,6 +20,43 @@ String mcpAppSupportDir() {
   return d;
 }
 
+/// 다운로드 폴백 위치(macOS 샌드박스는 Downloads만 쓰기 허용 — entitlements downloads.read-write).
+String mcpDownloadsDir() {
+  final home = Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'] ?? '';
+  if (home.isEmpty) throw McpToolError('Downloads 폴더를 찾지 못했습니다.');
+  return Platform.isWindows ? '$home\\Downloads' : '$home/Downloads';
+}
+
+/// 절대 경로로 바꾸고 '.'·'..'를 접는다(경계 비교용).
+String _norm(String p) {
+  final sep = Platform.pathSeparator, abs = File(p).absolute.path;
+  final out = <String>[];
+  for (final seg in abs.split(RegExp(r'[/\\]'))) {
+    if (seg == '.' || (seg.isEmpty && out.isNotEmpty)) continue;
+    if (seg == '..') {
+      if (out.length > 1) out.removeLast();
+    } else {
+      out.add(seg);
+    }
+  }
+  final r = out.join(sep);
+  return r.isEmpty ? sep : r;
+}
+
+/// p가 dir 아래인가(정규화 뒤 접두 비교, Windows는 대소문자 무시).
+bool _under(String p, String dir) {
+  var a = _norm(p), b = _norm(dir);
+  if (Platform.isWindows) (a, b) = (a.toLowerCase(), b.toLowerCase());
+  return a.startsWith(b.endsWith(Platform.pathSeparator) ? b : '$b${Platform.pathSeparator}');
+}
+
+/// 숫자 메일 번호 하나(muid). 범위 표현('1:*')·와일드카드가 서버로 가지 않게.
+String _mailId(Map x, String k) {
+  final v = _req(x, k);
+  if (!RegExp(r'^\d+$').hasMatch(v)) throw McpToolError('$k는 숫자 메일 번호(muid)여야 합니다.');
+  return v;
+}
+
 const _noGw = '아마란스가 연결되어 있지 않습니다. 앱 더보기 > 아마란스에서 연결하세요.';
 const _lunchNote = '점심시간(13:00~14:00)은 빈 구간에서 제외했습니다. 점심시간에도 찾으려면 include_lunch=true로 다시 호출하세요.';
 const _treeNote = 'userCount는 하위 부서를 포함한 누적 인원';
@@ -33,6 +70,27 @@ String _two(int v) => v.toString().padLeft(2, '0');
 String _iso(String ts) => ts.length == 12 ? '${ts.substring(0, 4)}-${ts.substring(4, 6)}-${ts.substring(6, 8)}T${ts.substring(8, 10)}:${ts.substring(10, 12)}' : ts;
 String _hhmm(int min) => '${_two(min ~/ 60)}:${_two(min % 60)}';
 String _digits(String s) => s.replaceAll(RegExp(r'\D'), '');
+String _base(String p) => p.split(RegExp(r'[/\\]')).last;
+
+/// 첨부 크기 표기(uidAuthList fileSize). 1KB 미만은 캡처 형식 "28 Bytes", 그 위는 웹 작성기 표기를 실측하지 못해 KB/MB 소수 둘째 자리.
+String _sizeLabel(int n) => n < 1024 ? '$n Bytes' : n < 1 << 20 ? '${(n / 1024).toStringAsFixed(2)} KB' : '${(n / (1 << 20)).toStringAsFixed(2)} MB';
+
+/// 대용량 첨부 흔적(bigFile* 키에 값). 실측 초안에는 없어 이름으로만 판단한다.
+bool _hasBigFile(Map mp) => mp.entries.any((e) =>
+    asStr(e.key).toLowerCase().contains('bigfile') &&
+    switch (e.value) { List l => l.isNotEmpty, Map mm => mm.isNotEmpty, null => false, final v => !const {'', '0', 'N', 'false'}.contains(asStr(v)) });
+
+/// 'HHmm' → 'HH:mm', 비면 ''.
+String _clock(Object? v) {
+  final t = _digits(asStr(v));
+  return t.length >= 4 ? '${t.substring(0, 2)}:${t.substring(2, 4)}' : '';
+}
+
+/// 'YYYYMMDD' 그 달 말일 'YYYYMMDD'.
+String _monthEnd(String d8) {
+  final y = int.parse(d8.substring(0, 4)), mo = int.parse(d8.substring(4, 6));
+  return '${d8.substring(0, 6)}${_two(DateTime.utc(y, mo + 1, 0).day)}';
+}
 String _snippet(Object? v) {
   final s = m.oneLine(m.htmlToText(asStr(v)));
   return s.length > 200 ? '${s.substring(0, 200)}…' : s;
@@ -94,12 +152,14 @@ Map<String, dynamic> _reservation(Map r) {
 String _signature(Map init) => asStr(init['signature']).replaceAll(RegExp(r'<head\b[^>]*>.*?</head>', caseSensitive: false, dotAll: true), '').replaceAll(RegExp(r'</?(html|body)\b[^>]*>', caseSensitive: false), '');
 
 class McpTools {
-  McpTools({required this.gw, required String Function() appSupportDir, ApprovalSchemas? schemas})
+  McpTools({required this.gw, required String Function() appSupportDir, ApprovalSchemas? schemas, String Function()? downloadsDir})
       : groups = PersonGroups(appSupportDir),
-        schemas = schemas ?? ApprovalSchemas();
+        schemas = schemas ?? ApprovalSchemas(),
+        _downloadsDir = downloadsDir ?? mcpDownloadsDir;
   final GwApi? gw;
   final PersonGroups groups;
   final ApprovalSchemas schemas;
+  final String Function() _downloadsDir;
 
   GwApi get _gw => gw ?? (throw McpToolError(_noGw));
 
@@ -130,21 +190,29 @@ class McpTools {
         'my_reservations' => _myReservations(x),
         'find_free_rooms' => _freeRooms(x),
         'reserve_resource' => _reserve(x),
+        'update_reservation' => _updateReservation(x),
         'cancel_reservation' => _cancelReservation(x),
         'list_calendars' => _gw.calendarsRaw(),
         'list_events' => _listEvents(x),
         'create_calendar_event' => _createEvent(x),
+        'update_calendar_event' => _updateEvent(x),
         'delete_calendar_event' => _deleteEvent(x),
         'get_attendance_today' => _attendance(x),
         'attendance_clock_in' => _punch(true),
         'attendance_clock_out' => _punch(false),
+        'attendance_month' => _attendanceMonth(x),
         'list_mailboxes' => _gw.mailboxesRaw(),
         'mailbox_counts' => _gw.mailCountsRaw(),
         'list_mail_inbox' => _gw.mailListRaw('INBOX'),
-        'list_mail_drafts' => _gw.mailListRaw('DRAFTS'),
+        'list_mail_drafts' => _draftsList(),
         'read_mail' => _readMail(x),
         'save_mail_draft' => _compose(x, send: false),
         'send_mail' => _compose(x, send: true),
+        'mark_mail_unread' => _markUnread(x),
+        'delete_mail' => _deleteMail(x),
+        'send_mail_from_draft' => _sendFromDraft(x),
+        'download_mail_attachment' => _downloadMailAttachment(x),
+        'download_body_image' => _downloadBodyImage(x),
         'approval_counts' => _approvalCounts(),
         'pending_approvals' => _pendingApprovals(x),
         'read_approval' => _readApproval(x),
@@ -349,6 +417,68 @@ class McpTools {
     };
   }
 
+  /// rs121A10 원본(본인 소유 확인) → rs121A12 수정 → 응답의 (새) seqNum·resIdx로 rs121A10 재조회. 서버가 예약을 다시 발급하면 reissued.
+  Future<Map<String, dynamic>> _updateReservation(Map x) async {
+    final g = _gw, resSeq = _req(x, 'res_seq'), seqNum = a.intOf(x, 'seq_num');
+    if (seqNum == null) throw McpToolError('seq_num(예약 ID)이 필요합니다. my_reservations로 확인하세요.');
+    final resIdx = a.str(x, 'res_idx').isEmpty ? '1' : a.str(x, 'res_idx');
+    final c = g.client.creds(), s = await g.client.session();
+    final got = await g.reservationDetailRaw(resSeq, seqNum, resIdx);
+    final cur = got is Map ? got : const {};
+    if (asStr(cur['seqNum']).isEmpty) throw McpToolError('예약 $seqNum을(를) 찾지 못했습니다. my_reservations로 확인하세요.');
+    if (asStr(cur['empSeq']) != c.empSeq) throw McpToolError('본인 예약만 수정할 수 있습니다.');
+    if (asStr(cur['repeatType']).isNotEmpty && asStr(cur['repeatType']) != '10') throw McpToolError('반복 예약 수정은 지원하지 않습니다. 아마란스에서 수정하세요.');
+    final title = a.str(x, 'req_text').isEmpty ? asStr(cur['reqText']) : a.str(x, 'req_text');
+    final start = a.str(x, 'start').isEmpty ? asStr(cur['startDate']) : _stamp(x, 'start'), end = a.str(x, 'end').isEmpty ? asStr(cur['endDate']) : _stamp(x, 'end');
+    if (end.compareTo(start) <= 0) throw McpToolError('end가 start보다 늦어야 합니다.');
+    final List<Map<String, String>> subs;
+    if (x['attendees'] == null) {
+      // 미지정 — 기존 참석자 유지
+      subs = [
+        for (final r in ((cur['subscriberList'] as List?) ?? const []).whereType<Map>())
+          {'compSeq': asStr(r['compSeq']), 'deptSeq': asStr(r['deptSeq']), 'empSeq': asStr(r['empSeq']), 'groupSeq': asStr(r['groupSeq']).isEmpty ? c.groupSeq : asStr(r['groupSeq'])},
+      ];
+    } else {
+      final seen = <String>{c.empSeq};
+      subs = [
+        {'groupSeq': c.groupSeq, 'compSeq': s.compSeq, 'deptSeq': s.deptSeq, 'empSeq': c.empSeq},
+        for (final r in await _resolve(a.strList(x, 'attendees'))) if (seen.add(asStr(r['empSeq']))) {'groupSeq': c.groupSeq, 'compSeq': s.compSeq, 'deptSeq': asStr(r['deptSeq']), 'empSeq': asStr(r['empSeq'])},
+      ];
+    }
+    String keep(String k, String d) => asStr(cur[k]).isEmpty ? d : asStr(cur[k]);
+    final res = await g.updateReservationRaw({
+      'resSeq': resSeq, 'seqNum': seqNum, 'resIdx': resIdx, 'reqText': title, 'apprYn': keep('apprYn', 'N'), 'alldayYn': keep('alldayYn', 'N'), 'startDate': start, 'endDate': end,
+      'descText': x['desc'] == null ? asStr(cur['descText']) : a.str(x, 'desc'), 'resSubscriberList': subs, 'repeatType': keep('repeatType', '10'), 'repeatEndDay': asStr(cur['repeatEndDay']),
+      'repeatByDay': asStr(cur['repeatByDay']), 'createDatePk': asStr(cur['createDate']), 'startDatePk': asStr(cur['startDate']), 'resName': asStr(cur['resName']),
+    });
+    if (res is! Map || res['successTf'] == false) throw McpToolError('예약을 수정하지 못했습니다.');
+    final newSeq = asInt(res['seqNum'], seqNum), newIdx = asStr(res['resIdx']).isEmpty ? resIdx : asStr(res['resIdx']);
+    // 수정은 이미 반영됐다 — 재조회만 실패하면 오류로 보고하지 않는다(재시도로 이중 수정되지 않게)
+    Map detail = const {};
+    var readback = true;
+    try {
+      final d = await g.reservationDetailRaw(resSeq, newSeq, newIdx);
+      if (d is Map) detail = d;
+    } on GwUnauthorized {
+      rethrow;
+    } on GwException {
+      readback = false;
+    }
+    final people = ((detail['subscriberList'] as List?) ?? const []).whereType<Map>().toList();
+    final gotSeqs = {for (final r in people) asStr(r['empSeq'])};
+    final attendeesOk = readback && subs.every((r) => gotSeqs.contains(r['empSeq']));
+    final verified = readback && asStr(detail['reqText']) == title && asStr(detail['startDate']) == start && asStr(detail['endDate']) == end;
+    final day = start.substring(0, 8), sm = minutesOn(start, day), em = minutesOn(end, day);
+    return {
+      'ok': verified || !readback, 'verified_by_readback': verified, if (!readback) 'note': '예약은 수정됐지만 재조회에 실패해 확인하지 못했습니다. 다시 수정하지 말고 my_reservations로 확인하세요.',
+      'seqNum': newSeq, 'prev_seqNum': seqNum, 'reissued': newSeq != seqNum, 'resIdx': newIdx, 'reqText': title, 'period': '$start~$end',
+      'displayTitle': '[${asStr(detail['empName']).isEmpty ? s.empName : asStr(detail['empName'])}] ${asStr(detail['resName']).isEmpty ? asStr(cur['resName']) : asStr(detail['resName'])}',
+      'attendees': [for (final r in people) asStr(r['empName'])], 'attendeesVerified': attendeesOk,
+      if (readback && !attendeesOk) 'attendeesWarning': '요청한 참석자 일부가 예약에 반영되지 않았습니다. 아마란스에서 확인하세요.',
+      if (sm != null && em != null && sm < lunchBreak.$2 && em > lunchBreak.$1) 'lunchWarning': '예약 구간이 점심시간(13:00~14:00)에 걸칩니다. 의도한 것인지 사용자에게 확인하세요.',
+    };
+  }
+
   Future<Map<String, dynamic>> _cancelReservation(Map x) async {
     final resSeq = _req(x, 'res_seq'), seqNum = a.intOf(x, 'seq_num'), resIdx = a.str(x, 'res_idx', '1');
     if (seqNum == null) throw McpToolError('seq_num(예약 ID)이 필요합니다. my_reservations로 확인하세요.');
@@ -421,6 +551,53 @@ class McpTools {
     };
   }
 
+  /// sc111A03(date) 원본·작성자 확인 → sc111A05 수정 모드(itemList) → sc111A03 재조회.
+  /// 실측된 항목(videoYn·schParticipants·mailSend·schTitle·schDate)만 보낸다 — 내용(contents)·참여자 있는 일정은 형식 미실측이라 거절.
+  Future<Map<String, dynamic>> _updateEvent(Map x) async {
+    final g = _gw, schSeq = _req(x, 'sch_seq'), date = _day(x, 'date');
+    if (x['contents'] != null) throw McpToolError('contents(내용) 수정은 이 앱 버전에서 아직 지원하지 않습니다. 제목·시간만 바꾸거나 아마란스에서 수정하세요.');
+    final title = a.str(x, 'title'), ns = a.str(x, 'start').isEmpty ? '' : _stamp(x, 'start'), ne = a.str(x, 'end').isEmpty ? '' : _stamp(x, 'end');
+    if (title.isEmpty && ns.isEmpty && ne.isEmpty) throw McpToolError('바꿀 값(title·start·end)을 하나 이상 지정하세요.');
+    final c = g.client.creds(), s = await g.client.session();
+    final row = (await g.eventRowsRange(date, date)).where((r) => asStr(r['schSeq']) == schSeq).firstOrNull ??
+        (throw McpToolError('$date에서 일정 $schSeq을(를) 찾지 못했습니다. list_events로 확인하세요.'));
+    if (asStr(row['createSeq']) != c.empSeq) throw McpToolError('본인이 작성한 일정만 수정할 수 있습니다.');
+    if (asStr(row['partEmpList']).split(',').map((e) => e.trim()).any((e) => e.isNotEmpty && e != c.empSeq)) {
+      throw McpToolError('다른 참여자가 있는 일정의 수정은 이 앱 버전에서 아직 지원하지 않습니다. 아마란스에서 수정하세요.');
+    }
+    final start = ns.isEmpty ? asStr(row['startDate']) : ns, end = ne.isEmpty ? asStr(row['endDate']) : ne;
+    if (end.compareTo(start) <= 0) throw McpToolError('end가 start보다 늦어야 합니다.');
+    final newTitle = title.isEmpty ? asStr(row['schTitle']) : title;
+    String yn(String k) => asStr(row[k]).isEmpty ? 'N' : asStr(row[k]);
+    await g.updateEventRaw(schSeq: schSeq, schmSeq: asStr(row['schmSeq']).isEmpty ? schSeq : asStr(row['schmSeq']), schGbnCode: asStr(row['schGbnCode']).isEmpty ? '10' : asStr(row['schGbnCode']), videoYn: yn('videoYn'), items: [
+      {'item': 'videoYn', 'videoYn': yn('videoYn')},
+      {
+        'item': 'schParticipants', 'addSchPartEmpList': const [], 'removeSchPartEmpList': const [],
+        'updateSchPartEmpList': [
+          {'compSeq': s.compSeq, 'deptSeq': s.deptSeq, 'empName': s.empName, 'empSeq': c.empSeq, 'mcalSeq': asStr(row['mcalSeq']), 'orgSeq': c.empSeq, 'orgType': 'E', 'partType': 'M'},
+        ],
+      },
+      {'item': 'mailSend', 'mailSend': 'N'},
+      if (title.isNotEmpty) {'item': 'schTitle', 'schTitle': title},
+      if (ns.isNotEmpty || ne.isNotEmpty) {'item': 'schDate', 'schDate': {'allDay': yn('alldayYn'), 'endDate': end, 'lunar': yn('lunarYn'), 'lunarDate': '', 'startDate': start}},
+    ]);
+    // 수정은 이미 반영됐다 — 재조회만 실패하면 성공으로 돌려준다
+    Map? after;
+    var readback = true;
+    try {
+      after = (await g.eventRowsRange(start.substring(0, 8), start.substring(0, 8))).where((r) => asStr(r['schSeq']) == schSeq).firstOrNull;
+    } on GwUnauthorized {
+      rethrow;
+    } on GwException {
+      readback = false;
+    }
+    final verified = after != null && asStr(after['schTitle']) == newTitle && asStr(after['startDate']) == start && asStr(after['endDate']) == end;
+    return {
+      'ok': verified || !readback, 'verified_by_readback': verified, if (!readback) 'note': '일정은 수정됐지만 재조회에 실패해 확인하지 못했습니다. 다시 수정하지 말고 list_events로 확인하세요.',
+      'schSeq': schSeq, 'title': newTitle, 'period': '$start~$end',
+    };
+  }
+
   Future<Map<String, dynamic>> _deleteEvent(Map x) async {
     final schSeq = _req(x, 'sch_seq');
     final r = await _gw.deleteEvent(schSeq, _day(x, 'date'));
@@ -432,6 +609,39 @@ class McpTools {
     final wd = a.str(x, 'work_dt').isEmpty ? m.ymd(m.kstNow()) : _day(x, 'work_dt');
     final d = await _gw.attendanceRaw(wd);
     return {'workDt': wd, 'comeTm': asStr(d['comeTm']), 'leaveTm': asStr(d['leaveTm']), 'holidayYn': asStr(d['holidayYn'])};
+  }
+
+  /// 기간 근태(getWorkTimeStatusList). workMin=basicworkTm, overtimeMin=overworkTm, 지각·결근은 attresultNm 글자로 센다.
+  Future<Map<String, dynamic>> _attendanceMonth(Map x) async {
+    final String from, to;
+    if (a.str(x, 'start').isNotEmpty || a.str(x, 'end').isNotEmpty) {
+      from = _day(x, 'start');
+      to = a.str(x, 'end').isEmpty ? _monthEnd(from) : _day(x, 'end');
+    } else {
+      final mo = a.str(x, 'month').isEmpty ? m.ymd(m.kstNow()).substring(0, 6) : _digits(a.str(x, 'month'));
+      final mm = mo.length == 6 ? int.parse(mo.substring(4)) : 0;
+      if (mm < 1 || mm > 12) throw McpToolError('month는 YYYYMM 형식입니다(예: 202608).');
+      from = '${mo}01';
+      to = _monthEnd(from);
+    }
+    if (to.compareTo(from) < 0) throw McpToolError('end가 start보다 앞설 수 없습니다.');
+    final rows = await _gw.attendancePeriodRows(from, to);
+    final days = [
+      for (final r in rows)
+        {
+          'date': asStr(r['atDt']), 'dayType': asStr(r['holiNm']), 'come': _clock(r['comeTm']), 'leave': _clock(r['leaveTm']), 'result': asStr(r['attresultNm']),
+          'reason': asStr(r['atNm']).isEmpty ? null : asStr(r['atNm']), 'workMin': asInt(r['basicworkTm']), 'overtimeMin': asInt(r['overworkTm']),
+        },
+    ];
+    final total = days.fold<int>(0, (t, d) => t + (d['workMin'] as int));
+    return {
+      'kind': 'attendancePeriod', 'period': '$from~$to', 'rowCount': rows.length, 'days': days,
+      'summary': {
+        'workDays': days.where((d) => (d['workMin'] as int) > 0).length, 'totalWorkMin': total, 'totalWorkHours': '${total ~/ 60}h${_two(total % 60)}m',
+        'overtimeMin': days.fold<int>(0, (t, d) => t + (d['overtimeMin'] as int)), 'lateCount': days.where((d) => (d['result'] as String).contains('지각')).length,
+        'absentCount': days.where((d) => (d['result'] as String).contains('결근')).length,
+      },
+    };
   }
 
   Future<Map<String, dynamic>> _punch(bool clockIn) async {
@@ -471,16 +681,43 @@ class McpTools {
     };
   }
 
-  /// save_mail_draft(A14)·send_mail(A04). 첨부 업로드는 이 버전 범위 밖 — 거절한다(첨부 없이 보내면 설명과 다른 메일이 나간다).
+  /// 임시보관함 최근 20건 — inno-creed와 같게 boxName INBOX + DRAFTS mboxSeq(캡처).
+  Future<dynamic> _draftsList() async => _gw.mailListAt('INBOX', await _gw.mailboxSeq('DRAFTS'));
+
+  /// save_mail_draft(A14)·send_mail(A04). 첨부는 save_mail_draft만 — A01 뒤에 A06으로 올리고 uidAuthList·bigFileCnt를 채운다(캡처 save_mail_draft-attach).
+  /// send_mail + 첨부는 미실측이라 거절(첨부가 빠진 채 되돌릴 수 없는 발송이 나가지 않게). 첨부 로컬 경로는 Downloads 폴더 아래만.
   Future<Map<String, dynamic>> _compose(Map x, {required bool send}) async {
-    if (a.strList(x, 'attachments').isNotEmpty) throw McpToolError('첨부(attachments)는 이 앱 버전에서 아직 지원하지 않습니다. 첨부 없이 저장하거나 아마란스 웹에서 첨부하세요.');
+    final paths = a.strList(x, 'attachments');
+    if (send && paths.isNotEmpty) throw McpToolError('첨부가 있는 메일은 save_mail_draft로 초안을 만든 뒤 send_mail_from_draft로 보내세요.');
+    final files = <(String, List<int>)>[];
+    for (final p in paths) {
+      try {
+        if (!_under(p, _downloadsDir())) throw const FileSystemException();
+        files.add((_base(p), await File(p).readAsBytes()));
+      } on FileSystemException {
+        throw McpToolError('첨부 파일 "${_base(p)}"을(를) 읽지 못했습니다. 파일을 Downloads 폴더에 두고 다시 시도하세요.');
+      }
+    }
     final g = _gw, s = await g.client.session();
     final subject = a.str(x, 'subject'), to = a.str(x, 'to').isEmpty ? s.email : a.str(x, 'to'), cc = a.str(x, 'cc'), bcc = a.str(x, 'bcc');
     final init = await g.composeInit();
     final sig = a.boolOf(x, 'signature', true) ? _signature(init) : '';
     final fields = composeFields(init, fromName: s.empName, bodyAuth: '${s.emailAddr}|${g.client.creds().authToken}', to: to, cc: cc, subject: subject.trim().isEmpty ? '(제목없음)' : subject, html: '${a.str(x, 'html')}$sig')
       ..['bcc'] = bcc;
-    final base = {'to': to, 'cc': cc, 'bcc': bcc, 'subject': subject, 'signature_attached': sig.isNotEmpty, 'attachments': 0};
+    if (files.isNotEmpty) {
+      final up = await g.mailUpload(files);
+      if (up.length != files.length) throw McpToolError('첨부 업로드에 실패했습니다.');
+      fields['uidAuthList'] = jsonEncode([
+        for (final (i, f) in up.indexed)
+          {
+            'fileClass': 'icon_${asStr(f['fileExtsn'])}', 'fileDeleteYN': 'Y', 'fileExtsn': asStr(f['fileExtsn']), 'fileId': asStr(f['fileId']), 'fileName': asStr(f['originalFileName']),
+            'filePath': asStr(f['filePath']), 'filePublicYn': 'N', 'fileSize': _sizeLabel(asInt(f['fileSize'])), 'fileThumUrl': '', 'fileUrl': '', 'id': i, 'link': 'N', 'modifyLocalAttach': 'N',
+            'moduleGbn': 'MAIL', 'noConvertFileSize': asInt(f['fileSize']), 'title': '${asStr(f['originalFileName'])}${_sizeLabel(asInt(f['fileSize']))}',
+          },
+      ]);
+      fields['bigFileCnt'] = '${up.length}';
+    }
+    final base = {'to': to, 'cc': cc, 'bcc': bcc, 'subject': subject, 'signature_attached': sig.isNotEmpty, 'attachments': files.length};
     if (send) {
       dynamic r;
       try {
@@ -498,7 +735,7 @@ class McpTools {
     if (muid.isEmpty) throw McpToolError('임시저장에 실패했습니다.');
     var verified = false;
     try {
-      final list = await g.mailListRaw('DRAFTS');
+      final list = await _draftsList();
       verified = ((list is Map ? list['Records'] : null) as List? ?? const []).any((e) => e is Map && asStr(e['muid']) == muid);
     } on GwUnauthorized {
       rethrow;
@@ -506,9 +743,159 @@ class McpTools {
       verified = false;
     }
     return {
-      'ok': true, 'sent': false, 'draft_muid': muid, 'mail_key': asStr((r as Map)['mailKey']).replaceAll(RegExp(r'\.eml$'), ''), 'verified_by_readback': verified,
+      'ok': true, 'sent': false, 'draft_muid': muid, 'mail_key': asStr(init['mailkey']).replaceAll(RegExp(r'\.eml$'), ''), 'verified_by_readback': verified,
       'note': '임시보관함에 저장만 됨(발송 아님). 목록 확인은 list_mail_drafts', ...base,
     };
+  }
+
+  /// 받은메일함 최근 200건에서 찾아 이미 미읽음이면 보내지 않는다 → mail002A15 → 같은 목록 재조회로 seen 0 확인.
+  Future<Map<String, dynamic>> _markUnread(Map x) async {
+    final g = _gw, muid = _mailId(x, 'muid'), seq = await g.mailboxSeq('INBOX');
+    Map? find(dynamic d) => ((d is Map ? d['Records'] : null) as List? ?? const []).whereType<Map>().where((r) => asStr(r['muid']) == muid).firstOrNull;
+    final row = find(await g.mailListAt('INBOX', seq, pageSize: 200)) ??
+        (throw McpToolError('받은메일함 최근 200건에서 메일 $muid을(를) 찾지 못했습니다(더 오래된 메일은 대상이 아닙니다). list_mail_inbox의 muid를 쓰세요.'));
+    if (row['seen'] == null) throw McpToolError('메일 $muid의 읽음 상태를 목록에서 읽지 못했습니다. 아마란스에서 확인하세요.');
+    if (asInt(row['seen']) == 0) return {'already': true, 'muid': muid, 'ok': true, 'verifiedByReadback': true};
+    await g.mailMarkUnseen(muid);
+    var verified = false;
+    try {
+      verified = asInt(find(await g.mailListAt('INBOX', seq, pageSize: 200))?['seen'], 1) == 0;
+    } on GwUnauthorized {
+      rethrow;
+    } on GwException {
+      verified = false;
+    }
+    return {'already': false, 'muid': muid, 'ok': true, 'verifiedByReadback': verified, if (!verified) 'note': '요청은 보냈지만 목록에서 읽지 않음으로 바뀐 것을 확인하지 못했습니다. 아마란스에서 확인하세요.'};
+  }
+
+  Future<Map<String, dynamic>> _deleteMail(Map x) async {
+    final ids = a.strList(x, 'uids');
+    if (ids.isEmpty) throw McpToolError('uids 인자가 필요합니다.');
+    if (ids.any((v) => !RegExp(r'^\d+$').hasMatch(v))) throw McpToolError('uids는 숫자 메일 번호(muid)를 콤마로 이어 주세요(예: 14874418,14874424).');
+    final uids = ids.join(',');
+    final r = await _gw.mailDelete(uids);
+    if (r is Map && asStr(r['code']).isNotEmpty && asStr(r['code']) != '0') throw McpToolError('메일을 삭제하지 못했습니다.');
+    return {'deleted': true, 'note': '휴지통 이동됨(muid 재부여 — 이후 추적은 재조회 필요)', 'ok': true, 'uids': uids};
+  }
+
+  /// 초안 실재(임시보관함 최근 20건) → mail014A01 초안 모드 → 첨부마다 mail014A08 → mail014A04(mail_kind draft) → mail002A07 원본 삭제.
+  /// 제약 4가지(설명 그대로): 못 찾으면·본문/제목/첨부목록을 못 읽으면·콤마/같은 이름/대용량 첨부면·참조를 못 읽으면 보내지 않는다.
+  Future<Map<String, dynamic>> _sendFromDraft(Map x) async {
+    final g = _gw, muid = _mailId(x, 'draft_muid'), muidNum = int.parse(muid);
+    final list = await _draftsList();
+    if (!((list is Map ? list['Records'] : null) as List? ?? const []).any((e) => e is Map && asStr(e['muid']) == muid)) {
+      throw McpToolError('임시보관함 최근 20건에서 초안 $muid을(를) 찾지 못해 보내지 않았습니다. list_mail_drafts로 확인하거나 아마란스 웹에서 발송하세요.');
+    }
+    final init = await g.draftInit(muid);
+    Map sub(Map p, String k) => p[k] is Map ? p[k] as Map : const {};
+    final info = sub(init, 'mailInfo'), mime = sub(info, 'mime'), dm = sub(info, 'decodeMime'), header = sub(mime, 'header');
+    final html = asStr(sub(mime, 'body')['html']), fileList = mime['fileList'];
+    if (html.trim().isEmpty || !dm.containsKey('subject') || fileList is! List) throw McpToolError('초안의 본문·제목·첨부 목록을 읽지 못해 보내지 않았습니다. 아마란스 웹에서 발송하세요.');
+    final files = fileList.whereType<Map>().toList();
+    final names = [for (final f in files) asStr(f['originalFileName'])];
+    if (names.any((n) => n.contains(','))) throw McpToolError('첨부 파일명에 콤마가 있어 보내지 않았습니다. 아마란스 웹에서 발송하세요.');
+    if (names.toSet().length != names.length) throw McpToolError('같은 이름의 첨부가 둘 이상이라 보내지 않았습니다. 아마란스 웹에서 발송하세요.');
+    if (_hasBigFile(info) || _hasBigFile(mime)) throw McpToolError('대용량 첨부가 있는 초안이라 보내지 않았습니다. 아마란스 웹에서 발송하세요.');
+    final hcc = asStr(header['cc']);
+    final cc = dm.containsKey('cc') ? m.htmlToText(asStr(dm['cc'])) : (header.containsKey('cc') && !hcc.contains('=?') ? m.htmlToText(hcc) : null);
+    if (cc == null) throw McpToolError('초안의 참조(cc)를 읽지 못해 보내지 않았습니다(참조가 빠진 채 나가지 않게). 아마란스 웹에서 발송하세요.');
+    final bcc = m.htmlToText(asStr(dm['bcc'] ?? header['bcc']));
+    final to = a.str(x, 'to').isNotEmpty ? a.str(x, 'to') : m.htmlToText(asStr(dm['to']));
+    if (to.isEmpty) throw McpToolError('초안에 받는사람이 없습니다. to를 지정하세요.');
+    final subject = m.htmlToText(asStr(dm['subject']));
+    final auth = await g.mailAuthKey(muid);
+    final uid = <Map<String, Object?>>[];
+    for (final (i, f) in files.indexed) {
+      final r = await g.mailAttachInfo(auth, asStr(f['fileSn']), forDraft: true);
+      final n = asInt(r['fileSize']);
+      uid.add({
+        'authKeyMap': auth, 'createdAt': r['createdAt'], 'email': r['email'], 'encoding': r['encoding'], 'fileClass': 'icon_${asStr(r['fileExtsn'])}', 'fileDeleteYN': 'Y', 'fileExtsn': r['fileExtsn'],
+        'fileId': r['fileId'], 'fileKey': r['fileKey'], 'fileName': r['fileName'], 'filePath': r['filePath'], 'fileSize': _sizeLabel(n), 'fileSn': asStr(f['fileSn']), 'id': i, 'link': 'N',
+        'moduleGbn': r['moduleGbn'], 'muid': r['muid'], 'noConvertFileSize': n, 'offset': r['offset'], 'originalFileName': r['originalFileName'], 'serverFile': 'Y', 'useDownView': 'N',
+      });
+    }
+    final s = await g.client.session();
+    final keys = header.keys.map(asStr).toList()..sort();
+    final fields = composeFields(init, fromName: s.empName, bodyAuth: '${s.emailAddr}|${g.client.creds().authToken}', to: to, cc: cc, subject: subject, html: html)
+      ..['bcc'] = bcc
+      ..['mail_kind'] = 'draft'
+      ..['muid'] = muid
+      ..['mimeHeader'] = header.isEmpty ? '' : jsonEncode({for (final k in keys) k: header[k]})
+      ..['fwFile'] = names.join(',')
+      ..['uidAuthList'] = uid.isEmpty ? '' : jsonEncode(uid)
+      ..['bigFileCnt'] = '${uid.length}';
+    dynamic r;
+    try {
+      r = await g.client.callMultipart('/mail/mail014A04', fields);
+    } on GwException catch (e) {
+      if (e is! GwUnauthorized && e.status == 0) throw McpToolError('발송 결과를 확인할 수 없습니다. 보낸편지함을 확인한 뒤 다시 보내세요.');
+      rethrow;
+    }
+    if (r is! Map || r['result'] != true) throw McpToolError('메일 발송에 실패했습니다.');
+    // 이미 발송됐다 — 원본 삭제 실패(만료 포함)는 오류로 올리지 않고 draft_deleted:false로 알린다
+    var deleted = false;
+    var why = '';
+    try {
+      final d = await g.draftDelete(muidNum, asStr(init['mailkey']).isEmpty ? asStr(info['mailkey']) : asStr(init['mailkey']));
+      deleted = d is Map && asStr(d['code']) == '0';
+      if (!deleted && d is Map) why = asStr(d['msg']);
+    } on GwException {
+      deleted = false;
+    }
+    return {
+      'sent': true, 'draft_muid': muid, 'draft_deleted': deleted, 'to': to, 'cc': cc, 'bcc': bcc, 'subject': subject, 'attachments': uid.length,
+      'note': deleted ? '발송 후 임시보관함 원본을 삭제했다(mail002A07). 이 삭제는 휴지통을 거치지 않는 것으로 보인다' : '발송은 됐지만 임시보관함 원본을 지우지 못했다${why.isEmpty ? '' : '($why)'} — 같은 메일을 또 보내지 않도록 사람이 임시보관함에서 지워야 한다',
+    };
+  }
+
+  /// mail014A08(fileSn 토큰 → fileId) → ecm001A03 바이트 → 저장.
+  Future<Map<String, dynamic>> _downloadMailAttachment(Map x) async {
+    final g = _gw, muid = _req(x, 'muid'), sn = _req(x, 'file_sn'), out = _req(x, 'out_path');
+    final auth = await g.mailAuthKey(muid);
+    final info = await g.mailAttachInfo(auth, sn);
+    return {..._save(out, await g.mailAttachBytes(auth, asStr(info['fileId']))), 'serverFileName': asStr(info['fileName'])};
+  }
+
+  /// 본문 이미지 — 상대경로·그룹웨어 호스트만 서명 GET. 외부 호스트·data: 는 거절.
+  Future<Map<String, dynamic>> _downloadBodyImage(Map x) async {
+    final g = _gw, src = _req(x, 'src'), out = _req(x, 'out_path');
+    final u = Uri.tryParse(src), gwHost = Uri.parse(g.client.baseUrl).host;
+    if (u == null || (u.hasScheme && !(const {'http', 'https'}.contains(u.scheme) && u.host == gwHost)) || (!u.hasScheme && u.host.isNotEmpty && u.host != gwHost)) {
+      throw McpToolError('외부 호스트 이미지는 받지 않습니다. 그룹웨어($gwHost) 경로만 됩니다.');
+    }
+    final path = u.path.startsWith('/') ? u.path : '/${u.path}';
+    return _save(out, await g.client.getBytes(u.hasQuery ? '$path?${u.query}' : path));
+  }
+
+  /// out_path가 Downloads 폴더 아래면 거기 쓰고, 밖이거나(macOS 샌드박스와 같은 경계 — Windows도 동일) 쓰기에 실패하면
+  /// Downloads/<이름>에 쓰고 savedPath로 알린다. 폴백 자리에 같은 이름이 있으면 `이름 (1).ext`부터 빈 이름을 찾는다.
+  Map<String, dynamic> _save(String out, List<int> bytes) {
+    String write(String p) {
+      final f = File(p);
+      f.parent.createSync(recursive: true);
+      f.writeAsBytesSync(bytes, flush: true);
+      return p;
+    }
+
+    final downloads = _downloadsDir();
+    String saved;
+    try {
+      if (!_under(out, downloads)) throw const FileSystemException();
+      saved = write(out);
+    } on FileSystemException {
+      final name = _base(out).isEmpty ? 'download' : _base(out), dot = name.lastIndexOf('.');
+      final stem = dot > 0 ? name.substring(0, dot) : name, ext = dot > 0 ? name.substring(dot) : '';
+      var target = '$downloads${Platform.pathSeparator}$name';
+      for (var i = 1; File(target).existsSync() || Directory(target).existsSync(); i++) {
+        target = '$downloads${Platform.pathSeparator}$stem ($i)$ext';
+      }
+      try {
+        saved = write(target);
+      } on FileSystemException {
+        throw McpToolError('파일을 저장하지 못했습니다. out_path를 Downloads 폴더 아래로 지정해 다시 시도하세요.');
+      }
+    }
+    return {'bytes': bytes.length, 'ok': true, 'path': out, if (saved != out) 'savedPath': saved};
   }
 
   // ── 결재 ──
