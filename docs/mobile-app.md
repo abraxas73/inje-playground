@@ -213,3 +213,43 @@ Graph 메모: 검색 hit는 `fields`에 file·folder를 넣어도 폴더에 `fol
 - 홈 브리핑: '메신저 멘션 N' 섹션(안 읽은 건 굵게, 최대 3) + Claude 브리핑 payload `talkMentions`(안 읽은 것 5개, 본문 80자).
 - **데스크탑(macOS·Windows) OS 알림**: `talk_notifications.dart` — 아마란스가 연결돼 있으면 60초마다 확인해 새 멘션만 `flutter_local_notifications`로 띄운다(첫 실행은 기준만 잡고 과거 건은 알리지 않음, 기준은 shared_preferences `talk_alert_seen`). Windows는 `appUserModelId Innogrid.INNOGRID`. Android 빌드는 core library desugaring을 켜야 한다(`build.gradle.kts`).
 - **메신저 열기(흉내)**: 알림·섹션을 누르면 `messenger_open.dart` — macOS `open -b com.douzone.amaranth10beta`(설치된 AmaranthMessenger를 앞으로), Windows 설치 폴더의 `AmaranthMessenger*.exe` 실행, iOS `Amaranth10://`·Android `com.douzone.app.amaranth10://`(웹 번들의 모바일 열기 스킴), 실패하면 그룹웨어 웹. 특정 대화방 딥링크는 없다 — Mac 메신저(Electron, `com.douzone.amaranth10beta`)는 URL 스킴 미등록, 웹의 메신저 팝업(`/#popup?menuGubun=MSG&seq=3&d=<AES-CBC 키 "1023497555960596">`)은 이 테넌트에서 빈 화면.
+
+## Claude 커넥터(아마란스 MCP) (2026-10-10)
+
+목적: inno-creed 바이너리를 대체한다. claude.ai 조직 커넥터 **"INNOGRID 아마란스"**(URL `https://innocrew.innogrid.com/api/mcp`)로 Claude(웹·Desktop·모바일·Claude Code)가 각자 아마란스(메일·일정·결재·조직도 등)를 부른다. 스펙 `docs/superpowers/specs/2026-10-10-desktop-mcp-connector-design.md`.
+
+**구조**: claude.ai → `/api/mcp`(Streamable HTTP, 무상태 JSON-RPC) → Supabase `mcp_calls`(RLS·Realtime, SQL `docs/sql/2026-10-10-mcp-calls.sql`) → 데스크탑 앱 `lib/mcp/` McpWorker(클레임 → 실행 → 결과 저장) → `GwClient` → 아마란스. 아마란스 세션·크레덴셜은 앱 안에만 있다.
+
+**인증**: Supabase OAuth 2.1 서버 + 동적 클라이언트 등록(DCR). 동의 화면은 `/oauth/consent`(user 이상, 미로그인은 로그인 후 복귀). 메타데이터 `/.well-known/oauth-protected-resource`.
+
+### 운영 절차
+1. **관리자(1회)**: Supabase 대시보드 OAuth 서버 켜기 · Authorization path `/oauth/consent` · DCR 켜기.
+2. **조직 Owner(1회)**: claude.ai 관리자 설정 > 커넥터 > 추가 > 사용자 지정 > 웹 → URL 등록 → "지금 로그인" · "자동으로 등록". 2단계 "추가" 버튼이 화면 아래라 스크롤해야 보인다.
+3. **사용자**: 앱(macOS·Windows) 설치·로그인·아마란스 연결 → claude.ai 맞춤 설정 > 커넥터 > 내 항목 > 연결 → 허용. Claude Code는 `claude mcp list`에 "claude.ai INNOGRID 아마란스"로 자동 등록된다(루프백 콜백 불필요).
+
+### 도구
+inno-creed 2.2.0과 같은 57개 이름·스키마(`frontend/src/lib/mcp/tools.json`). 응답 형식은 `mobile/test/mcp/fixtures/expected`와 일치해야 한다.
+
+### 오류 문구
+| 상황 | 안내 |
+|---|---|
+| 앱 미실행(10초 미클레임) | "데스크탑 앱이 실행 중이 아닙니다…" |
+| 110초 시간 초과 | 시간 초과 안내 |
+| 아마란스 미연결 | 앱에서 아마란스 연결 안내 |
+| 분당 60건 초과 | 호출 상한 안내 |
+
+### 보안
+- 크레덴셜은 앱 밖으로 나가지 않는다. 중계 행은 응답 후 삭제, 남은 행은 10분 크론(`/api/cron/mcp-purge`)이 정리.
+- 감사 로그엔 `{tool, ms, ok}`만(인자·결과 없음).
+- 쓰기 도구도 항상 노출한다 — Claude의 도구 승인 프롬프트가 관문(이노봇 같은 앱 확인 카드는 없음).
+
+### 실측 메모
+inno-creed 호출은 mitmproxy + `HTTPS_PROXY`로 캡처했다(rustls-platform-verifier라 키체인에 CA를 신뢰시키면 통과). 픽스처 `mobile/test/mcp/fixtures/captured`(개인정보 가림).
+
+### 문제 해결
+| 증상 | 확인 |
+|---|---|
+| 커넥터 등록 시 "Couldn't reach" | `/api/mcp` 401 응답에 `WWW-Authenticate`(resource_metadata)가 있는지 |
+| 동의 화면이 홈으로 감 | guest 역할(user 이상만 허용) |
+| 앱이 켜져 있는데 "미실행" 안내 | 더보기 > Claude 커넥터 스위치·앱 로그인·`mcp_calls` Realtime publication |
+| 연결은 되는데 도구가 실패 | 앱의 아마란스 연결(재로그인) 상태 |

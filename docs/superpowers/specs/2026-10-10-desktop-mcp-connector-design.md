@@ -72,7 +72,7 @@ Supabase 대시보드 Authentication > OAuth Server에서 켜고 Authorization p
 
 ### 5.3 Claude 쪽 등록
 - 하드 요구: 콜백 `https://claude.ai/api/mcp/auth_callback`(claude.ai·Desktop·모바일·Cowork)과 Claude Code의 루프백 `http://localhost:<임의 포트>/callback`·`http://127.0.0.1:<임의 포트>/callback`을 인가 서버가 받아야 한다. Claude는 DCR로 자기 redirect_uri를 등록하므로 우리가 손으로 등록할 것은 없다.
-- **확인 필요(1단계 스모크)**: Supabase는 OAuth 클라이언트 redirect_uri를 **정확히 일치**로만 본다(와일드카드·포트 무시 없음). Claude Code가 DCR 때 실제 포트를 넣어 등록하면 통과하고, 포트 없는 `http://localhost/callback`을 등록한 뒤 다른 포트로 돌아오면 실패한다. 실패하면 **폴백**: Supabase 대신 우리 웹에 얇은 인가 서버(`/api/oauth/{register,authorize,token}` + 메타데이터, authorization code + PKCE + DCR, 루프백은 포트 무시 일치, 토큰은 `mcp_tokens` 테이블 해시 저장·회전)를 둔다. 폴백은 별도 스펙 없이 이 문서 §5를 교체하는 수준(라우트 4개, 테이블 2개).
+- **확인됨(2026-10-10)**: 조직 커넥터는 Claude Code에 자동으로 뜬다(`claude mcp list`에 "claude.ai INNOGRID 아마란스 ✔ Connected") — claude.ai가 쥔 토큰을 쓰므로 루프백 콜백이 필요 없다. 폴백 인가 서버는 불필요.
 - 커넥터 등록(Team 플랜은 **Owner·Primary Owner만** 가능): claude.ai 관리자 설정 > 커넥터 > 사용자 지정 커넥터 추가 → URL 입력 → 인증 "Register automatically"(DCR) → 저장. 구성원은 커넥터 목록에서 [연결]을 누른다(조직 등록만으로 자동 연결되지는 않는다 — Anthropic 문서).
 
 ## 6. MCP 끝점 `/api/mcp` (`frontend/src/app/api/mcp/route.ts`, `lib/mcp/`)
