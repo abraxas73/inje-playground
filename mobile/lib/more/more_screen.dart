@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import '../auth/session.dart';
 import '../release/update_banner.dart';
 import '../gw/gw_creds.dart';
 import '../gw/gw_settings_sheet.dart';
+import '../mcp/mcp_settings_sheet.dart';
 import 'catalog.dart';
 import 'profile.dart';
 
@@ -82,6 +84,16 @@ class MoreScreen extends ConsumerWidget {
             Card(
               child: Column(children: [
                 _GwRow(gw: gw, onTap: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (_) => const GwSettingsSheet())),
+                if (Platform.isMacOS || Platform.isWindows) ...[
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.hub_outlined),
+                    title: const Text('Claude 커넥터'),
+                    subtitle: const Text('claude.ai·Claude Code 요청을 이 앱이 실행'),
+                    trailing: const Icon(Icons.chevron_right, color: Brand.faint),
+                    onTap: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (_) => const McpSettingsSheet()),
+                  ),
+                ],
                 const Divider(),
                 ListTile(
                   leading: const Icon(Icons.settings_outlined),
