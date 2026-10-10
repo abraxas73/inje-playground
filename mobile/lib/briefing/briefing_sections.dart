@@ -1,6 +1,7 @@
 import 'confluence_briefing.dart';
 import 'jira_briefing.dart';
 import 'sharepoint_briefing.dart';
+import '../gw/talk_alerts.dart';
 import 'package:flutter/material.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
@@ -364,3 +365,32 @@ class SharepointSection extends StatelessWidget {
     );
   }
 }
+
+/// 홈 — 아마란스 메신저에서 나를 멘션한 알림(최대 3, 안 읽은 건 굵게). 누르면 메신저 열기(흉내 — 대화방 딥링크 없음).
+class TalkMentionSection extends StatelessWidget {
+  const TalkMentionSection({super.key, required this.talks, required this.onOpen});
+  final List<GwTalkAlert>? talks;
+  final VoidCallback onOpen;
+  @override
+  Widget build(BuildContext context) {
+    final list = talks;
+    if (list == null || list.isEmpty) return const SizedBox.shrink();
+    final unread = list.where((a) => !a.read).length;
+    return _Section(
+      title: unread > 0 ? '메신저 멘션 $unread' : '메신저 멘션',
+      trailing: _more('메신저 열기', onOpen),
+      child: Column(children: [
+        for (final x in list.take(3))
+          ListTile(
+            dense: true,
+            leading: InitialBadge(x.sender, size: 32, circle: true),
+            title: Text(x.text, maxLines: 2, overflow: TextOverflow.ellipsis, style: x.read ? null : const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text([x.room, x.sender, _talkWhen(x.at)].where((s) => s.isNotEmpty).join(' · '), style: const TextStyle(fontSize: 12)),
+            onTap: onOpen,
+          ),
+      ]),
+    );
+  }
+}
+
+String _talkWhen(DateTime t) => '${t.month}/${t.day} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';

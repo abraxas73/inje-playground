@@ -205,3 +205,11 @@ RFP 업로드·Teams 채팅과 **같은 Microsoft 연결**(`ms_connections`, `gr
 - PPT 만들기: 웹 주소 원고가 `*.sharepoint.com` 링크면 본인 권한으로 내려받아 `ppt` 버킷 `source/<uuid>.<ext>`에 두고 업로드 원고와 같은 흐름(`lib/sharepoint/ppt-source.ts`; pptx는 PPT 원고). 같은 작업에서 `SOURCE_PATH_RE`에 html·htm이 빠져 HTML 업로드 원고가 덱 만들기에서 거절되던 버그를 고쳤다.
 
 Graph 메모: 검색 hit는 `fields`에 file·folder를 넣어도 폴더에 `folder` 파셋이 없고 `file` 키가 온다(실측) — `folder` 파셋이 없으면 확장자 없는 이름을 폴더로 본다(폴더도 결과에 남겨 즐겨찾기 가능, 파일 먼저). 검색 hit·recent의 `remoteItem`(다른 드라이브 항목)은 그쪽 id·driveId를 쓴다. 인사이트 `resourceReference.id`는 `drives/{driveId}/items/{id}` 꼴만 문서(웹 링크는 제외). 위치 표시는 `resourceVisualization.containerDisplayName` 또는 webUrl 경로에서 `sites`·`Shared Documents`를 뺀 "사이트 › 폴더".
+
+## 아마란스 메신저 멘션 알림 (2026-10-10, 1.5.2)
+
+메신저 자체 API는 없지만(런북 §비서·메모리 참고) 아마란스 **알림센터**에는 메신저 **알파멘션**이 올라온다. 앱은 같은 서명 호출로 `POST /event/event02A01`(header `{groupSeq, empSeq}`, body `reqType 2 · reqSubType N · eventType TALK · searchType received · timeStamp`)을 불러 `GwTalkAlert`(방·보낸 사람·본문(멘션 표식 `|>@empseq=…,name=…@<|` → `@이름`)·읽음·roomId·chatId)로 만든다(`lib/gw/talk_alerts.dart`, `GwTalkApi.talkAlerts`).
+- **한계(실측)**: 한 달 알림 780건 중 TALK은 멘션 1건, `mentionYn=N` 조회 0건 → 일반 채팅은 안 올라온다. 실시간은 웹이 MQTT(`/gw/gw015A41` 접속 정보, `wss://host:18085/mqtt`, 토픽 `/{groupSeq}/{empSeq}`)를 쓰지만 앱은 폴링으로 충분.
+- 홈 브리핑: '메신저 멘션 N' 섹션(안 읽은 건 굵게, 최대 3) + Claude 브리핑 payload `talkMentions`(안 읽은 것 5개, 본문 80자).
+- **데스크탑(macOS·Windows) OS 알림**: `talk_notifications.dart` — 아마란스가 연결돼 있으면 60초마다 확인해 새 멘션만 `flutter_local_notifications`로 띄운다(첫 실행은 기준만 잡고 과거 건은 알리지 않음, 기준은 shared_preferences `talk_alert_seen`). Windows는 `appUserModelId Innogrid.INNOGRID`. Android 빌드는 core library desugaring을 켜야 한다(`build.gradle.kts`).
+- **메신저 열기(흉내)**: 알림·섹션을 누르면 `messenger_open.dart` — macOS `open -b com.douzone.amaranth10beta`(설치된 AmaranthMessenger를 앞으로), Windows 설치 폴더의 `AmaranthMessenger*.exe` 실행, iOS `Amaranth10://`·Android `com.douzone.app.amaranth10://`(웹 번들의 모바일 열기 스킴), 실패하면 그룹웨어 웹. 특정 대화방 딥링크는 없다 — Mac 메신저(Electron, `com.douzone.amaranth10beta`)는 URL 스킴 미등록, 웹의 메신저 팝업(`/#popup?menuGubun=MSG&seq=3&d=<AES-CBC 키 "1023497555960596">`)은 이 테넌트에서 빈 화면.

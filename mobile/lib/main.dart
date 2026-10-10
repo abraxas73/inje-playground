@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/router.dart';
+import 'gw/talk_notifications.dart';
 import 'app/theme.dart';
 import 'auth/session.dart';
 import 'config.dart';
@@ -72,9 +73,12 @@ class _AppState extends ConsumerState<App> {
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp.router(
-    title: '이노그리드',
-    theme: appTheme(),
-    routerConfig: _router,
-  );
+  Widget build(BuildContext context) {
+    ref.watch(talkAlertWatcherProvider); // 데스크탑: 메신저 멘션 OS 알림(아마란스 연결 때만 돈다)
+    return MaterialApp.router(
+      title: '이노그리드',
+      theme: appTheme(),
+      routerConfig: _router,
+    );
+  }
 }

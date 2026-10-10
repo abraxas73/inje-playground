@@ -1,4 +1,5 @@
 import 'confluence_briefing.dart';
+import '../gw/talk_alerts.dart';
 import 'sharepoint_briefing.dart';
 import 'jira_briefing.dart';
 import 'package:flutter/material.dart';
@@ -68,6 +69,8 @@ class BriefingData {
   Attendance? attendance;
   GwOrgAbsences? orgAbsences;
   TeamsMentions? mentions;
+  /// 메신저(아마란스) 멘션 알림 — 아마란스 연결 때만
+  List<GwTalkAlert>? talks;
   JiraBriefing? jira;
   ConfluenceBriefing? confluence;
   SharepointBriefing? sharepoint;
@@ -172,6 +175,7 @@ Map<String, dynamic> summaryPayload(BriefingData d) {
     'mails': [for (final m in (d.inbox?.$2 ?? const <MailItem>[]).where((m) => !m.seen).take(8)) {'from': _cut(m.fromName, 40), 'subject': _cut(m.subject), 'when': _cut(m.tooltip.isNotEmpty ? m.tooltip : m.date, 40)}],
     'jira': [for (final x in (d.jira?.items ?? const <JiraBriefingIssue>[]).take(5)) {'key': x.key, 'title': _cut(x.summary), 'status': _cut(x.status, 40), 'dueDate': x.dueDate}],
     'mentions': [for (final x in (d.mentions?.items ?? const <TeamsMention>[]).take(5)) {'chat': _cut(x.topic, 40), 'from': _cut(x.from, 40), 'text': _cut(x.text, 80)}],
+    'talkMentions': [for (final x in (d.talks ?? const <GwTalkAlert>[]).where((x) => !x.read).take(5)) {'room': _cut(x.room, 40), 'from': _cut(x.sender, 40), 'text': _cut(x.text, 80)}],
     'notices': [for (final x in (d.notices?.$2 ?? const <GwNotice>[]).take(3)) {'title': _cut(x.title), 'board': _cut(x.board, 40)}],
     'attendance': d.attendance == null ? null : {'clockedIn': d.attendance!.clockedIn, 'holiday': d.attendance!.holiday},
   };

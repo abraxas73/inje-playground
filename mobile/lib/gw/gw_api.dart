@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'gw_client.dart';
+import 'talk_alerts.dart';
 import 'gw_models.dart';
 
 /// 기능별 호출. 요청 본문 값과 함정의 출처는 inno-creed(approval.rs·attendance.rs·calendar.rs·resource.rs·mail.rs).
@@ -177,3 +178,16 @@ final gwApiProvider = Provider<GwApi?>((ref) {
   final c = ref.watch(gwClientProvider);
   return c == null ? null : GwApi(c);
 });
+
+extension GwTalkApi on GwApi {
+  /// 메신저 멘션 알림(최근순) — 웹 알림센터와 같은 `/event/event02A01`(서명 헤더 동일). eventType TALK만 요청한다.
+  /// 그룹웨어 알림에는 알파멘션만 올라온다(일반 채팅 없음, 2026-10-10 실측).
+  Future<List<GwTalkAlert>> talkAlerts({int pageSize = 20}) async {
+    final c = client.creds();
+    final d = await client.call('/event/event02A01', {
+      'header': {'groupSeq': c.groupSeq, 'empSeq': c.empSeq},
+      'body': {'reqType': '2', 'reqSubType': 'N', 'pageSize': '$pageSize', 'newYn': 'N', 'mentionYn': 'N', 'langCode': 'kr', 'eventType': 'TALK', 'searchType': 'received', 'timeStamp': DateTime.now().millisecondsSinceEpoch},
+    });
+    return GwTalkAlert.parseList(d);
+  }
+}

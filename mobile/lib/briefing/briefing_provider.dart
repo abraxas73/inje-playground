@@ -62,6 +62,7 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
         src('notices', () async => d.notices = await api.notices(pageSize: 3)),
         src('absences', () async => d.orgAbsences = await api.organizationAbsences()),
         src('attendance', () async => d.attendance = await api.attendanceToday()),
+        src('talks', () async => d.talks = await api.talkAlerts(pageSize: 10)),
       ],
       src('jira', () async {
         try {

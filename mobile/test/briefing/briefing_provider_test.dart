@@ -48,6 +48,7 @@ final gwAll = <String, Object?>{
   '/mail/mail000A01': {'children': [{'name': 'INBOX', 'mboxSeq': 5}]},
   '/mail/mail003A01': {'TotalUnseenCount': 2, 'Records': [{'muid': '1', 'subject': '견적', 'fromAddrName': '박지훈', 'tooltipDate': '2026-10-05 09:12:00', 'seen': false}]},
   '/human/common/judgeTimeManagement/getTodayComeLeaveInfo': {'comeTm': '', 'leaveTm': ''},
+  '/event/event02A01': {'alertList': [{'alertId': 't1', 'eventType': 'TALK', 'eventSubType': 'TA001', 'readDate': '', 'createTime': 1788768172403, 'message': {'alertTitle': '[일반미팅룸] 김명진님의 알파멘션', 'alertContent': '|>@empseq="7",name="강승억"@<| 메일 확인'}, 'data': '{"roomId":"r1","chatId":"c1","senderName":"김명진"}'}]},
   '/board/APIHandler/ViewBoardNewAndNoticeArtList': {'totalCnt': 1, 'articleList': [{'art_seq_no': '1', 'art_title': '보안 교육', 'cat_title': '공지사항', 'is_new_yn': 'Y', 'art_read_yn': 'N'}]},
 };
 
@@ -130,6 +131,8 @@ void main() {
     expect(d.errors.keys, ['absences']);
     expect(d.today, isNotEmpty);
     expect(d.orgAbsences, isNull);
+    expect(d.talks?.single.sender, '김명진'); // 아마란스 메신저 멘션 알림(/event/event02A01)
+    expect(summaryPayload(d)['talkMentions'], [{'room': '일반미팅룸', 'from': '김명진', 'text': '@강승억 메일 확인'}]);
     expect(teamAbsences(d), isEmpty);
   });
 

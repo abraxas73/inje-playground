@@ -15,6 +15,7 @@ import '../../briefing/summary_provider.dart';
 import '../../gw/gw_creds.dart';
 import '../../gw/gw_models.dart' show myEvents;
 import '../../gw/gw_notices_card.dart';
+import '../../gw/messenger_open.dart';
 import '../../more/catalog.dart';
 import '../../more/service_grid.dart';
 import '../../release/update_banner.dart';
@@ -198,6 +199,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               ),
               if (data.errors.containsKey('approvals')) RetryLine(label: '미결 결재', onTap: _refresh) else ApprovalsSection(total: data.approvals?.$1 ?? 0, items: data.approvals?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals')),
               if (data.errors.containsKey('inbox')) RetryLine(label: '메일', onTap: _refresh) else MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail')),
+              if (!data.errors.containsKey('talks')) TalkMentionSection(talks: data.talks, onOpen: openMessenger),
             ],
             if (data != null) ...[
               if (data.errors.containsKey('teams')) RetryLine(label: 'Teams', onTap: _refresh) else TeamsSection(mentions: data.mentions, onOpen: () => open(teamsRoute)),
