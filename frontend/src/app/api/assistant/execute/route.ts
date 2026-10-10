@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       } else {
         const ref = str("drive_id") && str("item_id") ? { driveId: str("drive_id"), id: str("item_id") } : str("url") ? { url: str("url") } : null;
         if (!ref) return fail("drive_id·item_id 또는 url이 필요합니다.");
-        result = await readDoc(tok.token, ref, 20_000, { extractPptx: pptxExtractor() });
+        result = await readDoc(tok.token, ref, 20_000, { extractPptx: pptxExtractor(r.admin) });
       }
       await logAudit(r.admin, request, { userId: r.userId, action: "비서 실행", category: "assistant", detail: { tool } });
       return NextResponse.json({ ok: true, result });

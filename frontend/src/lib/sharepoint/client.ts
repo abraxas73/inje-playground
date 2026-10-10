@@ -66,21 +66,17 @@ export async function resolveRef(token: string, ref: ItemRef, fetchImpl: FetchLi
 }
 
 export interface DocText { item: SharepointItem; text: string; truncated: boolean }
-export interface ReadDeps { fetchImpl?: FetchLike; /** pptx → 장표 텍스트(ppt-service /extract) */ extractPptx?: (downloadUrl: string) => Promise<string> }
+export interface ReadDeps { fetchImpl?: FetchLike; /** pptx 파일 → 장표 텍스트(ppt-service /extract) */ extractPptx?: (buf: Buffer, name: string) => Promise<string> }
 /** 문서 본문을 텍스트로(LLM·원고용). READABLE_EXTENSIONS만, 20MiB 이하. maxChars를 넘으면 자르고 truncated */
 export async function readDoc(token: string, ref: ItemRef, maxChars = 20_000, deps: ReadDeps = {}): Promise<DocText> {
   const item = await resolveRef(token, ref, deps.fetchImpl);
   if (item.kind !== "file") throw new SharepointError("폴더는 읽을 수 없습니다. 문서 파일을 지정하세요.", 400);
   if (!(READABLE_EXTENSIONS as readonly string[]).includes(item.ext)) throw new SharepointError(`${item.ext || "확장자 없는"} 파일은 본문을 읽을 수 없습니다(${READABLE_EXTENSIONS.join("·")}).`, 415);
   if (item.size > XLSX_SOURCE_MAX_BYTES) throw new SharepointError("파일이 너무 큽니다(20MB 이하).", 413);
-  let full: string;
-  if (item.ext === "pptx") {
-    if (!deps.extractPptx || !item.downloadUrl) throw new SharepointError("PPT 본문 읽기를 쓸 수 없습니다.", 503);
-    full = await deps.extractPptx(item.downloadUrl);
-  } else {
-    const buf = await downloadFile(token, item.driveId, item.id, deps.fetchImpl);
-    full = item.ext === "xlsx" ? documentText(await parseDocumentAsync(buf, item.name)) : await textFromDocument(buf, item.name);
-  }
+  if (item.ext === "pptx" && !deps.extractPptx) throw new SharepointError("PPT 본문 읽기를 쓸 수 없습니다.", 503);
+  const buf = await downloadFile(token, item.driveId, item.id, deps.fetchImpl);
+  const full = item.ext === "pptx" ? await deps.extractPptx!(buf, item.name)
+    : item.ext === "xlsx" ? documentText(await parseDocumentAsync(buf, item.name)) : await textFromDocument(buf, item.name);
   const { downloadUrl: _d, size: _s, ...rest } = item; void _d; void _s;
   return { item: rest, text: full.slice(0, maxChars), truncated: full.length > maxChars };
 }

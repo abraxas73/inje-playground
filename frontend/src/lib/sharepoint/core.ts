@@ -40,7 +40,20 @@ export function isSharepointUrl(url: string): boolean {
   try { const h = new URL(url.trim()).host.toLowerCase(); return h.endsWith(".sharepoint.com") && !h.includes("/"); } catch { return false; }
 }
 
+const cap60 = (s: string) => (s.length > 60 ? `…${s.slice(-59)}` : s);
 const SKIP_SEGMENTS = new Set(["sites", "teams", "personal", "shared documents", "documents", "forms", "_layouts", "15"]);
+/** webUrl에서 실제 파일 이름(확장자 포함) — Doc.aspx?file=… 또는 마지막 경로. 없으면 "" */
+export function fileNameFromUrl(webUrl: string): string {
+  try {
+    const u = new URL(webUrl);
+    const f = u.searchParams.get("file");
+    if (f) return f;
+    const last = decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() ?? "");
+    return /\.[A-Za-z0-9]{1,5}$/.test(last) && !/\.aspx$/i.test(last) ? last : "";
+  } catch { return ""; }
+}
+/** 인사이트 resourceVisualization.type → 확장자(제목에는 확장자가 없다) */
+const TYPE_EXT: Record<string, string> = { word: "docx", excel: "xlsx", powerpoint: "pptx", pdf: "pdf", onenote: "one", text: "txt", visio: "vsdx", csv: "csv" };
 /** webUrl → "사이트 › 폴더" 꼴 짧은 위치. 개인 OneDrive는 "OneDrive". 파일 이름은 뺀다. */
 export function containerFromUrl(webUrl: string, isFolder = false): string {
   try {
@@ -49,8 +62,7 @@ export function containerFromUrl(webUrl: string, isFolder = false): string {
     if (!isFolder) parts.pop();
     const mine = u.host.toLowerCase().endsWith("-my.sharepoint.com");
     const kept = parts.filter((p, i) => !(SKIP_SEGMENTS.has(p.toLowerCase()) || (mine && i <= 1)));
-    const out = (mine ? ["OneDrive", ...kept] : kept).join(" › ");
-    return out.length > 60 ? `…${out.slice(-59)}` : out;
+    return cap60((mine ? ["OneDrive", ...kept] : kept).join(" › "));
   } catch { return ""; }
 }
 
@@ -78,13 +90,14 @@ export function mapInsight(raw: unknown): SharepointItem | null {
   const m = /^drives\/([^/]+)\/items\/([^/]+)$/.exec(str(ref.id));
   if (!m) return null;
   const url = str(ref.webUrl);
-  const name = str(vis.title) || decodeURIComponent(url.split("/").pop() ?? "");
+  const fromUrl = fileNameFromUrl(url), type = str(vis.type).toLowerCase();
+  const name = fromUrl || str(vis.title);
   if (!name) return null;
   const shared = rec(o.lastShared), used = rec(o.lastUsed);
-  const kind = str(vis.type).toLowerCase() === "folder" ? "folder" : "file";
+  const kind = type === "folder" ? "folder" : "file";
   return {
-    id: m[2], driveId: m[1], name, url, kind, ext: kind === "file" ? extOf(name) : "",
-    container: str(vis.containerDisplayName) || containerFromUrl(url, kind === "folder"),
+    id: m[2], driveId: m[1], name, url, kind, ext: kind === "folder" ? "" : fromUrl ? extOf(fromUrl) : TYPE_EXT[type] ?? "",
+    container: cap60(str(vis.containerDisplayName)) || containerFromUrl(url, kind === "folder"),
     at: str(used.lastAccessedDateTime) || str(shared.sharedDateTime) || str(o.lastModifiedDateTime) || str(used.lastModifiedDateTime),
     by: str(rec(rec(shared.sharedBy).user).displayName) || str(rec(shared.sharedBy).displayName),
   };
@@ -101,7 +114,8 @@ export function dedupe(items: Array<SharepointItem | null>): SharepointItem[] {
 /** POST /search/query 본문 — driveItem만, 본인 권한 범위. 따옴표는 KQL이 해석하지 않게 뺀다 */
 export function searchBody(q: string, size: number) {
   const queryString = q.replace(/["\\]/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
-  return { requests: [{ entityTypes: ["driveItem"], query: { queryString }, from: 0, size: Math.min(25, Math.max(1, size)) }] };
+  // fields가 없으면 file·folder 파셋이 안 와서 폴더를 못 거른다(2026-10-10 실측)
+  return { requests: [{ entityTypes: ["driveItem"], query: { queryString }, from: 0, size: Math.min(25, Math.max(1, size)), fields: ["id", "name", "webUrl", "parentReference", "lastModifiedDateTime", "lastModifiedBy", "file", "folder", "size"] }] };
 }
 /** 검색 응답 → 항목(폴더 제외) */
 export function mapSearchResponse(j: unknown): SharepointItem[] {

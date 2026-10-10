@@ -24,13 +24,18 @@ it("driveItem 매핑 — remoteItem이 있으면 그쪽이 실제 항목, id·dr
 });
 it("인사이트 매핑 — drives/{d}/items/{i}만, 제목·컨테이너·사용/공유 시각·공유한 사람", () => {
   const used = mapInsight({ id: "u", lastUsed: { lastAccessedDateTime: "2026-10-09T01:00:00Z" }, resourceVisualization: { title: "주간보고.docx", type: "Word", containerDisplayName: "경영기획" }, resourceReference: { webUrl: "https://x/a.docx", id: "drives/d1/items/i1" } });
-  expect(used).toMatchObject({ id: "i1", driveId: "d1", name: "주간보고.docx", container: "경영기획", at: "2026-10-09T01:00:00Z", ext: "docx" });
+  expect(used).toMatchObject({ id: "i1", driveId: "d1", name: "a.docx", container: "경영기획", at: "2026-10-09T01:00:00Z", ext: "docx" }); // 이름은 webUrl의 파일 이름(제목엔 확장자가 없다)
   const shared = mapInsight({ lastShared: { sharedDateTime: "2026-10-08T00:00:00Z", sharedBy: { user: { displayName: "김민준" } } }, resourceVisualization: { title: "제안서.pptx" }, resourceReference: { webUrl: "https://x.sharepoint.com/sites/S/Shared%20Documents/제안서.pptx", id: "drives/d1/items/i2" } });
   expect(shared).toMatchObject({ id: "i2", by: "김민준", at: "2026-10-08T00:00:00Z", container: "S" });
   expect(mapInsight({ resourceVisualization: { title: "웹 링크" }, resourceReference: { id: "https://web", webUrl: "https://web" } })).toBeNull();
+  // 제목에는 확장자가 없다 — webUrl의 파일 이름(또는 Doc.aspx?file=)을 쓰고, 없으면 type으로 확장자를 정한다
+  const apk = mapInsight({ resourceVisualization: { title: "innogrid-app-1.4.7", type: "Other" }, resourceReference: { webUrl: "https://x.sharepoint.com/sites/S/Shared%20Documents/innogrid-app-1.4.7.apk", id: "drives/d/items/i" } });
+  expect(apk).toMatchObject({ name: "innogrid-app-1.4.7.apk", ext: "apk" });
+  expect(mapInsight({ resourceVisualization: { title: "활동 계획서", type: "Word" }, resourceReference: { webUrl: "https://x.sharepoint.com/:w:/r/sites/S/abc", id: "drives/d/items/i" } })).toMatchObject({ name: "활동 계획서", ext: "docx" });
+  expect(mapInsight({ resourceVisualization: { title: "표", type: "Excel" }, resourceReference: { webUrl: "https://x.sharepoint.com/sites/S/_layouts/15/Doc.aspx?sourcedoc=%7Bid%7D&file=%ED%91%9C.xlsx", id: "drives/d/items/i" } })).toMatchObject({ name: "표.xlsx", ext: "xlsx" });
 });
 it("검색 본문은 따옴표를 빼고 25개 상한, 응답은 폴더 제외·중복 제거", () => {
-  expect(searchBody(' 제안서 "2026" \\x ', 99)).toEqual({ requests: [{ entityTypes: ["driveItem"], query: { queryString: "제안서 2026 x" }, from: 0, size: 25 }] });
+  expect(searchBody(' 제안서 "2026" \\x ', 99)).toEqual({ requests: [{ entityTypes: ["driveItem"], query: { queryString: "제안서 2026 x" }, from: 0, size: 25, fields: ["id", "name", "webUrl", "parentReference", "lastModifiedDateTime", "lastModifiedBy", "file", "folder", "size"] }] });
   const hit = (id: string, extra: object = {}) => ({ resource: { id, name: `${id}.docx`, webUrl: "https://x", parentReference: { driveId: "d" }, ...extra } });
   const items = mapSearchResponse({ value: [{ hitsContainers: [{ hits: [hit("1"), hit("1"), hit("2", { folder: {} }), hit("3")] }] }] });
   expect(items.map((i) => i.id)).toEqual(["1", "3"]);
