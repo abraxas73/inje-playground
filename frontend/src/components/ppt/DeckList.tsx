@@ -39,7 +39,7 @@ export default function DeckList({ decks, showOwner, onDeleted, onError }: { dec
               <td className="max-w-[280px] px-3 py-2">
                 <span className="flex items-center gap-1">
                   <Link href={`/ppt/${d.id}`} className="truncate font-medium hover:underline" title={d.title}>{d.title}</Link>
-                  {d.shareEnabled && <Link2 className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="공유 링크 켜짐" title="공유 링크 켜짐" />}
+                  {d.shareEnabled && <span title="공유 링크 켜짐" className="flex shrink-0"><Link2 className="h-3 w-3 text-muted-foreground" aria-label="공유 링크 켜짐" /></span>}
                 </span>
               </td>
               {showOwner && <td className="px-3 py-2 text-muted-foreground" title={d.ownerEmail}>{d.ownerLabel ?? d.ownerEmail}</td>}
