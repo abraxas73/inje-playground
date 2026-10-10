@@ -1,0 +1,13 @@
+{
+ "tool": "person_group",
+ "args": {},
+ "toolResult": {
+  "count": 0,
+  "groups": [],
+  "kind": "personGroups",
+  "note": "x",
+  "path": "/Users/seunguk.kang/.config/inno-creed/person_groups.json"
+ },
+ "isError": false,
+ "calls": []
+}

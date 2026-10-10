@@ -1,0 +1,47 @@
+{
+ "tool": "cancel_reservation",
+ "args": {
+  "res_seq": "45",
+  "seq_num": 76195,
+  "res_idx": "1"
+ },
+ "toolResult": {
+  "code": -32603,
+  "message": "예약 조회 실패(없거나 접근불가): api /schres/rs121A10 실패: http=200 OK resultCode=9208 msg=조회 권한이 없거나 취소/삭제된 자원예약입니다."
+ },
+ "isError": null,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/schres/rs121A10",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "196"
+   },
+   "body": {
+    "companyInfo": {
+     "compSeq": "1000",
+     "deptSeq": "2989",
+     "emailAddr": "x",
+     "emailDomain": "x",
+     "groupSeq": "gcmsAmaranth31433"
+    },
+    "langCode": "kr",
+    "resIdx": "1",
+    "resSeq": "45",
+    "seqNum": 76195
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 9208,
+    "resultMsg": "조회 권한이 없거나 취소/삭제된 자원예약입니다.",
+    "resultData": null
+   }
+  }
+ ]
+}

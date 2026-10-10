@@ -1,0 +1,198 @@
+{
+ "tool": "save_mail_draft",
+ "args": {
+  "to": "user@example.com",
+  "subject": "x",
+  "html": "x",
+  "attachments": [
+   "/private/tmp/claude-501/-Users-seunguk-kang-Repos-inje-playground/bb6d601b-c764-46a3-9d46-f193bc34c6f6/scratchpad/mitm/attach-test.txt"
+  ]
+ },
+ "toolResult": {
+  "attachments": 1,
+  "bcc": "",
+  "cc": "",
+  "draft_muid": "14874412",
+  "mail_key": "1791625964237_a097fcd9-a894-44e1-b7a8-7e0e165de38d",
+  "note": "임시보관함에 저장만 됨(발송 아님). 목록 확인은 list_mail_drafts",
+  "ok": true,
+  "sent": false,
+  "signature_attached": true,
+  "subject": "x",
+  "to": "user@example.com",
+  "verified_by_readback": true
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/mail/mail014A01",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "47"
+   },
+   "body": {
+    "mailKind": "plain",
+    "mainApiCode": "mail014A01"
+   },
+   "status": 200,
+   "responseType": "application/json;charset=UTF-8",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "msg": "",
+     "userInfo": {},
+     "code": "0",
+     "signature": "x",
+     "mail_kind": "plain",
+     "insideDomainSet": [],
+     "bigFileSize": "2048",
+     "insideDomainArray[]": [],
+     "groupSeq": "gcmsAmaranth31433",
+     "mailkey": "1791625964237_a097fcd9-a894-44e1-b7a8-7e0e165de38d",
+     "recvSendRestiction": 0,
+     "externalSendLimit": "N",
+     "use_security_mail": "Y",
+     "innerDomainList": [
+      "innogrid.com"
+     ],
+     "filedir": "1791625964217_276e9390-f634-4c4e-bbec-ec6ac05ec107+30",
+     "sendVaild_AI": [],
+     "fileUrl": "https://gw.innogrid.com/mail",
+     "mailInfo": {},
+     "paramTo": null,
+     "email": "x",
+     "representInfo": [
+      "user@example.com",
+      "user@example.com",
+      "user@example.com"
+     ],
+     "groupMailOption": {
+      "useIntedAdddr": false,
+      "groupMailIntedAddr": "x",
+      "useAddressBookGw": true,
+      "groupMailAddr": "x",
+      "groupMailOrg": "amaranth10"
+     },
+     "pwOption": {
+      "pwRuleNum": "Y",
+      "pwUse": "N",
+      "pwLengthLt": "16",
+      "pwRuleSpecial": "Y",
+      "pwRuleLower": "Y",
+      "pwLengthGt": "4",
+      "pwRuleUpper": "Y"
+     },
+     "sessionKey": "write_44e836c8-fe63-4",
+     "bigFileDay": "30",
+     "mail_from": [
+      "user@example.com",
+      "user@example.com",
+      "user@example.com"
+     ],
+     "deptSeq": "2989",
+     "configSignature": {
+      "signatureList": [
+       {
+        "signature": "x",
+        "signature_index": 1,
+        "signature_name": "x"
+       }
+      ],
+      "signatureIdx": 1
+     },
+     "urlEncoderFiledir": "1791625964217_276e9390-f634-4c4e-bbec-ec6ac05ec107%2B30",
+     "mailboxPercent": 9,
+     "compSeq": "1000",
+     "bigFileLimit": "0",
+     "userFromNameList": [
+      {
+       "nameType": "x",
+       "isDefault": true,
+       "ufnSeq": "658",
+       "userName": "x"
+      }
+     ],
+     "insideDomainArray": null,
+     "empSeq": "3060",
+     "useLimit": 0,
+     "capacityLimit": "0"
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/mail/mail014A06",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "content-length": "291",
+    "accept": "*/*",
+    "accept-encoding": "gzip"
+   },
+   "body": "x",
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "성공하였습니다",
+    "resultData": {
+     "list": [
+      {
+       "filePath": "attach-test.txt",
+       "fileName": "x",
+       "originalFileName": "x",
+       "fileExtsn": "txt",
+       "fileSize": "28",
+       "createdAt": "1791625964280",
+       "fileKey": null,
+       "fileId": "zJ4ceGTbPOs3e3ZawgqO5hOTrWIg3cQX3LS7BlD3E11RRxarppBdgG6K6ivsy2WSI4W+8Zbk9Vk0sAHiJ5va3SdRaMOjuv0O89xG0004x0/H9H29cAaDWOqWBu4eJyjh",
+       "muid": "",
+       "email": "x",
+       "encoding": "",
+       "moduleGbn": "MAIL",
+       "offset": null,
+       "authKeyMap": {
+        "muid": "-1",
+        "empSeq": "3060",
+        "email": "x"
+       },
+       "fileSn": "zJ4ceGTbPOs3e3ZawgqO5hOTrWIg3cQX3LS7BlD3E11RRxarppBdgG6K6ivsy2WSI4W+8Zbk9Vk0sAHiJ5va3SdRaMOjuv0O89xG0004x0/H9H29cAaDWOqWBu4eJyjh"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/mail/mail014A14",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "content-length": "11261",
+    "accept": "*/*",
+    "accept-encoding": "gzip"
+   },
+   "body": "x",
+   "status": 200,
+   "responseType": "application/json;charset=UTF-8",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "code": "0",
+     "resultMessage": "SUCCESS",
+     "autoMUID": 14874412,
+     "mailKey": "1791625964437_1c02bd72-3dad-4596-88b8-d24e7b1e5e94.eml"
+    }
+   }
+  }
+ ]
+}

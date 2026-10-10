@@ -1,0 +1,125 @@
+{
+ "tool": "org_chart",
+ "args": {
+  "dept_id": "2989"
+ },
+ "toolResult": {
+  "count": 1,
+  "deptId": "2989",
+  "kind": "deptMembers",
+  "members": [
+   {
+    "deptId": "2989",
+    "deptName": "x",
+    "deptPath": "(주)이노그리드>(주)이노그리드>기술·운영부문>R&D본부>클라우드 네이티브 센터",
+    "duty": "센터장",
+    "dutyCode": "300",
+    "email": "x",
+    "empSeq": "3060",
+    "loginId": "x",
+    "mobile": "x",
+    "name": "x",
+    "note": "",
+    "position": "상무"
+   }
+  ]
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/gw/APIHandler/gw102A02",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "245"
+   },
+   "body": {
+    "isBdayOption": "1",
+    "isGridListDisplayOption": "0",
+    "isJoinDayOption": "0",
+    "isLoginIdOption": "1",
+    "isOrganizationDisplayOption": "5|0|1|3|",
+    "orgGubun": "d",
+    "popupType": "main",
+    "searchDiv": "all",
+    "searchText": "x",
+    "selectedId": "2989",
+    "selectedType": "tree"
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "정상",
+    "resultData": [
+     {
+      "deptName": "x",
+      "zipCode": "",
+      "career": "",
+      "loginId": "x",
+      "messengerDisplayYn": "Y",
+      "dutyCode": "300",
+      "detailAddrM": "x",
+      "compName": "x",
+      "extNum": "",
+      "employeeNumber": "",
+      "path": "1000|1000|2986|2987|2989",
+      "comOptPath": "(주)이노그리드>기술·운영부문>R&D본부>클라우드 네이티브 센터",
+      "bizName": "x",
+      "mailUseYn": "Y",
+      "picFileId": "47eca88e-7c2c-47ef-9d35-c87801617d54_jpg",
+      "customItemCd": "",
+      "bizDisplayYn": "Y",
+      "statusNameId": "x",
+      "gempNo": null,
+      "lunarYn": "N",
+      "joinDay": "",
+      "isNoneLicenseViewEmp": "N",
+      "parentSeq": "2987",
+      "orderText": "x",
+      "faxNum": "",
+      "empAllDeptPathName": "x",
+      "comOptName": "x",
+      "nameId": "x",
+      "orderCase": 3,
+      "pathName": "x",
+      "orgGubun": "u",
+      "mobileTelNum": "x",
+      "keyPath": "gcmsAmaranth31433|1000|2989|3060|u",
+      "outMailAddr": "x",
+      "positionCode": "200",
+      "orderNum": 100,
+      "statusDisplayYn": "Y",
+      "urgentTelNum": "",
+      "groupSeq": "gcmsAmaranth31433",
+      "positionName": "x",
+      "bday": "12-19",
+      "empName": "x",
+      "telNum": "",
+      "enrlFg": "J01",
+      "keySeq": "u3060",
+      "workStatus": "999",
+      "empPrivateOptionValue": "",
+      "parentOrgGubun": "d",
+      "mainWork": "",
+      "dutyName": "x",
+      "deptSeq": "2989",
+      "privateYn": "Y",
+      "compSeq": "1000",
+      "bizSeq": "1000",
+      "emailAddr": "x",
+      "addrM": "x",
+      "sns": "",
+      "empSeq": "3060",
+      "homeTelNum": "",
+      "atNm": "x"
+     }
+    ]
+   }
+  }
+ ]
+}

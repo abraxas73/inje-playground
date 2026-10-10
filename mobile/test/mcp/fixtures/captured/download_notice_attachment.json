@@ -1,0 +1,34 @@
+{
+ "tool": "download_notice_attachment",
+ "args": {
+  "art_seq_no": "3068",
+  "uid": "G8cc284c9F9572eDD2957FFe8aB5178D,B5F37c6a8556F26G8GaG8B71FBDe9eGF,968c5967ce5573BD1D74GFBa83D12BB9,e2836cF9c468B6Bc84accc5DGG645643",
+  "file_sn": 0,
+  "out_path": "/private/tmp/claude-501/-Users-seunguk-kang-Repos-inje-playground/bb6d601b-c764-46a3-9d46-f193bc34c6f6/scratchpad/mitm/dl/notice-1. 이노그리드_퇴직연금규약(DC형)_2610"
+ },
+ "toolResult": {
+  "bytes": 290535,
+  "ok": true,
+  "path": "/private/tmp/claude-501/-Users-seunguk-kang-Repos-inje-playground/bb6d601b-c764-46a3-9d46-f193bc34c6f6/scratchpad/mitm/dl/notice-1. 이노그리드_퇴직연금규약(DC형)_2610",
+  "serverFileName": "x"
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/ecm/ecm001A03",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "360"
+   },
+   "body": "x",
+   "status": 200,
+   "responseType": "application/octet-stream",
+   "response": "<binary 290535B>"
+  }
+ ]
+}

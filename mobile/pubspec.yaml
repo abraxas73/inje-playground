@@ -38,6 +38,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/brand/
+    - assets/mcp/
 
 # 앱 아이콘 — 이노봇 캐릭터 + 바탕 #6268FF(SECloudit BI "iT" 바탕색, 2026-10-05 사용자 요청). 원본은 assets/brand/app_icon*.png(innobot.png에서 생성, 런북 §배포). 바뀌면 `dart run flutter_launcher_icons`.
 flutter_launcher_icons:

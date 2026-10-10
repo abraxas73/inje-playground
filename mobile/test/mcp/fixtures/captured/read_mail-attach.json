@@ -1,0 +1,138 @@
+{
+ "tool": "read_mail",
+ "args": {
+  "muid": 14858746
+ },
+ "toolResult": {
+  "attachments": [
+   {
+    "fileExt": "pdf",
+    "fileName": "x",
+    "fileSizeApprox": 298182,
+    "fileSn": "Y6brjL28gF9m+f4puyp91Vw3dxUi+p2nOWOHWrYH/n47Lu/u6tFk5ANuumEIqdMrtz/fgeGhQOVSzo/Hl8pVxZ9cHLmanZigxrCttVOhg/m0SvO01wdlyf2Gn8FlpFNzHkefMRi7UCINN2IzX+drwiSJ7fPjCHORrd1IQuOAcB1Kwl7qcdRKKhI/0sDGXHZ80SstLkRKPqjHYUeB0NCVPRjsKuPr9te/l5JqYbt6+OU=",
+    "index": 0,
+    "isImage": false
+   },
+   {
+    "fileExt": "pdf",
+    "fileName": "x",
+    "fileSizeApprox": 138513,
+    "fileSn": "0rm8YTLbLHWB6HyW3x/0o+eMYGj43kiP1FG/N1p25IooXyew6XnYS7595jqiQ1hEIrYQr2LHOzhXUxf8s67N5Mu6R63H/+fssTg/nH+ysx85VPs0qb2xVDMVoKjPVdekRF9YMT2Yl5Ewu1WIEGVLe6WomGR22fHA+jLEGuo/qqq9Rm5OjlzWuaPP0gbmfhG33pRP2TOn5te4DXIux3F/P4SGAMmDL5iTJM6pmM5Rm6980nxCZBXgvcyfATPTa5ib",
+    "index": 1,
+    "isImage": false
+   },
+   {
+    "fileExt": "pdf",
+    "fileName": "x",
+    "fileSizeApprox": 104863,
+    "fileSn": "vR+fg+N773VcTOPXtaW4bwko6y/5rD+4/kLTjlXmtNSmfdSCbkevZIPKoPbZ4yc5yh9TCUcmTUpdtztLaLsS4J64gMl2cuoayWqrx1Po0VkFRxO1OgMS2HKCmx5G5cztXE0pwxGSPAtlEiFPoDoI2WxGkGJYhnKm17E9Igx04h/fNEnsYDugy6ve27Zp3PshNnSOrxkztaWDZGOQ7zkDfEIuIBSIQeR5X7XeoR+f/la3pSSlblpLtuuv+iyfcL6m",
+    "index": 2,
+    "isImage": false
+   }
+  ],
+  "bcc": "",
+  "body": "x",
+  "cc": "김문환 <user@example.com>,김대훈<user@example.com>",
+  "date": "2026-10-08 16:07",
+  "from": "이미리 <user@example.com>",
+  "inlineImages": [],
+  "muid": "14858746",
+  "remoteResourceCount": 1,
+  "subject": "x",
+  "to": "백희선 <user@example.com>,현근주 <user@example.com>,강승억<user@example.com>,송민호<user@example.com>,김영도 <user@example.com>,이경윤 <us…"
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/mail/mail002A01",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "18"
+   },
+   "body": {
+    "uid": "14858746"
+   },
+   "status": 200,
+   "responseType": "application/json;charset=UTF-8",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "msg": "",
+     "useIntedAdddr": false,
+     "code": "0",
+     "mboxName": "x",
+     "mime": {
+      "header": {
+       "mime-version": "1.0",
+       "date": "Thu, 8 Oct 2026 16:07:23 +0900",
+       "cc": "=?UTF-8?B?6rmA66y47ZmY?= &lt;user@example.com&gt;, =?UTF-8?B?6rmA64yA7ZuI?=\r\n &lt;user@example.com&gt;",
+       "in-reply-to": "<user@example.com>",
+       "references": "<user@example.com>",
+       "subject": "x",
+       "receiptNotific": true,
+       "x-senddiv-key": "web",
+       "x-receipt-notification": "https://gw.innogrid.com/mail",
+       "message-id": "<user@example.com>",
+       "from": "=?UTF-8?B?7J2066+466as?= &lt;user@example.com&gt;",
+       "content-type": "x",
+       "to": "=?UTF-8?B?67Cx7Z2s7ISg?= &lt;user@example.com&gt;,\r\n =?UTF-8?B?7ZiE6re87KO8?= &lt;user@example.com&gt;, =?UTF-8?B?6rCV7I…"
+      },
+      "isEcmUploaded": false,
+      "body": {
+       "calendar": "",
+       "plain": "안녕하세요.\r\n인사총무팀입니다.\r\n합병에 따른 퇴직연금 운영과 관련하여 합병대상자(인재INC)를 대상으로 퇴직연금 특약사항 및 동의 절차 를 아래와 같이 안내드립니다.\r\n해당 특약은 합병에 따른 퇴직연금 운영 관련 …",
+       "html": "x"
+      },
+      "fileList": [
+       {
+        "originalFileName": "x",
+        "fileSize": "397576",
+        "fileExtsn": "pdf",
+        "fileSn": "Y6brjL28gF9m+f4puyp91Vw3dxUi+p2nOWOHWrYH/n47Lu/u6tFk5ANuumEIqdMrtz/fgeGhQOVSzo/Hl8pVxZ9cHLmanZigxrCttVOhg/m0SvO01wdlyf2Gn8FlpFNzHkefMRi7UCINN2IzX+drwiSJ7fPjCHORrd1IQuOAcB1Kwl7qcdRKKhI/0sDGXHZ80SstLkRKPqjHYUeB0NCVPRjsKuPr9te/l5JqYbt6+OU="
+       },
+       {
+        "originalFileName": "x",
+        "fileSize": "184684",
+        "fileExtsn": "pdf",
+        "fileSn": "0rm8YTLbLHWB6HyW3x/0o+eMYGj43kiP1FG/N1p25IooXyew6XnYS7595jqiQ1hEIrYQr2LHOzhXUxf8s67N5Mu6R63H/+fssTg/nH+ysx85VPs0qb2xVDMVoKjPVdekRF9YMT2Yl5Ewu1WIEGVLe6WomGR22fHA+jLEGuo/qqq9Rm5OjlzWuaPP0gbmfhG33pRP2TOn5te4DXIux3F/P4SGAMmDL5iTJM6pmM5Rm6980nxCZBXgvcyfATPTa5ib"
+       },
+       {
+        "originalFileName": "x",
+        "fileSize": "139818",
+        "fileExtsn": "pdf",
+        "fileSn": "vR+fg+N773VcTOPXtaW4bwko6y/5rD+4/kLTjlXmtNSmfdSCbkevZIPKoPbZ4yc5yh9TCUcmTUpdtztLaLsS4J64gMl2cuoayWqrx1Po0VkFRxO1OgMS2HKCmx5G5cztXE0pwxGSPAtlEiFPoDoI2WxGkGJYhnKm17E9Igx04h/fNEnsYDugy6ve27Zp3PshNnSOrxkztaWDZGOQ7zkDfEIuIBSIQeR5X7XeoR+f/la3pSSlblpLtuuv+iyfcL6m"
+       }
+      ],
+      "ecmFileIds": "32785:218ee269e7e49ec5B757eac6D9Ga87aF,755810:Fc823FaB7c95ecBe316e5G883F44aeBG,430657:88335a72B3914aa3Bc1DeBee942Ba53D,615645:22GeF1c159544D7F563e49e312Fc3e51"
+     },
+     "approvalReason": "N",
+     "seenYN": 1,
+     "receiptNotific": 0,
+     "mailkey": "1791443243096_b6ba67d8-2480-453d-a79b-79c4547ca607.eml",
+     "muid": 14858746,
+     "decodeMime": {
+      "cc": "김문환 &lt;user@example.com&gt;,김대훈&lt;user@example.com&gt;",
+      "date": "2026-10-08 16:07",
+      "listDate": "10-08 16:07",
+      "subject": "x",
+      "from": "이미리 &lt;user@example.com&gt;",
+      "empSeq": "3060",
+      "to": "백희선 &lt;user@example.com&gt;,현근주 &lt;user@example.com&gt;,강승억&lt;user@example.com&gt;,송민호&lt;user@example.com&gt;,김영도 &l…",
+      "isOrgMail": 1,
+      "email": "x",
+      "url": "/#/popup?callComp=UDAP007&muid=yICB7wgf1k9TqkClwTxvuaobyeUyrXHugNRO8cnbWl0%3D&keep=false&MicroModuleCode=mail"
+     },
+     "flagged": 0,
+     "useAddressBookGw": true,
+     "mboxSeq": 25492
+    }
+   }
+  }
+ ]
+}

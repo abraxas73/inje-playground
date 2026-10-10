@@ -1,0 +1,165 @@
+{
+ "tool": "org_chart",
+ "args": {
+  "parent_seq": "2989"
+ },
+ "toolResult": {
+  "count": 4,
+  "kind": "deptTree",
+  "note": "userCount는 하위 부서를 포함한 누적 인원",
+  "scope": "2989",
+  "tree": [
+   {
+    "children": [
+     {
+      "deptId": "2992",
+      "gubun": "d",
+      "name": "x",
+      "userCount": 5
+     },
+     {
+      "deptId": "2993",
+      "gubun": "d",
+      "name": "x",
+      "userCount": 17
+     },
+     {
+      "deptId": "2994",
+      "gubun": "d",
+      "name": "x",
+      "userCount": 8
+     }
+    ],
+    "deptId": "2989",
+    "gubun": "d",
+    "name": "x",
+    "userCount": 31
+   }
+  ]
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/gw/APIHandler/gw102A01",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "153"
+   },
+   "body": {
+    "compFilter": "",
+    "isAllCompShow": false,
+    "isPartYn": false,
+    "isTreeAllOpen": true,
+    "isTreeChecked": "",
+    "parentSeq": "0",
+    "popupType": "main",
+    "selectedType": "tree"
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "정상",
+    "resultData": {
+     "isHomeTelNumOption": "0",
+     "isLoginIdOption": "1",
+     "isExcelDownOption": "1",
+     "isChildrenCntOption": "0",
+     "isCareerOption": "1",
+     "treeList": [
+      {
+       "childUserCnt": 343,
+       "parentKeySeq": null,
+       "orgGubun": "c",
+       "childMsgUserCnt": 328,
+       "childCnt": 1,
+       "orgManager": "Y",
+       "bizDisplayYn": "",
+       "innerReceiveYn": "Y",
+       "orderNum": 1,
+       "opened": 1,
+       "orgLevel": 0,
+       "path": "1000|",
+       "parentSeq": "0",
+       "orgCd": "1000",
+       "compSeq": "1000",
+       "bizSeq": "",
+       "parent_path": "",
+       "id": "1000",
+       "text": "x",
+       "keySeq": "c1000",
+       "selected": 0,
+       "bizOrderNum": -1
+      },
+      {
+       "childUserCnt": 343,
+       "parentKeySeq": "c1000",
+       "orgGubun": "b",
+       "childMsgUserCnt": 328,
+       "childCnt": 72,
+       "orgManager": "Y",
+       "bizDisplayYn": "Y",
+       "innerReceiveYn": "Y",
+       "orderNum": 99999,
+       "opened": 1,
+       "orgLevel": 1,
+       "path": "1000|1000|",
+       "parentSeq": "1000",
+       "orgCd": "1000",
+       "compSeq": "1000",
+       "bizSeq": "1000",
+       "parent_path": "1000|",
+       "id": "1000",
+       "text": "x",
+       "keySeq": "b1000",
+       "selected": 0,
+       "bizOrderNum": 99999
+      },
+      {
+       "childUserCnt": 0,
+       "parentKeySeq": "c1000",
+       "orgGubun": "b",
+       "childMsgUserCnt": 0,
+       "childCnt": 0,
+       "orgManager": "Y",
+       "bizDisplayYn": "Y",
+       "innerReceiveYn": "Y",
+       "orderNum": 99999,
+       "opened": 0,
+       "orgLevel": 1,
+       "path": "1000|3072|",
+       "parentSeq": "1000",
+       "orgCd": "1002",
+       "compSeq": "1000",
+       "bizSeq": "3072",
+       "parent_path": "1000|",
+       "id": "3072",
+       "text": "x",
+       "keySeq": "b3072",
+       "selected": 0,
+       "bizOrderNum": 99999
+      }
+     ],
+     "isMobileTelNumOption": "1",
+     "isExcelDownYN": "N",
+     "isUrgentTelNumOption": "0",
+     "isBdayOption": "1",
+     "isEmployeeNumberOption": "0",
+     "isPersonalEmailOption": "1",
+     "jitsiVer": "2.0",
+     "isGridListDisplayOption": "0",
+     "isSnsOption": "1",
+     "isDutypositionOption": "3",
+     "isJoinDayOption": "0",
+     "isThumbnailListOption": "0",
+     "isOrganizationDisplayOption": "5|0|1|3|"
+    }
+   }
+  }
+ ]
+}

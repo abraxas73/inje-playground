@@ -1,0 +1,226 @@
+{
+ "tool": "reserve_resource",
+ "args": {
+  "res_seq": "45",
+  "start": "202610120800",
+  "end": "202610120830",
+  "req_text": "x",
+  "desc": "x"
+ },
+ "toolResult": {
+  "attendees": [
+   "강승억"
+  ],
+  "attendeesVerified": true,
+  "displayTitle": "x",
+  "ok": true,
+  "period": "202610120800~202610120830",
+  "reqText": "x",
+  "resIdx": "1",
+  "resSeq": "45",
+  "seqNum": 76195,
+  "verified_by_readback": true
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/schres/rs121A06",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "475"
+   },
+   "body": {
+    "alldayYn": "N",
+    "apprYn": "N",
+    "companyInfo": {
+     "compSeq": "1000",
+     "deptSeq": "2989",
+     "emailAddr": "x",
+     "emailDomain": "x",
+     "groupSeq": "gcmsAmaranth31433"
+    },
+    "descText": "x",
+    "endDate": "202610120830",
+    "langCode": "kr",
+    "repeatEndDay": "",
+    "repeatType": "10",
+    "reqText": "x",
+    "resSeq": "45",
+    "resSubscriberList": [
+     {
+      "compSeq": "1000",
+      "deptSeq": "2989",
+      "empSeq": "3060",
+      "groupSeq": "gcmsAmaranth31433"
+     }
+    ],
+    "startDate": "202610120800",
+    "uidList": ""
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "successTf": true,
+     "resIdx": "1",
+     "resSeq": "45",
+     "seqNum": 76195
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/schres/rs121A10",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "196"
+   },
+   "body": {
+    "companyInfo": {
+     "compSeq": "1000",
+     "deptSeq": "2989",
+     "emailAddr": "x",
+     "emailDomain": "x",
+     "groupSeq": "gcmsAmaranth31433"
+    },
+    "langCode": "kr",
+    "resIdx": "1",
+    "resSeq": "45",
+    "seqNum": 76195
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "schmSeq": "",
+     "apprYn": "N",
+     "mentionEmpList": [
+      {
+       "deptSeq": "3052",
+       "compSeq": "1000",
+       "empSeq": "1"
+      },
+      {
+       "deptSeq": "3040",
+       "compSeq": "1000",
+       "empSeq": "2066"
+      },
+      {
+       "deptSeq": "3040",
+       "compSeq": "1000",
+       "empSeq": "2067"
+      }
+     ],
+     "moduleGbnCode": "resource",
+     "endDate": "202610120830",
+     "subscriberList": [
+      {
+       "deptName": "x",
+       "deptSeq": "2989",
+       "loginId": "x",
+       "empName": "x",
+       "compSeq": "1000",
+       "empSeq": "3060",
+       "useYn": "Y",
+       "groupSeq": "gcmsAmaranth31433"
+      }
+     ],
+     "schSeq": "",
+     "repeatByDay": "",
+     "resSeq": "45",
+     "resName": "x",
+     "resDescText": "x",
+     "repeatIdx": "",
+     "file": [],
+     "reqText": "x",
+     "empName": "x",
+     "commentType": "",
+     "event": {
+      "timelineYn": "Y",
+      "eventSubType": "RS007",
+      "mailYn": "Y",
+      "data": {
+       "resIdx": "1",
+       "resText": "x",
+       "resSeq": "45",
+       "resName": "x",
+       "endDate": "202610120830",
+       "contents": "x",
+       "seqNum": 76195,
+       "createSeq": "",
+       "startDate": "202610120800"
+      },
+      "recvEmpBulkList": [],
+      "smsYn": "Y",
+      "pushYn": "Y",
+      "eventType": "RESOURCE",
+      "url": "/#/popup?MicroModuleCode=schres&callComp=UKAP003&seqNum=76195&resSeq=45",
+      "recvEmpList": [],
+      "recvMentionEmpList": [],
+      "portalYn": "Y",
+      "talkYn": "Y",
+      "alertYn": "Y",
+      "recvEmpBulk": ""
+     },
+     "commentCnt": 0,
+     "fileList": [],
+     "createDate": "20261010185424",
+     "seqNum": 76195,
+     "empUniqGroup": "ALL",
+     "repeatType": "10",
+     "repeatEndDay": "",
+     "moduleSeq": 76195,
+     "delYn": "Y",
+     "resIdx": "1",
+     "eventData": {
+      "timelineYn": "Y",
+      "eventSubType": "RS007",
+      "mailYn": "Y",
+      "data": {
+       "resIdx": "1",
+       "resText": "x",
+       "resSeq": "45",
+       "resName": "x",
+       "endDate": "202610120830",
+       "contents": "x",
+       "seqNum": 76195,
+       "createSeq": "",
+       "startDate": "202610120800"
+      },
+      "recvEmpBulkList": [],
+      "smsYn": "Y",
+      "pushYn": "Y",
+      "eventType": "RESOURCE",
+      "url": "/#/popup?MicroModuleCode=schres&callComp=UKAP003&seqNum=76195&resSeq=45",
+      "recvEmpList": [],
+      "recvMentionEmpList": [],
+      "portalYn": "Y",
+      "talkYn": "Y",
+      "alertYn": "Y",
+      "recvEmpBulk": ""
+     },
+     "resmSeq": "",
+     "cancelList": [],
+     "empSeq": "3060",
+     "alldayYn": "N",
+     "descText": "x",
+     "startDate": "202610120800",
+     "statusCode": "RC"
+    }
+   }
+  }
+ ]
+}

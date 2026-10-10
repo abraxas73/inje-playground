@@ -1,0 +1,622 @@
+{
+ "tool": "search",
+ "args": {
+  "query": "회의",
+  "limit": 3
+ },
+ "toolResult": {
+  "kind": "search",
+  "period": null,
+  "query": "회의",
+  "results": [
+   {
+    "items": [
+     {
+      "box": "INBOX",
+      "date": "10-08 16:19",
+      "from": "user@example.com",
+      "module": "메일",
+      "muid": "14859592",
+      "snippet": "\"\"회의에\"\" 참석하겠습니다.~ 감사합니다.",
+      "title": "x",
+      "who": "반일권"
+     },
+     {
+      "box": "INBOX",
+      "date": "10-08 16:07",
+      "from": "user@example.com",
+      "module": "메일",
+      "muid": "14858746",
+      "snippet": "퇴직연금 규약 및 설명회 관련 안내 일시 : 2026년 10월 12일(월) 15:00 ~ 16:00 장소 : 이노그리드 본사 10층 A-1 \"\"회의실\"\" 주요내용 : 퇴직연금 제도 및 퇴직연금규약 변경사항 및 DC형 퇴직연금 가입 절차 안내 \"\"회의실\"\" 참석 또는 Microsoft T",
+      "title": "x",
+      "who": "이미리"
+     },
+     {
+      "box": "ipipeline",
+      "date": "10-08 14:38",
+      "from": "user@example.com",
+      "module": "메일",
+      "muid": "14859448",
+      "snippet": "ERP 부재 상황에서의 CRM 도입 한계 - \"\"회의에서도\"\" 말씀드렸던 바와 같이, 전사적인 ERP 시스템이 부재한 것이 현 상황입니다. - ERP 없이 CRM(FCOS)만 도입하여 데이터를 관리하는 것은 시너지나 메리트가 크지 않을 것으로 사료됩니다.",
+      "title": "x",
+      "who": "정성원"
+     }
+    ],
+    "module": "메일",
+    "returned": 3,
+    "totalCount": 670
+   },
+   {
+    "items": [
+     {
+      "date": "2026-10-06T20:09:18",
+      "dept": "클라우드 네이티브 센터",
+      "docId": "152347",
+      "empSeq": "3060",
+      "form": "카드정산서",
+      "formId": "145",
+      "module": "전자결재",
+      "snippet": "결재라인 팀 원 / 팀 장 : 팀 장 결재 ▶ 재무&회계팀 > 경영지원본부장 합의 ▶ 본부장/센터장 결재 ▶ 그룹장 결재 본부장 / 센터장 : 재무&회계팀 > 경영지원본부장 합의 ▶ 그룹장 결재 ▶ 대표이사 결재 ※공석 or 비해당 생략 가능 기본정보 및 용도별합계 회계단위 (주)이노그",
+      "status": "30",
+      "title": "x",
+      "who": "강승억"
+     },
+     {
+      "date": "2026-09-21T10:03:44",
+      "dept": "구매팀",
+      "docId": "149761",
+      "empSeq": "2913",
+      "form": "일반품의서",
+      "formId": "195",
+      "module": "전자결재",
+      "snippet": "AI 개발을 위해 아래와 같이 클로드 AI사용을 추진코자 품의 하오니 검토 후 재가 부탁드립니다. [아 래] 1. 품의 목적 - AX혁신TF에서 추진 중인 사내 시스템 개발 및 운영을 위해 Anthropic Claude API 전용 Organization을 개설하고, 2026년 10월 ",
+      "status": "90",
+      "title": "x",
+      "who": "최연석"
+     },
+     {
+      "date": "2026-09-17T17:09:45",
+      "dept": "클라우드 네이티브 센터",
+      "docId": "149464",
+      "empSeq": "3060",
+      "form": "일반품의서",
+      "formId": "195",
+      "module": "전자결재",
+      "snippet": "[구매요청서] 품목명: Claude API 사용료 (Anthropic Claude Platform) 거래처: Anthropic PBC (해외 / platform.claude.com) 계약 형태: 선불 크레딧 충전 방식 (사용량 기반 과금, 최소 약정·구독료 없음) 요청 사항 1: 이노그",
+      "status": "90",
+      "title": "x",
+      "who": "강승억"
+     }
+    ],
+    "module": "전자결재",
+    "returned": 3,
+    "totalCount": 4
+   },
+   {
+    "items": [
+     {
+      "artSeqNo": "3068",
+      "board": "사내 공지",
+      "date": "2026-10-08T15:38:31",
+      "empSeq": "3273",
+      "module": "게시판",
+      "snippet": "안녕하세요. 인사총무팀입니다. 퇴직연금 제도 운영과 관련하여 퇴직연금규약 변경 및 퇴직연금 설명회를 아래와 같이 진행하고자 하오니, 임직원 여러분께서는 관련 내용 및 동의서 제출방법을 확인해 주시기 바랍니다. 1. 퇴직연금규약 변경 사항 및 동의서 제출 1) 퇴직연금사업자 추가 기존 :",
+      "title": "x",
+      "who": "이미리"
+     },
+     {
+      "artSeqNo": "3061",
+      "board": "사내 공지",
+      "date": "2026-09-30T15:43:33",
+      "empSeq": "2933",
+      "module": "게시판",
+      "snippet": "임직원 여러분, 안녕하십니까. 9월은 분기결산과 2기예정 부가세신고 마감월로 결산일정이 당겨집니다. 또한, 휴일이 많으므로 일정에 유의해서 진행부탁드립니다. 행정간소화의 일환으로 결재라인이 조정되었으니, [비고] 참고해주세요. 감사합니다. 구분 마감일 양식 (-품의제목) 관련 가이드 게",
+      "title": "x",
+      "who": "양경희"
+     },
+     {
+      "artSeqNo": "3049",
+      "board": "사업 관련 (사업 및 영업본부)",
+      "date": "2026-09-17T16:06:37",
+      "empSeq": "2420",
+      "module": "게시판",
+      "snippet": "안녕하세요. PoC 진행과 관련된 프로세스를 안내드리오니 업무에 참고하시기 바랍니다. 1. PoC 진행 프로세스 PoC 요청 → PoC 승인 → PoC 준비 → PoC 수행 → PoC 사후관리 ※ 상세 프로세스 내용은 첨부파일 참고 2. PoC 요청 방식 영업 담당자는 “사업성 검토 회",
+      "title": "x",
+      "who": "양선우"
+     }
+    ],
+    "module": "게시판",
+    "returned": 3,
+    "totalCount": 34
+   }
+  ],
+  "scope": "전체",
+  "totalAcrossModules": 25368
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/gw/APIHandler/gw018A02",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "270"
+   },
+   "body": {
+    "body": {
+     "boardType": "0",
+     "dateDiv": "",
+     "detailSearchYn": "N",
+     "fromDate": "",
+     "hrEmpSeq": "",
+     "hrSearchYn": "N",
+     "orderDiv": "B",
+     "pageIndex": 1,
+     "pageSize": 3,
+     "selectDiv": "S",
+     "syncTime": "N",
+     "toDate": "",
+     "tsearchKeyword": "회의",
+     "tsearchSubKeyword": "",
+     "webMobileDiv": "x"
+    },
+    "header": {}
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "정상",
+    "resultData": {
+     "resultgrid": [
+      {
+       "fromAddrName": "x",
+       "mailBody": "x",
+       "subject": "x",
+       "accountType": "0",
+       "toAddrName": "x",
+       "fromAddrEmail": "x",
+       "muid": "14859592",
+       "size": "72039",
+       "toAddrEmail": "x",
+       "emailAddr": "x",
+       "boxName": "x",
+       "mailTo": "강승억 <user@example.com>,권경민 <user@example.com>",
+       "rfc822date": "10-08 16:19",
+       "mailFrom": "반일권 <user@example.com>"
+      },
+      {
+       "fromAddrName": "x",
+       "mailBody": "x",
+       "subject": "x",
+       "accountType": "0",
+       "toAddrName": "x",
+       "fromAddrEmail": "x",
+       "muid": "14858746",
+       "size": "1649618",
+       "toAddrEmail": "x",
+       "emailAddr": "x",
+       "boxName": "x",
+       "mailTo": "백희선 <user@example.com>,현근주 <user@example.com>,강승억<user@example.com>,송민호<user@example.com>,김영도 <user@example.com>,이경윤 <user@example.com>,김재범<user@example.com>,정선미 <user@example.com",
+       "rfc822date": "10-08 16:07",
+       "mailFrom": "이미리 <user@example.com>"
+      },
+      {
+       "fromAddrName": "x",
+       "mailBody": "x",
+       "subject": "x",
+       "accountType": "0",
+       "toAddrName": "x",
+       "fromAddrEmail": "x",
+       "muid": "14859448",
+       "size": "45710",
+       "toAddrEmail": "x",
+       "emailAddr": "x",
+       "boxName": "x",
+       "mailTo": "강승억 <user@example.com>",
+       "rfc822date": "10-08 14:38",
+       "mailFrom": "정성원 <user@example.com>"
+      }
+     ],
+     "totalcount": 670,
+     "moreYn": null,
+     "syncTime": null,
+     "accountType": "0"
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/gw/APIHandler/gw018A02",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "270"
+   },
+   "body": {
+    "body": {
+     "boardType": "6",
+     "dateDiv": "",
+     "detailSearchYn": "N",
+     "fromDate": "",
+     "hrEmpSeq": "",
+     "hrSearchYn": "N",
+     "orderDiv": "B",
+     "pageIndex": 1,
+     "pageSize": 3,
+     "selectDiv": "S",
+     "syncTime": "N",
+     "toDate": "",
+     "tsearchKeyword": "회의",
+     "tsearchSubKeyword": "",
+     "webMobileDiv": "x"
+    },
+    "header": {}
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "정상",
+    "resultData": {
+     "resultgrid": [
+      {
+       "userNm": {
+        "jp": "강승억",
+        "kr": "강승억",
+        "en": "강승억",
+        "cn": "강승억"
+       },
+       "lineCompSeq": "1000",
+       "docEndDate": "",
+       "docId": "152347",
+       "docTitle": "x",
+       "deptNm": {
+        "jp": "클라우드 네이티브 센터",
+        "kr": "클라우드 네이티브 센터",
+        "en": "클라우드 네이티브 센터",
+        "cn": "클라우드 네이티브 센터"
+       },
+       "groupSeq": "gcmsAmaranth31433",
+       "jobType": "eapproval-1",
+       "docContents": "x",
+       "lineEmpSeq": "2933",
+       "commentCnt": 1,
+       "fileList": [],
+       "createDate": "2026-10-06T20:09:19",
+       "formId": "145",
+       "modifyDate": "2026-10-08T18:12:31",
+       "docEtcContents": "x",
+       "docDate": "20261006",
+       "permList": "CU|1000|3071|,D|1000|2060|,CU|1000|2096|,CU|1000|2935|,CU|1000|2753|,D|1000|3055|,CU|1000|2176|,CU|1000|2935|,CU|1000|2933|,CU|1000|2933|,CU|1000|3060|,CU|1000|2748|,CU|1000|2868|,CU|1000|2753|,CU|1000|2868|",
+       "docNo": "클라우드 네이티브 센터-2610-002",
+       "arrivedDate": "2026-10-08T18:12:31",
+       "migYn": "0",
+       "docSts": "30",
+       "compSeq": "1000",
+       "bizSeq": "1000",
+       "pkSeq": "152347",
+       "lineContents": "x",
+       "empSeq": "3060",
+       "formNm": {
+        "jp": "",
+        "kr": "카드정산서",
+        "en": "",
+        "cn": ""
+       },
+       "lineDeptSeq": "3055",
+       "rep_dt": "2026-10-06T20:09:18"
+      },
+      {
+       "userNm": {
+        "jp": "최연석",
+        "kr": "최연석",
+        "en": "최연석",
+        "cn": "최연석"
+       },
+       "lineCompSeq": "1000",
+       "docEndDate": "2026-09-21T21:54:09",
+       "docId": "149761",
+       "docTitle": "x",
+       "deptNm": {
+        "jp": "구매팀",
+        "kr": "구매팀",
+        "en": "구매팀",
+        "cn": "구매팀"
+       },
+       "groupSeq": "gcmsAmaranth31433",
+       "jobType": "eapproval-1",
+       "docContents": "x",
+       "lineEmpSeq": "2935",
+       "commentCnt": 0,
+       "fileList": [],
+       "createDate": "2026-09-21T10:03:44",
+       "formId": "195",
+       "modifyDate": "2026-09-21T21:54:09",
+       "docEtcContents": "x",
+       "docDate": "20260921",
+       "permList": "CU|1000|2913|,CU|1000|3060|,CU|1000|3058|,CU|1000|2933|,CU|1000|3058|,CU|1000|2913|,D|1000|3055|,CU|1000|2935|,CU|1000|2098|,CU|1000|2933|,CU|1000|3271|,CU|1000|2935|,D|1000|3047|,CU|1000|2518|,CU|1000|2868|",
+       "docNo": "구매팀-2609-002",
+       "arrivedDate": "2026-09-21T21:54:09",
+       "migYn": "0",
+       "docSts": "90",
+       "compSeq": "1000",
+       "bizSeq": "1000",
+       "pkSeq": "149761",
+       "lineContents": "x",
+       "empSeq": "2913",
+       "formNm": {
+        "jp": "",
+        "kr": "일반품의서",
+        "en": "",
+        "cn": ""
+       },
+       "lineDeptSeq": "3045",
+       "rep_dt": "2026-09-21T10:03:44"
+      },
+      {
+       "userNm": {
+        "jp": "강승억",
+        "kr": "강승억",
+        "en": "강승억",
+        "cn": "강승억"
+       },
+       "lineCompSeq": "1000",
+       "docEndDate": "2026-09-18T16:56:39",
+       "docId": "149464",
+       "docTitle": "x",
+       "deptNm": {
+        "jp": "클라우드 네이티브 센터",
+        "kr": "클라우드 네이티브 센터",
+        "en": "클라우드 네이티브 센터",
+        "cn": "클라우드 네이티브 센터"
+       },
+       "groupSeq": "gcmsAmaranth31433",
+       "jobType": "eapproval-1",
+       "docContents": "x",
+       "lineEmpSeq": "2748",
+       "commentCnt": 0,
+       "fileList": [],
+       "createDate": "2026-09-17T17:09:45",
+       "formId": "195",
+       "modifyDate": "2026-09-18T16:56:39",
+       "docEtcContents": "x",
+       "docDate": "20260917",
+       "permList": "CU|1000|2096|,D|1000|3055|,CU|1000|2098|,CU|1000|3060|,CU|1000|2748|,D|1000|3047|,CU|1000|2518|",
+       "docNo": "클라우드 네이티브 센터-2609-003",
+       "arrivedDate": "2026-09-18T16:56:39",
+       "migYn": "0",
+       "docSts": "90",
+       "compSeq": "1000",
+       "bizSeq": "1000",
+       "pkSeq": "149464",
+       "lineContents": "x",
+       "empSeq": "3060",
+       "formNm": {
+        "jp": "",
+        "kr": "일반품의서",
+        "en": "",
+        "cn": ""
+       },
+       "lineDeptSeq": "2986",
+       "rep_dt": "2026-09-17T17:09:45"
+      }
+     ],
+     "totalcount": 4,
+     "moreYn": null,
+     "syncTime": null,
+     "accountType": null
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/gw/APIHandler/gw018A02",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "270"
+   },
+   "body": {
+    "body": {
+     "boardType": "9",
+     "dateDiv": "",
+     "detailSearchYn": "N",
+     "fromDate": "",
+     "hrEmpSeq": "",
+     "hrSearchYn": "N",
+     "orderDiv": "B",
+     "pageIndex": 1,
+     "pageSize": 3,
+     "selectDiv": "S",
+     "syncTime": "N",
+     "toDate": "",
+     "tsearchKeyword": "회의",
+     "tsearchSubKeyword": "",
+     "webMobileDiv": "x"
+    },
+    "header": {}
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "정상",
+    "resultData": {
+     "resultgrid": [
+      {
+       "writeDate": "2026-10-08T15:38:31",
+       "artParentNo": "3068",
+       "groupSeq": "gcmsAmaranth31433",
+       "catSeqNo": "492",
+       "artContent": "x",
+       "artSeqNo": "3068",
+       "jobType": "board-1",
+       "artPassword": "",
+       "fileList": [
+        {
+         "filePath": "G8cc284c9F9572eDD2957FFe8aB5178D",
+         "orignlFileName": "x",
+         "fileExtsn": "PDF",
+         "fileId": "G8cc284c9F9572eDD2957FFe8aB5178D",
+         "createDate": "2026-10-08T15:15:23",
+         "fileSn": "0"
+        },
+        {
+         "filePath": "B5F37c6a8556F26G8GaG8B71FBDe9eGF",
+         "orignlFileName": "x",
+         "fileExtsn": "PDF",
+         "fileId": "B5F37c6a8556F26G8GaG8B71FBDe9eGF",
+         "createDate": "2026-10-08T15:15:23",
+         "fileSn": "1"
+        },
+        {
+         "filePath": "968c5967ce5573BD1D74GFBa83D12BB9",
+         "orignlFileName": "x",
+         "fileExtsn": "PDF",
+         "fileId": "968c5967ce5573BD1D74GFBa83D12BB9",
+         "createDate": "2026-10-08T15:37:45",
+         "fileSn": "2"
+        }
+       ],
+       "readPermYn": "N",
+       "newYn": "Y",
+       "catType": "N",
+       "permCategory": "SU|3273|,SU|1|,SU|2246|,SU|2518|,SU|1|,C|1000|",
+       "mbrNick": {
+        "jp": "이미리",
+        "kr": "이미리",
+        "en": "이미리",
+        "cn": "이미리"
+       },
+       "artTitle": "x",
+       "boardName": {
+        "jp": "사내 공지",
+        "kr": "사내 공지",
+        "en": "사내 공지",
+        "cn": "사내 공지"
+       },
+       "noticeYn": "N",
+       "permBoard": "SU|3273|,SU|1|,SU|2246|,SU|2518|,SU|1|,C|1000|",
+       "parentArtTitle": "x",
+       "catTitle": "x",
+       "pkSeq": "3068",
+       "parentWriteDate": "2026-10-08T15:38:31",
+       "empSeq": "3273",
+       "writePermission": "1",
+       "reserveStatus": "OPEN",
+       "empUniqScope": "C|1000"
+      },
+      {
+       "writeDate": "2026-09-30T15:43:33",
+       "artParentNo": "3061",
+       "groupSeq": "gcmsAmaranth31433",
+       "catSeqNo": "492",
+       "artContent": "x",
+       "artSeqNo": "3061",
+       "jobType": "board-1",
+       "artPassword": "",
+       "fileList": [],
+       "readPermYn": "N",
+       "newYn": "Y",
+       "catType": "N",
+       "permCategory": "SU|2933|,SU|1|,SU|2246|,SU|2518|,SU|1|,C|1000|",
+       "mbrNick": {
+        "jp": "양경희",
+        "kr": "양경희",
+        "en": "양경희",
+        "cn": "양경희"
+       },
+       "artTitle": "x",
+       "boardName": {
+        "jp": "사내 공지",
+        "kr": "사내 공지",
+        "en": "사내 공지",
+        "cn": "사내 공지"
+       },
+       "noticeYn": "N",
+       "permBoard": "SU|2933|,SU|1|,SU|2246|,SU|2518|,SU|1|,C|1000|",
+       "parentArtTitle": "x",
+       "catTitle": "x",
+       "pkSeq": "3061",
+       "parentWriteDate": "2026-09-30T15:43:33",
+       "empSeq": "2933",
+       "writePermission": "1",
+       "reserveStatus": "OPEN",
+       "empUniqScope": "C|1000"
+      },
+      {
+       "writeDate": "2026-09-17T16:06:37",
+       "artParentNo": "3049",
+       "groupSeq": "gcmsAmaranth31433",
+       "catSeqNo": "499",
+       "artContent": "x",
+       "artSeqNo": "3049",
+       "jobType": "board-1",
+       "artPassword": "",
+       "fileList": [
+        {
+         "filePath": "G1G7B4D392c36FG7a7cee9G329945D36",
+         "orignlFileName": "x",
+         "fileExtsn": "PPTX",
+         "fileId": "G1G7B4D392c36FG7a7cee9G329945D36",
+         "createDate": "2026-09-17T15:30:28",
+         "fileSn": "0"
+        },
+        {
+         "filePath": "8DD431GG2BF62661DF7BB51652aB5319",
+         "orignlFileName": "x",
+         "fileExtsn": "XLSX",
+         "fileId": "8DD431GG2BF62661DF7BB51652aB5319",
+         "createDate": "2026-09-29T16:07:47",
+         "fileSn": "1"
+        }
+       ],
+       "readPermYn": "N",
+       "newYn": "N",
+       "catType": "L",
+       "permCategory": "SU|2420|,SU|1|,SU|1|,C|1000|",
+       "mbrNick": {
+        "jp": "양선우",
+        "kr": "양선우",
+        "en": "양선우",
+        "cn": "양선우"
+       },
+       "artTitle": "x",
+       "boardName": {
+        "jp": "사업 관련 (사업 및 영업본부)",
+        "kr": "사업 관련 (사업 및 영업본부)",
+        "en": "사업 관련 (사업 및 영업본부)",
+        "cn": "사업 관련 (사업 및 영업본부)"
+       },
+       "noticeYn": "N",
+       "permBoard": "SU|2420|,SU|1|,SU|1|,C|1000|",
+       "parentArtTitle": "x",
+       "catTitle": "x",
+       "pkSeq": "3049",
+       "parentWriteDate": "2026-09-17T16:06:37",
+       "empSeq": "2420",
+       "writePermission": "1",
+       "reserveStatus": "OPEN",
+       "empUniqScope": "C|1000"
+      }
+     ],
+     "totalcount": 34,
+     "moreYn": null,
+     "syncTime": null,
+     "accountType": null
+    }
+   }
+  }
+ ]
+}

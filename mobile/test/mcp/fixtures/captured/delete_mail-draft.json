@@ -1,0 +1,42 @@
+{
+ "tool": "delete_mail",
+ "args": {
+  "uids": "14874424"
+ },
+ "toolResult": {
+  "deleted": true,
+  "note": "휴지통 이동됨(muid 재부여 — 이후 추적은 재조회 필요)",
+  "ok": true,
+  "uids": "14874424"
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/mail/mail002A05",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "45"
+   },
+   "body": {
+    "boxName": "x",
+    "mailKey": "",
+    "uids": "14874424"
+   },
+   "status": 200,
+   "responseType": "application/json;charset=UTF-8",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "msg": "",
+     "code": "0"
+    }
+   }
+  }
+ ]
+}

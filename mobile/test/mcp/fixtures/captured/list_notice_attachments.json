@@ -1,0 +1,65 @@
+{
+ "tool": "list_notice_attachments",
+ "args": {
+  "art_seq_no": "3068",
+  "uid": "G8cc284c9F9572eDD2957FFe8aB5178D,B5F37c6a8556F26G8GaG8B71FBDe9eGF,968c5967ce5573BD1D74GFBa83D12BB9,e2836cF9c468B6Bc84accc5DGG645643"
+ },
+ "toolResult": {
+  "files": [
+   {
+    "fileExt": "pdf",
+    "fileId": "G8cc284c9F9572eDD2957FFe8aB5178D",
+    "fileName": "x",
+    "fileSize": "290535",
+    "fileSn": 0,
+    "storagePath": "1791443243760999116976000"
+   }
+  ]
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/ecm/ecm001A04",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "360"
+   },
+   "body": "x",
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultData": {
+     "list": [
+      {
+       "createdAt": 1791440123000,
+       "delYn": "N",
+       "ecmFileExt": "PDF",
+       "fileExtsn": "pdf",
+       "fileHeight": null,
+       "fileId": "G8cc284c9F9572eDD2957FFe8aB5178D",
+       "fileSize": "290535",
+       "fileType": "F",
+       "fileWidth": null,
+       "groupSeq": null,
+       "hashValue": "2967280330",
+       "lastModifiedAt": 1791440123000,
+       "linkedFilePath": "1791443243760999116976000",
+       "onefficeUID": "",
+       "originalDocUID": null,
+       "originalFileName": "x",
+       "type": "board",
+       "url": ""
+      }
+     ]
+    },
+    "resultMsg": null
+   }
+  }
+ ]
+}

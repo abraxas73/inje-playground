@@ -1,0 +1,430 @@
+{
+ "tool": "send_mail_from_draft",
+ "args": {
+  "draft_muid": "14874412"
+ },
+ "toolResult": {
+  "attachments": 1,
+  "bcc": "",
+  "cc": "",
+  "draft_deleted": true,
+  "draft_muid": "14874412",
+  "note": "발송 후 임시보관함 원본을 삭제했다(mail002A07). 이 삭제는 휴지통을 거치지 않는 것으로 보인다",
+  "sent": true,
+  "subject": "x",
+  "to": "강승억 <user@example.com>"
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/mail/mail000A01",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "2"
+   },
+   "body": {},
+   "status": 200,
+   "responseType": "application/json;charset=UTF-8",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "mailboxList": [
+      {
+       "bSub": 0,
+       "parentSeq": 0,
+       "flagType": 0,
+       "hasChild": "false",
+       "mboxSeq": 25492,
+       "name": "x",
+       "exists": "1604",
+       "orders": 1,
+       "fullname": "x",
+       "unseen": "0"
+      },
+      {
+       "bSub": 0,
+       "parentSeq": 0,
+       "flagType": 0,
+       "hasChild": "false",
+       "mboxSeq": 25495,
+       "name": "x",
+       "exists": "163",
+       "orders": 2,
+       "fullname": "x",
+       "unseen": "0"
+      },
+      {
+       "bSub": 0,
+       "parentSeq": 0,
+       "flagType": 0,
+       "hasChild": "false",
+       "mboxSeq": 25498,
+       "name": "x",
+       "exists": "12",
+       "orders": 3,
+       "fullname": "x",
+       "unseen": "0"
+      }
+     ],
+     "code": "0",
+     "userprop": {},
+     "exMailArr": [],
+     "email": "x",
+     "myMailArr": [
+      {
+       "favoriteId": "29392",
+       "menuNo": "UDAB29392",
+       "menuGubun": "UD",
+       "favoriteYn": "N",
+       "count": "0",
+       "specialContentsUrl": "x",
+       "nameCn": "x",
+       "orderNum": "6",
+       "childCount": 0,
+       "nameEn": "x",
+       "nameKr": "x",
+       "urlPath": "UDA0090",
+       "nameJp": "x",
+       "parentSeq": 0,
+       "treeOpen": 0,
+       "children": [],
+       "mboxSeq": 29392,
+       "name": "x",
+       "menuDepth": 1,
+       "orders": 6,
+       "dynamicYn": "Y",
+       "menuType": "myMail",
+       "upperMenuNo": "7000900"
+      },
+      {
+       "favoriteId": "30481",
+       "menuNo": "UDAB30481",
+       "menuGubun": "UD",
+       "favoriteYn": "N",
+       "count": "0",
+       "specialContentsUrl": "x",
+       "nameCn": "x",
+       "orderNum": "7",
+       "childCount": 0,
+       "nameEn": "x",
+       "nameKr": "x",
+       "urlPath": "UDA0090",
+       "nameJp": "x",
+       "parentSeq": 0,
+       "treeOpen": 0,
+       "children": [],
+       "mboxSeq": 30481,
+       "name": "x",
+       "menuDepth": 1,
+       "orders": 7,
+       "dynamicYn": "Y",
+       "menuType": "myMail",
+       "upperMenuNo": "7000900"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/mail/mail003A01",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "164"
+   },
+   "body": {
+    "boxName": "x",
+    "listType": "",
+    "mainApiCode": "mail003A01",
+    "mboxSeq": 25498,
+    "page": 1,
+    "pageSize": 20,
+    "seen": false,
+    "showType": "",
+    "sort": "rfc822date",
+    "sortType": "desc"
+   },
+   "status": 200,
+   "responseType": "application/json;charset=UTF-8",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "TotalUnseenCount": 0,
+     "TotalRecordCount": 12,
+     "msg": "SUCCESS",
+     "useIntedAdddr": false,
+     "code": "0",
+     "useAddressBookGw": true,
+     "securityReportYN": "N",
+     "lastUid": 14874412,
+     "Records": [
+      {
+       "subject": "x",
+       "fromInAddrYN": "x",
+       "seen": 1,
+       "flagged": 0,
+       "mboxSeq": 25498,
+       "toInAddrYN": "x",
+       "context": "x",
+       "from": "강승억 <user@example.com>",
+       "attach": true,
+       "senderCountry": "",
+       "senderIp": "",
+       "approvalStatus": 0,
+       "fromAddrName": "x",
+       "answered": 0,
+       "forward": 0,
+       "toAddrName": "x",
+       "receiptNotificType": 0,
+       "approvalTime": 0,
+       "fromAddrEmail": "x",
+       "receiptNotific": 0,
+       "eachtrans": 0,
+       "approvalMailSeq": 0,
+       "muid": 14874412,
+       "size": 10168,
+       "toAddrEmail": "x",
+       "to": "강승억 <user@example.com>",
+       "rfc822date": "18:52",
+       "tooltipDate": "2026-10-10 18:52:44"
+      },
+      {
+       "subject": "x",
+       "fromInAddrYN": "x",
+       "seen": 1,
+       "flagged": 0,
+       "mboxSeq": 25498,
+       "toInAddrYN": "x",
+       "context": "x",
+       "from": "강승억 <user@example.com>",
+       "attach": false,
+       "senderCountry": "",
+       "senderIp": "",
+       "approvalStatus": 0,
+       "fromAddrName": "x",
+       "answered": 0,
+       "forward": 0,
+       "toAddrName": "x",
+       "receiptNotificType": 0,
+       "approvalTime": 0,
+       "fromAddrEmail": "x",
+       "receiptNotific": 0,
+       "eachtrans": 0,
+       "approvalMailSeq": 0,
+       "muid": 14580025,
+       "size": 10196,
+       "toAddrEmail": "x",
+       "to": "",
+       "rfc822date": "09-21 09:43",
+       "tooltipDate": "2026-09-21 09:43:57"
+      },
+      {
+       "subject": "x",
+       "fromInAddrYN": "x",
+       "seen": 1,
+       "flagged": 0,
+       "mboxSeq": 25498,
+       "toInAddrYN": "x",
+       "context": "x",
+       "from": "강승억 <user@example.com>",
+       "attach": false,
+       "senderCountry": "",
+       "senderIp": "",
+       "approvalStatus": 0,
+       "fromAddrName": "x",
+       "answered": 0,
+       "forward": 0,
+       "toAddrName": "x",
+       "receiptNotificType": 0,
+       "approvalTime": 0,
+       "fromAddrEmail": "x",
+       "receiptNotific": 0,
+       "eachtrans": 0,
+       "approvalMailSeq": 0,
+       "muid": 14460331,
+       "size": 20128,
+       "toAddrEmail": "x",
+       "to": "기술·운영부문<amaranth10||c1000||b1000||user@example.com>",
+       "rfc822date": "09-14 12:02",
+       "tooltipDate": "2026-09-14 12:02:22"
+      }
+     ],
+     "Result": "OK"
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/mail/mail014A01",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "139"
+   },
+   "body": {
+    "domainSeq": "",
+    "fromFlag": true,
+    "mailKind": "draft",
+    "mailTo": "(Unknown)",
+    "mbox": "DRAFTS",
+    "readType": "",
+    "uid": "14874412",
+    "viewFlag": "noRead"
+   },
+   "status": 200,
+   "responseType": "application/json;charset=UTF-8",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "msg": "",
+     "userInfo": {},
+     "code": "0",
+     "signature": "x",
+     "mail_kind": "draft",
+     "insideDomainSet": [],
+     "bigFileSize": "2048",
+     "insideDomainArray[]": [],
+     "groupSeq": "gcmsAmaranth31433",
+     "mailkey": "1791625964437_1c02bd72-3dad-4596-88b8-d24e7b1e5e94.eml",
+     "recvSendRestiction": 0,
+     "externalSendLimit": "N",
+     "use_security_mail": "Y",
+     "innerDomainList": [
+      "innogrid.com"
+     ],
+     "filedir": "1791625964905_a06115a7-22c5-4991-9508-8105ed2caedf+30",
+     "sendVaild_AI": [],
+     "fileUrl": "https://gw.innogrid.com/mail",
+     "mailInfo": {
+      "msg": "",
+      "useIntedAdddr": false,
+      "code": "0",
+      "mboxName": "x",
+      "mime": {
+       "header": {
+        "mime-version": "1.0",
+        "date": "Sat, 10 Oct 2026 18:52:44 +0900",
+        "cc": "",
+        "subject": "x",
+        "message-id": "<user@example.com>",
+        "from": "=?UTF-8?B?6rCV7Iq57Ja1?= &lt;user@example.com&gt;",
+        "content-type": "x",
+        "to": "user@example.com"
+       },
+       "isEcmUploaded": false,
+       "body": {
+        "calendar": "",
+        "plain": "캡처용. 본인 발송.\n\t\n\t\t\n\t\t\t\n\t\t\t\t\n\t\t\t\t\t\n\t\t\t\t\t\n\t\t\t\t\t\n\t\t\t\t\t\n\t\t\t\t\t\t\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t강승억 Seunguk Kang\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\n\t\t\t\t\t\t\n\t\t\t\t\t\t\t\n…",
+        "html": "x"
+       },
+       "fileList": [
+        {
+         "originalFileName": "x",
+         "fileSize": "42",
+         "fileExtsn": "txt",
+         "fileSn": "nXHjys5X7SiiBn/KeUyrt6RH2945OuqZ4ZO+8FCxbvUKeT81Zm5HX5MPTjcLMnO2WdN7cR2kGbuEiOrO3NhEtPmP3hTTS4C5jHQCI/8bB1nZfR+f/71g3abynxZIQEjlv/dkSIar4gYCQlg5nfRrn3t0JP/5CYQqIWkfTF0oDL/ZNiFEDoFYvBmHf2b93g/9",
+         "fileId": "88592e181326BD369715a9297Ba68B27"
+        }
+       ],
+       "ecmFileIds": "attach-test.txt:88592e181326BD369715a9297Ba68B27"
+      },
+      "approvalReason": "N",
+      "seenYN": 1,
+      "receiptNotific": 0,
+      "mailkey": "1791625964437_1c02bd72-3dad-4596-88b8-d24e7b1e5e94.eml",
+      "muid": 14874412,
+      "decodeMime": {
+       "date": "2026-10-10 18:52",
+       "fromAddrName": "x",
+       "listDate": "18:52",
+       "subject": "x",
+       "listFrom": "강승억 &lt;user@example.com&gt;",
+       "from": "강승억 &lt;user@example.com&gt;",
+       "empSeq": "3060",
+       "fromAddrEmail": "x",
+       "to": "강승억 &lt;user@example.com&gt;",
+       "isOrgMail": 1,
+       "email": "x",
+       "url": "/#/popup?callComp=UDAP007&muid=ukQ5HKwENc7PK8rfIwxegJyriRbHvNwentX1UJH5C90%3D&keep=false&MicroModuleCode=mail"
+      },
+      "flagged": 0,
+      "useAddressBookGw": true,
+      "mboxSeq": 25498
+     },
+     "paramTo": "(Unknown)",
+     "email": "x",
+     "representInfo": [
+      "user@example.com",
+      "user@example.com",
+      "user@example.com"
+     ],
+     "groupMailOption": {
+      "useIntedAdddr": false,
+      "groupMailIntedAddr": "x",
+      "useAddressBookGw": true,
+      "groupMailAddr": "x",
+      "groupMailOrg": "amaranth10"
+     },
+     "pwOption": {
+      "pwRuleNum": "Y",
+      "pwUse": "N",
+      "pwLengthLt": "16",
+      "pwRuleSpecial": "Y",
+      "pwRuleLower": "Y",
+      "pwLengthGt": "4",
+      "pwRuleUpper": "Y"
+     },
+     "sessionKey": "write_6682834a-ef7d-4",
+     "bigFileDay": "30",
+     "mail_from": [
+      "user@example.com",
+      "user@example.com",
+      "user@example.com"
+     ],
+     "deptSeq": "2989",
+     "configSignature": {
+      "signatureList": [
+       {
+        "signature": "x",
+        "signature_index": 1,
+        "signature_name": "x"
+       }
+      ],
+      "signatureIdx": 1
+     },
+     "urlEncoderFiledir": "1791625964905_a06115a7-22c5-4991-9508-8105ed2caedf%2B30",
+     "mailboxPercent": 9,
+     "compSeq": "1000",
+     "bigFileLimit": "0",
+     "userFromNameList": [
+      {
+       "nameType": "x",
+       "isDefault": true,
+       "ufnSeq": "658",
+       "userName": "x"
+      }
+     ],
+     "insideDomainArray": null,
+     "empSeq": "3060",
+     "useLimit": 0,
+     "capacityLimit": "0"
+    }
+   }
+  }
+ ]
+}

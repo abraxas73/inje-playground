@@ -1,0 +1,68 @@
+{
+ "tool": "save_approval_line",
+ "args": {
+  "line_nm": "x",
+  "form_id": 41,
+  "line_id": 0,
+  "detail_line_json": "[{\"user_id\": \"3060\", \"co_id\": \"1000\", \"act_id\": \"3000\", \"duty_cd\": \"300\", \"duty_nm\": \"\", \"dept_id\": \"2989\", \"dept_nm\": \"클라우드 네이티브 센터\", \"user_nm\": \"강승억\", \"grade_nm\": \"상무\"}]"
+ },
+ "toolResult": {
+  "createdLineId": 2470,
+  "insertDResult": 1,
+  "insertFormResult": 1,
+  "kind": "approvalLineSaved",
+  "note": "config 저장 완료(상신 아님). list_lines로 재조회해 실제 반영 확인 권장."
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/eap/eap102A10",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "358"
+   },
+   "body": {
+    "detailLine": [
+     {
+      "act_id": "3000",
+      "co_id": "1000",
+      "dept_id": "2989",
+      "dept_nm": "x",
+      "doc_line_m_seq": 1,
+      "doc_line_seq": 1,
+      "duty_cd": "300",
+      "duty_nm": "x",
+      "grade_nm": "x",
+      "line_seq": 1,
+      "user_id": "3060",
+      "user_nm": "x"
+     }
+    ],
+    "formList": [
+     41
+    ],
+    "form_id": 41,
+    "line_id": 0,
+    "line_kind": "10",
+    "line_nm": "x",
+    "proc_id": "1000"
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultData": {
+     "insertDResult": 1,
+     "insertFormResult": 1,
+     "createdLineId": 2470
+    },
+    "resultMsg": "성공하였습니다."
+   }
+  }
+ ]
+}

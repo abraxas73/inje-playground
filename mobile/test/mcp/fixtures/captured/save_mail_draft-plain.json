@@ -1,0 +1,266 @@
+{
+ "tool": "save_mail_draft",
+ "args": {
+  "to": "user@example.com",
+  "subject": "x",
+  "html": "x"
+ },
+ "toolResult": {
+  "attachments": 0,
+  "bcc": "",
+  "cc": "",
+  "draft_muid": "14874424",
+  "mail_key": "1791625974635_652f4078-e148-45d2-bf3e-4477c529c56d",
+  "note": "임시보관함에 저장만 됨(발송 아님). 목록 확인은 list_mail_drafts",
+  "ok": true,
+  "sent": false,
+  "signature_attached": true,
+  "subject": "x",
+  "to": "user@example.com",
+  "verified_by_readback": true
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/mail/mail014A01",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "47"
+   },
+   "body": {
+    "mailKind": "plain",
+    "mainApiCode": "mail014A01"
+   },
+   "status": 200,
+   "responseType": "application/json;charset=UTF-8",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "msg": "",
+     "userInfo": {},
+     "code": "0",
+     "signature": "x",
+     "mail_kind": "plain",
+     "insideDomainSet": [],
+     "bigFileSize": "2048",
+     "insideDomainArray[]": [],
+     "groupSeq": "gcmsAmaranth31433",
+     "mailkey": "1791625974635_652f4078-e148-45d2-bf3e-4477c529c56d",
+     "recvSendRestiction": 0,
+     "externalSendLimit": "N",
+     "use_security_mail": "Y",
+     "innerDomainList": [
+      "innogrid.com"
+     ],
+     "filedir": "1791625974616_b11baedd-ffd8-4e06-a89e-c62a47ac2fc7+30",
+     "sendVaild_AI": [],
+     "fileUrl": "https://gw.innogrid.com/mail",
+     "mailInfo": {},
+     "paramTo": null,
+     "email": "x",
+     "representInfo": [
+      "user@example.com",
+      "user@example.com",
+      "user@example.com"
+     ],
+     "groupMailOption": {
+      "useIntedAdddr": false,
+      "groupMailIntedAddr": "x",
+      "useAddressBookGw": true,
+      "groupMailAddr": "x",
+      "groupMailOrg": "amaranth10"
+     },
+     "pwOption": {
+      "pwRuleNum": "Y",
+      "pwUse": "N",
+      "pwLengthLt": "16",
+      "pwRuleSpecial": "Y",
+      "pwRuleLower": "Y",
+      "pwLengthGt": "4",
+      "pwRuleUpper": "Y"
+     },
+     "sessionKey": "write_9f6c5d70-aad9-4",
+     "bigFileDay": "30",
+     "mail_from": [
+      "user@example.com",
+      "user@example.com",
+      "user@example.com"
+     ],
+     "deptSeq": "2989",
+     "configSignature": {
+      "signatureList": [
+       {
+        "signature": "x",
+        "signature_index": 1,
+        "signature_name": "x"
+       }
+      ],
+      "signatureIdx": 1
+     },
+     "urlEncoderFiledir": "1791625974616_b11baedd-ffd8-4e06-a89e-c62a47ac2fc7%2B30",
+     "mailboxPercent": 9,
+     "compSeq": "1000",
+     "bigFileLimit": "0",
+     "userFromNameList": [
+      {
+       "nameType": "x",
+       "isDefault": true,
+       "ufnSeq": "658",
+       "userName": "x"
+      }
+     ],
+     "insideDomainArray": null,
+     "empSeq": "3060",
+     "useLimit": 0,
+     "capacityLimit": "0"
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/mail/mail014A14",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "content-length": "10804",
+    "accept": "*/*",
+    "accept-encoding": "gzip"
+   },
+   "body": "x",
+   "status": 200,
+   "responseType": "application/json;charset=UTF-8",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "code": "0",
+     "resultMessage": "SUCCESS",
+     "autoMUID": 14874424,
+     "mailKey": "1791625974716_642f1095-8f42-46a6-8788-2512cc0b3e91.eml"
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/mail/mail000A01",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "2"
+   },
+   "body": {},
+   "status": 200,
+   "responseType": "application/json;charset=UTF-8",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "mailboxList": [
+      {
+       "bSub": 0,
+       "parentSeq": 0,
+       "flagType": 0,
+       "hasChild": "false",
+       "mboxSeq": 25492,
+       "name": "x",
+       "exists": "1604",
+       "orders": 1,
+       "fullname": "x",
+       "unseen": "0"
+      },
+      {
+       "bSub": 0,
+       "parentSeq": 0,
+       "flagType": 0,
+       "hasChild": "false",
+       "mboxSeq": 25495,
+       "name": "x",
+       "exists": "164",
+       "orders": 2,
+       "fullname": "x",
+       "unseen": "0"
+      },
+      {
+       "bSub": 0,
+       "parentSeq": 0,
+       "flagType": 0,
+       "hasChild": "false",
+       "mboxSeq": 25498,
+       "name": "x",
+       "exists": "12",
+       "orders": 3,
+       "fullname": "x",
+       "unseen": "0"
+      }
+     ],
+     "code": "0",
+     "userprop": {},
+     "exMailArr": [],
+     "email": "x",
+     "myMailArr": [
+      {
+       "favoriteId": "29392",
+       "menuNo": "UDAB29392",
+       "menuGubun": "UD",
+       "favoriteYn": "N",
+       "count": "0",
+       "specialContentsUrl": "x",
+       "nameCn": "x",
+       "orderNum": "6",
+       "childCount": 0,
+       "nameEn": "x",
+       "nameKr": "x",
+       "urlPath": "UDA0090",
+       "nameJp": "x",
+       "parentSeq": 0,
+       "treeOpen": 0,
+       "children": [],
+       "mboxSeq": 29392,
+       "name": "x",
+       "menuDepth": 1,
+       "orders": 6,
+       "dynamicYn": "Y",
+       "menuType": "myMail",
+       "upperMenuNo": "7000900"
+      },
+      {
+       "favoriteId": "30481",
+       "menuNo": "UDAB30481",
+       "menuGubun": "UD",
+       "favoriteYn": "N",
+       "count": "0",
+       "specialContentsUrl": "x",
+       "nameCn": "x",
+       "orderNum": "7",
+       "childCount": 0,
+       "nameEn": "x",
+       "nameKr": "x",
+       "urlPath": "UDA0090",
+       "nameJp": "x",
+       "parentSeq": 0,
+       "treeOpen": 0,
+       "children": [],
+       "mboxSeq": 30481,
+       "name": "x",
+       "menuDepth": 1,
+       "orders": 7,
+       "dynamicYn": "Y",
+       "menuType": "myMail",
+       "upperMenuNo": "7000900"
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

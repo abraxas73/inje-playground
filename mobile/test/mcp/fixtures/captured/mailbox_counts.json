@@ -1,0 +1,60 @@
+{
+ "tool": "mailbox_counts",
+ "args": {},
+ "toolResult": [
+  {
+   "boxnameSeq": 25492,
+   "count": 0,
+   "totalCount": 1604
+  },
+  {
+   "boxnameSeq": 25495,
+   "count": 0,
+   "totalCount": 163
+  },
+  {
+   "boxnameSeq": 25498,
+   "count": 0,
+   "totalCount": 11
+  }
+ ],
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/mail/mail000A03",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "2"
+   },
+   "body": {},
+   "status": 200,
+   "responseType": "application/json;charset=UTF-8",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": [
+     {
+      "boxnameSeq": 25492,
+      "count": 0,
+      "totalCount": 1604
+     },
+     {
+      "boxnameSeq": 25495,
+      "count": 0,
+      "totalCount": 163
+     },
+     {
+      "boxnameSeq": 25498,
+      "count": 0,
+      "totalCount": 11
+     }
+    ]
+   }
+  }
+ ]
+}

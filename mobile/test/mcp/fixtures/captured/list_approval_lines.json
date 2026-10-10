@@ -1,0 +1,32 @@
+{
+ "tool": "list_approval_lines",
+ "args": {},
+ "toolResult": {
+  "count": 0,
+  "kind": "approvalLines",
+  "lines": []
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/eap/eap102A02",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "2"
+   },
+   "body": {},
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultData": [],
+    "resultMsg": "성공하였습니다."
+   }
+  }
+ ]
+}

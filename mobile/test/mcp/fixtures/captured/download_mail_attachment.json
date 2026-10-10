@@ -1,0 +1,77 @@
+{
+ "tool": "download_mail_attachment",
+ "args": {
+  "muid": 14858746,
+  "file_sn": "Y6brjL28gF9m+f4puyp91Vw3dxUi+p2nOWOHWrYH/n47Lu/u6tFk5ANuumEIqdMrtz/fgeGhQOVSzo/Hl8pVxZ9cHLmanZigxrCttVOhg/m0SvO01wdlyf2Gn8FlpFNzHkefMRi7UCINN2IzX+drwiSJ7fPjCHORrd1IQuOAcB1Kwl7qcdRKKhI/0sDGXHZ80SstLkRKPqjHYUeB0NCVPRjsKuPr9te/l5JqYbt6+OU=",
+  "out_path": "/private/tmp/claude-501/-Users-seunguk-kang-Repos-inje-playground/bb6d601b-c764-46a3-9d46-f193bc34c6f6/scratchpad/mitm/dl/mail-1. 이노그리드_퇴직연금규약(DC형)_2610.pdf"
+ },
+ "toolResult": {
+  "bytes": 290535,
+  "ok": true,
+  "path": "/private/tmp/claude-501/-Users-seunguk-kang-Repos-inje-playground/bb6d601b-c764-46a3-9d46-f193bc34c6f6/scratchpad/mitm/dl/mail-1. 이노그리드_퇴직연금규약(DC형)_2610.pdf",
+  "serverFileName": "x"
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/mail/mail014A08",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "405"
+   },
+   "body": "x",
+   "status": 200,
+   "responseType": "application/json;charset=UTF-8",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "성공하였습니다",
+    "resultData": {
+     "list": [
+      {
+       "filePath": "/home/upload/mail/storage//",
+       "fileName": "x",
+       "originalFileName": "x",
+       "fileExtsn": "pdf",
+       "fileSize": "397576",
+       "createdAt": "1791625860980",
+       "fileKey": null,
+       "fileId": "HlMWhgmZPOJ9DZESx/1trjbhEZ+yGZsjR0me4f0rL3xGT6E9PVp8SyaBk3e48uCBebRHuSbg7crRKeZ39W4SQswuexANlCQLSkjGf6J5pali1iYDHWhd6yz2Gaasu4Xor+uHLYcEARcDSFMP2YNAupdW1LOblIxYO79fuik18AN91Evkz+GgOmcffYiEIXzR45dY3LHXgVzHqeK9VjTdDOeiKRDRnr3s6p+dhkewDjp/dcFTgyw+80CD1MArEx4CiIkdZXXrcxLNt1JUL+pOrYsCeoTXxdh0gO+sPE3lRoE=",
+       "muid": "14858746",
+       "email": "x",
+       "encoding": "base64",
+       "moduleGbn": "MAIL",
+       "offset": "32785",
+       "authKeyMap": {
+        "muid": "14858746",
+        "email": "x",
+        "empSeq": "3060"
+       },
+       "fileSn": ""
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/ecm/ecm001A03",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "478"
+   },
+   "body": "x",
+   "status": 200,
+   "responseType": "application/octet-stream",
+   "response": "<binary 290535B>"
+  }
+ ]
+}

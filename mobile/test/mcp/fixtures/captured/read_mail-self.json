@@ -1,0 +1,106 @@
+{
+ "tool": "read_mail",
+ "args": {
+  "muid": 14874418
+ },
+ "toolResult": {
+  "attachments": [
+   {
+    "fileExt": "txt",
+    "fileName": "x",
+    "fileSizeApprox": 31,
+    "fileSn": "QO4cl5KpUQBRXjFOmrHE3W8T4NgmN8Hr86ZRXIfxA4UxNygzD3fyXw2UvV3OpuoZ6nNH+hZ0hcXnIGWL2Gbypg33TYGdDq5TpQO7tWSCfd/gKk5x1IBsZWdj50qxJAU7X+9ABbL1ksSBcBwsFJ2dW4cIGlyZC+j0yfG8BK1sa0D5Deh6VkgZtLp8g/YYSx01",
+    "index": 0,
+    "isImage": false
+   }
+  ],
+  "bcc": "",
+  "body": "x",
+  "cc": "",
+  "date": "2026-10-10 18:52",
+  "from": "강승억 <user@example.com>",
+  "inlineImages": [],
+  "muid": "14874418",
+  "remoteResourceCount": 1,
+  "subject": "x",
+  "to": "강승억 <user@example.com>"
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/mail/mail002A01",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "18"
+   },
+   "body": {
+    "uid": "14874418"
+   },
+   "status": 200,
+   "responseType": "application/json;charset=UTF-8",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "msg": "",
+     "useIntedAdddr": false,
+     "code": "0",
+     "mboxName": "x",
+     "mime": {
+      "header": {
+       "mime-version": "1.0",
+       "date": "Sat, 10 Oct 2026 18:52:45 +0900",
+       "cc": "",
+       "in-reply-to": "<user@example.com>",
+       "references": "<user@example.com>",
+       "subject": "x",
+       "message-id": "<user@example.com>",
+       "from": "=?UTF-8?B?6rCV7Iq57Ja1?= &lt;user@example.com&gt;",
+       "content-type": "x",
+       "to": "=?UTF-8?B?6rCV7Iq57Ja1?= &lt;user@example.com&gt;",
+       "x-senddiv-key": "web"
+      },
+      "isEcmUploaded": false,
+      "body": {
+       "calendar": "",
+       "plain": "\n \n \n  캡처용. 본인 발송.\n  \n   \n    \n     \n      \n       \n        \n         \n        \n        \n         \n          \n          …",
+       "html": "x"
+      },
+      "fileList": [
+       {
+        "originalFileName": "x",
+        "fileSize": "42",
+        "fileExtsn": "txt",
+        "fileSn": "QO4cl5KpUQBRXjFOmrHE3W8T4NgmN8Hr86ZRXIfxA4UxNygzD3fyXw2UvV3OpuoZ6nNH+hZ0hcXnIGWL2Gbypg33TYGdDq5TpQO7tWSCfd/gKk5x1IBsZWdj50qxJAU7X+9ABbL1ksSBcBwsFJ2dW4cIGlyZC+j0yfG8BK1sa0D5Deh6VkgZtLp8g/YYSx01"
+       }
+      ]
+     },
+     "approvalReason": "N",
+     "seenYN": 0,
+     "receiptNotific": 0,
+     "mailkey": "1791625965154_2bf744a9-c5e8-40f7-884b-894566462605.eml",
+     "muid": 14874418,
+     "decodeMime": {
+      "date": "2026-10-10 18:52",
+      "listDate": "18:52",
+      "subject": "x",
+      "from": "강승억 &lt;user@example.com&gt;",
+      "empSeq": "3060",
+      "to": "강승억 &lt;user@example.com&gt;",
+      "isOrgMail": 1,
+      "email": "x",
+      "url": "/#/popup?callComp=UDAP007&muid=U%2Bw702oXibg9jylP94LlOKxB0stTvp4QEqibMhoaT9U%3D&keep=false&MicroModuleCode=mail"
+     },
+     "flagged": 0,
+     "useAddressBookGw": true,
+     "mboxSeq": 25492
+    }
+   }
+  }
+ ]
+}

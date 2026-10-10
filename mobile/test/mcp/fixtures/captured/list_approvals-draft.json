@@ -1,0 +1,62 @@
+{
+ "tool": "list_approvals",
+ "args": {
+  "box_name": "x",
+  "page_size": 3
+ },
+ "toolResult": {
+  "box": "draft",
+  "documents": [],
+  "totalCount": 0
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/eap/eap107A06",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "337"
+   },
+   "body": {
+    "docContentsData": {},
+    "eaBoxId": "1000300",
+    "fDocSts": [],
+    "item": {},
+    "menuNo": "1000500",
+    "nMenuID": "1000500",
+    "page": "1",
+    "pageCode": "",
+    "pageSize": "3",
+    "periodPicker": "REP_DT",
+    "sFormId": [
+     "0"
+    ],
+    "sfrDt": "20260710",
+    "sortField": "REP_DT",
+    "sortType": "DESC",
+    "stoDt": "20261010",
+    "upperMenuNo": "1000300",
+    "useElasticSearch": true,
+    "useElasticSearch_new": true
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultData": {
+     "list": {
+      "startCount": 0,
+      "list": [],
+      "totalCount": 0
+     }
+    },
+    "resultMsg": "성공하였습니다."
+   }
+  }
+ ]
+}

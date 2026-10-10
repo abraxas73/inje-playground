@@ -1,0 +1,487 @@
+{
+ "tool": "cancel_reservation",
+ "args": {
+  "res_seq": "45",
+  "seq_num": 76198,
+  "res_idx": "2"
+ },
+ "toolResult": {
+  "canceled": true,
+  "ok": true,
+  "seqNum": 76198,
+  "verified_by_readback": true
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/gw/gw050A02",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "39"
+   },
+   "body": "x",
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 200,
+    "resultMsg": "User is already logged in.",
+    "resultData": {
+     "sessionInfo": {
+      "user_email": "x",
+      "user_default_email": "x",
+      "user_name": "x",
+      "user_no": 0,
+      "portal_member_no": 0,
+      "portal_id": "",
+      "use_second_certification": "",
+      "user_contact": "",
+      "birth_date": "",
+      "last_access_company_no": 0,
+      "randomkey": "",
+      "hash_key": "26959030428657494619691372033181414047401824",
+      "session_key": "",
+      "auth_a_token": "x",
+      "sessionTime": "86400",
+      "company_list": null,
+      "ucUserInfo": {
+       "groupSeq": "gcmsAmaranth31433",
+       "loginId": "x",
+       "empSeq": "3060",
+       "empName": "x",
+       "empRealName": "x",
+       "langCode": "kr",
+       "userSe": "USER|AT",
+       "emailAdd": "x",
+       "emailDomain": "x",
+       "eaType": "eap",
+       "picFileId": "47eca88e-7c2c-47ef-9d35-c87801617d54_jpg",
+       "clientIp": "210.207.104.130",
+       "compSeq": "1000",
+       "compCd": "1000",
+       "compName": "x",
+       "bizSeq": "1000",
+       "bizName": "x",
+       "deptSeq": "2989",
+       "deptCd": "AA120",
+       "deptName": "x",
+       "positionCode": "200",
+       "positionName": "x",
+       "dutyCode": "300",
+       "dutyName": "x",
+       "jobCode": "EMPTY",
+       "jobName": "x",
+       "authorCode": "x",
+       "erpCompSeq": "1000",
+       "erpBizSeq": "1000",
+       "erpDeptSeq": "AA120",
+       "erpEmpSeq": "10995",
+       "deptPathNm": "x",
+       "deptPath": "2986|2987|2989",
+       "compMailUrl": "https://gw.innogrid.com/mail/",
+       "compRegistNum": "2208736743",
+       "deptManagerSeq": null,
+       "mobileId": "x",
+       "appType": "",
+       "etc1": "",
+       "etc2": "",
+       "etc3": "",
+       "mailUseYn": "Y",
+       "osType": "",
+       "useYn": "Y",
+       "mobileUseYn": "x",
+       "messengerUseYn": "Y",
+       "verificationMobileTelNum": "x",
+       "ocUserInfo": {
+        "userUID": "35431D111DD4F54B4GG869G87cc5a3DF",
+        "groupFullPathName": "x",
+        "shortCutGroupName": "x",
+        "companyUID": "1D32GFB4Ba5F52237ac9491F9636aDaG",
+        "companyGroupUID": "FB64aa7BcGaFG8BD9528a44a71B15Dca",
+        "groupUID": "D5184F9D86D398F671c682996166681G",
+        "parentUID": "Fc29488cFGFecDD31737a18F3c87aFe8",
+        "useParentGroup": false,
+        "myPrivateFolderUID": "3173c2479Fc597e33B5966ec22D3GF74",
+        "myGroupFolderUID": "D5184F9D86D398F671c682996166681G",
+        "myLinkFolderUID": "6Be6F3e6Ba8793D3Dc2aB14866D14346",
+        "flagMonitoring": false,
+        "alertType": null,
+        "flagOneChamberManager": false
+       },
+       "workStatus": "999",
+       "licenseType": "CM",
+       "licenseInfo": "|EBP|",
+       "functionInfo": "|A|A_004|BL|BN|BN_001|BN_002|BN_003|BN_004|BN_005|BN_006|BS|CM_001|CM_004|H|MEET|MOB|MSG|PO|UB|UD|UE|UF|UG|UK|UO|UQ|",
+       "ocSearchYn": "N",
+       "oneAiYn": "N",
+       "webhwpUseYn": "N",
+       "oneStudioYn": "N",
+       "oneNewsYn": "N",
+       "oneAiPeYn": "N",
+       "oauth_token": "",
+       "crmYn": "N",
+       "compLangCode": "kr",
+       "externalJobName": "x",
+       "useLanguages": [
+        {
+         "langCode": "kr",
+         "langName": "x",
+         "iso6391": "ko"
+        },
+        {
+         "langCode": "en",
+         "langName": "x",
+         "iso6391": "en"
+        },
+        {
+         "langCode": "cn",
+         "langName": "x",
+         "iso6391": "zh"
+        }
+       ],
+       "userAuthCodeList": null,
+       "licenseOptionMenuInfo": {
+        "unlicenseExcludeMenuList": [],
+        "licenseMenuTypeList": [
+         "ERP",
+         "UC",
+         "HP"
+        ],
+        "licenseOnlyExposureMenuList": []
+       }
+      },
+      "erpUserInfo": {
+       "companyCode": "1000",
+       "companyName": "x",
+       "companyNamek": "x",
+       "nGisu": 17,
+       "fDate": "20220101",
+       "tDate": "20221231",
+       "bizareaCode": "1000",
+       "bizareaName": "x",
+       "deptCode": "AA120",
+       "deptName": "x",
+       "deptNamek": "x",
+       "userCode": "10995",
+       "userName": "x",
+       "userNamek": "x",
+       "fundAuth": "x",
+       "sFormat02": 0,
+       "sFormat03": 0,
+       "sFormat04": 2,
+       "sFormat05": 3,
+       "sFormat06": 0,
+       "sFormat07": 2,
+       "sFormat08": 2,
+       "sFormat10": 1,
+       "language": "KOR",
+       "fstLanguage": "KOR",
+       "subLanguage": "KOR",
+       "bizMultiCd": [
+        ""
+       ],
+       "headOfficeInfo": {
+        "divCd": "1000",
+        "divCnNm": null,
+        "divNm": "x",
+        "divEnNm": null,
+        "divJpNm": null,
+        "divKrNm": "x",
+        "fgTy": "",
+        "useYn": "1",
+        "ctrFg": "2",
+        "ctrCd": "01",
+        "ctrNb": ""
+       },
+       "companyKrName": null,
+       "companyEnName": null,
+       "companyJpName": null,
+       "companyCnName": null,
+       "bizareaKrName": null,
+       "bizareaEnName": null,
+       "bizareaJpName": null,
+       "bizareaCnName": null,
+       "deptKrName": null,
+       "deptEnName": null,
+       "deptJpName": null,
+       "deptCnName": null,
+       "userKrName": null,
+       "userEnNm": null,
+       "userJpNm": null,
+       "userCnNm": null,
+       "bizareaNamek": null,
+       "companyRegNb": "2208736743",
+       "bizareaRegNb": "2208736743"
+      },
+      "erp10Info": {
+       "erp10AuthToken": null,
+       "access_token_details": "",
+       "compCd": "",
+       "deptCd": "",
+       "groupCode": "",
+       "timezoneCode": "",
+       "apiUrl": "",
+       "cookieDomain": ""
+      },
+      "product_code": "A001",
+      "remoteLoginToken": "",
+      "samlInfo": null,
+      "clientType": "Web",
+      "osName": "x",
+      "deviceName": "-",
+      "browser": "Chrome",
+      "loginDate": "2026-10-02 08:34:11",
+      "deviceId": "",
+      "remoteLogin": false
+     },
+     "groupMap": {
+      "groupDomain": "gw.innogrid.com",
+      "custPortal": "",
+      "erp10IntegBasicAuth": "",
+      "onechamberPackYn": "N",
+      "multipleLoginTp": "0",
+      "videoServer": "https://jitsi.innogrid.com",
+      "ecmSsoUrl": null,
+      "erp10CookieDomain": "",
+      "extSsoUrl": null,
+      "adminSeq": "1",
+      "useLanguagesNative": [
+       {
+        "langCode": "kr",
+        "langName": "x",
+        "iso6391": "ko"
+       },
+       {
+        "langCode": "en",
+        "langName": "x",
+        "iso6391": "en"
+       },
+       {
+        "langCode": "cn",
+        "langName": "x",
+        "iso6391": "zh"
+       }
+      ],
+      "groupSeq": "gcmsAmaranth31433",
+      "groupDisplayName": "x",
+      "serverApiUrl": "https://gw.innogrid.com",
+      "samlOnlyYn": "N",
+      "ssoLoginBtn": "Y",
+      "loginLangYn": "N",
+      "extSsoUrlYn": "N",
+      "custWebSso": null,
+      "erp10SyncUpdateCompYn": "N",
+      "custWebLogin": null,
+      "samlType": "megazone",
+      "nativeLangCode": "kr",
+      "erp10ApiUrl": ""
+     },
+     "titleMap": {
+      "compDisplayName": "x",
+      "compDomain": "gw.innogrid.com"
+     }
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/schres/rs121A10",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "196"
+   },
+   "body": {
+    "companyInfo": {
+     "compSeq": "1000",
+     "deptSeq": "2989",
+     "emailAddr": "x",
+     "emailDomain": "x",
+     "groupSeq": "gcmsAmaranth31433"
+    },
+    "langCode": "kr",
+    "resIdx": "2",
+    "resSeq": "45",
+    "seqNum": 76198
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "schmSeq": "",
+     "apprYn": "N",
+     "mentionEmpList": [
+      {
+       "deptSeq": "3052",
+       "compSeq": "1000",
+       "empSeq": "1"
+      },
+      {
+       "deptSeq": "3040",
+       "compSeq": "1000",
+       "empSeq": "2066"
+      },
+      {
+       "deptSeq": "3040",
+       "compSeq": "1000",
+       "empSeq": "2067"
+      }
+     ],
+     "moduleGbnCode": "resource",
+     "endDate": "202610120845",
+     "subscriberList": [
+      {
+       "deptName": "x",
+       "deptSeq": "2989",
+       "loginId": "x",
+       "empName": "x",
+       "compSeq": "1000",
+       "empSeq": "3060",
+       "useYn": "Y",
+       "groupSeq": "gcmsAmaranth31433"
+      }
+     ],
+     "schSeq": "",
+     "repeatByDay": "",
+     "resSeq": "45",
+     "resName": "x",
+     "resDescText": "x",
+     "repeatIdx": "",
+     "file": [],
+     "reqText": "x",
+     "empName": "x",
+     "commentType": "",
+     "event": {
+      "timelineYn": "Y",
+      "eventSubType": "RS007",
+      "mailYn": "Y",
+      "data": {
+       "resIdx": "2",
+       "resText": "x",
+       "resSeq": "45",
+       "resName": "x",
+       "endDate": "202610120845",
+       "contents": "x",
+       "seqNum": 76198,
+       "createSeq": "",
+       "startDate": "202610120800"
+      },
+      "recvEmpBulkList": [],
+      "smsYn": "Y",
+      "pushYn": "Y",
+      "eventType": "RESOURCE",
+      "url": "/#/popup?MicroModuleCode=schres&callComp=UKAP003&seqNum=76198&resSeq=45",
+      "recvEmpList": [],
+      "recvMentionEmpList": [],
+      "portalYn": "Y",
+      "talkYn": "Y",
+      "alertYn": "Y",
+      "recvEmpBulk": ""
+     },
+     "commentCnt": 0,
+     "fileList": [],
+     "createDate": "20261010185425",
+     "seqNum": 76198,
+     "empUniqGroup": "ALL",
+     "repeatType": "10",
+     "repeatEndDay": "",
+     "moduleSeq": 76198,
+     "delYn": "Y",
+     "resIdx": "2",
+     "eventData": {
+      "timelineYn": "Y",
+      "eventSubType": "RS007",
+      "mailYn": "Y",
+      "data": {
+       "resIdx": "2",
+       "resText": "x",
+       "resSeq": "45",
+       "resName": "x",
+       "endDate": "202610120845",
+       "contents": "x",
+       "seqNum": 76198,
+       "createSeq": "",
+       "startDate": "202610120800"
+      },
+      "recvEmpBulkList": [],
+      "smsYn": "Y",
+      "pushYn": "Y",
+      "eventType": "RESOURCE",
+      "url": "/#/popup?MicroModuleCode=schres&callComp=UKAP003&seqNum=76198&resSeq=45",
+      "recvEmpList": [],
+      "recvMentionEmpList": [],
+      "portalYn": "Y",
+      "talkYn": "Y",
+      "alertYn": "Y",
+      "recvEmpBulk": ""
+     },
+     "resmSeq": "",
+     "cancelList": [],
+     "empSeq": "3060",
+     "alldayYn": "N",
+     "descText": "x",
+     "startDate": "202610120800",
+     "statusCode": "RC"
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/schres/rs121A11",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "445"
+   },
+   "body": {
+    "companyInfo": {
+     "compSeq": "1000",
+     "deptSeq": "2989",
+     "emailAddr": "x",
+     "emailDomain": "x",
+     "groupSeq": "gcmsAmaranth31433"
+    },
+    "deleteRangeCode": "UO",
+    "langCode": "kr",
+    "resSeqList": [
+     {
+      "alldayYn": "N",
+      "createDate": "20261010185425",
+      "endDate": "202610120845",
+      "reqText": "x",
+      "resIdx": "2",
+      "resName": "x",
+      "resSeq": "45",
+      "schSeq": "",
+      "schmSeq": "",
+      "seqNum": 76198,
+      "startDate": "202610120800"
+     }
+    ],
+    "statusCode": "CA"
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "successTf": true,
+     "didNotProcessCnt": 0
+    }
+   }
+  }
+ ]
+}

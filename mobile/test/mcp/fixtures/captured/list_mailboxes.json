@@ -1,0 +1,218 @@
+{
+ "tool": "list_mailboxes",
+ "args": {},
+ "toolResult": {
+  "code": "0",
+  "email": "x",
+  "exMailArr": [],
+  "mailboxList": [
+   {
+    "bSub": 0,
+    "exists": "1604",
+    "flagType": 0,
+    "fullname": "x",
+    "hasChild": "false",
+    "mboxSeq": 25492,
+    "name": "x",
+    "orders": 1,
+    "parentSeq": 0,
+    "unseen": "0"
+   },
+   {
+    "bSub": 0,
+    "exists": "163",
+    "flagType": 0,
+    "fullname": "x",
+    "hasChild": "false",
+    "mboxSeq": 25495,
+    "name": "x",
+    "orders": 2,
+    "parentSeq": 0,
+    "unseen": "0"
+   },
+   {
+    "bSub": 0,
+    "exists": "11",
+    "flagType": 0,
+    "fullname": "x",
+    "hasChild": "false",
+    "mboxSeq": 25498,
+    "name": "x",
+    "orders": 3,
+    "parentSeq": 0,
+    "unseen": "0"
+   }
+  ],
+  "myMailArr": [
+   {
+    "childCount": 0,
+    "children": [],
+    "count": "0",
+    "dynamicYn": "Y",
+    "favoriteId": "29392",
+    "favoriteYn": "N",
+    "mboxSeq": 29392,
+    "menuDepth": 1,
+    "menuGubun": "UD",
+    "menuNo": "UDAB29392",
+    "menuType": "myMail",
+    "name": "x",
+    "nameCn": "x",
+    "nameEn": "x",
+    "nameJp": "x",
+    "nameKr": "x",
+    "orderNum": "6",
+    "orders": 6,
+    "parentSeq": 0,
+    "specialContentsUrl": "x",
+    "treeOpen": 0,
+    "upperMenuNo": "7000900",
+    "urlPath": "UDA0090"
+   },
+   {
+    "childCount": 0,
+    "children": [],
+    "count": "0",
+    "dynamicYn": "Y",
+    "favoriteId": "30481",
+    "favoriteYn": "N",
+    "mboxSeq": 30481,
+    "menuDepth": 1,
+    "menuGubun": "UD",
+    "menuNo": "UDAB30481",
+    "menuType": "myMail",
+    "name": "x",
+    "nameCn": "x",
+    "nameEn": "x",
+    "nameJp": "x",
+    "nameKr": "x",
+    "orderNum": "7",
+    "orders": 7,
+    "parentSeq": 0,
+    "specialContentsUrl": "x",
+    "treeOpen": 0,
+    "upperMenuNo": "7000900",
+    "urlPath": "UDA0090"
+   }
+  ],
+  "userprop": {}
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/mail/mail000A01",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "2"
+   },
+   "body": {},
+   "status": 200,
+   "responseType": "application/json;charset=UTF-8",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "mailboxList": [
+      {
+       "bSub": 0,
+       "parentSeq": 0,
+       "flagType": 0,
+       "hasChild": "false",
+       "mboxSeq": 25492,
+       "name": "x",
+       "exists": "1604",
+       "orders": 1,
+       "fullname": "x",
+       "unseen": "0"
+      },
+      {
+       "bSub": 0,
+       "parentSeq": 0,
+       "flagType": 0,
+       "hasChild": "false",
+       "mboxSeq": 25495,
+       "name": "x",
+       "exists": "163",
+       "orders": 2,
+       "fullname": "x",
+       "unseen": "0"
+      },
+      {
+       "bSub": 0,
+       "parentSeq": 0,
+       "flagType": 0,
+       "hasChild": "false",
+       "mboxSeq": 25498,
+       "name": "x",
+       "exists": "11",
+       "orders": 3,
+       "fullname": "x",
+       "unseen": "0"
+      }
+     ],
+     "code": "0",
+     "userprop": {},
+     "exMailArr": [],
+     "email": "x",
+     "myMailArr": [
+      {
+       "favoriteId": "29392",
+       "menuNo": "UDAB29392",
+       "menuGubun": "UD",
+       "favoriteYn": "N",
+       "count": "0",
+       "specialContentsUrl": "x",
+       "nameCn": "x",
+       "orderNum": "6",
+       "childCount": 0,
+       "nameEn": "x",
+       "nameKr": "x",
+       "urlPath": "UDA0090",
+       "nameJp": "x",
+       "parentSeq": 0,
+       "treeOpen": 0,
+       "children": [],
+       "mboxSeq": 29392,
+       "name": "x",
+       "menuDepth": 1,
+       "orders": 6,
+       "dynamicYn": "Y",
+       "menuType": "myMail",
+       "upperMenuNo": "7000900"
+      },
+      {
+       "favoriteId": "30481",
+       "menuNo": "UDAB30481",
+       "menuGubun": "UD",
+       "favoriteYn": "N",
+       "count": "0",
+       "specialContentsUrl": "x",
+       "nameCn": "x",
+       "orderNum": "7",
+       "childCount": 0,
+       "nameEn": "x",
+       "nameKr": "x",
+       "urlPath": "UDA0090",
+       "nameJp": "x",
+       "parentSeq": 0,
+       "treeOpen": 0,
+       "children": [],
+       "mboxSeq": 30481,
+       "name": "x",
+       "menuDepth": 1,
+       "orders": 7,
+       "dynamicYn": "Y",
+       "menuType": "myMail",
+       "upperMenuNo": "7000900"
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

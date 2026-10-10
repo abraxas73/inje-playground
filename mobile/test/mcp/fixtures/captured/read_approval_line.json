@@ -1,0 +1,41 @@
+{
+ "tool": "read_approval_line",
+ "args": {
+  "line_id": "2470"
+ },
+ "toolResult": {
+  "count": 0,
+  "kind": "approvalLineMembers",
+  "lineId": "2470",
+  "members": [],
+  "note": "각 객체의 act_id 3000=결재/4000=합의. 이 객체들을 순서대로 detailLine에 넣고 save_line 호출."
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/eap/eap102A05",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "34"
+   },
+   "body": {
+    "lineId": "2470",
+    "line_id": "2470"
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultData": {
+     "aaData": []
+    },
+    "resultMsg": "성공하였습니다."
+   }
+  }
+ ]
+}

@@ -1,0 +1,260 @@
+{
+ "tool": "my_reservations",
+ "args": {
+  "start": "20261012",
+  "end": "20261012"
+ },
+ "toolResult": {
+  "count": 1,
+  "empSeq": "3060",
+  "kind": "myReservations",
+  "period": "20261012~20261012",
+  "reservations": [
+   {
+    "allDay": false,
+    "attendees": "강승억",
+    "displayTitle": "x",
+    "end": "2026-10-12T08:30",
+    "owner": "강승억",
+    "ownerEmpSeq": "3060",
+    "resIdx": "1",
+    "resName": "x",
+    "resSeq": "45",
+    "seqNum": 76195,
+    "start": "2026-10-12T08:00",
+    "title": "x"
+   }
+  ]
+ },
+ "isError": false,
+ "calls": [
+  {
+   "method": "POST",
+   "path": "/schres/rs121A01",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "226"
+   },
+   "body": {
+    "attrList": [
+     "1",
+     "3",
+     "ETC"
+    ],
+    "attrUseYn": "",
+    "companyInfo": {
+     "compSeq": "1000",
+     "deptSeq": "2989",
+     "emailAddr": "x",
+     "emailDomain": "x",
+     "groupSeq": "gcmsAmaranth31433"
+    },
+    "langCode": "kr",
+    "propList": [],
+    "searchText": "x"
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "resultList": [
+      {
+       "apprYn": "N",
+       "color": "#748ffc",
+       "modifyDate": "202409081202",
+       "attrSeq": "1",
+       "orderNum": 2,
+       "createSeq": "2246",
+       "groupSeq": "gcmsAmaranth31433",
+       "resSeq": "45",
+       "resName": "x",
+       "modifySeq": "2246",
+       "compSeq": "1000",
+       "attrName": "x",
+       "createDate": "202209071353"
+      },
+      {
+       "apprYn": "N",
+       "color": "#FF8787",
+       "modifyDate": "202503101053",
+       "attrSeq": "1",
+       "orderNum": 3,
+       "createSeq": "2246",
+       "groupSeq": "gcmsAmaranth31433",
+       "resSeq": "46",
+       "resName": "x",
+       "modifySeq": "2518",
+       "compSeq": "1000",
+       "attrName": "x",
+       "createDate": "202209071354"
+      },
+      {
+       "apprYn": "N",
+       "color": "#FFD43B",
+       "modifyDate": "202503101053",
+       "attrSeq": "1",
+       "orderNum": 4,
+       "createSeq": "2246",
+       "groupSeq": "gcmsAmaranth31433",
+       "resSeq": "47",
+       "resName": "x",
+       "modifySeq": "2518",
+       "compSeq": "1000",
+       "attrName": "x",
+       "createDate": "202209071354"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/schres/rs121A05",
+   "host": "gw.innogrid.com",
+   "contentType": "x",
+   "headers": {
+    "content-type": "x",
+    "accept": "*/*",
+    "accept-encoding": "gzip",
+    "content-length": "507"
+   },
+   "body": {
+    "companyInfo": {
+     "compSeq": "1000",
+     "deptSeq": "2989",
+     "emailAddr": "x",
+     "emailDomain": "x",
+     "groupSeq": "gcmsAmaranth31433"
+    },
+    "endDate": "20261012",
+    "langCode": "kr",
+    "menuAuth": "x",
+    "resList": [
+     {
+      "resSeq": "45"
+     },
+     {
+      "resSeq": "46"
+     },
+     {
+      "resSeq": "47"
+     }
+    ],
+    "searchType": "",
+    "sechType": "",
+    "startDate": "20261012",
+    "statusCode": "",
+    "statusType": [
+     "10",
+     "20"
+    ]
+   },
+   "status": 200,
+   "responseType": "application/json",
+   "response": {
+    "resultCode": 0,
+    "resultMsg": "SUCCESS",
+    "resultData": {
+     "resultList": [
+      {
+       "schmSeq": "",
+       "color": "#748ffc",
+       "fileCnt": 0,
+       "schSeq": "",
+       "resTitleDisplay": "x",
+       "resUserList": "",
+       "resSeq": "45",
+       "resName": "x",
+       "reqText": "x",
+       "resEndDate": "202610121800",
+       "empName": "x",
+       "showYn": "Y",
+       "commentCnt": 0,
+       "attrName": "x",
+       "createDate": "20261007144127",
+       "resStartDate": "202610121500",
+       "seqNum": 76057,
+       "attrSeq": "1",
+       "resIdx": "2",
+       "resUserCount": "1",
+       "resUserName": "x",
+       "parentResSeq": "",
+       "resLevel": 0,
+       "empSeq": "3273",
+       "descText": "x",
+       "alldayYn": "N",
+       "startDate": "2026-10-12 15:00:00",
+       "statusCode": "RC"
+      },
+      {
+       "schmSeq": "",
+       "color": "#FF8787",
+       "fileCnt": 0,
+       "schSeq": "",
+       "resTitleDisplay": "x",
+       "resUserList": "",
+       "resSeq": "46",
+       "resName": "x",
+       "reqText": "x",
+       "resEndDate": "202610121800",
+       "empName": "x",
+       "showYn": "Y",
+       "commentCnt": 0,
+       "attrName": "x",
+       "createDate": "20261007161357",
+       "resStartDate": "202610121500",
+       "seqNum": 76096,
+       "attrSeq": "1",
+       "resIdx": "3",
+       "resUserCount": "1",
+       "resUserName": "x",
+       "parentResSeq": "",
+       "resLevel": 0,
+       "empSeq": "3273",
+       "descText": "x",
+       "alldayYn": "N",
+       "startDate": "2026-10-12 15:00:00",
+       "statusCode": "RC"
+      },
+      {
+       "schmSeq": "",
+       "color": "#FF8787",
+       "fileCnt": 0,
+       "schSeq": "",
+       "resTitleDisplay": "x",
+       "resUserList": "",
+       "resSeq": "46",
+       "resName": "x",
+       "reqText": "x",
+       "resEndDate": "202610121500",
+       "empName": "x",
+       "showYn": "Y",
+       "commentCnt": 0,
+       "attrName": "x",
+       "createDate": "20260907091221",
+       "resStartDate": "202610121400",
+       "seqNum": 74239,
+       "attrSeq": "1",
+       "resIdx": "3",
+       "resUserCount": "1",
+       "resUserName": "x",
+       "parentResSeq": "",
+       "resLevel": 0,
+       "empSeq": "3213",
+       "descText": "x",
+       "alldayYn": "N",
+       "startDate": "2026-10-12 14:00:00",
+       "statusCode": "RC"
+      }
+     ]
+    }
+   }
+  }
+ ]
+}
