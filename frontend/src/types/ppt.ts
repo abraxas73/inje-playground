@@ -41,8 +41,10 @@ export interface PptDeckSummary {
   title: string;
   ownerId: string | null;
   ownerEmail: string;
-  /** 관리자 목록만: "이름(팀)" — 명부에 없으면 프로필 이름, 없으면 이메일 앞부분 */
+  /** 소유자 칸이 보이는 목록만: "이름(팀)" — 명부에 없으면 프로필 이름, 없으면 이메일 앞부분 */
   ownerLabel?: string;
+  /** 공유된 덱 목록만: 다른 사람 덱은 이 공유 뷰로 연다 */
+  shareUrl?: string | null;
   currentVersion: number;
   shareEnabled: boolean;
   latest: { no: number; status: PptVersionStatus; slideCount: number | null; createdAt: string; llmModel: string | null; templateName: string | null } | null;

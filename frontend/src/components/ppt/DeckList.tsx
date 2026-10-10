@@ -15,7 +15,9 @@ const modelLabel = (id: string | null | undefined) => (id ? PPT_MODEL_OPTIONS.fi
 
 const fmt = (iso: string) => new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "short", timeStyle: "short" });
 
-export default function DeckList({ decks, showOwner, onDeleted, onError }: { decks: PptDeckSummary[]; showOwner: boolean; onDeleted: () => void; onError: (msg: string) => void }) {
+/** viewer를 주면 내 것·관리자만 상세로 열고 삭제할 수 있다 — 남의 공유 덱은 공유 뷰로 열고 삭제 버튼이 없다 */
+export default function DeckList({ decks, showOwner, viewer, onDeleted, onError }: { decks: PptDeckSummary[]; showOwner: boolean; viewer?: { userId: string | null; isAdmin: boolean }; onDeleted: () => void; onError: (msg: string) => void }) {
+  const manageable = (d: PptDeckSummary) => !viewer || viewer.isAdmin || (d.ownerId !== null && d.ownerId === viewer.userId);
   const [target, setTarget] = useState<PptDeckSummary | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const remove = async (d: PptDeckSummary) => {
@@ -24,7 +26,7 @@ export default function DeckList({ decks, showOwner, onDeleted, onError }: { dec
     catch (e) { onError(e instanceof Error ? e.message : "삭제에 실패했습니다."); }
     finally { setBusy(null); }
   };
-  if (!decks.length) return <p className="py-8 text-center text-sm text-muted-foreground">아직 만든 PPT가 없습니다. 위에서 원고를 넣고 생성해 보세요.</p>;
+  if (!decks.length) return <p className="py-8 text-center text-sm text-muted-foreground">{showOwner ? "회사에 공유된 PPT가 아직 없습니다." : "아직 만든 PPT가 없습니다. 위에서 원고를 넣고 생성해 보세요."}</p>;
   return (
     <div className="overflow-x-auto rounded-lg border">
       <table className="w-full min-w-[720px] text-sm">{/* 좁은 화면(앱 WebView·폰)에선 열을 짜부라뜨리지 않고 가로 스크롤 */}
@@ -38,7 +40,7 @@ export default function DeckList({ decks, showOwner, onDeleted, onError }: { dec
             <tr key={d.id} className="border-t hover:bg-muted/30">
               <td className="max-w-[280px] px-3 py-2">
                 <span className="flex items-center gap-1">
-                  <Link href={`/ppt/${d.id}`} className="truncate font-medium hover:underline" title={d.title}>{d.title}</Link>
+                  <Link href={manageable(d) ? `/ppt/${d.id}` : d.shareUrl ?? `/ppt/${d.id}`} className="truncate font-medium hover:underline" title={d.title}>{d.title}</Link>
                   {d.shareEnabled && <span title="공유 링크 켜짐" className="flex shrink-0"><Link2 className="h-3 w-3 text-muted-foreground" aria-label="공유 링크 켜짐" /></span>}
                 </span>
               </td>
@@ -51,9 +53,9 @@ export default function DeckList({ decks, showOwner, onDeleted, onError }: { dec
               <td className="px-3 py-2">{d.latest ? <StatusBadge status={d.latest.status} /> : "-"}</td>
               <td className="px-3 py-2 text-muted-foreground">{fmt(d.updatedAt)}</td>
               <td className="px-1 py-1 text-right">
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive" disabled={busy !== null} onClick={() => setTarget(d)} aria-label={`${d.title} 삭제`}>
+                {manageable(d) && <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive" disabled={busy !== null} onClick={() => setTarget(d)} aria-label={`${d.title} 삭제`}>
                   {busy === d.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                </Button>
+                </Button>}
               </td>
             </tr>
           ))}
