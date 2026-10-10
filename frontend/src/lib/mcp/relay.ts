@@ -6,7 +6,7 @@ export type ToolResult = { content: Array<{ type: "text"; text: string }>; isErr
 
 const fail = (text: string): ToolResult => ({ content: [{ type: "text", text }], isError: true });
 const MSG_RATE = "요청이 너무 많습니다. 잠시 후 다시 시도하세요.";
-const MSG_NO_APP = "데스크탑 앱이 실행 중이 아닙니다. https://innocrew.innogrid.com/apps 에서 INNOGRID 앱을 설치·로그인하고 더보기 > 아마란스에서 연결하세요.";
+const MSG_NO_APP = "데스크탑(맥·윈도우) 앱이 실행 중이 아닙니다. https://innocrew.innogrid.com/apps 에서 INNOGRID 데스크탑 앱을 설치해 같은 계정으로 로그인하고, 더보기 > 아마란스에서 연결한 뒤 더보기 > Claude 커넥터의 '요청 받기'를 켜세요(모바일 앱만 켜 둔 경우에도 이 안내가 나옵니다).";
 const MSG_TIMEOUT = "앱이 응답하지 않았습니다(시간 초과). 쓰기 작업이었다면 아마란스에서 반영 여부를 확인하세요.";
 
 /**

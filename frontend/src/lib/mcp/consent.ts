@@ -29,3 +29,19 @@ export function loopbackWarning(redirectUri: string): string | null {
 export function redirectHost(redirectUri: string): string {
   return parse(redirectUri)?.host ?? redirectUri;
 }
+
+/** 허용하면 이 클라이언트가 할 수 있는 일 — 동의 화면에 항상 표시. */
+export const ACCESS_SUMMARY =
+  "허용하면 이 클라이언트는 내 계정으로 INNOGRID 데스크탑 앱을 통해 아마란스 메일·결재·일정·회의실·게시판 작업을 읽고 쓸 수 있습니다(쓰기는 Claude가 실행 전에 확인합니다).";
+
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const ALLOWED_DOMAINS = ["claude.ai", "claude.com"];
+
+/** 동적 등록(DCR)으로 아무 주소나 등록될 수 있으므로, 돌아갈 주소가 Claude 또는 이 PC(루프백)일 때만 [허용]을 연다. */
+export function redirectAllowed(redirectUri: string): boolean {
+  const u = parse(redirectUri);
+  if (!u) return false;
+  if (LOOPBACK.has(u.hostname)) return u.protocol === "http:" || u.protocol === "https:";
+  if (u.protocol !== "https:") return false;
+  return ALLOWED_DOMAINS.some((d) => u.hostname === d || u.hostname.endsWith("." + d));
+}

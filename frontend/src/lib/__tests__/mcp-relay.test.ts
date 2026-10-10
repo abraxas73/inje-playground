@@ -47,7 +47,9 @@ it("tells the user to start the desktop app when nobody claims within 10s", asyn
   const f = fake([[0, { status: "pending" }]]);
   const r = await relayToolCall(f.deps, "u1", "x", {});
   expect(r.isError).toBe(true);
-  expect(r.content[0].text).toBe("데스크탑 앱이 실행 중이 아닙니다. https://innocrew.innogrid.com/apps 에서 INNOGRID 앱을 설치·로그인하고 더보기 > 아마란스에서 연결하세요.");
+  expect(r.content[0].text).toContain("실행 중이 아닙니다");
+  expect(r.content[0].text).toContain("https://innocrew.innogrid.com/apps");
+  expect(r.content[0].text).toContain("요청 받기");
   expect(f.time()).toBe(10_000);
   expect(f.log.deletes).toBe(1);
 });

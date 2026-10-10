@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { OAuthAuthorizationDetails } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase";
-import { describeScopes, loopbackWarning, redirectHost } from "@/lib/mcp/consent";
+import { ACCESS_SUMMARY, describeScopes, loopbackWarning, redirectAllowed, redirectHost } from "@/lib/mcp/consent";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -50,6 +50,7 @@ export default function OAuthConsentPage() {
 
   const details = state.kind === "ready" || state.kind === "busy" ? state.details : null;
   const warning = details ? loopbackWarning(details.redirect_uri) : null;
+  const allowed = details ? redirectAllowed(details.redirect_uri) : false;
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-10">
@@ -75,9 +76,15 @@ export default function OAuthConsentPage() {
                   <li key={s}>{s}</li>
                 ))}
               </ul>
+              <p className="text-muted-foreground">{ACCESS_SUMMARY}</p>
               <p className="text-muted-foreground">
                 허용하면 <span className="font-medium text-foreground">{redirectHost(details.redirect_uri)}</span>(으)로 돌아갑니다.
               </p>
+              {!allowed && (
+                <p className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-destructive">
+                  Claude(claude.ai·claude.com)나 이 PC가 아닌 주소로 돌아가는 요청입니다. 허용할 수 없습니다. 이 링크를 보낸 곳을 관리자에게 알려 주세요.
+                </p>
+              )}
               {details.user?.email && <p className="text-muted-foreground">로그인 계정: {details.user.email}</p>}
               {warning && <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">{warning}</p>}
             </>
@@ -88,7 +95,7 @@ export default function OAuthConsentPage() {
             <Button variant="outline" disabled={state.kind === "busy"} onClick={() => void decide(false)}>
               거부
             </Button>
-            <Button disabled={state.kind === "busy"} onClick={() => void decide(true)}>
+            <Button disabled={state.kind === "busy" || !allowed} onClick={() => void decide(true)}>
               허용
             </Button>
           </CardFooter>
