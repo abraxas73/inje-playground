@@ -11,6 +11,7 @@ import { confluenceSource, isCompanyConfluenceUrl } from "@/lib/confluence/ppt-s
 import { sharepointSource } from "@/lib/sharepoint/ppt-source";
 import { isSharepointUrl } from "@/lib/sharepoint/core";
 import { sourceKindFor } from "@/lib/ppt/source";
+import { ownerLabels } from "@/lib/ppt/owner-label";
 import { createPptServiceClient, PptServiceError, type PptServiceClient } from "@/lib/ppt/service";
 import { DECK_COLUMNS, failStaleVersions, hasActiveVersion, loadActiveTemplates, mapDeck, templateOptions, type DeckRow, type TemplateRow, type VersionRow } from "@/lib/ppt/store";
 import { BUILTIN_TEMPLATE_LABEL, type PptListResponse } from "@/types/ppt";
@@ -35,8 +36,10 @@ export async function GET(request: NextRequest) {
       .in("deck_id", decks.map((d) => d.id)).order("no", { ascending: false }).limit(1000);
     for (const v of (vs ?? []) as VersionRow[]) byDeck.set(v.deck_id, [...(byDeck.get(v.deck_id) ?? []), v]);
   }
+  // 전체 덱(admin)은 소유자 칸이 보이므로 이메일 대신 "이름(팀)"을 붙인다
+  const labels = all ? await ownerLabels(auth.admin, decks.map((d) => ({ email: d.owner_email, userId: d.owner_id }))) : null;
   const res: PptListResponse = {
-    decks: decks.map((d) => { const vs = byDeck.get(d.id) ?? []; return mapDeck(d, vs[0] ?? null, vs); }),
+    decks: decks.map((d) => { const vs = byDeck.get(d.id) ?? []; return { ...mapDeck(d, vs[0] ?? null, vs), ...(labels ? { ownerLabel: labels.get(d.owner_email) ?? d.owner_email } : {}) }; }),
     llmAvailable: !!process.env.ANTHROPIC_API_KEY && !!process.env.PPT_SERVICE_URL && !!process.env.PPT_SERVICE_TOKEN,
     templates: templateOptions(await loadActiveTemplates(auth.admin)),
   };
