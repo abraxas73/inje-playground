@@ -20,14 +20,11 @@ List<Offset> fanLayout({
   double minHeight = 60,
 }) {
   if (count <= 0) return const [];
-  final minX = pad + itemWidth / 2, maxX = width - pad - itemWidth / 2;
   var r = radius;
   for (var tries = 0;; tries++, r += 10) {
-    // y = -r·sinθ 가 minHeight 이상, x = originX + r·cosθ 가 [minX, maxX] 안에 들도록 허용 각도 구간
-    final lo = math.asin((minHeight / r).clamp(0.0, 1.0)), hi = math.pi - lo;
-    final thetaMin = math.max(lo, math.acos(((maxX - originX) / r).clamp(-1.0, 1.0)));
-    final thetaMax = math.min(hi, math.acos(((minX - originX) / r).clamp(-1.0, 1.0)));
-    if (thetaMax < thetaMin) continue; // 구간이 비면(아주 좁은 화면) 반지름을 키워 다시
+    final w = _window(r, originX: originX, width: width, itemWidth: itemWidth, pad: pad, minHeight: minHeight);
+    if (w == null) continue; // 구간이 비면(아주 좁은 화면) 반지름을 키워 다시
+    final (thetaMin, thetaMax) = w;
     if (count == 1) {
       final t = (math.pi / 2).clamp(thetaMin, thetaMax);
       return [_at(r, t)];
@@ -45,3 +42,48 @@ List<Offset> fanLayout({
 
 Offset _at(double r, double theta) => Offset(_zero(r * math.cos(theta)), -r * math.sin(theta));
 double _zero(double v) => v.abs() < 1e-9 ? 0 : v;
+
+/// y = -r·sinθ 가 minHeight 이상, x = originX + r·cosθ 가 화면 안([pad+폭/2, width-pad-폭/2])에 들도록 허용 각도 구간. 비면 null.
+(double, double)? _window(double r, {required double originX, required double width, required double itemWidth, required double pad, required double minHeight}) {
+  final minX = pad + itemWidth / 2, maxX = width - pad - itemWidth / 2;
+  final lo = math.asin((minHeight / r).clamp(0.0, 1.0)), hi = math.pi - lo;
+  final thetaMin = math.max(lo, math.acos(((maxX - originX) / r).clamp(-1.0, 1.0)));
+  final thetaMax = math.min(hi, math.acos(((minX - originX) / r).clamp(-1.0, 1.0)));
+  return thetaMax < thetaMin ? null : (thetaMin, thetaMax);
+}
+
+/// 반지름 r인 줄에 이웃 간격 [minGap]을 지키며 들어가는 항목 수(허용 각도 구간 ÷ 최소 각도 + 1)
+int fanCapacity(double r, {required double originX, required double width, double itemWidth = 60, double pad = 4, double minGap = 56, double minHeight = 60}) {
+  final w = _window(r, originX: originX, width: width, itemWidth: itemWidth, pad: pad, minHeight: minHeight);
+  if (w == null) return 0;
+  final step = 2 * math.asin((minGap / (2 * r)).clamp(0.0, 1.0));
+  return ((w.$2 - w.$1) / step).floor() + 1;
+}
+
+/// 항목이 [maxSingle]개를 넘으면 두 줄 — 안쪽은 [radius], 바깥은 안쪽 줄 반지름 + [ringGap](원 46 + 아래 라벨 ~31이 겹치지 않는 간격).
+/// 줄별 개수는 각 줄의 수용량([fanCapacity])에 비례해 나누고 바깥이 넘치면 안쪽으로 넘긴다. 결과는 안쪽 줄(왼→오) 다음 바깥 줄(왼→오).
+/// 안쪽 줄이 자기 수용량을 넘어 반지름이 커지면 바깥 줄은 그 실제 반지름 기준으로 띄운다(겹침 방지).
+List<Offset> fanRings({
+  required int count,
+  required double originX,
+  required double width,
+  double radius = 96,
+  double itemWidth = 60,
+  double pad = 4,
+  double minGap = 56,
+  double maxStep = 34 * math.pi / 180,
+  double minHeight = 60,
+  int maxSingle = 5,
+  double ringGap = 84,
+}) {
+  List<Offset> ring(int n, double r) => fanLayout(count: n, originX: originX, width: width, radius: r, itemWidth: itemWidth, pad: pad, minGap: minGap, maxStep: maxStep, minHeight: minHeight);
+  if (count <= maxSingle) return ring(count, radius);
+  final capIn = math.max(1, fanCapacity(radius, originX: originX, width: width, itemWidth: itemWidth, pad: pad, minGap: minGap, minHeight: minHeight));
+  final capOut = math.max(1, fanCapacity(radius + ringGap, originX: originX, width: width, itemWidth: itemWidth, pad: pad, minGap: minGap, minHeight: minHeight));
+  var nIn = (count * capIn / (capIn + capOut)).round();
+  if (count - nIn > capOut) nIn = count - capOut;
+  nIn = nIn.clamp(1, count - 1);
+  final inner = ring(nIn, radius);
+  final rIn = inner.fold(0.0, (m, p) => math.max(m, p.distance));
+  return [...inner, ...ring(count - nIn, rIn + ringGap)];
+}

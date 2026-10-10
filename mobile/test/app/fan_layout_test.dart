@@ -71,4 +71,49 @@ void main() {
     expect(math.atan2(-pts[1].dy, pts[1].dx), closeTo(thetaMin, 0.001));
     expect(math.atan2(-pts[0].dy, pts[0].dx), closeTo(thetaMin + 34 * math.pi / 180, 0.001));
   });
+  group('두 줄 배치(fanRings)', () {
+    test('5개까지는 한 줄(fanLayout과 같다), 6개부터 두 줄', () {
+      expect(fanRings(count: 5, originX: 195, width: width), fanLayout(count: 5, originX: 195, width: width));
+      final pts = fanRings(count: 6, originX: 195, width: width);
+      expect(pts.map((p) => p.distance.round()).toSet().length, 2);
+    });
+    test('가운데 탭 8개 — 수용량 비례로 안쪽 3·바깥 5, 바깥 줄은 안쪽 + 84, 줄 안 이웃 간격 56 이상, 화면 안', () {
+      expect(fanCapacity(96, originX: 195, width: width), 4);
+      expect(fanCapacity(180, originX: 195, width: width), 8);
+      final pts = fanRings(count: 8, originX: 195, width: width);
+      expect(pts.length, 8);
+      final inner = pts.take(3).toList(), outer = pts.skip(3).toList();
+      expect(inner.every((p) => (p.distance - 96).abs() < 0.001), true);
+      expect(outer.every((p) => (p.distance - 180).abs() < 0.001), true);
+      for (final ring in [inner, outer]) {
+        for (var i = 1; i < ring.length; i++) {
+          expect((ring[i] - ring[i - 1]).distance, greaterThanOrEqualTo(56 - 0.001));
+          expect(ring[i].dx, greaterThan(ring[i - 1].dx)); // 왼→오
+        }
+      }
+      for (final p in pts) {
+        expect(195 + p.dx - 30, greaterThanOrEqualTo(4 - 0.001));
+        expect(195 + p.dx + 30, lessThanOrEqualTo(width - 4 + 0.001));
+        expect(-p.dy, greaterThanOrEqualTo(60 - 0.001));
+      }
+    });
+    test('가장자리 탭(6칸 중 5번째) 8개 — 바깥 줄이 넘치면 안쪽으로 넘기고 전부 화면 안', () {
+      const originX = 292.5;
+      final pts = fanRings(count: 8, originX: originX, width: width);
+      expect(pts.length, 8);
+      for (final p in pts) {
+        expect(originX + p.dx - 30, greaterThanOrEqualTo(4 - 0.001));
+        expect(originX + p.dx + 30, lessThanOrEqualTo(width - 4 + 0.001));
+      }
+      final rings = pts.map((p) => p.distance.round()).toSet().toList()..sort();
+      expect(rings.length, 2);
+      expect(rings[1] - rings[0], greaterThanOrEqualTo(84 - 1));
+    });
+    test('두 줄로도 모자라면(12개) 안쪽 줄이 커진 만큼 바깥 줄을 더 띄운다 — 겹치지 않는다', () {
+      final pts = fanRings(count: 12, originX: 195, width: width);
+      final rIn = pts.first.distance, rOut = pts.last.distance;
+      expect(rOut - rIn, greaterThanOrEqualTo(84 - 0.001));
+      expect(pts.length, 12);
+    });
+  });
 }

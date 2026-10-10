@@ -165,7 +165,8 @@ class FanMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) {
         final origin = Offset((slot + 0.5) * box.maxWidth / slotCount, box.maxHeight);
-        final pts = fanLayout(count: pages.length, originX: origin.dx, width: box.maxWidth, itemWidth: itemWidth);
+        // 6개 이상이면 두 줄(안쪽·바깥 반지름) — 좌표 순서는 안쪽 왼→오, 바깥 왼→오(시간차도 그 순서)
+        final pts = fanRings(count: pages.length, originX: origin.dx, width: box.maxWidth, itemWidth: itemWidth);
         return AnimatedBuilder(
           animation: progress,
           builder: (_, _) {
