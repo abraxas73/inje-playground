@@ -85,3 +85,10 @@ String? browserSessionPath(Uri target, {required Uri appOrigin}) {
   return Uri(path: target.path, query: target.hasQuery ? target.query : null,
       fragment: target.hasFragment ? target.fragment : null).toString();
 }
+
+/// WebView 안에서 `target="_blank"` 링크·`window.open`은 새 창을 만들 수 없어 아무 일도 일어나지 않았다(2026-10-11 데스크톱 Confluence 문서 목록):
+/// macOS WKWebView는 targetFrame이 없어 isMainFrame=false로 들어와 _onNav가 조용히 막고, Windows WebView2는 새 창 요청을 버린다.
+/// 같은 창 이동으로 바꿔 _onNav(main frame)가 외부 주소를 브라우저로 넘기게 한다. 페이지마다 한 번만 건다.
+const blankLinkBridgeJs = """(function(){if(window.__innoBlankBridge)return;window.__innoBlankBridge=true;
+document.addEventListener('click',function(e){var t=e.target;var a=t&&t.closest?t.closest('a[href]'):null;if(!a||e.defaultPrevented)return;if(a.target!=='_blank'||!/^https?:/i.test(a.href))return;e.preventDefault();window.location.href=a.href;},true);
+var open=window.open;window.open=function(u){if(typeof u==='string'&&/^https?:/i.test(u)){window.location.href=u;return null;}return open?open.apply(window,arguments):null;};})();""";

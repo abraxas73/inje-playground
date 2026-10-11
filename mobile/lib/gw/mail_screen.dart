@@ -4,6 +4,7 @@ import '../app/theme.dart';
 import 'gw_api.dart';
 import 'gw_gate.dart';
 import 'gw_models.dart';
+import 'mail_detail_screen.dart';
 
 class MailScreen extends StatelessWidget {
   const MailScreen({super.key});
@@ -57,7 +58,11 @@ class _BodyState extends State<_Body> {
                           for (final (i, m) in items.indexed) ...[
                             if (i > 0) const Divider(height: 1),
                             ListTile(
-                              onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('본문은 아마란스에서 확인하세요(앱에서 열면 읽음 처리됩니다).'))),
+                              onTap: () async {
+                                // 본문을 열면 아마란스가 읽음 처리하므로 돌아온 뒤 목록·미읽음 수를 다시 읽는다
+                                await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => MailDetailScreen(api: widget.api, item: m)));
+                                if (mounted) await _refresh();
+                              },
                               leading: InitialBadge(m.fromName.isEmpty ? m.fromEmail : m.fromName, size: 36, circle: true),
                               title: Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: m.seen ? FontWeight.w500 : FontWeight.w800)),
                               subtitle: Text(m.fromName.isEmpty ? m.fromEmail : m.fromName, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -70,7 +75,7 @@ class _BodyState extends State<_Body> {
                         ]),
                 ),
                 const SizedBox(height: 10),
-                const Text('본문은 열지 않습니다 — 앱에서 열면 아마란스에서 읽음으로 바뀌기 때문입니다.', style: TextStyle(fontSize: 12, color: Brand.muted), textAlign: TextAlign.center),
+                const Text('메일을 열면 아마란스에서도 읽음으로 바뀝니다. 본문 화면에서 안 읽음으로 되돌릴 수 있습니다.', style: TextStyle(fontSize: 12, color: Brand.muted), textAlign: TextAlign.center),
               ]);
             },
           ),

@@ -140,6 +140,15 @@ extension GwMailApi on GwApi {
     final recs = (d is Map ? d['Records'] : null) as List? ?? const [];
     return (asInt(d is Map ? d['TotalUnseenCount'] : null), [for (final r in recs) if (r is Map) MailItem.fromRow(r)]);
   }
+
+  /// mail002A01 원본 — ⚠️ 아마란스에서 읽음 처리된다. 돌아온 뒤 목록을 다시 읽는다.
+  Future<MailDetail> readMail(String muid) async {
+    final d = await client.call('/mail/mail002A01', {'uid': muid});
+    return MailDetail.fromRaw(muid, d is Map ? d : const {});
+  }
+
+  /// mail002A15 받은메일함에서 읽지 않음으로(서버는 최근 200건 안의 메일만 받아 준다).
+  Future<void> markMailUnread(String muid) => client.call('/mail/mail002A15', {'mbox': 'INBOX', 'type': 'unseen', 'uids': muid});
 }
 
 extension GwBoardApi on GwApi {

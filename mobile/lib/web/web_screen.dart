@@ -67,6 +67,7 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
               }
             }
           }
+          try { await _c.runJavaScript(blankLinkBridgeJs); } catch (_) {} // 새 창 링크를 같은 창 이동으로(외부는 _onNav가 브라우저로)
           final t = await _c.getTitle();
           if (mounted) setState(() { _loading = false; _title = t ?? ''; });
         },

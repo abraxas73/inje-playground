@@ -14,7 +14,8 @@ class PageGroup {
 
 const pageGroups = <PageGroup>[PageGroup('daily', '일상'), PageGroup('ai', 'AI'), PageGroup('work', '업무'), PageGroup('gw', '아마란스')];
 
-/// 앱 전용 네이티브 항목(웹 카탈로그에 없음). 하단 바 그룹에만 나오고 사내 서비스 카드(visiblePages)에는 섞이지 않는다.
+/// 앱 전용 네이티브 항목. 하단 바 그룹에만 나오고 사내 서비스 카드(visiblePages)에는 섞이지 않는다.
+/// gw_mail은 웹 PAGES에도 같은 키로 있어(2026-10-11, 웹 /gw/mail은 데스크톱 앱 중계) 관리자 권한 스위치 하나가 웹·앱을 함께 제어한다.
 const appPages = <PageEntry>[
   PageEntry('gw_approvals', '/gw/approvals', '미결 결재', 'gw', 'user'),
   PageEntry('gw_attendance', '/gw/attendance', '출퇴근', 'gw', 'user'),

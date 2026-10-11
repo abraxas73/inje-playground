@@ -214,3 +214,32 @@ class GwNoticeDetail {
     );
   }
 }
+
+/// mail002A01 원본(⚠️ 아마란스에서 읽음 처리됨) → 본문 화면. 본문은 서식 없는 텍스트(plain 우선, 없으면 html→text) — mcp_tools._readMail과 같은 규칙.
+class MailDetail {
+  const MailDetail({required this.muid, required this.subject, required this.from, required this.to, required this.cc, required this.date, required this.body, required this.attachments, required this.remoteImages});
+  final String muid, subject, from, to, cc, date, body;
+  /// (파일 이름, 대략 크기 바이트 — 서버 값은 base64 길이라 3/4)
+  final List<(String, int)> attachments;
+  /// 외부 호스트 이미지 수(표시하지 않음을 안내)
+  final int remoteImages;
+  factory MailDetail.fromRaw(String muid, Map d) {
+    final dm = d['decodeMime'] is Map ? d['decodeMime'] as Map : const {};
+    final mime = d['mime'] is Map ? d['mime'] as Map : const {};
+    final b = mime['body'] is Map ? mime['body'] as Map : const {};
+    final plain = asStr(b['plain']).replaceAll('\r', '').split('\n').map((l) => l.trim()).join('\n').replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
+    final html = asStr(b['html']);
+    var remote = 0;
+    for (final img in RegExp(r'<img\b[^>]*?\bsrc\s*=\s*["' "'" r']?([^"' "'" r'\s>]+)', caseSensitive: false).allMatches(html)) {
+      final host = Uri.tryParse(img[1]!)?.host ?? '';
+      if (host.isNotEmpty && !host.endsWith('innogrid.com')) remote++;
+    }
+    final files = ((mime['fileList'] as List?) ?? const []).whereType<Map>();
+    return MailDetail(
+      muid: muid, subject: htmlToText(asStr(dm['subject'])), from: htmlToText(asStr(dm['from'])), to: htmlToText(asStr(dm['to'])), cc: htmlToText(asStr(dm['cc'])), date: asStr(dm['date']),
+      body: plain.isNotEmpty ? plain : htmlToText(html),
+      attachments: [for (final f in files) if (asStr(f['originalFileName']).isNotEmpty) (asStr(f['originalFileName']), asInt(f['fileSize']) * 3 ~/ 4)],
+      remoteImages: remote,
+    );
+  }
+}
