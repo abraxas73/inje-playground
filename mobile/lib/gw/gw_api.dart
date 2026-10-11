@@ -93,17 +93,17 @@ extension GwScheduleApi on GwApi {
     return c.cals!;
   }
 
-  /// 하루치 일정 원본 행(sc111A03). createSeq(작성자) 등 모델에 없는 필드가 필요할 때(비서 삭제 소유권).
-  Future<List<Map>> eventRows(DateTime day) async {
+  /// 일정 원본 행(sc111A03) — [day]부터 [end](포함, 기본 같은 날)까지. createSeq(작성자) 등 모델에 없는 필드가 필요할 때(비서 삭제 소유권).
+  Future<List<Map>> eventRows(DateTime day, {DateTime? end}) async {
     final cals = await calendars();
     final d = await client.call('/schres/sc111A03', {
-      'companyInfo': await client.companyInfo(), 'startDate': ymd(day), 'endDate': ymd(day), 'mySchYn': 'N', 'calList': calListFor(cals), 'tcalList': [], 'acalList': [], 'searchEmpSeq': '', 'sortDate': 'Y', 'langCode': 'kr',
+      'companyInfo': await client.companyInfo(), 'startDate': ymd(day), 'endDate': ymd(end ?? day), 'mySchYn': 'N', 'calList': calListFor(cals), 'tcalList': [], 'acalList': [], 'searchEmpSeq': '', 'sortDate': 'Y', 'langCode': 'kr',
     });
     return _list(d);
   }
 
-  /// 하루치 일정(전체 캘린더). "내 것"만 보려면 myEvents(…).
-  Future<List<GwEvent>> events(DateTime day) async => [for (final r in await eventRows(day)) GwEvent.fromRow(r)]..sort((a, b) => a.start.compareTo(b.start));
+  /// 일정(전체 캘린더) — [day]부터 [end](포함, 기본 같은 날)까지. "내 것"만 보려면 myEvents(…).
+  Future<List<GwEvent>> events(DateTime day, {DateTime? end}) async => [for (final r in await eventRows(day, end: end)) GwEvent.fromRow(r)]..sort((a, b) => a.start.compareTo(b.start));
 
   Future<List<GwResource>> resources() async {
     final c = _cache;

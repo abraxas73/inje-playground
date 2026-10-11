@@ -9,7 +9,12 @@ import 'package:playground/gw/board_screen.dart';
 import 'package:playground/gw/mail_screen.dart';
 import 'package:playground/gw/today_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:playground/api/client.dart';
+import 'package:playground/dooray/calendar_screen.dart';
+import '../assistant/assistant_session_test.dart' show Brain, say;
 import 'fakes.dart';
+
+String ymdOf(DateTime d) => '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
 
 http.Response ok(Object? data) => http.Response.bytes(utf8.encode(jsonEncode({'resultCode': 0, 'resultData': data})), 200, headers: {'content-type': 'application/json; charset=utf-8'}) /* 한글 본문은 latin1 기본 인코딩에서 ArgumentError */;
 const session = {'sessionInfo': {'ucUserInfo': {'compSeq': '10', 'deptSeq': '20', 'empName': '홍길동', 'emailAdd': 'hong', 'emailDomain': 'innogrid.com', 'erpEmpSeq': 'E', 'erpDeptSeq': 'D', 'erpCompSeq': 'C'}}};
@@ -63,15 +68,18 @@ void main() {
     expect(find.text('09:02'), findsWidgets);
     expect(find.textContaining('기록됨'), findsWidgets); // 버튼 라벨 + 안내 문구
   });
-  testWidgets('오늘: 기본은 내 일정·내 예약, "전체" 토글로 남의 것도', (tester) async {
+  testWidgets('일정(기본 일간): 오늘 내 일정·내 예약, "전체" 토글로 남의 것도', (tester) async {
+    final d = ymdOf(DateTime.now().toUtc().add(const Duration(hours: 9))); // 일간 보기는 그날 것만 보여 주므로 픽스처는 오늘
     final r = Routes({'/gw/gw050A02': [session],
       '/schres/sc111A02': [{'resultList': [{'mcalSeq': '1', 'calType': 'E', 'empSeq': '7'}, {'mcalSeq': '2', 'calType': 'M', 'empSeq': '9'}]}],
-      '/schres/sc111A03': [{'resultList': [{'schSeq': 'a', 'schTitle': '내 회의', 'startDate': '202610041000', 'endDate': '202610041100', 'delYn': 'Y', 'mcalSeq': '2'}, {'schSeq': 'c', 'schTitle': '남의 회의', 'startDate': '202610041200', 'endDate': '202610041300', 'delYn': 'N', 'mcalSeq': '2'}]}],
+      '/schres/sc111A03': [{'resultList': [{'schSeq': 'a', 'schTitle': '내 회의', 'startDate': '${d}1000', 'endDate': '${d}1100', 'delYn': 'Y', 'mcalSeq': '2'}, {'schSeq': 'c', 'schTitle': '남의 회의', 'startDate': '${d}1200', 'endDate': '${d}1300', 'delYn': 'N', 'mcalSeq': '2'}]}],
       '/schres/rs121A01': [{'resultList': [{'resSeq': '45', 'resName': 'A-1'}]}],
-      '/schres/rs121A05': [{'resultList': [{'resSeq': '45', 'resName': 'A-1', 'resStartDate': '202610041400', 'resEndDate': '202610041500', 'reqText': '내 예약', 'empName': '홍길동', 'empSeq': '7'}, {'resSeq': '45', 'resName': 'A-1', 'resStartDate': '202610041600', 'resEndDate': '202610041700', 'reqText': '남의 예약', 'empName': '김', 'empSeq': '9'}]}]});
+      '/schres/rs121A05': [{'resultList': [{'resSeq': '45', 'resName': 'A-1', 'resStartDate': '${d}1400', 'resEndDate': '${d}1500', 'reqText': '내 예약', 'empName': '홍길동', 'empSeq': '7'}, {'resSeq': '45', 'resName': 'A-1', 'resStartDate': '${d}1600', 'resEndDate': '${d}1700', 'reqText': '남의 예약', 'empName': '김', 'empSeq': '9'}]}]});
     await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const TodayScreen()));
     await tester.pumpAndSettle();
+    expect(find.text('일간'), findsOneWidget);
     expect(find.text('내 회의'), findsOneWidget);
+    expect(find.text('10:00–11:00'), findsOneWidget);
     expect(find.text('남의 회의'), findsNothing);
     expect(find.text('내 예약'), findsOneWidget);
     expect(find.text('남의 예약'), findsNothing);
@@ -136,6 +144,58 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, '오늘'));
     await tester.pumpAndSettle();
     expect(r.bodies['/schres/sc111A03']?['startDate'], ymd(today));
+  });
+  testWidgets('일정 주간: 월~일 범위로 한 번에 읽고(회의실은 안 읽음) Dooray 일정을 섞어 보여 준다; 월간 격자에서 날짜를 누르면 일간으로', (tester) async {
+    final today = DateTime.now().toUtc().add(const Duration(hours: 9));
+    final t0 = DateTime.utc(today.year, today.month, today.day);
+    final mon = t0.subtract(Duration(days: t0.weekday - 1)), sun = mon.add(const Duration(days: 6));
+    final r = Routes({'/gw/gw050A02': [session], '/schres/sc111A02': [{'resultList': []}],
+      '/schres/sc111A03': [{'resultList': []}, {'resultList': [{'schSeq': 'a', 'schTitle': '월요 회의', 'startDate': '${ymdOf(mon)}1000', 'endDate': '${ymdOf(mon)}1100', 'delYn': 'Y', 'mcalSeq': '2'}]}, {'resultList': []}, {'resultList': []}],
+      '/schres/rs121A01': [{'resultList': []}], '/schres/rs121A05': [{'resultList': []}, {'resultList': []}]});
+    final doorayKeys = <(String, int)>[];
+    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const TodayScreen(), overrides: [
+      doorayRangeProvider.overrideWith((ref, key) async {
+        doorayKeys.add(key);
+        return {'items': [{'subject': '기기 회의', 'startedAt': '${t0.toIso8601String().substring(0, 10)}T05:00:00Z', 'endedAt': '${t0.toIso8601String().substring(0, 10)}T06:00:00Z', 'wholeDayFlag': false}]};
+      }),
+    ]));
+    await tester.pumpAndSettle();
+    expect(find.text('기기 회의'), findsOneWidget); // 일간에도 Dooray 일정(14:00 KST)
+    expect(find.text('Dooray'), findsOneWidget);
+    expect(doorayKeys.last, (t0.toIso8601String().substring(0, 10), 1));
+    await tester.tap(find.text('주간'));
+    await tester.pumpAndSettle();
+    expect(r.bodies['/schres/sc111A03']?['startDate'], ymdOf(mon));
+    expect(r.bodies['/schres/sc111A03']?['endDate'], ymdOf(sun));
+    expect(r.hits['/schres/rs121A05'], 1); // 회의실은 일간에서만
+    expect(doorayKeys.last, (mon.toIso8601String().substring(0, 10), 7));
+    expect(find.text('월요 회의'), findsOneWidget);
+    expect(find.text('기기 회의'), findsOneWidget);
+    expect(find.text('일정 2'), findsOneWidget);
+    await tester.tap(find.text('월간'));
+    await tester.pumpAndSettle();
+    expect(doorayKeys.last.$2, 42);
+    final first = DateTime.utc(t0.year, t0.month, 1);
+    expect(r.bodies['/schres/sc111A03']?['startDate'], ymdOf(first.subtract(Duration(days: first.weekday - 1))));
+    final pick = DateTime.utc(t0.year, t0.month, 15);
+    await tester.tap(find.byKey(ValueKey('cal-cell-${pick.toIso8601String().substring(0, 10)}')));
+    await tester.pumpAndSettle();
+    expect(find.text('일간'), findsOneWidget);
+    expect(r.bodies['/schres/sc111A03']?['startDate'], ymdOf(pick));
+    expect(r.bodies['/schres/sc111A03']?['endDate'], ymdOf(pick));
+  });
+  testWidgets('일정 "추가"를 누르면 이노봇이 그날 아마란스 일정 등록 요청을 들고 열린다', (tester) async {
+    final brain = Brain([say('어떤 일정인가요? 제목과 시간을 알려 주세요.')]);
+    final r = Routes({'/gw/gw050A02': [session], '/schres/sc111A02': [{'resultList': []}], '/schres/sc111A03': [{'resultList': []}], '/schres/rs121A01': [{'resultList': []}], '/schres/rs121A05': [{'resultList': []}]});
+    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const TodayScreen(), overrides: [apiClientProvider.overrideWithValue(brain.client)]));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '추가'));
+    await tester.pumpAndSettle();
+    expect(brain.received, hasLength(1));
+    final sent = '${brain.received.single.last['content']}';
+    expect(sent, contains('아마란스 일정 등록해줘'));
+    expect(sent, contains('${DateTime.now().toUtc().add(const Duration(hours: 9)).day}일'));
+    expect(find.text('어떤 일정인가요? 제목과 시간을 알려 주세요.'), findsOneWidget);
   });
   testWidgets('게시판: 목록 → 항목 → 본문·댓글(ViewPost 1회)', (tester) async {
     final r = Routes({'/board/APIHandler/ViewBoardNewAndNoticeArtList': [{'totalCnt': 2, 'articleList': [

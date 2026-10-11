@@ -292,7 +292,7 @@ class TestDoorayClient extends DoorayCalendarClient {
   TestDoorayClient() : super(run: (_) async {}, evaluate: (_) async => '');
   bool failMail = false;
   @override
-  Future<Map<String, dynamic>> read(String day, {bool unreadMail = false}) async {
+  Future<Map<String, dynamic>> read(String day, {int days = 1, bool unreadMail = false}) async {
     if (unreadMail && failMail) throw const DoorayCalendarException('failed');
     return {'items': [if (unreadMail) {'subject':'unread','unread':true,'from':'sender','sentAt':'2026-10-11'} else {'subject':'meeting','startedAt':'2026-10-11','endedAt':'2026-10-11','wholeDayFlag':false}]};
   }

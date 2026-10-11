@@ -20,7 +20,7 @@
 
 **연결 화면(2026-10-04 2차)**: 로그인 페이지의 `<meta viewport>`가 `width=1280` 고정이라 폰에서 작게 보여 페이지 로드마다 `viewportFixJs`로 `device-width`를 끼운다(페이지는 390px에서도 안 깨지는 유동 레이아웃 — Playwright 실측). 쿠키 감지는 `onPageFinished`만으로는 SPA 라우팅을 못 잡아 `onUrlChange` + 1초 폴링으로 하고, 잡히는 즉시 검증·저장 후 **자동으로 닫는다**(아마란스 메인은 보여 주지 않음). **자동 로그인**: 더보기 → 아마란스 시트에서 아이디·비밀번호를 저장하면(iOS Keychain · Android Keystore, `flutter_secure_storage`, 키 `gw.loginId`/`gw.loginPw`) 연결 화면이 WebView를 가린 채 `#reqLoginId` → "다음" → `#reqLoginPw` → "로그인"을 React 네이티브 setter + input 이벤트로 채운다(`gw_login_js.dart`, 판단은 순수 함수 `decideFill`). 오류 문구·OTP(인증수단 선택, `input.number`) 화면·저장 정보 없음이면 WebView를 드러내 사람이 잇는다("직접 로그인" 버튼도 있음). 로그인 DOM이 바뀌면 `probeJs`/`fillJs`의 선택자부터 본다.
 
-**게시판·날짜 이동(2026-10-04 3차)**: `board_screen.dart` — 전 게시판 공지·새 글 집계(`ViewBoardNewAndNoticeArtList`, noticeYn Y, 20건씩 더 보기, 통합검색 searchTotal) → 본문·댓글(`ViewPost`, ⚠️ 조회수 증가 — 글을 눌렀을 때만). 첨부는 개수만(내려받기는 아마란스에서). 홈에 "공지사항" 카드(`gw_notices_card.dart`, 최신 3건, 누르면 `/gw/board?art=`로 바로 본문). 일정·회의실 화면(`today_screen.dart`)은 ‹ › 날짜 이동·날짜 선택·"오늘" 버튼(두 구역이 같은 날짜). 부채꼴 그룹 아마란스는 미결 결재·출퇴근·일정·메일·게시판 5항목.
+**게시판·날짜 이동(2026-10-04 3차)**: `board_screen.dart` — 전 게시판 공지·새 글 집계(`ViewBoardNewAndNoticeArtList`, noticeYn Y, 20건씩 더 보기, 통합검색 searchTotal) → 본문·댓글(`ViewPost`, ⚠️ 조회수 증가 — 글을 눌렀을 때만). 첨부는 개수만(내려받기는 아마란스에서). 홈에 "공지사항" 카드(`gw_notices_card.dart`, 최신 3건, 누르면 `/gw/board?art=`로 바로 본문). 일정·회의실 화면(`today_screen.dart`)은 1.6.6부터 캘린더(§일정 캘린더). 부채꼴 그룹 아마란스는 미결 결재·출퇴근·일정·메일·게시판 5항목.
 
 | 증상 | 확인 | 조치 |
 |---|---|---|
@@ -225,6 +225,15 @@ Graph 메모: 검색 hit는 `fields`에 file·folder를 넣어도 폴더에 `fol
 - **앱 메일 본문**: `mail_detail_screen.dart` — `GwApi.readMail`(mail002A01, ⚠️ 읽음 처리) 텍스트 본문·받는 사람·참조·첨부 이름, `markMailUnread`(mail002A15, 최근 200건 안). 목록으로 돌아오면 다시 읽는다.
 - **데스크톱 WebView에서 새 창 링크 무반응 수정**: Confluence·SharePoint 문서 목록의 `target="_blank"` 링크가 아무 일도 하지 않았다. 원인: macOS WKWebView는 새 창 요청을 `targetFrame` 없이 넘겨 webview_flutter가 `isMainFrame=false`로 보고하고, `_onNav`는 main frame이 아닌 외부 이동을 조용히 막는다(Windows WebView2는 새 창 요청 자체를 버림). 해결: `web_session.dart` `blankLinkBridgeJs`를 페이지 로드마다 주입해 `a[target=_blank]` 클릭·`window.open`을 같은 창 이동으로 바꾸면 `_onNav`(main frame)가 외부 주소를 브라우저로 넘긴다. 홈 브리핑의 Confluence 섹션(네이티브)은 원래 `launchUrl`로 열린다.
 - **페이지 권한 DB 키 동기화**: `docs/page-access.md` 2026-10-11 절.
+
+## 일정 캘린더(일간·주간·월간)·Dooray 병합·추가→이노봇 (2026-10-11, 1.6.6)
+
+- 공용 캘린더: 순수 모델 `lib/calendar/calendar_model.dart`(`CalMode` 일간/주간/월간, `CalEvent{start,end,allDay,title,sub,source(gw|dooray),mine}`, `calRange`(주는 월요일부터 7일, 달은 1일이 든 주의 월요일부터 6주 42일 고정), `calStep`, `calLabel`, `calOn`(종일 먼저·시작순), 변환 `calFromGw`·`calFromDooray`) + 위젯 `lib/calendar/calendar_view.dart`(머리글 ‹ › 오늘·일간/주간/월간 세그먼트·부모가 주는 동작 버튼(Wrap), 본문: 일간 목록 / 주간 월~일 날짜별 목록("일정 없음") / 월간 7×6 격자 — 셀 폭 110px 이상이면 제목 3개, 좁으면 점 3개(`cal-dot-<날짜>-<i>`), 누르면 `onPickDay`). 시각은 모두 "KST 벽시계 + UTC 플래그"(`DateTime.utc`) — 기기 시간대·DST와 무관.
+- 아마란스 일정 화면(`gw/today_screen.dart`, 제목 "일정", 기본 **일간**): `GwApi.events(start, end: …)`(sc111A03 `startDate`·`endDate` 범위 한 번) + 같은 기기의 Dooray 연결이 있으면 `doorayRangeProvider((시작일, 날 수))`로 Dooray 일정을 같은 범위로 읽어 섞는다(초록 "Dooray" 꼬리표, 실패하면 본문 아래 한 줄 안내 — 아마란스 일정은 그대로). "내 것/전체" 토글은 아마란스 일정에만. 회의실 예약(rs121A05)은 일간에서만 그날 것. 보기·날짜를 바꾸면 요청 순번(`_loadSeq`)으로 늦은 응답을 버린다.
+- **추가 버튼**: `showAssistantSheet(context, seed: '<M월 D일 (요일)>에 아마란스 일정 등록해줘. 제목·시간·장소를 물어봐 줘.')` — 시트가 열리자마자 seed를 사용자 말풍선으로 보내고 이노봇이 이어서 묻는다(`AssistantSheet.seed`). 비서가 꺼져 있으면(`assistantAvailableProvider` false) 버튼 없음. 등록 자체는 기존 확인 카드 흐름.
+- Dooray 화면(`dooray/calendar_screen.dart`)도 같은 위젯(Dooray만, 추가 버튼 없음). 브리지 `calendarRequestJs(id, day, days: 1~42)` → `timeMax = day+days 00:00+09:00`, `DoorayCalendarClient.read(day, days:)`. `doorayDayProvider`는 `doorayRangeProvider`로 대체.
+- 하단 바 하위 메뉴(`app/menu_layout.dart`): 한 줄 개수가 폭에 따라 늘어난다(폰 390 → 5개·셀 78 그대로, 넓은 창은 `max(5, 폭÷78)`개까지 한 줄, 셀 폭은 `min(폭÷5, 96, 폭÷가장 긴 줄)`로 묶어 가운데 모음) — 데스크톱에서 업무 9개가 두 줄로 나오던 것 수정.
+- 테스트: `test/calendar/*`(모델 6·위젯 5), `test/gw/screens_test.dart`(일간 오늘 픽스처·주간 범위·Dooray 병합·월간→일간·추가→이노봇 seed), `test/dooray/*`, `test/assistant/assistant_sheet_test.dart`(seed), `test/app/menu_layout_test.dart`.
 
 ## Claude 커넥터(아마란스 MCP) (2026-10-10)
 

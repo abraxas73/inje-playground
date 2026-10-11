@@ -57,6 +57,11 @@ void main() {
     () {
       final js = calendarRequestJs('x', '2026-12-31');
       expect(js, contains('2027-01-01T00:00:00+09:00'));
+      // 기간 조회(주간 7일·월간 42일): timeMax는 마지막 날 다음 00:00, 범위 밖은 거부
+      expect(calendarRequestJs('x', '2026-12-31', days: 7), contains('2027-01-07T00:00:00+09:00'));
+      expect(calendarRequestJs('x', '2026-09-28', days: 42), contains('2026-11-09T00:00:00+09:00'));
+      expect(() => calendarRequestJs('x', '2026-12-31', days: 0), throwsFormatException);
+      expect(() => calendarRequestJs('x', '2026-12-31', days: 43), throwsFormatException);
       expect(js, contains("'Dooray-Caller':'WEB'"));
       expect(js, isNot(contains('document.cookie')));
       expect(js, isNot(contains('api.dooray.com')));

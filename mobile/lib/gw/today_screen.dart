@@ -1,30 +1,41 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
+import '../assistant/assistant_session.dart' show assistantAvailableProvider;
+import '../assistant/assistant_sheet.dart';
+import '../calendar/calendar_model.dart';
+import '../calendar/calendar_view.dart';
+import '../dooray/calendar_screen.dart' show doorayRangeProvider, doorayDay;
+import '../dooray/calendar_session.dart' show doorayCalendarTransportProvider;
 import 'gw_api.dart';
 import 'gw_gate.dart';
 import 'gw_models.dart';
 
+/// 일정 — 아마란스 일정(+ 이 기기에 Dooray가 연결돼 있으면 Dooray 일정도)을 일간·주간·월간 캘린더로(기본 일간).
+/// 회의실 예약은 일간 보기에서 그날 것만. "추가"는 이노봇을 불러 아마란스 일정 등록을 맡긴다(비서가 꺼져 있으면 버튼 없음).
 class TodayScreen extends StatelessWidget {
   const TodayScreen({super.key});
   @override
-  Widget build(BuildContext context) => GwGate(title: '오늘', builder: (_, api) => _Body(api));
+  Widget build(BuildContext context) => GwGate(title: '일정', builder: (_, api) => _Body(api));
 }
 
-class _Body extends StatefulWidget {
+class _Body extends ConsumerStatefulWidget {
   const _Body(this.api);
   final GwApi api;
   @override
-  State<_Body> createState() => _BodyState();
+  ConsumerState<_Body> createState() => _BodyState();
 }
 
-class _BodyState extends State<_Body> {
+class _BodyState extends ConsumerState<_Body> {
+  CalMode _mode = CalMode.day;
   DateTime _day = kstNow();
   bool _allEvents = false, _allRooms = false;
   List<GwEvent>? _events;
   List<GwCalendar>? _cals;
   List<GwReservation>? _rooms;
   String? _eventsError, _roomsError;
+  int _loadSeq = 0; // 보기·날짜를 바꾸면 먼저 보낸 요청의 늦은 응답은 버린다
 
   @override
   void initState() {
@@ -32,36 +43,32 @@ class _BodyState extends State<_Body> {
     _load();
   }
 
-  bool get _isToday => ymd(_day) == ymd(kstNow());
-
-  void _go(DateTime d) {
-    setState(() { _day = d; _events = null; _rooms = null; _eventsError = null; _roomsError = null; });
+  void _go(DateTime d, [CalMode? mode]) {
+    setState(() { _day = d; if (mode != null) _mode = mode; _events = null; _rooms = null; _eventsError = null; _roomsError = null; });
     _load();
   }
 
-  Future<void> _pick() async {
-    final d = await showDatePicker(context: context, initialDate: _day, firstDate: DateTime(2020), lastDate: DateTime(2035));
-    if (d != null) _go(d);
-  }
-
   Future<void> _load() async {
+    final seq = ++_loadSeq;
+    final (start, endEx) = calRange(_mode, _day);
+    final end = endEx.subtract(const Duration(days: 1));
     final day = _day;
     await Future.wait([
       () async {
         try {
           final cals = await widget.api.calendars();
-          final ev = await widget.api.events(day);
-          if (mounted) setState(() { _cals = cals; _events = ev; _eventsError = null; });
+          final ev = await widget.api.events(start, end: end);
+          if (mounted && seq == _loadSeq) setState(() { _cals = cals; _events = ev; _eventsError = null; });
         } catch (e) {
-          if (mounted) setState(() => _eventsError = '$e');
+          if (mounted && seq == _loadSeq) setState(() => _eventsError = '$e');
         }
       }(),
-      () async {
+      if (_mode == CalMode.day) () async {
         try {
           final rs = await widget.api.reservations(day);
-          if (mounted) setState(() { _rooms = rs; _roomsError = null; });
+          if (mounted && seq == _loadSeq) setState(() { _rooms = rs; _roomsError = null; });
         } catch (e) {
-          if (mounted) setState(() => _roomsError = '$e');
+          if (mounted && seq == _loadSeq) setState(() => _roomsError = '$e');
         }
       }(),
     ]);
@@ -69,47 +76,55 @@ class _BodyState extends State<_Body> {
 
   String _range(String s, String e, bool allDay) => allDay ? '종일' : '${hm(s)}–${hm(e)}';
 
+  void _add() => showAssistantSheet(context, seed: '${calLabel(CalMode.day, _day)}에 아마란스 일정 등록해줘. 제목·시간·장소를 물어봐 줘.');
+
   @override
   Widget build(BuildContext context) {
     final me = widget.api.client.creds().empSeq;
-    final events = _events == null ? null : (_allEvents ? _events! : myEvents(_events!, _cals ?? const [], me));
+    final gw = _events == null ? null : (_allEvents ? _events! : myEvents(_events!, _cals ?? const [], me));
+    final (start, endEx) = calRange(_mode, _day);
+    final doorayOn = ref.watch(doorayCalendarTransportProvider) != null;
+    final dooray = ref.watch(doorayRangeProvider((doorayDay(start), endEx.difference(start).inDays)));
+    final doorayItems = dooray.value?['items'];
+    final events = [
+      for (final e in gw ?? const <GwEvent>[]) ?calFromGw(e),
+      if (doorayItems is List) for (final x in doorayItems) if (x is Map) ?calFromDooray(x),
+    ];
+    final doorayNote = !doorayOn ? null : dooray.hasError ? 'Dooray 일정을 불러오지 못했습니다. Dooray 화면에서 다시 로그인해 주세요.' : dooray.isLoading ? 'Dooray 일정을 불러오는 중…' : null;
     final rooms = _rooms == null ? null : (_allRooms ? _rooms! : _rooms!.where((r) => r.ownerEmpSeq == me).toList());
     return Scaffold(
-      appBar: const BrandHeader(title: '오늘', showBack: true),
+      appBar: const BrandHeader(title: '일정', showBack: true),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 24), children: [
-          Row(children: [
-            IconButton(icon: const Icon(Icons.chevron_left), tooltip: '이전 날', onPressed: () => _go(_day.subtract(const Duration(days: 1)))),
-            Expanded(child: TextButton(onPressed: _pick, child: Text(_dayLabel(_day), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Brand.navy)))),
-            IconButton(icon: const Icon(Icons.chevron_right), tooltip: '다음 날', onPressed: () => _go(_day.add(const Duration(days: 1)))),
-            if (!_isToday) TextButton(onPressed: () => _go(kstNow()), child: const Text('오늘')),
-          ]),
-          const SizedBox(height: 4),
-          _Section(
-            title: '일정', count: events?.length, all: _allEvents, onToggle: (v) => setState(() => _allEvents = v), error: _eventsError, loading: _events == null, empty: '일정이 없습니다',
-            items: [
-              for (final e in events ?? const <GwEvent>[])
-                _Row(time: _range(e.start, e.end, e.allDay), title: e.title, sub: [e.calendar, if (e.place.isNotEmpty) e.place, if (!e.mine && e.createName.isNotEmpty) e.createName].where((s) => s.isNotEmpty).join(' · '), mine: e.mine),
+          CalendarView(
+            mode: _mode, day: _day, events: events, loading: _events == null && _eventsError == null, error: _eventsError, note: doorayNote,
+            onMode: (m) => _go(_day, m), onDay: _go, onPickDay: (d) => _go(d, CalMode.day),
+            actions: [
+              SegmentedButton<bool>(
+                showSelectedIcon: false,
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                segments: const [ButtonSegment(value: false, label: Text('내 것')), ButtonSegment(value: true, label: Text('전체'))],
+                selected: {_allEvents},
+                onSelectionChanged: (s) => setState(() => _allEvents = s.first),
+              ),
+              if (ref.watch(assistantAvailableProvider)) FilledButton.tonalIcon(onPressed: _add, icon: const Icon(Icons.add, size: 18), label: const Text('추가')),
             ],
           ),
-          const SizedBox(height: 16),
-          _Section(
-            title: '회의실', count: rooms?.length, all: _allRooms, onToggle: (v) => setState(() => _allRooms = v), error: _roomsError, loading: _rooms == null, empty: '예약이 없습니다',
-            items: [
-              for (final r in rooms ?? const <GwReservation>[])
-                _Row(time: _range(r.start, r.end, r.allDay), title: r.title.isEmpty ? r.display : r.title, sub: '${r.resName}${r.owner.isEmpty ? '' : ' · ${r.owner}'}', mine: r.ownerEmpSeq == me),
-            ],
-          ),
+          if (_mode == CalMode.day) ...[
+            const SizedBox(height: 16),
+            _Section(
+              title: '회의실', count: rooms?.length, all: _allRooms, onToggle: (v) => setState(() => _allRooms = v), error: _roomsError, loading: _rooms == null, empty: '예약이 없습니다',
+              items: [
+                for (final r in rooms ?? const <GwReservation>[])
+                  _Row(time: _range(r.start, r.end, r.allDay), title: r.title.isEmpty ? r.display : r.title, sub: '${r.resName}${r.owner.isEmpty ? '' : ' · ${r.owner}'}', mine: r.ownerEmpSeq == me),
+              ],
+            ),
+          ],
         ]),
       ),
     );
   }
-}
-
-String _dayLabel(DateTime d) {
-  const w = ['월', '화', '수', '목', '금', '토', '일'];
-  return '${d.month}월 ${d.day}일 (${w[d.weekday - 1]})';
 }
 
 class _Section extends StatelessWidget {

@@ -37,4 +37,20 @@ void main() {
       }
     }
   });
+  test('넓은 창(데스크톱 1200)에서는 9개도 한 줄 — 셀 폭은 96으로 묶어 가운데 모은다', () {
+    final pts = rowLayout(count: 9, originX: 600, width: 1200);
+    expect(pts.every((p) => p.dy == -72), true);
+    final xs = pts.map((p) => 600 + p.dx).toList();
+    expect(xs[1] - xs[0], closeTo(96, 0.001));
+    expect((xs.first + xs.last) / 2, closeTo(600, 0.001));
+  });
+  test('중간 폭(800)에서 9개는 한 줄에 맞춰 셀을 줄인다(800÷9), 폰 폭(390)은 그대로 5개·78', () {
+    final pts = rowLayout(count: 9, originX: 400, width: 800);
+    expect(pts.every((p) => p.dy == -72), true);
+    final xs = pts.map((p) => 400 + p.dx).toList();
+    expect(xs[1] - xs[0], closeTo(800 / 9, 0.001));
+    expect(xs.first - 30, greaterThanOrEqualTo(0));
+    expect(xs.last + 30, lessThanOrEqualTo(800));
+    expect(rowLayout(count: 9, originX: 195, width: 390).where((p) => p.dy == -72).length, 5);
+  });
 }

@@ -7,7 +7,8 @@ import '../app/theme.dart';
 import 'assistant_session.dart';
 import 'assistant_voice.dart';
 
-Future<void> showAssistantSheet(BuildContext context) =>
+/// [seed]가 있으면 시트가 열리자마자 그 문장을 보낸다(예: 일정 화면 "추가" → "… 아마란스 일정 등록해줘"). 말풍선으로 남아 "고쳐 줘"로 바로잡을 수 있다.
+Future<void> showAssistantSheet(BuildContext context, {String? seed}) =>
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -15,7 +16,7 @@ Future<void> showAssistantSheet(BuildContext context) =>
       backgroundColor: Brand.ground,
       builder: (_) => FractionallySizedBox(
         heightFactor: 0.9,
-        child: const AssistantSheet(),
+        child: AssistantSheet(seed: seed),
       ),
     );
 
@@ -46,7 +47,9 @@ const _examples = [
 
 /// 비서 대화 시트 — 말풍선·진행 표시·확인 카드·입력창. 상태는 assistantSessionProvider(앱이 켜져 있는 동안 유지).
 class AssistantSheet extends ConsumerStatefulWidget {
-  const AssistantSheet({super.key});
+  const AssistantSheet({super.key, this.seed});
+  /// 열리자마자 보낼 첫 문장(showAssistantSheet 참고).
+  final String? seed;
   @override
   ConsumerState<AssistantSheet> createState() => _AssistantSheetState();
 }
@@ -75,6 +78,12 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
         _scroll.jumpTo(_scroll.position.maxScrollExtent);
       }
     });
+    final seed = widget.seed?.trim();
+    if (seed != null && seed.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _send(seed);
+      });
+    }
   }
 
   @override

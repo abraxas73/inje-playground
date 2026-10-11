@@ -3,13 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../auth/session.dart';
 import '../briefing/briefing_provider.dart';
+import '../calendar/calendar_model.dart';
+import '../calendar/calendar_view.dart';
+import '../gw/gw_models.dart' show kstNow;
 import 'calendar_session.dart';
 import 'calendar_webview.dart';
 
-final doorayDayProvider = FutureProvider.autoDispose
-    .family<Map<String, dynamic>?, String>((ref, day) async {
+/// (시작일 'YYYY-MM-DD', 날 수 1~42) 범위의 Dooray 일정. 연결이 없으면 null.
+final doorayRangeProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>?, (String, int)>((ref, key) async {
       final client = ref.watch(doorayCalendarTransportProvider);
-      return client?.read(day);
+      return client?.read(key.$1, days: key.$2);
     });
 String doorayDay(DateTime value) => value.toIso8601String().substring(0, 10);
 
@@ -21,9 +25,8 @@ class DoorayCalendarScreen extends ConsumerStatefulWidget {
 }
 
 class _DoorayCalendarScreenState extends ConsumerState<DoorayCalendarScreen> {
-  late DateTime _date = DateTime.parse(
-    doorayDay(DateTime.now().toUtc().add(const Duration(hours: 9))),
-  );
+  CalMode _mode = CalMode.day;
+  DateTime _date = kstNow();
   Future<void> _connect() async {
     final owner = ref.read(sessionProvider).value?.email;
     if (owner == null) return;
@@ -40,14 +43,14 @@ class _DoorayCalendarScreenState extends ConsumerState<DoorayCalendarScreen> {
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
     await ref.read(doorayCalendarConnectionProvider.notifier).connect(owner);
-    ref.invalidate(doorayDayProvider);
+    ref.invalidate(doorayRangeProvider);
     ref.invalidate(briefingProvider);
   }
 
   Future<void> _disconnect() async {
     ref.read(doorayCalendarTransportProvider.notifier).clear();
     await ref.read(doorayCalendarConnectionProvider.notifier).disconnect();
-    ref.invalidate(doorayDayProvider);
+    ref.invalidate(doorayRangeProvider);
     ref.invalidate(briefingProvider);
   }
 
@@ -60,7 +63,8 @@ class _DoorayCalendarScreenState extends ConsumerState<DoorayCalendarScreen> {
       return const Scaffold(body: Center(child: Text('Dooray 접근 권한이 없습니다.')));
     }
     final connected = ref.watch(doorayCalendarOwnerProvider) != null;
-    final result = ref.watch(doorayDayProvider(doorayDay(_date)));
+    final (start, endEx) = calRange(_mode, _date);
+    final result = ref.watch(doorayRangeProvider((doorayDay(start), endEx.difference(start).inDays)));
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dooray'),
@@ -68,7 +72,7 @@ class _DoorayCalendarScreenState extends ConsumerState<DoorayCalendarScreen> {
           IconButton(
             tooltip: '일정 새로고침',
             onPressed: connected
-                ? () => ref.invalidate(doorayDayProvider)
+                ? () => ref.invalidate(doorayRangeProvider)
                 : null,
             icon: const Icon(Icons.refresh),
           ),
@@ -98,43 +102,27 @@ class _DoorayCalendarScreenState extends ConsumerState<DoorayCalendarScreen> {
             ],
           ),
           if (connected) ...[
-            TextButton.icon(
-              onPressed: () async {
-                final day = await showDatePicker(
-                  context: context,
-                  initialDate: _date,
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime(2100),
-                );
-                if (day != null && mounted) setState(() => _date = day);
-              },
-              icon: const Icon(Icons.calendar_month),
-              label: Text('${doorayDay(_date)} (한국 시간)'),
-            ),
-            result.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, _) =>
-                  const Text('일정을 불러오지 못했습니다. 새로고침하거나 다시 로그인해 주세요.'),
-              data: (data) {
-                if (data == null) return const Text('Dooray 연결을 준비하고 있습니다…');
-                final items = data['items'] as List;
-                if (items.isEmpty) return const Text('해당 날짜의 일정이 없습니다.');
-                return Column(
-                  children: [
-                    for (final e in items)
-                      Card(
-                        child: ListTile(
-                          title: Text(e['subject'] as String),
-                          subtitle: Text(
-                            e['wholeDayFlag'] == true
-                                ? '종일'
-                                : '${_time(e['startedAt'])} – ${_time(e['endedAt'])}',
-                          ),
-                        ),
-                      ),
-                  ],
-                );
-              },
+            const SizedBox(height: 8),
+            CalendarView(
+              mode: _mode,
+              day: _date,
+              events: [
+                for (final x in (result.value?['items'] as List?) ?? const [])
+                  if (x is Map) ?calFromDooray(x),
+              ],
+              loading: result.isLoading,
+              error: result.hasError
+                  ? '일정을 불러오지 못했습니다. 새로고침하거나 다시 로그인해 주세요.'
+                  : null,
+              note: !result.isLoading && !result.hasError && result.value == null
+                  ? 'Dooray 연결을 준비하고 있습니다…'
+                  : null,
+              onMode: (m) => setState(() => _mode = m),
+              onDay: (d) => setState(() => _date = d),
+              onPickDay: (d) => setState(() {
+                _date = d;
+                _mode = CalMode.day;
+              }),
             ),
           ],
           const SizedBox(height: 24),
@@ -150,12 +138,5 @@ class _DoorayCalendarScreenState extends ConsumerState<DoorayCalendarScreen> {
         ],
       ),
     );
-  }
-
-  String _time(String raw) {
-    final d = DateTime.tryParse(raw)?.toUtc().add(const Duration(hours: 9));
-    return d == null
-        ? ''
-        : '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 }

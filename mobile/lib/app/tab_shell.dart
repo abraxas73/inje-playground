@@ -141,7 +141,7 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
   }
 }
 
-/// 바 위 스크림 + 하위 메뉴 항목(바 위에 한 줄, 6개부터 두 줄 — rowLayout 좌표, 가로 중앙 정렬). 항목은 제자리에서 바 쪽으로부터 떠오른다(가로 이동 없음).
+/// 바 위 스크림 + 하위 메뉴 항목(바 위에 한 줄, 폭이 모자라면 줄을 늘림 — 폰은 6개부터 두 줄, 데스크톱 창은 한 줄; rowLayout 좌표, 가로 중앙 정렬). 항목은 제자리에서 바 쪽으로부터 떠오른다(가로 이동 없음).
 /// [progress] 0→1 동안 항목 i는 [i·stagger, i·stagger+perItem] 구간에서만 움직인다(왼쪽부터 하나씩).
 class FanMenu extends StatelessWidget {
   const FanMenu({super.key, required this.pages, required this.slot, required this.slotCount, required this.currentBranch, required this.progress, required this.onSelect, required this.onDismiss});

@@ -18,8 +18,8 @@ class FakeGwStore extends GwCredsStore {
 const testCreds = GwCreds(authToken: 'g|7|s', signKey: 'k', empName: '홍길동', email: 'hong@innogrid.com');
 
 /// 매번 새 ProviderScope(UniqueKey) — 같은 자리에서 다시 pump해도 이전 상태를 재사용하지 않게.
-Widget gwScope({GwCreds? creds, required MockClient http, required Widget child}) => ProviderScope(
+Widget gwScope({GwCreds? creds, required MockClient http, required Widget child, List<dynamic> overrides = const [] /* ProviderScope.overrides 항목(Override는 riverpod이 내보내지 않는 타입) */}) => ProviderScope(
       key: UniqueKey(),
-      overrides: [gwStoreProvider.overrideWithValue(FakeGwStore(creds)), gwHttpClientProvider.overrideWithValue(http)],
+      overrides: [gwStoreProvider.overrideWithValue(FakeGwStore(creds)), gwHttpClientProvider.overrideWithValue(http), ...overrides],
       child: MaterialApp(home: child),
     );

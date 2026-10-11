@@ -44,6 +44,17 @@ void main() {
     expect(find.text('늦은 응답'), findsNothing);
   });
 
+  testWidgets('seed가 있으면 열리자마자 그 문장을 보내고 말풍선으로 남긴다(일정 화면 "추가")', (tester) async {
+    final brain = Brain([say('어떤 일정인가요? 제목과 시간을 알려 주세요.')]);
+    await tester.pumpWidget(host(brain, Builder(builder: (context) => TextButton(onPressed: () => showAssistantSheet(context, seed: '10월 12일 (월)에 아마란스 일정 등록해줘. 제목·시간·장소를 물어봐 줘.'), child: const Text('추가')))));
+    await tester.tap(find.text('추가'));
+    await tester.pumpAndSettle();
+    expect(brain.received, hasLength(1));
+    expect('${brain.received.single.last['content']}', contains('10월 12일 (월)에 아마란스 일정 등록해줘'));
+    expect(find.text('10월 12일 (월)에 아마란스 일정 등록해줘. 제목·시간·장소를 물어봐 줘.'), findsOneWidget);
+    expect(find.text('어떤 일정인가요? 제목과 시간을 알려 주세요.'), findsOneWidget);
+  });
+
   testWidgets('대화창을 다시 열면 마지막 대화가 보인다', (tester) async {
     final brain = Brain([say(List.filled(60, '긴 대화').join('\n'))]);
     await tester.pumpWidget(host(brain, const InnobotButton()));

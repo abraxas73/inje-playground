@@ -11,21 +11,24 @@ class DoorayCalendarException implements Exception {
 }
 
 /// Credentials stay in the WebView cookie jar; only normalized schedule data leaves it.
+/// [days]는 [day]부터 읽을 날 수(1~42 — 캘린더 월간 격자 6주). timeMax는 그 다음 날 00:00(한국 시각, 끝 제외).
 String calendarRequestJs(
   String requestId,
   String day, {
+  int days = 1,
   bool unreadMail = false,
 }) {
   if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(day)) {
     throw const FormatException('Invalid day');
   }
+  if (days < 1 || days > 42) throw const FormatException('Invalid days');
   final parsed = DateTime.parse(day);
   final date = DateTime.utc(parsed.year, parsed.month, parsed.day);
   if (date.toIso8601String().substring(0, 10) != day) {
     throw const FormatException('Invalid day');
   }
   final end = date
-      .add(const Duration(days: 1))
+      .add(Duration(days: days))
       .toIso8601String()
       .substring(0, 10);
   return '''
@@ -113,13 +116,14 @@ class DoorayCalendarClient {
   int _sequence = 0;
   Future<Map<String, dynamic>> read(
     String day, {
+    int days = 1,
     bool unreadMail = false,
   }) async {
     if (_closed) throw const DoorayCalendarException('Dooray 연결이 닫혔습니다.');
     final id = 'request${++_sequence}';
     try {
       await run(
-        calendarRequestJs(id, day, unreadMail: unreadMail),
+        calendarRequestJs(id, day, days: days, unreadMail: unreadMail),
       ).timeout(const Duration(seconds: 10));
       final deadline = DateTime.now().add(const Duration(seconds: 20));
       while (!_closed && DateTime.now().isBefore(deadline)) {
