@@ -18,14 +18,14 @@ export default function ManualPage() {
         <p className="text-sm font-medium text-primary">웹 · 모바일 · 데스크톱 사용 가이드</p>
         <h1 className="text-3xl font-bold tracking-tight">이노그리드 사용자 매뉴얼</h1>
         <p className="text-muted-foreground">처음 연결하는 방법부터 팀 활동, AI 도구, 앱 이노봇까지 필요한 작업을 찾아보세요.</p>
-        <p className="text-xs text-muted-foreground">2026년 10월 8일 기준 · 메뉴와 기능은 계정 권한 및 운영 설정에 따라 달라집니다.</p>
+        <p className="text-xs text-muted-foreground">2026년 10월 11일 기준 · 메뉴와 기능은 계정 권한 및 운영 설정에 따라 달라집니다.</p>
         <Button asChild variant="outline"><Link href="/apps">앱 설치·다운로드 <ArrowRight className="h-4 w-4" /></Link></Button>
       </header>
       <div className="mb-8 rounded-xl border bg-card p-5">
         <label htmlFor="manual-search" className="mb-2 block text-sm font-semibold">사용법 검색</label>
         <div className="relative">
           <Search aria-hidden="true" className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input id="manual-search" type="search" className="pl-9" placeholder="예: 내 팀, SharePoint, 출근, 이노봇" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <Input id="manual-search" type="search" className="pl-9" placeholder="예: 내 팀, SharePoint, 출근, 이노봇, 데스크톱" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
         <p role="status" className="mt-2 text-xs text-muted-foreground">전체 {manualSections.length}개 중 {sections.length}개 안내</p>
         <nav aria-label="매뉴얼 목차" className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -33,7 +33,7 @@ export default function ManualPage() {
             <h2 className="mb-2 text-sm font-semibold">{category}</h2>
             <ul className="space-y-2">
               {sections.filter((s) => s.category === category).map((s) => <li key={s.id}>
-                <a href={`#${s.id}`} className="text-sm text-primary hover:underline">{s.title}</a>
+                <a href={`#${s.id}`} className="text-sm text-primary hover:underline">{s.title}</a>{s.app && <span className="ml-1 text-xs text-muted-foreground">({s.app} 앱)</span>}
               </li>)}
             </ul>
           </div>)}
@@ -42,7 +42,7 @@ export default function ManualPage() {
       </div>
       <div className="space-y-10">
         {sections.map((section) => <section key={section.id} id={section.id} aria-labelledby={`${section.id}-heading`} className="scroll-mt-24 rounded-xl border bg-card p-5 md:p-7">
-          <p className="mb-2 text-xs font-medium text-muted-foreground">{section.category}</p>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">{section.category}{section.app && ` · ${section.app} 앱`}</p>
           <h2 id={`${section.id}-heading`} className="mb-3 text-xl font-bold">{section.title}</h2>
           <p className="mb-5 text-sm leading-relaxed text-muted-foreground">{section.description}</p>
           <ol className="ml-5 list-decimal space-y-3 marker:font-semibold marker:text-primary">

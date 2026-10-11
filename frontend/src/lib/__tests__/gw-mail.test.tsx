@@ -11,9 +11,9 @@ vi.mock("@/lib/mcp/relay", () => relay);
 afterEach(() => { vi.unstubAllGlobals(); relay.relayToolCall.mockReset(); });
 
 describe("메뉴 카탈로그 — 앱 하단 바와 같은 상위·하위 구조", () => {
-  it("상위 메뉴 4개(일상·AI·업무·아마란스)와 메일 키·API 매핑", () => {
-    expect(PAGE_GROUPS.map((g) => [g.id, g.label])).toEqual([["daily", "일상"], ["ai", "AI"], ["work", "업무"], ["gw", "아마란스"]]);
-    expect(PAGES.find((p) => p.key === "gw_mail")).toMatchObject({ href: "/gw/mail", group: "gw", minRole: "user" });
+  it("상위 메뉴 3개(일상·AI·업무)와 메일 키(메뉴 숨김)·API 매핑", () => {
+    expect(PAGE_GROUPS.map((g) => [g.id, g.label])).toEqual([["daily", "일상"], ["ai", "AI"], ["work", "업무"]]); // 앱 전용 '아마란스' 그룹은 웹 메뉴에 없다
+    expect(PAGES.find((p) => p.key === "gw_mail")).toMatchObject({ href: "/gw/mail", group: "work", minRole: "user", hidden: true });
     expect(pagesForPath("/gw/mail")).toEqual(["gw_mail"]);
     expect(pagesForPath("/api/gw/mail/123/unread")).toEqual(["gw_mail"]);
     expect(canOpenPage("user", "/gw/mail", { gw_mail: false })).toBe(false);

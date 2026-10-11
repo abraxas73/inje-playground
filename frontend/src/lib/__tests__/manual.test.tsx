@@ -28,3 +28,14 @@ it("shows the Windows SmartScreen guide images with captions in the desktop inst
   expect(screen.getByText(/앱 이름이 INNOGRID 설치 파일인지 확인하고 ‘실행’을 누릅니다/)).toBeInTheDocument();
   expect(searchManual("SmartScreen").map((s) => s.id)).toContain("desktop-install");
 });
+it("앱 기능 절은 목차와 제목에 (모바일·데스크톱 앱) 표시가 붙고 앱 이름으로도 검색된다", () => {
+  const tagged = manualSections.filter((s) => s.app);
+  expect(tagged.map((s) => s.id)).toEqual(expect.arrayContaining(["app-approvals", "app-attendance", "app-today", "app-mail", "app-board", "desktop-mentions", "desktop-connector", "desktop-install"]));
+  for (const s of tagged) expect(s.category).toBe(s.id === "desktop-install" ? "시작하기" : "모바일·데스크톱 앱");
+  render(<ManualPage />);
+  expect(screen.getAllByText("(모바일·데스크톱 앱)").length).toBeGreaterThanOrEqual(5);
+  expect(screen.getAllByText("(데스크톱 앱)").length).toBeGreaterThanOrEqual(2);
+  expect(screen.getAllByText("모바일·데스크톱 앱 · 데스크톱 앱").length).toBe(2); // 멘션 알림·Claude 커넥터
+  expect(searchManual("데스크톱 앱").map((s) => s.id)).toContain("desktop-mentions");
+  expect(searchManual("안 읽음으로 되돌리기").map((s) => s.id)).toEqual(expect.arrayContaining(["app-mail", "gw-mail"]));
+});

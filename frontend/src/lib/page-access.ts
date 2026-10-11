@@ -1,12 +1,11 @@
 import type { UserRole } from "./roles";
 
 /** Shared catalog for navigation, administration and server route protection. */
-/** 상위 메뉴 — 앱 하단 바(mobile/lib/more/catalog.dart pageGroups)와 id·라벨을 맞춘다(2026-10-11). */
+/** 상위 메뉴 — 앱 하단 바(mobile/lib/more/catalog.dart pageGroups)와 id·라벨을 맞춘다(2026-10-11). 앱 전용 '아마란스' 그룹은 웹에 두지 않는다(사용자 요청, 웹 메뉴 끝은 사용자 매뉴얼). */
 export const PAGE_GROUPS = [
   { id: "daily", label: "일상" },
   { id: "ai", label: "AI" },
   { id: "work", label: "업무" },
-  { id: "gw", label: "아마란스" },
 ] as const;
 export const PAGES = [
   { key: "food", href: "/food", label: "뭐 먹지", group: "daily", minRole: "guest" },
@@ -25,8 +24,8 @@ export const PAGES = [
   { key: "ppt", href: "/ppt", label: "PPT 만들기", group: "work", minRole: "user" },
   { key: "people_news", href: "/people-news", label: "인사·부고", group: "work", minRole: "user" },
   { key: "marketing", href: "/marketing", label: "마케팅 Master DB", group: "work", minRole: "user" },
-  // 아마란스(앱 네이티브 gw_* 중 웹에도 있는 것). 키는 앱 catalog.dart appPages와 같아 한 스위치로 웹·앱을 함께 제어한다. DB 함수 키 목록은 docs/sql/2026-10-11-page-keys-sync.sql
-  { key: "gw_mail", href: "/gw/mail", label: "메일", group: "gw", minRole: "user" },
+  // 아마란스 메일(웹은 데스크톱 앱 중계). 키는 앱 catalog.dart appPages와 같아 한 스위치로 웹·앱을 함께 제어한다. 웹 메뉴에는 안 보이고 매뉴얼 링크로 연다. DB 함수 키 목록은 docs/sql/2026-10-11-page-keys-sync.sql
+  { key: "gw_mail", href: "/gw/mail", label: "메일 (메뉴 숨김)", group: "work", minRole: "user", hidden: true },
   { key: "guide", href: "/guide", label: "가이드 (메뉴 숨김)", group: "work", minRole: "user", hidden: true },
   { key: "mcp", href: "/apps#mcp", label: "Claude 커넥터 (메뉴 숨김)", group: "work", minRole: "user", hidden: true },
 ] as const;

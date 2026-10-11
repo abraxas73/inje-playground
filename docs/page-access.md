@@ -34,4 +34,4 @@
 ## 2026-10-11 키 목록 동기화와 아마란스 그룹
 
 - `set_user_page_access`는 `valid_page_permissions(p)`로 키를 검사하고, 테이블 RLS는 `has_page_access(p_page)`로 역할 기본값을 판단한다. 두 함수의 키 목록은 **DB에 하드코딩**돼 있어 웹 `PAGES`에 키를 추가할 때 같이 갱신해야 한다. 2026-09-14 이후 추가된 `apps`·`teams_chat`·`jira`·`confluence`·`sharepoint`·`ppt`·`mcp`가 빠져 있어 그 스위치를 바꾼 저장이 `Invalid permissions`(22023)로 실패했다 → `docs/sql/2026-10-11-page-keys-sync.sql`로 운영 적용(Management API). `frontend/src/lib/__tests__/gw-mail.test.tsx`가 이 SQL 파일의 목록과 `PAGES`를 대조해 드리프트를 막는다(다음 추가 때는 새 SQL 파일을 만들고 테스트의 파일명을 바꾼다).
-- 상위 메뉴 `PAGE_GROUPS`는 앱 하단 바(`mobile/lib/more/catalog.dart` pageGroups)와 같은 id·라벨(일상·AI·업무·아마란스). `gw_mail`(웹 `/gw/mail`, 앱 네이티브 `/gw/mail`)은 같은 키라 관리자 스위치 하나로 웹·앱을 함께 제어한다. 앱 전용 `gw_approvals`·`gw_attendance`·`gw_today`·`gw_board`는 웹 카탈로그에 없어 관리자 화면에 안 나오고 항상 허용(역할 user 이상)이다.
+- 상위 메뉴 `PAGE_GROUPS`는 앱 하단 바(`mobile/lib/more/catalog.dart` pageGroups)와 같은 id·라벨(일상·AI·업무 — 앱 전용 아마란스 그룹은 웹에 없음, `gw_mail`은 hidden). `gw_mail`(웹 `/gw/mail`, 앱 네이티브 `/gw/mail`)은 같은 키라 관리자 스위치 하나로 웹·앱을 함께 제어한다. 앱 전용 `gw_approvals`·`gw_attendance`·`gw_today`·`gw_board`는 웹 카탈로그에 없어 관리자 화면에 안 나오고 항상 허용(역할 user 이상)이다.
