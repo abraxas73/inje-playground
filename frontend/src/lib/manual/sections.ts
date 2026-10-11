@@ -224,7 +224,20 @@ export const manualSections: ManualSection[] = [
       { src: "/manual/windows-smartscreen-1.png", alt: "Windows의 PC 보호 창. 추가 정보 링크가 표시돼 있다", caption: "① ‘Windows의 PC 보호’ 창이 뜨면 ‘추가 정보’를 누릅니다.", width: 558, height: 320 },
       { src: "/manual/windows-smartscreen-2.png", alt: "앱 이름 INNOGRID-Windows-1.6.1-Setup.exe와 게시자 알 수 없는 게시자가 표시된 창. 실행 버튼이 강조돼 있다", caption: "② 앱 이름이 INNOGRID 설치 파일인지 확인하고 ‘실행’을 누릅니다.", width: 558, height: 360 },
     ],
-    links: [{ href: "/apps#desktop", label: "데스크톱 앱 다운로드" }, { href: "/apps#mcp", label: "Claude 커넥터 연결 방법" }],
+    links: [{ href: "/apps#desktop", label: "데스크톱 앱 다운로드" }, { href: "/manual#macos-update", label: "Mac 앱 업데이트·예기치 않은 종료 안내" }, { href: "/apps#mcp", label: "Claude 커넥터 연결 방법" }],
+  },
+  {
+    id: "macos-update", title: "Mac 앱 업데이트·예기치 않은 종료", category: "시작하기", app: "데스크톱",
+    description: "macOS 1.6.7에는 장시간 실행 중 발생한 화면 렌더링 충돌을 피하기 위한 안정화 조치가 포함되어 있습니다. 이전 버전을 사용 중이면 1.6.7 이상으로 업데이트해 주세요.",
+    steps: [
+      "작업 중인 내용을 저장하고 이노크루 앱을 완전히 종료합니다. 창의 닫기 버튼만 누르지 말고 앱 메뉴의 종료 또는 Command+Q를 사용합니다.",
+      "앱 다운로드 페이지에서 macOS 버전을 확인하고 최신 DMG를 내려받습니다.",
+      "DMG를 열어 INNOGRID를 Applications(응용 프로그램) 폴더로 옮깁니다. 같은 이름의 앱이 있다는 안내가 나오면 ‘대치’를 선택합니다.",
+      "응용 프로그램 폴더의 INNOGRID를 실행하고 더보기에서 앱 버전을 확인합니다. DMG 안의 앱을 직접 실행하지 않습니다.",
+      "업데이트 후에도 예기치 않게 종료되면 발생 시각, 앱 버전, macOS 버전과 당시 상황(잠자기에서 복귀·모니터 연결·창 크기 변경 등)을 관리자에게 알려 주세요. macOS가 표시한 충돌 보고서도 함께 전달하면 원인 확인에 도움이 됩니다.",
+    ],
+    note: "웹 페이지 새로고침만으로는 설치된 Mac 앱이 업데이트되지 않습니다. 이번 조치는 모든 종료 문제의 해결을 보장하지 않으므로, 최신 버전에서 반복되는 증상도 제보해 주세요.",
+    links: [{ href: "/apps#desktop", label: "macOS 앱 다운로드" }],
   },
   {
     id: "apps", title: "모바일 앱 설치와 업데이트", category: "모바일·데스크톱 앱", app: "모바일",

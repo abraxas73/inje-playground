@@ -31,7 +31,7 @@ it("shows the Windows SmartScreen guide images with captions in the desktop inst
 it("앱 기능 절은 목차와 제목에 (모바일·데스크톱 앱) 표시가 붙고 앱 이름으로도 검색된다", () => {
   const tagged = manualSections.filter((s) => s.app);
   expect(tagged.map((s) => s.id)).toEqual(expect.arrayContaining(["app-approvals", "app-attendance", "app-today", "app-mail", "app-board", "desktop-mentions", "desktop-connector", "desktop-install"]));
-  for (const s of tagged) expect(s.category).toBe(s.id === "desktop-install" ? "시작하기" : "모바일·데스크톱 앱");
+  for (const s of tagged) expect(s.category).toBe(["desktop-install", "macos-update"].includes(s.id) ? "시작하기" : "모바일·데스크톱 앱");
   render(<ManualPage />);
   expect(screen.getAllByText("(모바일·데스크톱 앱)").length).toBeGreaterThanOrEqual(5);
   expect(screen.getAllByText("(데스크톱 앱)").length).toBeGreaterThanOrEqual(2);
