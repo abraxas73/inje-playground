@@ -40,26 +40,24 @@ Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime 
 }
 
 void main() {
-  testWidgets('연결된 Dooray가 비어도 수동 갱신 가능하며 Dooray 영역은 숨긴다', (tester) async {
+  testWidgets('기기 연결 없이 서버 목록만 비어 있으면 Dooray 영역을 숨긴다', (tester) async {
     final app = await pumpHome(tester, creds: null, routes: {'/api/dooray/overview': (200, {
       'connected': true, 'events': {'items': []}, 'mail': {'items': []},
     })});
     expect(find.text('Dooray'), findsNothing);
-    await tester.tap(find.byTooltip('브리핑 새로고침'));
-    await tester.pumpAndSettle();
-    expect(app.calls['/api/dooray/overview'], 2);
+    expect(find.byTooltip('브리핑 새로고침'), findsNothing);
+    expect(app.calls['/api/dooray/overview'], isNull);
     expect(app.calls['/api/mobile/briefing'], isNull);
   });
 
-  testWidgets('Dooray만 연결해도 브리핑 표 새로고침 가능하며 LLM은 호출하지 않는다', (tester) async {
+  testWidgets('서버 토큰만 연결하면 메일 피드를 브리핑에 표시하지 않는다', (tester) async {
     final app = await pumpHome(tester, creds: null, routes: {'/api/dooray/overview': (200, {
       'connected': true, 'events': {'items': []}, 'mail': {'items': [{'subject': 'Dooray 메일'}]},
     })});
-    expect(find.text('Dooray 메일'), findsOneWidget);
+    expect(find.text('Dooray 메일'), findsNothing);
     expect(app.calls['/api/mobile/briefing'], isNull);
-    await tester.tap(find.byTooltip('브리핑 새로고침'));
-    await tester.pumpAndSettle();
-    expect(app.calls['/api/dooray/overview'], 2);
+    expect(find.byTooltip('브리핑 새로고침'), findsNothing);
+    expect(app.calls['/api/dooray/overview'], isNull);
     expect(app.calls['/api/mobile/briefing'], isNull);
   });
 

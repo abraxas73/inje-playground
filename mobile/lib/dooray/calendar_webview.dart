@@ -135,7 +135,7 @@ class _DoorayCalendarLoginState extends State<DoorayCalendarLogin> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Dooray 일정 연결'),
+      title: const Text('Dooray 연결'),
       actions: [
         TextButton(
           onPressed: _busy ? null : _verify,

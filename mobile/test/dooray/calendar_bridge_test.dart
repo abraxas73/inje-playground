@@ -12,6 +12,25 @@ const row = {
   'wholeDayFlag': false,
 };
 void main() {
+  test('unread mail query excludes read mail and never requests a body', () {
+    final js = calendarRequestJs('mail', '2026-10-11', unreadMail: true);
+    expect(js, contains('read=false&preview=false&size=5'));
+    expect(js, contains('flags?.read === false'));
+    expect(
+      calendarResult(
+        '{"items":[{"subject":"x","from":"sender","sentAt":"2026-10-11","unread":true}]}',
+        unreadMail: true,
+      )?['items'],
+      hasLength(1),
+    );
+    expect(
+      () => calendarResult(
+        '{"items":[{"subject":"x","from":"sender","sentAt":"2026-10-11","unread":false}]}',
+        unreadMail: true,
+      ),
+      throwsA(isA<DoorayCalendarException>()),
+    );
+  });
   test('WebView string encoding and malformed responses', () {
     expect(
       calendarResult(

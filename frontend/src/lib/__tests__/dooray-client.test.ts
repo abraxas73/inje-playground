@@ -57,7 +57,7 @@ describe("Dooray read models", () => {
     expect(await mailActivity(request)).toEqual({ items: [], partial: true });
     expect(request).toHaveBeenCalledTimes(2);
   });
-  it("isolates mail failure and skips channel fetching for briefing", async () => {
+  it("excludes activity feed and channels from briefing", async () => {
     const request: DoorayRequest = vi.fn(async path => {
       if (path === "/calendar/v1/calendars") return envelope([{id: "2", name: "개인", type: "private"}]);
       if (path.startsWith("/calendar/")) return envelope([{ id: "1", calendar: { id: "2" }, subject: "회의", startedAt: "2026-10-11T09:00:00+09:00", endedAt: "2026-10-11T10:00:00+09:00", wholeDayFlag: false, body: "private" }]);
@@ -65,10 +65,10 @@ describe("Dooray read models", () => {
     });
     const result = await overview(request, "2026-10-11", true);
     expect(result.events.items).toHaveLength(1);
-    expect(result.mail).toMatchObject({ items: [], error: "조회하지 못했습니다. 다시 시도해 주세요." });
+    expect(result.mail).toEqual({ items: [] });
     expect(result.channels.items).toEqual([]);
     expect(JSON.stringify(result)).not.toContain("private");
-    expect(request).toHaveBeenCalledTimes(3);
+    expect(request).toHaveBeenCalledTimes(2);
   });
 });
 

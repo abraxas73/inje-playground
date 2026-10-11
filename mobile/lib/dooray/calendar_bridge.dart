@@ -11,7 +11,11 @@ class DoorayCalendarException implements Exception {
 }
 
 /// Credentials stay in the WebView cookie jar; only normalized schedule data leaves it.
-String calendarRequestJs(String requestId, String day) {
+String calendarRequestJs(
+  String requestId,
+  String day, {
+  bool unreadMail = false,
+}) {
   if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(day)) {
     throw const FormatException('Invalid day');
   }
@@ -44,6 +48,11 @@ String calendarRequestJs(String requestId, String day) {
       return j.result;
       } finally { clearTimeout(timer); }
     }
+    if (${unreadMail ? 'true' : 'false'}) {
+      const mail = await get('/v2/wapi/mails?exceptFolders=sent%2Cdraft%2Cspam%2Ctrash%2Carchive%2Capprovemail&read=false&preview=false&size=5&page=0&order=-createdAt&view=timeline&excludeTotalCount=true');
+      save({items:mail.contents.filter(m => m.mailSummary?.flags?.read === false && m.mailSummary?.flags?.deleted === false).map(m => ({id:m.id, subject:m.subject, from:m.users?.from?.emailUser?.name || m.users?.from?.emailUser?.emailAddress || '', sentAt:m.mailSummary?.sentAt, unread:true}))});
+      return;
+    }
     const list = await get('/v2/wapi/calendars?listed=true&size=10000');
     if (list.totalCount > list.contents.length) throw new Error('incomplete');
     const calendars = list.contents.filter(c => c.type !== 'subscription' && /^\\d+\$/.test(c.id));
@@ -57,7 +66,7 @@ String calendarRequestJs(String requestId, String day) {
 ''';
 }
 
-Map<String, dynamic>? calendarResult(Object raw) {
+Map<String, dynamic>? calendarResult(Object raw, {bool unreadMail = false}) {
   dynamic value = raw;
   for (var i = 0; i < 2 && value is String; i++) {
     if (value.isEmpty) return null;
@@ -82,9 +91,13 @@ Map<String, dynamic>? calendarResult(Object raw) {
         (x) =>
             x is! Map ||
             x['subject'] is! String ||
-            x['startedAt'] is! String ||
-            x['endedAt'] is! String ||
-            x['wholeDayFlag'] is! bool,
+            (unreadMail
+                ? x['unread'] != true ||
+                      x['from'] is! String ||
+                      x['sentAt'] is! String
+                : x['startedAt'] is! String ||
+                      x['endedAt'] is! String ||
+                      x['wholeDayFlag'] is! bool),
       )) {
     throw const DoorayCalendarException('일정 응답 형식이 변경되었습니다.');
   }
@@ -98,12 +111,15 @@ class DoorayCalendarClient {
   final Future<Object> Function(String) evaluate;
   bool _closed = false;
   int _sequence = 0;
-  Future<Map<String, dynamic>> read(String day) async {
+  Future<Map<String, dynamic>> read(
+    String day, {
+    bool unreadMail = false,
+  }) async {
     if (_closed) throw const DoorayCalendarException('Dooray 연결이 닫혔습니다.');
     final id = 'request${++_sequence}';
     try {
       await run(
-        calendarRequestJs(id, day),
+        calendarRequestJs(id, day, unreadMail: unreadMail),
       ).timeout(const Duration(seconds: 10));
       final deadline = DateTime.now().add(const Duration(seconds: 20));
       while (!_closed && DateTime.now().isBefore(deadline)) {
@@ -111,7 +127,7 @@ class DoorayCalendarClient {
           'JSON.stringify(window.__innocrewCalendar?.[${jsonEncode(id)}] ?? null)',
         ).timeout(const Duration(seconds: 3));
         if (_closed) break;
-        final data = calendarResult(raw);
+        final data = calendarResult(raw, unreadMail: unreadMail);
         if (data != null) return data;
         await Future<void>.delayed(const Duration(milliseconds: 150));
       }
