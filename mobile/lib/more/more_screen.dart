@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
 import '../auth/session.dart';
+import '../briefing/briefing_provider.dart';
 import '../release/update_banner.dart';
 import '../gw/gw_creds.dart';
 import '../gw/gw_settings_sheet.dart';
@@ -26,7 +27,10 @@ class MoreScreen extends ConsumerWidget {
     final fallbackAvatar = Center(child: Text(name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)));
     Future<void> open(String path) async {
       await context.push('/web?path=${Uri.encodeComponent(path)}');
-      if (context.mounted) ref.invalidate(profilePhotoProvider);
+      if (context.mounted) {
+        ref.invalidate(profilePhotoProvider);
+        if (path == '/settings') await ref.read(briefingProvider.notifier).refresh();
+      }
     }
     return Scaffold(
       body: ListView(padding: EdgeInsets.zero, children: [
@@ -95,6 +99,7 @@ class MoreScreen extends ConsumerWidget {
                   ),
                 ],
                 const Divider(),
+                if (session.isAdmin || session.permissions['dooray'] != false) ListTile(leading: const Icon(Icons.calendar_month), title: const Text('Dooray 일정'), subtitle: const Text('이 기기에서 로그인·연결 관리'), trailing: const Icon(Icons.chevron_right), onTap: () => context.push('/dooray/calendar')),
                 ListTile(
                   leading: const Icon(Icons.settings_outlined),
                   title: const Text('설정'),

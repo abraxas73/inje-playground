@@ -136,6 +136,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     final gw = ref.watch(gwProvider).value;
     final briefing = ref.watch(briefingProvider);
     final data = briefing.value;
+    final dooray = session?.isAdmin == true || session?.permissions['dooray'] != false ? data?.dooray : null;
     final company = _allAbsences ? ref.watch(companyAbsencesProvider) : null;
     final summary = ref.watch(summaryProvider).value;
     ref.listen(tabTapProvider, (_, t) { if (t.branch == homeBranch) _refresh(); }); // 홈 탭을 눌렀을 때만(다른 브랜치 전환은 무시)
@@ -164,9 +165,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             BriefingCard(
               summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at),
               busy: _summaryBusy || _manualBusy,
-              onRefresh: gw?.status == GwStatus.connected || data?.jira?.connected == true ? _forceSummary : null,
+              onRefresh: gw?.status == GwStatus.connected || data?.jira?.connected == true || dooray?.connected == true ? _forceSummary : null,
               onClockIn: data != null && clockInPending(data.attendance, data.now) ? () => open('/gw/attendance') : null,
               jira: data != null && !data.errors.containsKey('jira') && (session?.isAdmin == true || session?.permissions['jira'] != false) ? data.jira : null,
+              dooray: dooray,
+              onDoorayMore: () => open('/dooray/calendar'),
+              onDoorayRetry: _refresh,
               onJiraMore: () => open('/web?path=${Uri.encodeComponent('/jira')}'),
               onJiraIssue: (key) => open('/web?path=${Uri.encodeComponent('/jira/$key')}'),
             ),

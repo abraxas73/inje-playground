@@ -12,6 +12,8 @@ import 'package:playground/gw/gw_client.dart';
 import 'package:playground/gw/gw_creds.dart';
 import 'package:playground/gw/gw_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:playground/dooray/calendar_bridge.dart';
+import 'package:playground/dooray/calendar_session.dart';
 import '../gw/fakes.dart';
 
 http.Response ok(Object? data) => http.Response.bytes(utf8.encode(jsonEncode({'resultCode': 0, 'resultData': data})), 200, headers: {'content-type': 'application/json; charset=utf-8'});
@@ -59,6 +61,60 @@ ProviderContainer scope({GwCreds? creds = testCreds, required MockClient gw, req
 }
 
 void main() {
+  test('연결 후 새로고침 실패·재연결은 기존 내용을 보존하고 해제는 지운다', () async {
+    final app = AppApi({'/api/teams/mentions': (200, {'connected': false, 'items': []}), '/api/dooray/overview': (200, {
+      'connected': true, 'events': {'items': [{'subject': '무시할 서버 일정'}]}, 'mail': {'items': [{'subject': '기존 메일'}]},
+    })});
+    final c = scope(creds: null, gw: gwRoutes({}), api: app.client);
+    await c.read(briefingProvider.future);
+    for (final code in [502, 409]) {
+      app.routes['/api/dooray/overview'] = (code, {'error': 'secret upstream detail'});
+      await c.read(briefingProvider.notifier).refresh();
+      final d = await c.read(briefingProvider.future);
+      expect(d.dooray?.connected, true);
+      expect(d.dooray?.mail.single.subject, '기존 메일');
+      expect(d.dooray?.events, isEmpty);
+      expect(d.dooray?.refreshError, code == 409 ? contains('다시 연결') : contains('이전 내용'));
+      expect(d.dooray?.refreshError, isNot(contains('secret')));
+    }
+    app.routes['/api/dooray/overview'] = (200, {'connected': false});
+    await c.read(briefingProvider.notifier).refresh();
+    expect((await c.read(briefingProvider.future)).dooray?.visible, false);
+  });
+
+  test('Dooray는 GW 없이도 수집하며 메일 실패가 일정을 지우지 않는다', () async {
+    final app = AppApi({'/api/teams/mentions': (200, {'connected': false, 'items': []}), '/api/dooray/overview': (200, {
+      'connected': true,
+      'events': {'items': [{'subject': '회의', 'startedAt': '2026-10-11T00:00:00Z'}]},
+      'mail': {'items': [], 'error': 'failed'},
+    })});
+    final c = scope(creds: null, gw: gwRoutes({}), api: app.client);
+    final local = DoorayCalendarClient(run: (_) async {}, evaluate: (_) async => jsonEncode({'items': [{'id':'1','subject':'기기 일정','startedAt':'2026-10-11T09:00:00+09:00','endedAt':'2026-10-11T10:00:00+09:00','wholeDayFlag':false}]}));
+    c.read(doorayCalendarTransportProvider.notifier).attach(local);
+    final d = await c.read(briefingProvider.future);
+    expect(d.dooray?.events.single.subject, '기기 일정');
+    expect(app.queries['/api/dooray/overview']?['calendarSource'], 'app');
+    expect(d.dooray?.mailError, 'failed');
+    expect(d.errors, isEmpty);
+    expect(app.queries['/api/dooray/overview']?['briefing'], '1');
+    expect(app.queries['/api/dooray/overview']?['date'], matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
+    expect(summaryPayload(d).containsKey('dooray'), false);
+    await c.read(briefingProvider.notifier).refresh();
+    expect(app.calls['/api/dooray/overview'], 2);
+    c.read(doorayCalendarTransportProvider.notifier).clear();
+    expect((await c.read(briefingProvider.future)).dooray?.events, isEmpty);
+  });
+  test('Dooray 권한 거부는 숨기고 통신 실패는 소스 오류로 격리한다', () async {
+    for (final code in [403, 502]) {
+      final app = AppApi({'/api/teams/mentions': (200, {'connected': false, 'items': []}), '/api/dooray/overview': (code, {'error': 'failure'})});
+      final c = scope(creds: null, gw: gwRoutes({}), api: app.client);
+      final d = await c.read(briefingProvider.future);
+      expect(d.dooray, isNull);
+      expect(d.errors.containsKey('dooray'), code == 502);
+      expect(d.jira, isNotNull);
+    }
+  });
+
   test('Jira 브리핑은 To Do와 진행 중을 함께 조회하고 요약에 포함한다', () async {
     final app = AppApi({'/api/jira/issues': (200, {'connected': true, 'items': [
       {'key': 'AXTF-1', 'summary': 'ipipeline MVP 1차', 'status': 'To Do'},

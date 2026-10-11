@@ -15,7 +15,7 @@ import '../gw/fakes.dart';
 import 'briefing_provider_test.dart' show AppApi, gwAll, gwRoutes;
 
 /// 홈 화면 통합 — 수집·요약 배선. GW 연결 여부에 따라 Claude 호출(POST /api/mobile/briefing)이 달라진다.
-Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime Function()? clock, Future<GwOrgAbsences> Function()? loadCompany}) async {
+Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime Function()? clock, Future<GwOrgAbsences> Function()? loadCompany, Map<String, (int, Object)> routes = const {}}) async {
   SharedPreferences.setMockInitialValues({});
   final auth = FakeAuth()..current = session(expired: false);
   addTearDown(auth.ctrl.close);
@@ -24,6 +24,7 @@ Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime 
     '/api/teams/mentions': (200, {'connected': true, 'items': [{'chatId': 'c', 'topic': '센터', 'from': '김민준', 'text': '확인 부탁', 'at': '2026-10-05T00:00:00Z'}]}),
     '/api/mobile/briefing': (200, {'enabled': true, 'text': '오늘 10시 주간회의가 있습니다.', 'model': 'm', 'at': 'x'}),
     '/api/mobile/release': (200, {'version': '', 'build': 0, 'url': ''}),
+    ...routes,
   });
   await tester.pumpWidget(ProviderScope(key: UniqueKey(), overrides: [
     if (clock != null) briefingClockProvider.overrideWithValue(clock),
@@ -39,6 +40,29 @@ Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime 
 }
 
 void main() {
+  testWidgets('연결된 Dooray가 비어도 수동 갱신 가능하며 Dooray 영역은 숨긴다', (tester) async {
+    final app = await pumpHome(tester, creds: null, routes: {'/api/dooray/overview': (200, {
+      'connected': true, 'events': {'items': []}, 'mail': {'items': []},
+    })});
+    expect(find.text('Dooray'), findsNothing);
+    await tester.tap(find.byTooltip('브리핑 새로고침'));
+    await tester.pumpAndSettle();
+    expect(app.calls['/api/dooray/overview'], 2);
+    expect(app.calls['/api/mobile/briefing'], isNull);
+  });
+
+  testWidgets('Dooray만 연결해도 브리핑 표 새로고침 가능하며 LLM은 호출하지 않는다', (tester) async {
+    final app = await pumpHome(tester, creds: null, routes: {'/api/dooray/overview': (200, {
+      'connected': true, 'events': {'items': []}, 'mail': {'items': [{'subject': 'Dooray 메일'}]},
+    })});
+    expect(find.text('Dooray 메일'), findsOneWidget);
+    expect(app.calls['/api/mobile/briefing'], isNull);
+    await tester.tap(find.byTooltip('브리핑 새로고침'));
+    await tester.pumpAndSettle();
+    expect(app.calls['/api/dooray/overview'], 2);
+    expect(app.calls['/api/mobile/briefing'], isNull);
+  });
+
   testWidgets('전체 토글: 부재자가 없어도 보이고, 켤 때만 회사 전체 조회·끄면 소속 복원', (tester) async {
     await tester.binding.setSurfaceSize(const Size(400, 1800));
     addTearDown(() => tester.binding.setSurfaceSize(null));

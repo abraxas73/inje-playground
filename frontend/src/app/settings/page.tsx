@@ -3,6 +3,7 @@
 import { Settings } from "lucide-react";
 import AppRequestCard from "@/components/settings/AppRequestCard";
 import MyTeamCard from "@/components/settings/MyTeamCard";
+import DoorayAccountCard from "@/components/settings/DoorayAccountCard";
 import JiraAccountCard from "@/components/settings/JiraAccountCard";
 import MicrosoftAccountCard from "@/components/settings/MicrosoftAccountCard";
 import SharepointFolderCard from "@/components/settings/SharepointFolderCard";
@@ -24,6 +25,7 @@ export default function UserSettingsPage() {
       {/* Microsoft 계정 (SharePoint 업로드) */}
       <MicrosoftAccountCard />
       <JiraAccountCard />
+      <DoorayAccountCard />
 
       {/* SharePoint 업로드 기본 폴더 */}
       <SharepointFolderCard />

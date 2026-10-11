@@ -1,5 +1,6 @@
 import 'confluence_briefing.dart';
 import 'jira_briefing.dart';
+import 'dooray_briefing.dart';
 import 'sharepoint_briefing.dart';
 import '../gw/talk_alerts.dart';
 import 'package:flutter/material.dart';
@@ -40,9 +41,11 @@ class QuoteCard extends StatelessWidget {
 
 /// "데일리 브리핑" — Claude가 하루 1회 쓴 2~3문장. 최신 업무 데이터로 다시 생성할 수 있다.
 class BriefingCard extends StatelessWidget {
-  const BriefingCard({super.key, required this.summary, this.busy = false, this.onClockIn, this.onRefresh, this.jira, this.onJiraMore, this.onJiraIssue});
+  const BriefingCard({super.key, required this.summary, this.busy = false, this.onClockIn, this.onRefresh, this.jira, this.onJiraMore, this.onJiraIssue, this.dooray, this.onDoorayMore, this.onDoorayRetry});
   final SummaryText? summary;
   final JiraBriefing? jira;
+  final DoorayBriefing? dooray;
+  final VoidCallback? onDoorayMore, onDoorayRetry;
   final VoidCallback? onJiraMore;
   final ValueChanged<String>? onJiraIssue;
   final bool busy;
@@ -53,16 +56,17 @@ class BriefingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = summary;
     final showJira = jira?.connected == true && jira!.items.isNotEmpty && onJiraMore != null && onJiraIssue != null;
-    if (s == null && !busy && onRefresh == null && !showJira) return const SizedBox.shrink();
+    final showDooray = dooray?.visible == true;
+    if (s == null && !busy && onRefresh == null && !showJira && !showDooray) return const SizedBox.shrink();
     return _Section(
       title: '데일리 브리핑',
       trailing: onRefresh == null ? null : IconButton(tooltip: '브리핑 새로고침', onPressed: busy ? null : onRefresh, icon: const Icon(Icons.refresh)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (s == null)
+          if (s == null && (busy || !showDooray))
             (busy ? const LinearProgressIndicator(minHeight: 2) : const Text('새로고침을 눌러 브리핑을 받아보세요.'))
-          else Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          else if (s != null) Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 if (busy) const LinearProgressIndicator(minHeight: 2),
                 Text(s.text, style: const TextStyle(fontSize: 15, height: 1.6, color: Brand.navy)),
                 if (onClockIn != null) ...[
@@ -75,6 +79,10 @@ class BriefingCard extends StatelessWidget {
           if (showJira) ...[
             const Divider(height: 24),
             JiraSection(data: jira!, onMore: onJiraMore!, onIssue: onJiraIssue!),
+          ],
+          if (showDooray) ...[
+            if (s != null || showJira) const Divider(height: 24),
+            DooraySection(data: dooray!, onMore: onDoorayMore, onRetry: onDoorayRetry),
           ],
         ]),
       ),
@@ -394,3 +402,35 @@ class TalkMentionSection extends StatelessWidget {
 }
 
 String _talkWhen(DateTime t) => '${t.month}/${t.day} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+/// 데일리 브리핑 카드 안에서만 쓰는 Dooray 일정·메일 소식.
+class DooraySection extends StatelessWidget {
+  const DooraySection({super.key, required this.data, this.onMore, this.onRetry});
+  final DoorayBriefing data;
+  final VoidCallback? onMore, onRetry;
+  @override
+  Widget build(BuildContext context) {
+    if (!data.visible) return const SizedBox.shrink();
+    Widget rows(String title, List<DoorayBriefingItem> items, String? error) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(title, style: Theme.of(context).textTheme.titleSmall)),
+      if (error != null)
+        Row(children: [const Expanded(child: Text('불러오지 못했습니다.', style: TextStyle(color: Brand.dangerText))), if (onRetry != null) TextButton(onPressed: onRetry, child: const Text('다시 시도'))])
+      else Table(columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth()}, children: [
+        for (final item in items.take(5)) TableRow(children: [
+          Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(item.subject)),
+          Padding(padding: const EdgeInsets.fromLTRB(8, 6, 0, 6), child: Text(item.detail, style: Theme.of(context).textTheme.bodySmall)),
+        ]),
+      ]),
+    ]);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [const Expanded(child: Text('Dooray')), if (onMore != null) TextButton(onPressed: onMore, child: const Text('전체 보기'))]),
+      if (data.refreshError != null) Row(children: [Expanded(child: Text(data.refreshError!, style: const TextStyle(color: Brand.dangerText))), if (onRetry != null) TextButton(onPressed: onRetry, child: const Text('다시 시도'))]),
+      if (data.events.isNotEmpty || data.eventsError != null) rows('오늘 일정', data.events, data.eventsError),
+      if (data.mail.isNotEmpty || data.mailError != null) ...[
+        rows('최근 메일 소식', data.mail, data.mailError),
+        const Text('활동 피드 기준이며 받은편지함의 미읽음 목록이 아닙니다.', style: TextStyle(fontSize: 11, color: Brand.muted)),
+        if (data.partial) const Text('최근 소식 일부만 표시합니다.', style: TextStyle(fontSize: 11, color: Brand.muted)),
+      ],
+    ]);
+  }
+}

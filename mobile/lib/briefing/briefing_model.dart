@@ -1,4 +1,5 @@
 import 'confluence_briefing.dart';
+import 'dooray_briefing.dart';
 import '../gw/talk_alerts.dart';
 import 'sharepoint_briefing.dart';
 import 'jira_briefing.dart';
@@ -72,6 +73,7 @@ class BriefingData {
   /// 메신저(아마란스) 멘션 알림 — 아마란스 연결 때만
   List<GwTalkAlert>? talks;
   JiraBriefing? jira;
+  DoorayBriefing? dooray;
   ConfluenceBriefing? confluence;
   SharepointBriefing? sharepoint;
   final errors = <String, String>{};

@@ -11,6 +11,7 @@ import '../assistant/assistant_session.dart';
 import '../briefing/briefing_provider.dart';
 import '../briefing/summary_provider.dart';
 import '../config.dart';
+import '../dooray/calendar_session.dart';
 import '../gw/gw_creds.dart';
 import '../gw/gw_login_store.dart';
 
@@ -95,6 +96,7 @@ class SessionNotifier extends AsyncNotifier<AppSession?> {
         _afterSignIn();
       }
       if (e.event == AuthChangeEvent.signedOut) {
+        ref.read(doorayCalendarTransportProvider.notifier).clear();
         state = const AsyncValue.data(null);
       }
     });
@@ -138,6 +140,8 @@ class SessionNotifier extends AsyncNotifier<AppSession?> {
 
   /// 앱 세션 종료 + WebView 쿠키·localStorage 정리(같은 기기에서 다른 계정이 이전 사용자의 웹 세션·설정을 보지 않게).
   Future<void> signOut() async {
+    ref.read(doorayCalendarTransportProvider.notifier).clear();
+    await ref.read(doorayCalendarConnectionProvider.notifier).disconnect();
     try {
       await AppWebController.clearSession();
     } catch (_) {}
@@ -150,6 +154,7 @@ class SessionNotifier extends AsyncNotifier<AppSession?> {
   /// 기기 설정(이노봇 버튼 위치 등)은 남긴다.
   static const _userPrefPrefixes = [
     'gw.',
+    'dooray.',
     'assistant.journal',
     'clockin.',
     'briefing.',

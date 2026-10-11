@@ -11,6 +11,7 @@ import 'app/theme.dart';
 import 'auth/session.dart';
 import 'config.dart';
 import 'web/app_webview.dart';
+import 'dooray/calendar_webview.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,6 +82,7 @@ class _AppState extends ConsumerState<App> {
       title: '이노그리드',
       theme: appTheme(),
       routerConfig: _router,
+      builder: (context, child) => DoorayCalendarHost(child: child ?? const SizedBox.shrink()),
     );
   }
 }
