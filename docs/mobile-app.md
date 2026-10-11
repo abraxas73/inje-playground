@@ -218,6 +218,14 @@ Graph 메모: 검색 hit는 `fields`에 file·folder를 넣어도 폴더에 `fol
 
 **웹 홈 설치 안내 카드(2026-10-10)**: 브라우저는 설치된 앱을 알 수 없으므로(표준 `getInstalledRelatedApps()`는 스토어·PWA 짝만, `innogrid://` 스킴 호출은 확인 창·오탐·앱 실행 부작용) 서버 신호를 쓴다 — 앱 로그인 `POST /api/mobile/login`이 `login_history`에 남기는 User-Agent `InnogridApp/<ver> (macOS|windows) InnogridBuild/<n>`(platform은 Flutter `defaultTargetPlatform.name` 그대로라 `macOS`·`iOS`는 대문자 섞임 — 대소문자 무시로 매칭). `GET /api/desktop/presence`(`lib/desktop/presence.ts`)가 내 계정의 플랫폼별 최근 앱 로그인 시각을 돌려주고, 홈 `components/home/DesktopAppCard`는 데스크톱 브라우저(모바일·iPad 제외)에서 현재 OS 값이 null이면 맨 위에 설치를 권한다(/apps·/manual#desktop-install 링크, Windows는 SmartScreen 한 줄). ‘다음에’는 localStorage `desktop_app_card_dismissed_at`로 그 브라우저에서 30일 숨김. "설치됨"이 아니라 "로그인한 적 있음"이라 앱을 지웠거나 다른 PC면 카드가 안 뜰 수 있다 — 의도된 한계. **확인 방법**: Chrome/Edge 개발자 도구 ⋮ → 추가 도구 → Network conditions → User agent "Use browser default" 해제 → "Chrome — Windows"(또는 Mac) 선택 후 새로고침. 그 OS의 앱 로그인 행이 이미 있으면 카드가 숨겨지므로, 꼭 봐야 하면 service role로 `login_history`에서 `user_agent ilike 'InnogridApp/% (windows)%'` 행을 지운다(2026-10-11 운영자 계정 Windows 1.4.6 로그인 1건 삭제 사례 — 관리자 감사 로그의 로그인 이력에서도 사라지며, 앱에 다시 로그인하면 새 행이 생겨 카드가 다시 숨겨진다). ‘다음에’를 눌렀다면 Application → Local Storage의 `desktop_app_card_dismissed_at`을 지운다.
 
+## 웹 메일·메뉴 통일·새 창 링크 (2026-10-11, 1.6.2)
+
+- **웹 메뉴 = 앱 하단 바**: 웹 `PAGE_GROUPS`를 앱 `pageGroups`와 같은 일상·AI·업무·아마란스로, 하위 라벨도 통일(SharePoint 문서). 매뉴얼 카테고리도 같은 이름.
+- **웹 메일 `/gw/mail`**(키 `gw_mail`): 서버는 아마란스 자격 증명을 갖지 않으므로 Claude 커넥터와 같은 `mcp_calls` 중계(`lib/mcp/relay.ts` → `lib/gw/mail.ts` callApp)로 **같은 계정으로 로그인해 '요청 받기'를 켠 데스크톱 앱**에 `list_mail_inbox`·`read_mail`·`mark_mail_unread`를 맡긴다. 앱이 꺼져 있으면 409 `no_app`과 설치·실행 안내. 본문은 서식 없는 텍스트(앱 `_readMail`과 같은 규칙), 첨부는 이름만. 모바일 앱 WebView에서는 이 경로를 쓰지 않고 네이티브 `/gw/mail`로 간다(appPages). 한계: 데스크톱 앱이 없는 사용자는 웹 메일을 쓸 수 없다 — 의도된 설계(비밀번호를 서버에 두지 않음).
+- **앱 메일 본문**: `mail_detail_screen.dart` — `GwApi.readMail`(mail002A01, ⚠️ 읽음 처리) 텍스트 본문·받는 사람·참조·첨부 이름, `markMailUnread`(mail002A15, 최근 200건 안). 목록으로 돌아오면 다시 읽는다.
+- **데스크톱 WebView에서 새 창 링크 무반응 수정**: Confluence·SharePoint 문서 목록의 `target="_blank"` 링크가 아무 일도 하지 않았다. 원인: macOS WKWebView는 새 창 요청을 `targetFrame` 없이 넘겨 webview_flutter가 `isMainFrame=false`로 보고하고, `_onNav`는 main frame이 아닌 외부 이동을 조용히 막는다(Windows WebView2는 새 창 요청 자체를 버림). 해결: `web_session.dart` `blankLinkBridgeJs`를 페이지 로드마다 주입해 `a[target=_blank]` 클릭·`window.open`을 같은 창 이동으로 바꾸면 `_onNav`(main frame)가 외부 주소를 브라우저로 넘긴다. 홈 브리핑의 Confluence 섹션(네이티브)은 원래 `launchUrl`로 열린다.
+- **페이지 권한 DB 키 동기화**: `docs/page-access.md` 2026-10-11 절.
+
 ## Claude 커넥터(아마란스 MCP) (2026-10-10)
 
 목적: inno-creed 바이너리를 대체한다. claude.ai 조직 커넥터 **"INNOGRID 아마란스"**(URL `https://innocrew.innogrid.com/api/mcp`)로 Claude(웹·Desktop·모바일·Claude Code)가 각자 아마란스(메일·일정·결재·조직도 등)를 부른다. 스펙 `docs/superpowers/specs/2026-10-10-desktop-mcp-connector-design.md`.
