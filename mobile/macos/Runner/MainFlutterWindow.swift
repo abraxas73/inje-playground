@@ -5,6 +5,27 @@ import ObjectiveC
 import webview_flutter_wkwebview
 
 class MainFlutterWindow: NSWindow {
+  override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    // Flutter can consume Cmd+V before the Edit menu reaches a platform WebView.
+    if pasteIntoFocusedWebView(event) { return true }
+    return super.performKeyEquivalent(with: event)
+  }
+
+  func pasteIntoFocusedWebView(_ event: NSEvent) -> Bool {
+    let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
+    guard event.type == .keyDown, modifiers == .command,
+          event.charactersIgnoringModifiers?.lowercased() == "v",
+          let responder = firstResponder as? NSView else { return false }
+    var ancestor: NSView? = responder
+    while let view = ancestor {
+      if view is WKWebView {
+        return NSApp.sendAction(#selector(NSText.paste(_:)), to: responder, from: self)
+      }
+      ancestor = view.superview
+    }
+    return false
+  }
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = NSRect(x: self.frame.origin.x, y: self.frame.origin.y, width: 1100, height: 800)
