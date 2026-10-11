@@ -7,6 +7,8 @@ AppSession s(String role, [Map<String, bool> p = const {}]) => AppSession(email:
 void main() {
   test('Jira는 업무 메뉴에 있고 권한으로 숨길 수 있다', () {
     final work = visibleGroups(s('user')).firstWhere((g) => g.$1.id == 'work');
+    expect(work.$2.any((p) => p.key == 'dooray' && p.href == '/dooray'), true);
+    expect(visiblePages(s('user', {'dooray': false})).any((p) => p.key == 'dooray'), false);
     expect(work.$2.any((p) => p.key == 'jira' && p.href == '/jira'), true);
     expect(work.$2.any((p) => p.key == 'confluence' && p.href == '/confluence'), true);
     expect(visiblePages(s('user', {'jira': false})).any((p) => p.key == 'jira'), false);

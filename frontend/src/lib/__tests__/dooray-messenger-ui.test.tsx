@@ -1,0 +1,33 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import DoorayMessenger from "@/components/DoorayMessenger";
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it("selects an explicit recipient and sends once while pending", async () => {
+  let resolve!: (value: unknown) => void;
+  const fetcher = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({ items: [{ id: "1", name: "홍길동", email: "hong@example.com" }] }) }).mockImplementationOnce(() => new Promise(r => { resolve = r; }));
+  vi.stubGlobal("fetch", fetcher);
+  render(<DoorayMessenger channels={[]} />);
+  fireEvent.click(screen.getByRole("button", { name: "1:1 메시지" }));
+  fireEvent.change(screen.getByRole("searchbox"), { target: { value: "홍길동" } });
+  fireEvent.click(screen.getByRole("button", { name: "검색" }));
+  fireEvent.click(await screen.findByRole("button", { name: /hong@example.com/ }));
+  fireEvent.change(screen.getByRole("textbox", { name: "메시지" }), { target: { value: "안녕하세요" } });
+  fireEvent.click(screen.getByRole("button", { name: "보내기" }));
+  expect(screen.getByRole("button", { name: "전송 중…" })).toBeDisabled();
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(JSON.parse(fetcher.mock.calls[1][1].body)).toEqual({ kind: "member", id: "1", text: "안녕하세요" });
+  resolve({ ok: true, json: async () => ({ sent: true }) });
+  expect(await screen.findByRole("status")).toHaveTextContent("메시지를 보냈습니다");
+  expect(screen.getByRole("textbox", { name: "메시지" })).toHaveValue("");
+});
+it("retains the draft and reports a failed send without retrying", async () => {
+  const fetcher = vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: "권한이 없습니다" }) });
+  vi.stubGlobal("fetch", fetcher);
+  render(<DoorayMessenger channels={[{ id: "12", title: "팀 대화" }]} />);
+  fireEvent.click(screen.getByRole("button", { name: "팀 대화" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "메시지" }), { target: { value: "보낼 내용" } });
+  fireEvent.click(screen.getByRole("button", { name: "보내기" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("권한이 없습니다");
+  expect(screen.getByRole("textbox", { name: "메시지" })).toHaveValue("보낼 내용");
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});

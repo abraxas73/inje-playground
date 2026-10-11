@@ -53,7 +53,7 @@ class ServiceGrid extends StatelessWidget {
     final (icon, desc) = serviceMeta[p.key] ?? (Icons.open_in_new, '웹에서 열기');
     return Card(
       child: InkWell(
-        onTap: () => context.push('/web?path=${Uri.encodeComponent(p.href)}'),
+        onTap: () => context.push(p.key == 'dooray' ? '/dooray/calendar' : '/web?path=${Uri.encodeComponent(p.href)}'),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -75,7 +75,7 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
     if (b != null) return _goBranch(b);
     _close();
     // 앱 전용 네이티브 화면(/gw/*)은 그대로 push, 나머지는 WebView
-    context.push(p.href.startsWith('/gw/') ? p.href : '/web?path=${Uri.encodeComponent(p.href)}');
+    context.push(p.key == 'dooray' ? '/dooray/calendar' : p.href.startsWith('/gw/') ? p.href : '/web?path=${Uri.encodeComponent(p.href)}');
   }
 
   @override

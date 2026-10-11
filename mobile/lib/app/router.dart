@@ -19,6 +19,7 @@ import '../gw/gw_connect_screen.dart';
 import '../gw/mail_screen.dart';
 import '../gw/today_screen.dart';
 import 'tab_shell.dart';
+import '../dooray/calendar_screen.dart';
 
 /// 하단 탭을 누를 때마다 1 증가 — 탭 화면(IndexedStack에 살아 있음)이 이걸 듣고 서버 데이터(내 팀 등)를 다시 불러온다.
 /// 하단 바 브랜치 인덱스(홈). 셸·홈 화면·홈 카드가 "홈 탭을 눌렀을 때만" 다시 수집하도록 공유한다.
@@ -48,6 +49,7 @@ GoRouter buildRouter({
       path: '/web',
       builder: (c, s) => WebScreen(path: s.uri.queryParameters['path'] ?? '/'),
     ),
+    GoRoute(path: '/dooray/calendar', builder: (c, s) => const DoorayCalendarScreen()),
     GoRoute(path: '/gw/connect', builder: (c, s) => const GwConnectScreen()),
     GoRoute(path: '/gw/approvals', builder: (c, s) => const ApprovalsScreen()),
     GoRoute(path: '/gw/attendance', builder: (c, s) => const AttendanceScreen()),
