@@ -6,6 +6,10 @@ import WebKit
 
 class RunnerTests: XCTestCase {
 
+  func testMacOSUsesSkiaUntilImpellerBackingStoreFixShips() {
+    XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "FLTEnableImpeller") as? Bool, false)
+  }
+
   func testPasteOnlyTargetsFocusedWebView() {
     let window = MainFlutterWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
                                    styleMask: [.titled], backing: .buffered, defer: false)
