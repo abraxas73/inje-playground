@@ -21,7 +21,7 @@ import { PAGE_GROUPS, PAGES, matchesPath, pagesForPath, type PageKey } from "@/l
 
 const PAGE_ICONS: Record<PageKey, typeof Coffee> = {
   dooray: MessageCircle, jira: BriefcaseBusiness, confluence: BookText, sharepoint: FolderOpen, food: UtensilsCrossed, ladder: Dice5, team: Coffee, survey: ClipboardList, apps: Smartphone, usage_code: SquareTerminal, usage_chat: MessagesSquare, usage_perf: TrendingUp, rfp: FileSearch, ppt: Presentation, people_news: Newspaper, marketing: Database, guide: BookOpen, teams_chat: MessageCircle, mcp: Smartphone, gw_mail: Mail };
-const GROUP_ICONS = { daily: Users, ai: ChartNoAxesCombined, work: BriefcaseBusiness, gw: Mail };
+const GROUP_ICONS = { daily: Users, ai: ChartNoAxesCombined, work: BriefcaseBusiness };
 
 /** chromeless: 앱 WebView — 접근 권한 검사(effect)는 그대로 돌리고 헤더·하단 탭만 그리지 않는다. */
 export default function Navigation({ chromeless = false }: { chromeless?: boolean }) {
@@ -95,6 +95,8 @@ export default function Navigation({ chromeless = false }: { chromeless?: boolea
             <div className="hidden min-w-0 md:flex items-center gap-0.5 bg-muted/50 rounded-xl p-1">
               {groups.map((group) => groupMenu(group))}
               {isAdmin && <Link href="/admin" className={cn("flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium", matchesPath(pathname, "/admin") ? "bg-background shadow-sm" : "text-muted-foreground")}><Shield className="h-4 w-4" />어드민</Link>}
+              {/* 사용자 매뉴얼은 메뉴 맨 끝(2026-10-11 사용자 요청) */}
+              <Link href="/manual" className={cn("flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium", matchesPath(pathname, "/manual") ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}><BookOpen className="h-4 w-4" />사용자 매뉴얼</Link>
             </div>
             {error && <button className="text-xs text-destructive" onClick={() => void invalidate()}>권한 확인 재시도</button>}
 
@@ -129,10 +131,6 @@ export default function Navigation({ chromeless = false }: { chromeless?: boolea
                       <Settings className="h-4 w-4 mr-2" />
                       설정
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => router.push("/manual")}>
-                      <BookOpen className="h-4 w-4 mr-2" />
-                      사용자 매뉴얼
-                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleLogout}>
                       <LogOut className="h-4 w-4 mr-2" />
@@ -150,6 +148,7 @@ export default function Navigation({ chromeless = false }: { chromeless?: boolea
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl safe-area-bottom">
         <div className="flex h-14 overflow-x-auto px-1">
           {groups.map((group) => groupMenu(group, true))}
+          <Link href="/manual" aria-current={matchesPath(pathname, "/manual") ? "page" : undefined} className={cn("flex flex-1 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium", matchesPath(pathname, "/manual") ? "text-primary" : "text-muted-foreground")}><BookOpen className="h-5 w-5" /><span>매뉴얼</span></Link>
         </div>
       </nav>
     </>
