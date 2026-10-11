@@ -17,15 +17,12 @@ final briefingProvider = AsyncNotifierProvider<BriefingNotifier, BriefingData>(B
 
 class BriefingNotifier extends AsyncNotifier<BriefingData> {
   String? _name;
-  DoorayBriefing? _refreshDooray;
   Future<BriefingData>? _inflight;
 
   @override
   Future<BriefingData> build() async {
     ref.watch(doorayCalendarTransportProvider);
-    final previousDooray = _refreshDooray;
-    _refreshDooray = null;
-    final f = _load(previousDooray);
+    final f = _load();
     _inflight = f;
     try {
       return await f;
@@ -43,12 +40,11 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
       await f;
       return;
     }
-    _refreshDooray = state.value?.dooray;
     ref.invalidateSelf();
     await future;
   }
 
-  Future<BriefingData> _load(DoorayBriefing? previousDooray) async {
+  Future<BriefingData> _load() async {
     await ref.read(gwProvider.future); // 크레덴셜 로딩이 끝나야 gwApiProvider가 결정된다
     final api = ref.read(gwApiProvider);
     final d = BriefingData(now: ref.read(briefingClockProvider)(), empSeq: api?.client.creds().empSeq ?? '');
@@ -61,12 +57,16 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
     }
     final calendarClient = ref.read(doorayCalendarTransportProvider);
     Map<String, dynamic>? localCalendar;
+    Map<String, dynamic>? localMail;
     String? localCalendarError;
     final doorayDate = d.now.toUtc().add(const Duration(hours: 9)).toIso8601String().substring(0, 10);
     await Future.wait([
       if (calendarClient != null) src('dooray_calendar', () async {
         try { localCalendar = await calendarClient.read(doorayDate); }
         catch (_) { localCalendarError = 'Dooray 일정을 새로고침하거나 다시 로그인해 주세요.'; }
+      }),
+      if (calendarClient != null) src('dooray_mail', () async {
+        localMail = await calendarClient.read(doorayDate, unreadMail: true);
       }),
       if (api != null) ...[
         src('calendars', () async => d.cals = await api.calendars()),
@@ -79,25 +79,6 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
         src('attendance', () async => d.attendance = await api.attendanceToday()),
         src('talks', () async => d.talks = await api.talkAlerts(pageSize: 10)),
       ],
-      src('dooray', () async {
-        try {
-          final date = '${d.now.year}-${d.now.month.toString().padLeft(2, '0')}-${d.now.day.toString().padLeft(2, '0')}';
-          final raw = await ref.read(apiClientProvider).getJson('/api/dooray/overview', query: {'date': date, 'briefing': '1', 'calendarSource': 'app'});
-          // App calendar ownership is local even when talking to an older server.
-          d.dooray = DoorayBriefing.parse(raw is Map ? {...raw, 'events': {'items': []}} : raw);
-        } catch (e) {
-          final code = e is ApiException ? e.status : null;
-          if (const {400, 401, 403, 404}.contains(code)) {
-            d.dooray = null;
-          } else {
-            if (previousDooray?.connected == true) {
-              d.dooray = DoorayBriefing(connected: true, events: const [], mail: previousDooray!.mail, partial: previousDooray.partial,
-                refreshError: code == 409 ? 'Dooray 계정을 다시 연결해 주세요.' : 'Dooray를 새로 불러오지 못했습니다. 이전 내용을 표시합니다.');
-            }
-            if (code != 409) rethrow;
-          }
-        }
-      }),
       src('jira', () async {
         try {
           d.jira = JiraBriefing.parse(await ref.read(apiClientProvider).getJson('/api/jira/issues', query: {'scope': 'open'}));
@@ -147,10 +128,9 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
       }),
     ]);
     if (calendarClient != null && identical(ref.read(doorayCalendarTransportProvider), calendarClient)) {
-      final remote = d.dooray;
-      final local = DoorayBriefing.parse({'connected': true, 'events': localCalendar ?? {'items': []}});
+      final local = DoorayBriefing.parse({'connected': true, 'events': localCalendar ?? {'items': []}, 'mail': localMail ?? {'items': []}});
       d.dooray = DoorayBriefing(connected: true, events: local.events, eventsError: localCalendarError,
-        mail: remote?.mail ?? const [], mailError: remote?.mailError, partial: remote?.partial ?? false, refreshError: remote?.refreshError);
+        mail: local.mail);
     }
     d.name = _name ?? ''; // 로딩 중 refresh(name:)로 들어온 이름도 반영
     return d;

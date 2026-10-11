@@ -88,12 +88,12 @@ class _DoorayCalendarScreenState extends ConsumerState<DoorayCalendarScreen> {
             children: [
               OutlinedButton(
                 onPressed: _connect,
-                child: Text(connected ? '다시 로그인' : '일정 연결'),
+                child: Text(connected ? '다시 로그인' : '연결'),
               ),
               if (connected)
                 TextButton(
                   onPressed: _disconnect,
-                  child: const Text('일정 연결 해제'),
+                  child: const Text('연결 해제'),
                 ),
             ],
           ),
@@ -139,7 +139,7 @@ class _DoorayCalendarScreenState extends ConsumerState<DoorayCalendarScreen> {
           ],
           const SizedBox(height: 24),
           const Divider(),
-          const Text('메일·메신저는 설정의 Dooray 계정 연결을 사용합니다.'),
+          const Text('이 기기 로그인으로 일정과 안 읽은 메일을 브리핑에서 확인합니다. 메일 소식·메신저 화면은 설정의 Dooray 계정 연결을 사용합니다.'),
           OutlinedButton.icon(
             onPressed: () => context.push(
               '/web?path=${Uri.encodeComponent('/dooray?calendarSource=app')}',

@@ -4,6 +4,15 @@ import 'package:playground/briefing/dooray_briefing.dart';
 import 'package:playground/briefing/briefing_sections.dart';
 
 void main() {
+  test('only explicitly unread mail survives; disconnected data is discarded', () {
+    final raw = {'connected': true, 'mail': {'items': [
+      {'subject': 'unread', 'unread': true},
+      {'subject': 'read', 'unread': false},
+      {'subject': 'unknown'},
+    ]}};
+    expect(DoorayBriefing.parse(raw).mail.map((m) => m.subject), ['unread']);
+    expect(DoorayBriefing.parse({...raw, 'connected': false}).visible, false);
+  });
   testWidgets('기존 연결의 갱신 실패는 이전 표와 안전한 재시도 안내를 함께 표시', (tester) async {
     var retried = false;
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BriefingCard(summary: null,
@@ -36,14 +45,14 @@ void main() {
     var opened = false;
     var retried = false;
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BriefingCard(summary: null,
-      dooray: const DoorayBriefing(connected: true, events: [DoorayBriefingItem(subject: '오전 회의', detail: '09:30')], mailError: 'failed'),
+      dooray: const DoorayBriefing(connected: true, events: [DoorayBriefingItem(subject: '오전 회의', detail: '09:30')], eventsError: 'failed'),
       onDoorayMore: () => opened = true, onDoorayRetry: () => retried = true,
     ))));
     expect(find.byType(Card), findsOneWidget);
-    expect(find.descendant(of: find.byType(Card), matching: find.byType(Table)), findsOneWidget);
+    expect(find.descendant(of: find.byType(Card), matching: find.byType(Table)), findsNothing);
     expect(find.text('새로고침을 눌러 브리핑을 받아보세요.'), findsNothing);
-    expect(find.text('최근 메일 소식'), findsOneWidget);
-    expect(find.text('오전 회의'), findsOneWidget);
+    expect(find.text('안 읽은 메일'), findsNothing);
+    expect(find.text('불러오지 못했습니다.'), findsOneWidget);
     await tester.tap(find.text('전체 보기'));
     await tester.tap(find.text('다시 시도'));
     expect(opened && retried, true);

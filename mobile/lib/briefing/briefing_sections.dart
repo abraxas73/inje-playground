@@ -426,9 +426,8 @@ class DooraySection extends StatelessWidget {
       Row(children: [const Expanded(child: Text('Dooray')), if (onMore != null) TextButton(onPressed: onMore, child: const Text('전체 보기'))]),
       if (data.refreshError != null) Row(children: [Expanded(child: Text(data.refreshError!, style: const TextStyle(color: Brand.dangerText))), if (onRetry != null) TextButton(onPressed: onRetry, child: const Text('다시 시도'))]),
       if (data.events.isNotEmpty || data.eventsError != null) rows('오늘 일정', data.events, data.eventsError),
-      if (data.mail.isNotEmpty || data.mailError != null) ...[
-        rows('최근 메일 소식', data.mail, data.mailError),
-        const Text('활동 피드 기준이며 받은편지함의 미읽음 목록이 아닙니다.', style: TextStyle(fontSize: 11, color: Brand.muted)),
+      if (data.mail.isNotEmpty) ...[
+        rows('안 읽은 메일', data.mail, null),
         if (data.partial) const Text('최근 소식 일부만 표시합니다.', style: TextStyle(fontSize: 11, color: Brand.muted)),
       ],
     ]);

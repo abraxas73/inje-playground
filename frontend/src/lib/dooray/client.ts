@@ -108,7 +108,7 @@ export async function channels(request: DoorayRequest) {
 
 export async function overview(request: DoorayRequest, day: string, briefing: boolean, calendarId?: string, includeEvents = true) {
   dayRange(day);
-  const [e, m, c] = await Promise.allSettled([includeEvents ? events(request, day, calendarId) : Promise.resolve({ items: [] }), mailActivity(request, !briefing), briefing ? Promise.resolve([]) : channels(request)]);
+  const [e, m, c] = await Promise.allSettled([includeEvents ? events(request, day, calendarId) : Promise.resolve({ items: [] }), briefing ? Promise.resolve({ items: [] }) : mailActivity(request, true), briefing ? Promise.resolve([]) : channels(request)]);
   const error = (reason: unknown) => reason instanceof DoorayError ? reason.message : "조회하지 못했습니다. 다시 시도해 주세요.";
   return {
     events: e.status === "fulfilled" ? e.value : { items: [], error: error(e.reason) },

@@ -99,7 +99,7 @@ class MoreScreen extends ConsumerWidget {
                   ),
                 ],
                 const Divider(),
-                if (session.isAdmin || session.permissions['dooray'] != false) ListTile(leading: const Icon(Icons.calendar_month), title: const Text('Dooray 일정'), subtitle: const Text('이 기기에서 로그인·연결 관리'), trailing: const Icon(Icons.chevron_right), onTap: () => context.push('/dooray/calendar')),
+                if (session.isAdmin || session.permissions['dooray'] != false) ListTile(leading: const Icon(Icons.calendar_month), title: const Text('Dooray 일정·메일'), subtitle: const Text('이 기기에서 로그인·연결 관리'), trailing: const Icon(Icons.chevron_right), onTap: () => context.push('/dooray/calendar')),
                 ListTile(
                   leading: const Icon(Icons.settings_outlined),
                   title: const Text('설정'),
