@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Database, Dice5, LogOut, UtensilsCrossed, Coffee, Shield, User as UserIcon, Settings, BookOpen, ClipboardList, SquareTerminal, MessagesSquare, TrendingUp, FileSearch, Presentation, Newspaper, ChevronDown, Users, BriefcaseBusiness, ChartNoAxesCombined, MessageCircle, Smartphone, BookText, FolderOpen } from "lucide-react";
+import { Database, Dice5, LogOut, UtensilsCrossed, Coffee, Shield, User as UserIcon, Settings, BookOpen, ClipboardList, SquareTerminal, MessagesSquare, TrendingUp, FileSearch, Presentation, Newspaper, ChevronDown, Users, BriefcaseBusiness, ChartNoAxesCombined, MessageCircle, Smartphone, BookText, FolderOpen, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 import {
@@ -20,8 +20,8 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { PAGE_GROUPS, PAGES, matchesPath, pagesForPath, type PageKey } from "@/lib/page-access";
 
 const PAGE_ICONS: Record<PageKey, typeof Coffee> = {
-  jira: BriefcaseBusiness, confluence: BookText, sharepoint: FolderOpen, food: UtensilsCrossed, ladder: Dice5, team: Coffee, survey: ClipboardList, apps: Smartphone, usage_code: SquareTerminal, usage_chat: MessagesSquare, usage_perf: TrendingUp, rfp: FileSearch, ppt: Presentation, people_news: Newspaper, marketing: Database, guide: BookOpen, teams_chat: MessageCircle, mcp: Smartphone };
-const GROUP_ICONS = { daily: Users, ai: ChartNoAxesCombined, work: BriefcaseBusiness };
+  jira: BriefcaseBusiness, confluence: BookText, sharepoint: FolderOpen, food: UtensilsCrossed, ladder: Dice5, team: Coffee, survey: ClipboardList, apps: Smartphone, usage_code: SquareTerminal, usage_chat: MessagesSquare, usage_perf: TrendingUp, rfp: FileSearch, ppt: Presentation, people_news: Newspaper, marketing: Database, guide: BookOpen, teams_chat: MessageCircle, mcp: Smartphone, gw_mail: Mail };
+const GROUP_ICONS = { daily: Users, ai: ChartNoAxesCombined, work: BriefcaseBusiness, gw: Mail };
 
 /** chromeless: 앱 WebView — 접근 권한 검사(effect)는 그대로 돌리고 헤더·하단 탭만 그리지 않는다. */
 export default function Navigation({ chromeless = false }: { chromeless?: boolean }) {

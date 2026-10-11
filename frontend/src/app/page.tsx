@@ -8,13 +8,14 @@ import DailyGreeting from "@/components/home/DailyGreeting";
 import DesktopAppCard from "@/components/home/DesktopAppCard";
 import TeamsReplyCard from "@/components/home/TeamsReplyCard";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Database, Dice5, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Presentation, Newspaper, SquareTerminal, MessagesSquare, TrendingUp, MessageCircle, Smartphone, BookText, FolderOpen } from "lucide-react";
+import { Database, Dice5, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Presentation, Newspaper, SquareTerminal, MessagesSquare, TrendingUp, MessageCircle, Smartphone, BookText, FolderOpen, Mail } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 
 const FEATURES = [
   // Teams 채팅은 홈 첫 카드(2026-10-03 사용자 요청)
   { href: "/teams/chat", title: "Teams 채팅", description: "내가 속한 Teams 그룹·1:1 채팅을 여기서 바로 읽고 보내세요.", icon: MessageCircle, gradient: "from-violet-500 to-indigo-600", bgAccent: "bg-violet-50", iconColor: "text-violet-600", delay: "delay-100" },
   { href: "/confluence", title: "Confluence", description: "회사 위키 문서를 찾고, 나를 멘션한 문서를 보고, 회의록·주간보고를 바로 만드세요.", icon: BookText, gradient: "from-sky-500 to-blue-600", bgAccent: "bg-sky-50", iconColor: "text-sky-600", delay: "delay-100" },
+  { href: "/gw/mail", title: "메일", description: "아마란스 받은메일을 웹에서 읽습니다. 같은 계정으로 로그인한 데스크톱 앱이 켜져 있어야 합니다.", icon: Mail, gradient: "from-rose-500 to-orange-600", bgAccent: "bg-rose-50", iconColor: "text-rose-600", delay: "delay-100" },
   { href: "/sharepoint", title: "SharePoint 문서", description: "자주 쓰는 문서·나와 공유된 문서를 바로 열고, 회사 문서를 이름·본문으로 찾으세요.", icon: FolderOpen, gradient: "from-teal-500 to-emerald-600", bgAccent: "bg-teal-50", iconColor: "text-teal-600", delay: "delay-100" },
   { href: "/marketing", title: "마케팅 Master DB", description: "부문별 Contact 제출부터 검증·검수·승인 반영까지 한곳에서 관리합니다.", icon: Database, gradient: "from-blue-500 to-indigo-600", bgAccent: "bg-blue-50", iconColor: "text-blue-600", delay: "delay-100" },
   { href: "/usage/code", title: "Claude Code", description: "개인과 담당 조직의 Claude Code 사용량을 확인하세요.", icon: SquareTerminal, gradient: "from-blue-500 to-indigo-600", bgAccent: "bg-blue-50", iconColor: "text-blue-600", delay: "delay-100" },

@@ -1,10 +1,12 @@
 import type { UserRole } from "./roles";
 
 /** Shared catalog for navigation, administration and server route protection. */
+/** 상위 메뉴 — 앱 하단 바(mobile/lib/more/catalog.dart pageGroups)와 id·라벨을 맞춘다(2026-10-11). */
 export const PAGE_GROUPS = [
-  { id: "daily", label: "일상·팀 활동" },
-  { id: "ai", label: "AI·성과" },
-  { id: "work", label: "업무·소식" },
+  { id: "daily", label: "일상" },
+  { id: "ai", label: "AI" },
+  { id: "work", label: "업무" },
+  { id: "gw", label: "아마란스" },
 ] as const;
 export const PAGES = [
   { key: "food", href: "/food", label: "뭐 먹지", group: "daily", minRole: "guest" },
@@ -18,11 +20,13 @@ export const PAGES = [
   { key: "teams_chat", href: "/teams/chat", label: "Teams 채팅", group: "work", minRole: "user" },
   { key: "jira", href: "/jira", label: "Jira", group: "work", minRole: "user" },
   { key: "confluence", href: "/confluence", label: "Confluence", group: "work", minRole: "user" },
-  { key: "sharepoint", href: "/sharepoint", label: "SharePoint", group: "work", minRole: "user" },
+  { key: "sharepoint", href: "/sharepoint", label: "SharePoint 문서", group: "work", minRole: "user" },
   { key: "rfp", href: "/rfp", label: "RFP 분석", group: "work", minRole: "user" },
   { key: "ppt", href: "/ppt", label: "PPT 만들기", group: "work", minRole: "user" },
   { key: "people_news", href: "/people-news", label: "인사·부고", group: "work", minRole: "user" },
   { key: "marketing", href: "/marketing", label: "마케팅 Master DB", group: "work", minRole: "user" },
+  // 아마란스(앱 네이티브 gw_* 중 웹에도 있는 것). 키는 앱 catalog.dart appPages와 같아 한 스위치로 웹·앱을 함께 제어한다. DB 함수 키 목록은 docs/sql/2026-10-11-page-keys-sync.sql
+  { key: "gw_mail", href: "/gw/mail", label: "메일", group: "gw", minRole: "user" },
   { key: "guide", href: "/guide", label: "가이드 (메뉴 숨김)", group: "work", minRole: "user", hidden: true },
   { key: "mcp", href: "/apps#mcp", label: "Claude 커넥터 (메뉴 숨김)", group: "work", minRole: "user", hidden: true },
 ] as const;
@@ -56,7 +60,7 @@ export function pagesForPath(path: string): PageKey[] {
     ["/api/team-comments", ["team"]], ["/api/team-notify", ["team"]],
     ["/api/surveys", ["survey"]], ["/api/guide", ["guide"]], ["/api/teams/chat", ["teams_chat"]], ["/api/teams/mentions", ["teams_chat"]],
     ["/api/rfp", ["rfp"]], ["/api/ppt", ["ppt"]], ["/api/people-news", ["people_news"]],
-    ["/api/marketing", ["marketing"]], ["/api/jira", ["jira"]], ["/api/confluence", ["confluence"]], ["/api/sharepoint", ["sharepoint"]], ["/api/mcp", ["mcp"]],
+    ["/api/marketing", ["marketing"]], ["/api/jira", ["jira"]], ["/api/confluence", ["confluence"]], ["/api/sharepoint", ["sharepoint"]], ["/api/mcp", ["mcp"]], ["/api/gw/mail", ["gw_mail"]],
     ["/media-directory", ["people_news"]], ["/api/media-directory", ["people_news"]],
     ["/api/usage/code", ["usage_code"]], ["/api/usage/tools", ["usage_code"]],
     ["/api/usage/hourly", ["usage_code"]], ["/api/usage/chat", ["usage_chat"]],

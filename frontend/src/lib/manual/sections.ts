@@ -1,7 +1,7 @@
 export type ManualSection = {
   id: string;
   title: string;
-  category: "시작하기" | "일상·팀 활동" | "AI·성과" | "업무·소식" | "모바일 앱" | "관리·도움말";
+  category: "시작하기" | "일상" | "AI" | "업무" | "아마란스" | "모바일 앱" | "관리·도움말";
   description: string;
   steps: string[];
   note?: string;
@@ -17,7 +17,7 @@ export const manualSections: ManualSection[] = [
     description: "회사 Microsoft 계정으로 로그인합니다. 로그인과 개별 서비스 사용 권한은 별도로 관리됩니다.",
     steps: [
       "로그인 화면의 ‘Microsoft 계정으로 로그인’을 누르고 회사 계정 인증을 마칩니다. Google 로그인 버튼은 운영 설정에 따라 표시될 수 있습니다.",
-      "로그인 후 홈에서 이용 가능한 서비스 카드를 선택하거나 상단 메뉴의 일상·팀 활동, AI·성과, 업무·소식을 펼칩니다.",
+      "로그인 후 홈에서 이용 가능한 서비스 카드를 선택하거나 상단 메뉴의 일상, AI, 업무, 아마란스를 펼칩니다. 메뉴 이름과 구성은 모바일·데스크톱 앱의 하단 메뉴와 같습니다.",
       "프로필에서 이메일과 역할을 확인합니다. 필요한 메뉴가 없거나 접근이 거부되면 해당 서비스 이름과 로그인 이메일을 관리자에게 전달하세요.",
       "공용 기기에서는 사용 후 프로필 메뉴에서 로그아웃합니다. 모바일 앱은 guest 계정으로 로그인하면 권한 안내 화면이 표시됩니다.",
     ],
@@ -58,21 +58,21 @@ export const manualSections: ManualSection[] = [
     links: [{ href: "/settings", label: "설정 열기" }],
   },
   {
-    id: "jira", title: "Jira — 내 담당 업무", category: "업무·소식",
+    id: "jira", title: "Jira — 내 담당 업무", category: "업무",
     description: "개인 Jira 계정을 연결해 본인 담당 이슈를 조회하고 상태 변경·댓글을 처리합니다.",
     steps: ["설정 → Jira 계정에서 ‘연결’을 누르고 로그인·동의합니다. 회사 사이트는 pms-innogrid.atlassian.net이며 앱에 로그인한 회사 이메일과 같은 Atlassian 계정으로 로그인합니다.", "업무 → Jira에서 미완료·진행 중·완료·전체 필터로 담당 이슈를 확인합니다. 목록은 최근 수정 순이며 ‘더 불러오기’로 다음 목록을 볼 수 있습니다.", "이슈를 누르면 설명·상태·마감일·최근 댓글을 확인할 수 있습니다. 더 자세한 편집이나 첨부파일은 ‘Jira에서 열기’를 이용합니다.", "상태 변경 또는 댓글 작성 시 내용을 확인한 뒤 실행합니다. 필수 입력이 있는 상태 변경은 Jira 원문에서 처리합니다.", "앱 데일리 브리핑 카드 안의 Jira 표와 웹 홈의 Jira 카드에는 담당한 미완료 이슈(To Do·진행 중)가 표시됩니다. 완료 업무는 제외하며 최근 수정 순으로 최대 5개를 보여줍니다. 표시할 업무가 없거나 미연결이면 홈의 Jira 영역은 표시하지 않습니다. 계정 연결은 설정 → Jira 계정에서 할 수 있습니다."],
     links: [{ href: "/jira", label: "내 Jira 업무" }, { href: "/settings#jira", label: "Jira 연결 설정" }],
     note: "변경은 연결한 본인 계정 권한으로 실행됩니다. 응답이 끊기면 새로고침해 반영 여부를 확인한 뒤 다시 처리하세요.",
   },
   {
-    id: "confluence", title: "Confluence — 문서 찾기·회의록·주간보고", category: "업무·소식",
+    id: "confluence", title: "Confluence — 문서 찾기·회의록·주간보고", category: "업무",
     description: "Jira와 같은 Atlassian 계정 연결로 회사 위키(Confluence)를 본인 권한으로 찾고, 회의록·주간보고 페이지를 만듭니다.",
     steps: ["설정 → Atlassian 계정(Jira·Confluence)에서 ‘연결’(이미 Jira를 연결했다면 ‘다시 연결’)을 누르고 Confluence 권한에 동의합니다.", "업무 → Confluence에서 ‘나를 멘션’·‘지켜보는 문서’(최근 14일 변경)·‘내가 편집’ 목록을 보고, 검색창으로 문서를 찾습니다. 항목을 누르면 Confluence 원문이 열립니다.", "‘회의록 만들기’에서 회의명·날짜·시간·장소·참석자를 넣으면 표준 회의록 틀(개요·안건·논의·결정·액션 아이템)이 채워집니다. 공간과 상위 페이지(선택)를 고르고 ‘Confluence에 만들기’를 누릅니다.", "‘주간보고 초안’은 이번 주(월요일~오늘) 담당 Jira 업무와 내가 작성·수정한 문서를 모아 초안을 만듭니다. 메모를 더하고 본문을 고친 뒤 올립니다. 마지막에 고른 공간·상위 페이지는 기억됩니다.", "앱의 이노봇에게 “보안 점검 가이드 찾아서 요약해줘”, “오늘 2시 회의 회의록 만들어줘”처럼 말해도 됩니다. 페이지 만들기는 확인 카드에서 공간·제목을 확인한 뒤 실행됩니다.", "PPT 만들기의 웹 주소 원고에 Confluence 페이지 주소를 넣으면 본인 권한으로 본문을 가져옵니다."],
     links: [{ href: "/confluence", label: "내 Confluence" }, { href: "/settings#jira", label: "Atlassian 연결 설정" }],
     note: "본인에게 보이는 문서만 다룹니다. 같은 공간에 같은 제목의 페이지가 있으면 만들 수 없으니 제목에 날짜를 넣으세요.",
   },
   {
-    id: "sharepoint", title: "SharePoint 문서 — 자주 쓰는 문서·즐겨찾기·검색", category: "업무·소식",
+    id: "sharepoint", title: "SharePoint 문서 — 자주 쓰는 문서·즐겨찾기·검색", category: "업무",
     description: "Microsoft 계정 연결(RFP·Teams 채팅과 같은 연결)로 회사 SharePoint·OneDrive 문서를 본인 권한으로 보고 찾습니다. 새 권한 동의는 필요 없습니다.",
     steps: ["설정 → Microsoft 계정에서 ‘연결’을 누릅니다(이미 연결했다면 그대로 됩니다).", "업무 → SharePoint 문서에서 ‘자주 쓰는 문서’(최근 사용)·‘나와 공유’·‘주변에서 많이 보는’ 목록을 보고, 검색창으로 문서를 이름·본문으로 찾습니다. 항목을 누르면 SharePoint에서 열립니다.", "자주 여는 문서는 ★를 눌러 즐겨찾기에 두거나, 문서 링크를 붙여 넣어 추가합니다(최대 30개). 즐겨찾기는 홈 카드와 앱에서도 보입니다.", "앱의 이노봇에게 “지난주 고객 제안서 찾아줘”, “이 보고서 요약해줘”처럼 말하면 문서를 찾아 본문(docx·pdf·pptx·xlsx·hwp)을 읽고 답합니다.", "PPT 만들기의 웹 주소 원고에 SharePoint 문서 링크를 넣으면 본인 권한으로 내려받아 원고로 씁니다(pptx는 PPT 원고로)."],
     links: [{ href: "/sharepoint", label: "SharePoint 문서" }, { href: "/settings", label: "Microsoft 연결 설정" }],
@@ -80,7 +80,19 @@ export const manualSections: ManualSection[] = [
   },
 
   {
-    id: "food", title: "오늘 뭐 먹지?", category: "일상·팀 활동",
+    id: "gw-mail", title: "메일 — 아마란스 받은메일 읽기", category: "아마란스",
+    description: "아마란스 받은메일함을 웹에서 확인하고 본문을 읽습니다. 데스크톱 앱이 사용자 대신 아마란스를 호출합니다.",
+    steps: [
+      "아마란스 메뉴에서 ‘메일’을 엽니다. 같은 계정으로 로그인한 INNOGRID 데스크톱 앱(Mac·Windows)이 켜져 있고, 더보기 > 아마란스가 연결돼 있으며, 더보기 > Claude 커넥터의 ‘요청 받기’가 켜져 있어야 합니다.",
+      "받은메일 최근 20통이 보낸 사람·제목·시각·첨부 여부와 함께 보입니다. 읽지 않은 메일은 굵게 표시됩니다.",
+      "메일을 누르면 본문(텍스트)과 받는 사람·참조·첨부 파일 이름이 열립니다. 열면 아마란스에서도 읽음으로 바뀌며, ‘안 읽음으로 되돌리기’로 되돌릴 수 있습니다(받은메일함 최근 200건 안에서만).",
+      "앱이 꺼져 있거나 다른 계정이면 ‘데스크톱 앱이 실행 중이 아닙니다’ 안내가 뜹니다. 앱을 실행하고 새로고침하세요.",
+    ],
+    note: "본문은 서식 없는 텍스트로 보여 주고 첨부 파일은 이름만 표시합니다(내려받기는 아마란스에서). 앱에서는 더보기 > 아마란스 > 메일에서 같은 내용을 볼 수 있습니다. 아마란스 비밀번호는 앱이 보관하며 서버로 보내지 않습니다.",
+    links: [{ href: "/gw/mail", label: "메일 열기" }, { href: "/apps", label: "데스크톱 앱 받기" }],
+  },
+  {
+    id: "food", title: "오늘 뭐 먹지?", category: "일상",
     description: "주변 식당·카페를 찾고 즐겨찾기와 랜덤 추천으로 장소를 결정합니다.",
     steps: [
       "‘현재 위치’의 위치 접근을 허용하거나 ‘주소 검색/주소 변경’으로 기준 위치를 지정합니다.",
@@ -91,7 +103,7 @@ export const manualSections: ManualSection[] = [
     ], links: [{ href: "/food", label: "뭐 먹지 열기" }],
   },
   {
-    id: "ladder", title: "사다리 게임", category: "일상·팀 활동",
+    id: "ladder", title: "사다리 게임", category: "일상",
     description: "참여자와 결과를 정하고 사다리를 만들어 결과를 공개합니다.",
     steps: [
       "참여자 명단을 직접 입력하거나 내 팀·구성원 가져오기로 채웁니다. 실행 전 중복 이름과 빠진 사람을 확인합니다.",
@@ -102,7 +114,7 @@ export const manualSections: ManualSection[] = [
     links: [{ href: "/ladder", label: "사다리 열기" }],
   },
   {
-    id: "team", title: "커피 타임과 참석 관리", category: "일상·팀 활동",
+    id: "team", title: "커피 타임과 참석 관리", category: "일상",
     description: "참여자를 무작위로 나누고 팀 결과·참석 기록을 관리합니다.",
     steps: [
       "내 팀 또는 직접 입력으로 참여자 명단을 준비하고 이번 활동의 참석자를 확인합니다.",
@@ -113,38 +125,38 @@ export const manualSections: ManualSection[] = [
     ], links: [{ href: "/team", label: "커피 타임 열기" }],
   },
   {
-    id: "survey", title: "설문 참여", category: "일상·팀 활동",
+    id: "survey", title: "설문 참여", category: "일상",
     description: "공개된 사내 설문에 참여합니다.",
     steps: ["설문 목록에서 참여할 설문을 선택합니다.", "설명과 응답 기간을 읽고 필수 질문에 답합니다.", "제출 전 답변을 확인하고 제출 완료 안내가 나타나는지 확인합니다.", "설문이 보이지 않거나 참여가 종료되었으면 담당자에게 공개 상태·응답 기간을 문의합니다."],
     note: "익명 여부와 재응답 가능 여부는 각 설문의 안내를 따르세요.", links: [{ href: "/survey", label: "설문 목록" }],
   },
   {
-    id: "guide", title: "가이드 Q&A", category: "AI·성과",
+    id: "guide", title: "가이드 Q&A", category: "AI",
     description: "등록된 사내 문서를 바탕으로 질문하고 근거를 확인합니다.",
     steps: ["가이드 페이지에서 사용할 노트북을 선택합니다. 현재 기본 홈·메뉴에는 가이드가 숨겨져 있어 아래 링크로 접근합니다.", "질문을 입력하고 전송합니다. Enter는 전송, Shift+Enter는 줄바꿈입니다.", "답변의 참고 자료와 소스 목록에서 근거 문서를 확인합니다.", "답변 알림을 쓰려면 개인 설정과 조직의 알림 연결 상태를 확인합니다."],
     note: "AI 답변은 원문과 함께 확인하세요. 노트북이나 소스가 없으면 관리자에게 문서 등록을 요청합니다.", links: [{ href: "/guide", label: "가이드 Q&A 열기" }],
   },
   {
-    id: "usage", title: "Claude Code·Claude 채팅 사용량", category: "AI·성과",
+    id: "usage", title: "Claude Code·Claude 채팅 사용량", category: "AI",
     description: "계정에 허용된 개인·조직 범위의 AI 사용 현황을 살펴봅니다.",
-    steps: ["AI·성과 메뉴에서 ‘Claude Code’ 또는 ‘Claude 채팅’을 선택합니다.", "조회 기간과 이용 가능한 조직·사용자 범위를 지정합니다.", "요약 지표, 날짜별 추이와 상세 표를 함께 확인합니다. 각 지표의 설명을 읽어 집계 기준을 구분합니다.", "Claude 채팅 화면에서는 채팅·Cowork 및 Office 활동을 확인합니다. 데이터가 비어 있으면 조회 기간과 수집 상태를 관리자에게 문의합니다."],
+    steps: ["AI 메뉴에서 ‘Claude Code’ 또는 ‘Claude 채팅’을 선택합니다.", "조회 기간과 이용 가능한 조직·사용자 범위를 지정합니다.", "요약 지표, 날짜별 추이와 상세 표를 함께 확인합니다. 각 지표의 설명을 읽어 집계 기준을 구분합니다.", "Claude 채팅 화면에서는 채팅·Cowork 및 Office 활동을 확인합니다. 데이터가 비어 있으면 조회 기간과 수집 상태를 관리자에게 문의합니다."],
     note: "표시 범위는 권한에 따라 다르며 사용량 수치만으로 업무 성과를 판단하지 않습니다. 집계는 실제 활동 시각과 차이가 날 수 있습니다.",
     links: [{ href: "/usage/code", label: "Claude Code" }, { href: "/usage/chat", label: "Claude 채팅" }],
   },
   {
-    id: "performance", title: "성과 지표", category: "AI·성과",
+    id: "performance", title: "성과 지표", category: "AI",
     description: "업무 활동과 AI 사용량을 함께 살펴봅니다.",
     steps: ["‘성과’에서 조회 기간과 허용된 개인·조직 범위를 선택합니다.", "Jira·Confluence·GitLab 등의 업무 지표와 AI 활동을 비교합니다.", "지표 설명과 상세 내역에서 처리 시간·건수의 의미를 확인합니다.", "누락이나 소속 불일치가 있으면 기간·계정·해당 항목을 관리자에게 전달해 수집·계정 연결 상태를 확인합니다."],
     links: [{ href: "/usage/perf", label: "성과 열기" }],
   },
   {
-    id: "teams", title: "Teams 채팅", category: "업무·소식",
+    id: "teams", title: "Teams 채팅", category: "업무",
     description: "내가 참여 중인 그룹·1:1 대화를 웹과 앱에서 읽고 본인 이름으로 답장합니다.",
     steps: ["처음 이용할 때 Microsoft 계정을 연결합니다. 권한 추가 안내가 나오면 다시 연결합니다.", "목록에서 대화를 선택합니다. 홈의 답장 대기 항목을 누르면 해당 대화로 바로 이동합니다.", "메시지를 작성하고 전송 버튼을 누릅니다. 상대방에게 내 계정 이름으로 실제 전송됩니다.", "화면이 보이는 동안 새 메시지를 주기적으로 확인합니다. 목록 새로고침으로 참여 중인 채팅을 다시 가져올 수 있습니다.", "첨부파일 등 더 자세한 작업은 ‘Teams에서 열기’를 이용합니다. 작은 화면에서는 뒤로 버튼으로 대화 목록으로 돌아옵니다."],
     links: [{ href: "/teams/chat", label: "Teams 채팅 열기" }, { href: "/settings", label: "연결 설정" }],
   },
   {
-    id: "rfp", title: "RFP 분석·솔루션 매핑·확정", category: "업무·소식",
+    id: "rfp", title: "RFP 분석·솔루션 매핑·확정", category: "업무",
     description: "제안요청서에서 요구사항을 추출하고 솔루션 대응 내용을 검토·정리합니다.",
     steps: [
       "RFP 분석에 hwp·hwpx·docx·텍스트 PDF 또는 요구사항 엑셀(xlsx)을 업로드하고 프로젝트 등록을 진행합니다. 스캔 이미지 PDF는 지원하지 않습니다.",
@@ -157,7 +169,7 @@ export const manualSections: ManualSection[] = [
     links: [{ href: "/rfp", label: "RFP 분석 열기" }],
   },
   {
-    id: "ppt", title: "PPT 만들기·수정·공유", category: "업무·소식",
+    id: "ppt", title: "PPT 만들기·수정·공유", category: "업무",
     description: "텍스트·파일·웹 URL 원고를 회사 템플릿의 프레젠테이션으로 만듭니다.",
     steps: [
       "PPT 만들기에서 원고를 입력하거나 파일·URL을 지정합니다. 발표 목적·대상·강조할 내용을 프롬프트에 적습니다.",
@@ -168,14 +180,14 @@ export const manualSections: ManualSection[] = [
     ], note: "PPT 공유 링크는 로그인이 필요합니다. 생성 실패 시 표시된 오류를 확인하고 원고나 요청 범위를 조정하세요.", links: [{ href: "/ppt", label: "PPT 만들기 열기" }],
   },
   {
-    id: "news", title: "인사·부고와 메일 구독", category: "업무·소식",
+    id: "news", title: "인사·부고와 메일 구독", category: "업무",
     description: "연합뉴스 인사·부고를 조회하고 개인 메일 수신을 설정합니다.",
     steps: ["전체·인사·부고 탭과 이름/기관명·기간 필터로 소식을 찾고 항목에서 원문을 확인합니다.", "목록 새로고침과 즉시 수집을 구분해 사용합니다. 새 수집 결과가 없으면 마지막 수집 상태를 확인합니다.", "메일 수신 여부와 한국 시간 발송 시각을 설정합니다. ‘이전 발송 내역 제외’를 켜면 이미 보낸 소식을 다시 보내지 않습니다.", "‘메일 미리보기’로 내용을 확인하고 필요할 때 ‘지금 수신’을 누릅니다. 새 소식이 없으면 발송이 생략될 수 있습니다.", "관리 매체·부서의 부고만 받고 싶으면 별도의 부고 알림 구독을 켭니다. 일치 배지로 매칭 이유를 확인합니다."],
     note: "메일은 로그인 이메일로 전달되며 이 기능에 Microsoft 계정 연결은 필요하지 않습니다. 관리 매체·부서 편집은 관리자 기능입니다.",
     links: [{ href: "/people-news", label: "인사·부고 열기" }, { href: "/media-directory", label: "관리 매체·부서" }],
   },
   {
-    id: "marketing", title: "마케팅 Master DB", category: "업무·소식",
+    id: "marketing", title: "마케팅 Master DB", category: "업무",
     description: "연락처 조회·제출부터 검수와 이메일 정합성 확인까지 관리합니다. 별도 접근 권한이 필요합니다.",
     steps: ["Master 표에서 검색·필터·정렬로 연락처를 찾고 DB ID를 눌러 상세·변경 이력을 확인합니다. 필요한 목록은 Excel로 내보냅니다.", "신규/변경 Contact를 단건 또는 Excel로 제출합니다. 회사·기관은 등록된 목록에서 선택하며 신규 회사는 회사·기관 탭에 먼저 등록합니다.", "검수자는 검수 큐에서 오류와 확인 항목을 점검한 뒤 승인하거나 사유를 적어 반려합니다. 제출 권한과 승인 권한은 다릅니다.", "관리 규칙과 검증 실행 화면에서 기준에 맞지 않는 항목과 후속 조치를 확인합니다.", "이메일 정합성 검사에서 형식·회사 도메인·MX 등의 근거를 확인하고 결과를 내려받습니다."],
     note: "이메일 정합성 검사는 개별 메일함이 실제로 존재하는지 보장하지 않습니다. 메뉴가 없다면 관리자에게 마케팅 접근 권한을 요청하세요.",
