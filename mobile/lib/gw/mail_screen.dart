@@ -29,7 +29,7 @@ class _BodyState extends State<_Body> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _load());
+    setState(() { _future = _load(); }); // 화살표 함수는 Future를 돌려줘 디버그 빌드에서 setState 단언에 걸린다
     await _future.catchError((_) => (const MailSummary(unread: 0, toMe: 0, total: 0), <MailItem>[]));
   }
 
