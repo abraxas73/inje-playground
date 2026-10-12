@@ -13,7 +13,7 @@ export default function ManualPage() {
   const sections = searchManual(query);
   const categories = [...new Set(sections.map((s) => s.category))];
   return (
-    <div id="manual-top" className="mx-auto max-w-4xl py-8 md:py-12">
+    <div id="manual-top" className="mx-auto max-w-6xl py-8 md:py-12">
       <header className="mb-8 space-y-3">
         <p className="text-sm font-medium text-primary">웹 · 모바일 · 데스크톱 사용 가이드</p>
         <h1 className="text-3xl font-bold tracking-tight">이노그리드 사용자 매뉴얼</h1>
