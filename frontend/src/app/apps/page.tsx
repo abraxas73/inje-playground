@@ -78,7 +78,7 @@ export function AppsPageView({ navigate = (url: string) => window.location.assig
     </div>;
   };
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6">
+    <div className="mx-auto max-w-6xl space-y-6 p-6">
       <div>
         <h1 className="text-2xl font-bold">앱 설치·다운로드</h1>
         <p className="text-sm text-muted-foreground">이노크루 앱을 Mac, Windows PC 또는 휴대폰에 설치하세요. 사내 구성원용 앱입니다.</p>
