@@ -92,6 +92,7 @@
 - **선택지**: 대안이 여러 개면(빈 회의실 여러 곳 등) 모델이 `offer_choices`로 최대 4개를 내고, 앱은 선택지마다 실제 대상으로 만든 카드에 [실행]을 단다 — 누른 선택지만 실행. 대안이 하나면 기존 확인 카드, 정보가 모자라면 되묻기.
 - **말하기·읽어 주기**: 입력칸 옆 🎤(기기 음성 인식 — 인식이 끝났을 때 "~줘·~주세요·~실행"으로 끝나면 바로 보내고, 아니면 이어서 듣다가 2초 동안 새 말이 없으면 보냄, `isCommandEnd`), 봇 답 끝 🔊(기기 TTS, 누를 때만). 음성은 설치된 한국어 중 가장 좋은 것을 자동 선택(`pickKoreanVoice` — iOS 프리미엄 > 향상 > 기본, Android very high > high, 같으면 오프라인). 기본 음성뿐이면 🔊를 처음 누를 때(앱 실행당 한 번) 설치 안내: iOS 설정 > 손쉬운 사용 > 읽기 및 말하기 > 음성 > 한국어 > 유나(향상됨/프리미엄), Android 텍스트 음성 변환 > Google 엔진 > 음성 데이터 설치 > 한국어. 내려받으면 다음 🔊부터 바로 그 음성(고품질을 찾을 때까지 매번 다시 고름). 서버 TTS(Supertonic 3, 약 400MB ONNX)는 검토 후 보류. 코드 `assistant_voice.dart`(`VoiceInput`·`Speaker` 인터페이스 — 테스트는 Provider로 가짜). 권한 문구는 Info.plist·AndroidManifest.
 - 관리자: `/admin/settings` "모바일 앱 — 비서(이노봇)" 스위치·사용자당 하루 턴 상한(기본 200, KST 하루, 설정·건수 조회 오류면 503으로 닫힘). 요청 하나는 보통 3~5턴, 한 번에 최대 10턴. 꺼져 있으면 앱 버튼이 숨는다.
+- **Claude 열기(데스크톱, 2026-10-13)**: macOS·Windows에서는 이노봇 바로 위에 Claude 열기 버튼(`ClaudeButton`, 같이 끌림)이 있다. `lib/assistant/claude_open.dart` — macOS `open -b com.anthropic.claudefordesktop`, Windows `%LOCALAPPDATA%\AnthropicClaude\claude.exe`(없으면 `claude://` 스킴 — Store 설치판), 둘 다 안 되면 브라우저로 `https://claude.ai/download`. 아이콘 `assets/brand/claude.png`(Claude 별, 바탕 `Brand.claudeInk`). 모바일에는 없다.
 
 ## 더보기 프로필·Microsoft 연결 (2026-10-07)
 - 더보기 머리에는 아마란스 조직도 이름 → 앱 계정 이름 순으로 표시한다. 이메일은 아래 줄에 유지한다.

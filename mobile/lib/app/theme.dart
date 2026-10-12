@@ -7,6 +7,7 @@ abstract final class Brand {
   static const botViolet = Color(
     0xFF6268FF,
   ); // 이노봇 버튼 바탕(SECloudit BI "iT" 바탕색)
+  static const claudeInk = Color(0xFF1F1F1F); // Claude 열기 버튼 바탕(Claude 앱의 어두운 바탕 위 주황 별)
   static const blue = Color(0xFF0441FF); // 주 버튼·선택 상태·링크
   static const blueTint = Color(0xFFE8EEFF); // 선택 탭·아이콘 배경
   static const sky = Color(0xFF68CAFF); // 어두운 바탕 위 포인트
