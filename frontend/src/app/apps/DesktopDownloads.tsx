@@ -32,7 +32,7 @@ export function DesktopDownloads() {
           </>}</ol>
           {artifact ? <>
             <Button asChild><a href={`/api/desktop/download/${platform}`}><Download className="h-4 w-4" />{mac ? "DMG 다운로드" : "설치 파일 다운로드"} · {artifact.version}</a></Button>
-            <p className="text-xs text-muted-foreground">{(artifact.bytes / 1024 / 1024).toFixed(1)} MB · {mac ? "Apple 서명·공증 완료" : <>코드 서명 전 테스트 빌드 · 실행 시 ‘Windows의 PC 보호’ 창이 뜨면 <strong>추가 정보 → 실행</strong>을 누르세요. <a href="/manual#desktop-install" className="underline">화면 안내 보기</a></>}</p>
+            <p className="text-xs text-muted-foreground">{(artifact.bytes / 1024 / 1024).toFixed(1)} MB · {mac ? "Apple 서명·공증 완료" : <>코드 서명 전 테스트 빌드라 경고가 두 번 뜹니다. ① 다운로드할 때 ‘일반적으로 다운로드되지 않는 파일’ 경고 — Edge는 다운로드 목록의 ‘…’ → <strong>유지 → 그래도 유지</strong>, Chrome은 <strong>유지</strong>. ② 실행할 때 ‘Windows의 PC 보호’ 창 — <strong>추가 정보 → 실행</strong>. <a href="/manual#desktop-install" className="underline">화면 안내 보기</a></>}</p>
             <details className="text-xs text-muted-foreground"><summary>파일 검증 SHA-256</summary><code className="mt-2 block break-all">{artifact.sha256}</code></details>
           </> : <Button disabled>{error ? "정보 불러오기 실패" : release ? "설치 파일 준비 중" : "불러오는 중…"}</Button>}
         </CardContent></Card>;
