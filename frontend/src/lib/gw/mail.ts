@@ -51,3 +51,18 @@ export async function callApp<T = unknown>(admin: SupabaseClient, userId: string
   if (r.isError) return { ok: false, code: text.includes("실행 중이 아닙니다") ? "no_app" : "tool", message: text };
   try { return { ok: true, data: JSON.parse(text) as T }; } catch { return { ok: false, code: "tool", message: "앱 응답을 해석하지 못했습니다." }; }
 }
+
+/** 받는 사람·참조 문자열 → 사람 목록. 따옴표·<주소> 안의 쉼표는 구분자가 아니다(앱 gw_models.dart splitRecipients와 같은 규칙). */
+export function splitRecipients(s: string): string[] {
+  const out: string[] = [];
+  let cur = "", quoted = false, angle = false;
+  for (const ch of s) {
+    if (ch === '"') quoted = !quoted;
+    if (!quoted && ch === "<") angle = true;
+    if (!quoted && ch === ">") angle = false;
+    if (ch === "," && !quoted && !angle) { out.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map((r) => r.trim()).filter(Boolean);
+}

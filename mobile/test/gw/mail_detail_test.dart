@@ -34,6 +34,11 @@ void main() {
     expect(mailBodyText({'plain': 'a &lt; b'}), 'a &lt; b', reason: 'html 부분이 없는 순수 텍스트 메일은 글자 그대로');
   });
 
+  test('splitRecipients — 쉼표로 나누되 따옴표·<주소> 안의 쉼표는 지킨다', () {
+    expect(splitRecipients('김 <k@x.com>,양<y@x.com>, "박, 지연" <p@x.com> ,,head_dep<h@x.com>'), ['김 <k@x.com>', '양<y@x.com>', '"박, 지연" <p@x.com>', 'head_dep<h@x.com>']);
+    expect(splitRecipients(''), isEmpty);
+  });
+
   test('readMail·markMailUnread 호출 경로·인자', () async {
     final calls = <(String, Map<String, dynamic>)>[];
     final api = GwApi(GwClient(httpClient: MockClient((r) async {

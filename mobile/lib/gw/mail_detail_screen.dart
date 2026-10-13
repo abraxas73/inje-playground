@@ -56,8 +56,8 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
               Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
               const SizedBox(height: 8),
               _row('보낸 사람', m.from),
-              _row('받는 사람', m.to),
-              if (m.cc.isNotEmpty) _row('참조', m.cc),
+              _Recipients('받는 사람', m.to),
+              if (m.cc.isNotEmpty) _Recipients('참조', m.cc),
               _row('시각', niceDate(m.date)),
               if (m.attachments.isNotEmpty)
                 Padding(
@@ -83,4 +83,40 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
       );
 
   static String _size(int n) => n >= 1024 * 1024 ? '${(n / 1024 / 1024).toStringAsFixed(1)}MB' : '${(n / 1024).ceil().clamp(1, 1 << 30)}KB';
+}
+
+/// 받는 사람·참조 — 2명까지만 보이고 나머지는 "외 N명 더보기"로 펼친다.
+class _Recipients extends StatefulWidget {
+  const _Recipients(this.label, this.value);
+  final String label, value;
+  @override
+  State<_Recipients> createState() => _RecipientsState();
+}
+
+class _RecipientsState extends State<_Recipients> {
+  static const _shown = 2;
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final all = splitRecipients(widget.value);
+    final list = _open ? all : all.take(_shown).toList();
+    final more = all.length - _shown;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(width: 68, child: Text(widget.label, style: const TextStyle(fontSize: 12, color: Brand.muted))),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SelectableText(list.isEmpty ? widget.value : list.join('\n'), style: const TextStyle(fontSize: 13)),
+            if (more > 0)
+              InkWell(
+                onTap: () => setState(() => _open = !_open),
+                child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(_open ? '접기' : '외 $more명 더보기', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.primary))),
+              ),
+          ]),
+        ),
+      ]),
+    );
+  }
 }

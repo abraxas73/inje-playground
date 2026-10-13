@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { MailDetail, MailItem, MailSearch } from "@/lib/gw/mail";
+import { splitRecipients } from "@/lib/gw/mail";
 
 type SearchState = { kind: "idle" } | { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready"; data: MailSearch };
 type ListState = { kind: "loading" } | { kind: "no_app"; message: string } | { kind: "error"; message: string } | { kind: "ready"; unread: number; items: MailItem[] };
@@ -132,8 +133,8 @@ export default function MailPage() {
             <h2 className="text-base font-semibold break-words">{detail.mail.subject || "(제목 없음)"}</h2>
             <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-muted-foreground">
               <dt>보낸 사람</dt><dd className="break-words">{detail.mail.from}</dd>
-              <dt>받는 사람</dt><dd className="break-words">{detail.mail.to}</dd>
-              {detail.mail.cc && <><dt>참조</dt><dd className="break-words">{detail.mail.cc}</dd></>}
+              <dt>받는 사람</dt><Recipients value={detail.mail.to} />
+              {detail.mail.cc && <><dt>참조</dt><Recipients value={detail.mail.cc} /></>}
               <dt>시각</dt><dd>{fmt(detail.mail.date)}</dd>
             </dl>
             {detail.mail.attachments.length > 0 && <ul className="mt-3 flex flex-wrap gap-2" aria-label="첨부 파일">
@@ -168,4 +169,16 @@ function SearchResults({ state, open, current }: { state: SearchState; open: (m:
       </li>)}
     </ul>}
   </div>;
+}
+
+/** 받는 사람·참조 — 2명까지만 보이고 나머지는 "외 N명 더보기"로 펼친다. */
+function Recipients({ value }: { value: string }) {
+  const [open, setOpen] = useState(false);
+  const all = splitRecipients(value);
+  const shown = open ? all : all.slice(0, 2);
+  const more = all.length - 2;
+  return <dd className="break-words">
+    {shown.length === 0 ? value : shown.map((r, i) => <span key={i} className="block">{r}</span>)}
+    {more > 0 && <button type="button" className="mt-0.5 text-xs font-medium text-primary hover:underline" onClick={() => setOpen((o) => !o)}>{open ? "접기" : `외 ${more}명 더보기`}</button>}
+  </dd>;
 }

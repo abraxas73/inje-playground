@@ -120,7 +120,7 @@ void main() {
   });
   testWidgets('메일: 미읽음 집계와 목록, 미읽음은 굵게, 누르면 본문 화면(mail002A01)을 열고 돌아오면 목록을 다시 읽는다', (tester) async {
     final r = Routes({'/mail/mail000A03': [[{'unreadCount': 2, 'toMeCount': 1, 'totalCount': 9}]], '/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]}], '/mail/mail003A01': [{'Records': [{'muid': 1, 'subject': '안 읽음', 'fromAddrName': '홍', 'rfc822date': '07:10', 'seen': 0}, {'muid': 2, 'subject': '읽음', 'fromAddrName': '김', 'rfc822date': '10-03', 'seen': 1}], 'TotalUnseenCount': 2}],
-      '/mail/mail002A01': [{'decodeMime': {'subject': '안 읽음', 'from': '홍', 'to': '나', 'date': '2026-10-11 07:10:00'}, 'mime': {'body': {'plain': '본문입니다'}, 'fileList': [{'originalFileName': 'a.pdf', 'fileSize': 4000}]}}]});
+      '/mail/mail002A01': [{'decodeMime': {'subject': '안 읽음', 'from': '홍', 'to': '나', 'cc': '가 &lt;a@x.com&gt;,나 &lt;b@x.com&gt;,"다, 라" &lt;c@x.com&gt;,마 &lt;d@x.com&gt;', 'date': '2026-10-11 07:10:00'}, 'mime': {'body': {'plain': '본문입니다'}, 'fileList': [{'originalFileName': 'a.pdf', 'fileSize': 4000}]}}]});
     await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const MailScreen()));
     await tester.pumpAndSettle();
     expect(find.textContaining('미읽음 2'), findsOneWidget);
@@ -133,6 +133,12 @@ void main() {
     expect(r.hits['/mail/mail002A01'], 1); // 열면 읽음 처리되는 원본 호출
     expect(find.text('본문입니다'), findsOneWidget);
     expect(find.textContaining('a.pdf'), findsOneWidget);
+    expect(find.text('외 2명 더보기'), findsOneWidget); // 받는 사람·참조는 2명까지만, 나머지는 펼쳐서
+    expect(find.textContaining('마 <d@x.com>'), findsNothing);
+    await tester.tap(find.text('외 2명 더보기'));
+    await tester.pumpAndSettle();
+    expect(find.text('접기'), findsOneWidget);
+    expect(find.textContaining('마 <d@x.com>'), findsOneWidget);
     expect(find.text('안 읽음으로 되돌리기'), findsOneWidget);
     await tester.tap(find.byTooltip('뒤로'));
     await tester.pumpAndSettle();

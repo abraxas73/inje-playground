@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PAGES, PAGE_GROUPS, pagesForPath, canOpenPage } from "@/lib/page-access";
-import { callApp, parseDetail, parseInbox, parseSearch } from "@/lib/gw/mail";
+import { callApp, parseDetail, parseInbox, parseSearch, splitRecipients } from "@/lib/gw/mail";
 import MailPage from "@/app/gw/mail/page";
 
 const relay = vi.hoisted(() => ({ relayToolCall: vi.fn() }));
@@ -41,6 +41,10 @@ describe("메일 파서·중계", () => {
       { muid: "102", subject: "", from: "", fromEmail: "n@x.com", date: "", seen: true, attach: false },
     ]);
     expect(parseInbox(null)).toEqual({ unread: 0, items: [] });
+  });
+  it("splitRecipients — 쉼표로 나누되 따옴표·<주소> 안의 쉼표는 지킨다", () => {
+    expect(splitRecipients('김 <k@x.com>,양<y@x.com>, "박, 지연" <p@x.com> ,,head_dep<h@x.com>')).toEqual(["김 <k@x.com>", "양<y@x.com>", '"박, 지연" <p@x.com>', "head_dep<h@x.com>"]);
+    expect(splitRecipients("")).toEqual([]);
   });
   it("본문 결과를 화면용으로 정리한다", () => {
     expect(parseDetail({ muid: "101", subject: "s", from: "f", to: "t", cc: "", date: "d", body: "본문", remoteResourceCount: 2, attachments: [{ fileName: "a.pdf", fileSizeApprox: 2048 }, { fileName: "" }] }))
@@ -95,7 +99,7 @@ describe("메일 페이지", () => {
     const fetch = vi.fn(async (url: string, init?: RequestInit) => {
       if (url === "/api/gw/mail") return Response.json({ unread: 1, items: [{ muid: "101", subject: "회의 안내", from: "김", fromEmail: "k@x.com", date: "2026-10-11 09:00:00", seen: false, attach: true }] });
       if (url === "/api/gw/mail/101/unread" && init?.method === "POST") return Response.json({ ok: true });
-      if (url === "/api/gw/mail/101") return Response.json({ muid: "101", subject: "회의 안내", from: "김", to: "나", cc: "", date: "2026-10-11 09:00:00", body: "10시 회의실 A", attachments: [{ fileName: "agenda.pdf", fileSizeApprox: 4096 }], remoteResourceCount: 0 });
+      if (url === "/api/gw/mail/101") return Response.json({ muid: "101", subject: "회의 안내", from: "김", to: "나", cc: '가 <a@x.com>,나 <b@x.com>,"다, 라" <c@x.com>,마 <d@x.com>', date: "2026-10-11 09:00:00", body: "10시 회의실 A", attachments: [{ fileName: "agenda.pdf", fileSizeApprox: 4096 }], remoteResourceCount: 0 });
       return Response.json({ error: "unexpected" }, { status: 500 });
     });
     vi.stubGlobal("fetch", fetch);
@@ -103,6 +107,10 @@ describe("메일 페이지", () => {
     fireEvent.click(await screen.findByRole("button", { name: /회의 안내/ }));
     expect(await screen.findByText("10시 회의실 A")).toBeInTheDocument();
     expect(screen.getByText("agenda.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("마 <d@x.com>")).toBeNull(); // 받는 사람·참조는 2명까지만, 나머지는 펼쳐서
+    fireEvent.click(screen.getByRole("button", { name: "외 2명 더보기" }));
+    expect(screen.getByText("마 <d@x.com>")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "접기" })).toBeInTheDocument();
     expect(screen.getByText("안 읽음 0")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "안 읽음으로 되돌리기" }));
     await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/gw/mail/101/unread", expect.objectContaining({ method: "POST" })));

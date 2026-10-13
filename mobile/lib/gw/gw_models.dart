@@ -60,6 +60,26 @@ String _tidyLines(String s) => s.split('\n').map((l) => l.trim()).join('\n').rep
 /// 목록 미리보기용 — 줄바꿈·연속 공백을 한 칸으로.
 String oneLine(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
 
+/// 받는 사람·참조 문자열(`김 <k@x>,양<y@x>, "박, 지연" <p@x>`) → 사람 목록. 따옴표·`<주소>` 안의 쉼표는 구분자가 아니다(웹 lib/gw/mail.ts와 같은 규칙).
+List<String> splitRecipients(String s) {
+  final out = <String>[];
+  final cur = StringBuffer();
+  var quoted = false, angle = false;
+  for (final ch in s.split('')) {
+    if (ch == '"') quoted = !quoted;
+    if (!quoted && ch == '<') angle = true;
+    if (!quoted && ch == '>') angle = false;
+    if (ch == ',' && !quoted && !angle) {
+      out.add(cur.toString());
+      cur.clear();
+      continue;
+    }
+    cur.write(ch);
+  }
+  out.add(cur.toString());
+  return [for (final r in out) if (r.trim().isNotEmpty) r.trim()];
+}
+
 /// 미결함 행(eap105A04 map.list[]). 대문자 컬럼명은 서버 그대로.
 class PendingApproval {
   const PendingApproval({required this.docId, required this.formId, required this.title, required this.form, required this.drafter, required this.dept, required this.arrivedDt, required this.status, required this.unread, required this.fileCount});
