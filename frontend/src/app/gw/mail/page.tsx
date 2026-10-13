@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Mail, Paperclip, RefreshCw, Undo2 } from "lucide-react";
+import { ArrowLeft, Mail, Paperclip, RefreshCw, Search, Undo2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { MailDetail, MailItem } from "@/lib/gw/mail";
+import type { MailDetail, MailItem, MailSearch } from "@/lib/gw/mail";
 
+type SearchState = { kind: "idle" } | { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready"; data: MailSearch };
 type ListState = { kind: "loading" } | { kind: "no_app"; message: string } | { kind: "error"; message: string } | { kind: "ready"; unread: number; items: MailItem[] };
 type DetailState = { kind: "idle" } | { kind: "loading"; muid: string } | { kind: "error"; muid: string; message: string } | { kind: "ready"; mail: MailDetail };
 
@@ -20,6 +21,27 @@ export default function MailPage() {
   const [list, setList] = useState<ListState>({ kind: "loading" });
   const [detail, setDetail] = useState<DetailState>({ kind: "idle" });
   const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState("");
+  const [sort, setSort] = useState<"date" | "relevance">("date");
+  const [search, setSearch] = useState<SearchState>({ kind: "idle" });
+
+  // 검색 — 데스크톱 앱의 기기 안 색인(search_mail_index). 300ms 멈춤 뒤 호출, 늦게 온 이전 응답은 버린다.
+  useEffect(() => {
+    const query = q.trim();
+    if (!query) { setSearch({ kind: "idle" }); return; }
+    let alive = true;
+    const t = setTimeout(async () => {
+      setSearch({ kind: "loading" });
+      try {
+        const res = await fetch(`/api/gw/mail/search?q=${encodeURIComponent(query)}&sort=${sort}`, { cache: "no-store" });
+        const data = await res.json();
+        if (!alive) return;
+        if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+        setSearch({ kind: "ready", data });
+      } catch (e) { if (alive) setSearch({ kind: "error", message: e instanceof Error ? e.message : "검색하지 못했습니다." }); }
+    }, 300);
+    return () => { alive = false; clearTimeout(t); };
+  }, [q, sort]);
 
   const load = useCallback(async () => {
     setList({ kind: "loading" });
@@ -67,6 +89,15 @@ export default function MailPage() {
         <Button variant="ghost" size="sm" className="ml-auto" onClick={() => void load()} disabled={list.kind === "loading"}><RefreshCw className={`mr-1 h-4 w-4 ${list.kind === "loading" ? "animate-spin" : ""}`} />새로고침</Button>
       </div>
       <p className="text-sm text-muted-foreground">아마란스 받은메일 최근 20통입니다. 같은 계정으로 로그인한 데스크톱 앱이 대신 조회하므로 앱이 켜져 있어야 합니다. 메일을 열면 아마란스에서도 읽음으로 바뀝니다.</p>
+      {list.kind === "ready" && <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} aria-label="메일 검색" placeholder="검색 · from:이름 subject:제목 after:2026-09 has:attach is:unread in:sent" title={'단어는 AND · "구문" · -제외 · OR · from: to: subject: body: file: after: before: has:attach is:unread in:sent'}
+            className="h-9 w-full rounded-md border bg-background pl-9 pr-3 text-sm focus-visible:outline-2 focus-visible:outline-primary" />
+        </div>
+        <Button variant={sort === "date" ? "secondary" : "ghost"} size="sm" onClick={() => setSort("date")} aria-pressed={sort === "date"}>최신순</Button>
+        <Button variant={sort === "relevance" ? "secondary" : "ghost"} size="sm" onClick={() => setSort("relevance")} aria-pressed={sort === "relevance"}>관련도순</Button>
+      </div>}
 
       {list.kind === "no_app" && <div className="rounded-xl border bg-card p-5 text-sm">
         <p role="status" className="font-medium">데스크톱 앱이 실행 중이 아닙니다.</p>
@@ -81,8 +112,8 @@ export default function MailPage() {
       {list.kind === "loading" && <p role="status" className="text-sm text-muted-foreground">데스크톱 앱에서 메일을 가져오고 있습니다…</p>}
 
       {list.kind === "ready" && <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <section aria-label="받은메일" className={`rounded-xl border bg-card ${showDetail ? "hidden md:block" : ""}`}>
-          {list.items.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">받은 메일이 없습니다.</p> : <ul className="divide-y">
+        <section aria-label={search.kind === "idle" ? "받은메일" : "검색 결과"} className={`rounded-xl border bg-card ${showDetail ? "hidden md:block" : ""}`}>
+          {search.kind !== "idle" ? <SearchResults state={search} open={open} current={detail.kind === "ready" ? detail.mail.muid : "muid" in detail ? detail.muid : ""} /> : list.items.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">받은 메일이 없습니다.</p> : <ul className="divide-y">
             {list.items.map((m) => <li key={m.muid}>
               <button type="button" onClick={() => void open(m)} aria-current={detail.kind !== "idle" && "muid" in detail ? detail.muid === m.muid || undefined : detail.kind === "ready" && detail.mail.muid === m.muid ? true : undefined}
                 className={`block w-full px-4 py-3 text-left hover:bg-muted focus-visible:outline-2 focus-visible:outline-primary ${detail.kind === "ready" && detail.mail.muid === m.muid ? "bg-primary/5" : ""}`}>
@@ -116,4 +147,25 @@ export default function MailPage() {
       </div>}
     </div>
   );
+}
+
+/** 색인 검색 결과 — 받은·보낸 메일, 본문 발췌. 색인 상태 줄(통 수·동기화 중)을 함께 보여 준다. */
+function SearchResults({ state, open, current }: { state: SearchState; open: (m: MailItem) => void; current: string }) {
+  if (state.kind === "loading") return <p role="status" className="p-6 text-center text-sm text-muted-foreground">데스크톱 앱 색인에서 찾고 있습니다…</p>;
+  if (state.kind === "error") return <Alert variant="destructive" className="m-4"><AlertDescription>{state.message}</AlertDescription></Alert>;
+  if (state.kind !== "ready") return null;
+  const { hits, total, index } = state.data;
+  const status = `색인 ${index.docs}통 · 본문 ${index.bodies}통${index.syncing ? " · 동기화 중 — 잠시 뒤 다시 검색하면 더 찾습니다" : index.error ? ` · 동기화 실패: ${index.error}` : ""}`;
+  return <div>
+    <p role="status" className="border-b px-4 py-2 text-xs text-muted-foreground">{total}통 · {status}</p>
+    {hits.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">결과 없음{index.bodies < index.docs ? " · 본문은 이미 읽은 메일만 색인됩니다" : ""}</p> : <ul className="divide-y">
+      {hits.map((h) => <li key={`${h.box}-${h.muid}`}>
+        <button type="button" onClick={() => open(h)} aria-current={current === h.muid || undefined} className={`block w-full px-4 py-3 text-left hover:bg-muted focus-visible:outline-2 focus-visible:outline-primary ${current === h.muid ? "bg-primary/5" : ""}`}>
+          <div className="flex items-baseline justify-between gap-3"><span className={`truncate text-sm ${h.seen ? "" : "font-bold"}`}>{h.box === "SENT" ? `보낸 메일${h.to ? ` · ${h.to}` : ""}` : who(h)}</span><time className="shrink-0 text-xs text-muted-foreground">{fmt(h.date)}</time></div>
+          <div className={`mt-0.5 flex items-center gap-1 truncate text-sm ${h.seen ? "" : "font-semibold"}`}>{h.attach && <Paperclip className="h-3.5 w-3.5 shrink-0" aria-label="첨부 있음" />}<span className="truncate">{h.subject || "(제목 없음)"}</span></div>
+          {h.snippet && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{h.snippet}</p>}
+        </button>
+      </li>)}
+    </ul>}
+  </div>;
 }

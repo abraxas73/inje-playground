@@ -1,5 +1,6 @@
 // mobile/lib/mcp/mcp_tools.dart — Claude 커넥터(MCP) 도구 디스패치. 인자 이름은 inno-creed 2.2.0 스키마(frontend/src/lib/mcp/tools.json) 그대로,
 // 응답 키는 inno-creed 실측 출력(test/mcp/fixtures)과 같게. 신규 엔드포인트 호출은 gw_mcp_api.dart(요청 본문은 captured 그대로).
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' show Random;
@@ -8,6 +9,7 @@ import '../gw/gw_api.dart';
 import '../gw/gw_client.dart';
 import '../gw/gw_mcp_api.dart';
 import '../gw/gw_models.dart' as m;
+import '../gw/mail_indexer.dart';
 import 'approval_schemas.dart';
 import 'mcp_args.dart' as a;
 import 'mcp_worker.dart' show McpToolError;
@@ -198,11 +200,13 @@ String _approkey() {
 }
 
 class McpTools {
-  McpTools({required this.gw, required String Function() appSupportDir, ApprovalSchemas? schemas, String Function()? downloadsDir})
+  McpTools({required this.gw, required String Function() appSupportDir, ApprovalSchemas? schemas, String Function()? downloadsDir, this.mailIndex})
       : groups = PersonGroups(appSupportDir),
         schemas = schemas ?? ApprovalSchemas(),
         _downloadsDir = downloadsDir ?? mcpDownloadsDir;
   final GwApi? gw;
+  /// 기기 안 메일 검색 색인(웹 /gw/mail 검색이 중계로 쓴다). null이면 search_mail_index 거절.
+  final MailIndexNotifier? mailIndex;
   final PersonGroups groups;
   final ApprovalSchemas schemas;
   final String Function() _downloadsDir;
@@ -268,6 +272,7 @@ class McpTools {
         'delete_mail' => _deleteMail(x),
         'send_mail_from_draft' => _sendFromDraft(x),
         'download_mail_attachment' => _downloadMailAttachment(x),
+        'search_mail_index' => _searchMail(x),
         'download_body_image' => _downloadBodyImage(x),
         'approval_counts' => _approvalCounts(),
         'pending_approvals' => _pendingApprovals(x),
@@ -746,6 +751,25 @@ class McpTools {
         for (final (i, f) in files.indexed)
           {'index': i, 'fileName': asStr(f['originalFileName']), 'fileExt': asStr(f['fileExtsn']), 'fileSizeApprox': asInt(f['fileSize']) * 3 ~/ 4, 'fileSn': asStr(f['fileSn']), 'isImage': images.contains(asStr(f['fileExtsn']).toLowerCase())},
       ],
+    };
+  }
+
+  /// 기기 안 색인 검색(`mail_indexer.dart`) — Claude 커넥터 목록(tools.json)에는 없고 웹 메일 검색 중계 전용. 오래됐으면 동기화를 띄우고(기다리지 않음) 지금 색인으로 답한다.
+  Future<Map<String, dynamic>> _searchMail(Map x) async {
+    final idx = mailIndex ?? (throw McpToolError('이 앱에서는 메일 검색 색인을 쓸 수 없습니다.'));
+    final g = _gw;
+    if (!await idx.ensureLoaded(g)) throw McpToolError('이 기기에서는 메일 검색 색인을 저장할 수 없습니다.');
+    unawaited(idx.syncIfStale(g));
+    final hits = idx.search(_req(x, 'query'), byRelevance: a.boolOf(x, 'by_relevance'));
+    final limit = (a.intOf(x, 'limit') ?? 50).clamp(1, 200);
+    final st = idx.status;
+    return {
+      'total': hits.length,
+      'hits': [
+        for (final h in hits.take(limit))
+          {'muid': h.doc.muid, 'box': h.doc.box, 'subject': h.doc.subject, 'fromName': h.doc.fromName, 'fromEmail': h.doc.fromEmail, 'to': h.doc.to, 'date': h.doc.date, 'seen': h.doc.seen, 'attach': h.doc.attach, 'snippet': h.snippet, 'score': h.score},
+      ],
+      'index': {'docs': st.docs, 'bodies': st.bodies, 'syncing': st.syncing, 'lastSync': st.lastSync?.toIso8601String(), 'error': st.error},
     };
   }
 

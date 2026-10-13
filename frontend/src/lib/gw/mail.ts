@@ -6,6 +6,9 @@ export type MailItem = { muid: string; subject: string; from: string; fromEmail:
 export type MailAttachment = { fileName: string; fileSizeApprox: number };
 export type MailDetail = { muid: string; subject: string; from: string; to: string; cc: string; date: string; body: string; attachments: MailAttachment[]; remoteResourceCount: number };
 export type AppCall<T> = { ok: true; data: T } | { ok: false; code: "no_app" | "tool"; message: string };
+/** 데스크톱 앱 색인 검색 결과 한 건(`search_mail_index`). `from`은 보낸 사람 이름 — 목록 항목과 같은 모양이라 본문 열기에 그대로 쓴다. */
+export type MailHit = MailItem & { box: string; to: string; snippet: string };
+export type MailSearch = { total: number; hits: MailHit[]; index: { docs: number; bodies: number; syncing: boolean; lastSync: string; error: string } };
 
 const str = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
 const bool = (v: unknown) => v === true || v === 1 || v === "1" || v === "Y" || v === "y" || v === "true";
@@ -29,6 +32,16 @@ export function parseDetail(raw: unknown): MailDetail {
     attachments: (Array.isArray(o.attachments) ? o.attachments : []).map(rec).map((a) => ({ fileName: str(a.fileName), fileSizeApprox: Number(a.fileSizeApprox ?? 0) || 0 })).filter((a) => a.fileName),
     remoteResourceCount: Number(o.remoteResourceCount ?? 0) || 0,
   };
+}
+
+/** search_mail_index 결과(앱 mcp_tools `_searchMail` 형식) → 검색 화면용. */
+export function parseSearch(raw: unknown): MailSearch {
+  const o = rec(raw), idx = rec(o.index);
+  const num = (v: unknown) => Math.max(0, Number(v ?? 0) || 0);
+  const hits = (Array.isArray(o.hits) ? o.hits : []).map(rec).map((h) => ({
+    muid: str(h.muid), subject: str(h.subject), from: str(h.fromName), fromEmail: str(h.fromEmail), date: str(h.date), seen: bool(h.seen), attach: bool(h.attach), box: str(h.box), to: str(h.to), snippet: str(h.snippet),
+  })).filter((h) => MUID_RE.test(h.muid));
+  return { total: num(o.total ?? hits.length), hits, index: { docs: num(idx.docs), bodies: num(idx.bodies), syncing: bool(idx.syncing), lastSync: str(idx.lastSync), error: str(idx.error) } };
 }
 
 /** 데스크톱 앱 중계 호출 — 결과 텍스트(JSON)를 해석한다. 앱 미실행 안내는 code `no_app`. */

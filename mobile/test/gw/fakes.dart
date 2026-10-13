@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/testing.dart';
 import 'package:playground/gw/gw_client.dart';
 import 'package:playground/gw/gw_creds.dart';
+import 'package:playground/gw/mail_indexer.dart';
 
 class FakeGwStore extends GwCredsStore {
   FakeGwStore([this.creds]);
@@ -23,3 +24,14 @@ Widget gwScope({GwCreds? creds, required MockClient http, required Widget child,
       overrides: [gwStoreProvider.overrideWithValue(FakeGwStore(creds)), gwHttpClientProvider.overrideWithValue(http), ...overrides],
       child: MaterialApp(home: child),
     );
+
+/// 메일 검색 색인을 메모리에만(위젯 테스트는 FakeAsync라 실제 파일 IO가 끝나지 않는다).
+class MemoryMailIndexStore extends MailIndexStore {
+  final files = <String, String>{};
+  @override
+  Future<String?> read(String key) async => files[key];
+  @override
+  Future<void> write(String key, String json) async => files[key] = json;
+  @override
+  Future<void> wipe() async => files.clear();
+}

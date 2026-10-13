@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PAGES, PAGE_GROUPS, pagesForPath, canOpenPage } from "@/lib/page-access";
-import { callApp, parseDetail, parseInbox } from "@/lib/gw/mail";
+import { callApp, parseDetail, parseInbox, parseSearch } from "@/lib/gw/mail";
 import MailPage from "@/app/gw/mail/page";
 
 const relay = vi.hoisted(() => ({ relayToolCall: vi.fn() }));
@@ -46,6 +46,13 @@ describe("메일 파서·중계", () => {
     expect(parseDetail({ muid: "101", subject: "s", from: "f", to: "t", cc: "", date: "d", body: "본문", remoteResourceCount: 2, attachments: [{ fileName: "a.pdf", fileSizeApprox: 2048 }, { fileName: "" }] }))
       .toEqual({ muid: "101", subject: "s", from: "f", to: "t", cc: "", date: "d", body: "본문", remoteResourceCount: 2, attachments: [{ fileName: "a.pdf", fileSizeApprox: 2048 }] });
   });
+  it("색인 검색 결과를 목록 항목 모양으로 읽고 색인 상태를 붙인다", () => {
+    const r = parseSearch({ total: 2, hits: [{ muid: "7", box: "SENT", subject: "결산", fromName: "나", fromEmail: "me@x.com", to: "홍 <h@x.com>", date: "2026-10-03 09:00:00", seen: 1, attach: false, snippet: "…3층 회의실…", score: 6 }, { muid: "x" }], index: { docs: "12", bodies: 9, syncing: true, lastSync: null } });
+    expect(r.hits).toEqual([{ muid: "7", box: "SENT", subject: "결산", from: "나", fromEmail: "me@x.com", to: "홍 <h@x.com>", date: "2026-10-03 09:00:00", seen: true, attach: false, snippet: "…3층 회의실…" }]);
+    expect(r.total).toBe(2);
+    expect(r.index).toEqual({ docs: 12, bodies: 9, syncing: true, lastSync: "", error: "" });
+    expect(parseSearch(null)).toEqual({ total: 0, hits: [], index: { docs: 0, bodies: 0, syncing: false, lastSync: "", error: "" } });
+  });
   it("앱 미실행 안내는 no_app, 정상 결과는 JSON으로 푼다", async () => {
     const admin = {} as never;
     relay.relayToolCall.mockResolvedValueOnce({ content: [{ type: "text", text: "데스크탑(맥·윈도우) 앱이 실행 중이 아닙니다. …" }], isError: true });
@@ -65,6 +72,24 @@ describe("메일 페이지", () => {
     expect(await screen.findByText("데스크톱 앱이 실행 중이 아닙니다.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "데스크톱 앱 받기" })).toHaveAttribute("href", "/apps");
     expect(screen.getByText("앱을 켜 주세요")).toBeInTheDocument();
+  });
+  it("검색어를 넣으면 데스크톱 앱 색인에서 찾아 결과·발췌·색인 상태를 보여 주고, 결과를 누르면 본문을 연다", async () => {
+    const fetch = vi.fn(async (url: string) => {
+      if (url === "/api/gw/mail") return Response.json({ unread: 0, items: [] });
+      if (url.startsWith("/api/gw/mail/search?")) return Response.json({ total: 1, hits: [{ muid: "7", subject: "결산 회의", from: "홍", fromEmail: "h@x.com", date: "2026-10-03 09:00:00", seen: true, attach: false, box: "INBOX", to: "", snippet: "…3층 회의실에서 합니다…" }], index: { docs: 12, bodies: 9, syncing: false, lastSync: "", error: "" } });
+      if (url === "/api/gw/mail/7") return Response.json({ muid: "7", subject: "결산 회의", from: "홍", to: "나", cc: "", date: "2026-10-03 09:00:00", body: "3층 회의실에서 합니다", attachments: [], remoteResourceCount: 0 });
+      return Response.json({ error: "unexpected" }, { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<MailPage />);
+    await screen.findByText("받은 메일이 없습니다.");
+    fireEvent.change(screen.getByRole("searchbox", { name: "메일 검색" }), { target: { value: "회의실" } });
+    expect(await screen.findByText(/3층 회의실에서 합니다/)).toBeInTheDocument(); // 발췌
+    expect(fetch).toHaveBeenCalledWith("/api/gw/mail/search?q=%ED%9A%8C%EC%9D%98%EC%8B%A4&sort=date", expect.anything());
+    expect(screen.getByText(/색인 12통 · 본문 9통/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /결산 회의/ }));
+    expect(await screen.findByRole("heading", { name: "결산 회의" })).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith("/api/gw/mail/7", expect.anything());
   });
   it("목록 → 본문 열기(읽음 반영) → 안 읽음으로 되돌리기", async () => {
     const fetch = vi.fn(async (url: string, init?: RequestInit) => {

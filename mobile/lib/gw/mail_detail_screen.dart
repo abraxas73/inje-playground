@@ -1,21 +1,31 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
 import 'gw_api.dart';
 import 'gw_models.dart';
+import 'mail_indexer.dart';
 
 /// 메일 본문(서식 없는 텍스트). 열면 아마란스에서 읽음 처리되므로 '안 읽음으로 되돌리기'를 둔다. 첨부는 이름만(내려받기는 아마란스에서).
-class MailDetailScreen extends StatefulWidget {
+class MailDetailScreen extends ConsumerStatefulWidget {
   const MailDetailScreen({super.key, required this.api, required this.item});
   final GwApi api;
   final MailItem item;
   @override
-  State<MailDetailScreen> createState() => _MailDetailScreenState();
+  ConsumerState<MailDetailScreen> createState() => _MailDetailScreenState();
 }
 
-class _MailDetailScreenState extends State<MailDetailScreen> {
-  late Future<MailDetail> _future = widget.api.readMail(widget.item.muid);
+class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
+  late Future<MailDetail> _future = _load();
   bool _busy = false;
+
+  /// 읽은 본문은 검색 색인에도 넣는다(서버가 이미 읽음 처리한 메일이라 부작용 없음). 색인 실패는 화면에 영향 없음.
+  Future<MailDetail> _load() async {
+    final d = await widget.api.readMail(widget.item.muid);
+    unawaited(ref.read(mailIndexProvider.notifier).putDetail(widget.api, widget.item, d).catchError((_) {}));
+    return d;
+  }
 
   Future<void> _unread() async {
     setState(() => _busy = true);
@@ -38,7 +48,7 @@ class _MailDetailScreenState extends State<MailDetailScreen> {
           future: _future,
           builder: (context, snap) {
             if (snap.hasError) {
-              return Padding(padding: const EdgeInsets.all(24), child: Column(children: [Text('${snap.error}', style: const TextStyle(color: Brand.dangerText)), const SizedBox(height: 12), FilledButton(onPressed: () => setState(() => _future = widget.api.readMail(widget.item.muid)), child: const Text('다시 시도'))]));
+              return Padding(padding: const EdgeInsets.all(24), child: Column(children: [Text('${snap.error}', style: const TextStyle(color: Brand.dangerText)), const SizedBox(height: 12), FilledButton(onPressed: () => setState(() => _future = _load()), child: const Text('다시 시도'))]));
             }
             if (!snap.hasData) return const Center(child: CircularProgressIndicator());
             final m = snap.data!;

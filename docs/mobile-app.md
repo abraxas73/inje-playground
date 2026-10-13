@@ -227,6 +227,16 @@ Graph 메모: 검색 hit는 `fields`에 file·folder를 넣어도 폴더에 `fol
 - **데스크톱 WebView에서 새 창 링크 무반응 수정**: Confluence·SharePoint 문서 목록의 `target="_blank"` 링크가 아무 일도 하지 않았다. 원인: macOS WKWebView는 새 창 요청을 `targetFrame` 없이 넘겨 webview_flutter가 `isMainFrame=false`로 보고하고, `_onNav`는 main frame이 아닌 외부 이동을 조용히 막는다(Windows WebView2는 새 창 요청 자체를 버림). 해결: `web_session.dart` `blankLinkBridgeJs`를 페이지 로드마다 주입해 `a[target=_blank]` 클릭·`window.open`을 같은 창 이동으로 바꾸면 `_onNav`(main frame)가 외부 주소를 브라우저로 넘긴다. 홈 브리핑의 Confluence 섹션(네이티브)은 원래 `launchUrl`로 열린다.
 - **페이지 권한 DB 키 동기화**: `docs/page-access.md` 2026-10-11 절.
 
+## 메일 검색(기기 안 색인) (2026-10-13, 1.6.9)
+
+목록 맨 위 "메일 검색" → `mail_search_screen.dart`. 아마란스에는 메일 전용 검색 API가 없고(`mail003A01`은 검색 파라미터를 버림, 통합검색 `gw018A02`는 키워드 하나뿐) 본문 읽기는 읽음 처리 부작용이 있어, 앱이 **기기 안에 색인을 만들어** 검색한다.
+
+- **색인 `mail_index.dart`**(순수 Dart, 단위 테스트 `test/gw/mail_index_test.dart`): `MailDoc`(muid·메일함·제목·보낸 사람·받는 사람·참조·날짜 `tooltipDate`·읽음·첨부·본문·첨부 이름). 검색은 저장된 글자열을 정규식(대소문자 무시)으로 훑는 선형 스캔 — 몇천 통·수 MB면 수십 ms라 역색인·SQLite 없이 충분(`ponytail:` 주석, 수만 통이면 FTS5 trigram으로). 검색식 `parseMailQuery`: 단어 AND · `OR`/`|` · `"구문"` · `-제외` · `from: to: subject: body: file: after: before: has:attach is:unread in:sent`(한글 별칭 `제목: 본문: 보낸사람: 받는사람: 첨부: 이후: 이전:`). 날짜는 `YYYY[-MM[-DD]]` 문자열 비교(after 포함·before 미포함). 점수는 제목 5·보낸 사람 3·받는 사람/첨부 2·본문 1, 기본 최신순(관련도순 토글). 발췌는 본문 첫 일치 ±60자, 강조는 `matchRanges`.
+- **수집 `mail_indexer.dart`**(`mailIndexProvider`, 테스트 `test/gw/mail_indexer_test.dart`): 받은(INBOX)·보낸(SENT) 메일함을 `mail003A01` 500통씩 — 전체 색인은 끝까지 읽고 목록에 없는 메일을 뺀다(`retain`), 증분은 바뀐 게 없는 페이지에서 멈춘다. **본문(`mail002A01`)은 이미 읽은 메일만 최신순으로 80ms 간격**, 안 읽은 메일은 열지 않는다(제목·보낸 사람만 색인). 본문 화면이 연 메일은 그 자리에서 `putDetail`. 메일 화면을 열면 `syncIfStale`(10분). 한 통 읽기 실패는 본문 ''로 두고 재시도하지 않는다. 오류 상태에는 서버 메시지만(제목·본문 없음).
+- **저장**: 앱 지원 폴더 `mail_index/<sha256(이메일) 앞 24자>.json`(임시 파일 → rename, 25통마다·끝에 저장, 본문 10,000자 상한). 기기 밖으로 나가지 않고 로그에 남기지 않는다. 아마란스 연결 해제(`gwProvider` creds null) 때 폴더 삭제, 검색 화면 메뉴 "색인 지우기"도 같다. 저장 폴더를 못 얻으면(위젯 테스트·플랫폼 채널 없음) 색인 비활성 — 네트워크 호출 없음. 테스트는 `mailIndexDirProvider`를 임시 폴더로 바꾼다.
+- **웹 `/gw/mail` 검색**: 검색 상자 → `GET /api/gw/mail/search?q&sort` → 중계 도구 `search_mail_index`(`mcp_tools.dart` `_searchMail`, 워커가 `mailIndexProvider`를 주입; `tools.json` 밖이라 Claude 커넥터 `tools/list`·`tools/call`에는 없음) → 데스크톱 앱 색인에서 답하고 오래됐으면 `syncIfStale`을 띄운다(결과에 `index.syncing`). 1.6.8 이하 앱은 "모르는 도구" → 라우트가 "앱 1.6.9로 업데이트" 안내로 바꾼다. 검색어는 감사 로그에 남기지 않는다(GET).
+- 한계·후속: 이노봇 `mail_search` 도구 후보. 보낸 메일의 "안 읽음으로 되돌리기"는 받은메일함 전용이라 실패한다. 웹 검색은 데스크톱 앱이 켜져 있을 때만(웹 메일과 같은 제약).
+
 ## 일정 캘린더(일간·주간·월간)·Dooray 병합·추가→이노봇 (2026-10-11, 1.6.6)
 
 - 공용 캘린더: 순수 모델 `lib/calendar/calendar_model.dart`(`CalMode` 일간/주간/월간, `CalEvent{start,end,allDay,title,sub,source(gw|dooray),mine}`, `calRange`(주는 월요일부터 7일, 달은 1일이 든 주의 월요일부터 6주 42일 고정), `calStep`, `calLabel`, `calOn`(종일 먼저·시작순), 변환 `calFromGw`·`calFromDooray`) + 위젯 `lib/calendar/calendar_view.dart`(머리글 ‹ › 오늘·일간/주간/월간 세그먼트·부모가 주는 동작 버튼(Wrap), 본문: 일간 목록 / 주간 월~일 날짜별 목록("일정 없음") / 월간 7×6 격자 — 셀 폭 110px 이상이면 제목 3개, 좁으면 점 3개(`cal-dot-<날짜>-<i>`), 누르면 `onPickDay`). 시각은 모두 "KST 벽시계 + UTC 플래그"(`DateTime.utc`) — 기기 시간대·DST와 무관.

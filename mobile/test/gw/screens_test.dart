@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:playground/gw/approvals_screen.dart';
 import 'package:playground/gw/attendance_screen.dart';
 import 'package:playground/gw/board_screen.dart';
+import 'package:playground/gw/mail_indexer.dart';
 import 'package:playground/gw/mail_screen.dart';
 import 'package:playground/gw/today_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -90,6 +91,32 @@ void main() {
     await tester.tap(find.text('전체').at(1)); // 회의실 구역
     await tester.pumpAndSettle();
     expect(find.text('남의 예약'), findsOneWidget);
+  });
+  testWidgets('메일 검색: 목록을 열면 색인이 동기화되고(읽은 메일 본문만), 검색식으로 찾아 본문을 연다', (tester) async {
+    final r = Routes({'/mail/mail000A03': [[{'unreadCount': 1, 'toMeCount': 0, 'totalCount': 2}]], '/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]}],
+      '/mail/mail003A01': [{'Records': [{'muid': 1, 'subject': '안 읽음', 'fromAddrName': '홍', 'rfc822date': '07:10', 'tooltipDate': '2026-10-11 07:10:00', 'seen': 0}, {'muid': 2, 'subject': '읽음 결산', 'fromAddrName': '김', 'rfc822date': '10-03', 'tooltipDate': '2026-10-03 09:00:00', 'seen': 1}], 'TotalUnseenCount': 1}],
+      '/mail/mail002A01': [{'decodeMime': {'subject': '읽음 결산', 'from': '김', 'to': '나', 'date': '2026-10-03 09:00:00'}, 'mime': {'body': {'plain': '3층 회의실에서 합니다'}}}]});
+    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, overrides: [mailIndexStoreProvider.overrideWithValue(MemoryMailIndexStore())], child: const MailScreen()));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(r.hits['/mail/mail002A01'], 1); // 읽은 메일 본문만 색인(안 읽은 메일은 열지 않는다)
+    await tester.tap(find.text('메일 검색 · 제목·보낸 사람·본문'));
+    await tester.pumpAndSettle();
+    expect(find.text('메일 검색'), findsOneWidget);
+    expect(find.textContaining('색인 2통 · 본문 1통'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), '회의실');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining('읽음 결산', findRichText: true), findsOneWidget);
+    expect(find.textContaining('3층 회의실', findRichText: true), findsOneWidget); // 본문 발췌
+    await tester.enterText(find.byType(TextField), 'is:unread');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining('읽음 결산', findRichText: true), findsNothing);
+    final hit = find.descendant(of: find.byType(ListTile), matching: find.textContaining('안 읽음', findRichText: true)); // 필터 칩 '안 읽음'과 구분
+    expect(hit, findsOneWidget);
+    await tester.tap(hit);
+    await tester.pumpAndSettle();
+    expect(r.hits['/mail/mail002A01'], 2); // 결과를 누르면 본문 화면(열람)
+    expect(find.textContaining('안 읽음으로 되돌리기'), findsOneWidget);
   });
   testWidgets('메일: 미읽음 집계와 목록, 미읽음은 굵게, 누르면 본문 화면(mail002A01)을 열고 돌아오면 목록을 다시 읽는다', (tester) async {
     final r = Routes({'/mail/mail000A03': [[{'unreadCount': 2, 'toMeCount': 1, 'totalCount': 9}]], '/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]}], '/mail/mail003A01': [{'Records': [{'muid': 1, 'subject': '안 읽음', 'fromAddrName': '홍', 'rfc822date': '07:10', 'seen': 0}, {'muid': 2, 'subject': '읽음', 'fromAddrName': '김', 'rfc822date': '10-03', 'seen': 1}], 'TotalUnseenCount': 2}],

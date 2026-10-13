@@ -1,10 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
 import 'gw_api.dart';
 import 'gw_gate.dart';
 import 'gw_models.dart';
 import 'mail_detail_screen.dart';
+import 'mail_indexer.dart';
+import 'mail_search_screen.dart';
 
 class MailScreen extends StatelessWidget {
   const MailScreen({super.key});
@@ -12,19 +16,20 @@ class MailScreen extends StatelessWidget {
   Widget build(BuildContext context) => GwGate(title: '메일', builder: (_, api) => _Body(api));
 }
 
-class _Body extends StatefulWidget {
+class _Body extends ConsumerStatefulWidget {
   const _Body(this.api);
   final GwApi api;
   @override
-  State<_Body> createState() => _BodyState();
+  ConsumerState<_Body> createState() => _BodyState();
 }
 
-class _BodyState extends State<_Body> {
+class _BodyState extends ConsumerState<_Body> {
   late Future<(MailSummary, List<MailItem>)> _future = _load();
   Future<(MailSummary, List<MailItem>)> _load() async {
     // 레코드 .wait는 실패를 ParallelWaitError로 감싸 영어 클래스 이름이 화면에 나온다 → 순서대로
     final s = await widget.api.mailSummary();
     final (_, items) = await widget.api.inbox();
+    unawaited(ref.read(mailIndexProvider.notifier).syncIfStale(widget.api)); // 검색 색인(10분마다, 결과를 기다리지 않음)
     return (s, items);
   }
 
@@ -45,6 +50,16 @@ class _BodyState extends State<_Body> {
               if (!snap.hasData) return const Center(child: CircularProgressIndicator());
               final (s, items) = snap.data!;
               return ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 24), children: [
+                InkWell(
+                  onTap: () => Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => MailSearchScreen(api: widget.api))),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Brand.line)),
+                    child: const Row(children: [Icon(Icons.search, color: Brand.faint), SizedBox(width: 8), Text('메일 검색 · 제목·보낸 사람·본문', style: TextStyle(color: Brand.muted))]),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(color: Brand.navy, borderRadius: BorderRadius.circular(16)),

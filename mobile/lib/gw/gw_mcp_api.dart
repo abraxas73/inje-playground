@@ -126,8 +126,8 @@ extension GwMcpApi on GwApi {
 
   Future<int> mailboxSeq(String boxName) async => findMboxSeq(await mailboxesRaw(), boxName) ?? (throw GwException(200, 0, '$boxName 메일함을 찾지 못했습니다'));
 
-  Future<dynamic> mailListAt(String boxName, int seq, {int pageSize = 20}) =>
-      client.call('/mail/mail003A01', {'boxName': boxName, 'mainApiCode': 'mail003A01', 'mboxSeq': seq, 'page': 1, 'pageSize': pageSize, 'sort': 'rfc822date', 'sortType': 'desc', 'listType': '', 'showType': '', 'seen': false});
+  Future<dynamic> mailListAt(String boxName, int seq, {int pageSize = 20, int page = 1}) =>
+      client.call('/mail/mail003A01', {'boxName': boxName, 'mainApiCode': 'mail003A01', 'mboxSeq': seq, 'page': page, 'pageSize': pageSize, 'sort': 'rfc822date', 'sortType': 'desc', 'listType': '', 'showType': '', 'seen': false});
 
   /// mail002A15 읽지 않음으로(받은메일함).
   Future<dynamic> mailMarkUnseen(String muid) => client.call('/mail/mail002A15', {'mbox': 'INBOX', 'type': 'unseen', 'uids': muid});
