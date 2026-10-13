@@ -1,13 +1,17 @@
 // mobile/test/assistant/assistant_tools_test.dart
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:playground/api/client.dart';
 import 'package:playground/assistant/assistant_journal.dart';
 import 'package:playground/assistant/assistant_tools.dart';
+import 'package:playground/gw/gw_creds.dart';
+import 'package:playground/gw/mail_indexer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../gw/fakes.dart' show FakeGwStore, MemoryMailIndexStore, testCreds;
 import 'gw_assistant_api_test.dart' show Gw, base;
 
 class _Tokens implements TokenSource {
@@ -21,7 +25,7 @@ ApiClient app(Map<String, Object> routes, [List<Map<String, dynamic>>? sent]) =>
     }), tokens: _Tokens(), baseUrl: 'http://x', userAgent: 't');
 
 // 서버 assistant-tools.test.ts의 NAMES와 같은 목록.
-const names = ['approval_counts', 'approval_read', 'approvals_pending', 'attendance_today', 'cancel_reservation', 'clock_in', 'clock_out', 'confluence_create_page', 'confluence_feed', 'confluence_read', 'confluence_search', 'confluence_spaces', 'create_event', 'delete_event', 'find_free_rooms', 'find_person', 'list_calendars', 'list_events', 'list_rooms', 'mail_list', 'mail_read', 'mail_save_draft', 'mail_send', 'my_reservations', 'my_team', 'notice_read', 'notices_list', 'offer_choices', 'reserve_room', 'search', 'sharepoint_read', 'sharepoint_recent', 'sharepoint_search', 'teams_chats', 'teams_mentions', 'teams_send', 'undo_last'];
+const names = ['approval_counts', 'approval_read', 'approvals_pending', 'attendance_today', 'cancel_reservation', 'clock_in', 'clock_out', 'confluence_create_page', 'confluence_feed', 'confluence_read', 'confluence_search', 'confluence_spaces', 'create_event', 'delete_event', 'find_free_rooms', 'find_person', 'list_calendars', 'list_events', 'list_rooms', 'mail_list', 'mail_read', 'mail_save_draft', 'mail_search', 'mail_send', 'my_reservations', 'my_team', 'notice_read', 'notices_list', 'offer_choices', 'reserve_room', 'search', 'sharepoint_read', 'sharepoint_recent', 'sharepoint_search', 'teams_chats', 'teams_mentions', 'teams_send', 'undo_last'];
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -93,6 +97,29 @@ void main() {
     expect((await AssistantJournal.load()).undoable(5).length, 1, reason: '기록은 기기에 저장');
   });
 
+  test('mail_search — 기기 안 색인으로 찾고(오래됐으면 동기화만 띄움), 결과 muid는 mail_read 허용, 색인이 없으면 안내', () async {
+    final gw = Gw({...base(),
+      '/mail/mail000A01': (_) => {'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]},
+      '/mail/mail003A01': (_) => {'Records': [{'muid': 1, 'subject': '10월 결산 보고', 'fromAddrName': '홍', 'fromAddrEmail': 'h@x.com', 'tooltipDate': '2026-10-09 02:33:09', 'rfc822date': '10-09 02:33', 'seen': 1, 'attach': true}, {'muid': 2, 'subject': '회식', 'fromAddrName': '김', 'tooltipDate': '2026-10-08 02:33:09', 'seen': 0}], 'TotalRecordCount': 2},
+      '/mail/mail002A01': (_) => {'decodeMime': {'subject': '10월 결산 보고', 'from': '홍', 'to': '나', 'cc': '', 'date': '2026-10-09 02:33:09'}, 'mime': {'body': {'plain': '결산 자료 첨부합니다'}, 'fileList': []}}});
+    final c = ProviderContainer(overrides: [mailIndexStoreProvider.overrideWithValue(MemoryMailIndexStore()), gwStoreProvider.overrideWithValue(FakeGwStore(testCreds))]);
+    addTearDown(c.dispose);
+    final guard = MailReadGuard();
+    final runner = AssistantToolRunner(gw: gw.api(), api: app({}), journal: await AssistantJournal.load(), guard: guard, mailIndex: c.read(mailIndexProvider.notifier));
+    final first = await runner.run(const ToolCall('1', 'mail_search', {'query': '결산'}));
+    expect(first['ok'], isTrue);
+    expect((first['index'] as Map)['syncing'], isTrue, reason: '첫 호출: 색인이 비어 동기화를 띄운다');
+    await Future<void>.delayed(const Duration(seconds: 1));
+    final r = await runner.run(const ToolCall('2', 'mail_search', {'query': '결산 has:attach'}));
+    final hit = (r['mails'] as List).single as Map;
+    expect(hit['subject'], '10월 결산 보고');
+    expect(hit['snippet'], contains('결산 자료'));
+    expect((r['index'] as Map)['docs'], 2);
+    expect(gw.calls['/mail/mail002A01']!.length, 1, reason: '본문은 읽은 메일(1)만 — 안 읽은 2는 열지 않는다');
+    expect(guard.tryUse('1'), isTrue, reason: '검색 결과 muid는 본문 읽기 허용');
+    final none = AssistantToolRunner(gw: gw.api(), api: app({}), journal: await AssistantJournal.load(), guard: MailReadGuard());
+    expect((await none.run(const ToolCall('3', 'mail_search', {'query': 'x'})))['ok'], isFalse);
+  });
   test('실행기 — 아마란스 미연결이면 GW 도구는 안내, Teams 도구는 /api/assistant/execute', () async {
     final sent = <Map<String, dynamic>>[];
     final runner = AssistantToolRunner(gw: null, api: app({'/api/assistant/execute': {'ok': true, 'result': {'chats': []}}}, sent), journal: await AssistantJournal.load(), guard: MailReadGuard());

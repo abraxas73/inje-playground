@@ -1,10 +1,12 @@
 // mobile/lib/assistant/assistant_tools.dart
+import 'dart:async';
 import 'dart:math' as math;
 import '../api/client.dart';
 import '../gw/clockin_notify.dart';
 import '../gw/gw_api.dart';
 import '../gw/gw_client.dart';
 import '../gw/gw_models.dart';
+import '../gw/mail_indexer.dart';
 import 'assistant_journal.dart';
 import 'gw_assistant_api.dart';
 
@@ -30,6 +32,7 @@ const assistantToolTiers = <String, ToolTier>{
   'clock_out': ToolTier.write,
   'mail_list': ToolTier.read,
   'mail_read': ToolTier.read,
+  'mail_search': ToolTier.read,
   'mail_save_draft': ToolTier.write,
   'mail_send': ToolTier.irreversible,
   'approvals_pending': ToolTier.read,
@@ -84,6 +87,7 @@ const _progress = {
   'attendance_today': '출퇴근 기록 보는 중…',
   'mail_list': '메일함 보는 중…',
   'mail_read': '메일 읽는 중…',
+  'mail_search': '메일 찾는 중…',
   'approvals_pending': '미결 결재 보는 중…',
   'approval_read': '결재 문서 읽는 중…',
   'approval_counts': '결재 건수 보는 중…',
@@ -273,8 +277,11 @@ class AssistantToolRunner {
     required this.guard,
     DateTime Function()? now,
     this.isActive,
+    this.mailIndex,
   }) : _now = now ?? kstNow;
   final bool Function()? isActive;
+  /// 기기 안 메일 검색 색인(mail_search). null이면 그 도구는 안내만.
+  final MailIndexNotifier? mailIndex;
   bool get _active => isActive?.call() ?? true;
   final GwApi? gw;
   final ApiClient api;
@@ -329,7 +336,7 @@ class AssistantToolRunner {
     if (g == null) return {'ok': false, 'error': _gwMissing};
     try {
       final r = await _gw(g, c);
-      if (_active && (c.name == 'mail_list' || c.name == 'search')) {
+      if (_active && (c.name == 'mail_list' || c.name == 'mail_search' || c.name == 'search')) {
         guard.allowFrom(r);
       }
       return r;
@@ -724,11 +731,40 @@ class AssistantToolRunner {
           'unreadTotal': unread,
           'mails': list.take(limit).toList(),
         };
+      case 'mail_search':
+        final idx = mailIndex;
+        if (idx == null || !await idx.ensureLoaded(g)) {
+          throw const _BadInput('이 기기에서는 메일 검색 색인을 쓸 수 없습니다 — search(아마란스 통합검색)로 찾으세요');
+        }
+        unawaited(idx.syncIfStale(g)); // 오래됐으면 동기화를 띄우고 지금 색인으로 답한다
+        final hits = idx.search(_s(i['query']), byRelevance: i['by_relevance'] == true);
+        final limit = i['limit'] is num ? (i['limit'] as num).toInt().clamp(1, 50) : 20;
+        final st = idx.status;
+        return {
+          'ok': true,
+          'total': hits.length,
+          'mails': [
+            for (final h in hits.take(limit))
+              {
+                'muid': h.doc.muid,
+                'box': h.doc.box,
+                'subject': h.doc.subject,
+                'from': h.doc.from,
+                if (h.doc.to.isNotEmpty) 'to': h.doc.to,
+                'date': h.doc.date,
+                'seen': h.doc.seen,
+                'attach': h.doc.attach,
+                if (h.snippet.isNotEmpty) 'snippet': h.snippet,
+              },
+          ],
+          'index': {'docs': st.docs, 'bodies': st.bodies, 'syncing': st.syncing},
+          if (st.syncing) 'note': '색인 동기화 중 — 아직 안 담긴 메일이 있을 수 있습니다',
+        };
       case 'mail_read':
         final muid = _s(i['muid']);
         if (!guard.tryUse(muid)) {
           throw const _BadInput(
-            '이 메일은 읽을 수 없습니다 — 먼저 mail_list나 search로 찾은 메일만, 요청 한 번에 5통까지 읽습니다',
+            '이 메일은 읽을 수 없습니다 — 먼저 mail_list·mail_search·search로 찾은 메일만, 요청 한 번에 5통까지 읽습니다',
           );
         }
         return {'ok': true, ...await g.mailRead(muid)};

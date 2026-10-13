@@ -6,6 +6,7 @@ import '../api/client.dart';
 import '../gw/gw_api.dart';
 import '../gw/gw_creds.dart';
 import '../gw/gw_models.dart';
+import '../gw/mail_indexer.dart';
 import 'assistant_journal.dart';
 import 'assistant_tools.dart';
 
@@ -278,6 +279,7 @@ class AssistantSession extends Notifier<AssistantState> {
       guard: _guard,
       isActive: () => _active(run),
       now: ref.read(assistantClockProvider),
+      mailIndex: ref.read(mailIndexProvider.notifier),
     );
   }
 
