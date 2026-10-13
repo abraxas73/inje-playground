@@ -729,7 +729,6 @@ class McpTools {
     final dm = d['decodeMime'] is Map ? d['decodeMime'] as Map : const {};
     final mime = d['mime'] is Map ? d['mime'] as Map : const {};
     final b = mime['body'] is Map ? mime['body'] as Map : const {};
-    final plain = asStr(b['plain']).replaceAll('\r', '').split('\n').map((l) => l.trim()).join('\n').replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
     final html = asStr(b['html']);
     final inline = <String>[];
     var remote = 0;
@@ -746,7 +745,7 @@ class McpTools {
     final files = ((mime['fileList'] as List?) ?? const []).whereType<Map>().toList();
     return {
       'muid': muid, 'subject': m.htmlToText(asStr(dm['subject'])), 'from': m.htmlToText(asStr(dm['from'])), 'to': m.htmlToText(asStr(dm['to'])), 'cc': m.htmlToText(asStr(dm['cc'])),
-      'bcc': m.htmlToText(asStr(dm['bcc'])), 'date': asStr(dm['date']), 'body': plain.isNotEmpty ? plain : m.htmlToText(html), 'inlineImages': inline, 'remoteResourceCount': remote,
+      'bcc': m.htmlToText(asStr(dm['bcc'])), 'date': asStr(dm['date']), 'body': m.mailBodyText(b), 'inlineImages': inline, 'remoteResourceCount': remote,
       'attachments': [
         for (final (i, f) in files.indexed)
           {'index': i, 'fileName': asStr(f['originalFileName']), 'fileExt': asStr(f['fileExtsn']), 'fileSizeApprox': asInt(f['fileSize']) * 3 ~/ 4, 'fileSn': asStr(f['fileSn']), 'isImage': images.contains(asStr(f['fileExtsn']).toLowerCase())},

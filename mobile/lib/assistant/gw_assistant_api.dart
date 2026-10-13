@@ -673,8 +673,7 @@ extension GwAssistantMail on GwApi {
         : const {};
     final mime = d is Map && d['mime'] is Map ? d['mime'] as Map : const {};
     final b = mime['body'] is Map ? mime['body'] as Map : const {};
-    final plain = asStr(b['plain']).trim();
-    var body = plain.isNotEmpty ? plain : htmlToText(asStr(b['html']));
+    var body = mailBodyText(b);
     if (body.length > 8000) body = '${body.substring(0, 8000)}…';
     return {
       'muid': muid,

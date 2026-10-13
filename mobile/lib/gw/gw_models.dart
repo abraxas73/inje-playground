@@ -28,12 +28,34 @@ int? daysBetween(String ymd8, DateTime today) {
 /// HTML 소스 자체의 줄바꿈·들여쓰기는 공백으로 본다. 빈 줄은 최대 1개까지.
 String htmlToText(String html) {
   var s = html.replaceAll(RegExp(r'\s+'), ' ');
-  s = s.replaceAll(RegExp(r'<(br|/p|/div|/li|/tr|/h[1-6])\s*/?>', caseSensitive: false), '\n').replaceAll(RegExp(r'<[^>]+>'), '');
-  const ent = {'&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"};
-  ent.forEach((k, v) => s = s.replaceAll(k, v));
-  s = s.split('\n').map((l) => l.replaceAll(RegExp(r'[ \t]+'), ' ').trim()).join('\n');
-  return s.replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
+  s = decodeEntities(s.replaceAll(RegExp(r'<(br|/p|/div|/li|/tr|/h[1-6])\s*/?>', caseSensitive: false), '\n').replaceAll(RegExp(r'<[^>]+>'), ''));
+  s = s.split('\n').map((l) => l.replaceAll(RegExp(r'[ \t]+'), ' ')).join('\n');
+  return _tidyLines(s);
 }
+
+/// HTML 엔티티 → 글자. 이름 있는 것 6개 + 숫자 참조(&#160;·&#x27;). `&amp;`는 맨 끝에 풀어야 `&amp;lt;`가 두 번 풀리지 않는다.
+String decodeEntities(String s) {
+  s = s.replaceAllMapped(RegExp(r'&#(x[0-9a-fA-F]{1,6}|\d{1,7});'), (m) {
+    final v = m[1]!;
+    final code = v.startsWith('x') ? int.tryParse(v.substring(1), radix: 16) : int.tryParse(v);
+    return code == null || code <= 0 || code > 0x10FFFF ? m[0]! : String.fromCharCode(code);
+  });
+  const ent = {'&nbsp;': ' ', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'", '&amp;': '&'};
+  ent.forEach((k, v) => s = s.replaceAll(k, v));
+  return s;
+}
+
+/// mail002A01 `mime.body` → 본문 평문. plain이 있으면 plain(아마란스 plain은 HTML 메일의 태그만 벗긴 것이라 `&nbsp;` 같은 엔티티와 CR이
+/// 남는다 — html 부분이 함께 있을 때만 엔티티를 푼다; 순수 텍스트 메일의 `&lt;`는 글자 그대로), 없으면 html을 평문화.
+String mailBodyText(Map b) {
+  final html = asStr(b['html']);
+  var plain = asStr(b['plain']);
+  if (html.isNotEmpty) plain = decodeEntities(plain);
+  plain = _tidyLines(plain.replaceAll('\r', ''));
+  return plain.isNotEmpty ? plain : htmlToText(html);
+}
+
+String _tidyLines(String s) => s.split('\n').map((l) => l.trim()).join('\n').replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
 
 /// 목록 미리보기용 — 줄바꿈·연속 공백을 한 칸으로.
 String oneLine(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
@@ -227,7 +249,6 @@ class MailDetail {
     final dm = d['decodeMime'] is Map ? d['decodeMime'] as Map : const {};
     final mime = d['mime'] is Map ? d['mime'] as Map : const {};
     final b = mime['body'] is Map ? mime['body'] as Map : const {};
-    final plain = asStr(b['plain']).replaceAll('\r', '').split('\n').map((l) => l.trim()).join('\n').replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
     final html = asStr(b['html']);
     var remote = 0;
     for (final img in RegExp(r'<img\b[^>]*?\bsrc\s*=\s*["' "'" r']?([^"' "'" r'\s>]+)', caseSensitive: false).allMatches(html)) {
@@ -237,7 +258,7 @@ class MailDetail {
     final files = ((mime['fileList'] as List?) ?? const []).whereType<Map>();
     return MailDetail(
       muid: muid, subject: htmlToText(asStr(dm['subject'])), from: htmlToText(asStr(dm['from'])), to: htmlToText(asStr(dm['to'])), cc: htmlToText(asStr(dm['cc'])), date: asStr(dm['date']),
-      body: plain.isNotEmpty ? plain : htmlToText(html),
+      body: mailBodyText(b),
       attachments: [for (final f in files) if (asStr(f['originalFileName']).isNotEmpty) (asStr(f['originalFileName']), asInt(f['fileSize']) * 3 ~/ 4)],
       remoteImages: remote,
     );

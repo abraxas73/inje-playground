@@ -27,6 +27,13 @@ void main() {
     expect(MailDetail.fromRaw('1', const {}).body, '');
   });
 
+  test('plain 본문의 HTML 엔티티(&nbsp;·&lt;·숫자 참조)를 글자로 되돌린다 — 아마란스 plain은 태그만 벗긴 채 엔티티를 남긴다', () {
+    final m = MailDetail.fromRaw('1', {'mime': {'body': {'plain': '&nbsp;대표님, 박창원입니다.\r\n&nbsp;메일로&nbsp;\r\n&lt;a@x.com&gt; &amp;lt; &#39;따옴표&#x27; &#8203;끝', 'html': '<p>&nbsp;대표님</p>'}}});
+    expect(m.body, '대표님, 박창원입니다.\n메일로\n<a@x.com> &lt; \'따옴표\' \u200b끝');
+    expect(mailBodyText({'plain': '', 'html': '<p>&nbsp;둘째</p>'}), '둘째');
+    expect(mailBodyText({'plain': 'a &lt; b'}), 'a &lt; b', reason: 'html 부분이 없는 순수 텍스트 메일은 글자 그대로');
+  });
+
   test('readMail·markMailUnread 호출 경로·인자', () async {
     final calls = <(String, Map<String, dynamic>)>[];
     final api = GwApi(GwClient(httpClient: MockClient((r) async {
