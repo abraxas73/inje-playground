@@ -25,12 +25,13 @@ int? daysBetween(String ymd8, DateTime today) {
 }
 
 /// HTML → 평문. 블록 경계(<br>·</p>·</div>·</li>·</tr>)는 줄바꿈으로 남기고(상세 본문이 한 줄로 뭉치지 않게),
-/// HTML 소스 자체의 줄바꿈·들여쓰기는 공백으로 본다. 빈 줄은 최대 1개까지.
+/// HTML 소스 자체의 줄바꿈·들여쓰기는 공백으로 본다. 빈 줄은 최대 1개까지. 표는 행마다 한 줄, 칸은 " | "로 잇고(빈 칸은 뺌),
+/// `<head>`·`<style>`·`<script>`·주석(`<!--[if mso]>` 포함)은 글자까지 버린다.
 String htmlToText(String html) {
-  var s = html.replaceAll(RegExp(r'\s+'), ' ');
-  s = decodeEntities(s.replaceAll(RegExp(r'<(br|/p|/div|/li|/tr|/h[1-6])\s*/?>', caseSensitive: false), '\n').replaceAll(RegExp(r'<[^>]+>'), ''));
-  s = s.split('\n').map((l) => l.replaceAll(RegExp(r'[ \t]+'), ' ')).join('\n');
-  return _tidyLines(s);
+  var s = html.replaceAll(RegExp(r'<!--.*?-->|<(style|script|head)\b[^>]*>.*?</\1\s*>', caseSensitive: false, dotAll: true), '').replaceAll(RegExp(r'\s+'), ' ');
+  s = s.replaceAll(RegExp(r'</t[dh]\s*>', caseSensitive: false), '\t').replaceAll(RegExp(r'<(br|/p|/div|/li|/tr|/h[1-6])\s*/?>', caseSensitive: false), '\n').replaceAll(RegExp(r'<[^>]+>'), '');
+  s = s.split('\n').map((l) => l.split('\t').map((c) => c.trim()).where((c) => c.isNotEmpty).join(' | ')).join('\n'); // 표: 한 행 = 한 줄, 칸은 " | "
+  return _tidyLines(decodeEntities(s).split('\n').map((l) => l.replaceAll(RegExp(r'[ \t]+'), ' ')).join('\n'));
 }
 
 /// HTML 엔티티 → 글자. 이름 있는 것 6개 + 숫자 참조(&#160;·&#x27;). `&amp;`는 맨 끝에 풀어야 `&amp;lt;`가 두 번 풀리지 않는다.
@@ -47,9 +48,11 @@ String decodeEntities(String s) {
 
 /// mail002A01 `mime.body` → 본문 평문. plain이 있으면 plain(아마란스 plain은 HTML 메일의 태그만 벗긴 것이라 `&nbsp;` 같은 엔티티와 CR이
 /// 남는다 — html 부분이 함께 있을 때만 엔티티를 푼다; 순수 텍스트 메일의 `&lt;`는 글자 그대로), 없으면 html을 평문화.
+/// 단 html에 표(`<table>`)가 있으면 html에서 변환한다 — plain은 칸마다 빈 줄로 벌어져 행·칸을 알 수 없다.
 String mailBodyText(Map b) {
   final html = asStr(b['html']);
   var plain = asStr(b['plain']);
+  if (html.contains(RegExp(r'<table\b', caseSensitive: false))) return htmlToText(html); // 표는 plain에서 행·칸 구조가 사라져(칸마다 빈 줄) html에서 변환
   if (html.isNotEmpty) plain = decodeEntities(plain);
   plain = _tidyLines(plain.replaceAll('\r', ''));
   return plain.isNotEmpty ? plain : htmlToText(html);

@@ -34,6 +34,14 @@ void main() {
     expect(mailBodyText({'plain': 'a &lt; b'}), 'a &lt; b', reason: 'html 부분이 없는 순수 텍스트 메일은 글자 그대로');
   });
 
+  test('표가 있는 HTML 메일은 html에서 변환 — 행마다 한 줄, 칸은 " | "; head·style·주석은 버린다(아마란스 plain은 칸마다 빈 줄로 벌어진다)', () {
+    const html = '<html><head><title>t</title><style>td{color:red}</style></head><body><!--[if mso]>x<![endif]--><p>안녕하세요.</p>\n<table>\n <tr>\n  <th>구분</th>\n  <th>기사 제목</th>\n </tr>\n <tr>\n  <td>MS</td>\n  <td>자체 AI칩 &#39;마이아&#39; 공개</td>\n  <td></td>\n </tr>\n</table>\n<p>감사합니다.</p></body></html>';
+    const plain = '\n \n \n  안녕하세요.\n  \n   \n    구분\n    \n    기사 제목\n   \n   \n    MS\n    \n    자체 AI칩 &#39;마이아&#39; 공개\n  \n  감사합니다.\n';
+    expect(mailBodyText({'plain': plain, 'html': html}), '안녕하세요.\n구분 | 기사 제목\nMS | 자체 AI칩 \'마이아\' 공개\n감사합니다.');
+    expect(htmlToText('<TABLE><TR><TD>a</TD><td>b<br>c</td></TR></TABLE>'), 'a | b\nc', reason: '칸 안의 br은 줄을 나누되 칸 구분은 유지');
+    expect(mailBodyText({'plain': '  10시\r\n', 'html': '<p>10시</p>'}), '10시', reason: '표가 없으면 종전대로 plain');
+  });
+
   test('splitRecipients — 쉼표로 나누되 따옴표·<주소> 안의 쉼표는 지킨다', () {
     expect(splitRecipients('김 <k@x.com>,양<y@x.com>, "박, 지연" <p@x.com> ,,head_dep<h@x.com>'), ['김 <k@x.com>', '양<y@x.com>', '"박, 지연" <p@x.com>', 'head_dep<h@x.com>']);
     expect(splitRecipients(''), isEmpty);
