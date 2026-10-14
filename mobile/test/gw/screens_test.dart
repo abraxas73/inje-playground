@@ -47,6 +47,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('10월 10일 연차'), findsOneWidget);
     expect(find.textContaining('승인·반려는 아마란스에서'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '아마란스에서 열기'), findsOneWidget); // 상세 시트의 바로가기
+    expect(find.byTooltip('아마란스에서 열기'), findsOneWidget); // 목록 행의 바로가기 아이콘
+    expect(approvalWebUrl('D1', '7'), 'https://gw.innogrid.com/#/popup?docID=D1&formId=7&docAuth=0&MicroModuleCode=eap&callComp=UBAP002');
+    expect(approvalWebUrl('a b', 'x&y'), contains('docID=a%20b&formId=x%26y'));
     expect(r.hits['/eap/eap111A04'], 1);
   });
   testWidgets('출퇴근: 출근 버튼 → 확인 다이얼로그에서 취소하면 기록 호출 없음, 확인하면 기록 후 시각 표시', (tester) async {

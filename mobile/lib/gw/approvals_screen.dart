@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
 import 'gw_api.dart';
+import 'gw_connect_screen.dart';
 import 'gw_gate.dart';
 import 'gw_models.dart';
+
+/// 아마란스 웹에서 이 결재 문서를 여는 주소 — 웹 번들의 문서 보기 팝업(UBAP002, 알림센터·통합검색이 문서를 열 때와 같은 인자; 2026-10-14 실측).
+/// 아마란스는 열려 있는 브라우저 세션으로 보여 주고, 로그인이 없으면 로그인부터 시킨다.
+String approvalWebUrl(String docId, String formId) => '$gwOrigin/#/popup?docID=${Uri.encodeComponent(docId)}&formId=${Uri.encodeComponent(formId)}&docAuth=0&MicroModuleCode=eap&callComp=UBAP002';
 
 class ApprovalsScreen extends StatelessWidget {
   const ApprovalsScreen({super.key});
@@ -24,6 +30,8 @@ class _BodyState extends State<_Body> {
     setState(() => _future = widget.api.pendingApprovals());
     await _future.catchError((_) => (0, <PendingApproval>[]));
   }
+
+  void _openInGw(PendingApproval p) => launchUrl(Uri.parse(approvalWebUrl(p.docId, p.formId)), mode: LaunchMode.externalApplication);
 
   Future<void> _open(PendingApproval p) async {
     final detail = widget.api.approvalDetail(p.docId, p.formId);
@@ -49,7 +57,11 @@ class _BodyState extends State<_Body> {
               const Divider(height: 24),
               Text(d.content.isEmpty ? '(본문 없음)' : d.content, style: const TextStyle(fontSize: 15, height: 1.6, color: Brand.navy)),
               const SizedBox(height: 20),
-              Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Brand.blueTint, borderRadius: BorderRadius.circular(12)), child: Text('승인·반려는 아마란스에서 처리하세요. 여기서는 열람 처리도 하지 않습니다.', style: theme.textTheme.bodySmall?.copyWith(color: Brand.navy))),
+              Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Brand.blueTint, borderRadius: BorderRadius.circular(12)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('승인·반려는 아마란스에서 처리하세요. 여기서는 열람 처리도 하지 않습니다.', style: theme.textTheme.bodySmall?.copyWith(color: Brand.navy)),
+                const SizedBox(height: 10),
+                FilledButton.icon(onPressed: () => _openInGw(p), icon: const Icon(Icons.open_in_new, size: 18), label: const Text('아마란스에서 열기')),
+              ])),
             ]);
           },
         ),
@@ -88,7 +100,7 @@ class _BodyState extends State<_Body> {
                       Expanded(child: Text(p.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: p.unread ? FontWeight.w800 : FontWeight.w600))),
                     ]),
                     subtitle: Text('${p.form} · ${p.drafter}${p.dept.isEmpty ? '' : ' (${p.dept})'}${days == null ? '' : ' · ${days == 0 ? '오늘' : '$days일째'}'}', maxLines: 1, overflow: TextOverflow.ellipsis),
-                    trailing: const Icon(Icons.chevron_right, color: Brand.faint),
+                    trailing: IconButton(icon: const Icon(Icons.open_in_new, size: 20, color: Brand.faint), tooltip: '아마란스에서 열기', onPressed: () => _openInGw(p)),
                   ),
                 );
               },
