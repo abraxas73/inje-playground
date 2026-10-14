@@ -154,7 +154,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         child: RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 24), children: [
-            const Align(alignment: Alignment.centerLeft, child: BrandLogo(width: 86, opacity: 0.8)),
+            Row(children: [
+              const BrandLogo(width: 86, opacity: 0.8),
+              const Spacer(),
+              SquareIconButton(icon: Icons.menu_book_outlined, tooltip: '사용자 매뉴얼', onPressed: () => open('/web?path=${Uri.encodeComponent('/manual')}')), // 첫 화면에서 바로 매뉴얼(웹 /manual)로
+            ]),
             const SizedBox(height: 14),
             const UpdateBanner(),
             Text(g.title, style: theme.textTheme.headlineSmall),

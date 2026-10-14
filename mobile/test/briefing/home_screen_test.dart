@@ -45,6 +45,7 @@ void main() {
       'connected': true, 'events': {'items': []}, 'mail': {'items': []},
     })});
     expect(find.text('Dooray'), findsNothing);
+    expect(find.byTooltip('사용자 매뉴얼'), findsOneWidget); // 첫 화면 오른쪽 위 책 아이콘 → 웹 /manual
     expect(find.byTooltip('브리핑 새로고침'), findsNothing);
     expect(app.calls['/api/dooray/overview'], isNull);
     expect(app.calls['/api/mobile/briefing'], isNull);
