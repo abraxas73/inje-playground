@@ -72,6 +72,13 @@ void main() {
       );
     },
   );
+  test('개인(private) 캘린더만 조회한다 — 프로젝트 캘린더의 마일스톤·구독 캘린더는 내 일정이 아니다(2026-10-14 실측: 56개 중 private 4·project 50)', () {
+    final js = calendarRequestJs('x', '2026-10-14');
+    expect(js, contains("c.type === 'private'"));
+    expect(js, isNot(contains("c.type !== 'subscription'")));
+    expect(js, contains('calendar:')); // 캘린더 이름·소유 여부를 행에 실어 공유받은 캘린더를 구분한다
+    expect(js, contains("owner:"));
+  });
   test('isolates concurrent requests and erases response slots', () async {
     final scripts = <String>[];
     final client = DoorayCalendarClient(

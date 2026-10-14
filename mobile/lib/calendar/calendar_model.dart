@@ -93,17 +93,25 @@ CalEvent? calFromGw(GwEvent e) {
   );
 }
 
-/// ISO 시각(시간대 포함) → KST 벽시계.
+/// ISO 시각(시간대 포함) → KST 벽시계. 종일 일정은 '2026-03-01+09:00'(날짜+시간대, 시각 없음)로 오는데 DateTime.parse가 못 읽으므로 날짜만 읽는다.
 DateTime? _kst(dynamic raw) {
-  final d = raw is String ? DateTime.tryParse(raw) : null;
+  if (raw is! String) return null;
+  final dateOnly = RegExp(r'^(\d{4}-\d{2}-\d{2})(?:Z|[+-]\d{2}:?\d{2})?$').firstMatch(raw);
+  if (dateOnly != null) {
+    final d = DateTime.tryParse(dateOnly[1]!);
+    return d == null ? null : DateTime.utc(d.year, d.month, d.day);
+  }
+  final d = DateTime.tryParse(raw);
   if (d == null) return null;
   final k = d.toUtc().add(const Duration(hours: 9));
   return DateTime.utc(k.year, k.month, k.day, k.hour, k.minute);
 }
 
-/// Dooray 브리지 items 행(calendar_bridge.dart) → CalEvent. 제목·시작이 없으면 null. 출처는 위젯이 꼬리표로 보여 주므로 sub는 비움.
+/// Dooray 브리지 items 행(calendar_bridge.dart) → CalEvent. 제목·시작이 없으면 null. 출처는 위젯이 꼬리표로 보여 주므로 sub는 비우되,
+/// 남이 공유해 준 캘린더(owner 아님)는 mine=false·캘린더 이름을 sub에 단다.
 CalEvent? calFromDooray(Map e) {
   final s = _kst(e['startedAt']);
   if (s == null || e['subject'] is! String) return null;
-  return CalEvent(start: s, end: _kst(e['endedAt']) ?? s, allDay: e['wholeDayFlag'] == true, title: e['subject'] as String, source: CalSource.dooray);
+  final mine = e['owner'] != false;
+  return CalEvent(start: s, end: _kst(e['endedAt']) ?? s, allDay: e['wholeDayFlag'] == true, title: e['subject'] as String, source: CalSource.dooray, mine: mine, sub: mine ? '' : (e['calendar'] is String ? e['calendar'] as String : ''));
 }

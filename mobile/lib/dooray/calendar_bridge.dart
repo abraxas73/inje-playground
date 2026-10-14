@@ -11,6 +11,9 @@ class DoorayCalendarException implements Exception {
 }
 
 /// Credentials stay in the WebView cookie jar; only normalized schedule data leaves it.
+/// 개인(private) 캘린더만 조회한다 — 내 캘린더와 남이 공유해 준 캘린더. 프로젝트 캘린더(마일스톤·프로젝트 일정)와 구독 캘린더(휴일)는
+/// 내 일정이 아니다(2026-10-14 실측: 목록 56개 중 private 4·project 50·subscription 2, 프로젝트 마일스톤 12건이 일간에 섞여 보이던 원인).
+/// 행에 캘린더 이름과 소유 여부(me.role === 'owner')를 실어 공유받은 캘린더를 구분한다.
 /// [days]는 [day]부터 읽을 날 수(1~42 — 캘린더 월간 격자 6주). timeMax는 그 다음 날 00:00(한국 시각, 끝 제외).
 String calendarRequestJs(
   String requestId,
@@ -58,12 +61,13 @@ String calendarRequestJs(
     }
     const list = await get('/v2/wapi/calendars?listed=true&size=10000');
     if (list.totalCount > list.contents.length) throw new Error('incomplete');
-    const calendars = list.contents.filter(c => c.type !== 'subscription' && /^\\d+\$/.test(c.id));
+    const calendars = list.contents.filter(c => c.type === 'private' && /^\\d+\$/.test(c.id));
     if (!calendars.length) { save({items:[]}); return; }
+    const info = Object.fromEntries(calendars.map(c => [String(c.id), {name:c.name || '', owner:c.me?.role === 'owner'}]));
     const query = new URLSearchParams({calendars:calendars.map(c=>c.id).join(','), timeMin:'${day}T00:00:00+09:00', timeMax:'${end}T00:00:00+09:00', postType:'toMe', privateTaskShown:'false'});
     const schedules = await get('/v2/wapi/calendars/*/schedules?' + query);
     if (schedules.totalCount > schedules.contents.length) throw new Error('incomplete');
-    save({items:schedules.contents.filter(e => !e.deleteFlag).map(e=>({id:e.id, calendarId:e.calendarId, subject:e.subject, startedAt:e.startedAt, endedAt:e.endedAt, wholeDayFlag:e.wholeDayFlag}))});
+    save({items:schedules.contents.filter(e => !e.deleteFlag).map(e=>({id:e.id, calendarId:e.calendarId, subject:e.subject, startedAt:e.startedAt, endedAt:e.endedAt, wholeDayFlag:e.wholeDayFlag, calendar:info[String(e.calendarId)]?.name || '', owner:info[String(e.calendarId)]?.owner !== false}))});
   })().catch(e => save({error:e.message === 'login' ? 'login' : 'failed'}));
 })();
 ''';

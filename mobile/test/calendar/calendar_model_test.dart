@@ -37,6 +37,13 @@ void main() {
     final w = calFromDooray({'subject': '워크샵', 'startedAt': '2026-10-13T00:00:00+09:00', 'endedAt': '2026-10-14T00:00:00+09:00', 'wholeDayFlag': true})!;
     expect((w.start, w.allDay), (DateTime.utc(2026, 10, 13), true));
     expect(calFromDooray({'subject': 1, 'startedAt': 'x'}), isNull);
+    // 종일 일정의 startedAt/endedAt은 '2026-03-01+09:00'(날짜+시간대, 시각 없음) — Dart 파서가 못 읽어 조용히 빠지던 모양. 끝은 다음 날(끝 제외).
+    final d = calFromDooray({'subject': '[파견] 티켓링크', 'startedAt': '2026-03-01+09:00', 'endedAt': '2027-01-01+09:00', 'wholeDayFlag': true, 'calendar': '클라우드개발본부', 'owner': true})!;
+    expect((d.start, d.end, d.allDay, d.mine, d.sub), (DateTime.utc(2026, 3, 1), DateTime.utc(2027, 1, 1), true, true, ''));
+    expect((d.on(DateTime.utc(2026, 10, 14)), d.on(DateTime.utc(2027, 1, 1))), (true, false));
+    // 남이 공유한 개인 캘린더(owner 아님)는 내 것이 아니고 캘린더 이름을 꼬리에 단다
+    final sh = calFromDooray({'subject': '[외근] 기술미팅', 'startedAt': '2026-10-15+09:00', 'endedAt': '2026-10-16+09:00', 'wholeDayFlag': true, 'calendar': '임원일정', 'owner': false})!;
+    expect((sh.mine, sh.sub), (false, '임원일정'));
   });
   test('on·calOn: 며칠에 걸친 일정은 그 날들마다, 다음 날 00:00에 끝나면 다음 날엔 없음, 종일이 먼저·시간순', () {
     CalEvent ev(String t, DateTime s, DateTime e, {bool allDay = false}) => CalEvent(start: s, end: e, allDay: allDay, title: t, source: CalSource.gw);
