@@ -1,0 +1,13 @@
+/** 웹 채팅 턴 API의 SSE 이벤트 — 서버(engine)와 브라우저(sse-client·view)가 같이 쓴다. 서버 모듈을 import하지 않는다. */
+export type Location = "server" | "device" | "desktop-relay";
+export type PendingCall = { id: string; tool: string; input: Record<string, unknown>; location: Location; tier: string };
+export type ActionReply = { id: string; approve?: boolean; result?: unknown; isError?: boolean };
+export type ChatEvent =
+  | { type: "conversation"; id: string }
+  | { type: "text"; delta: string }
+  | { type: "tool"; id: string; tool: string; location: Location | null; status: "running" | "ok" | "error"; summary?: string }
+  | { type: "masked"; count: number }
+  | { type: "needs_action"; messageId: string; calls: PendingCall[] }
+  | { type: "done"; messageId: string }
+  | { type: "error"; message: string; retryable: boolean };
+export const sseLine = (e: ChatEvent) => `data: ${JSON.stringify(e)}\n\n`;

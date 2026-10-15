@@ -106,11 +106,11 @@ const ASSISTANT_RULES = [
     "11. 제안서·보고서·엑셀·PPT 같은 문서 파일을 물으면 sharepoint_search로 찾고(위키와 파일 중 어느 쪽인지 모르면 confluence_search도 함께), 필요한 파일만 sharepoint_read로 읽어 답하며, 답 끝에 파일 이름과 링크를 붙인다. '자주 쓰는·최근 문서'는 sharepoint_recent(used)다.",
 ].join("\n");
 
-/** 시스템 프롬프트 = [고정 규칙(캐시 표시)] + [이번 사용자·현재 시각]. 바뀌는 값을 뒤에 두어야 앞부분 캐시가 맞는다. */
-export function assistantSystemPrompt(p: { now: string; name: string; email: string }): Anthropic.TextBlockParam[] {
+/** 시스템 프롬프트 = [고정 규칙(캐시 표시)] + [이번 사용자·현재 시각 + 클라이언트별 줄]. 바뀌는 값을 뒤에 두어야 앞부분 캐시가 맞는다. */
+export function assistantSystemPrompt(p: { now: string; name: string; email: string }, extra: string[] = []): Anthropic.TextBlockParam[] {
   return [
     { type: "text", text: ASSISTANT_RULES, cache_control: { type: "ephemeral" } },
-    { type: "text", text: `사용자는 이노그리드 구성원 ${p.name || "사용자"}(${p.email})이다. 현재 시각은 ${nowWithWeekday(p.now)}다.` },
+    { type: "text", text: [`사용자는 이노그리드 구성원 ${p.name || "사용자"}(${p.email})이다. 현재 시각은 ${nowWithWeekday(p.now)}다.`, ...extra].join("\n") },
   ];
 }
 
