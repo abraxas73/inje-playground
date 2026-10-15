@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../api/client.dart';
 import '../app/theme.dart';
 import 'assistant_session.dart';
 import 'assistant_voice.dart';
@@ -69,7 +70,16 @@ class AssistantSheet extends ConsumerStatefulWidget {
   ConsumerState<AssistantSheet> createState() => _AssistantSheetState();
 }
 
+/// 입력창에 올려 둔 첨부 하나 — id가 생기면 올리기 완료, error면 거절(빼기 전까지 칩으로 남는다).
+class _Upload {
+  _Upload(this.name);
+  String name;
+  String? id, error, warning;
+}
+
 class _AssistantSheetState extends ConsumerState<AssistantSheet> {
+  final _files = <_Upload>[];
+  String? _fileNote;
   final _input = TextEditingController();
   final _scroll = ScrollController();
   late final VoiceInput _voice = ref.read(voiceInputProvider);
@@ -203,9 +213,41 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
   Future<void> _send([String? text]) async {
     if (_listening) await _stopListening();
     final t = (text ?? _input.text).trim();
-    if (t.isEmpty) return;
+    final ready = [for (final u in _files) if (u.id != null) (id: u.id!, name: u.name)];
+    if ((t.isEmpty && ready.isEmpty) || ref.read(assistantSessionProvider).busy) return;
+    if (_files.any((u) => u.id == null && u.error == null)) return; // 올리는 중
     _input.clear();
-    await ref.read(assistantSessionProvider.notifier).send(t);
+    setState(() {
+      _files.clear();
+      _fileNote = null;
+    });
+    await ref.read(assistantSessionProvider.notifier).send(t, files: ready);
+  }
+
+  /// 파일 고르기 → 하나씩 바로 올린다(웹 /chat과 같은 상한: 5개·10MB).
+  Future<void> _pick() async {
+    final picked = await ref.read(attachmentPickerProvider)();
+    if (!mounted || picked.isEmpty) return;
+    final room = (attachMaxFiles - _files.length).clamp(0, attachMaxFiles);
+    setState(() => _fileNote = picked.length > room ? '첨부는 $attachMaxFiles개까지입니다.' : null);
+    for (final f in picked.take(room)) {
+      final u = _Upload(f.name);
+      setState(() => _files.add(u));
+      if (f.size > attachMaxBytes) {
+        setState(() => u.error = '파일은 10MB까지 첨부할 수 있습니다.');
+        continue;
+      }
+      try {
+        final r = await ref.read(chatApiProvider).upload(f.name, await f.read());
+        u
+          ..id = r.id
+          ..name = r.name
+          ..warning = r.warning;
+      } catch (e) {
+        u.error = e is ApiException ? e.message : '올리지 못했습니다.';
+      }
+      if (mounted) setState(() {});
+    }
   }
 
   @override
@@ -362,6 +404,37 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                 ],
               ),
             ),
+          if (_files.isNotEmpty || _fileNote != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      for (final u in _files)
+                        InputChip(
+                          avatar: u.id == null && u.error == null
+                              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                              : Icon(u.error == null ? Icons.attach_file : Icons.error_outline, size: 16, color: u.error == null ? Brand.muted : Brand.danger),
+                          label: Text(u.error == null ? u.name : '${u.name} — ${u.error}', style: TextStyle(fontSize: 12.5, color: u.error == null ? Brand.navy : Brand.dangerText)),
+                          deleteButtonTooltipMessage: '${u.name} 빼기',
+                          onDeleted: () => setState(() {
+                            _files.remove(u);
+                            _fileNote = null;
+                          }),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                    ],
+                  ),
+                  if (_fileNote != null) Text(_fileNote!, style: const TextStyle(fontSize: 12, color: Brand.muted)),
+                  if (_files.any((u) => u.warning != null))
+                    const Text('이미지·스캔 문서 안의 개인정보는 가려지지 않습니다.', style: TextStyle(fontSize: 12, color: Brand.cardBadgeFg)),
+                ],
+              ),
+            ),
           if (_voiceNote != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
@@ -381,6 +454,11 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
               ),
               child: Row(
                 children: [
+                  IconButton(
+                    tooltip: '파일 첨부',
+                    icon: const Icon(Icons.attach_file, color: Brand.muted),
+                    onPressed: st.busy || _files.length >= attachMaxFiles ? null : _pick,
+                  ),
                   Expanded(
                     child: TextField(
                       controller: _input,
@@ -454,7 +532,23 @@ class _Bubble extends StatelessWidget {
       case ChatKind.user:
         return Align(
           alignment: Alignment.centerRight,
-          child: _box(it.text, Brand.navy, Colors.white),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (final f in it.lines)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.attach_file, size: 14, color: Brand.muted),
+                      Flexible(child: Text(f, style: const TextStyle(fontSize: 13, color: Brand.muted), overflow: TextOverflow.ellipsis)),
+                    ],
+                  ),
+                ),
+              if (it.text.isNotEmpty) _box(it.text, Brand.navy, Colors.white),
+            ],
+          ),
         );
       case ChatKind.bot:
         return Align(

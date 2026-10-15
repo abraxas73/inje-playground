@@ -248,16 +248,26 @@ class AssistantSession extends Notifier<AssistantState> {
       state = build();
       _conversationId = id;
       if (model != null) ref.read(assistantModelProvider.notifier).pick(model);
-      _set(items: [
-        for (final l in lines)
-          switch (l.kind) {
-            'user' => ChatItem(ChatKind.user, l.text),
-            'tool' => ChatItem(ChatKind.tool, l.text, status: l.status),
-            'masked' => ChatItem(ChatKind.masked, l.text),
-            _ => ChatItem(ChatKind.bot, l.text),
-          },
-        if (lines.isEmpty) const ChatItem(ChatKind.bot, '무엇을 도와드릴까요?'),
-      ]);
+      final items = <ChatItem>[];
+      for (final l in lines) {
+        if (l.kind == 'files') {
+          // 첨부 이름은 바로 앞 사용자 말풍선에 붙인다(글 없이 첨부만 보낸 말이면 빈 말풍선)
+          final names = l.text.split('\n');
+          if (items.lastOrNull case final u? when u.kind == ChatKind.user && u.lines.isEmpty) {
+            items.last = ChatItem(ChatKind.user, u.text, lines: names);
+          } else {
+            items.add(ChatItem(ChatKind.user, '', lines: names));
+          }
+          continue;
+        }
+        items.add(switch (l.kind) {
+          'user' => ChatItem(ChatKind.user, l.text),
+          'tool' => ChatItem(ChatKind.tool, l.text, status: l.status),
+          'masked' => ChatItem(ChatKind.masked, l.text),
+          _ => ChatItem(ChatKind.bot, l.text),
+        });
+      }
+      _set(items: [...items, if (lines.isEmpty) const ChatItem(ChatKind.bot, '무엇을 도와드릴까요?')]);
     } catch (_) {
       _add(const ChatItem(ChatKind.notice, '대화를 불러오지 못했습니다.'));
     }
@@ -265,14 +275,15 @@ class AssistantSession extends Notifier<AssistantState> {
 
   /// 사용자 입력. 대기 카드는 그만두기로 닫는다 — 서버가 대기 호출을 "취소됨"으로 닫고 이 입력을 붙인다(고쳐 줘도 같은 길).
   /// 보내지 못한 회신이 있으면 먼저 보낸다 — 그 결과 확인 카드가 뜨면 이 입력은 보내지 않고 카드를 먼저 보인다.
-  Future<void> send(String text) async {
+  /// files: 올려 둔 첨부(id·이름) — 말풍선에 이름을 보이고 attachmentIds로 보낸다. 글 없이 첨부만 보내도 된다.
+  Future<void> send(String text, {List<({String id, String name})> files = const []}) async {
     final t = text.trim();
-    if (t.isEmpty || state.busy) return;
+    if ((t.isEmpty && files.isEmpty) || state.busy) return;
     if (state.pending) {
       _pending = null;
       _markCardDone('그만두었습니다');
     }
-    _add(ChatItem(ChatKind.user, t));
+    _add(ChatItem(ChatKind.user, t, lines: [for (final f in files) f.name]));
     if (!state.awaitingFix) _guard.reset();
     _set(awaitingFix: false);
     if (_unsent case final u?) {
@@ -281,7 +292,7 @@ class AssistantSession extends Notifier<AssistantState> {
         return;
       }
     }
-    await _drive({'text': t});
+    await _drive({if (t.isNotEmpty) 'text': t, if (files.isNotEmpty) 'attachmentIds': [for (final f in files) f.id]});
   }
 
   /// 회신 목록 — 앱 호출은 결과(오류면 서버가 문자열로 읽으므로 JSON 문자열), 서버 쓰기는 승인 여부(confirm에서 승인한 것만 true), 서버 읽기는 서버가 실행하므로 뺀다.

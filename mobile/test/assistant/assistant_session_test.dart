@@ -1011,6 +1011,31 @@ void main() {
     expect(c.read(assistantModelProvider), 'claude-opus-5-5');
   });
 
+  test('첨부 — attachmentIds로 보내고 말풍선에 이름, 글 없이 첨부만도 보낸다, 대화를 열면 첨부 이름도', () async {
+    final brain = ChatBrain([say('요약했어요'), say('봤어요')]);
+    brain.saved['c9'] = [
+      {'id': 'm1', 'role': 'user', 'content': [{'type': 'text', 'text': '요약'}, {'type': 'attachment', 'id': 'a', 'name': 'x.pdf'}]},
+      {'id': 'm2', 'role': 'user', 'content': [{'type': 'attachment', 'id': 'b', 'name': 'y.png'}]},
+    ];
+    final c = scope(brain, scenarioGw());
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('요약해 줘', files: [(id: 'a1', name: '보고서.pdf')]);
+    expect(brain.bodies.last['attachmentIds'], ['a1']);
+    expect(brain.bodies.last['text'], '요약해 줘');
+    final mine = c.read(assistantSessionProvider).items.firstWhere((i) => i.kind == ChatKind.user);
+    expect((mine.text, mine.lines.join(',')), ('요약해 줘', '보고서.pdf'));
+    await s.send('', files: [(id: 'a2', name: '사진.png')]);
+    expect(brain.bodies.last.containsKey('text'), isFalse);
+    expect(brain.bodies.last['attachmentIds'], ['a2']);
+    await s.send('');
+    expect(brain.bodies, hasLength(2), reason: '글도 첨부도 없으면 보내지 않는다');
+    await s.open('c9');
+    expect(c.read(assistantSessionProvider).items.map((i) => (i.kind, i.text, i.lines.join(','))), [
+      (ChatKind.user, '요약', 'x.pdf'),
+      (ChatKind.user, '', 'y.png'),
+    ]);
+  });
+
   test('open — 불러오는 사이 보내기가 시작되면 진행 중인 대화를 덮지 않는다', () async {
     final brain = ChatBrain([say('하나'), say('둘')]);
     brain.saved['c9'] = [

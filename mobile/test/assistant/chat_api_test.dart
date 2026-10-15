@@ -85,10 +85,36 @@ void main() {
     expect(loaded.model, 'claude-opus-5-5');
     expect(loaded.lines, [
       (kind: 'user', text: '메일', status: null),
+      (kind: 'files', text: 'x.pdf', status: null),
       (kind: 'masked', text: '개인정보 1건 가림', status: null),
       (kind: 'tool', text: '받은메일 목록 3건', status: 'ok'),
       (kind: 'assistant', text: '세 통입니다', status: null),
     ]);
+  });
+
+  test('upload — multipart file 파트로 올리고 id·이름·경고를 받는다, 거절은 서버 문구', () async {
+    late http.Request seen;
+    final api = apiWith((r) async {
+      seen = r;
+      return json({'id': 'a1', 'name': '보고서.pdf', 'kind': 'pdf', 'warning': '이미지·스캔 문서 안의 개인정보는 가려지지 않습니다.'});
+    });
+    final u = await api.upload('보고서.pdf', utf8.encode('%PDF'));
+    expect((u.id, u.name, u.warning), ('a1', '보고서.pdf', '이미지·스캔 문서 안의 개인정보는 가려지지 않습니다.'));
+    expect(seen.url.path, '/api/chat/attachments');
+    expect(seen.headers['content-type'], startsWith('multipart/form-data'));
+    expect(seen.headers['authorization'], 'Bearer t');
+    final raw = latin1.decode(seen.bodyBytes);
+    expect(raw, contains('name="file"'));
+    expect(raw, contains('%PDF'));
+    final bad = apiWith((r) async => json({'error': 'exe 파일은 첨부할 수 없는 형식입니다.'}, 415));
+    await expectLater(bad.upload('a.exe', [1]), throwsA(isA<ApiException>().having((e) => e.message, 'message', 'exe 파일은 첨부할 수 없는 형식입니다.')));
+  });
+
+  test('load — 첨부는 이름 줄(files)로', () async {
+    final api = apiWith((r) async => json({'conversation': {'id': 'c1'}, 'toolCalls': [], 'messages': [
+      {'id': 'm1', 'role': 'user', 'status': 'ok', 'content': [{'type': 'text', 'text': '요약해 줘'}, {'type': 'attachment', 'id': 'a', 'name': 'x.pdf'}, {'type': 'attachment', 'id': 'b', 'name': 'y.docx'}]},
+    ]}));
+    expect((await api.load('c1')).lines, [(kind: 'user', text: '요약해 줘', status: null), (kind: 'files', text: 'x.pdf\ny.docx', status: null)]);
   });
 
   test('load — 404는 ApiException', () async {

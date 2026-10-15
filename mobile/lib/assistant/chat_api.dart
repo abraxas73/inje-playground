@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/client.dart';
 
@@ -21,7 +22,7 @@ class TurnOutcome {
   final Map<String, String> toolStatus = {};
 }
 
-/// 불러온 대화의 한 줄 — kind: user|assistant|tool(status·요약)|masked(가린 건수 문구).
+/// 불러온 대화의 한 줄 — kind: user|assistant|tool(status·요약)|masked(가린 건수 문구)|files(첨부 이름, 줄바꿈으로 이음).
 typedef LoadedLine = ({String kind, String text, String? status});
 
 class ConversationSummary {
@@ -95,6 +96,8 @@ class ChatApi {
       final blocks = (r['content'] as List? ?? const []).whereType<Map>();
       final t = [for (final b in blocks) if (b['type'] == 'text') '${b['text']}'].join('\n').trim();
       if (t.isNotEmpty) out.add((kind: r['role'] == 'user' ? 'user' : 'assistant', text: t, status: null));
+      final files = [for (final b in blocks) if (b['type'] == 'attachment') '${b['name']}'];
+      if (files.isNotEmpty) out.add((kind: 'files', text: files.join('\n'), status: null));
       for (final b in blocks) {
         if (b['type'] != 'tool_use') continue;
         if (calls['${r['id']}:${b['id']}'] case final c?) out.add((kind: 'tool', text: '${c['summary'] ?? ''}', status: '${c['status']}'));
@@ -103,6 +106,13 @@ class ChatApi {
     }
     final conv = j is Map && j['conversation'] is Map ? j['conversation'] as Map : const {};
     return (model: conv['model'] is String ? conv['model'] as String : null, lines: out);
+  }
+
+  /// 첨부 하나 올리기(대화 연결은 다음 턴의 attachmentIds로). warning: 이미지·스캔 PDF는 개인정보를 가리지 못한다는 안내.
+  Future<({String id, String name, String? warning})> upload(String name, List<int> bytes) async {
+    final j = await api.postFile('/api/chat/attachments', name, bytes);
+    final m = j is Map ? j : const {};
+    return (id: '${m['id']}', name: '${m['name'] ?? name}', warning: m['warning'] is String ? m['warning'] as String : null);
   }
 
   /// 고를 수 있는 모델(관리자 설정 assistant_models)과 기본 모델.
@@ -138,3 +148,16 @@ class AssistantModel extends Notifier<String?> {
 String maskedText(int n) => '개인정보 $n건 가림';
 
 final chatApiProvider = Provider<ChatApi>((ref) => ChatApi(ref.watch(apiClientProvider)));
+
+/// 첨부할 수 있는 형식(웹 lib/chat/attachments.ts ATTACH_EXTS와 같게)과 크기.
+const attachExts = ['docx', 'pdf', 'pptx', 'xlsx', 'hwp', 'hwpx', 'txt', 'md', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
+const attachMaxBytes = 10 * 1024 * 1024;
+const attachMaxFiles = 5;
+
+typedef PickedFile = ({String name, int size, Future<List<int>> Function() read});
+
+/// 첨부할 파일 고르기 — 크기를 먼저 알려 주고 내용은 필요할 때 읽는다(10MB 넘는 파일을 메모리에 올리지 않게). 테스트에서 override.
+final attachmentPickerProvider = Provider<Future<List<PickedFile>> Function()>((_) => () async {
+  final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: attachExts);
+  return [for (final f in files) (name: f.name, size: await f.xFile.length(), read: f.xFile.readAsBytes)];
+});

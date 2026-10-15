@@ -29,6 +29,7 @@ class ChatBrain {
   final executed = <Map<String, dynamic>>[];
   final viaExecute = <String>[];
   final bodies = <Map<String, dynamic>>[];
+  final uploads = <String>[]; // 받은 첨부 파일 이름
   final history = <Map<String, dynamic>>[];
   final saved = <String, List<Map<String, dynamic>>>{}; // GET /api/chat/conversations/{id}가 돌려줄 메시지 행
   final savedCalls = <String, List<Map<String, dynamic>>>{}; // 같은 GET의 toolCalls
@@ -70,6 +71,13 @@ class ChatBrain {
       final rows = saved[Uri.decodeComponent(r.url.pathSegments.last)];
       final id = Uri.decodeComponent(r.url.pathSegments.last);
       return rows == null ? _json({'error': '대화를 찾지 못했습니다.'}, 404) : _json({'conversation': {'id': id, 'model': savedModel[id] ?? 'claude-sonnet-5-5'}, 'messages': rows, 'toolCalls': savedCalls[id] ?? const []});
+    }
+    if (r.url.path == '/api/chat/attachments') {
+      final raw = utf8.decode(r.bodyBytes, allowMalformed: true);
+      final name = RegExp(r'filename="([^"]*)"').firstMatch(raw)?[1] ?? 'file';
+      if (name.endsWith('.exe')) return _json({'error': 'exe 파일은 첨부할 수 없는 형식입니다.'}, 415);
+      uploads.add(name);
+      return _json({'id': 'a${uploads.length}', 'name': name, 'kind': name.endsWith('.png') ? 'image' : 'text', if (name.endsWith('.png')) 'warning': '이미지·스캔 문서 안의 개인정보는 가려지지 않습니다.'});
     }
     if (r.url.path != '/api/chat/turn') {
       // 선택지 안의 서버 쓰기·카드용 대상 확인은 앱이 기존 /api/assistant/execute로 부른다

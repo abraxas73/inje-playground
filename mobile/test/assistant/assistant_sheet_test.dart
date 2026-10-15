@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:playground/api/client.dart';
 import 'package:playground/assistant/assistant_sheet.dart';
+import 'package:playground/assistant/chat_api.dart' show attachmentPickerProvider;
 import 'package:playground/assistant/innobot_button.dart';
 import 'package:playground/gw/gw_client.dart';
 import 'package:playground/gw/gw_creds.dart';
@@ -12,9 +13,10 @@ import '../gw/fakes.dart';
 import 'assistant_session_test.dart' show say, use, scenarioGw;
 import 'chat_brain.dart';
 
-Widget host(ChatBrain brain, Widget child) => ProviderScope(
+Widget host(ChatBrain brain, Widget child, {List<({String name, List<int> bytes})> picked = const []}) => ProviderScope(
   key: UniqueKey(),
   overrides: [
+    attachmentPickerProvider.overrideWithValue(() async => [for (final f in picked) (name: f.name, size: f.bytes.length, read: () async => f.bytes)]),
     apiClientProvider.overrideWithValue(brain.client),
     gwStoreProvider.overrideWithValue(FakeGwStore(testCreds)),
     gwHttpClientProvider.overrideWithValue(scenarioGw().client),
@@ -87,6 +89,41 @@ void main() {
     await tester.pumpWidget(host(ChatBrain([]), const AssistantSheet()));
     await tester.pumpAndSettle();
     expect(find.byTooltip('모델 고르기'), findsNothing);
+  });
+
+  testWidgets('첨부 — 고르면 바로 올려 칩으로, 빼기, 보내면 attachmentIds와 말풍선 이름, 거절은 칩에 이유', (tester) async {
+    final brain = ChatBrain([say('읽었어요')]);
+    await tester.pumpWidget(host(brain, const AssistantSheet(), picked: [(name: '보고서.pdf', bytes: [1]), (name: '사진.png', bytes: [2]), (name: '나쁜.exe', bytes: [3])]));
+    await tester.tap(find.byTooltip('파일 첨부'));
+    await tester.pumpAndSettle();
+    expect(brain.uploads, ['보고서.pdf', '사진.png']);
+    expect(find.text('보고서.pdf'), findsOneWidget);
+    expect(find.textContaining('exe 파일은 첨부할 수 없는 형식입니다'), findsOneWidget);
+    expect(find.text('이미지·스캔 문서 안의 개인정보는 가려지지 않습니다.'), findsOneWidget);
+    await tester.tap(find.byTooltip('사진.png 빼기'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '요약해 줘');
+    await tester.tap(find.byTooltip('보내기'));
+    await tester.pumpAndSettle();
+    expect(brain.bodies.last['attachmentIds'], ['a1']);
+    expect(find.byTooltip('보고서.pdf 빼기'), findsNothing, reason: '보낸 뒤 입력창 칩은 비운다');
+    expect(find.text('보고서.pdf'), findsOneWidget, reason: '말풍선에 첨부 이름');
+  });
+
+  testWidgets('첨부 — 5개까지, 10MB를 넘으면 올리지 않고 안내', (tester) async {
+    final brain = ChatBrain([]);
+    await tester.pumpWidget(host(brain, const AssistantSheet(), picked: [
+      for (var i = 0; i < 6; i++) (name: 'f$i.txt', bytes: [i]),
+    ]));
+    await tester.tap(find.byTooltip('파일 첨부'));
+    await tester.pumpAndSettle();
+    expect(brain.uploads, hasLength(5));
+    expect(find.text('첨부는 5개까지입니다.'), findsOneWidget);
+    await tester.pumpWidget(host(brain, const AssistantSheet(), picked: [(name: '큰.pdf', bytes: List.filled(10 * 1024 * 1024 + 1, 0))]));
+    await tester.tap(find.byTooltip('파일 첨부'));
+    await tester.pumpAndSettle();
+    expect(brain.uploads, hasLength(5));
+    expect(find.textContaining('10MB까지'), findsOneWidget);
   });
 
   testWidgets('마크다운 이미지는 불러오지 않는다(외부 주소로 대화 내용이 새는 경로) — 대체 글만', (tester) async {

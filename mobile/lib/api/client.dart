@@ -79,6 +79,27 @@ class ApiClient {
     return httpClient.send(req);
   }
 
+  /// 파일 하나를 multipart(파트 이름 [field])로 POST — Bearer·401 갱신 1회 재시도·오류 문구는 JSON 호출과 같다.
+  Future<dynamic> postFile(String path, String filename, List<int> bytes, {String field = 'file'}) async {
+    Future<http.Response> go(String? token) {
+      final req = http.MultipartRequest('POST', Uri.parse('$baseUrl$path'))
+        ..headers.addAll({'User-Agent': userAgent, 'Accept': 'application/json', if (token != null) 'Authorization': 'Bearer $token'})
+        ..files.add(http.MultipartFile.fromBytes(field, bytes, filename: filename));
+      return httpClient.send(req).then(http.Response.fromStream);
+    }
+
+    var res = await go(await tokens.accessToken());
+    if (res.statusCode == 401) {
+      res = await go(await tokens.refreshToken());
+      if (res.statusCode == 401) {
+        await tokens.onUnauthorized();
+        throw _apiError(res);
+      }
+    }
+    if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(res);
+    return res.bodyBytes.isEmpty ? null : jsonDecode(utf8.decode(res.bodyBytes));
+  }
+
   Future<dynamic> putJson(String path, Object body) =>
       _send('PUT', path, body: body);
   Future<dynamic> patchJson(String path, Object body) =>
