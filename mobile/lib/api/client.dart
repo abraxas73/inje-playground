@@ -79,6 +79,8 @@ class ApiClient {
     return httpClient.send(req);
   }
 
+  Future<dynamic> putJson(String path, Object body) =>
+      _send('PUT', path, body: body);
   Future<dynamic> patchJson(String path, Object body) =>
       _send('PATCH', path, body: body);
   Future<dynamic> deleteJson(

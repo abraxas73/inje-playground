@@ -10,6 +10,7 @@ import '../release/update_banner.dart';
 import '../gw/gw_creds.dart';
 import '../gw/gw_settings_sheet.dart';
 import '../mcp/mcp_settings_sheet.dart';
+import '../assistant/innobot_prefs.dart';
 import 'catalog.dart';
 import 'profile.dart';
 
@@ -108,6 +109,8 @@ class MoreScreen extends ConsumerWidget {
                   onTap: () => open('/settings'),
                 ),
                 const Divider(),
+                const _InnobotSwitch(),
+                const Divider(),
                 const ListTile(leading: Icon(Icons.info_outline), title: Text('앱 버전'), trailing: VersionTrailing()),
               ]),
             ),
@@ -146,6 +149,25 @@ class _GwRow extends StatelessWidget {
       }),
       trailing: status == GwStatus.none ? TextButton(onPressed: onTap, child: const Text('연결하기')) : const Icon(Icons.chevron_right, color: Brand.faint),
       onTap: onTap,
+    );
+  }
+}
+
+/// 떠 있는 이노봇 버튼 표시 — 계정 설정(user_settings.innobot_button)이라 모든 기기의 앱에 적용. 저장 실패면 되돌리고 알린다.
+class _InnobotSwitch extends ConsumerWidget {
+  const _InnobotSwitch();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(innobotButtonPrefProvider).value ?? true;
+    return SwitchListTile(
+      secondary: const Icon(Icons.smart_toy_outlined),
+      title: const Text('이노봇 버튼 표시'),
+      subtitle: const Text('화면에 떠 있는 이노봇 버튼 · 모든 기기에 적용'),
+      value: on,
+      onChanged: (v) async {
+        final ok = await ref.read(innobotButtonPrefProvider.notifier).set(v);
+        if (!ok && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('설정을 저장하지 못했습니다. 다시 시도해 주세요.')));
+      },
     );
   }
 }

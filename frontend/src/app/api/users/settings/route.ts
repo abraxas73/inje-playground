@@ -15,10 +15,13 @@ const ALLOWED_USER_SETTING_KEYS = new Set([
   "dooray_project_name",
   "dooray_member_id",
   "dooray_member_name",
+  "innobot_button", // 앱의 떠 있는 이노봇 버튼 표시(on|off, 빈 값 = on) — 계정 단위라 모든 기기의 앱에 적용
 ]);
+/** 값이 정해진 키 — 허용 값 밖은 400 */
+const ENUM_VALUES: Record<string, readonly string[]> = { innobot_button: ["on", "off", ""] };
 
-/** GET /api/users/settings — 현재 사용자 개인 설정 조회 */
-export async function GET() {
+/** GET /api/users/settings[?key=] — 현재 사용자 개인 설정 조회. key를 주면 그 키만(앱이 토큰류 설정을 함께 받지 않도록). */
+export async function GET(request?: NextRequest) {
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -27,10 +30,10 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data } = await supabase
-    .from("user_settings")
-    .select("key, value")
-    .eq("user_id", user.id);
+  const only = request?.nextUrl.searchParams.get("key") ?? null;
+  let query = supabase.from("user_settings").select("key, value").eq("user_id", user.id);
+  if (only) query = query.eq("key", only);
+  const { data } = await query;
 
   const settings: Record<string, string> = {};
   for (const row of data ?? []) {
@@ -61,6 +64,9 @@ export async function PUT(request: NextRequest) {
   }
   if (typeof value !== "string" && value !== undefined && value !== null) {
     return NextResponse.json({ error: "value는 문자열이어야 합니다." }, { status: 400 });
+  }
+  if (ENUM_VALUES[key] && !ENUM_VALUES[key].includes(typeof value === "string" ? value : "")) {
+    return NextResponse.json({ error: `${key}는 ${ENUM_VALUES[key].filter(Boolean).join("·")} 중 하나입니다.` }, { status: 400 });
   }
   if (typeof value === "string" && value.length > 2000) {
     return NextResponse.json({ error: "value가 너무 깁니다(2000자 이하)." }, { status: 400 });

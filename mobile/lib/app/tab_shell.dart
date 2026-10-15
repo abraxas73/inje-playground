@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../assistant/innobot_button.dart';
+import '../assistant/innobot_prefs.dart';
 import '../auth/session.dart';
 import '../more/catalog.dart';
 import '../more/service_grid.dart';
@@ -41,6 +41,7 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
   @override
   void dispose() {
     _fan.dispose();
+    innobotFanOpen.value = false;
     super.dispose();
   }
 
@@ -52,6 +53,7 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
       _open = id;
       _closing = false;
     });
+    innobotFanOpen.value = true;
     _fan.forward(from: 0);
   }
 
@@ -60,6 +62,7 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
     setState(() => _closing = true);
     // 접히는 중에 다른 그룹을 펼치면(forward) 이 reverse는 취소된다 — orCancel로 받아 무시
     _fan.reverse().orCancel.then((_) {
+      innobotFanOpen.value = false;
       if (mounted) setState(() { _open = null; _closing = false; });
     }, onError: (_) {});
   }
@@ -103,7 +106,6 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
       child: Scaffold(
         body: Stack(children: [
           widget.shell,
-          if (openIdx < 0) const InnobotButton(),
           if (openIdx >= 0)
             FanMenu(
               key: ValueKey(_open),

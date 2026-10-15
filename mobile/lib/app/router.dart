@@ -19,6 +19,7 @@ import '../gw/gw_connect_screen.dart';
 import '../gw/mail_screen.dart';
 import '../gw/today_screen.dart';
 import 'tab_shell.dart';
+import '../assistant/innobot_prefs.dart';
 import '../dooray/calendar_screen.dart';
 
 /// 하단 탭을 누를 때마다 1 증가 — 탭 화면(IndexedStack에 살아 있음)이 이걸 듣고 서버 데이터(내 팀 등)를 다시 불러온다.
@@ -39,6 +40,7 @@ GoRouter buildRouter({
   required String? Function(BuildContext, GoRouterState) redirect,
 }) => GoRouter(
   initialLocation: '/home',
+  observers: [InnobotPopupObserver()], // 시트·대화상자가 열리면 떠 있는 이노봇을 숨긴다(브랜치마다 하나씩)
   refreshListenable: refresh,
   redirect: redirect,
   routes: [
@@ -60,16 +62,19 @@ GoRouter buildRouter({
       builder: (c, s, shell) => TabShell(shell: shell),
       branches: [
         StatefulShellBranch(
+          observers: [InnobotPopupObserver()],
           routes: [
             GoRoute(path: '/home', builder: (c, s) => const HomeScreen()),
           ],
         ),
         StatefulShellBranch(
+          observers: [InnobotPopupObserver()],
           routes: [
             GoRoute(path: '/food', builder: (c, s) => const FoodScreen()),
           ],
         ),
         StatefulShellBranch(
+          observers: [InnobotPopupObserver()],
           routes: [
             GoRoute(
               path: '/ladder',
@@ -84,6 +89,7 @@ GoRouter buildRouter({
           ],
         ),
         StatefulShellBranch(
+          observers: [InnobotPopupObserver()],
           routes: [
             GoRoute(
               path: '/team',
@@ -98,6 +104,7 @@ GoRouter buildRouter({
           ],
         ),
         StatefulShellBranch(
+          observers: [InnobotPopupObserver()],
           routes: [
             GoRoute(path: '/more', builder: (c, s) => const MoreScreen()),
           ],
