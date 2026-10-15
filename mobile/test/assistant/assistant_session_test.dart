@@ -1048,6 +1048,22 @@ void main() {
     expect(c.read(assistantSessionProvider).items.single.text, '무엇을 도와드릴까요?');
   });
 
+  test('앱이 모르는 서버 쓰기(앱 기능 ppt_create) — 서버가 보낸 카드 줄로 확인받고 승인을 회신한다', () async {
+    final brain = ChatBrain([use([('p1', 'ppt_create', {'title': '3분기 실적', 'text': '# 매출'})]), say('만들기 시작했어요')]);
+    final c = scope(brain, scenarioGw());
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('PPT 만들어 줘');
+    final st = c.read(assistantSessionProvider);
+    expect(st.pending, isTrue);
+    final card = st.items.lastWhere((i) => i.kind == ChatKind.card);
+    expect(card.lines.join('\n'), contains('PPT 만들기 — 3분기 실적'));
+    expect(card.lines.join('\n'), contains('원고: # 매출'));
+    await s.confirm();
+    expect(brain.executed.map((e) => e['tool']), ['ppt_create']);
+    expect(brain.bodies.last['actions'], [{'id': 'p1', 'approve': true}]);
+    expect(c.read(assistantSessionProvider).items.last.text, '만들기 시작했어요');
+  });
+
   test('open — 불러오는 사이 보내기가 시작되면 진행 중인 대화를 덮지 않는다', () async {
     final brain = ChatBrain([say('하나'), say('둘')]);
     brain.saved['c9'] = [

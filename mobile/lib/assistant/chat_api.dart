@@ -4,8 +4,10 @@ import '../api/client.dart';
 
 /// 서버가 멈추고 앱에 맡긴 도구 호출(needs_action). location: server|device|desktop-relay, tier: read|write|irreversible|meta|choice.
 class PendingCall {
-  const PendingCall({required this.id, required this.name, required this.input, required this.location, required this.tier, this.target});
+  const PendingCall({required this.id, required this.name, required this.input, required this.location, required this.tier, this.target, this.card});
   final String id, name, location, tier;
+  /// 서버가 만든 확인 카드 줄(앱이 모르는 서버 쓰기 — 앱 기능 도구). 있으면 그대로 보인다.
+  final List<String>? card;
   final Map<String, dynamic> input;
   /// 서버가 조회한 실제 대상(서버 쓰기만)
   final String? target;
@@ -55,7 +57,7 @@ class ChatApi {
             finished = true;
             o.needsAction = [
               for (final c in (e['calls'] as List? ?? const []).whereType<Map>())
-                PendingCall(id: '${c['id']}', name: '${c['tool']}', input: Map<String, dynamic>.from(c['input'] as Map? ?? const {}), location: '${c['location']}', tier: '${c['tier']}', target: c['target'] is String ? c['target'] as String : null),
+                PendingCall(id: '${c['id']}', name: '${c['tool']}', input: Map<String, dynamic>.from(c['input'] as Map? ?? const {}), location: '${c['location']}', tier: '${c['tier']}', target: c['target'] is String ? c['target'] as String : null, card: c['card'] is List ? [for (final l in c['card'] as List) '$l'] : null),
             ];
           case 'done':
             finished = true;

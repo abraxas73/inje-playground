@@ -160,7 +160,10 @@ class ChatBrain {
       }
       final calls = [
         for (final u in uses)
-          {'id': '${u['id']}', 'tool': '${u['name']}', 'input': u['input'] ?? {}, 'location': serverToolNames.contains(u['name']) ? 'server' : 'device', 'tier': (tierOf('${u['name']}') ?? ToolTier.write).name},
+          if (brainFeatureCards[u['name']] case final card?)
+            {'id': '${u['id']}', 'tool': '${u['name']}', 'input': u['input'] ?? {}, 'location': 'server', 'tier': 'write', 'card': card(Map<String, dynamic>.from(u['input'] as Map? ?? const {}))}
+          else
+            {'id': '${u['id']}', 'tool': '${u['name']}', 'input': u['input'] ?? {}, 'location': serverToolNames.contains(u['name']) ? 'server' : 'device', 'tier': (tierOf('${u['name']}') ?? ToolTier.write).name},
       ];
       final auto = calls.every((c) => c['location'] == 'server' && c['tier'] == 'read');
       if (!auto) {
@@ -187,6 +190,11 @@ class ChatBrain {
   http.Response _sse(List<Map<String, dynamic>> ev) => sseResponse(ev);
   http.Response _json(Object o, [int status = 200]) => http.Response.bytes(utf8.encode(jsonEncode(o)), status, headers: {'content-type': 'application/json; charset=utf-8'});
 }
+
+/// 서버 전용 앱 기능 쓰기 도구(진짜 서버 lib/assistant/feature-tools.ts) — 앱은 모르고 서버가 카드 줄을 보낸다.
+final brainFeatureCards = <String, List<String> Function(Map<String, dynamic>)>{
+  'ppt_create': (i) => ['PPT 만들기 — ${i['title']}', '원고: ${i['text']}'],
+};
 
 /// SSE 응답 하나(이벤트 목록 그대로).
 http.Response sseResponse(List<Map<String, dynamic>> ev) => http.Response.bytes(utf8.encode(ev.map((e) => 'data: ${jsonEncode(e)}\n\n').join()), 200, headers: {'content-type': 'text/event-stream; charset=utf-8'});

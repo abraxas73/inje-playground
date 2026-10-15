@@ -304,7 +304,7 @@ class AssistantSession extends Notifier<AssistantState> {
   List<Map<String, dynamic>> _replies(Iterable<(String, Map<String, dynamic>)> rs) => [
     for (final (id, r) in rs)
       if (_calls[id] case final c? when c.onServer) ...[
-        if (tierOf(c.name) != ToolTier.read) {'id': id, 'approve': _approved.contains(id)},
+        if (_tier(id, c.name) != ToolTier.read) {'id': id, 'approve': _approved.contains(id)},
       ] else
         _reply(id, r),
   ];
@@ -447,12 +447,18 @@ class AssistantSession extends Notifier<AssistantState> {
     }
   }
 
+  /// 도구 등급 — 앱 표에 없는 서버 도구(앱 기능 도구)는 서버가 알려 준 등급을 쓴다.
+  ToolTier? _tier(String id, String name) {
+    final p = _calls[id];
+    return tierOf(name) ?? (p != null && p.onServer ? ToolTier.values.asNameMap()[p.tier] : null);
+  }
+
   /// needs_action 처리. 회신 목록을 돌려주면 서버로 이어 가고, null이면 확인 카드 대기.
   Future<List<Map<String, dynamic>>?> _handle(List<PendingCall> pcs, _Run run) async {
     _calls = {for (final p in pcs) p.id: p};
     final calls = [
       for (final p in pcs)
-        if (!(p.onServer && tierOf(p.name) == ToolTier.read)) ToolCall(p.id, p.name, p.input), // 서버 읽기는 서버가 실행
+        if (!(p.onServer && _tier(p.id, p.name) == ToolTier.read)) ToolCall(p.id, p.name, p.input), // 서버 읽기는 서버가 실행
     ];
     if (calls.isEmpty) return const [];
     final runner = await _runner(run);
@@ -470,7 +476,7 @@ class AssistantSession extends Notifier<AssistantState> {
     final writes = <ToolCall>[];
     final undoIds = <String>{}, undoWriteIds = <String>{}, seen = <String>{};
     for (final c in calls) {
-      final tier = tierOf(c.name);
+      final tier = _tier(c.id, c.name);
       if (tier == null) {
         results[c.id] = {'ok': false, 'error': '모르는 도구입니다: ${c.name}'};
       } else if (tier == ToolTier.read) {
@@ -518,6 +524,10 @@ class AssistantSession extends Notifier<AssistantState> {
       final lines = <String>[];
       final rejected = <String, Map<String, dynamic>>{};
       for (final w in writes) {
+        if (_calls[w.id]?.card case final card? when tierOf(w.name) == null) {
+          lines.add(card.join('\n')); // 앱이 모르는 서버 쓰기 — 서버가 만든 카드 줄
+          continue;
+        }
         final r = await _wait(run, runner.resolve(w));
         if (r.error != null) {
           rejected[w.id] = {'ok': false, 'error': r.error};
