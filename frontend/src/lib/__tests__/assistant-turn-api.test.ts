@@ -1,14 +1,15 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
-const m = vi.hoisted(() => ({ ok: true as boolean, settings: [] as Array<{ key: string; value: string }>, used: 0, setErr: false, cntErr: false, call: vi.fn(), audit: vi.fn() }));
+const m = vi.hoisted(() => ({ ok: true as boolean, settings: [] as Array<{ key: string; value: string }>, used: 0, setErr: false, cntErr: false, call: vi.fn(), rpc: vi.fn(), audit: vi.fn() }));
 function fakeAdmin() {
   return {
     from: (table: string) => {
       if (table === "settings") return { select: () => ({ in: async () => ({ data: m.settings, error: m.setErr ? { message: "x" } : null }) }) };
-      if (table === "action_history") return { select: () => ({ eq: () => ({ eq: () => ({ gte: async () => ({ count: m.used, error: m.cntErr ? { message: "x" } : null }) }) }) }) };
+      if (table === "assistant_usage") return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { turns: m.used }, error: m.cntErr ? { message: "x" } : null }) }) }) }) };
       return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { display_name: "강승욱", email: "a@innogrid.com" }, error: null }) }) }) };
     },
+    rpc: m.rpc,
   };
 }
 vi.mock("@/lib/rfp/require-user", () => ({ requireUser: async () => m.ok ? { ok: true, userId: "u1", role: "user", admin: fakeAdmin() } : { ok: false, response: NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 }) } }));
@@ -18,8 +19,8 @@ import { POST } from "@/app/api/assistant/turn/route";
 const req = (b: unknown, raw?: string) => new NextRequest("https://app.test/api/assistant/turn", { method: "POST", headers: { "content-type": "application/json" }, body: raw ?? JSON.stringify(b) });
 const body = { messages: [{ role: "user", content: "오늘 오후 빈 회의실 잡아줘 — 비밀 내용" }], now: "2026-10-05T14:03+09:00" };
 beforeEach(() => {
-  vi.stubEnv("ANTHROPIC_API_KEY", "sk-test"); m.ok = true; m.settings = []; m.used = 0; m.setErr = false; m.cntErr = false; m.audit.mockReset();
-  m.call.mockReset().mockResolvedValue({ stop_reason: "tool_use", content: [{ type: "text", text: "찾아볼게요." }, { type: "tool_use", id: "t1", name: "find_free_rooms", input: { date: "2026-10-05", from: "12:00", to: "18:00", duration_min: 60 } }] });
+  vi.stubEnv("ANTHROPIC_API_KEY", "sk-test"); m.ok = true; m.settings = []; m.used = 0; m.setErr = false; m.cntErr = false; m.audit.mockReset(); m.rpc.mockReset().mockResolvedValue({ error: null });
+  m.call.mockReset().mockResolvedValue({ model: "claude-sonnet-5-5", usage: { input_tokens: 5, output_tokens: 2 }, stop_reason: "tool_use", content: [{ type: "text", text: "찾아볼게요." }, { type: "tool_use", id: "t1", name: "find_free_rooms", input: { date: "2026-10-05", from: "12:00", to: "18:00", duration_min: 60 } }] });
 });
 
 it("Claude 응답을 그대로 돌려주고, 지침에 이름·시각, 감사에는 도구 이름만", async () => {
@@ -38,6 +39,7 @@ it("Claude 응답을 그대로 돌려주고, 지침에 이름·시각, 감사에
   expect(detail).toContain("find_free_rooms");
   expect(detail).not.toContain("비밀 내용");
   expect(m.audit.mock.calls[0][2].action).toBe("비서 턴");
+  expect(m.rpc).toHaveBeenCalledWith("chat_usage_add", expect.objectContaining({ p_user: "u1" }));
 });
 it("꺼짐·키 없음 → enabled:false, 하루 상한 → 429, 형식 오류·과대 → 400, Claude 오류 → 502, 비로그인 401", async () => {
   m.settings = [{ key: "assistant_enabled", value: "off" }];

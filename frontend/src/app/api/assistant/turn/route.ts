@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logAudit } from "@/lib/audit";
 import { requireUser } from "@/lib/rfp/require-user";
-import { ASSISTANT_BODY_MAX, assistantSystemPrompt, kstDayStartIso, validateMessages } from "@/lib/assistant/tools";
+import { ASSISTANT_BODY_MAX, assistantSystemPrompt, validateMessages } from "@/lib/assistant/tools";
 import { loadAssistantSettings } from "@/lib/assistant/settings";
 import { callAssistant } from "@/lib/assistant/llm";
+import { recordUsage, turnsToday } from "@/lib/chat/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -26,16 +27,17 @@ export async function POST(request: NextRequest) {
   const cfg = await loadAssistantSettings(r.admin);
   if (!cfg.ok) return NextResponse.json({ error: "assistant unavailable" }, { status: 503 });
   if (!cfg.enabled) return NextResponse.json({ enabled: false }, { headers: NO_STORE });
-  // 확인 후 기록이라 원자적이지 않다 — 동시 요청에서 상한을 조금 넘을 수 있으나 허용한다.
-  const { count, error: countErr } = await r.admin.from("action_history").select("id", { count: "exact", head: true }).eq("user_id", r.userId).eq("action", TURN_ACTION).gte("created_at", kstDayStartIso(new Date()));
-  if (countErr) return NextResponse.json({ error: "assistant unavailable" }, { status: 503 });
-  if ((count ?? 0) >= cfg.dailyLimit) return NextResponse.json({ error: "오늘 비서 사용 한도를 넘었습니다. 내일 다시 이용해 주세요." }, { status: 429 });
+  // 확인 후 기록이라 원자적이지 않다 — 동시 요청에서 상한을 조금 넘을 수 있으나 허용한다. 웹 채팅(/api/chat/turn)과 같은 assistant_usage를 센다.
+  const used = await turnsToday(r.admin, r.userId);
+  if (used === null) return NextResponse.json({ error: "assistant unavailable" }, { status: 503 });
+  if (used >= cfg.dailyLimit) return NextResponse.json({ error: "오늘 비서 사용 한도를 넘었습니다. 내일 다시 이용해 주세요." }, { status: 429 });
   const { data: profile } = await r.admin.from("user_profiles").select("display_name,email").eq("user_id", r.userId).maybeSingle();
   const p = (profile ?? {}) as { display_name?: string | null; email?: string | null };
   const now = typeof parsed.now === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\+09:00)?$/.test(parsed.now) ? parsed.now : new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 16);
   try {
     const msg = await callAssistant(messages, assistantSystemPrompt({ now, name: p.display_name ?? "", email: p.email ?? "" }));
     const tools = msg.content.filter((b) => b.type === "tool_use").map((b) => (b as { name: string }).name);
+    await recordUsage(r.admin, { userId: r.userId, model: msg.model, inputTokens: msg.usage?.input_tokens ?? 0, outputTokens: msg.usage?.output_tokens ?? 0, masked: 0 });
     await logAudit(r.admin, request, { userId: r.userId, action: TURN_ACTION, category: "assistant", detail: { tools } });
     return NextResponse.json({ enabled: true, message: { role: "assistant", content: msg.content }, stop_reason: msg.stop_reason }, { headers: NO_STORE });
   } catch (e) {
