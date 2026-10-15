@@ -18,3 +18,19 @@ export async function callAssistant(messages: Anthropic.MessageParam[], system: 
   if (msg.stop_reason === "max_tokens") throw new Error("답이 잘렸습니다(max_tokens)");
   return msg;
 }
+
+/** 웹 채팅(/api/chat/turn) 한 번의 Claude 호출 — 스트리밍으로 텍스트를 흘리고 완성 메시지를 돌려준다. 도구 정의 마지막에 캐시 표시. */
+export const streamAssistant: import("@/lib/chat/engine").StreamFn = async (p, onText, signal) => {
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const tools = p.tools.map((t, i, a) => (i === a.length - 1 ? { ...t, cache_control: CACHE } : t));
+  const s = client.messages.stream({
+    model: p.model, max_tokens: 8192, system: p.system, tools, messages: p.messages,
+    ...(p.noTools ? { tool_choice: { type: "none" } } : {}),
+    thinking: { type: "between_tools" } as unknown as Anthropic.Messages.ThinkingConfigParam,
+    cache_control: CACHE,
+  } as Anthropic.MessageStreamParams, { signal });
+  s.on("text", onText);
+  const msg = await s.finalMessage();
+  if (msg.stop_reason === "max_tokens") throw new Error("답이 잘렸습니다(max_tokens)");
+  return msg;
+};
