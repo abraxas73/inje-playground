@@ -100,6 +100,7 @@ drop policy if exists chat_attachments_own on public.chat_attachments;
 create policy chat_attachments_own on public.chat_attachments for select to authenticated using (user_id = (select auth.uid()));
 drop policy if exists assistant_usage_own on public.assistant_usage;
 create policy assistant_usage_own on public.assistant_usage for select to authenticated using (user_id = (select auth.uid()));
+revoke insert, update, delete on public.chat_conversations, public.chat_messages, public.chat_tool_calls, public.chat_attachments, public.assistant_usage from anon, authenticated;
 grant select on public.chat_conversations, public.chat_messages, public.chat_tool_calls, public.chat_attachments, public.assistant_usage to authenticated;
 grant all on public.chat_conversations, public.chat_messages, public.chat_tool_calls, public.chat_attachments, public.assistant_usage to service_role;
 
