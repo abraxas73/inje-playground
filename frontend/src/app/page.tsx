@@ -5,10 +5,11 @@ import JiraWorkCard from "@/components/home/JiraWorkCard";
 import ConfluenceMentionsCard from "@/components/home/ConfluenceMentionsCard";
 import SharepointDocsCard from "@/components/home/SharepointDocsCard";
 import DailyGreeting from "@/components/home/DailyGreeting";
+import HomeChatBox from "@/components/home/HomeChatBox";
+import RecentConversations from "@/components/home/RecentConversations";
 import DesktopAppCard from "@/components/home/DesktopAppCard";
 import TeamsReplyCard from "@/components/home/TeamsReplyCard";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Database, Dice5, ArrowRight, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Presentation, Newspaper, SquareTerminal, MessagesSquare, TrendingUp, MessageCircle, Smartphone, BookText, FolderOpen } from "lucide-react";
+import { Database, Dice5, UtensilsCrossed, Shield, Coffee, ClipboardList, FileSearch, Presentation, Newspaper, SquareTerminal, MessagesSquare, TrendingUp, MessageCircle, Smartphone, BookText, FolderOpen } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 
 const FEATURES = [
@@ -16,6 +17,36 @@ const FEATURES = [
   { href: "/teams/chat", title: "Teams 채팅", description: "내가 속한 Teams 그룹·1:1 채팅을 여기서 바로 읽고 보내세요.", icon: MessageCircle, gradient: "from-violet-500 to-indigo-600", bgAccent: "bg-violet-50", iconColor: "text-violet-600", delay: "delay-100" },
   { href: "/confluence", title: "Confluence", description: "회사 위키 문서를 찾고, 나를 멘션한 문서를 보고, 회의록·주간보고를 바로 만드세요.", icon: BookText, gradient: "from-sky-500 to-blue-600", bgAccent: "bg-sky-50", iconColor: "text-sky-600", delay: "delay-100" },
   { href: "/sharepoint", title: "SharePoint 문서", description: "자주 쓰는 문서·나와 공유된 문서를 바로 열고, 회사 문서를 이름·본문으로 찾으세요.", icon: FolderOpen, gradient: "from-teal-500 to-emerald-600", bgAccent: "bg-teal-50", iconColor: "text-teal-600", delay: "delay-100" },
+  {
+    href: "/rfp",
+    title: "RFP 분석",
+    description: "제안요청서(hwp·hwpx·docx·pdf)를 올리면 사업 개요와 요구사항 표를 만들어 드립니다. 편집하고 엑셀로 내려받으세요.",
+    icon: FileSearch,
+    gradient: "from-violet-500 to-purple-600",
+    bgAccent: "bg-violet-50",
+    iconColor: "text-violet-600",
+    delay: "delay-[475ms]",
+  },
+  {
+    href: "/ppt",
+    title: "PPT 만들기",
+    description: "원고와 프롬프트를 넣으면 이노그리드 표준 템플릿으로 PPT를 만들어 드립니다. 피드백으로 다시 만들고, 링크·Teams·SharePoint로 공유하세요.",
+    icon: Presentation,
+    gradient: "from-sky-500 to-blue-600",
+    bgAccent: "bg-sky-50",
+    iconColor: "text-sky-600",
+    delay: "delay-[500ms]",
+  },
+  {
+    href: "/people-news",
+    title: "인사·부고",
+    description: "매일 오전 7시에 업데이트되는 연합뉴스 인사·부고 소식을 확인하세요.",
+    icon: Newspaper,
+    gradient: "from-sky-500 to-cyan-600",
+    bgAccent: "bg-sky-50",
+    iconColor: "text-sky-600",
+    delay: "delay-[475ms]",
+  },
   { href: "/marketing", title: "마케팅 Master DB", description: "부문별 Contact 제출부터 검증·검수·승인 반영까지 한곳에서 관리합니다.", icon: Database, gradient: "from-blue-500 to-indigo-600", bgAccent: "bg-blue-50", iconColor: "text-blue-600", delay: "delay-100" },
   { href: "/usage/code", title: "Claude Code", description: "개인과 담당 조직의 Claude Code 사용량을 확인하세요.", icon: SquareTerminal, gradient: "from-blue-500 to-indigo-600", bgAccent: "bg-blue-50", iconColor: "text-blue-600", delay: "delay-100" },
   { href: "/usage/chat", title: "Claude 채팅", description: "Claude 채팅·Cowork와 Office 활동을 확인하세요.", icon: MessagesSquare, gradient: "from-sky-500 to-blue-600", bgAccent: "bg-sky-50", iconColor: "text-sky-600", delay: "delay-100" },
@@ -72,36 +103,6 @@ const FEATURES = [
     delay: "delay-100",
   },
   {
-    href: "/rfp",
-    title: "RFP 분석",
-    description: "제안요청서(hwp·hwpx·docx·pdf)를 올리면 사업 개요와 요구사항 표를 만들어 드립니다. 편집하고 엑셀로 내려받으세요.",
-    icon: FileSearch,
-    gradient: "from-violet-500 to-purple-600",
-    bgAccent: "bg-violet-50",
-    iconColor: "text-violet-600",
-    delay: "delay-[475ms]",
-  },
-  {
-    href: "/ppt",
-    title: "PPT 만들기",
-    description: "원고와 프롬프트를 넣으면 이노그리드 표준 템플릿으로 PPT를 만들어 드립니다. 피드백으로 다시 만들고, 링크·Teams·SharePoint로 공유하세요.",
-    icon: Presentation,
-    gradient: "from-sky-500 to-blue-600",
-    bgAccent: "bg-sky-50",
-    iconColor: "text-sky-600",
-    delay: "delay-[500ms]",
-  },
-  {
-    href: "/people-news",
-    title: "인사·부고",
-    description: "매일 오전 7시에 업데이트되는 연합뉴스 인사·부고 소식을 확인하세요.",
-    icon: Newspaper,
-    gradient: "from-sky-500 to-cyan-600",
-    bgAccent: "bg-sky-50",
-    iconColor: "text-sky-600",
-    delay: "delay-[475ms]",
-  },
-  {
     href: "/admin",
     title: "어드민",
     description: "사용자 관리, 시스템 설정, 가이드 관리 등 관리자 기능.",
@@ -118,54 +119,31 @@ export default function HomePage() {
 
   const visibleFeatures = FEATURES.filter((f) => canAccessPage(f.href));
 
+  const canChat = canAccessPage("/chat");
   return (
-    <div className="py-8 md:py-16">
-      <div className="text-center mb-10 md:mb-16 animate-fade-up">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-          </span>
-          이노그리드
-        </div>
-        <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4">
-          <span className="gradient-text">이노크루</span>를 위한{" "}
-          <span className="text-foreground">서비스</span>
-        </h1>
-        <p className="text-muted-foreground text-lg max-w-md mx-auto">
-          팀 활동, 일상의 고민을 해결하는 우리만의 도구
-        </p>
-      </div>
-
-      <DailyGreeting />
+    <div className="py-6 md:py-10">
       <DesktopAppCard />
-      <TeamsReplyCard />
-      <JiraWorkCard />
-      <ConfluenceMentionsCard />
-      <SharepointDocsCard />
-      <p className="mb-6 text-sm text-muted-foreground">사용법이 궁금하면 <Link href="/manual" className="text-primary hover:underline">사용자 매뉴얼</Link>에서 찾아보세요.</p>
+      <DailyGreeting />
+      {canChat && <><HomeChatBox /><RecentConversations /></>}
+      <div className="grid gap-3 lg:grid-cols-2 [&>*]:mb-0">
+        <TeamsReplyCard />
+        <JiraWorkCard />
+        <ConfluenceMentionsCard />
+        <SharepointDocsCard />
+      </div>
+      <p className="my-6 text-sm text-muted-foreground">사용법이 궁금하면 <Link href="/manual" className="text-primary hover:underline">사용자 매뉴얼</Link>에서 찾아보세요.</p>
 
       {loading && <p role="status" className="text-center text-sm text-muted-foreground">접근 권한을 확인하고 있습니다.</p>}
       {error && <p role="alert" className="text-center text-sm text-destructive">접근 권한을 확인하지 못했습니다. 페이지를 새로고침해 주세요.</p>}
       {!loading && !error && !visibleFeatures.length && <p className="text-center text-sm text-muted-foreground">표시할 서비스가 없습니다. 접근 권한은 관리자에게 문의해 주세요.</p>}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))] gap-3">
+      {visibleFeatures.length > 0 && <h2 className="mb-3 text-sm font-medium text-muted-foreground">바로가기</h2>}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,150px),1fr))] gap-2">
         {visibleFeatures.map((feature) => {
           const Icon = feature.icon;
           return (
-            <Link key={feature.href} href={feature.href} className={`animate-fade-up ${feature.delay}`}>
-              <Card className="group h-full gap-0 py-4 hover-glow cursor-pointer overflow-hidden relative">
-                <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-[0.03] transition-opacity duration-500`} />
-                <CardHeader className="relative gap-2 px-4">
-                  <div className={`h-10 w-10 rounded-xl ${feature.bgAccent} flex items-center justify-center mb-1 group-hover:scale-110 transition-transform duration-300`}>
-                    <Icon className={`h-5 w-5 ${feature.iconColor}`} />
-                  </div>
-                  <CardTitle className="flex items-center justify-between text-base">
-                    {feature.title}
-                    <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
-                  </CardTitle>
-                  <CardDescription className="leading-relaxed text-sm">{feature.description}</CardDescription>
-                </CardHeader>
-              </Card>
+            <Link key={feature.href} href={feature.href} title={feature.description} className="group flex items-center gap-2.5 rounded-xl border bg-card px-3 py-2.5 text-sm font-medium hover:border-primary/40 hover:bg-primary/5">
+              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${feature.bgAccent}`}><Icon className={`h-4 w-4 ${feature.iconColor}`} /></span>
+              <span className="truncate">{feature.title}</span>
             </Link>
           );
         })}

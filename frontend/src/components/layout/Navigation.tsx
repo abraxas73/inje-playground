@@ -93,6 +93,7 @@ export default function Navigation({ chromeless = false }: { chromeless?: boolea
 
             {/* Desktop nav items */}
             <div className="hidden min-w-0 md:flex items-center gap-0.5 bg-muted/50 rounded-xl p-1">
+              {canAccessPage("/chat") && <Link href="/chat" className={cn("flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium", matchesPath(pathname, "/chat") ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}><Bot className="h-4 w-4" />이노봇</Link>}
               {groups.map((group) => groupMenu(group))}
               {isAdmin && <Link href="/admin" className={cn("flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium", matchesPath(pathname, "/admin") ? "bg-background shadow-sm" : "text-muted-foreground")}><Shield className="h-4 w-4" />어드민</Link>}
               {/* 사용자 매뉴얼은 메뉴 맨 끝(2026-10-11 사용자 요청) */}
@@ -147,6 +148,7 @@ export default function Navigation({ chromeless = false }: { chromeless?: boolea
       {/* Mobile bottom tab bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl safe-area-bottom">
         <div className="flex h-14 overflow-x-auto px-1">
+          {canAccessPage("/chat") && <Link href="/chat" aria-current={matchesPath(pathname, "/chat") ? "page" : undefined} className={cn("flex flex-1 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium", matchesPath(pathname, "/chat") ? "text-primary" : "text-muted-foreground")}><Bot className="h-5 w-5" /><span>이노봇</span></Link>}
           {groups.map((group) => groupMenu(group, true))}
           <Link href="/manual" aria-current={matchesPath(pathname, "/manual") ? "page" : undefined} className={cn("flex flex-1 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium", matchesPath(pathname, "/manual") ? "text-primary" : "text-muted-foreground")}><BookOpen className="h-5 w-5" /><span>매뉴얼</span></Link>
         </div>
