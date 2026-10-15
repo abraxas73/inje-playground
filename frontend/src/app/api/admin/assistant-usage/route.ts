@@ -15,11 +15,13 @@ export async function GET(request: NextRequest) {
   const from = kstDay(new Date(Date.now() - (days - 1) * 24 * 3600_000));
   const rows = await selectAll<UsageRow>(() => a.admin.from("assistant_usage").select("user_id,day,turns,input_tokens,output_tokens,model_turns,masked", { count: "exact" }).gte("day", from).order("day"));
   if (rows.error) return NextResponse.json({ error: rows.error.message }, { status: 500 });
-  const ids = [...new Set(rows.data.map((r) => r.user_id))];
-  const { data: profiles } = ids.length ? await a.admin.from("user_profiles").select("user_id,display_name,email").in("user_id", ids) : { data: [] };
-  const people = new Map(((profiles ?? []) as Array<{ user_id: string; display_name: string | null; email: string | null }>).map((p) => [p.user_id, { name: p.display_name ?? "", email: (p.email ?? "").toLowerCase() }]));
-  const emails = [...people.values()].map((p) => p.email).filter(Boolean);
-  const { data: dir } = emails.length ? await a.admin.from("company_directory").select("email,team").in("email", emails) : { data: [] };
-  const teams = new Map(((dir ?? []) as Array<{ email: string; team: string | null }>).map((d) => [d.email.toLowerCase(), d.team ?? ""]));
+  // 사용자·조직도는 수백 명이라 전부 읽어 메모리에서 조인한다(.in() 목록이 길면 URL 한도를 넘는다)
+  const [profiles, dir] = await Promise.all([
+    selectAll<{ user_id: string; display_name: string | null; email: string | null }>(() => a.admin.from("user_profiles").select("user_id,display_name,email", { count: "exact" }).order("user_id")),
+    selectAll<{ email: string; team: string | null }>(() => a.admin.from("company_directory").select("email,team", { count: "exact" }).eq("active", true).order("email")),
+  ]);
+  if (profiles.error || dir.error) return NextResponse.json({ error: (profiles.error ?? dir.error)!.message }, { status: 500 });
+  const people = new Map(profiles.data.map((p) => [p.user_id, { name: p.display_name ?? "", email: (p.email ?? "").toLowerCase() }]));
+  const teams = new Map(dir.data.map((d) => [d.email.toLowerCase(), d.team ?? ""]));
   return NextResponse.json({ from, ...aggregateUsage(rows.data, people, teams) }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -61,7 +61,7 @@ export function pagesForPath(path: string): PageKey[] {
     ["/api/team-comments", ["team"]], ["/api/team-notify", ["team"]],
     ["/api/surveys", ["survey"]], ["/api/guide", ["guide"]], ["/api/teams/chat", ["teams_chat"]], ["/api/teams/mentions", ["teams_chat"]],
     ["/api/rfp", ["rfp"]], ["/api/ppt", ["ppt"]], ["/api/people-news", ["people_news"]],
-    ["/api/marketing", ["marketing"]], ["/api/dooray/overview", ["dooray"]], ["/api/dooray/messenger", ["dooray"]], ["/api/jira", ["jira"]], ["/api/confluence", ["confluence"]], ["/api/sharepoint", ["sharepoint"]], ["/api/mcp", ["mcp"]], ["/api/gw/mail", ["gw_mail"]],
+    ["/api/marketing", ["marketing"]], ["/api/dooray/overview", ["dooray"]], ["/api/dooray/messenger", ["dooray"]], ["/api/jira", ["jira"]], ["/api/confluence", ["confluence"]], ["/api/sharepoint", ["sharepoint"]], ["/api/mcp", ["mcp"]], ["/api/gw/mail", ["gw_mail"]], ["/api/chat", ["assistant"]],
     ["/media-directory", ["people_news"]], ["/api/media-directory", ["people_news"]],
     ["/api/usage/code", ["usage_code"]], ["/api/usage/tools", ["usage_code"]],
     ["/api/usage/hourly", ["usage_code"]], ["/api/usage/chat", ["usage_chat"]],

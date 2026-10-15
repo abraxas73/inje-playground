@@ -3,9 +3,12 @@
  * ponytail: 정규식 휴리스틱 — 하이픈 없는 계좌·외국 형식은 놓친다. 오탐·미탐 사례가 나오면 여기 규칙을 고친다.
  */
 const EDGE_L = "(?<![\\d-])", EDGE_R = "(?![\\d-])";
-const RRN = new RegExp(`${EDGE_L}(\\d{2})(\\d{2})(\\d{2})-?[1-4]\\d{6}${EDGE_R}`, "g");
+const RRN = new RegExp(`${EDGE_L}(\\d{2})(\\d{2})(\\d{2})-?[1-8]\\d{6}${EDGE_R}`, "g");
 const CARD = new RegExp(`${EDGE_L}\\d(?:[ -]?\\d){12,18}${EDGE_R}`, "g");
-const PHONE = new RegExp(`${EDGE_L}01[016789]-?\\d{3,4}-?\\d{4}${EDGE_R}`, "g");
+// 휴대전화: 010-, 010 , 010., +82-10-, +8210 … (구분자 없음·하이픈·공백·점)
+const PHONE_CORE = "(?:\\+82[ .-]?|0)1[016789][ .-]?\\d{3,4}[ .-]?\\d{4}";
+const PHONE = new RegExp(`${EDGE_L}${PHONE_CORE}${EDGE_R}`, "g");
+const PHONE_ONLY = new RegExp(`^${PHONE_CORE}$`);
 const ACCOUNT = new RegExp(`${EDGE_L}\\d{2,6}-\\d{2,6}-\\d{2,7}(?:-\\d{1,3})?${EDGE_R}`, "g");
 const LANDLINE = /^0\d{1,2}-\d{3,4}-\d{4}$/;
 const BIZ_NO = /^\d{3}-\d{2}-\d{5}$/;
@@ -29,7 +32,7 @@ export function maskText(text: string, opts: { keepPhone?: boolean } = {}): { te
   if (!opts.keepPhone) out = sub(PHONE, "[전화번호]", () => true)(out);
   out = sub(ACCOUNT, "[계좌번호]", (m) => {
     const n = m.replace(/\D/g, "").length;
-    return n >= 10 && n <= 14 && !LANDLINE.test(m) && !BIZ_NO.test(m) && !/^01[016789]-\d{3,4}-\d{4}$/.test(m);
+    return n >= 10 && n <= 14 && !LANDLINE.test(m) && !BIZ_NO.test(m) && !PHONE_ONLY.test(m);
   })(out);
   return { text: out, count };
 }

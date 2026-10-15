@@ -71,3 +71,11 @@ it("OAuth navigation failures render UTF-8 guidance without bypassing page permi
   expect(denied.status).toBe(403);
   expect(await denied.text()).toContain("이 페이지에 접근할 권한이 없습니다.");
 });
+
+it("이노봇 API(/api/chat)는 assistant 페이지 권한에 묶이고 크론 정리는 영향 없음", async () => {
+  m.denied = { assistant: false };
+  expect((await visit("/api/chat/turn")).status).toBe(403);
+  expect((await visit("/api/chat/conversations")).status).toBe(403);
+  m.user = false;
+  expect((await visit("/api/cron/chat-purge")).status).toBe(200);
+});

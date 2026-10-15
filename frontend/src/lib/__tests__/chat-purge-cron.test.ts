@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 const m = vi.hoisted(() => ({ log: [] as string[], removed: [] as string[][], fail: false }));
 function q(table: string) {
   const c: Record<string, unknown> = {};
-  for (const k of ["select", "lt", "is", "in", "limit"]) c[k] = (...a: unknown[]) => { m.log.push(`${table}.${k}:${JSON.stringify(a)}`); return c; };
+  for (const k of ["select", "lt", "is", "in", "limit", "order"]) c[k] = (...a: unknown[]) => { m.log.push(`${table}.${k}:${JSON.stringify(a)}`); return c; };
   c.delete = () => { m.log.push(`${table}.delete`); return c; };
   c.then = (res: (v: unknown) => void) => res({ data: table === "chat_conversations" ? [{ id: "c1" }] : [{ id: "a1", storage_path: "u/a1/original.png" }], error: null });
   return c;
@@ -28,4 +28,9 @@ it("버킷 삭제가 실패하면 첨부 행을 남긴다", async () => {
   const j = await (await GET(new NextRequest("https://a.test/api/cron/chat-purge", { headers: { authorization: "Bearer s3" } }))).json();
   expect(j.attachments).toBe(0);
   expect(m.log).not.toContain("chat_attachments.delete");
+});
+it("고아 첨부는 오래된 순 400건씩(2경로×400 < 스토리지 삭제 상한 1000)", async () => {
+  await GET(new NextRequest("https://a.test/api/cron/chat-purge", { headers: { authorization: "Bearer s3" } }));
+  expect(m.log).toContain('chat_attachments.order:["created_at"]');
+  expect(m.log).toContain("chat_attachments.limit:[400]");
 });

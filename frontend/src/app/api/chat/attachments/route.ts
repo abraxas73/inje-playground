@@ -41,9 +41,12 @@ export async function POST(request: NextRequest) {
     masked = m.count; excerpt = m.text.slice(0, 300);
     body = Buffer.from(m.text, "utf8"); objectPath = textPathOf(storagePath); contentType = "text/plain; charset=utf-8";
   } else { body = buf; objectPath = storagePath; contentType = mime; }
+  // 파일 이름도 Claude에 넘어가므로 가린다(형식 판별·확장자는 원래 이름으로)
+  const shown = maskText(name);
+  masked += shown.count;
   const up = await bucket.upload(objectPath, body, { contentType, upsert: false });
   if (up.error) return NextResponse.json({ error: "파일을 저장하지 못했습니다." }, { status: 500 });
-  const { error } = await r.admin.from("chat_attachments").insert({ id, user_id: r.userId, name, mime, size: file.size, kind: extracted.kind, storage_path: storagePath, text_excerpt: excerpt, masked_count: masked });
+  const { error } = await r.admin.from("chat_attachments").insert({ id, user_id: r.userId, name: shown.text, mime, size: file.size, kind: extracted.kind, storage_path: storagePath, text_excerpt: excerpt, masked_count: masked });
   if (error) { await deleteAttachmentObjects(r.admin, [{ storage_path: storagePath }]); return NextResponse.json({ error: "파일을 저장하지 못했습니다." }, { status: 500 }); }
-  return NextResponse.json({ id, name, kind: extracted.kind, maskedCount: masked, ...(extracted.kind === "text" ? {} : { warning: IMAGE_WARNING }) });
+  return NextResponse.json({ id, name: shown.text, kind: extracted.kind, maskedCount: masked, ...(extracted.kind === "text" ? {} : { warning: IMAGE_WARNING }) });
 }

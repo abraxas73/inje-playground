@@ -17,6 +17,15 @@ describe("maskText", () => {
     expect(maskText("연락 01012345678").text).toBe("연락 [전화번호]");
     expect(maskText("연락 010-1234-5678", { keepPhone: true })).toEqual({ text: "연락 010-1234-5678", count: 0 });
   });
+  it("휴대전화 — 공백·점·국가번호 형식, 주민번호 성별 자리 5~8", () => {
+    for (const p of ["010 1234 5678", "010.1234.5678", "+82-10-1234-5678", "+821012345678", "+82 10 1234 5678"]) {
+      expect(maskText(`연락 ${p} 끝`)).toEqual({ text: "연락 [전화번호] 끝", count: 1 });
+      expect(maskText(`연락 ${p}`, { keepPhone: true })).toEqual({ text: `연락 ${p}`, count: 0 });
+    }
+    expect(maskText("외국인 900101-5123456").text).toBe("외국인 [주민번호]");
+    expect(maskText("외국인 900101-8123456").text).toBe("외국인 [주민번호]");
+    expect(maskText("코드 900101-9123456").count).toBe(0);
+  });
   it("계좌번호 — 하이픈 형식, 숫자 10~14자리", () => {
     expect(maskText("계좌 110-123-456789 입금").text).toBe("계좌 [계좌번호] 입금");
     expect(maskText("계좌 1002-345-678901").text).toBe("계좌 [계좌번호]");
