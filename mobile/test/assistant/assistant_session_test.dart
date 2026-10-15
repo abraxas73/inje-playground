@@ -12,18 +12,10 @@ import 'package:playground/gw/gw_client.dart';
 import 'package:playground/gw/gw_creds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../gw/fakes.dart';
+import 'chat_brain.dart';
 import 'gw_assistant_api_test.dart' show Gw, base;
 
-class _Tokens implements TokenSource {
-  @override
-  Future<String?> accessToken() async => 't';
-  @override
-  Future<String?> refreshToken() async => 't';
-  @override
-  Future<void> onUnauthorized() async {}
-}
-
-/// 가짜 비서 서버: /api/assistant/turn 응답을 순서대로 돌려주고, 받은 messages를 기록.
+/// 첫 load만 실패하는 아마란스 자격 저장소(러너 생성 예외).
 class _FlakyStore extends FakeGwStore {
   _FlakyStore() : super(testCreds);
   var _n = 0;
@@ -32,72 +24,6 @@ class _FlakyStore extends FakeGwStore {
     if (_n++ == 0) throw StateError('boom');
     return creds;
   }
-}
-
-class Brain {
-  Brain(this.turns, {this.waitForTurn});
-  final Future<void>? waitForTurn;
-  final List<Map<String, dynamic>> turns;
-  final received = <List<dynamic>>[];
-  final executed = <Map<String, dynamic>>[];
-  ApiClient get client => ApiClient(
-    httpClient: MockClient((r) async {
-      final b = jsonDecode(r.body) as Map<String, dynamic>;
-      Object out;
-      if (r.url.path == '/api/assistant/turn') {
-        if (waitForTurn != null) await waitForTurn;
-        received.add(b['messages'] as List);
-        final head = turns.isEmpty ? null : turns.first;
-        if (head != null && head['__status'] != null) {
-          turns.removeAt(0);
-          return http.Response.bytes(
-            utf8.encode(jsonEncode({'error': '한도 초과'})),
-            head['__status'] as int,
-            headers: {'content-type': 'application/json; charset=utf-8'},
-          );
-        }
-        if (head != null && head['__throw'] == true) {
-          turns.removeAt(0);
-          throw http.ClientException('net');
-        }
-        out = turns.isEmpty
-            ? {
-                'enabled': true,
-                'message': {
-                  'role': 'assistant',
-                  'content': [
-                    {'type': 'text', 'text': '(끝)'},
-                  ],
-                },
-                'stop_reason': 'end_turn',
-              }
-            : turns.removeAt(0);
-      } else {
-        executed.add(b);
-        out = b['tool'] == 'teams_chats'
-            ? {
-                'ok': true,
-                'result': {
-                  'chats': [
-                    {'id': '19:a@thread.v2', 'name': '센터', 'type': 'group'},
-                  ],
-                },
-              }
-            : {
-                'ok': true,
-                'result': {'sent': true},
-              };
-      }
-      return http.Response.bytes(
-        utf8.encode(jsonEncode(out)),
-        200,
-        headers: {'content-type': 'application/json; charset=utf-8'},
-      );
-    }),
-    tokens: _Tokens(),
-    baseUrl: 'http://x',
-    userAgent: 't',
-  );
 }
 
 Map<String, dynamic> say(String t) => {
@@ -126,7 +52,7 @@ Map<String, dynamic> use(
   },
 };
 
-ProviderContainer scope(Brain brain, Gw gw, {GwCreds? creds = testCreds}) {
+ProviderContainer scope(ChatBrain brain, Gw gw, {GwCreds? creds = testCreds}) {
   final c = ProviderContainer(
     overrides: [
       apiClientProvider.overrideWithValue(brain.client),
@@ -167,12 +93,10 @@ void main() {
     Future<http.Response> Function(http.Request) handler,
   ) => ApiClient(
     httpClient: MockClient(handler),
-    tokens: _Tokens(),
+    tokens: BrainTokens(),
     baseUrl: 'https://example.test',
     userAgent: 'test',
   );
-  http.Response response(Map<String, dynamic> body) =>
-      http.Response.bytes(utf8.encode(jsonEncode(body)), 200);
 
   test('중지하면 즉시 입력 가능하고 늦은 응답은 새 요청을 덮지 않는다', () async {
     final old = Completer<http.Response>(), next = Completer<http.Response>();
@@ -193,74 +117,49 @@ void main() {
     expect(c.read(assistantSessionProvider).busy, false);
     final second = s.send('다음 요청');
     await Future<void>.delayed(Duration.zero);
-    old.complete(response(say('늦은 답변')));
+    old.complete(sseSay('늦은 답변'));
     await Future<void>.delayed(Duration.zero);
     expect(c.read(assistantSessionProvider).busy, true);
     expect(
       c.read(assistantSessionProvider).items.any((x) => x.text == '늦은 답변'),
       false,
     );
-    next.complete(response(say('새 답변')));
+    next.complete(sseSay('새 답변'));
     await second;
     expect(c.read(assistantSessionProvider).items.last.text, '새 답변');
     expect(c.read(assistantSessionProvider).busy, false);
   });
 
-  test('쓰기 중 중지하면 나머지 쓰기를 실행하지 않고 결과 불명 상태를 전달한다', () async {
-    final write = Completer<http.Response>();
-    final started = Completer<void>();
-    var turns = 0, writes = 0;
-    final received = <List<dynamic>>[];
-    final c = ProviderContainer(
-      overrides: [
-        gwStoreProvider.overrideWithValue(FakeGwStore(null)),
-        apiClientProvider.overrideWithValue(
-          stalledClient((r) async {
-            final b = jsonDecode(r.body) as Map;
-            if (r.url.path == '/api/assistant/turn') {
-              received.add(b['messages'] as List);
-              if (++turns == 1) {
-                return response(
-                  use([
-                    ('a', 'teams_send', {'chat_id': 'chat', 'text': 'first'}),
-                    ('b', 'teams_send', {'chat_id': 'chat', 'text': 'second'}),
-                  ]),
-                );
-              }
-              return response(say('실행 여부 확인'));
-            }
-            if (b['tool'] == 'teams_chats') {
-              return response({
-                'ok': true,
-                'result': {
-                  'chats': [
-                    {'id': 'chat', 'name': '테스트'},
-                  ],
-                },
-              });
-            }
-            writes++;
-            started.complete();
-            return write.future;
-          }),
-        ),
-      ],
-    );
-    addTearDown(c.dispose);
-    final s = c.read(assistantSessionProvider.notifier);
-    await s.send('두 번 보내줘');
-    final pending = s.confirm();
-    await started.future;
-    s.stop();
-    await pending;
-    write.complete(response({'ok': true}));
-    await Future<void>.delayed(Duration.zero);
-    expect(writes, 1);
+  test('쓰기 중 중지하면 나머지 쓰기를 실행하지 않고 서버에 아무것도 보내지 않는다 — 다음 입력 때 서버가 "취소됨"으로 닫는다', () async {
+    late AssistantSession s;
+    final routes = {...scenarioGw().routes};
+    final orig = routes['/schres/rs121A06']!;
+    routes['/schres/rs121A06'] = (b) {
+      s.stop(); // 첫 예약 요청이 나가는 순간 중지
+      return orig(b);
+    };
+    final gw = Gw(routes);
+    const room = {'res_seq': 'R2', 'start': '2026-10-05T16:00', 'end': '2026-10-05T17:00', 'title': '회의'};
+    final brain = ChatBrain([
+      use([('a', 'reserve_room', room), ('b', 'reserve_room', {...room, 'res_seq': 'R1'})]),
+      say('실행 여부 확인'),
+    ]);
+    final c = scope(brain, gw);
+    s = c.read(assistantSessionProvider.notifier);
+    await s.send('두 개 잡아줘');
+    expect(c.read(assistantSessionProvider).pending, isTrue);
+    await s.confirm();
+    expect(gw.calls['/schres/rs121A06'], hasLength(1), reason: '두 번째 쓰기는 실행하지 않음');
+    expect(brain.bodies, hasLength(1), reason: '중지 뒤 서버에 결과를 보내지 않음');
+    final st = c.read(assistantSessionProvider);
+    expect(st.busy, isFalse);
+    expect(st.items.lastWhere((i) => i.kind == ChatKind.card).text, '중지했습니다 · 실행 여부를 확인해 주세요');
     await s.send('상태 확인');
-    final results = toolResults(received.last);
-    expect(results.map((r) => r['tool_use_id']), ['a', 'b']);
-    expect(results.first['content'], contains('실행 여부'));
-    expect(results.last['content'], contains('실행하지 않았습니다'));
+    final msgs = brain.received.last;
+    expect(msgs.last['content'], '상태 확인');
+    final cancelled = msgs[msgs.length - 2]['content'] as List;
+    expect(cancelled.map((r) => r['tool_use_id']), ['a', 'b']);
+    expect(cancelled.every((r) => '${r['content']}'.contains('취소됨')), isTrue);
   });
 
   test('응답이 오지 않으면 시간 초과로 중지한다', () async {
@@ -270,6 +169,9 @@ void main() {
           stalledClient((_) => Completer<http.Response>().future),
         ),
         assistantWaitTimeoutProvider.overrideWithValue(
+          const Duration(milliseconds: 10),
+        ),
+        assistantTurnTimeoutProvider.overrideWithValue(
           const Duration(milliseconds: 10),
         ),
       ],
@@ -290,70 +192,45 @@ void main() {
     );
   });
 
-  test('실행 완료 뒤 후속 답변 중지에도 성공 카드와 도구 결과를 유지한다', () async {
-    final late = Completer<http.Response>();
-    final received = <List<dynamic>>[];
-    var turns = 0, writes = 0;
-    final c = ProviderContainer(
-      overrides: [
-        gwStoreProvider.overrideWithValue(FakeGwStore(null)),
-        apiClientProvider.overrideWithValue(
-          stalledClient((r) async {
-            final b = jsonDecode(r.body) as Map;
-            if (r.url.path != '/api/assistant/turn') {
-              if (b['tool'] == 'teams_chats') {
-                return response({
-                  'ok': true,
-                  'result': {
-                    'chats': [
-                      {'id': 'chat', 'name': '테스트'},
-                    ],
-                  },
-                });
-              }
-              writes++;
-              return response({'ok': true});
-            }
-            received.add(b['messages'] as List);
-            turns++;
-            if (turns == 1) {
-              return response(
-                use([
-                  ('send', 'teams_send', {'chat_id': 'chat', 'text': 'hello'}),
-                ]),
-              );
-            }
-            if (turns == 2) return late.future;
-            return response(say('확인했습니다'));
-          }),
-        ),
-      ],
-    );
-    addTearDown(c.dispose);
+  test('실행 완료 뒤 후속 답변 중지에도 성공 카드와 보낸 도구 결과를 유지한다', () async {
+    final wait = Completer<void>();
+    final brain = ChatBrain([
+      use([('d', 'reserve_room', {'res_seq': 'R2', 'start': '2026-10-05T16:00', 'end': '2026-10-05T17:00', 'title': '회의'})]),
+      say('지연 응답'),
+      say('확인했습니다'),
+    ]);
+    final gw = scenarioGw();
+    final c = scope(brain, gw);
     final s = c.read(assistantSessionProvider.notifier);
-    await s.send('보내줘');
+    await s.send('잡아줘');
     expect(c.read(assistantSessionProvider).pending, true);
+    brain.waitForTurn = wait.future; // 회신(actions) 요청부터 서버가 멈춘다 — 본문은 이미 받았다
     final pending = s.confirm();
     await Future<void>.delayed(const Duration(milliseconds: 10));
     s.stop();
     await pending;
-    final before = writes;
+    expect(gw.calls['/schres/rs121A06'], hasLength(1));
     expect(
       c.read(assistantSessionProvider).items.any((x) => x.text == '실행했습니다'),
       true,
     );
-    await s.send('결과 알려줘');
-    expect(writes, before);
-    expect(toolResults(received.last), isNotEmpty);
-    late.complete(response(say('지연 응답')));
+    final actions = brain.bodies.last['actions'] as List;
+    expect(actions.single['id'], 'd');
+    expect(actions.single['result']['ok'], isTrue, reason: '실행 결과는 회신에 실려 서버로 갔다');
+    wait.complete();
     await Future<void>.delayed(Duration.zero);
-    expect(c.read(assistantSessionProvider).items.last.text, '확인했습니다');
+    await s.send('결과 알려줘');
+    expect(gw.calls['/schres/rs121A06'], hasLength(1), reason: '다시 실행하지 않음');
+    expect(toolResults(brain.received[1]).single['tool_use_id'], 'd');
+    final st = c.read(assistantSessionProvider);
+    expect(st.items.any((x) => x.text == '지연 응답'), isFalse, reason: '중지한 요청의 늦은 답은 그리지 않는다');
+    expect(st.items.last.text, '확인했습니다');
   });
 
   test(
     '대표 시나리오 — 조회는 바로, 예약+일정은 카드 하나로 묶어 대기, 실행하면 GW 쓰기 후 결과를 보내 마무리',
     () async {
-      final brain = Brain([
+      final brain = ChatBrain([
         use([
           ('a', 'find_person', {'query': '강승억'}),
           ('b', 'find_person', {'query': '정선미'}),
@@ -433,7 +310,7 @@ void main() {
   );
 
   test('예약 성공·일정 실패 — 뒤 작업 실패를 그대로, 이미 된 예약은 결과에 남는다', () async {
-    final brain = Brain([
+    final brain = ChatBrain([
       use([
         (
           'd',
@@ -465,32 +342,19 @@ void main() {
     );
   });
 
-  test('그만두기 → 모든 쓰기에 "사용자가 취소" 결과, 고쳐 줘 → 다음 입력과 같은 메시지로', () async {
-    final w = use([
-      (
-        'd',
-        'mail_send',
-        {
-          'to': ['a@x'],
-          'subject': 's',
-          'body': 'b',
-        },
-      ),
-    ]);
-    final brain = Brain([
-      w,
-      say('취소했습니다.'),
+  test('그만두기 → 앱 쓰기는 "사용자가 취소" 결과·서버 쓰기는 미승인, 고쳐 줘 → 회신 없이 다음 입력을 그대로(서버가 "취소됨"으로 닫음)', () async {
+    const mail = {
+      'to': ['a@x'],
+      'subject': 's',
+      'body': 'b',
+    };
+    final brain = ChatBrain([
       use([
-        (
-          'g',
-          'mail_send',
-          {
-            'to': ['a@x'],
-            'subject': 's',
-            'body': 'b',
-          },
-        ),
+        ('d', 'mail_send', mail),
+        ('t', 'teams_send', {'chat_id': '19:a@thread.v2', 'text': '안녕'}),
       ]),
+      say('취소했습니다.'),
+      use([('g', 'mail_send', mail)]),
       say('알겠습니다.'),
     ]);
     final gw = scenarioGw();
@@ -498,19 +362,29 @@ void main() {
     final s = c.read(assistantSessionProvider.notifier);
     await s.send('메일 보내줘');
     expect(c.read(assistantSessionProvider).items.last.irreversible, isTrue);
+    expect(c.read(assistantSessionProvider).items.last.lines, hasLength(2));
     await s.dismiss();
-    expect(
-      toolResults(brain.received[1]).single['content'],
-      contains('사용자가 취소'),
-    );
+    final actions = brain.bodies[1]['actions'] as List;
+    expect(actions.map((a) => a['id']), ['d', 't']);
+    expect(actions[0]['isError'], isTrue);
+    expect(actions[0]['result'], contains('사용자가 취소함'));
+    expect(actions[1], {'id': 't', 'approve': false});
+    expect(toolResults(brain.received[1]).first['content'], contains('사용자가 취소'));
+    expect(brain.executed.where((e) => e['tool'] == 'teams_send'), isEmpty);
     await s.send('다시');
+    final sent = brain.bodies.length;
     s.fix();
     expect(c.read(assistantSessionProvider).awaitingFix, isTrue);
+    expect(brain.bodies, hasLength(sent), reason: '고쳐 줘는 회신하지 않는다');
     await s.send('제목을 회의록으로');
-    final lastUser = brain.received.last.last['content'] as List;
-    expect(lastUser.first['type'], 'tool_result');
-    expect(lastUser.first['content'], contains('실행하지 않'));
-    expect(lastUser.last, {'type': 'text', 'text': '제목을 회의록으로'});
+    expect(brain.bodies.last['text'], '제목을 회의록으로');
+    expect(brain.bodies.last.containsKey('actions'), isFalse);
+    expect(c.read(assistantSessionProvider).awaitingFix, isFalse);
+    final msgs = brain.received.last;
+    expect(msgs.last['content'], '제목을 회의록으로');
+    final cancelled = (msgs[msgs.length - 2]['content'] as List).single;
+    expect(cancelled['tool_use_id'], 'g');
+    expect(cancelled['content'], contains('취소됨'));
     expect(gw.calls['/mail/mail014A04'], isNull);
   });
 
@@ -550,7 +424,7 @@ void main() {
         return {};
       },
     });
-    final brain = Brain([
+    final brain = ChatBrain([
       use([('u', 'undo_last', {})]),
       say('예약을 취소했습니다.'),
     ]);
@@ -567,7 +441,7 @@ void main() {
   });
 
   test('되돌릴 게 없으면 바로 결과, 모르는 도구는 오류 결과로 이어감, 턴 상한 10', () async {
-    final brain = Brain([
+    final brain = ChatBrain([
       use([('u', 'undo_last', {}), ('x', 'format_disk', {})]),
       ...List.generate(12, (i) => use([('r$i', 'list_rooms', {})])),
     ]);
@@ -583,8 +457,8 @@ void main() {
     );
   });
 
-  test('서버가 꺼져 있으면 안내, Teams 쓰기는 확인 후 /api/assistant/execute', () async {
-    final off = Brain([
+  test('서버가 꺼져 있으면 안내, Teams 쓰기는 카드 확인 후 approve로 서버가 실행(/api/assistant/execute 아님)', () async {
+    final off = ChatBrain([
       {'enabled': false},
     ]);
     final c1 = scope(off, scenarioGw());
@@ -593,7 +467,7 @@ void main() {
       c1.read(assistantSessionProvider).items.last.text,
       '관리자가 비서를 꺼 두었습니다.',
     );
-    final brain = Brain([
+    final brain = ChatBrain([
       use([
         (
           't',
@@ -607,33 +481,17 @@ void main() {
     await c.read(assistantSessionProvider.notifier).send('센터에 인사해줘');
     expect(brain.executed.map((e) => e['tool']), ['teams_chats'], reason: '확인 전엔 채팅방 확인(조회)만');
     await c.read(assistantSessionProvider.notifier).confirm();
+    expect(brain.bodies.last['actions'], [
+      {'id': 't', 'approve': true},
+    ]);
     expect(brain.executed.last, {
       'tool': 'teams_send',
       'args': {'chat_id': '19:a@thread.v2', 'chat_name': '센터', 'text': '안녕하세요'},
     });
-  });
-
-  test('trimHistory — 오래된 교환을 user 텍스트 경계에서 잘라 40개 이하로', () {
-    final m = <Map<String, dynamic>>[];
-    for (var i = 0; i < 30; i++) {
-      m.add({'role': 'user', 'content': 'q$i'});
-      m.add({
-        'role': 'assistant',
-        'content': [
-          {'type': 'tool_use', 'id': 't$i', 'name': 'list_rooms', 'input': {}},
-        ],
-      });
-      m.add({
-        'role': 'user',
-        'content': [
-          {'type': 'tool_result', 'tool_use_id': 't$i', 'content': '{}'},
-        ],
-      });
-    }
-    final t = trimHistory(m);
-    expect(t.length, lessThanOrEqualTo(40));
-    expect(t.first['content'], isA<String>());
-    expect(t.last, m.last);
+    expect(brain.viaExecute, ['teams_chats'], reason: '쓰기는 앱이 /api/assistant/execute로 보내지 않는다');
+    final items = c.read(assistantSessionProvider).items;
+    expect(items.lastWhere((i) => i.kind == ChatKind.card).text, '실행했습니다', reason: '회신 스트림의 tool 결과로');
+    expect(items.last.text, '보냈습니다.');
   });
 
   /// 요청 messages 유효성 — 모든 tool_result는 바로 앞 assistant의 tool_use와 짝, 모든 tool_use는 다음 user의 tool_result와 짝.
@@ -671,34 +529,32 @@ void main() {
     ),
   ]);
 
-  test(
-    '확인 뒤 다음 턴이 429로 실패 → tool_result 유지, 다음 입력과 한 메시지로, 고아 tool_use 없음',
-    () async {
-      final brain = Brain([
-        wr('w1'),
-        {'__status': 429},
-        say('완료'),
-      ]);
-      final gw = scenarioGw();
-      final c = scope(brain, gw);
-      final s = c.read(assistantSessionProvider.notifier);
-      await s.send('보내줘');
-      await s.confirm();
-      final st = c.read(assistantSessionProvider);
-      expect(st.busy, isFalse);
-      expect(st.awaitingFix, isTrue);
-      expect(st.items.last.text, '한도 초과');
-      await s.send('다시 시도');
-      final msgs = brain.received.last;
-      expectValid(msgs);
-      final lastUser = msgs.last['content'] as List;
-      expect(lastUser.first['tool_use_id'], 'w1');
-      expect(lastUser.last, {'type': 'text', 'text': '다시 시도'});
-    },
-  );
+  test('확인 뒤 회신이 429로 거절 → 안내만(대화 유지), 다음 입력 때 서버가 대기 호출을 닫아 고아 tool_use가 없다', () async {
+    final brain = ChatBrain([
+      wr('w1'),
+      {'__status': 429},
+      say('완료'),
+    ]);
+    final gw = scenarioGw();
+    final c = scope(brain, gw);
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('보내줘');
+    await s.confirm();
+    final st = c.read(assistantSessionProvider);
+    expect(st.busy, isFalse);
+    expect(st.awaitingFix, isFalse);
+    expect(st.items.last.text, '한도 초과');
+    expect(s.conversationId, 'c1');
+    await s.send('다시 시도');
+    expect(brain.bodies.last['conversationId'], 'c1');
+    final msgs = brain.received.last;
+    expectValid(msgs);
+    expect((msgs[msgs.length - 2]['content'] as List).single['tool_use_id'], 'w1');
+    expect(msgs.last['content'], '다시 시도');
+  });
 
-  test('읽기 루프 중 네트워크 오류 → 같은 불변식', () async {
-    final brain = Brain([
+  test('읽기 루프 중 네트워크 오류 → 네트워크 안내, 다음 입력도 같은 불변식', () async {
+    final brain = ChatBrain([
       use([('r1', 'list_rooms', {})]),
       {'__throw': true},
       say('ok'),
@@ -707,15 +563,16 @@ void main() {
     final s = c.read(assistantSessionProvider.notifier);
     await s.send('회의실');
     expect(c.read(assistantSessionProvider).busy, isFalse);
-    expect(c.read(assistantSessionProvider).awaitingFix, isTrue);
+    expect(c.read(assistantSessionProvider).items.last.text, '네트워크 연결을 확인하고 다시 시도해 주세요.');
     await s.send('다시');
     final msgs = brain.received.last;
     expectValid(msgs);
-    expect((msgs.last['content'] as List).first['tool_use_id'], 'r1');
+    expect((msgs[msgs.length - 2]['content'] as List).first['tool_use_id'], 'r1');
+    expect(msgs.last['content'], '다시');
   });
 
-  test('첫 턴 실패(문자열 user)는 메시지를 제거한다 — {enabled:false}', () async {
-    final brain = Brain([
+  test('첫 요청이 꺼짐(403)으로 거절되면 대화에 남지 않는다', () async {
+    final brain = ChatBrain([
       {'enabled': false},
       say('ok'),
     ]);
@@ -723,61 +580,14 @@ void main() {
     final s = c.read(assistantSessionProvider.notifier);
     await s.send('안녕');
     expect(c.read(assistantSessionProvider).awaitingFix, isFalse);
+    expect(s.conversationId, isNull);
     await s.send('다시');
     expect(brain.received.last, hasLength(1));
     expectValid(brain.received.last);
   });
 
-  test(
-    'trimHistory — 고쳐 줘 사이클(tool_result+text) 25번 뒤에도 고아 tool_result가 없다',
-    () {
-      final m = <Map<String, dynamic>>[
-        {'role': 'user', 'content': 'q'},
-      ];
-      for (var i = 0; i < 25; i++) {
-        m.add({
-          'role': 'assistant',
-          'content': [
-            {'type': 'tool_use', 'id': 't$i', 'name': 'mail_send', 'input': {}},
-          ],
-        });
-        m.add({
-          'role': 'user',
-          'content': [
-            {'type': 'tool_result', 'tool_use_id': 't$i', 'content': '{}'},
-            {'type': 'text', 'text': 'fix$i'},
-          ],
-        });
-      }
-      final t = trimHistory(m);
-      expect(t.length, lessThanOrEqualTo(40));
-      expectValid(t);
-      expect(t.last, m.last);
-      // 컷 지점 없음 → 마지막 user만, tool_result 없이
-      final only = trimHistory([
-        for (var i = 0; i < 25; i++) ...[
-          {
-            'role': 'assistant',
-            'content': [
-              {'type': 'tool_use', 'id': 'a$i', 'name': 'x', 'input': {}},
-            ],
-          },
-          {
-            'role': 'user',
-            'content': [
-              {'type': 'tool_result', 'tool_use_id': 'a$i', 'content': '{}'},
-            ],
-          },
-        ],
-      ]);
-      expect(only, hasLength(1));
-      expect(only.single['role'], 'user');
-      expect(only.single['content'], isEmpty);
-    },
-  );
-
   test('러너 생성이 예외 → 알림, busy 해제, 다음 입력은 유효한 메시지', () async {
-    final brain = Brain([
+    final brain = ChatBrain([
       use([('r1', 'list_rooms', {})]),
       say('ok'),
     ]);
@@ -802,7 +612,7 @@ void main() {
   });
 
   test('카드 문장 생성이 예외 → 대기 카드가 남지 않아 confirm은 아무것도 실행하지 않는다', () async {
-    final brain = Brain([
+    final brain = ChatBrain([
       use([('w1', 'create_event', {'title': 't', 'start': '2026-10-05T15:00', 'end': '2026-10-05T16:00', 'attendees': '강승억'})]),
       say('ok'),
     ]);
@@ -849,7 +659,7 @@ void main() {
       '/schres/rs121A10': (_) => {'reqText': '내 회의', 'empSeq': '7'},
       '/schres/rs121A11': (_) => {},
     });
-    final brain = Brain([
+    final brain = ChatBrain([
       use([('u1', 'undo_last', {}), ('u2', 'undo_last', {})]),
       say('끝'),
     ]);
@@ -865,7 +675,7 @@ void main() {
   });
 
   test('busy 중 reset·send는 무시', () async {
-    final brain = Brain([say('ok')]);
+    final brain = ChatBrain([say('ok')]);
     final c = scope(brain, scenarioGw());
     final s = c.read(assistantSessionProvider.notifier);
     final f = s.send('안녕');
@@ -887,7 +697,7 @@ void main() {
   ];
 
   test('카드는 실제 대상 — 조직도에 없는 참석자는 카드 없이 ok:false, 이름이 틀려도 실제 사람(부서)을 보인다', () async {
-    final brain = Brain([
+    final brain = ChatBrain([
       use([
         ('e', 'create_event', {'title': '회의', 'start': '2026-10-05T16:00', 'end': '2026-10-05T17:00', 'attendees': [{'emp_seq': '31', 'dept_seq': '20', 'name': '강승억'}, {'emp_seq': '404', 'dept_seq': '20', 'name': '정선미'}]}),
       ]),
@@ -908,7 +718,7 @@ void main() {
   });
 
   test('카드는 실제 대상 — 회의실 이름은 res_seq의 자원 목록에서, 모델이 쓴 room_name이 아니다', () async {
-    final brain = Brain([
+    final brain = ChatBrain([
       use([('d', 'reserve_room', {'res_seq': 'R1', 'room_name': '회의실B', 'start': '2026-10-05T16:00', 'end': '2026-10-05T17:00', 'title': '회의'})]),
       use([('d2', 'reserve_room', {'res_seq': 'R404', 'room_name': '회의실B', 'start': '2026-10-05T16:00', 'end': '2026-10-05T17:00', 'title': '회의'})]),
     ]);
@@ -922,19 +732,20 @@ void main() {
   });
 
   test('카드는 실제 대상 — 내 채팅 목록에 없는 chat_id의 teams_send는 거부, 있으면 실제 이름', () async {
-    final brain = Brain([
+    final brain = ChatBrain([
       use([('t', 'teams_send', {'chat_id': '19:evil@thread.v2', 'chat_name': '센터', 'text': '안녕'})]),
       use([('t2', 'teams_send', {'chat_id': '19:a@thread.v2', 'chat_name': '사장님', 'text': '안녕'})]),
     ]);
     final c = scope(brain, scenarioGw());
     await c.read(assistantSessionProvider.notifier).send('보내줘');
-    expect(resultsOf(brain.received[1]).single['error'], startsWith('채팅방을 찾지 못했습니다'));
+    expect(brain.bodies[1]['actions'], [{'id': 't', 'approve': false}], reason: '못 찾은 채팅방의 서버 쓰기는 승인하지 않는다');
+    expect(toolResults(brain.received[1]).single['is_error'], isTrue);
     expect(c.read(assistantSessionProvider).items.last.lines.single, 'Teams 보내기 · 센터 · "안녕"');
     expect(brain.executed.where((e) => e['tool'] == 'teams_send'), isEmpty);
   });
 
   test('확인 정보를 못 가져오면(네트워크) 카드 없이 ok:false, 함께 온 다른 쓰기도 실행 안 함', () async {
-    final brain = Brain([
+    final brain = ChatBrain([
       use([
         ('d', 'reserve_room', {'res_seq': 'R1', 'start': '2026-10-05T16:00', 'end': '2026-10-05T17:00', 'title': '회의'}),
         ('m', 'mail_save_draft', {'to': ['a@x'], 'subject': 's', 'body': 'b'}),
@@ -960,7 +771,7 @@ void main() {
         during?.add(cardText(c));
         return orig(b);
       };
-      c = scope(Brain([use(calls), say('끝')]), Gw(routes));
+      c = scope(ChatBrain([use(calls), say('끝')]), Gw(routes));
       await c.read(assistantSessionProvider.notifier).send('해줘');
       await c.read(assistantSessionProvider.notifier).confirm();
       return cardText(c);
@@ -974,13 +785,106 @@ void main() {
     expect(await run([bad, ok]), '실행하지 못했습니다');
   });
 
-  test('서버가 {enabled:false}면 이노봇을 이번 실행 동안 숨긴다', () async {
-    final c = scope(Brain([{'enabled': false}]), scenarioGw());
+  test('서버가 꺼짐(403 assistant_disabled)이면 이노봇을 이번 실행 동안 숨긴다', () async {
+    final c = scope(ChatBrain([{'enabled': false}]), scenarioGw());
     expect(c.read(assistantAvailableProvider), isTrue);
     await c.read(assistantSessionProvider.notifier).send('안녕');
     expect(c.read(assistantAvailableProvider), isFalse);
     c.read(assistantSessionProvider.notifier).reset();
     expect(c.read(assistantAvailableProvider), isFalse);
+  });
+
+  test('섞인 호출 — 서버 읽기는 서버가, 앱 읽기는 바로, 앱 쓰기는 카드 → 회신엔 앱 호출 결과만', () async {
+    final brain = ChatBrain([
+      use([
+        ('s', 'teams_chats', {}),
+        ('m', 'mail_list', {}),
+        ('d', 'reserve_room', {'res_seq': 'R2', 'start': '2026-10-05T16:00', 'end': '2026-10-05T17:00', 'title': '회의'}),
+      ]),
+      say('끝'),
+    ]);
+    final gw = scenarioGw();
+    final c = scope(brain, gw);
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('해줘');
+    final card = c.read(assistantSessionProvider).items.last;
+    expect(card.kind, ChatKind.card);
+    expect(card.lines.single, contains('회의실B'));
+    expect(brain.viaExecute, isEmpty, reason: '앱은 서버 읽기를 실행하지 않는다');
+    await s.confirm();
+    final actions = brain.bodies.last['actions'] as List;
+    expect(actions.map((a) => a['id']), ['m', 'd']);
+    expect(actions.every((a) => a.containsKey('result')), isTrue);
+    expect(gw.calls['/schres/rs121A06'], hasLength(1));
+    expect(brain.executed.map((e) => e['tool']), ['teams_chats'], reason: '서버 읽기는 서버가 회신을 받을 때 실행');
+    expect(toolResults(brain.received.last).map((r) => r['tool_use_id']), ['s', 'm', 'd']);
+  });
+
+  test('앞 작업이 실패하면 뒤의 서버 쓰기는 승인하지 않는다', () async {
+    final brain = ChatBrain([
+      use([
+        ('e', 'create_event', {'title': '회의', 'start': 'bad', 'end': 'bad'}),
+        ('t', 'teams_send', {'chat_id': '19:a@thread.v2', 'text': '안녕'}),
+      ]),
+      say('실패했습니다.'),
+    ]);
+    final c = scope(brain, scenarioGw());
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('해줘');
+    expect(c.read(assistantSessionProvider).items.last.lines, hasLength(2));
+    await s.confirm();
+    final actions = brain.bodies.last['actions'] as List;
+    expect(actions[0]['isError'], isTrue);
+    expect(actions[1], {'id': 't', 'approve': false});
+    expect(brain.executed.where((e) => e['tool'] == 'teams_send'), isEmpty);
+    expect(c.read(assistantSessionProvider).items.lastWhere((i) => i.kind == ChatKind.card).text, '실행하지 못했습니다');
+  });
+
+  test('대화 id 유지 — 두 번째 요청에 첫 응답의 conversationId, client app, now(KST)', () async {
+    final brain = ChatBrain([say('하나'), say('둘')]);
+    final c = scope(brain, scenarioGw());
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('첫째');
+    expect(brain.bodies.first.containsKey('conversationId'), isFalse);
+    expect(s.conversationId, 'c1');
+    await s.send('둘째');
+    final b = brain.bodies.last;
+    expect(b['conversationId'], 'c1');
+    expect(b['client'], 'app');
+    expect(b['text'], '둘째');
+    expect(b['now'], matches(RegExp(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}\+09:00$')));
+    expect(c.read(assistantSessionProvider).items.last.text, '둘');
+  });
+
+  test('reset 뒤에는 새 대화 — conversationId 없이 보낸다', () async {
+    final brain = ChatBrain([say('하나'), say('둘')]);
+    final c = scope(brain, scenarioGw());
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('첫째');
+    s.reset();
+    expect(s.conversationId, isNull);
+    await s.send('새 대화');
+    expect(brain.bodies.last.containsKey('conversationId'), isFalse);
+    expect(s.conversationId, 'c2');
+  });
+
+  test('open — 서버 대화를 불러와 다시 그리고 이어 보낸다, 실패하면 지금 대화 그대로 안내', () async {
+    final brain = ChatBrain([say('이어서 답')]);
+    brain.saved['c9'] = [
+      {'role': 'user', 'content': [{'type': 'text', 'text': '회의실 잡아줘'}]},
+      {'role': 'assistant', 'content': [{'type': 'text', 'text': '잡았습니다.'}, {'type': 'tool_use', 'id': 'x', 'name': 'list_rooms', 'input': {}}]},
+      {'role': 'assistant', 'status': 'failed', 'content': [{'type': 'text', 'text': '실패한 답'}]},
+    ];
+    final c = scope(brain, scenarioGw());
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.open('없는 대화');
+    expect(s.conversationId, isNull);
+    expect(c.read(assistantSessionProvider).items.last.text, '대화를 불러오지 못했습니다.');
+    await s.open('c9');
+    expect(s.conversationId, 'c9');
+    expect(c.read(assistantSessionProvider).items.map((i) => (i.kind, i.text)), [(ChatKind.user, '회의실 잡아줘'), (ChatKind.bot, '잡았습니다.')]);
+    await s.send('계속');
+    expect(brain.bodies.last['conversationId'], 'c9');
   });
 }
 
@@ -1006,7 +910,7 @@ Map<String, dynamic> roomOpt(String label, String resSeq, String modelName) => {
 
 void choiceTests() {
   test('선택지 — 선택지마다 실제 대상으로 카드, 고른 것만 실행, 결과는 tool_use 하나에', () async {
-    final brain = Brain([
+    final brain = ChatBrain([
       choices('x', [roomOpt('16시 A', 'R1', '아무 이름'), roomOpt('16시 B', 'R2', '회의실B')]),
       say('회의실B를 예약했습니다.'),
     ]);
@@ -1032,7 +936,7 @@ void choiceTests() {
   });
 
   test('선택지 — 확인 안 되는 선택지·쓰기가 아닌 호출은 빼고, 남는 게 없으면 카드 없이 오류 결과', () async {
-    final brain = Brain([
+    final brain = ChatBrain([
       choices('x', [
         roomOpt('없는 방', 'R9', '유령'),
         {
@@ -1066,7 +970,7 @@ void choiceTests() {
   });
 
   test('선택지 — 다른 도구와 함께 오면 모두 오류 결과(단독으로만)', () async {
-    final brain = Brain([
+    final brain = ChatBrain([
       use([
         ('a', 'find_person', {'query': '강승억'}),
         ('x', 'offer_choices', {'question': 'q', 'options': [roomOpt('B', 'R2', 'B')]}),

@@ -9,9 +9,10 @@ import 'package:playground/gw/gw_client.dart';
 import 'package:playground/gw/gw_creds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../gw/fakes.dart';
-import 'assistant_session_test.dart' show Brain, say, use, scenarioGw;
+import 'assistant_session_test.dart' show say, use, scenarioGw;
+import 'chat_brain.dart';
 
-Widget host(Brain brain, Widget child) => ProviderScope(
+Widget host(ChatBrain brain, Widget child) => ProviderScope(
   key: UniqueKey(),
   overrides: [
     apiClientProvider.overrideWithValue(brain.client),
@@ -28,7 +29,7 @@ void main() {
 
   testWidgets('생각하는 동안 중지 버튼을 누르면 입력이 다시 활성화된다', (tester) async {
     final wait = Completer<void>();
-    final brain = Brain([say('늦은 응답')], waitForTurn: wait.future);
+    final brain = ChatBrain([say('늦은 응답')], waitForTurn: wait.future);
     await tester.pumpWidget(host(brain, const AssistantSheet()));
     await tester.enterText(find.byType(TextField), '대기 요청');
     await tester.tap(find.byTooltip('보내기'));
@@ -45,7 +46,7 @@ void main() {
   });
 
   testWidgets('seed가 있으면 열리자마자 그 문장을 보내고 말풍선으로 남긴다(일정 화면 "추가")', (tester) async {
-    final brain = Brain([say('어떤 일정인가요? 제목과 시간을 알려 주세요.')]);
+    final brain = ChatBrain([say('어떤 일정인가요? 제목과 시간을 알려 주세요.')]);
     await tester.pumpWidget(host(brain, Builder(builder: (context) => TextButton(onPressed: () => showAssistantSheet(context, seed: '10월 12일 (월)에 아마란스 일정 등록해줘. 제목·시간·장소를 물어봐 줘.'), child: const Text('추가')))));
     await tester.tap(find.text('추가'));
     await tester.pumpAndSettle();
@@ -56,7 +57,7 @@ void main() {
   });
 
   testWidgets('대화창을 다시 열면 마지막 대화가 보인다', (tester) async {
-    final brain = Brain([say(List.filled(60, '긴 대화').join('\n'))]);
+    final brain = ChatBrain([say(List.filled(60, '긴 대화').join('\n'))]);
     await tester.pumpWidget(host(brain, const InnobotButton()));
     await tester.tap(find.byTooltip('비서 이노봇'));
     await tester.pumpAndSettle();
@@ -72,7 +73,7 @@ void main() {
   });
 
   testWidgets('이노봇 버튼 → 시트: 인사·예시 칩, 칩을 누르면 보내고 답이 말풍선으로', (tester) async {
-    final brain = Brain([say('오늘 일정은 없습니다.')]);
+    final brain = ChatBrain([say('오늘 일정은 없습니다.')]);
     await tester.pumpWidget(host(brain, const InnobotButton()));
     await tester.tap(find.byTooltip('비서 이노봇'));
     await tester.pumpAndSettle();
@@ -91,7 +92,7 @@ void main() {
   });
 
   testWidgets('쓰기 → 확인 카드(실행·고쳐 줘·그만두기), 메일 발송은 경고 문구', (tester) async {
-    final brain = Brain([
+    final brain = ChatBrain([
       use([
         (
           'm',
@@ -121,7 +122,7 @@ void main() {
   });
 
   testWidgets('새 대화는 기록을 비운다', (tester) async {
-    final brain = Brain([say('네.')]);
+    final brain = ChatBrain([say('네.')]);
     await tester.pumpWidget(host(brain, const AssistantSheet()));
     await tester.enterText(find.byType(TextField), '안녕');
     await tester.tap(find.byTooltip('보내기'));
@@ -134,7 +135,7 @@ void main() {
   });
 
   testWidgets('비서가 꺼져 있으면(서버 enabled:false) 이노봇 버튼을 숨긴다', (tester) async {
-    final brain = Brain([
+    final brain = ChatBrain([
       {'enabled': false},
     ]);
     await tester.pumpWidget(host(brain, const InnobotButton()));

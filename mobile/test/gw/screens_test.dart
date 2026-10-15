@@ -12,7 +12,8 @@ import 'package:playground/gw/today_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:playground/api/client.dart';
 import 'package:playground/dooray/calendar_screen.dart';
-import '../assistant/assistant_session_test.dart' show Brain, say;
+import '../assistant/assistant_session_test.dart' show say;
+import '../assistant/chat_brain.dart';
 import 'fakes.dart';
 
 String ymdOf(DateTime d) => '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
@@ -222,7 +223,7 @@ void main() {
     expect(r.bodies['/schres/sc111A03']?['endDate'], ymdOf(pick));
   });
   testWidgets('일정 "추가"를 누르면 이노봇이 그날 아마란스 일정 등록 요청을 들고 열린다', (tester) async {
-    final brain = Brain([say('어떤 일정인가요? 제목과 시간을 알려 주세요.')]);
+    final brain = ChatBrain([say('어떤 일정인가요? 제목과 시간을 알려 주세요.')]);
     final r = Routes({'/gw/gw050A02': [session], '/schres/sc111A02': [{'resultList': []}], '/schres/sc111A03': [{'resultList': []}], '/schres/rs121A01': [{'resultList': []}], '/schres/rs121A05': [{'resultList': []}]});
     await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const TodayScreen(), overrides: [apiClientProvider.overrideWithValue(brain.client)]));
     await tester.pumpAndSettle();

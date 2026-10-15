@@ -3,7 +3,8 @@ import 'package:playground/assistant/assistant_session.dart';
 import 'package:playground/assistant/gw_assistant_api.dart';
 import 'package:playground/gw/gw_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'assistant_session_test.dart' show Brain, say, use, scope, scenarioGw, toolResults;
+import 'assistant_session_test.dart' show say, use, scope, scenarioGw, toolResults;
+import 'chat_brain.dart';
 import 'gw_assistant_api_test.dart' show Gw, base;
 
 void main() {
@@ -31,7 +32,7 @@ void main() {
   });
 
   test('비서 — 우리 팀 전원 + 캘린더 지정: my_team은 바로, 카드에 캘린더 이름, 실행하면 그 캘린더에', () async {
-    final brain = Brain([
+    final brain = ChatBrain([
       use([('t', 'my_team', {}), ('c', 'list_calendars', {})]),
       use([
         ('e', 'create_event', {
@@ -61,7 +62,7 @@ void main() {
   });
 
   test('비서 — 볼 수 없는 캘린더 id면 카드 없이 오류 결과', () async {
-    final brain = Brain([
+    final brain = ChatBrain([
       use([('e', 'create_event', {'title': 't', 'start': '2026-10-05T16:00', 'end': '2026-10-05T17:00', 'calendar_id': '99'})]),
       say('다시 볼게요.'),
     ]);

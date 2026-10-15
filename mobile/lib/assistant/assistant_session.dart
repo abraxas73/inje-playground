@@ -9,9 +9,10 @@ import '../gw/gw_models.dart';
 import '../gw/mail_indexer.dart';
 import 'assistant_journal.dart';
 import 'assistant_tools.dart';
+import 'chat_api.dart';
 
-/// 비서 대화 — 턴 루프. 서버(/api/assistant/turn)는 무상태 중계라 대화(Claude 형식 messages)는 여기 메모리에만 있다(앱이 켜져 있는 동안).
-/// 조회 도구는 바로 실행, 쓰기·되돌릴 수 없음은 확인 카드로 멈춘다. 모든 tool_use에는 같은 순서로 tool_result를 짝지어 보낸다.
+/// 비서 대화 — 서버(/api/chat/turn)가 대화를 저장한다. 앱은 needs_action을 받아 앱 도구를 실행하고 확인 카드를 보인 뒤 actions로 회신한다.
+/// 조회 도구는 바로 실행, 쓰기·되돌릴 수 없음은 확인 카드로 멈춘다. 서버 읽기는 서버가 실행하고, 서버 쓰기는 카드 확인 뒤 approve로 맡긴다.
 enum ChatKind { user, bot, progress, card, notice }
 
 /// 선택지 카드의 한 선택지(화면용) — lines는 실제 대상으로 만든 카드 문장.
@@ -90,54 +91,10 @@ String nowIso() {
   return '${n.year}-${two(n.month)}-${two(n.day)}T${two(n.hour)}:${two(n.minute)}+09:00';
 }
 
-/// 오래된 교환을 잘라 max개 이하로 — 잘린 뒤 첫 메시지는 반드시 사용자 텍스트(문자열 content)여야 tool_use/result 짝이 깨지지 않는다.
-List<Map<String, dynamic>> trimHistory(
-  List<Map<String, dynamic>> m, {
-  int max = 40,
-}) {
-  if (m.length <= max) return m;
-  for (var i = m.length - max; i < m.length; i++) {
-    if (m[i]['role'] != 'user') continue;
-    final c = m[i]['content'];
-    if (c is String) return m.sublist(i);
-    if (c is List && c.any((b) => b is Map && b['type'] == 'text')) {
-      // 앞의 tool_result는 잘린 tool_use의 짝이므로 버린다
-      final head = {
-        ...m[i],
-        'content': [
-          for (final b in c)
-            if (!(b is Map && b['type'] == 'tool_result')) b,
-        ],
-      };
-      return [head, ...m.sublist(i + 1)];
-    }
-  }
-  // 컷 지점이 없으면 마지막 user만 — 고아 tool_result는 절대 남기지 않는다
-  final u = m.lastWhere(
-    (x) => x['role'] == 'user',
-    orElse: () => {'role': 'user', 'content': <dynamic>[]},
-  );
-  final c = u['content'];
-  final text = c is List
-      ? [
-          for (final b in c)
-            if (b is Map && b['type'] == 'text') '${b['text']}',
-        ].join('\n')
-      : null;
-  return [
-    {
-      'role': 'user',
-      'content': c is String
-          ? c
-          : (text != null && text.isNotEmpty ? text : <dynamic>[]),
-    },
-  ];
-}
-
 /// 비서 시계(KST 벽시계 + UTC 플래그). 실행 기록 시각·24시간 되돌리기 창·빈 회의실의 "오늘"이 같은 시계를 쓴다(테스트에서 고정).
 final assistantClockProvider = Provider<DateTime Function()>((_) => kstNow);
 
-/// 서버가 비서를 꺼 두었다고 답하면({enabled:false}) 이번 앱 실행 동안 이노봇을 숨긴다(LLM 기능은 못 쓸 때 숨김 — 비활성 표시 금지).
+/// 서버가 비서를 꺼 두었다고 답하면(403 code assistant_disabled) 이번 앱 실행 동안 이노봇을 숨긴다(LLM 기능은 못 쓸 때 숨김 — 비활성 표시 금지).
 final assistantAvailableProvider = NotifierProvider<AssistantAvailable, bool>(
   AssistantAvailable.new,
 );
@@ -155,16 +112,22 @@ final assistantWaitTimeoutProvider = Provider<Duration>(
   (_) => const Duration(seconds: 75),
 );
 
+/// 서버 한 요청(스트림) 대기 상한 — 서버 도구 왕복·데스크톱 중계 때문에 앱 도구(75초)보다 길다.
+final assistantTurnTimeoutProvider = Provider<Duration>((_) => const Duration(seconds: 300));
+
 class _Stopped implements Exception {}
 
 class _Run {
   final stopped = Completer<void>();
-  List<Map<String, dynamic>> Function()? interruptedResults;
 }
 
 class AssistantSession extends Notifier<AssistantState> {
   static const maxTurns = 10;
-  final _messages = <Map<String, dynamic>>[];
+  String? _conversationId;
+  String? get conversationId => _conversationId;
+  final _approved = <String>{}; // confirm에서 승인한 서버 쓰기 id
+  Map<String, PendingCall> _calls = {}; // 현재 needs_action 호출(id → 위치·등급)
+  final _toolStatus = <String, String>{}; // 이번 _drive에서 서버가 알려 준 도구 결과(id → ok|error|…)
   final _guard = MailReadGuard();
   _Pending? _pending;
   AssistantJournal? _journal;
@@ -175,12 +138,14 @@ class AssistantSession extends Notifier<AssistantState> {
   AssistantState build() {
     _run?.stopped.complete();
     _run = null;
-    _fixResults = null;
     ref.onDispose(() {
       _run?.stopped.complete();
       _run = null;
     });
-    _messages.clear();
+    _conversationId = null;
+    _calls = {};
+    _approved.clear();
+    _toolStatus.clear();
     _pending = null;
     _guard.reset();
     _journal = null;
@@ -232,32 +197,10 @@ class AssistantSession extends Notifier<AssistantState> {
     _run = null;
     run.stopped.complete();
     _pending = null;
-    if (_messages.isNotEmpty && _messages.last['role'] == 'assistant') {
-      final blocks = _messages.last['content'];
-      final calls = blocks is List
-          ? blocks.whereType<Map>().where((b) => b['type'] == 'tool_use')
-          : const <Map>[];
-      if (calls.isNotEmpty) {
-        _messages.add({
-          'role': 'user',
-          'content':
-              run.interruptedResults?.call() ??
-              [
-                for (final c in calls)
-                  _result('${c['id']}', {
-                    'ok': false,
-                    'error':
-                        '응답 대기를 중지했습니다. 이미 요청한 작업은 실행되었을 수 있습니다. 다시 실행하지 말고 실행 여부를 조회하세요.',
-                  }),
-              ],
-        });
-      }
-    }
-    _rollbackFailedTurn();
-    final executing = state.items.any(
+    final executing = state.items.where(
       (i) => i.kind == ChatKind.card && i.text.startsWith('실행 중'),
     );
-    if (executing) _markCardDone('중지했습니다 · 실행 여부를 확인해 주세요');
+    if (executing.isNotEmpty) _markCardDone('중지했습니다 · 실행 여부를 확인해 주세요', item: executing.last);
     _set(busy: false, pending: false);
     _add(
       ChatItem(
@@ -288,112 +231,114 @@ class AssistantSession extends Notifier<AssistantState> {
     state = build();
   }
 
-  /// 사용자 입력. 고쳐 줘 대기 중이면 미실행 결과와 함께 같은 메시지로 보낸다.
+  /// 서버 대화 불러오기(🕘 기록). 실패하면 지금 대화를 그대로 두고 안내만.
+  Future<void> open(String id) async {
+    if (state.busy) return;
+    try {
+      final lines = await ref.read(chatApiProvider).load(id);
+      state = build();
+      _conversationId = id;
+      _set(items: [
+        for (final l in lines) ChatItem(l.role == 'user' ? ChatKind.user : ChatKind.bot, l.text),
+        if (lines.isEmpty) const ChatItem(ChatKind.bot, '무엇을 도와드릴까요?'),
+      ]);
+    } catch (_) {
+      _add(const ChatItem(ChatKind.notice, '대화를 불러오지 못했습니다.'));
+    }
+  }
+
+  /// 사용자 입력. 대기 카드는 그만두기로 닫는다 — 서버가 대기 호출을 "취소됨"으로 닫고 이 입력을 붙인다(고쳐 줘도 같은 길).
   Future<void> send(String text) async {
     final t = text.trim();
     if (t.isEmpty || state.busy) return;
     if (state.pending) {
-      await dismiss(silent: true);
-      _fixResults = (_messages.removeLast()['content'] as List)
-          .cast<Map<String, dynamic>>();
-      _set(awaitingFix: true);
+      _pending = null;
+      _markCardDone('그만두었습니다');
     }
     _add(ChatItem(ChatKind.user, t));
-    final fixing = state.awaitingFix ? _fixResults : null;
-    _fixResults = null;
-    if (fixing == null) _guard.reset();
-    _messages.add({
-      'role': 'user',
-      'content': fixing == null
-          ? t
-          : [
-              ...fixing,
-              {'type': 'text', 'text': t},
-            ],
-    });
+    if (!state.awaitingFix) _guard.reset();
     _set(awaitingFix: false);
-    await _drive();
+    await _drive({'text': t});
   }
 
-  List<Map<String, dynamic>>? _fixResults;
+  /// 회신 목록 — 앱 호출은 결과(오류면 서버가 문자열로 읽으므로 JSON 문자열), 서버 쓰기는 승인 여부(confirm에서 승인한 것만 true), 서버 읽기는 서버가 실행하므로 뺀다.
+  List<Map<String, dynamic>> _replies(Iterable<(String, Map<String, dynamic>)> rs) => [
+    for (final (id, r) in rs)
+      if (_calls[id] case final c? when c.onServer) ...[
+        if (tierOf(c.name) != ToolTier.read) {'id': id, 'approve': _approved.contains(id)},
+      ] else
+        _reply(id, r),
+  ];
 
-  Map<String, dynamic> _result(String id, Map<String, dynamic> r) => {
-    'type': 'tool_result',
-    'tool_use_id': id,
-    'content': jsonEncode(slim(r, bodyKeys: const {'body', 'content'})),
-    if (r['ok'] == false) 'is_error': true,
-  };
-
-  /// 실패한 턴 뒤 history 정리 — 문자열 user는 버리고(다시 입력), tool_result가 든 user는 결과만 남겨 다음 입력과 합친다.
-  void _rollbackFailedTurn() {
-    if (_messages.isEmpty || _messages.last['role'] != 'user') return;
-    final c = _messages.removeLast()['content'];
-    if (c is! List) return;
-    final results = [
-      for (final b in c)
-        if (b is Map && b['type'] == 'tool_result')
-          Map<String, dynamic>.from(b),
-    ];
-    if (results.isEmpty) return;
-    _fixResults = results;
-    _set(awaitingFix: true);
+  Map<String, dynamic> _reply(String id, Map<String, dynamic> r) {
+    final v = slim(r, bodyKeys: const {'body', 'content'});
+    return r['ok'] == false ? {'id': id, 'result': jsonEncode(v), 'isError': true} : {'id': id, 'result': v};
   }
 
-  Future<void> _drive() async {
+  Future<void> _drive(Map<String, dynamic> first) async {
     final run = _run = _Run();
     _set(busy: true);
+    _toolStatus.clear();
+    var body = first;
     try {
       for (var turn = 0; turn < maxTurns; turn++) {
         _add(const ChatItem(ChatKind.progress, '생각하는 중…'));
-        final trimmed = trimHistory(_messages);
-        if (trimmed.length != _messages.length) {
-          _messages
-            ..clear()
-            ..addAll(trimmed);
-        }
-        dynamic res;
+        var botIndex = -1;
+        TurnOutcome outcome;
         try {
-          res = await _wait(
-            run,
-            ref.read(apiClientProvider).postJsonAbortable(
-              '/api/assistant/turn',
-              {'messages': _messages, 'now': nowIso()},
-              run.stopped.future,
-            ),
-          );
+          outcome = await _waitTurn(run, ref.read(chatApiProvider).turn(
+            {...body, 'client': 'app', 'now': nowIso(), if (_conversationId != null) 'conversationId': _conversationId},
+            onText: (d) {
+              if (!_active(run) || d.isEmpty) return;
+              final items = [...state.items.where((x) => x.kind != ChatKind.progress)];
+              if (botIndex < 0 || botIndex >= items.length) {
+                items.add(ChatItem(ChatKind.bot, d));
+                botIndex = items.length - 1;
+              } else {
+                items[botIndex] = items[botIndex].copyWith(text: items[botIndex].text + d);
+              }
+              _set(items: items);
+            },
+            onTool: (id, tool, status) {
+              if (!_active(run) || status != 'running') return;
+              botIndex = -1; // 도구 뒤 이어지는 답은 새 말풍선
+              _add(ChatItem(ChatKind.progress, progressText(tool)));
+            },
+            abort: run.stopped.future,
+          ));
         } on _Stopped {
           rethrow;
-        } on ApiException catch (e) {
-          _add(ChatItem(ChatKind.notice, e.message));
-          _rollbackFailedTurn();
-          return;
         } catch (_) {
+          // ChatApi.turn은 ApiException만 결과로 바꾼다 — 연결 끊김 등은 여기로
           _add(const ChatItem(ChatKind.notice, '네트워크 연결을 확인하고 다시 시도해 주세요.'));
-          _rollbackFailedTurn();
           return;
         }
-        if (res is! Map || res['enabled'] != true) {
-          if (res is Map && res['enabled'] == false) {
-            ref.read(assistantAvailableProvider.notifier).disable();
-          }
+        if (outcome.conversationId != null) _conversationId = outcome.conversationId;
+        _toolStatus.addAll(outcome.toolStatus);
+        if (outcome.disabled) {
+          ref.read(assistantAvailableProvider.notifier).disable();
           _add(const ChatItem(ChatKind.notice, '관리자가 비서를 꺼 두었습니다.'));
-          _rollbackFailedTurn();
           return;
         }
+        if (outcome.error != null) {
+          _add(ChatItem(ChatKind.notice, outcome.error!));
+          return;
+        }
+        final calls = outcome.needsAction;
+        if (calls == null) return;
+        List<Map<String, dynamic>>? replies;
         try {
-          if (!await _handle(res, run)) return;
+          replies = await _handle(calls, run);
         } on _Stopped {
           rethrow;
         } catch (_) {
-          // 도구 호출은 쓰기를 실행하지 않으므로 assistant 메시지를 버리면 history가 유효하다. 보이지 않는 대기 카드도 버린다.
+          // 보이지 않는 대기 카드는 버린다 — 다음 입력 때 서버가 대기 호출을 "취소됨"으로 닫는다
           _pending = null;
-          if (_messages.isNotEmpty && _messages.last['role'] == 'assistant') {
-            _messages.removeLast();
-          }
-          _rollbackFailedTurn();
           _add(const ChatItem(ChatKind.notice, '처리하지 못했습니다. 다시 시도해 주세요.'));
           return;
         }
+        if (replies == null || replies.isEmpty) return; // 확인 카드 대기(빈 회신은 서버가 받지 않는다)
+        body = {'actions': replies};
       }
       _add(const ChatItem(ChatKind.notice, '요청이 너무 복잡합니다. 나눠서 다시 말씀해 주세요.'));
     } on _Stopped {
@@ -409,45 +354,42 @@ class AssistantSession extends Notifier<AssistantState> {
     }
   }
 
-  /// 응답 하나 처리. true면 다음 턴으로 계속, false면 멈춤(끝 또는 확인 대기).
-  Future<bool> _handle(Map res, _Run run) async {
-    final msg = Map<String, dynamic>.from(res['message'] as Map);
-    _messages.add(msg);
-    final blocks = (msg['content'] as List? ?? const [])
-        .whereType<Map>()
-        .toList();
-    final text = [
-      for (final b in blocks)
-        if (b['type'] == 'text') '${b['text']}',
-    ].join('\n').trim();
-    if (text.isNotEmpty) _add(ChatItem(ChatKind.bot, text));
-    final calls = [
-      for (final b in blocks)
-        if (b['type'] == 'tool_use')
-          ToolCall(
-            '${b['id']}',
-            '${b['name']}',
-            Map<String, dynamic>.from(b['input'] as Map? ?? const {}),
-          ),
-    ];
-    if (res['stop_reason'] != 'tool_use' || calls.isEmpty) {
-      _set(items: [...state.items.where((x) => x.kind != ChatKind.progress)]);
-      return false;
+  /// 스트림 대기 — _wait와 같지만 시간 상한은 assistantTurnTimeoutProvider(서버 도구 왕복·중계 때문에 길다).
+  Future<T> _waitTurn<T>(_Run run, Future<T> future) async {
+    try {
+      final result = await Future.any<T>([future, run.stopped.future.then<T>((_) => throw _Stopped())]).timeout(
+        ref.read(assistantTurnTimeoutProvider),
+        onTimeout: () {
+          if (_active(run)) stop(timedOut: true);
+          throw _Stopped();
+        },
+      );
+      if (!_active(run)) throw _Stopped();
+      return result;
+    } catch (_) {
+      if (!_active(run)) throw _Stopped();
+      rethrow;
     }
+  }
+
+  /// needs_action 처리. 회신 목록을 돌려주면 서버로 이어 가고, null이면 확인 카드 대기.
+  Future<List<Map<String, dynamic>>?> _handle(List<PendingCall> pcs, _Run run) async {
+    _calls = {for (final p in pcs) p.id: p};
+    final calls = [
+      for (final p in pcs)
+        if (!(p.onServer && tierOf(p.name) == ToolTier.read)) ToolCall(p.id, p.name, p.input), // 서버 읽기는 서버가 실행
+    ];
+    if (calls.isEmpty) return const [];
     final runner = await _runner(run);
     if (calls.any((c) => tierOf(c.name) == ToolTier.choice)) {
       if (calls.length == 1) return _offerChoices(calls.single, runner, run);
-      _messages.add({
-        'role': 'user',
-        'content': [
-          for (final c in calls)
-            _result(c.id, {
-              'ok': false,
-              'error': 'offer_choices는 다른 도구 없이 단독으로 불러야 합니다. 아무것도 실행하지 않았습니다',
-            }),
-        ],
-      });
-      return true;
+      return _replies([
+        for (final c in calls)
+          (c.id, {
+            'ok': false,
+            'error': 'offer_choices는 다른 도구 없이 단독으로 불러야 합니다. 아무것도 실행하지 않았습니다',
+          }),
+      ]);
     }
     final results = <String, Map<String, dynamic>>{};
     final writes = <ToolCall>[];
@@ -509,16 +451,12 @@ class AssistantSession extends Notifier<AssistantState> {
         }
       }
       if (rejected.isNotEmpty) {
-        _messages.add({
-          'role': 'user',
-          'content': _resultsFor(p, {
-            for (final w in writes)
-              w.id:
-                  rejected[w.id] ??
-                  {'ok': false, 'error': '함께 요청한 다른 작업을 확인하지 못해 실행하지 않았습니다'},
-          }),
-        });
-        return true;
+        return _replies(_resultsFor(p, {
+          for (final w in writes)
+            w.id:
+                rejected[w.id] ??
+                {'ok': false, 'error': '함께 요청한 다른 작업을 확인하지 못해 실행하지 않았습니다'},
+        }));
       }
       _pending = p;
       _add(
@@ -532,18 +470,14 @@ class AssistantSession extends Notifier<AssistantState> {
         ),
       );
       _set(pending: true);
-      return false;
+      return null;
     }
-    _messages.add({
-      'role': 'user',
-      'content': [for (final c in calls) _result(c.id, results[c.id]!)],
-    });
-    return true;
+    return _replies([for (final c in calls) (c.id, results[c.id]!)]);
   }
 
   /// 선택지 — 선택지마다 쓰기 호출을 실제 대상으로 확인해 카드로 보인다. 쓰기가 아닌 호출·확인 안 되는 대상이 든 선택지는 뺀다.
-  /// 남는 게 없으면 카드 없이 오류 결과로 이어간다(true = 다음 턴). 실행은 사용자가 고른 선택지의 [실행](confirm(choice:))뿐.
-  Future<bool> _offerChoices(
+  /// 남는 게 없으면 카드 없이 오류 결과로 이어간다(회신 목록). 실행은 사용자가 고른 선택지의 [실행](confirm(choice:))뿐.
+  Future<List<Map<String, dynamic>>?> _offerChoices(
     ToolCall c,
     AssistantToolRunner runner,
     _Run run,
@@ -608,17 +542,13 @@ class AssistantSession extends Notifier<AssistantState> {
       );
     }
     if (good.isEmpty) {
-      _messages.add({
-        'role': 'user',
-        'content': [
-          _result(c.id, {
-            'ok': false,
-            'error': '제시한 선택지를 하나도 확인하지 못했습니다',
-            'details': notes,
-          }),
-        ],
-      });
-      return true;
+      return _replies([
+        (c.id, {
+          'ok': false,
+          'error': '제시한 선택지를 하나도 확인하지 못했습니다',
+          'details': notes,
+        }),
+      ]);
     }
     _pending = _Pending(
       [c.id],
@@ -640,17 +570,18 @@ class AssistantSession extends Notifier<AssistantState> {
       ),
     );
     _set(pending: true);
-    return false;
+    return null;
   }
 
-  void _markCardDone(String text) {
+  /// 카드 닫기 — item이 없으면 마지막 카드(대기 해제 포함), 있으면 그 카드만(뒤에 새로 뜬 카드의 대기는 그대로).
+  void _markCardDone(String text, {ChatItem? item}) {
     final items = [...state.items];
-    final i = items.lastIndexWhere((x) => x.kind == ChatKind.card);
+    final i = item == null ? items.lastIndexWhere((x) => x.kind == ChatKind.card) : items.indexWhere((x) => identical(x, item));
     if (i >= 0) items[i] = items[i].copyWith(done: true, text: text);
-    _set(items: items, pending: false);
+    _set(items: items, pending: item == null ? false : null);
   }
 
-  List<Map<String, dynamic>> _resultsFor(
+  List<(String, Map<String, dynamic>)> _resultsFor(
     _Pending p,
     Map<String, Map<String, dynamic>> writeResults,
   ) {
@@ -670,9 +601,9 @@ class AssistantSession extends Notifier<AssistantState> {
     return [
       for (final id in p.order)
         if (p.undoIds.contains(id))
-          _result(id, undoResult!)
+          (id, undoResult!)
         else
-          _result(
+          (
             id,
             p.results[id] ??
                 writeResults[id] ??
@@ -681,8 +612,8 @@ class AssistantSession extends Notifier<AssistantState> {
     ];
   }
 
-  /// 확인 카드 실행 — 순서대로, 앞 작업이 실패하면 뒤 작업은 건너뛴다.
-  /// 선택지 카드면 choice(0부터)가 있어야 하고 그 선택지의 쓰기만 실행한다.
+  /// 확인 카드 실행 — 순서대로, 앞 작업이 실패하면 뒤 작업은 건너뛴다. 서버 쓰기는 여기서 실행하지 않고 승인(approve)으로 서버에 맡긴다.
+  /// 선택지 카드면 choice(0부터)가 있어야 하고 그 선택지의 쓰기만 실행한다(선택지 안의 서버 도구는 앱이 /api/assistant/execute로).
   Future<void> confirm({int? choice}) async {
     final p = _pending;
     if (p == null || state.busy) return;
@@ -695,38 +626,11 @@ class AssistantSession extends Notifier<AssistantState> {
     final run = _run = _Run();
     final writes = picked?.writes ?? p.writes;
     _pending = null;
+    _approved.clear();
     _markCardDone(picked == null ? '실행 중…' : '실행 중… — ${picked.lines.first}');
+    final card = state.items.lastWhere((x) => x.kind == ChatKind.card);
     _set(busy: true);
     final out = <String, Map<String, dynamic>>{};
-    final started = <String>{};
-    run.interruptedResults = () {
-      final results = {
-        for (final w in writes)
-          w.id:
-              out[w.id] ??
-              {
-                'ok': false,
-                'error': started.contains(w.id)
-                    ? '응답 대기 중지. 실행 여부를 조회하세요. 자동으로 다시 실행하지 마세요.'
-                    : '중지되어 실행하지 않았습니다',
-              },
-      };
-      return _resultsFor(
-        p,
-        picked == null
-            ? results
-            : {
-                p.choiceId!: {
-                  'ok': false,
-                  'chosen': picked.label,
-                  'results': [
-                    for (final (j, w) in writes.indexed)
-                      {'action': picked.lines[j], 'result': results[w.id]},
-                  ],
-                },
-              },
-      );
-    };
     var failed = false;
     try {
       final runner = await _runner(run);
@@ -735,22 +639,25 @@ class AssistantSession extends Notifier<AssistantState> {
           out[w.id] = {'ok': false, 'error': '앞 작업이 실패해 실행하지 않았습니다'};
           continue;
         }
+        if (_calls[w.id]?.onServer == true) {
+          _approved.add(w.id); // 결과는 회신 스트림의 tool 이벤트로 받는다
+          continue;
+        }
         _add(
           ChatItem(
             ChatKind.progress,
             '${cardLine(w).split(' · ').first} 하는 중…',
           ),
         );
-        started.add(w.id);
         final r = await _wait(run, runner.run(w)); // 취소·삭제 성공은 러너가 실행 기록에서 지운다
         out[w.id] = r;
         if (r['ok'] != true) failed = true;
       }
     } on _Stopped {
-      return;
+      return; // 서버에는 보내지 않는다 — 다음 입력 때 서버가 대기 호출을 "취소됨"으로 닫는다
     } catch (_) {
       for (final w in writes) {
-        out.putIfAbsent(w.id, () => {'ok': false, 'error': '실행되지 않았습니다'});
+        if (!_approved.contains(w.id)) out.putIfAbsent(w.id, () => {'ok': false, 'error': '실행되지 않았습니다'});
       }
     } finally {
       if (_active(run)) {
@@ -761,66 +668,63 @@ class AssistantSession extends Notifier<AssistantState> {
         );
       }
     }
-    final okCount = writes.where((w) => out[w.id]?['ok'] == true).length;
-    final status = okCount == writes.length
-        ? '실행했습니다'
-        : out[writes.first.id]?['ok'] == true
-        ? '일부만 실행했습니다'
-        : '실행하지 못했습니다';
-    _markCardDone(picked == null ? status : '$status — ${picked.lines.first}');
-    _messages.add({
-      'role': 'user',
-      'content': _resultsFor(
-        p,
-        picked == null
-            ? out
-            : {
-                p.choiceId!: {
-                  'ok': okCount == writes.length,
-                  'chosen': picked.label,
-                  'results': [
-                    for (final (j, w) in writes.indexed)
-                      {
-                        'action': picked.lines[j],
-                        'result':
-                            out[w.id] ?? {'ok': false, 'error': '실행되지 않았습니다'},
-                      },
-                  ],
-                },
+    bool ok(ToolCall w) => _approved.contains(w.id) ? _toolStatus[w.id] == 'ok' : out[w.id]?['ok'] == true;
+    String status() {
+      final okCount = writes.where(ok).length;
+      final s = okCount == writes.length
+          ? '실행했습니다'
+          : ok(writes.first)
+          ? '일부만 실행했습니다'
+          : '실행하지 못했습니다';
+      return picked == null ? s : '$s — ${picked.lines.first}';
+    }
+    final onServer = writes.any((w) => _approved.contains(w.id));
+    if (!onServer) _markCardDone(status(), item: card); // 결과를 이미 안다
+    final okAll = writes.every((w) => out[w.id]?['ok'] == true);
+    final replies = _replies(_resultsFor(
+      p,
+      picked == null
+          ? out
+          : {
+              p.choiceId!: {
+                'ok': okAll,
+                'chosen': picked.label,
+                'results': [
+                  for (final (j, w) in writes.indexed)
+                    {
+                      'action': picked.lines[j],
+                      'result':
+                          out[w.id] ?? {'ok': false, 'error': '실행되지 않았습니다'},
+                    },
+                ],
               },
-      ),
-    });
-    await _drive();
+            },
+    ));
+    await _drive({'actions': replies});
+    // 서버 쓰기는 회신 스트림의 결과로 — 중지됐으면 stop()이 이미 "실행 여부를 확인해 주세요"로 바꿨다
+    if (onServer && state.items.any((x) => identical(x, card))) _markCardDone(status(), item: card);
   }
 
-  /// 그만두기 — 모든 쓰기에 "사용자가 취소" 결과를 붙여 이어간다(silent면 새 입력 직전 정리용, 턴을 돌리지 않음).
+  /// 그만두기 — 앱 쓰기에 "사용자가 취소" 결과, 서버 쓰기는 미승인으로 회신해 이어간다.
+  /// silent면 회신하지 않고 카드만 닫는다(다음 입력 때 서버가 대기 호출을 "취소됨"으로 닫는다).
   Future<void> dismiss({bool silent = false}) async {
     final p = _pending;
     if (p == null || state.busy) return;
     _pending = null;
     _markCardDone('그만두었습니다');
-    _messages.add({
-      'role': 'user',
-      'content': _resultsFor(p, {
-        for (final w in p.writes) w.id: {'ok': false, 'error': '사용자가 취소함'},
-        if (p.choiceId != null) p.choiceId!: {'ok': false, 'error': '사용자가 취소함'},
-      }),
-    });
-    if (!silent) await _drive();
+    if (silent) return;
+    _approved.clear();
+    await _drive({'actions': _replies(_resultsFor(p, {
+      for (final w in p.writes) w.id: {'ok': false, 'error': '사용자가 취소함'},
+      if (p.choiceId != null) p.choiceId!: {'ok': false, 'error': '사용자가 취소함'},
+    }))});
   }
 
-  /// 고쳐 줘 — 실행하지 않고, 다음 입력을 미실행 결과와 함께 보낸다.
+  /// 고쳐 줘 — 실행하지 않고 카드를 닫는다. 다음 입력이 그대로 가고, 서버가 대기 호출을 "취소됨"으로 닫는다.
   void fix() {
-    final p = _pending;
-    if (p == null || state.busy) return;
+    if (_pending == null || state.busy) return;
     _pending = null;
     _markCardDone('고칠 내용을 말씀해 주세요');
-    _fixResults = _resultsFor(p, {
-      for (final w in p.writes)
-        w.id: {'ok': false, 'error': '사용자가 실행하지 않고 고칠 내용을 말함'},
-      if (p.choiceId != null)
-        p.choiceId!: {'ok': false, 'error': '사용자가 고르지 않고 고칠 내용을 말함'},
-    });
     _set(awaitingFix: true);
   }
 }

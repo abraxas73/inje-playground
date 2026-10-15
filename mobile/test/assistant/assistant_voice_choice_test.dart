@@ -9,7 +9,8 @@ import 'package:playground/gw/gw_client.dart';
 import 'package:playground/gw/gw_creds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../gw/fakes.dart';
-import 'assistant_session_test.dart' show Brain, say, choices, roomOpt, scenarioGw;
+import 'assistant_session_test.dart' show say, choices, roomOpt, scenarioGw;
+import 'chat_brain.dart';
 import 'gw_assistant_api_test.dart' show Gw;
 
 class FakeVoice implements VoiceInput {
@@ -51,7 +52,7 @@ class FakeSpeaker implements Speaker {
   Future<void> stop() async => stops++; // 실제 플러그인도 stop으로 speak() Future를 끝내지 않는다
 }
 
-Widget host(Brain brain, Gw gw, FakeVoice v, FakeSpeaker sp) => ProviderScope(
+Widget host(ChatBrain brain, Gw gw, FakeVoice v, FakeSpeaker sp) => ProviderScope(
       key: UniqueKey(),
       overrides: [
         apiClientProvider.overrideWithValue(brain.client),
@@ -67,7 +68,7 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   testWidgets('선택지 카드 — 선택지마다 [실행], 누른 선택지만 실행', (tester) async {
-    final brain = Brain([
+    final brain = ChatBrain([
       choices('x', [roomOpt('16시 A', 'R1', 'A'), roomOpt('16시 B', 'R2', 'B')]),
       say('회의실B를 예약했습니다.'),
     ]);
@@ -88,7 +89,7 @@ void main() {
   });
 
   testWidgets('말하기 — 듣는 동안 입력칸에 글자가 차고, 끝나면 보낸다', (tester) async {
-    final brain = Brain([say('오늘 일정은 없습니다.')]);
+    final brain = ChatBrain([say('오늘 일정은 없습니다.')]);
     final v = FakeVoice();
     await tester.pumpWidget(host(brain, scenarioGw(), v, FakeSpeaker()));
     await tester.tap(find.byTooltip('말하기'));
@@ -106,14 +107,14 @@ void main() {
 
   testWidgets('말하기 — 권한이 없으면 안내만', (tester) async {
     final v = FakeVoice()..allow = false;
-    await tester.pumpWidget(host(Brain([]), scenarioGw(), v, FakeSpeaker()));
+    await tester.pumpWidget(host(ChatBrain([]), scenarioGw(), v, FakeSpeaker()));
     await tester.tap(find.byTooltip('말하기'));
     await tester.pumpAndSettle();
     expect(find.textContaining('마이크'), findsOneWidget);
   });
 
   testWidgets('읽어 주기 — 답변 끝 스피커를 눌러야 읽고, 다시 누르면 멈춤', (tester) async {
-    final brain = Brain([say('오늘 일정은 없습니다.')]);
+    final brain = ChatBrain([say('오늘 일정은 없습니다.')]);
     final sp = FakeSpeaker();
     await tester.pumpWidget(host(brain, scenarioGw(), FakeVoice(), sp));
     await tester.enterText(find.byType(TextField), '일정');
@@ -132,7 +133,7 @@ void main() {
 
   testWidgets('말하기 — 아무 말 없이 끝나면(오류·시간 초과) 듣기 상태가 풀린다', (tester) async {
     final v = FakeVoice();
-    await tester.pumpWidget(host(Brain([]), scenarioGw(), v, FakeSpeaker()));
+    await tester.pumpWidget(host(ChatBrain([]), scenarioGw(), v, FakeSpeaker()));
     await tester.tap(find.byTooltip('말하기'));
     await tester.pump();
     expect(find.byTooltip('듣기 멈추기'), findsOneWidget);
@@ -142,7 +143,7 @@ void main() {
   });
 
   testWidgets('말하기 — 듣는 중 직접 보내면 듣기를 멈추고 늦게 온 인식 결과는 버린다', (tester) async {
-    final brain = Brain([say('네.')]);
+    final brain = ChatBrain([say('네.')]);
     final v = FakeVoice();
     await tester.pumpWidget(host(brain, scenarioGw(), v, FakeSpeaker()));
     await tester.tap(find.byTooltip('말하기'));
@@ -158,7 +159,7 @@ void main() {
   });
 
   testWidgets('읽는 중 다른 말풍선·새 대화 — 앞의 읽기를 멈추고 아이콘도 정리', (tester) async {
-    final brain = Brain([say('첫째 답.'), say('둘째 답.')]);
+    final brain = ChatBrain([say('첫째 답.'), say('둘째 답.')]);
     final sp = FakeSpeaker();
     await tester.pumpWidget(host(brain, scenarioGw(), FakeVoice(), sp));
     for (final t in ['a', 'b']) {
@@ -181,7 +182,7 @@ void main() {
   });
 
   testWidgets('선택지 카드 — 실제 대상 줄이 먼저, 모델이 쓴 이름은 보조, 대기 카드 중엔 🎤 꺼짐', (tester) async {
-    final brain = Brain([choices('x', [roomOpt('엉뚱한 이름', 'R1', 'A'), roomOpt('둘째', 'R2', 'B')])]);
+    final brain = ChatBrain([choices('x', [roomOpt('엉뚱한 이름', 'R1', 'A'), roomOpt('둘째', 'R2', 'B')])]);
     await tester.pumpWidget(host(brain, scenarioGw(), FakeVoice(), FakeSpeaker()));
     await tester.enterText(find.byType(TextField), '회의실');
     await tester.tap(find.byTooltip('보내기'));
@@ -194,7 +195,7 @@ void main() {
   });
 
   testWidgets('기본 음성뿐이면 🔊 처음 누를 때 고품질 음성 설치 안내(앱 실행당 한 번, 닫기 가능)', variant: TargetPlatformVariant.only(TargetPlatform.iOS), (tester) async {
-    final brain = Brain([say('첫째.'), say('둘째.')]);
+    final brain = ChatBrain([say('첫째.'), say('둘째.')]);
     final sp = FakeSpeaker(basic: true);
     await tester.pumpWidget(host(brain, scenarioGw(), FakeVoice(), sp));
     for (final t in ['a', 'b']) {
@@ -216,7 +217,7 @@ void main() {
   });
 
   testWidgets('고품질 음성이 있으면 안내 없음', (tester) async {
-    final brain = Brain([say('답.')]);
+    final brain = ChatBrain([say('답.')]);
     await tester.pumpWidget(host(brain, scenarioGw(), FakeVoice(), FakeSpeaker()));
     await tester.enterText(find.byType(TextField), 'a');
     await tester.tap(find.byTooltip('보내기'));
@@ -236,7 +237,7 @@ void main() {
   });
 
   testWidgets('말하기 — 명령 어미가 아니면 계속 듣고, 이어 말한 것을 붙여 명령이 끝나면 바로 보냄', (tester) async {
-    final brain = Brain([say('네.')]);
+    final brain = ChatBrain([say('네.')]);
     final v = FakeVoice();
     await tester.pumpWidget(host(brain, scenarioGw(), v, FakeSpeaker()));
     await tester.tap(find.byTooltip('말하기'));
@@ -252,7 +253,7 @@ void main() {
   });
 
   testWidgets('말하기 — 명령 어미 없이 2초 조용하면 그대로 보냄, 그 사이 말을 시작하면 기다림을 연장', (tester) async {
-    final brain = Brain([say('네.')]);
+    final brain = ChatBrain([say('네.')]);
     final v = FakeVoice();
     await tester.pumpWidget(host(brain, scenarioGw(), v, FakeSpeaker()));
     await tester.tap(find.byTooltip('말하기'));
@@ -273,7 +274,7 @@ void main() {
   });
 
   testWidgets('말하기 — 종료 신호가 최종 결과보다 먼저 와도 부분 문장을 바로 보내지 않고, 늦게 온 최종 문장으로 보냄', (tester) async {
-    final brain = Brain([say('네.')]);
+    final brain = ChatBrain([say('네.')]);
     final v = FakeVoice();
     await tester.pumpWidget(host(brain, scenarioGw(), v, FakeSpeaker()));
     await tester.tap(find.byTooltip('말하기'));
@@ -288,7 +289,7 @@ void main() {
   });
 
   testWidgets('말하기 — 종료 신호 뒤 최종 결과가 안 오면 2초 뒤 들은 데까지 보냄', (tester) async {
-    final brain = Brain([say('네.')]);
+    final brain = ChatBrain([say('네.')]);
     final v = FakeVoice();
     await tester.pumpWidget(host(brain, scenarioGw(), v, FakeSpeaker()));
     await tester.tap(find.byTooltip('말하기'));
