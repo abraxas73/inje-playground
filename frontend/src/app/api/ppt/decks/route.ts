@@ -1,21 +1,11 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
-import { newShareToken } from "@/lib/rfp/share";
 import { shareUrlFor } from "@/lib/ppt/deck-access";
 import { createServerSupabase } from "@/lib/supabase-server";
-import { runGeneration } from "@/lib/ppt/generate";
-import { createAnthropicDeckLlm, LlmUnavailableError, type DeckLlm } from "@/lib/ppt/llm";
-import { parseCreateRequest, provisionalTitle } from "@/lib/ppt/request";
-import { clampSourceText, fetchUrlSource, UrlSourceError } from "@/lib/ppt/web-source";
-import type { PptSourceImage } from "@/types/ppt";
-import { confluenceSource, isCompanyConfluenceUrl } from "@/lib/confluence/ppt-source";
-import { sharepointSource } from "@/lib/sharepoint/ppt-source";
-import { isSharepointUrl } from "@/lib/sharepoint/core";
-import { sourceKindFor } from "@/lib/ppt/source";
+import { startDeck } from "@/lib/ppt/start";
 import { ownerLabels } from "@/lib/ppt/owner-label";
-import { createPptServiceClient, PptServiceError, type PptServiceClient } from "@/lib/ppt/service";
-import { DECK_COLUMNS, failStaleVersions, hasActiveVersion, loadActiveTemplates, mapDeck, templateOptions, type DeckRow, type TemplateRow, type VersionRow } from "@/lib/ppt/store";
-import { BUILTIN_TEMPLATE_LABEL, type PptListResponse } from "@/types/ppt";
+import { DECK_COLUMNS, loadActiveTemplates, mapDeck, templateOptions, type DeckRow, type VersionRow } from "@/lib/ppt/store";
+import type { PptListResponse } from "@/types/ppt";
 
 export const runtime = "nodejs";
 export const maxDuration = 800; // Pro + Fluid 상한. 긴 원고는 LLM 출력만 수 분 걸린다
@@ -47,72 +37,12 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(res);
 }
 
-/** POST /api/ppt/decks — 덱 + v1 생성 요청. 201 {deckId} 뒤 after()에서 생성이 돈다. */
+/** POST /api/ppt/decks — 덱 + v1 생성 요청. 201 {deckId} 뒤 after()에서 생성이 돈다(lib/ppt/start.ts). */
 export async function POST(request: NextRequest) {
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
-  let parsed = parseCreateRequest(await request.json().catch(() => null));
-  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
-  // SharePoint·OneDrive 문서 링크는 본인 Microsoft 권한으로 내려받아 업로드 원고와 같은 흐름(docx 등은 텍스트, pptx는 /extract)
-  if (parsed.kind === "url" && parsed.url && isSharepointUrl(parsed.url)) {
-    const sp = await sharepointSource(auth.admin, auth.userId, parsed.url);
-    if (!sp.ok) return NextResponse.json({ error: sp.error }, { status: sp.status });
-    parsed = { ...parsed, kind: sourceKindFor(sp.fileName), url: null, storagePath: sp.storagePath, fileName: sp.fileName, includeImages: false };
-  }
-  // URL 원고는 여기서 바로 가져온다 — 못 가져오면 덱을 만들지 않고 사유를 돌려준다
-  let fetched: { text: string; title: string | null; images: PptSourceImage[] } | null = null;
-  if (parsed.kind === "url" && parsed.url && isCompanyConfluenceUrl(parsed.url)) {
-    const cf = await confluenceSource(auth.admin, auth.userId, parsed.url);
-    if (!cf.ok) return NextResponse.json({ error: cf.error }, { status: cf.status });
-    fetched = { text: cf.text, title: cf.title, images: [] };
-  } else if (parsed.kind === "url" && parsed.url) {
-    try { fetched = await fetchUrlSource(parsed.url, undefined, { images: parsed.includeImages }); }
-    catch (e) {
-      if (e instanceof UrlSourceError) return NextResponse.json({ error: e.message }, { status: e.status });
-      return NextResponse.json({ error: `페이지 본문을 읽지 못했습니다: ${e instanceof Error ? e.message : String(e)}` }, { status: 400 });
-    }
-  }
-
-  let deps: { llm: DeckLlm; service: PptServiceClient };
-  try {
-    deps = { llm: createAnthropicDeckLlm({ model: parsed.model ?? undefined }), service: createPptServiceClient() };
-  } catch (e) {
-    if (e instanceof LlmUnavailableError || e instanceof PptServiceError) return NextResponse.json({ error: e.message }, { status: 500 });
-    throw e;
-  }
-  await failStaleVersions(auth.admin);
-  if (await hasActiveVersion(auth.admin, auth.userId)) {
-    return NextResponse.json({ error: "진행 중인 생성이 끝난 뒤 다시 시도하세요." }, { status: 409 });
-  }
-  // 템플릿: 지정했으면 활성 행이어야 한다. 비우면 내장
-  let template: Pick<TemplateRow, "id" | "name"> | null = null;
-  if (parsed.templateId) {
-    const { data } = await auth.admin.from("ppt_templates").select("id, name").eq("id", parsed.templateId).eq("status", "active").maybeSingle();
-    template = (data as Pick<TemplateRow, "id" | "name"> | null) ?? null;
-    if (!template) return NextResponse.json({ error: "선택한 템플릿을 찾을 수 없거나 비활성화되었습니다." }, { status: 400 });
-  }
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
-
-  const { data: deck, error: deckError } = await auth.admin.from("ppt_decks")
-    .insert({ owner_id: auth.userId, owner_email: user?.email ?? "", title: provisionalTitle({ title: parsed.title, fileName: parsed.fileName, text: fetched ? (fetched.title ?? parsed.url) : parsed.text }), share_token: newShareToken() })
-    .select("id").single();
-  if (deckError || !deck) return NextResponse.json({ error: deckError?.message ?? "덱을 만들지 못했습니다." }, { status: 500 });
-  const deckId = (deck as { id: string }).id;
-  const { data: version, error: versionError } = await auth.admin.from("ppt_deck_versions")
-    .insert({ deck_id: deckId, no: 1, status: "generating", source_kind: parsed.kind, source_text: fetched ? clampSourceText(fetched.text) : parsed.text, source_path: parsed.storagePath, source_name: fetched ? parsed.url : parsed.fileName, source_images: fetched?.images.length ? fetched.images : null, prompt: parsed.prompt, llm_model: deps.llm.model, template_id: template?.id ?? null, template_name: template?.name ?? BUILTIN_TEMPLATE_LABEL })
-    .select("id").single();
-  if (versionError || !version) {
-    const { error: cleanupError } = await auth.admin.from("ppt_decks").delete().eq("id", deckId);
-    if (cleanupError) console.error("[ppt] 덱 정리 실패:", cleanupError.message);
-    return NextResponse.json({ error: versionError?.message ?? "버전을 만들지 못했습니다." }, { status: 500 });
-  }
-
-  const admin = auth.admin;
-  const versionId = (version as { id: string }).id;
-  const hints = { title: parsed.title ?? undefined, dept: parsed.dept ?? undefined };
-  after(async () => {
-    await runGeneration(admin, versionId, { ...deps, hints });
-  });
-  return NextResponse.json({ deckId }, { status: 201 });
+  const r = await startDeck(auth.admin, { userId: auth.userId, email: user?.email ?? "" }, await request.json().catch(() => null));
+  return r.ok ? NextResponse.json({ deckId: r.deckId }, { status: 201 }) : NextResponse.json({ error: r.error }, { status: r.status });
 }

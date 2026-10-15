@@ -8,6 +8,7 @@ export const TOOL_LABEL: Record<string, string> = {
   teams_chats: "Teams 채팅 목록", teams_mentions: "Teams 답장 대기", teams_send: "Teams 보내기",
   confluence_search: "Confluence 검색", confluence_read: "Confluence 문서", confluence_feed: "Confluence 소식", confluence_spaces: "Confluence 공간", confluence_create_page: "Confluence 페이지 만들기",
   sharepoint_search: "SharePoint 검색", sharepoint_recent: "SharePoint 문서", sharepoint_read: "SharePoint 문서 읽기",
+  jira_issues: "Jira 내 업무", jira_issue: "Jira 이슈", people_news: "인사·부고", food_search: "식당 찾기", ppt_decks: "내 PPT", ppt_create: "PPT 만들기",
 };
 export const toolLabel = (name: string) => TOOL_LABEL[name] ?? name;
 

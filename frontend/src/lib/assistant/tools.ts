@@ -3,13 +3,14 @@
  * 등급 표는 앱 mobile/lib/assistant/assistant_tools.dart의 assistantToolTiers와 같은 이름·값이어야 한다(양쪽 테스트가 같은 목록을 고정).
  */
 import type Anthropic from "@anthropic-ai/sdk";
+import { FEATURE_TIERS, FEATURE_TOOLS } from "./feature-tools";
 
 export type ToolTier = "read" | "write" | "irreversible" | "meta" | "choice";
 export const ASSISTANT_ENABLED_KEY = "assistant_enabled";
 export const ASSISTANT_DAILY_TURNS_KEY = "assistant_daily_turns";
 export const DEFAULT_DAILY_TURNS = 200;
 export const DEFAULT_ASSISTANT_MODEL = "claude-sonnet-5-5";
-export const SERVER_TOOLS = ["teams_chats", "teams_mentions", "teams_send", "confluence_search", "confluence_read", "confluence_feed", "confluence_spaces", "confluence_create_page", "sharepoint_search", "sharepoint_recent", "sharepoint_read"] as const;
+export const SERVER_TOOLS = ["teams_chats", "teams_mentions", "teams_send", "confluence_search", "confluence_read", "confluence_feed", "confluence_spaces", "confluence_create_page", "sharepoint_search", "sharepoint_recent", "sharepoint_read", "jira_issues", "jira_issue", "people_news", "food_search", "ppt_decks", "ppt_create"] as const;
 
 const S = (description: string) => ({ type: "string", description });
 const I = (description: string) => ({ type: "integer", description });
@@ -63,6 +64,7 @@ export const ASSISTANT_TOOLS: Anthropic.Tool[] = [
     options: { type: "array", minItems: 2, maxItems: 4, description: "선택지 2~4개", items: { type: "object", properties: { label: S("선택지 한 줄 요약"), calls: { type: "array", minItems: 1, maxItems: 5, description: "이 선택지를 고르면 실행할 쓰기 도구 호출(최대 5)", items: { type: "object", properties: { name: S("쓰기 도구 이름"), input: { type: "object", description: "그 도구의 입력" } }, required: ["name", "input"] } } }, required: ["label", "calls"] } },
   }, ["question", "options"]),
   tool("undo_last", "방금 비서가 실행한 작업(예약·일정 등)을 되돌린다. 앱이 실행 기록에서 대상을 고르고 확인받는다.", { count: I("되돌릴 개수(기본 1)") }),
+  ...FEATURE_TOOLS,
 ];
 
 export const TOOL_TIERS: Record<string, ToolTier> = {
@@ -76,6 +78,7 @@ export const TOOL_TIERS: Record<string, ToolTier> = {
   confluence_search: "read", confluence_read: "read", confluence_feed: "read", confluence_spaces: "read", confluence_create_page: "write",
   sharepoint_search: "read", sharepoint_recent: "read", sharepoint_read: "read",
   undo_last: "meta", offer_choices: "choice",
+  ...FEATURE_TIERS,
 };
 
 /** 'YYYY-MM-DDTHH:mm…' → '2026-10-05(월) 14:03 KST'(요일을 모델이 계산하지 않게). 형식이 다르면 그대로 + KST. */
@@ -89,7 +92,7 @@ function nowWithWeekday(now: string): string {
 /** 고정 규칙 — 사람·시각이 없어 모든 사용자·턴이 같은 캐시를 읽는다(도구 정의 뒤 캐시 구간). */
 const ASSISTANT_RULES = [
     "너는 이노그리드 구성원의 업무 비서 '이노봇'이다. 사용자와 현재 시각은 이 규칙 뒤에 따로 적힌다.",
-    "도구로 아마란스(조직도·회의실·일정·출퇴근·메일·결재 조회·게시판·통합검색)와 Teams·Confluence(회사 위키)·SharePoint(회사 문서 파일)를 다룬다.",
+    "도구로 아마란스(조직도·회의실·일정·출퇴근·메일·결재 조회·게시판·통합검색)와 Teams·Confluence(회사 위키)·SharePoint(회사 문서 파일), 그리고 우리 앱 기능(Jira 내 업무·인사·부고 소식·뭐 먹지(근처 식당·PAYCO 식권)·PPT 만들기)을 다룬다. 사용자가 앱 기능을 쓰라고 하면 '할 수 없다'고 하지 말고 그 도구를 쓴다.",
     "규칙:",
     "1. 쓰기 작업(예약·일정 등록·삭제·출퇴근·메일 저장·발송·Teams 전송)은 도구 호출로만 한다. 앱이 사용자에게 확인 카드를 보여 주고 실행하므로, 문장으로 \"실행할까요?\"라고 묻지 말고 필요한 정보가 갖춰지면 바로 도구를 부른다. 서로 관련된 쓰기(예약+일정)는 같은 응답에서 함께 부른다.",
     "2. 시각·사람·회의실이 애매하면 쓰기 전에 되묻는다. 동명이인은 부서를 보여 주고 고르게 한다. 참석자는 find_person 또는 my_team 결과의 empSeq·deptSeq만 쓴다. '우리 팀 전원·팀원 모두'는 my_team 결과 전원이다. 캘린더를 지정하면(예: '이노그리드 캘린더') list_calendars에서 제목이 맞는 것의 mcalSeq를 create_event의 calendar_id로 넣고, 맞는 게 없거나 여러 개면 되묻는다.",
@@ -98,10 +101,12 @@ const ASSISTANT_RULES = [
     "5. 도구 결과에 없는 사실을 만들지 않는다. 실패는 그대로 알리고, 반쯤 된 작업(예: 예약은 됐고 일정은 실패)은 무엇이 됐는지 분명히 말한다.",
     "6. 메일 본문은 사용자가 그 메일을 요청했을 때만 mail_read로 읽는다. 게시글 본문도 같다. 메일을 찾아 달라면('결산 메일 찾아줘', '홍길동이 보낸 첨부 메일') mail_search를 먼저 쓰고(검색식으로 보낸 사람·기간·첨부를 좁힌다), 결과가 없거나 색인이 동기화 중이면 search로 보완한다. 답에는 제목·보낸 사람·시각을 줄바꿈 목록으로 보여 주고 본문은 요청받았을 때만 읽는다.",
     "7. 쓰기로 이어지는 대안이 2개 이상이면(빈 회의실 여러 곳·시간대 등) 문장으로 되묻지 말고 offer_choices로 최대 4개를 제시한다. 각 선택지의 calls에 그 선택지를 고르면 실행할 쓰기 호출을 모두 넣는다. offer_choices는 단독으로 부르고 같은 응답에서 다른 쓰기를 부르지 않는다. 대안이 하나면 바로 쓰기 도구를 부르고, 정보가 모자라면 문장으로 묻는다.",
-    "8. 답은 짧은 존댓말. 목록은 간단한 줄바꿈으로, 마크다운 표·제목은 쓰지 않는다(confluence_create_page의 markdown 본문은 예외).",
+    "8. 답은 짧은 존댓말. 목록·표·굵게 같은 마크다운을 써도 된다(웹·앱 모두 그려 준다). 큰 제목(#)은 쓰지 않는다.",
     "9. 사내 문서·가이드·회의록·위키를 물으면 confluence_search로 찾고 필요한 문서만 confluence_read로 읽어 답하며, 답 끝에 문서 제목과 링크를 붙인다. 찾지 못하면 그렇다고 말한다.",
     "10. 회의록을 만들어 달라면: 회의 일정이 있으면 list_events로 제목·시각·장소·참석자를 확인하고, confluence_spaces에서 공간을 고른다(사용자가 말한 공간이 없거나 여러 개면 되묻는다). 제목은 '[회의록] YYYY-MM-DD 회의명'. 본문은 '## 회의 개요'(일시·장소·참석자) / '## 안건' / '## 논의 내용' / '## 결정 사항' / '## 액션 아이템'(| 할 일 | 담당 | 기한 | 표) 순서로, 모르는 내용은 비워 둔다(지어내지 않는다).",
     "11. 제안서·보고서·엑셀·PPT 같은 문서 파일을 물으면 sharepoint_search로 찾고(위키와 파일 중 어느 쪽인지 모르면 confluence_search도 함께), 필요한 파일만 sharepoint_read로 읽어 답하며, 답 끝에 파일 이름과 링크를 붙인다. '자주 쓰는·최근 문서'는 sharepoint_recent(used)다.",
+    "12. PPT를 만들어 달라면 ppt_create를 쓴다. 원고는 사용자가 준 문서 주소(웹·Confluence·SharePoint)가 있으면 url, 아니면 대화에서 정리한 내용을 장 구성이 보이는 마크다운으로 text에 넣는다(내용이 모자라면 먼저 묻는다). 시작하면 링크를 알려 주고, 진행은 ppt_decks로 확인한다. 이미 만드는 중이면 끝난 뒤 다시 하라고 안내한다.",
+    "13. 식당·카페·점심 메뉴는 food_search(어디 근처인지 모르면 먼저 묻는다), 인사·부고 소식은 people_news, 내 Jira 업무는 jira_issues·jira_issue를 쓴다. 결과의 링크를 함께 보여 준다.",
 ].join("\n");
 
 /** 시스템 프롬프트 = [고정 규칙(캐시 표시)] + [이번 사용자·현재 시각 + 클라이언트별 줄]. 바뀌는 값을 뒤에 두어야 앞부분 캐시가 맞는다. */

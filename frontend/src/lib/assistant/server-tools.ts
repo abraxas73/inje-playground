@@ -13,13 +13,23 @@ import { feed as spFeed, readDoc, searchDocs } from "@/lib/sharepoint/client";
 import { FEED_KINDS as SP_FEED_KINDS, SharepointError, type FeedKind as SpFeedKind } from "@/lib/sharepoint/core";
 import { pptxExtractor } from "@/lib/sharepoint/pptx";
 
+import { featurePage, runFeatureTool } from "./feature-tools";
 export type ToolRun = { ok: true; result: unknown } | { ok: false; error: string };
 const NOT_CONNECTED = "Microsoft 계정이 연결되지 않았거나 Teams 채팅 권한이 없습니다. 웹 설정에서 다시 연결하세요.";
 const SP_NOT_CONNECTED = "Microsoft 계정이 연결되지 않았습니다. 웹 설정에서 연결하세요.";
 
-/** 비서의 서버 도구(Teams·Confluence·SharePoint) 실행. 페이지 권한을 여기서 본다. 쓰기의 사용자 확인은 호출자 책임. */
+/** 비서의 서버 도구(Teams·Confluence·SharePoint·앱 기능) 실행. 페이지 권한을 여기서 본다. 쓰기의 사용자 확인은 호출자 책임. */
 export async function runServerTool(admin: SupabaseClient, userId: string, role: "user" | "admin", tool: string, args: Record<string, unknown>): Promise<ToolRun> {
   const fail = (error: string): ToolRun => ({ ok: false, error });
+  const feature = featurePage(tool);
+  if (feature) {
+    if (role !== "admin") {
+      const access = await admin.from("user_page_access").select("permissions").eq("user_id", userId).maybeSingle();
+      if (access.error || (access.data && !isPagePermissions(access.data.permissions)) || !canUsePage(role, feature, access.data?.permissions ?? {})) return fail("이 기능을 쓸 권한이 없습니다");
+    }
+    const { data: profile } = await admin.from("user_profiles").select("email").eq("user_id", userId).maybeSingle();
+    return runFeatureTool(admin, { userId, email: (profile as { email?: string | null } | null)?.email ?? "" }, tool, args);
+  }
   const done = (result: unknown): ToolRun => ({ ok: true, result });
   const str = (k: string) => (typeof args[k] === "string" ? (args[k] as string).trim() : "");
   const isConfluence = tool.startsWith("confluence_");

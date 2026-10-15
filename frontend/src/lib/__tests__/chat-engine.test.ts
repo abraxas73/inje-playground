@@ -240,6 +240,15 @@ describe("runTurn", () => {
     await runTurn(d, { ...base, conversationId: mem.convs[0].id, text: "다른 질문" }, emit);
     expect(JSON.stringify(stream.mock.calls[1][0].messages)).toContain("실행됐을 수 있음");
   });
+  it("앱 기능 쓰기(ppt_create) — needs_action에 서버가 만든 카드 줄, 승인하면 서버 실행", async () => {
+    stream.mockResolvedValueOnce(reply([use("t1", "ppt_create", { title: "3분기 실적", text: "# 매출" })]));
+    await runTurn(d, { ...base, client: "app", text: "PPT 만들어 줘" }, emit);
+    const na = events.find((e) => e.type === "needs_action") as Extract<ChatEvent, { type: "needs_action" }>;
+    expect(na.calls[0]).toMatchObject({ tool: "ppt_create", location: "server", tier: "write", card: ["PPT 만들기 — 3분기 실적", "원고: # 매출", expect.stringContaining("몇 분")] });
+    stream.mockResolvedValueOnce(reply([text("시작했어요")]));
+    await runTurn(d, { ...base, client: "app", conversationId: mem.convs[0].id, actions: [{ id: "t1", approve: true }] }, emit);
+    expect(d.runServer).toHaveBeenCalledWith("ppt_create", { title: "3분기 실적", text: "# 매출" });
+  });
   it("남의 대화 id → TurnInputError", async () => {
     await expect(runTurn(d, { ...base, conversationId: "00000000-0000-0000-0000-000000000009", text: "x" }, emit)).rejects.toThrow("대화를 찾지 못했습니다");
   });

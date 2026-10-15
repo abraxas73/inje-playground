@@ -32,6 +32,12 @@ describe("채팅 UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(onRetry).toHaveBeenCalled();
   });
+  it("확인 카드 — 서버가 만든 카드 줄이 있으면 그 줄을 그대로(입력 필드 대신)", () => {
+    render(<ConfirmCard calls={[{ id: "t1", tool: "ppt_create", input: { text: "원고 전문", title: "x" }, location: "server", tier: "write", card: ["PPT 만들기 — 3분기 실적", "원고: # 매출"] }]} onAnswer={() => {}} />);
+    expect(screen.getByText("PPT 만들기 — 3분기 실적")).toBeTruthy();
+    expect(screen.getByText("원고: # 매출")).toBeTruthy();
+    expect(screen.queryByText("원고 전문")).toBeNull();
+  });
   it("입력 — Enter 전송, Shift+Enter·한글 조합 중에는 전송 안 함", () => {
     const onSend = vi.fn();
     render(<Composer busy={false} models={["claude-sonnet-5-5", "claude-opus-5-5"]} model="claude-sonnet-5-5" onModel={() => {}} onSend={onSend} />);

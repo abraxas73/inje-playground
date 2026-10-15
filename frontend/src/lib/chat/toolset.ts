@@ -3,6 +3,7 @@ import mcpTools from "@/lib/mcp/tools.json";
 import { ASSISTANT_TOOLS, SERVER_TOOLS, TOOL_TIERS, type ToolTier } from "@/lib/assistant/tools";
 import type { PageKey } from "@/lib/page-access";
 import type { Location } from "./events";
+import { featurePage } from "@/lib/assistant/feature-tools";
 
 /** 웹에서 데스크톱 앱 중계로 여는 아마란스 도구 — 읽기만(설계서 §0 "웹의 아마란스"). 이름·스키마는 Claude 커넥터(tools.json)와 같다. */
 export const RELAY_READ_TOOLS = ["find_person", "org_chart", "list_mail_inbox", "read_mail", "search_mail_index", "mailbox_counts", "pending_approvals", "approval_counts", "list_approvals", "read_approval", "list_notices", "read_notice", "search", "list_calendars", "list_events", "get_attendance_today", "my_reservations", "list_resources", "find_free_rooms"] as const;
@@ -22,7 +23,7 @@ const RELAY_TOOLS: Anthropic.Tool[] = [
   SEARCH_MAIL_INDEX,
 ];
 
-const pageOf = (name: string): PageKey | null => (name.startsWith("teams_") ? "teams_chat" : name.startsWith("confluence_") ? "confluence" : name.startsWith("sharepoint_") ? "sharepoint" : null);
+const pageOf = (name: string): PageKey | null => (name.startsWith("teams_") ? "teams_chat" : name.startsWith("confluence_") ? "confluence" : name.startsWith("sharepoint_") ? "sharepoint" : featurePage(name));
 
 export function buildToolset(o: { client: "web" | "app"; desktopOnline: boolean; allowed: (k: PageKey) => boolean }): { tools: Anthropic.Tool[]; location: Record<string, Location> } {
   const tools: Anthropic.Tool[] = [];

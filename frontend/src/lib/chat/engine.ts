@@ -5,6 +5,7 @@ import type { ToolRun } from "@/lib/assistant/server-tools";
 import type { ActionReply, ChatEvent, Location, PendingCall } from "./events";
 import { maskText } from "./mask";
 import { ORG_TOOLS, buildToolset, clientPromptLines, needsAction, tierOf } from "./toolset";
+import { featureCard } from "@/lib/assistant/feature-tools";
 import { summarizeToolResult } from "./summary";
 import { attachmentIdsIn, cancelResult, expiresAt, historyForModel, pendingCalls, titleFrom, type ChatStore, type StoredBlock, type ToolCallRecord } from "./store";
 
@@ -114,7 +115,7 @@ export async function runTurn(d: TurnDeps, inp: TurnInput, emit: (e: ChatEvent) 
       // 대상을 못 찾은 호출이 있으면 확인 카드 없이 그 응답 전체를 닫는다(못 찾은 건 오류, 쓰기는 미승인) — 모델이 다시 묻는다
       if (!unresolved.size) {
         used.push(...calls.map((c) => c.tool));
-        emit({ type: "needs_action", messageId, calls: calls.map((c) => ({ ...c, location: c.location ?? "server" })) as PendingCall[] });
+        emit({ type: "needs_action", messageId, calls: calls.map((c) => ({ ...c, location: c.location ?? "server", ...(featureCard(c.tool, c.input) ? { card: featureCard(c.tool, c.input)! } : {}) })) as PendingCall[] });
         return finish();
       }
     }

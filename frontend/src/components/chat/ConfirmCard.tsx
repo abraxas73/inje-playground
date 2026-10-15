@@ -17,12 +17,12 @@ export default function ConfirmCard({ calls, onAnswer, busy = false }: { calls: 
         {calls.map((c) => (
           <div key={c.id} className="space-y-1 rounded-md bg-background p-3 text-sm">
             <p className="font-medium">{toolLabel(c.tool)}</p>
-            <dl className="grid grid-cols-[4rem_1fr] gap-x-2 gap-y-1">
+            {c.card ? <ul className="space-y-0.5">{c.card.map((l, i) => <li key={i} className="whitespace-pre-wrap break-words">{l}</li>)}</ul> : <dl className="grid grid-cols-[4rem_1fr] gap-x-2 gap-y-1">
               {c.target && <div className="contents"><dt className="text-muted-foreground">대상</dt><dd className="break-words">{c.target}</dd></div>}
               {Object.entries(c.input).filter(([k, v]) => FIELD[k] && typeof v === "string" && v).map(([k, v]) => (
                 <div key={k} className="contents"><dt className="text-muted-foreground">{FIELD[k]}</dt><dd className="whitespace-pre-wrap break-words">{(v as string).slice(0, 2000)}</dd></div>
               ))}
-            </dl>
+            </dl>}
           </div>
         ))}
         <div className="flex gap-2">

@@ -27,6 +27,14 @@ describe("도구 목록", () => {
     expect(t.location.offer_choices).toBe("device");
     expect(t.location.confluence_search).toBe("server");
   });
+  it("앱 기능 도구 — 웹·앱 모두 서버 실행, 그 페이지 권한이 없으면 뺀다", () => {
+    const t = buildToolset({ client: "app", desktopOnline: false, allowed: all });
+    for (const n of ["jira_issues", "jira_issue", "people_news", "food_search", "ppt_decks", "ppt_create"]) expect(t.location[n]).toBe("server");
+    const noPpt = buildToolset({ client: "web", desktopOnline: false, allowed: (k) => k !== "ppt" && k !== "jira" });
+    expect(noPpt.tools.map((x) => x.name)).not.toContain("ppt_create");
+    expect(noPpt.tools.map((x) => x.name)).not.toContain("jira_issues");
+    expect(noPpt.location.food_search).toBe("server");
+  });
   it("페이지 권한이 없으면 그 서버 도구와 아마란스 중계를 뺀다", () => {
     const t = buildToolset({ client: "web", desktopOnline: true, allowed: (k) => k !== "teams_chat" && k !== "mcp" });
     const names = t.tools.map((x) => x.name);

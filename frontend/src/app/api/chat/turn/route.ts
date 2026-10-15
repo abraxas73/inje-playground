@@ -14,7 +14,7 @@ import { parseTurnBody, runTurn, TurnInputError, type TurnDeps } from "@/lib/cha
 import { sseLine, type ChatEvent } from "@/lib/chat/events";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 800; // ppt_create가 after()로 덱 생성을 이어 돈다(PPT 만들기와 같은 상한)
 const BODY_MAX = 512 * 1024;
 const NO_STORE = { "Cache-Control": "no-store" };
 const NOW_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\+09:00)?$/;
