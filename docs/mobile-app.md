@@ -95,7 +95,7 @@
 - 관리자: `/admin/settings` "모바일 앱 — 비서(이노봇)" 스위치·사용자당 하루 턴 상한(기본 200, KST 하루, 설정·건수 조회 오류면 503으로 닫힘). 요청 하나는 보통 3~5턴, 한 번에 최대 10턴. 꺼져 있으면 앱 버튼이 숨는다.
 - **Claude 열기(데스크톱, 2026-10-13)**: macOS·Windows에서는 이노봇 바로 위에 Claude 열기 버튼(`ClaudeButton`, 같이 끌림)이 있다. `lib/assistant/claude_open.dart` — macOS `open -b com.anthropic.claudefordesktop`, Windows `%LOCALAPPDATA%\AnthropicClaude\claude.exe`(없으면 `claude://` 스킴 — Store 설치판), 둘 다 안 되면 브라우저로 `https://claude.ai/download`. 아이콘 `assets/brand/claude.png`(Claude 별, 바탕 `Brand.claudeInk`). 모바일에는 없다.
 
-2026-10-15부터 웹 채팅(`/chat`)이 서버 저장 대화 API(`/api/chat/turn`)를 쓴다. 하루 상한은 웹·앱 모두 `assistant_usage.turns`로 센다(기존 `action_history` '비서 턴' 건수 대신). 앱 이노봇도 이 API로 이전했다(이 변경이 든 첫 앱 릴리스부터 — 릴리스 때 실제 버전으로 바꾼다). `/api/assistant/turn`은 구버전 앱용으로, `/execute`는 선택지·카드 대상 조회용으로 유지한다.
+2026-10-15부터 웹 채팅(`/chat`)이 서버 저장 대화 API(`/api/chat/turn`)를 쓴다. 하루 상한은 웹·앱 모두 `assistant_usage.turns`로 센다(기존 `action_history` '비서 턴' 건수 대신). 앱 이노봇도 이 API로 이전했다(1.7.0부터). `/api/assistant/turn`은 구버전 앱용으로, `/execute`는 선택지·카드 대상 조회용으로 유지한다.
 
 ## 더보기 프로필·Microsoft 연결 (2026-10-07)
 - 더보기 머리에는 아마란스 조직도 이름 → 앱 계정 이름 순으로 표시한다. 이메일은 아래 줄에 유지한다.
