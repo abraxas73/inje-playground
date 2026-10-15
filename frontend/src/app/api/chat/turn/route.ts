@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   const b = parsed.body;
   const cfg = await loadAssistantSettings(r.admin);
   if (!cfg.ok) return NextResponse.json({ error: "assistant unavailable" }, { status: 503 });
-  if (!cfg.enabled) return NextResponse.json({ error: "관리자가 이노봇을 꺼 두었습니다." }, { status: 403 });
+  if (!cfg.enabled) return NextResponse.json({ error: "관리자가 이노봇을 꺼 두었습니다.", code: "assistant_disabled" }, { status: 403 });
   const perms = await loadPermissions(r.admin, r.userId);
   if (!perms) return NextResponse.json({ error: "assistant unavailable" }, { status: 503 });
   if (!canUsePage(r.role, "assistant", perms)) return NextResponse.json({ error: "이노봇 권한이 없습니다." }, { status: 403 });

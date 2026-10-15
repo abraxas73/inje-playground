@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth/session.dart';
 import '../config.dart';
+import 'sse.dart';
 
 abstract class TokenSource {
   Future<String?> accessToken();
@@ -17,9 +18,12 @@ abstract class TokenSource {
 }
 
 class ApiException implements Exception {
-  ApiException(this.status, this.message);
+  ApiException(this.status, this.message, {this.code});
   final int status;
   final String message;
+
+  /// 서버가 준 기계용 구분값(예: assistant_disabled). 없으면 null.
+  final String? code;
   @override
   String toString() => message;
 }
@@ -46,6 +50,35 @@ class ApiClient {
     Object body,
     Future<void> abortTrigger,
   ) => _send('POST', path, body: body, abortTrigger: abortTrigger);
+
+  /// SSE POST — 이벤트마다 onEvent. 스트림을 열기 전 거절(2xx 아님)은 ApiException, 401은 갱신 후 1회 재시도.
+  Future<void> postSse(String path, Object body, void Function(Map<String, dynamic>) onEvent, {Future<void>? abortTrigger}) async {
+    var token = await tokens.accessToken();
+    var res = await _openStream(path, token, body, abortTrigger);
+    if (res.statusCode == 401) {
+      await res.stream.drain<void>();
+      token = await tokens.refreshToken();
+      res = await _openStream(path, token, body, abortTrigger);
+      if (res.statusCode == 401) {
+        final r = await http.Response.fromStream(res);
+        await tokens.onUnauthorized();
+        throw _apiError(r);
+      }
+    }
+    if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(await http.Response.fromStream(res));
+    final dec = SseDecoder(onEvent);
+    await for (final chunk in res.stream.transform(utf8.decoder)) {
+      dec.add(chunk);
+    }
+  }
+
+  Future<http.StreamedResponse> _openStream(String path, String? token, Object body, Future<void>? abortTrigger) {
+    final req = http.AbortableRequest('POST', Uri.parse('$baseUrl$path'), abortTrigger: abortTrigger)
+      ..headers.addAll({'User-Agent': userAgent, 'Accept': 'text/event-stream', 'Content-Type': 'application/json', if (token != null) 'Authorization': 'Bearer $token'})
+      ..body = jsonEncode(body);
+    return httpClient.send(req);
+  }
+
   Future<dynamic> patchJson(String path, Object body) =>
       _send('PATCH', path, body: body);
   Future<dynamic> deleteJson(
@@ -68,11 +101,11 @@ class ApiClient {
       res = await _request(method, path, token, query, body, abortTrigger);
       if (res.statusCode == 401) {
         await tokens.onUnauthorized();
-        throw ApiException(401, _errorMessage(res));
+        throw _apiError(res);
       }
     }
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw ApiException(res.statusCode, _errorMessage(res));
+      throw _apiError(res);
     }
     if (res.statusCode == 204 || res.bodyBytes.isEmpty) return null;
     return jsonDecode(utf8.decode(res.bodyBytes));
@@ -105,6 +138,15 @@ class ApiClient {
       if (j is Map && j['error'] is String) return j['error'] as String;
     } catch (_) {}
     return '요청에 실패했습니다 (HTTP ${res.statusCode})';
+  }
+
+  ApiException _apiError(http.Response res) {
+    String? code;
+    try {
+      final j = jsonDecode(utf8.decode(res.bodyBytes));
+      if (j is Map && j['code'] is String) code = j['code'] as String;
+    } catch (_) {}
+    return ApiException(res.statusCode, _errorMessage(res), code: code);
   }
 }
 

@@ -32,7 +32,9 @@ it("관리자가 Opus를 빼면 Opus 요청도 Sonnet", async () => {
 });
 it("꺼짐 403, 권한 없음 403, 상한 429, 사용량 오류 503, 형식 400, 비로그인 401 — 엔진을 부르지 않는다", async () => {
   m.settings = [{ key: "assistant_enabled", value: "off" }];
-  expect((await POST(req({ text: "a" }))).status).toBe(403);
+  const off = await POST(req({ text: "a" }));
+  expect(off.status).toBe(403);
+  expect((await off.json()).code).toBe("assistant_disabled");
   m.settings = []; m.perms = { assistant: false };
   expect((await POST(req({ text: "a" }))).status).toBe(403);
   m.perms = null; m.settings = [{ key: "assistant_daily_turns", value: "3" }]; m.used = 3;
