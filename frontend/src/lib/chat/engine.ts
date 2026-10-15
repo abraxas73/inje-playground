@@ -52,18 +52,27 @@ export async function runTurn(d: TurnDeps, inp: TurnInput, emit: (e: ChatEvent) 
   const pending = pendingCalls(rows);
   if (inp.actions) {
     if (!pending) throw new TurnInputError("처리할 작업이 없습니다.");
-    if (!(await d.store.claimToolCalls(pending.messageId, pending.uses.map((u) => { const c = callOf(u); return { toolUseId: c.id, tool: c.tool, location: c.location ?? "server" }; })))) throw new TurnInputError("이미 처리 중인 작업입니다.");
-    const r = await executeCalls(d, pending.uses.map(callOf), inp.actions, emit);
-    await d.store.toolCalls(pending.messageId, r.records);
-    // 중지 뒤엔 결과 행을 붙이지 않는다 — 그새 시작된 다음 요청 뒤에 끼면 짝 없는 tool_result로 대화가 깨진다
-    if (d.signal?.aborted) return finish();
-    await d.store.append(convId, { role: "user", content: r.stored, masked: r.masked });
-    r.live.forEach((v, k) => live.set(k, v)); masked += r.masked; used.push(...r.records.map((x) => x.tool));
+    if (!(await d.store.claimToolCalls(pending.messageId, pending.uses.map((u) => { const c = callOf(u); return { toolUseId: c.id, tool: c.tool, location: c.location ?? "server" }; })))) {
+      // 앞선 승인 요청이 실행·기록까지 마치고 결과 행 저장 전에 끊긴 경우: 다시 실행하지 않고 그 기록으로 닫고 이어 간다
+      const recs = await d.store.recordedCalls(pending.messageId);
+      const byId = new Map(recs.map((r) => [r.toolUseId, r]));
+      if (pending.uses.some((u) => (byId.get(u.id)?.status ?? "running") === "running")) throw new TurnInputError("이미 처리 중인 작업입니다.");
+      for (const u of pending.uses) { const r = byId.get(u.id)!; emit({ type: "tool", id: u.id, tool: u.name, location: callOf(u).location, status: r.status === "ok" ? "ok" : "error", summary: r.summary }); }
+      await d.store.append(convId, { role: "user", content: closeWithRecords(pending.uses, recs) });
+      used.push(...pending.uses.map((u) => u.name));
+    } else {
+      const r = await executeCalls(d, pending.uses.map(callOf), inp.actions, emit);
+      await d.store.toolCalls(pending.messageId, r.records);
+      // 중지 뒤엔 결과 행을 붙이지 않는다 — 그새 시작된 다음 요청 뒤에 끼면 짝 없는 tool_result로 대화가 깨진다. 결과는 도구 기록에서 되살린다.
+      if (d.signal?.aborted) return finish();
+      await d.store.append(convId, { role: "user", content: r.stored, masked: r.masked });
+      r.live.forEach((v, k) => live.set(k, v)); masked += r.masked; used.push(...r.records.map((x) => x.tool));
+    }
   } else if (inp.retry) {
     const last = rows.filter((r) => r.status !== "failed").at(-1);
     if (!last || last.role !== "user") throw new TurnInputError("다시 시도할 질문이 없습니다.");
   } else {
-    if (pending) await d.store.append(convId, { role: "user", content: pending.uses.map((u) => cancelResult(u.id)) });
+    if (pending) await d.store.append(convId, { role: "user", content: closeWithRecords(pending.uses, await d.store.recordedCalls(pending.messageId)) });
     const m = maskText(inp.text ?? "");
     const atts = inp.attachmentIds?.length ? await d.store.linkAttachments(inp.userId, inp.attachmentIds, convId) : [];
     masked += m.count + atts.reduce((s, a) => s + a.masked_count, 0);
@@ -116,6 +125,17 @@ export async function runTurn(d: TurnDeps, inp: TurnInput, emit: (e: ChatEvent) 
     r.live.forEach((v, k) => live.set(k, v)); masked += r.masked; lastMasked = r.masked; used.push(...r.records.map((x) => x.tool));
     if (r.masked) emit({ type: "masked", count: r.masked });
   }
+}
+
+/** 답 없이 남은 도구 호출을 닫는 결과 — 실행 기록이 있으면 그 요약(끊긴 요청에서 실제로 실행된 쓰기를 '취소'로 남기지 않게), 실행 중이면 "실행됐을 수 있음", 없으면 취소. */
+function closeWithRecords(uses: Anthropic.ToolUseBlockParam[], recs: Awaited<ReturnType<ChatStore["recordedCalls"]>>): Anthropic.ToolResultBlockParam[] {
+  const byId = new Map(recs.map((r) => [r.toolUseId, r]));
+  return uses.map((u) => {
+    const r = byId.get(u.id);
+    if (!r) return cancelResult(u.id);
+    if (r.status === "running") return cancelResult(u.id, "처리 중 연결이 끊겨 결과를 확인하지 못함 — 실행됐을 수 있음");
+    return { type: "tool_result", tool_use_id: u.id, content: r.summary, ...(r.status === "ok" ? {} : { is_error: true }) };
+  });
 }
 
 /** 이번 요청에서 실행한 도구 결과는 요약 대신 가린 원문으로 Claude에 넘긴다. */

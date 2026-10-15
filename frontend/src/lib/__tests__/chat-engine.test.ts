@@ -8,7 +8,7 @@ import type { ChatEvent } from "@/lib/chat/events";
 function memStore() {
   const convs: ConvRow[] = [];
   const msgs: Record<string, MsgRow[]> = {};
-  const calls: Array<{ messageId: string; tool: string; status: string; summary: string }> = [];
+  const calls: Array<{ messageId: string; toolUseId: string; tool: string; status: string; summary: string }> = [];
   let n = 0;
   const claimed = new Set<string>();
   const store: ChatStore = {
@@ -16,7 +16,8 @@ function memStore() {
     async get(userId, id) { return convs.find((c) => c.id === id && c.user_id === userId) ?? null; },
     async messages(id) { return msgs[id].map((m) => ({ ...m, content: JSON.parse(JSON.stringify(m.content)) })); },
     async append(id, m) { const row: MsgRow = { id: `m${++n}`, role: m.role, content: m.content as StoredBlock[], status: m.status ?? "ok", masked_count: m.masked ?? 0, created_at: "" }; msgs[id].push(row); return row.id; },
-    async toolCalls(messageId, rows) { calls.push(...rows.map((r) => ({ messageId, tool: r.tool, status: r.status, summary: r.summary }))); },
+    async toolCalls(messageId, rows) { calls.push(...rows.map((r) => ({ messageId, toolUseId: r.toolUseId, tool: r.tool, status: r.status, summary: r.summary }))); },
+    async recordedCalls(messageId) { return [...claimed].filter((k) => k.startsWith(`${messageId}:`)).map((k) => { const id = k.slice(messageId.length + 1); const r = calls.filter((c) => c.messageId === messageId && c.toolUseId === id).at(-1); return { toolUseId: id, status: (r?.status ?? "running") as "running", summary: r?.summary ?? "" }; }); },
     async claimToolCalls(messageId, rows) { if (rows.some((r) => claimed.has(`${messageId}:${r.toolUseId}`))) return false; rows.forEach((r) => claimed.add(`${messageId}:${r.toolUseId}`)); return true; },
     async touch() {},
     async linkAttachments() { return []; },
@@ -70,7 +71,7 @@ describe("runTurn", () => {
     const stored = JSON.stringify(mem.msgs[mem.convs[0].id]);
     expect(stored).toContain("받은메일 목록 1건: 주간보고");
     expect(stored).not.toContain("phone");
-    expect(mem.calls).toEqual([{ messageId: "m2", tool: "list_mail_inbox", status: "ok", summary: "받은메일 목록 1건: 주간보고" }]);
+    expect(mem.calls).toEqual([{ messageId: "m2", toolUseId: "t1", tool: "list_mail_inbox", status: "ok", summary: "받은메일 목록 1건: 주간보고" }]);
     expect(events.filter((e) => e.type === "tool").map((e) => (e as { status: string }).status)).toEqual(["running", "ok"]);
   });
   it("쓰기 서버 도구는 멈추고 needs_action, 승인하면 실행·이어서 답", async () => {
@@ -202,6 +203,42 @@ describe("runTurn", () => {
     expect(mem.msgs[mem.convs[0].id].map((r) => r.role)).toEqual(["user", "assistant"]);
     expect(mem.calls.at(-1)).toMatchObject({ tool: "teams_send", status: "ok" });
     expect(stream).toHaveBeenCalledTimes(1);
+  });
+  it("승인 실행 뒤 끊겨 같은 승인을 다시 보내면 — 다시 실행하지 않고 저장된 결과로 이어서 답", async () => {
+    stream.mockResolvedValueOnce(reply([use("t1", "teams_send", { chat_id: "19:x", text: "a" })]));
+    await runTurn(d, { ...base, text: "보내" }, emit);
+    const ac = new AbortController();
+    (d.runServer as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => { ac.abort(); return { ok: true, result: { sent: true } }; });
+    await runTurn({ ...d, signal: ac.signal }, { ...base, conversationId: mem.convs[0].id, actions: [{ id: "t1", approve: true }] }, emit);
+    events = [];
+    stream.mockResolvedValueOnce(reply([text("보냈어요")]));
+    await runTurn(d, { ...base, conversationId: mem.convs[0].id, actions: [{ id: "t1", approve: true }] }, emit);
+    expect((d.runServer as ReturnType<typeof vi.fn>).mock.calls.filter((c) => c[0] === "teams_send")).toHaveLength(1);
+    const sent = JSON.stringify(stream.mock.calls[1][0].messages);
+    expect(sent).toContain(JSON.stringify(mem.calls.at(-1)!.summary));
+    expect(sent).not.toContain("취소됨");
+    expect(events).toContainEqual(expect.objectContaining({ type: "tool", id: "t1", status: "ok" }));
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+  });
+  it("승인 실행 뒤 끊기고 새 입력이 오면 — 취소가 아니라 실행 결과로 닫는다", async () => {
+    stream.mockResolvedValueOnce(reply([use("t1", "teams_send", { chat_id: "19:x", text: "a" })]));
+    await runTurn(d, { ...base, text: "보내" }, emit);
+    const ac = new AbortController();
+    (d.runServer as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => { ac.abort(); return { ok: true, result: { sent: true } }; });
+    await runTurn({ ...d, signal: ac.signal }, { ...base, conversationId: mem.convs[0].id, actions: [{ id: "t1", approve: true }] }, emit);
+    stream.mockResolvedValueOnce(reply([text("네")]));
+    await runTurn(d, { ...base, conversationId: mem.convs[0].id, text: "보냈어?" }, emit);
+    const sent = JSON.stringify(stream.mock.calls[1][0].messages);
+    expect(sent).toContain(JSON.stringify(mem.calls.at(-1)!.summary));
+    expect(sent).not.toContain("취소됨");
+  });
+  it("실행 중(기록 없음)인 승인에 새 입력이 오면 — '실행됐을 수 있음'으로 닫는다", async () => {
+    stream.mockResolvedValueOnce(reply([use("t1", "teams_send", { chat_id: "19:x", text: "a" })]));
+    await runTurn(d, { ...base, text: "보내" }, emit);
+    await mem.store.claimToolCalls(mem.msgs[mem.convs[0].id][1].id, [{ toolUseId: "t1", tool: "teams_send", location: "server" }]);
+    stream.mockResolvedValueOnce(reply([text("네")]));
+    await runTurn(d, { ...base, conversationId: mem.convs[0].id, text: "다른 질문" }, emit);
+    expect(JSON.stringify(stream.mock.calls[1][0].messages)).toContain("실행됐을 수 있음");
   });
   it("남의 대화 id → TurnInputError", async () => {
     await expect(runTurn(d, { ...base, conversationId: "00000000-0000-0000-0000-000000000009", text: "x" }, emit)).rejects.toThrow("대화를 찾지 못했습니다");

@@ -16,6 +16,8 @@ export interface ChatStore {
   toolCalls(messageId: string, rows: ToolCallRecord[]): Promise<void>;
   /** 실행 전 선점 — 이미 선점됐으면 false(승인 요청 중복 실행 방지). */
   claimToolCalls(messageId: string, rows: Array<{ toolUseId: string; tool: string; location: Location }>): Promise<boolean>;
+  /** 그 메시지의 도구 기록(선점만 된 건 status "running") — 끊긴 승인 요청의 결과를 되살릴 때. */
+  recordedCalls(messageId: string): Promise<Array<{ toolUseId: string; status: ToolCallRecord["status"] | "running"; summary: string }>>;
   touch(convId: string, o: { model: string; expiresAt: string }): Promise<void>;
   linkAttachments(userId: string, ids: string[], convId: string): Promise<AttachmentRow[]>;
 }
@@ -56,6 +58,11 @@ export function supabaseChatStore(admin: SupabaseClient): ChatStore {
       if (error?.code === "23505") return false;
       if (error) throw new Error(`도구 선점 실패: ${error.message}`);
       return true;
+    },
+    async recordedCalls(messageId) {
+      const { data, error } = await admin.from("chat_tool_calls").select("tool_use_id,status,summary").eq("message_id", messageId);
+      if (error) throw new Error(`도구 기록 조회 실패: ${error.message}`);
+      return (data ?? []).map((r) => ({ toolUseId: r.tool_use_id as string, status: r.status as ToolCallRecord["status"] | "running", summary: (r.summary as string) ?? "" }));
     },
     async touch(convId, o) {
       const { error } = await admin.from("chat_conversations").update({ model: o.model, last_message_at: new Date().toISOString(), expires_at: o.expiresAt }).eq("id", convId);
