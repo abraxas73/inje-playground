@@ -1,4 +1,5 @@
 -- 2026-10-15: 사내 LLM 포털 1단계 — 서버 대화 저장(chat_*), 사용량(assistant_usage), 첨부 버킷 chat, 페이지 키 assistant.
+-- 브라우저(authenticated)는 읽기만 — 쓰기는 서버(service_role)만.
 -- 본문 테이블은 RLS로 본인만. 서버 라우트는 service_role로 user_id를 직접 걸러 읽는다(관리자 본문 열람 화면 없음).
 -- 규칙: PAGES에 키를 넣으면 아래 두 함수의 목록도 같이 갱신한다(frontend/src/lib/__tests__/gw-mail.test.tsx가 이 파일을 대조).
 begin;
@@ -88,11 +89,10 @@ alter table public.chat_tool_calls enable row level security;
 alter table public.chat_attachments enable row level security;
 alter table public.assistant_usage enable row level security;
 drop policy if exists chat_conversations_own on public.chat_conversations;
-create policy chat_conversations_own on public.chat_conversations for all to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+create policy chat_conversations_own on public.chat_conversations for select to authenticated using (user_id = (select auth.uid()));
 drop policy if exists chat_messages_own on public.chat_messages;
-create policy chat_messages_own on public.chat_messages for all to authenticated
-  using (exists (select 1 from public.chat_conversations c where c.id = conversation_id and c.user_id = (select auth.uid())))
-  with check (exists (select 1 from public.chat_conversations c where c.id = conversation_id and c.user_id = (select auth.uid())));
+create policy chat_messages_own on public.chat_messages for select to authenticated
+  using (exists (select 1 from public.chat_conversations c where c.id = conversation_id and c.user_id = (select auth.uid())));
 drop policy if exists chat_tool_calls_own on public.chat_tool_calls;
 create policy chat_tool_calls_own on public.chat_tool_calls for select to authenticated
   using (exists (select 1 from public.chat_messages m join public.chat_conversations c on c.id = m.conversation_id where m.id = message_id and c.user_id = (select auth.uid())));
@@ -100,8 +100,7 @@ drop policy if exists chat_attachments_own on public.chat_attachments;
 create policy chat_attachments_own on public.chat_attachments for select to authenticated using (user_id = (select auth.uid()));
 drop policy if exists assistant_usage_own on public.assistant_usage;
 create policy assistant_usage_own on public.assistant_usage for select to authenticated using (user_id = (select auth.uid()));
-grant select, insert, update, delete on public.chat_conversations, public.chat_messages to authenticated;
-grant select on public.chat_tool_calls, public.chat_attachments, public.assistant_usage to authenticated;
+grant select on public.chat_conversations, public.chat_messages, public.chat_tool_calls, public.chat_attachments, public.assistant_usage to authenticated;
 grant all on public.chat_conversations, public.chat_messages, public.chat_tool_calls, public.chat_attachments, public.assistant_usage to service_role;
 
 insert into storage.buckets (id, name, public, file_size_limit) values ('chat', 'chat', false, 10485760) on conflict (id) do nothing;
