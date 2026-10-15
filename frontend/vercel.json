@@ -22,6 +22,10 @@
     {
       "path": "/api/cron/mcp-purge",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/chat-purge",
+      "schedule": "40 18 * * *"
     }
   ]
 }
