@@ -95,6 +95,8 @@
 - 관리자: `/admin/settings` "모바일 앱 — 비서(이노봇)" 스위치·사용자당 하루 턴 상한(기본 200, KST 하루, 설정·건수 조회 오류면 503으로 닫힘). 요청 하나는 보통 3~5턴, 한 번에 최대 10턴. 꺼져 있으면 앱 버튼이 숨는다.
 - **Claude 열기(데스크톱, 2026-10-13)**: macOS·Windows에서는 이노봇 바로 위에 Claude 열기 버튼(`ClaudeButton`, 같이 끌림)이 있다. `lib/assistant/claude_open.dart` — macOS `open -b com.anthropic.claudefordesktop`, Windows `%LOCALAPPDATA%\AnthropicClaude\claude.exe`(없으면 `claude://` 스킴 — Store 설치판), 둘 다 안 되면 브라우저로 `https://claude.ai/download`. 아이콘 `assets/brand/claude.png`(Claude 별, 바탕 `Brand.claudeInk`). 모바일에는 없다.
 
+**앱 기능 도구(2026-10-16)**: 이노봇이 우리 앱 기능을 쓴다 — `jira_issues`·`jira_issue`(Jira 연결 필요)·`people_news`·`food_search`(near를 카카오 주소→장소 검색으로 좌표화, `payco`면 그 도로명 주소로 PAYCO 가맹점)·`ppt_decks`·`ppt_create`(쓰기 — 확인 후 `lib/ppt/start.ts` `startDeck`, 웹 `POST /api/ppt/decks`와 공용, after()로 생성하므로 `/api/chat/turn` maxDuration 800). 정의·실행은 서버 전용 `frontend/src/lib/assistant/feature-tools.ts`(페이지 키 jira·people_news·food·ppt 권한 검사는 `runServerTool`). 앱 표(`assistant_tools.dart`)에는 넣지 않는다 — 쓰기 확인 카드 줄은 서버가 `needs_action`의 `card`로 보내고 앱(1.7.2+)·웹 `ConfirmCard`가 그대로 보인다. 그래서 새 앱 기능 쓰기 도구는 앱 업데이트 없이 추가된다. 1.7.1 앱은 ppt_create를 "모르는 도구"로 거절한다(조회 도구는 서버가 실행하므로 된다).
+
 2026-10-15부터 웹 채팅(`/chat`)이 서버 저장 대화 API(`/api/chat/turn`)를 쓴다. 하루 상한은 웹·앱 모두 `assistant_usage.turns`로 센다(기존 `action_history` '비서 턴' 건수 대신). 앱 이노봇도 이 API로 이전했다(1.7.0부터). `/api/assistant/turn`은 업데이트 안내만 돌려주고(보급이 끝나면 파일 삭제), `/execute`는 선택지·카드 대상 조회용으로 유지한다.
 
 ## 더보기 프로필·Microsoft 연결 (2026-10-07)
