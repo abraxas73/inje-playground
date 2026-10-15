@@ -8,7 +8,8 @@
 #   Play 업로드는 mobile/.env.release의 PLAY_SERVICE_ACCOUNT_JSON(서비스 계정 키 경로, git 밖)이 있을 때만 — docs/play-console-guide.md §자동 업로드
 #   mobile/scripts/release-mobile.sh sharepoint                      # 현재 Android 릴리스 APK 사본을 SharePoint에 innogrid-app-<X.Y.Z>.apk로 올림(android/all 뒤 자동, 실패 시 재시도용)
 # 1) 작업 트리 확인 2) flutter test·analyze 3) pubspec version → APP_VERSION/APP_BUILD
-# 4) android: APK 빌드 → Supabase 스토리지 mobile/android/innogrid-<v>+<b>.apk 업로드 → settings.mobile_release.android 갱신
+# 4) android: AAB 빌드 → Google Play 내부 테스트 트랙(play-upload.py) → Play가 만든 Google 서명 universal APK 받기
+#    → Supabase 스토리지 mobile/android/innogrid-<v>+<b>.apk 업로드 → settings.mobile_release.android 갱신 → SharePoint 사본
 # 5) ios: IPA 빌드 → App Store Connect 업로드(xcrun altool, API 키) → settings.mobile_release.ios 갱신 6) 다음 할 일 출력
 # 환경: frontend/.env.local(NEXT_PUBLIC_SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY·CRON_SECRET — SharePoint 단계), mobile/.env.release(OPERATOR_EMAIL — SharePoint 단계의 Microsoft 연결 주인(관리자); ASC_KEY_ID·ASC_ISSUER_ID — iOS만, .p8은 ~/.private_keys/AuthKey_<ID>.p8)
 # 비밀 값은 절대 출력하지 않는다. 버전 올리기는 pubspec.yaml을 손으로 고친다. 런북 docs/mobile-app.md §배포

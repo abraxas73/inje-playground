@@ -1,7 +1,7 @@
 -- 2026-10-11: 페이지 권한 키 목록을 웹 카탈로그(frontend/src/lib/page-access.ts PAGES)와 맞춘다.
 -- 2026-09-14 이후 카탈로그에 추가된 apps·teams_chat·jira·confluence·sharepoint·ppt·mcp가 DB 함수에 없어
 -- 관리자 "페이지 접근 권한" 저장이 'Invalid permissions'(22023)로 실패했다. 아마란스 메일(gw_mail) 키도 추가.
--- 규칙: PAGES에 키를 넣으면 이 두 함수의 목록도 같이 갱신한다(테스트 frontend/src/lib/__tests__/page-access-sql-sync.test.ts가 이 파일을 읽어 대조).
+-- 규칙: PAGES에 키를 넣으면 이 두 함수의 목록도 같이 갱신한다(테스트 frontend/src/lib/__tests__/gw-mail.test.tsx가 최신 page-keys SQL을 읽어 PAGES와 대조).
 begin;
 create or replace function public.valid_page_permissions(p jsonb) returns boolean
 language sql immutable set search_path='' as $$

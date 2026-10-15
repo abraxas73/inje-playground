@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**NHN Injeinc Workshop** — NHN 인재아이엔씨 구성원을 위한 팀 워크샵 유틸리티 앱 (Korean UI). Monorepo with Next.js frontend + FastAPI backend (nlm-service). Features ladder games (사다리 게임), team divider (팀 나누기), food finder (뭐 먹지), and guide Q&A (이럴때는 어떻게 하지?) with Dooray/Microsoft Teams integration (관리자 선택) and Google NotebookLM integration. Supabase DB for persistent data storage.
+**INNOCREW** — 이노그리드 구성원을 위한 사내 포털(한국어 UI, 정식 주소 `https://innocrew.innogrid.com`). 모노레포: Next.js `frontend/`(웹 화면 + 모든 서버 API, Vercel), Flutter `mobile/`(iOS·Android·macOS·Windows 앱 하나의 코드), FastAPI `ppt-service/`(PPT 생성 엔진, Vercel 별도 프로젝트), FastAPI `nlm-service/`(가이드 Q&A용 NotebookLM 프록시 — **2026-10-16 운영 중지**, Fly 머신 0대). 데이터는 Supabase(Postgres·Auth·Storage·Realtime·Edge Function). 기능: 사내 AI 비서 이노봇(웹 `/chat`·앱, Teams·Confluence·SharePoint·아마란스·앱 기능 도구), 아마란스 그룹웨어(앱 직접, 웹·Claude 커넥터는 데스크톱 앱 중계), PPT 만들기, RFP 분석, Claude 사용량·비용·성과, 마케팅 Master DB, 인사·부고, 사다리·커피 타임·뭐 먹지 등. 전체 구조는 `docs/architecture.md`.
 
 ## Commands
 
@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./frontend/scripts/deploy-frontend.sh prod    # Vercel Production 배포
 ```
 
-### nlm-service
+### nlm-service (2026-10-16 운영 중지 — Fly `inje-nlm-service` 머신 0대, 웹 `/guide`·`/api/guide/*`는 응답하지 않는다. 다시 켜려면 `fly scale count 1 -a inje-nlm-service` 후 `nlm-login.sh`)
 
 ```bash
 ./nlm-service/scripts/restart-nlm-service.sh       # 재시작 (기본 포트 8090, venv 자동 생성)
@@ -59,13 +59,13 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/ladder` — Ladder game: participants + results matched via animated canvas ladder
 - `/team` — Team divider: random team assignment with card holder distribution and min/max constraints
 - `/food` — Restaurant/cafe finder with Kakao Maps integration + PAYCO 식권 가맹점 검색
-- `/guide` — Guide Q&A: AI-powered Q&A on company guidelines via NotebookLM. Visible notebooks displayed as tabs.
+- `/guide` — Guide Q&A: AI-powered Q&A on company guidelines via NotebookLM. Visible notebooks displayed as tabs. **nlm-service 중지(2026-10-16)로 현재 동작하지 않는다**(메뉴에도 숨김)
 - `/guide/admin` — Admin: notebook/source management, visibility toggle, sort order (superOnly)
 - `/admin/chat-history` — Admin: all users' guide Q&A history viewer with filters
 - `/settings` — Dooray API token and project ID configuration (stored in localStorage) + Microsoft 계정 연결 카드(`MicrosoftAccountCard`: SharePoint 업로드용 위임 OAuth, refresh 토큰은 서버가 암호화 보관) + **SharePoint 업로드 기본 폴더**(`SharepointFolderCard` — 프로젝트에 폴더가 없을 때 쓰는 개인 폴더, user_settings `rfp_sharepoint_folder`) + **알림 채널 개인 워크플로우 URL**(`NotifyChannelCard` — 내 알림만 이 채널로, user_settings `teams_notify_webhook_url`, 테스트 전송 버튼)
 - `/manual` — 사용자 매뉴얼(`lib/manual/sections.ts`, 메뉴 맨 끝 링크). 웹 기능 + 모바일·데스크톱 앱 기능을 함께 다루며 앱 절은 `app` 필드로 목차·제목에 "(모바일·데스크톱 앱)"을 표시. 재현 이미지는 `images` 필드
 - `/chat`, `/chat/[id]` — 이노봇 웹 채팅(페이지 키 `assistant`, 메뉴 AI 맨 앞·상단 바 버튼): 서버 저장 대화·SSE 스트리밍·도구 칩·쓰기 확인 카드·첨부(5개·10MB)·연결 상태 띠. 웹의 아마란스는 데스크톱 앱 중계 읽기만. 설계 `docs/superpowers/specs/2026-10-15-llm-portal-phase1-design.md`
-- `/admin/audit` — Audit 로그(admin): 로그인 이력 + 액션 이력 통합 조회(구분 로그인 성공/**로그인 실패**/**로그인 시도**/액션/API 호출, 카테고리, KST 기간, 검색 — 사용자·액션·IP·상세, 페이지 CSV). 뷰 `audit_log`는 service_role만 읽는다. 런북 `docs/audit-log.md`
+- `/admin/audit` — Audit 로그(admin): 로그인 이력 + 액션 이력 통합 조회(구분 로그인 성공/**로그인 실패**/**로그인 시도**/액션/API 호출, 카테고리, KST 기간, 검색 — 사용자·액션·IP·상세, 페이지 CSV). 뷰 `audit_log`는 service_role만 읽는다. **보존 100일**(pg_cron `audit-log-retention-100d` 매일 04:10 KST → `purge_audit_logs(100)`, 사람별·플랫폼별 마지막 데스크톱 앱 로그인 1건은 설치 안내 카드 판단용으로 남김 — `docs/sql/2026-10-16-audit-retention.sql`). 런북 `docs/audit-log.md`
 - `/admin/directory` — 조직/팀(admin): 사내 조직도(그룹웨어 아마란스, inno-creed MCP — Claude 사용량 표 "소속" 컬럼의 출처)·Claude 멤버·초대·조직·설정(관리형 설정 JSON) 탭
 - `/sharepoint` — SharePoint 문서(user 이상): 즐겨찾기(링크 붙여 넣기·★)·자주 쓰는/나와 공유/주변에서 많이 보는 문서·검색. 본인 Microsoft 연결 권한으로만. 홈 카드 `SharepointDocsCard`
 - `/teams/chat` — 내가 속한 Teams 그룹·1:1 채팅을 목록에서 골라 우리 화면에서 읽고 보내기(본인 Microsoft 위임 토큰, 5초 폴링). 런북 `docs/teams-integration.md` §3-D
@@ -105,7 +105,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `POST /api/chat/turn`(SSE), `GET /api/chat/{config,status,conversations}`, `GET·PATCH·DELETE /api/chat/conversations/[id]`, `POST /api/chat/attachments`, 크론 `/api/cron/chat-purge`, 관리자 `GET /api/admin/assistant-usage` — 이노봇 대화 플랫폼(`lib/chat/*`: 엔진·마스킹·도구 위치·저장소). 거버넌스는 턴 API 한 곳: 권한 → 허용 모델(settings `assistant_models`) → 하루 상한(`assistant_usage`) → 마스킹 → 도구 목록. 보존 settings `assistant_retention_days`(기본 90). 이노봇은 우리 앱 기능도 쓴다(서버 전용 `lib/assistant/feature-tools.ts`: Jira 내 업무·인사·부고·뭐 먹지·PPT 만들기/내 PPT, 페이지 권한 검사, 쓰기 확인 카드 줄은 서버가 `needs_action.card`로 — PPT 덱 생성은 `lib/ppt/start.ts` `startDeck`을 웹 API와 공유)
 - `POST /api/assistant/turn`(1.7.0 미만 앱용 — 2026-10-16부터 Claude를 부르지 않고 업데이트 안내 426 `app_update_required`만 돌려준다, 보급 후 삭제), `POST /api/assistant/execute` — 모바일 비서 이노봇(user 이상): 앱은 1.7.0부터 `/api/chat/turn`, execute는 Teams 서버 도구(teams_chats·teams_mentions·teams_send, `teams_chat` 페이지 권한). 런북 `docs/mobile-app.md` §비서
 - `POST /api/mobile/briefing` — 홈 '데일리 브리핑' 카드(user 이상, 제목 수준 payload ≤16KB → 서버가 다시 자름 → Claude Sonnet 5.5 2~3문장; settings `mobile_briefing_llm=off` 또는 `ANTHROPIC_API_KEY` 없음이면 `{enabled:false}`; 감사엔 건수만). `GET /api/teams/mentions?days=` — 홈 브리핑용 Teams 답장 대기(본인 위임 토큰, 그룹 멘션·1:1, 내가 답한 건 제외). 런북 `docs/mobile-app.md` §홈 브리핑
-- `POST /api/mobile/login`, `POST /api/mobile/web-token`, 페이지 `/auth/mobile` — 모바일 앱 인증(규칙 `.claude/rules/mobile.md`, 런북 `docs/mobile-app.md`). `/api/*`는 `Authorization: Bearer`도 받는다(`createServerSupabase`·미들웨어 분기)
+- `POST /api/mobile/login`, `POST /api/mobile/web-token`, 페이지 `/auth/mobile` — 모바일 앱 인증(규칙 `.claude/rules/mobile.md`, 런북 `docs/mobile-app.md`). `/api/*`는 `Authorization: Bearer`도 받는다(`createServerSupabase`·proxy 분기 — Next 16 미들웨어 진입점은 `src/proxy.ts` → `lib/supabase-middleware.ts`)
 
 ### Supabase Tables (guide feature)
 - `nlm_notebooks` — Notebook metadata with `is_visible`, `sort_order`
@@ -113,7 +113,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `nlm_sources` — Source metadata cache per notebook (includes `storage_path`, `original_filename`)
 
 ### Supabase Tables (audit)
-- `login_history`(user_id, logged_in_at, ip_address, user_agent), `action_history`(user_id·user_email·action·category·detail jsonb + `ip_address`/`user_agent`/`source` app|api), 조회 뷰 `audit_log`(둘의 union, service_role 전용, kind는 `source`와 `detail.result`로 login|login_failed|login_attempt|action|api 구분) — SQL `docs/sql/2026-09-07-audit-log.sql`. 익명 설문 응답과 OTel 수집은 기록하지 않는다
+- (보존 100일, 위 `/admin/audit` 참고) `login_history`(user_id, logged_in_at, ip_address, user_agent), `action_history`(user_id·user_email·action·category·detail jsonb + `ip_address`/`user_agent`/`source` app|api), 조회 뷰 `audit_log`(둘의 union, service_role 전용, kind는 `source`와 `detail.result`로 login|login_failed|login_attempt|action|api 구분) — SQL `docs/sql/2026-09-07-audit-log.sql`. 익명 설문 응답과 OTel 수집은 기록하지 않는다
 
 ### Supabase Tables (company directory)
 - `company_directory`(email PK, units[], division/headquarters/team, duty, position, active, synced_at), `company_directory_sync` — 사내 조직도 명부(아마란스). SQL `docs/sql/2026-08-29-company-directory.sql`
@@ -136,7 +136,13 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 **사내 조직도 명부**: `lib/directory/parse.ts`가 아마란스 `deptPath`(회사>회사>부문>본부>센터>팀)를 `units[]`·division/headquarters/team으로 분해. 동기화는 서버가 아니라 **로컬 스크립트**가 inno-creed MCP(stdio, 그룹웨어 로그인 필요)를 호출해 API로 밀어 넣는 푸시형. Claude 사용량 `summary`/`members` API가 이메일로 조인해 `team`/`division`을 붙인다.
 
 **Environment Variables**:
-- `NLM_SERVICE_URL` — NLM service endpoint (default: `http://localhost:8090`, prod: `https://inje-nlm-service.fly.dev`)
+- `NLM_SERVICE_URL` — NLM service endpoint (default: `http://localhost:8090`, prod: `https://inje-nlm-service.fly.dev` — 2026-10-16 중지)
+- `CRON_SECRET` — Vercel 크론(`/api/cron/*`)·릴리스 스크립트의 SharePoint 단계 Bearer 인증
+- `JIRA_CLIENT_ID`, `JIRA_CLIENT_SECRET`, `JIRA_REDIRECT_URI` — 개인 Jira·Confluence 연결(Atlassian 3LO OAuth). `JIRA_TOKEN_ENC_KEY` — 그 토큰 암호화 키(64자 hex, 없으면 `MS_TOKEN_ENC_KEY`). `JIRA_PROJECTS`, `JIRA_STORY_POINTS_FIELD` — 성과 지표 Jira 수집 범위·스토리 포인트 필드
+- `DOORAY_SITE`, `DOORAY_ORGANIZATION_ID`, `DOORAY_TOKEN_ENC_KEY` — 개인 Dooray 연결(사이트·조직, 토큰 암호화 키)
+- `GITLAB_URL`, `GITLAB_TOKEN`, `GITLAB_GROUPS` — 성과 지표 GitLab 수집(Vercel IP가 막혀 운영은 로컬 `gitlab-metrics-sync.py`가 푸시)
+- `GW_API_BASE` — GW 로그인 백엔드 주소(기본 `https://gw.innogrid.com`, `GW_LOGIN_ENABLED`일 때만)
+- `MOBILE_BRIEFING_MODEL`, `CONFLUENCE_WEEKLY_MODEL` — (선택) 앱 홈 브리핑·Confluence 주간보고 초안 모델(기본 Sonnet 5.5)
 - `GW_LOGIN_ENABLED` — `true`일 때만 `POST /api/auth/gw`(GW 로그인 백엔드) 활성, 기본 404. GW가 토큰 기반 사용자 조회 API를 제공해 이메일을 서버 검증할 수 있을 때까지 꺼둔다
 - `TEAMS_GRAPH_CLIENT_SECRET` — Graph 클라이언트 시크릿. 멤버 가져오기 Graph 방식(app-only)과 RFP SharePoint 업로드(위임 OAuth 토큰 교환·갱신)에 필수; 멤버 가져오기만 웹훅 방식이면 후자 때문에 여전히 필요. settings에 저장 금지
 - `MS_TOKEN_ENC_KEY` — RFP SharePoint 업로드용 Microsoft refresh 토큰 암호화 키(64자 hex, `openssl rand -hex 32`). 교체 시 모든 연결이 재연결 필요

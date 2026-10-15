@@ -41,7 +41,7 @@
 
 - 검색은 사용자 이름·이메일·액션·경로·IP·detail 내용을 함께 훑는다(예: 프로젝트 id로 그 프로젝트에 일어난 일 모두).
 - "API 호출"이 많아 눈에 걸리면 구분을 "액션"·"로그인"으로 좁힌다.
-- 보존 정책은 아직 없다(무기한). 행이 많아지면 `action_history`를 기간으로 지우는 배치를 검토한다 — 인덱스 `action_history_created_at_idx`가 있다.
+- **보존 100일**(2026-10-16): pg_cron `audit-log-retention-100d`가 매일 04:10 KST에 `public.purge_audit_logs(100)`을 부른다(`docs/sql/2026-10-16-audit-retention.sql`). `action_history`는 5000행씩 나눠 지우고, `login_history`는 100일 지난 행을 지우되 **사람별·플랫폼(macOS/Windows)별 마지막 데스크톱 앱 로그인 1건은 남긴다** — 웹 홈 설치 안내 카드(`lib/desktop/presence.ts`)가 앱 로그인 기록으로 설치 여부를 보는데 앱은 로그인할 때만 기록하기 때문. 돌려 보기: `select public.purge_audit_logs(100);`(결과에 지운 건수), 일정 확인: `select * from cron.job where jobname='audit-log-retention-100d';`. 첫 적용 때 100일 지난 `action_history` 440건을 지웠다.
 - 침입 흔적을 볼 때는 구분 "로그인 실패"로 좁히고 IP로 검색한다. "로그인 시도" 대비 "로그인"(성공)이 없는 IP·이메일이 눈에 걸리는 조합이다.
 
 ## 플랫폼 및 페이지 접근 (2026-10-08)

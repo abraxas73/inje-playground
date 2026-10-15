@@ -109,7 +109,7 @@ flowchart LR
 |---|---|---|
 | frontend | Vercel `innogrid-playground`, 리전 `icn1`. 정식 도메인 `innocrew.innogrid.com`(2026-10-10~), 예전 `inje-playground.vercel.app` | Git 자동 배포가 아니라 **수동** 배포다. `frontend/`에서 `vercel --prod --yes`를 실행한다(루트에서 실행하면 새 프로젝트가 생긴다). 배포 뒤 `vercel inspect https://innocrew.innogrid.com`으로 별칭이 새 배포를 가리키는지 확인한다 |
 | ppt-service | Vercel 별도 프로젝트 `innogrid-ppt-service.vercel.app`(framework fastapi, `icn1`) | `cd ppt-service && vercel deploy --prod --yes` |
-| nlm-service | Fly.io `inje-nlm-service`, 리전 `nrt`, 1 vCPU/1GB, 최소 1대 상시, 볼륨 `nlm_data`(NotebookLM 쿠키) | `nlm-service/scripts/deploy.sh` |
+| nlm-service | Fly.io `inje-nlm-service`, 리전 `nrt`, 볼륨 `nlm_data`(NotebookLM 쿠키). **2026-10-16 운영 중지(머신 0대)** | `nlm-service/scripts/deploy.sh`, 재가동 `fly scale count 1` |
 | Supabase | DB·Auth·Storage·Realtime·Edge Functions·pg_cron·Vault | SQL은 `docs/sql/*.sql`을 수동 적용(Management API 또는 `supabase db query --linked`). Edge Function은 `supabase functions deploy yonhap-notices` |
 | 앱 | TestFlight(iOS 내부 테스트), Google Play 내부 테스트 + `/apps` APK, macOS DMG·Windows 설치 파일(웹 `/apps`) | 스크립트로 수동 배포([§11](#11-릴리스배포-파이프라인)) |
 
@@ -921,7 +921,7 @@ Vercel이나 클라우드 루틴으로는 로컬 Chrome 세션·사내망·개�
 
 ## 13. 관측성·감사
 
-- **감사**: `login_history`(로그인), `action_history`(앱 이벤트 + proxy 자동 API 기록 + 로그인 전 이벤트 + 페이지 조회). 조회는 `/admin/audit`(뷰 `audit_log`, CSV)다. 보존 정책은 아직 없다.
+- **감사**: `login_history`(로그인), `action_history`(앱 이벤트 + proxy 자동 API 기록 + 로그인 전 이벤트 + 페이지 조회). 조회는 `/admin/audit`(뷰 `audit_log`, CSV)다. **보존 100일**: pg_cron `audit-log-retention-100d`(매일 04:10 KST)가 `purge_audit_logs(100)`을 부르고, 사람별·플랫폼별 마지막 데스크톱 앱 로그인 1건은 설치 안내 카드용으로 남긴다(`docs/sql/2026-10-16-audit-retention.sql`).
 - **Claude 사용량**:
   - 관리형 설정이 구성원 PC의 Claude Code에 OTLP 설정을 배포한다.
   - `/api/otel/v1/*`가 받아 수집 RPC가 일·시간·도구·환경별 테이블에 반영한다.
@@ -948,34 +948,18 @@ Vercel이나 클라우드 루틴으로는 로컬 Chrome 세션·사내망·개�
 
 ## 15. 알려진 차이·점검 필요 사항
 
-이번 조사에서 문서와 코드가 어긋나 있거나 점검이 필요한 것으로 확인된 항목이다.
+2026-10-16 정리 결과(처리한 것은 함께 적는다).
 
-**점검이 필요한 것**
-1. **nlm-service 앱 수준 인증**: `nlm-service/src/main.py`의 엔드포인트에 공유 토큰 같은 인증이 보이지 않는다(Dooray 엔드포인트만 `x-dooray-token`). Fly에 공개 HTTPS로 노출돼 있으므로 확인이 필요하다.
-2. **감사 보존**: `audit_log`(action_history·login_history)에 보존 정책이 없다.
-3. **DDL 누락**: 초기 핵심 테이블(`user_profiles`, `settings`, `user_settings`, `login_history`, `action_history`, `nlm_*`, `user_members`)과 버킷 `nlm-files`·`desktop-releases`의 생성 SQL이 저장소에 없다.
-4. **멈춘 `running` 기록**: 서버 함수가 실행 도중 죽으면 이노봇 `chat_tool_calls`가 `running`으로 남는다. 오래된 기록을 정리하는 기능은 아직 없다.
+**처리함**
+1. **nlm-service 인증 공백** → 서비스를 **운영 중지**했다(Fly `inje-nlm-service` 머신 0대, 외부 접속 불가). 앱·볼륨은 남아 있어 `fly scale count 1 -a inje-nlm-service` 뒤 NotebookLM 재로그인으로 되살릴 수 있다. 가이드 Q&A(`/guide`, 메뉴 숨김)는 그동안 동작하지 않는다. 다시 켤 때는 앱 수준 인증(공유 토큰)을 먼저 붙인다.
+2. **감사 보존 없음** → 100일 보존 적용([§13](#13-관측성감사)).
+3. **문서 차이** → CLAUDE.md(서두·proxy 표현·환경 변수), `.claude/rules/mobile.md`(의존성 21개·Flutter 3.47.7), `release-mobile.sh` 머리 주석, 런북 하단 바 절(`menu_layout.dart`), page-keys SQL 주석(테스트 파일 이름), LLM 포털 설계서(상한·모델 순서, SSE 이벤트 이름, 주민번호 규칙)를 코드에 맞췄다.
 
-**설계와 다르게 동작하는 것**
-
-5. **하루 상한 단위**: `assistant_usage.turns`는 사용자 질문 수가 아니라 Claude 호출 수다(한 질문에 최대 4).
-6. **`desktopOnline`**: 웹이 보내는 값을 서버가 다시 검증하지 않는다. 앱이 없으면 중계가 "앱 없음"으로 실패하는 것으로 보완된다.
-
-**문서를 고쳐야 하는 것**
-
-7. **문서 표현 차이**:
-   - CLAUDE.md는 "미들웨어"라고 부르지만 실제 진입점은 Next 16 `src/proxy.ts`다.
-   - CLAUDE.md 서두가 옛 "NHN Injeinc Workshop" 소개 그대로다(패키지명도 `coneplus-workshop`).
-   - CLAUDE.md env 목록에서 `JIRA_*`, `DOORAY_*`, `GITLAB_*`, `CRON_SECRET`, `MOBILE_BRIEFING_MODEL`, `CONFLUENCE_WEEKLY_MODEL`, `GW_API_BASE`가 빠져 있다.
-   - `docs/sql/2026-10-11-page-keys-sync.sql` 주석의 테스트 파일 이름이 틀렸다(실제는 `gw-mail.test.tsx`).
-8. **앱 문서 차이**:
-   - `.claude/rules/mobile.md`의 의존성 수(15개 → 실제 21개)와 Flutter 버전이 실제와 다르다.
-   - `release-mobile.sh` 머리 주석이 옛 "APK 빌드" 흐름 그대로다.
-   - 런북 하단 바 절이 옛 `fan_layout.dart`를 언급한다(현재 `menu_layout.dart`).
-9. **LLM 포털 설계서와의 차이**:
-   - 모델 확인이 하루 상한 확인 뒤에 있다(거절 전 단계라 영향 없음).
-   - SSE 이벤트 이름이 `tool`·`needs_action`으로 합쳐졌다.
-   - 주민번호 규칙이 뒷자리 `[1-8]`(외국인 포함)로 넓다.
+**남은 것**
+4. **DDL 누락**: 초기 핵심 테이블(`user_profiles`, `settings`, `user_settings`, `login_history`, `action_history`, `nlm_*`, `user_members`)과 버킷 `nlm-files`·`desktop-releases`의 생성 SQL이 저장소에 없다.
+5. **멈춘 `running` 기록**: 서버 함수가 실행 도중 죽으면 이노봇 `chat_tool_calls`가 `running`으로 남는다. 오래된 기록 정리는 아직 없다.
+6. **동작 메모**: `assistant_usage.turns`는 Claude 호출 수(한 질문에 최대 4)다. `desktopOnline`은 웹이 보내는 값을 서버가 검증하지 않는다(앱이 없으면 중계가 "앱 없음"으로 실패해 보완된다).
+7. **패키지 이름**: `frontend/package.json` name이 옛 `coneplus-workshop` 그대로다(동작 영향 없음).
 
 ---
 

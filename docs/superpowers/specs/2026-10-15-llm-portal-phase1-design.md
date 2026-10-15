@@ -67,7 +67,7 @@
 
 ### 1.4 API
 
-- `POST /api/chat/turn` — 입력: `conversationId?`(없으면 새로 만듦), `input`(텍스트·첨부 ID) 또는 `toolResults`, `model`, `client`(web|app), `ephemeral?`. 출력: SSE(`text`, `tool_call`, `tool_summary`, `needs_client_tool`, `masked`, `done`, `error`).
+- `POST /api/chat/turn` — 입력: `conversationId?`(없으면 새로 만듦), (`text`·`attachmentIds`) 또는 `actions`(확인 카드 답·앱 도구 결과 `{id, approve?|result?, isError?}`) 또는 `retry` 중 하나, `model`, `client`(web|app), `ephemeral?`, `desktopOnline`. 출력: SSE(`conversation`, `text`, `tool`(running→ok·error, 요약), `masked`, `needs_action`(확인·앱 실행이 필요한 호출 — 서버가 조회한 `target`, 앱 기능 쓰기는 서버가 만든 카드 줄 `card`), `done`, `error`). (구현하며 `tool_call`·`tool_summary`는 `tool`로, `needs_client_tool`은 `needs_action`으로 합쳤다.)
 - `GET /api/chat/conversations`, `GET·PATCH·DELETE /api/chat/conversations/[id]` — 목록(ephemeral 제외)·본문·이름 바꾸기·삭제.
 - `POST /api/chat/attachments` — 업로드, 텍스트 추출, 첨부 ID 반환.
 - 중지: 별도 API 없이 클라이언트가 연결을 끊으면 받은 데까지 `stopped`로 저장한다.
@@ -78,13 +78,13 @@
 모든 집행은 `/api/chat/turn` 한 곳에서 이 순서로 한다.
 
 1. **인증·권한**: user 이상, 페이지 키 `assistant`. 관리자 스위치 `assistant_enabled`가 꺼져 있으면 중단. 키 추가 시 DB 함수 `valid_page_permissions`·`has_page_access` 키 목록도 갱신(새 SQL 파일).
-2. **모델 확인**: 허용 목록(settings `assistant_models`, 기본 Sonnet 5.5·Opus 5.5) 밖이면 Sonnet으로 바꾼다.
-3. **하루 상한**: `assistant_usage`의 오늘(KST) `turns`가 `assistant_daily_turns` 이상이면 429 "오늘 한도를 다 썼습니다". 실패한 턴은 세지 않는다.
+2. **하루 상한**: `assistant_usage`의 오늘(KST) `turns`가 `assistant_daily_turns` 이상이면 429 "오늘 한도를 다 썼습니다". `turns`는 **Claude 호출 1회 = 1**로 센다(서버 도구 왕복이 있으면 한 질문에 최대 4). 실패한 호출은 세지 않는다.
+3. **모델 확인**: 허용 목록(settings `assistant_models`, 기본 Sonnet 5.5·Opus 5.5) 밖이면 Sonnet으로 바꾼다(구현은 상한 다음 — 둘 다 거절 전 단계라 순서 영향 없음).
 4. **마스킹**: 사용자 입력, 첨부 추출 텍스트, 도구 결과를 Claude에 보내기 직전에 가린다.
-   - 주민번호: `\d{6}-?[1-4]\d{6}` + 앞 6자리 날짜 검증.
+   - 주민번호: `\d{6}-?[1-8]\d{6}` + 앞 6자리 날짜 검증(뒷자리 5~8 외국인등록번호 포함).
    - 카드번호: 13~19자리(하이픈·공백 허용) + Luhn.
    - 계좌번호: 하이픈이 있는 은행 형식(`\d{2,6}-\d{2,6}-\d{2,7}` 계열, 카드·주민·전화와 겹치지 않는 것)만.
-   - 휴대전화: `01[016789]-?\d{3,4}-?\d{4}`. **사내 조직도 도구 결과는 제외**.
+   - 휴대전화: `01[016789]`·`+82 1[016789]` + 하이픈·공백·점 구분. **사내 조직도 도구 결과는 제외**.
    - 치환: `[주민번호]`, `[카드번호]`, `[계좌번호]`, `[전화번호]`. DB에는 가린 뒤 본문만 저장. 메시지에 "개인정보 N건 가림" 배지.
    - 이미지·스캔 PDF는 가릴 수 없다 → 첨부 시 안내 문구.
 5. **도구 목록 계산**: 1.3의 위치 조건 + 도구별 페이지 권한(Teams 도구는 `teams_chat` 등).
