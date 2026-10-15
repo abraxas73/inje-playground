@@ -239,6 +239,11 @@ class AssistantSession extends Notifier<AssistantState> {
     state = build();
   }
 
+  /// 대화 기록에서 지운 대화가 지금 연 대화면 새 대화로 시작한다.
+  void forget(String id) {
+    if (_conversationId == id) reset();
+  }
+
   /// 서버 대화 불러오기(🕘 기록). 실패하면 지금 대화를 그대로 두고 안내만.
   Future<void> open(String id) async {
     if (state.busy) return;

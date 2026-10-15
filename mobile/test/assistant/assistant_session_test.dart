@@ -1036,6 +1036,18 @@ void main() {
     ]);
   });
 
+  test('forget — 지금 연 대화를 지웠으면 새 대화로, 다른 대화면 그대로', () async {
+    final brain = ChatBrain([say('네')]);
+    final c = scope(brain, scenarioGw());
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('안녕');
+    s.forget('다른 대화');
+    expect(s.conversationId, 'c1');
+    s.forget('c1');
+    expect(s.conversationId, isNull);
+    expect(c.read(assistantSessionProvider).items.single.text, '무엇을 도와드릴까요?');
+  });
+
   test('open — 불러오는 사이 보내기가 시작되면 진행 중인 대화를 덮지 않는다', () async {
     final brain = ChatBrain([say('하나'), say('둘')]);
     brain.saved['c9'] = [

@@ -108,6 +108,9 @@ class ChatApi {
     return (model: conv['model'] is String ? conv['model'] as String : null, lines: out);
   }
 
+  Future<void> rename(String id, String title) => api.patchJson('/api/chat/conversations/${Uri.encodeComponent(id)}', {'title': title});
+  Future<void> delete(String id) => api.deleteJson('/api/chat/conversations/${Uri.encodeComponent(id)}');
+
   /// 첨부 하나 올리기(대화 연결은 다음 턴의 attachmentIds로). warning: 이미지·스캔 PDF는 개인정보를 가리지 못한다는 안내.
   Future<({String id, String name, String? warning})> upload(String name, List<int> bytes) async {
     final j = await api.postFile('/api/chat/attachments', name, bytes);
