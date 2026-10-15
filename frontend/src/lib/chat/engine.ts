@@ -11,6 +11,7 @@ import { attachmentIdsIn, cancelResult, expiresAt, historyForModel, pendingCalls
 export const MAX_SERVER_ROUNDS = 3;
 export const TEXT_MAX = 20_000, ATTACH_MAX = 5, ACTIONS_MAX = 20;
 const FAIL_MSG = "이노봇이 답하지 못했습니다. 다시 시도해 주세요.";
+const TARGET_FAIL = "대상을 확인하지 못했습니다. 채팅방·공간을 다시 찾아 주세요.";
 
 export type StreamFn = (p: { model: string; system: Anthropic.TextBlockParam[]; tools: Anthropic.Tool[]; messages: Anthropic.MessageParam[]; noTools: boolean }, onText: (t: string) => void, signal?: AbortSignal) => Promise<Anthropic.Message>;
 export type TurnInput = { userId: string; name: string; email: string; client: "web" | "app"; conversationId?: string; text?: string; attachmentIds?: string[]; actions?: ActionReply[]; retry?: boolean; model: string; ephemeral: boolean; desktopOnline: boolean; now: string };
@@ -25,7 +26,7 @@ export type TurnDeps = {
 };
 export class TurnInputError extends Error {}
 
-type Call = { id: string; tool: string; input: Record<string, unknown>; location: Location | null; tier: string };
+type Call = { id: string; tool: string; input: Record<string, unknown>; location: Location | null; tier: string; target?: string };
 
 /**
  * 한 요청 = 사용자 입력(또는 확인·앱 결과, 다시 시도) → Claude 호출(서버·중계 읽기 도구는 최대 3회 왕복) → 저장.
@@ -54,6 +55,8 @@ export async function runTurn(d: TurnDeps, inp: TurnInput, emit: (e: ChatEvent) 
     if (!(await d.store.claimToolCalls(pending.messageId, pending.uses.map((u) => { const c = callOf(u); return { toolUseId: c.id, tool: c.tool, location: c.location ?? "server" }; })))) throw new TurnInputError("이미 처리 중인 작업입니다.");
     const r = await executeCalls(d, pending.uses.map(callOf), inp.actions, emit);
     await d.store.toolCalls(pending.messageId, r.records);
+    // 중지 뒤엔 결과 행을 붙이지 않는다 — 그새 시작된 다음 요청 뒤에 끼면 짝 없는 tool_result로 대화가 깨진다
+    if (d.signal?.aborted) return finish();
     await d.store.append(convId, { role: "user", content: r.stored, masked: r.masked });
     r.live.forEach((v, k) => live.set(k, v)); masked += r.masked; used.push(...r.records.map((x) => x.tool));
   } else if (inp.retry) {
@@ -96,13 +99,19 @@ export async function runTurn(d: TurnDeps, inp: TurnInput, emit: (e: ChatEvent) 
     await d.store.touch(convId, { model: inp.model, expiresAt: expiresAt(new Date(), ephemeral, d.retentionDays) });
     const calls = msg.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use").map(callOf);
     if (!calls.length || round >= MAX_SERVER_ROUNDS) { emit({ type: "done", messageId }); return finish(); }
+    let unresolved = new Set<string>();
     if (calls.some(needsAction)) {
-      used.push(...calls.map((c) => c.tool));
-      emit({ type: "needs_action", messageId, calls: calls.map((c) => ({ ...c, location: c.location ?? "server" })) as PendingCall[] });
-      return finish();
+      unresolved = await resolveTargets(d, calls);
+      // 대상을 못 찾은 호출이 있으면 확인 카드 없이 그 응답 전체를 닫는다(못 찾은 건 오류, 쓰기는 미승인) — 모델이 다시 묻는다
+      if (!unresolved.size) {
+        used.push(...calls.map((c) => c.tool));
+        emit({ type: "needs_action", messageId, calls: calls.map((c) => ({ ...c, location: c.location ?? "server" })) as PendingCall[] });
+        return finish();
+      }
     }
-    const r = await executeCalls(d, calls, null, emit);
+    const r = await executeCalls(d, calls, null, emit, unresolved);
     await d.store.toolCalls(messageId, r.records);
+    if (d.signal?.aborted) return finish();
     await d.store.append(convId, { role: "user", content: r.stored, masked: r.masked });
     r.live.forEach((v, k) => live.set(k, v)); masked += r.masked; lastMasked = r.masked; used.push(...r.records.map((x) => x.tool));
     if (r.masked) emit({ type: "masked", count: r.masked });
@@ -115,7 +124,26 @@ function withLive(messages: Anthropic.MessageParam[], live: Map<string, string>)
   return messages.map((m) => (Array.isArray(m.content) ? { ...m, content: m.content.map((b) => (b.type === "tool_result" && live.has(b.tool_use_id) ? { ...b, content: live.get(b.tool_use_id)! } : b)) } : m));
 }
 
-async function executeCalls(d: TurnDeps, calls: Call[], replies: ActionReply[] | null, emit: (e: ChatEvent) => void) {
+/** 확인 카드에 보일 실제 대상(채팅방·공간 이름)을 서버가 조회해 c.target에 넣는다. 못 찾은 호출 id를 돌려준다. 조회는 사용량·감사에 세지 않는다. */
+async function resolveTargets(d: TurnDeps, calls: Call[]): Promise<Set<string>> {
+  const bad = new Set<string>();
+  for (const c of calls) {
+    if (c.location !== "server" || c.tier === "read") continue;
+    if (c.tool === "teams_send") {
+      const r = await d.runServer("teams_chats", {});
+      const hit = r.ok ? (r.result as { chats?: Array<{ id: string; name?: string | null }> }).chats?.find((x) => x.id === c.input.chat_id) : undefined;
+      if (hit) c.target = hit.name?.trim() || "이름 없는 채팅"; else bad.add(c.id);
+    } else if (c.tool === "confluence_create_page") {
+      const key = typeof c.input.space_key === "string" ? c.input.space_key.trim() : "";
+      const r = key ? await d.runServer("confluence_spaces", { key }) : null;
+      const s = r?.ok ? (r.result as { spaces?: Array<{ key: string; name: string }> }).spaces?.find((x) => x.key === key) : undefined;
+      if (s) c.target = `${s.name} (${s.key})`; else bad.add(c.id);
+    }
+  }
+  return bad;
+}
+
+async function executeCalls(d: TurnDeps, calls: Call[], replies: ActionReply[] | null, emit: (e: ChatEvent) => void, unresolved = new Set<string>()) {
   const stored: Anthropic.ToolResultBlockParam[] = [];
   const records: ToolCallRecord[] = [];
   const live = new Map<string, string>();
@@ -125,6 +153,7 @@ async function executeCalls(d: TurnDeps, calls: Call[], replies: ActionReply[] |
     const reply = replies?.find((r) => r.id === c.id);
     let run: ToolRun, status: ToolCallRecord["status"];
     if (!c.location) { run = { ok: false, error: "이 화면에서 쓸 수 없는 도구입니다." }; status = "error"; }
+    else if (unresolved.has(c.id)) { run = { ok: false, error: TARGET_FAIL }; status = "error"; }
     else if (c.location === "device") {
       if (reply && "result" in reply) { run = reply.isError ? { ok: false, error: String(reply.result).slice(0, 2000) } : { ok: true, result: reply.result }; status = run.ok ? "ok" : "error"; }
       else { run = { ok: false, error: "앱 응답 없음" }; status = "timeout"; }

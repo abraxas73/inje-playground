@@ -15,8 +15,10 @@ describe("채팅 UI", () => {
   });
   it("확인 카드 — 대상·내용을 보여 주고 실행/취소", () => {
     const onAnswer = vi.fn();
-    render(<ConfirmCard calls={[{ id: "t1", tool: "teams_send", input: { chat_id: "19:x", chat_name: "개발팀", text: "안녕하세요" }, location: "server", tier: "write" }]} onAnswer={onAnswer} />);
-    expect(screen.getByText("개발팀")).toBeTruthy();
+    render(<ConfirmCard calls={[{ id: "t1", tool: "teams_send", input: { chat_id: "19:x", chat_name: "모델이 쓴 이름", text: "안녕하세요" }, location: "server", tier: "write", target: "개발1팀" }]} onAnswer={onAnswer} />);
+    expect(screen.getByText("대상")).toBeTruthy();
+    expect(screen.getByText("개발1팀")).toBeTruthy();
+    expect(screen.queryByText("모델이 쓴 이름")).toBeNull();
     expect(screen.getByText("안녕하세요")).toBeTruthy();
     expect(screen.queryByText("19:x")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "실행" }));

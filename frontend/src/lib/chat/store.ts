@@ -80,6 +80,14 @@ export function historyForModel(rows: MsgRow[], attachments: Map<string, Anthrop
   // 최근 400행으로 잘렸을 때 앞쪽 고아(assistant·tool_result만 든 user)를 버린다 — Anthropic은 user 텍스트로 시작해야 한다.
   const start = live.findIndex((r) => r.role === "user" && !hasToolResult(r));
   live = start < 0 ? [] : live.slice(start);
+  // 바로 앞 assistant의 tool_use에 없는 tool_result(중지 뒤 늦게 붙은 결과 등)는 버린다 — 짝 없는 tool_result는 400.
+  live = live.flatMap((r, i) => {
+    if (!hasToolResult(r)) return [r];
+    const prev = live[i - 1];
+    const ids = new Set(prev?.role === "assistant" ? prev.content.filter(isToolUse).map((u) => u.id) : []);
+    const content = r.content.filter((b) => b.type !== "tool_result" || ids.has(b.tool_use_id));
+    return content.length ? [{ ...r, content }] : [];
+  });
   const out: Anthropic.MessageParam[] = [];
   let missing: Anthropic.ToolResultBlockParam[] = [];
   live.forEach((r, i) => {

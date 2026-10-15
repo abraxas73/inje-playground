@@ -52,6 +52,33 @@ describe("historyForModel 보강", () => {
     expect(JSON.stringify(h[2])).toContain('"tool_use_id":"t1"');
   });
 });
+describe("historyForModel 짝 없는 tool_result", () => {
+  it("직전 assistant의 tool_use에 없는 tool_result는 버린다(늦게 붙은 결과)", () => {
+    const rows = [
+      row("1", "user", [{ type: "text", text: "메일" }]),
+      row("2", "assistant", [use("t1")]),
+      row("3", "user", [{ type: "tool_result", tool_use_id: "t1", content: "취소됨", is_error: true }]),
+      row("4", "user", [{ type: "text", text: "다른 질문" }]),
+      row("5", "assistant", [{ type: "text", text: "B 답" }]),
+      row("6", "user", [{ type: "tool_result", tool_use_id: "t1", content: "늦은 결과" }]),
+      row("7", "user", [{ type: "tool_result", tool_use_id: "t9", content: "x" }, { type: "text", text: "또 질문" }]),
+    ];
+    const h = historyForModel(rows, new Map());
+    expect(JSON.stringify(h)).not.toContain("늦은 결과");
+    expect(JSON.stringify(h)).not.toContain("t9");
+    expect(JSON.stringify(h.at(-1))).toContain("또 질문");
+    // 모든 tool_result는 바로 앞 assistant 메시지의 tool_use에 대응
+    h.forEach((m, i) => {
+      if (!Array.isArray(m.content)) return;
+      const ids = m.content.flatMap((b) => (b.type === "tool_result" ? [b.tool_use_id] : []));
+      if (!ids.length) return;
+      const prev = h[i - 1];
+      expect(prev.role).toBe("assistant");
+      const uses = (prev.content as Array<{ type: string; id?: string }>).filter((b) => b.type === "tool_use").map((b) => b.id);
+      ids.forEach((id) => expect(uses).toContain(id));
+    });
+  });
+});
 describe("보조 함수", () => {
   it("만료일 — 저장 안 함은 24시간", () => {
     const now = new Date("2026-10-15T00:00:00Z");

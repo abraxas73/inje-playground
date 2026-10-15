@@ -16,16 +16,17 @@ import { DRAFT_KEY, SUGGESTIONS, applyEvent, emptyView, kstNow, startContinuatio
 type Config = { enabled: boolean; models: string[]; defaultModel: string };
 const TTL = 5 * 60_000;
 // 대화를 바꿀 때마다 다시 마운트되므로 모듈 범위로 5분 캐시한다(상태 조회는 중계 호출 한도를 쓴다). 실패하면 캐시를 비운다.
-function cached<T>(url: string): () => Promise<T | null> {
-  let c: { at: number; p: Promise<T | null> } | null = null;
+function cached<T>(url: string, ttlOf: (v: T) => number = () => TTL): () => Promise<T | null> {
+  let c: { at: number; ttl: number; p: Promise<T | null> } | null = null;
   return () => {
-    if (c && Date.now() - c.at < TTL) return c.p;
-    const p = fetch(url).then((r) => (r.ok ? (r.json() as Promise<T>) : null)).catch(() => null).then((v) => { if (!v && c?.p === p) c = null; return v; });
-    c = { at: Date.now(), p };
+    if (c && Date.now() - c.at < c.ttl) return c.p;
+    const p = fetch(url).then((r) => (r.ok ? (r.json() as Promise<T>) : null)).catch(() => null).then((v) => { if (c?.p === p) { if (v) c.ttl = ttlOf(v); else c = null; } return v; });
+    c = { at: Date.now(), ttl: TTL, p };
     return p;
   };
 }
-const getStatus = cached<NonNullable<ChatStatus>>("/api/chat/status");
+// 데스크톱 앱이 꺼져 있다는 답은 30초만 — 앱을 켜고 곧 다시 물으면 알아채게
+const getStatus = cached<NonNullable<ChatStatus>>("/api/chat/status", (s) => (s.desktop ? TTL : 30_000));
 const getConfig = cached<Config>("/api/chat/config");
 
 /** 웹 채팅 워크스페이스(설계서 §3). 새 대화의 주소는 첫 conversation 이벤트에서 history.replaceState로 바꾼다(페이지를 다시 그리지 않아 스트림이 끊기지 않게). */
@@ -70,9 +71,8 @@ export default function ChatWorkspace({ conversationId }: { conversationId?: str
     } catch (err) {
       setView((v) => (ac.signal.aborted ? stopView(v) : applyEvent(v, { type: "error", message: err instanceof Error ? err.message : "요청이 실패했습니다.", retryable: false })));
     } finally {
-      if (abortRef.current === ac) abortRef.current = null;
-      busyRef.current = false;
-      setView((v) => ({ ...v, busy: false }));
+      // 내 요청일 때만 풀어 준다 — 중지 뒤 이미 시작된 다음 요청의 busy를 늦게 끝난 이전 요청이 풀지 않게
+      if (abortRef.current === ac) { abortRef.current = null; busyRef.current = false; setView((v) => ({ ...v, busy: false })); }
       void loadList();
     }
   }, [loadList]);
@@ -151,8 +151,8 @@ export default function ChatWorkspace({ conversationId }: { conversationId?: str
               <div className="flex flex-wrap justify-center gap-2">{SUGGESTIONS.map((s) => <Button key={s} variant="outline" size="sm" disabled={view.busy} onClick={() => send(s, [])}>{s}</Button>)}</div>
             </div>
           )}
-          {view.messages.map((m) => <MessageView key={m.id} message={m} onRetry={m === last && view.error?.retryable ? () => void run({ retry: true }, startRetry) : undefined} />)}
-          {view.pending && <ConfirmCard calls={view.pending} busy={view.busy} onAnswer={(approve) => void run({ actions: view.pending!.map((c) => ({ id: c.id, approve })) }, startContinuation)} />}
+          {view.messages.map((m) => <MessageView key={m.id} message={m} onRetry={m === last && view.error?.retryable ? () => { if (!busyRef.current) void run({ retry: true }, startRetry); } : undefined} />)}
+          {view.pending && <ConfirmCard calls={view.pending} busy={view.busy} onAnswer={(approve) => { if (!busyRef.current) void run({ actions: view.pending!.map((c) => ({ id: c.id, approve })) }, startContinuation); }} />}
           {view.error && !view.error.retryable && <p role="alert" className="text-center text-sm text-destructive">{view.error.message}</p>}
           <div ref={endRef} />
         </div>

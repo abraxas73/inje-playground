@@ -35,7 +35,7 @@ beforeEach(() => {
   stream = vi.fn();
   d = {
     store: mem.store, allowed: () => true, retentionDays: 90, stream,
-    runServer: vi.fn().mockResolvedValue({ ok: true, result: { chats: [{ name: "개발팀" }] } }),
+    runServer: vi.fn().mockResolvedValue({ ok: true, result: { chats: [{ id: "19:x", name: "개발1팀(실제)", type: "group" }] } }),
     runRelay: vi.fn().mockResolvedValue({ ok: true, result: { items: [{ subject: "주간보고", phone: "010-1234-5678" }] } }),
     loadAttachments: vi.fn().mockResolvedValue(new Map()),
     recordUsage: vi.fn().mockResolvedValue(undefined), audit: vi.fn().mockResolvedValue(undefined),
@@ -76,9 +76,9 @@ describe("runTurn", () => {
   it("쓰기 서버 도구는 멈추고 needs_action, 승인하면 실행·이어서 답", async () => {
     stream.mockResolvedValueOnce(reply([use("t1", "teams_send", { chat_id: "19:x", chat_name: "개발팀", text: "안녕" })]));
     await runTurn(d, { ...base, text: "개발팀에 안녕 보내" }, emit);
-    expect(d.runServer).not.toHaveBeenCalled();
+    expect(d.runServer).not.toHaveBeenCalledWith("teams_send", expect.anything());
     const na = events.find((e) => e.type === "needs_action") as Extract<ChatEvent, { type: "needs_action" }>;
-    expect(na.calls).toEqual([{ id: "t1", tool: "teams_send", input: { chat_id: "19:x", chat_name: "개발팀", text: "안녕" }, location: "server", tier: "write" }]);
+    expect(na.calls).toEqual([{ id: "t1", tool: "teams_send", input: { chat_id: "19:x", chat_name: "개발팀", text: "안녕" }, location: "server", tier: "write", target: "개발1팀(실제)" }]);
     events = [];
     stream.mockResolvedValueOnce(reply([text("보냈어요")]));
     await runTurn(d, { ...base, conversationId: mem.convs[0].id, actions: [{ id: "t1", approve: true }] }, emit);
@@ -91,7 +91,7 @@ describe("runTurn", () => {
     stream.mockResolvedValue(reply([text("보냈어요")]));
     const go = () => runTurn(d, { ...base, conversationId: mem.convs[0].id, actions: [{ id: "t1", approve: true }] }, emit);
     const r = await Promise.allSettled([go(), go()]);
-    expect(d.runServer).toHaveBeenCalledTimes(1);
+    expect((d.runServer as ReturnType<typeof vi.fn>).mock.calls.filter((c) => c[0] === "teams_send")).toHaveLength(1);
     expect(r.filter((x) => x.status === "rejected")).toHaveLength(1);
     expect(String((r.find((x) => x.status === "rejected") as PromiseRejectedResult).reason)).toContain("이미 처리 중");
   });
@@ -100,7 +100,7 @@ describe("runTurn", () => {
     await runTurn(d, { ...base, text: "보내" }, emit);
     stream.mockResolvedValueOnce(reply([text("취소했어요")]));
     await runTurn(d, { ...base, conversationId: mem.convs[0].id, actions: [{ id: "t1", approve: false }] }, emit);
-    expect(d.runServer).not.toHaveBeenCalled();
+    expect(d.runServer).not.toHaveBeenCalledWith("teams_send", expect.anything());
     expect(mem.calls.at(-1)).toMatchObject({ tool: "teams_send", status: "cancelled" });
   });
   it("앱 — 기기 도구는 앱 결과로 이어 가고, 결과가 없으면 '앱 응답 없음'", async () => {
@@ -155,6 +155,53 @@ describe("runTurn", () => {
     const last = mem.msgs[mem.convs[0].id].at(-1)!;
     expect(last).toMatchObject({ role: "assistant", status: "stopped", content: [{ type: "text", text: "반쯤" }] });
     expect(events.some((e) => e.type === "error")).toBe(false);
+  });
+  it("확인 카드 대상은 서버가 조회한 실제 이름(모델이 쓴 chat_name 아님)", async () => {
+    stream.mockResolvedValueOnce(reply([use("t1", "teams_send", { chat_id: "19:x", chat_name: "모델이 지어낸 이름", text: "안녕" })]));
+    await runTurn(d, { ...base, text: "보내" }, emit);
+    expect(d.runServer).toHaveBeenCalledWith("teams_chats", {});
+    const na = events.find((e) => e.type === "needs_action") as Extract<ChatEvent, { type: "needs_action" }>;
+    expect(na.calls[0].target).toBe("개발1팀(실제)");
+    expect(d.recordUsage).toHaveBeenCalledTimes(1);
+    expect((d.audit as ReturnType<typeof vi.fn>).mock.calls[0][0].tools).toEqual(["teams_send"]);
+  });
+  it("Confluence 페이지 만들기 대상은 공간 이름(key)", async () => {
+    (d.runServer as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true, result: { spaces: [{ key: "DEV", name: "개발 공간" }], total: 1, canWrite: true } });
+    stream.mockResolvedValueOnce(reply([use("t1", "confluence_create_page", { space_key: "DEV", space_name: "가짜", title: "회의록", markdown: "본문" })]));
+    await runTurn(d, { ...base, text: "회의록 만들어" }, emit);
+    expect(d.runServer).toHaveBeenCalledWith("confluence_spaces", { key: "DEV" });
+    const na = events.find((e) => e.type === "needs_action") as Extract<ChatEvent, { type: "needs_action" }>;
+    expect(na.calls[0].target).toBe("개발 공간 (DEV)");
+  });
+  it("대상을 찾지 못하면 확인 카드 없이 오류 결과로 닫고 이어서 답", async () => {
+    stream.mockResolvedValueOnce(reply([use("t1", "teams_send", { chat_id: "19:없음", chat_name: "개발팀", text: "안녕" })])).mockResolvedValueOnce(reply([text("채팅방을 다시 찾을게요")]));
+    await runTurn(d, { ...base, text: "보내" }, emit);
+    expect(events.some((e) => e.type === "needs_action")).toBe(false);
+    expect(d.runServer).not.toHaveBeenCalledWith("teams_send", expect.anything());
+    expect(mem.calls).toEqual([expect.objectContaining({ tool: "teams_send", status: "error" })]);
+    expect(JSON.stringify(stream.mock.calls[1][0].messages)).toContain("대상을 확인하지 못했습니다");
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+  });
+  it("자동 실행 중 중지되면 도구 기록만 남기고 tool_result 행은 저장하지 않음", async () => {
+    const ac = new AbortController();
+    stream.mockResolvedValueOnce(reply([use("t1", "list_mail_inbox")]));
+    (d.runRelay as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => { ac.abort(); return { ok: true, result: { items: [] } }; });
+    await runTurn({ ...d, signal: ac.signal }, { ...base, text: "메일" }, emit);
+    const rows = mem.msgs[mem.convs[0].id];
+    expect(rows.map((r) => r.role)).toEqual(["user", "assistant"]);
+    expect(mem.calls).toHaveLength(1);
+    expect(stream).toHaveBeenCalledTimes(1);
+    expect(d.audit).toHaveBeenCalledTimes(1);
+  });
+  it("승인 실행 중 중지되면 tool_result 행은 저장하지 않음", async () => {
+    stream.mockResolvedValueOnce(reply([use("t1", "teams_send", { chat_id: "19:x", text: "a" })]));
+    await runTurn(d, { ...base, text: "보내" }, emit);
+    const ac = new AbortController();
+    (d.runServer as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => { ac.abort(); return { ok: true, result: { sent: true } }; });
+    await runTurn({ ...d, signal: ac.signal }, { ...base, conversationId: mem.convs[0].id, actions: [{ id: "t1", approve: true }] }, emit);
+    expect(mem.msgs[mem.convs[0].id].map((r) => r.role)).toEqual(["user", "assistant"]);
+    expect(mem.calls.at(-1)).toMatchObject({ tool: "teams_send", status: "ok" });
+    expect(stream).toHaveBeenCalledTimes(1);
   });
   it("남의 대화 id → TurnInputError", async () => {
     await expect(runTurn(d, { ...base, conversationId: "00000000-0000-0000-0000-000000000009", text: "x" }, emit)).rejects.toThrow("대화를 찾지 못했습니다");
