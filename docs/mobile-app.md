@@ -95,6 +95,8 @@
 - 관리자: `/admin/settings` "모바일 앱 — 비서(이노봇)" 스위치·사용자당 하루 턴 상한(기본 200, KST 하루, 설정·건수 조회 오류면 503으로 닫힘). 요청 하나는 보통 3~5턴, 한 번에 최대 10턴. 꺼져 있으면 앱 버튼이 숨는다.
 - **Claude 열기(데스크톱, 2026-10-13)**: macOS·Windows에서는 이노봇 바로 위에 Claude 열기 버튼(`ClaudeButton`, 같이 끌림)이 있다. `lib/assistant/claude_open.dart` — macOS `open -b com.anthropic.claudefordesktop`, Windows `%LOCALAPPDATA%\AnthropicClaude\claude.exe`(없으면 `claude://` 스킴 — Store 설치판), 둘 다 안 되면 브라우저로 `https://claude.ai/download`. 아이콘 `assets/brand/claude.png`(Claude 별, 바탕 `Brand.claudeInk`). 모바일에는 없다.
 
+2026-10-15부터 웹 채팅(`/chat`)이 서버 저장 대화 API(`/api/chat/turn`)를 쓴다. 하루 상한은 웹·앱 모두 `assistant_usage.turns`로 센다(기존 `action_history` '비서 턴' 건수 대신). 앱 이노봇의 새 API 이전은 별도 계획에서 한다 — 그때까지 `/api/assistant/turn`·`/execute`를 유지한다.
+
 ## 더보기 프로필·Microsoft 연결 (2026-10-07)
 - 더보기 머리에는 아마란스 조직도 이름 → 앱 계정 이름 순으로 표시한다. 이메일은 아래 줄에 유지한다.
 - 아바타는 연결된 Microsoft 계정의 사진을 사용한다(`GET /api/users/profile/photo`, Graph `/me/photos/96x96/$value`). 미연결·사진 없음·조회 실패 시 이름의 첫 글자를 표시한다. 서버는 현재 사용자만 조회하며 사진·토큰을 공유 캐시에 저장하지 않는다.

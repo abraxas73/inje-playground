@@ -64,6 +64,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/admin/chat-history` — Admin: all users' guide Q&A history viewer with filters
 - `/settings` — Dooray API token and project ID configuration (stored in localStorage) + Microsoft 계정 연결 카드(`MicrosoftAccountCard`: SharePoint 업로드용 위임 OAuth, refresh 토큰은 서버가 암호화 보관) + **SharePoint 업로드 기본 폴더**(`SharepointFolderCard` — 프로젝트에 폴더가 없을 때 쓰는 개인 폴더, user_settings `rfp_sharepoint_folder`) + **알림 채널 개인 워크플로우 URL**(`NotifyChannelCard` — 내 알림만 이 채널로, user_settings `teams_notify_webhook_url`, 테스트 전송 버튼)
 - `/manual` — 사용자 매뉴얼(`lib/manual/sections.ts`, 메뉴 맨 끝 링크). 웹 기능 + 모바일·데스크톱 앱 기능을 함께 다루며 앱 절은 `app` 필드로 목차·제목에 "(모바일·데스크톱 앱)"을 표시. 재현 이미지는 `images` 필드
+- `/chat`, `/chat/[id]` — 이노봇 웹 채팅(페이지 키 `assistant`, 메뉴 AI 맨 앞·상단 바 버튼): 서버 저장 대화·SSE 스트리밍·도구 칩·쓰기 확인 카드·첨부(5개·10MB)·연결 상태 띠. 웹의 아마란스는 데스크톱 앱 중계 읽기만. 설계 `docs/superpowers/specs/2026-10-15-llm-portal-phase1-design.md`
 - `/admin/audit` — Audit 로그(admin): 로그인 이력 + 액션 이력 통합 조회(구분 로그인 성공/**로그인 실패**/**로그인 시도**/액션/API 호출, 카테고리, KST 기간, 검색 — 사용자·액션·IP·상세, 페이지 CSV). 뷰 `audit_log`는 service_role만 읽는다. 런북 `docs/audit-log.md`
 - `/admin/directory` — 조직/팀(admin): 사내 조직도(그룹웨어 아마란스, inno-creed MCP — Claude 사용량 표 "소속" 컬럼의 출처)·Claude 멤버·초대·조직·설정(관리형 설정 JSON) 탭
 - `/sharepoint` — SharePoint 문서(user 이상): 즐겨찾기(링크 붙여 넣기·★)·자주 쓰는/나와 공유/주변에서 많이 보는 문서·검색. 본인 Microsoft 연결 권한으로만. 홈 카드 `SharepointDocsCard`
@@ -101,6 +102,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `GET /api/gw/mail`, `GET /api/gw/mail/[muid]`, `POST /api/gw/mail/[muid]/unread`, `GET /api/gw/mail/search?q&sort` — 웹 메일(데스크톱 앱 중계, `lib/gw/mail.ts` parseInbox·parseDetail·parseSearch·callApp; 본문·인자·검색어는 기록하지 않음). 검색은 앱의 기기 안 색인 도구 `search_mail_index`(tools.json 밖, Claude 커넥터에는 안 보임; 앱 1.6.9+)
 - `GET /api/desktop/presence` — 내 계정의 macOS·Windows 앱 최근 로그인 시각(홈 설치 안내 카드용, `lib/desktop/presence.ts`). `GET /api/desktop/release`·`/api/desktop/download/[platform]` — 데스크톱 앱 배포 정보·설치 파일
 - `GET /api/mobile/release` — 플랫폼별 최신 앱 버전·설치 링크(user 이상, 쿠키·Bearer; `lib/mobile/release.ts`). 웹 `/apps`와 앱 시작 시 업데이트 확인이 쓴다. `POST /api/mobile/release/sharepoint` — 최신 Android APK 사본을 SharePoint 폴더(settings `mobile_sharepoint_folder`)에 `innogrid-app-<X.Y.Z>.apk`로 올림(릴리스 스크립트가 `CRON_SECRET`+operator 관리자 이메일로, 또는 관리자 세션; 그 관리자의 Microsoft 연결 사용)
+- `POST /api/chat/turn`(SSE), `GET /api/chat/{config,status,conversations}`, `GET·PATCH·DELETE /api/chat/conversations/[id]`, `POST /api/chat/attachments`, 크론 `/api/cron/chat-purge`, 관리자 `GET /api/admin/assistant-usage` — 이노봇 대화 플랫폼(`lib/chat/*`: 엔진·마스킹·도구 위치·저장소). 거버넌스는 턴 API 한 곳: 권한 → 허용 모델(settings `assistant_models`) → 하루 상한(`assistant_usage`) → 마스킹 → 도구 목록. 보존 settings `assistant_retention_days`(기본 90)
 - `POST /api/assistant/turn`, `POST /api/assistant/execute` — 모바일 비서 이노봇(user 이상): turn은 Claude 한 턴 중계(도구 스키마 포함, 무상태, settings `assistant_enabled`·`assistant_daily_turns`), execute는 Teams 서버 도구(teams_chats·teams_mentions·teams_send, `teams_chat` 페이지 권한). 런북 `docs/mobile-app.md` §비서
 - `POST /api/mobile/briefing` — 홈 '데일리 브리핑' 카드(user 이상, 제목 수준 payload ≤16KB → 서버가 다시 자름 → Claude Sonnet 5.5 2~3문장; settings `mobile_briefing_llm=off` 또는 `ANTHROPIC_API_KEY` 없음이면 `{enabled:false}`; 감사엔 건수만). `GET /api/teams/mentions?days=` — 홈 브리핑용 Teams 답장 대기(본인 위임 토큰, 그룹 멘션·1:1, 내가 답한 건 제외). 런북 `docs/mobile-app.md` §홈 브리핑
 - `POST /api/mobile/login`, `POST /api/mobile/web-token`, 페이지 `/auth/mobile` — 모바일 앱 인증(규칙 `.claude/rules/mobile.md`, 런북 `docs/mobile-app.md`). `/api/*`는 `Authorization: Bearer`도 받는다(`createServerSupabase`·미들웨어 분기)
@@ -121,6 +123,9 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 
 ### Supabase Tables (mcp)
 - `mcp_calls`(MCP 도구 호출 중계 행: status·result jsonb·worker, RLS·Realtime, 응답 후 삭제·10분 크론 정리) — SQL `docs/sql/2026-10-10-mcp-calls.sql`
+
+### Supabase Tables (chat)
+- `chat_conversations`·`chat_messages`·`chat_tool_calls`(결과 원문 없이 요약만)·`chat_attachments`(버킷 `chat`)·`assistant_usage`(사용자×KST 날짜, RPC `chat_usage_add`) — RLS 본인만, SQL `docs/sql/2026-10-15-chat-portal.sql`, 쓰기 확인 중복 실행 방지는 `docs/sql/2026-10-15-chat-tool-calls-once.sql`(승인은 status `running`으로 먼저 claim)
 
 ### Key Patterns
 
