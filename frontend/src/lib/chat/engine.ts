@@ -44,13 +44,14 @@ export async function runTurn(d: TurnDeps, inp: TurnInput, emit: (e: ChatEvent) 
   const callOf = (u: { id: string; name: string; input: unknown }): Call => ({ id: u.id, tool: u.name, input: (u.input ?? {}) as Record<string, unknown>, location: toolset.location[u.name] ?? null, tier: tierOf(u.name) });
   const live = new Map<string, string>();
   const used: string[] = [];
-  let masked = 0, tin = 0, tout = 0;
+  let masked = 0, tin = 0, tout = 0, lastMasked = 0;
   const finish = () => d.audit({ tools: used, model: inp.model, inputTokens: tin, outputTokens: tout, masked, client: inp.client });
 
   const rows = await d.store.messages(convId);
   const pending = pendingCalls(rows);
   if (inp.actions) {
     if (!pending) throw new TurnInputError("처리할 작업이 없습니다.");
+    if (!(await d.store.claimToolCalls(pending.messageId, pending.uses.map((u) => { const c = callOf(u); return { toolUseId: c.id, tool: c.tool, location: c.location ?? "server" }; })))) throw new TurnInputError("이미 처리 중인 작업입니다.");
     const r = await executeCalls(d, pending.uses.map(callOf), inp.actions, emit);
     await d.store.toolCalls(pending.messageId, r.records);
     await d.store.append(convId, { role: "user", content: r.stored, masked: r.masked });
@@ -90,11 +91,11 @@ export async function runTurn(d: TurnDeps, inp: TurnInput, emit: (e: ChatEvent) 
       return finish();
     }
     tin += msg.usage.input_tokens; tout += msg.usage.output_tokens;
-    await d.recordUsage({ model: inp.model, inputTokens: msg.usage.input_tokens, outputTokens: msg.usage.output_tokens, masked: round === 0 ? masked : 0 });
     const messageId = await d.store.append(convId, { role: "assistant", content: msg.content as unknown as StoredBlock[], inputTokens: msg.usage.input_tokens, outputTokens: msg.usage.output_tokens });
+    await d.recordUsage({ model: inp.model, inputTokens: msg.usage.input_tokens, outputTokens: msg.usage.output_tokens, masked: round === 0 ? masked : lastMasked });
     await d.store.touch(convId, { model: inp.model, expiresAt: expiresAt(new Date(), ephemeral, d.retentionDays) });
     const calls = msg.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use").map(callOf);
-    if (!calls.length) { emit({ type: "done", messageId }); return finish(); }
+    if (!calls.length || round >= MAX_SERVER_ROUNDS) { emit({ type: "done", messageId }); return finish(); }
     if (calls.some(needsAction)) {
       used.push(...calls.map((c) => c.tool));
       emit({ type: "needs_action", messageId, calls: calls.map((c) => ({ ...c, location: c.location ?? "server" })) as PendingCall[] });
@@ -103,7 +104,7 @@ export async function runTurn(d: TurnDeps, inp: TurnInput, emit: (e: ChatEvent) 
     const r = await executeCalls(d, calls, null, emit);
     await d.store.toolCalls(messageId, r.records);
     await d.store.append(convId, { role: "user", content: r.stored, masked: r.masked });
-    r.live.forEach((v, k) => live.set(k, v)); masked += r.masked; used.push(...r.records.map((x) => x.tool));
+    r.live.forEach((v, k) => live.set(k, v)); masked += r.masked; lastMasked = r.masked; used.push(...r.records.map((x) => x.tool));
     if (r.masked) emit({ type: "masked", count: r.masked });
   }
 }

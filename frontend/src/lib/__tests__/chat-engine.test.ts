@@ -10,12 +10,14 @@ function memStore() {
   const msgs: Record<string, MsgRow[]> = {};
   const calls: Array<{ messageId: string; tool: string; status: string; summary: string }> = [];
   let n = 0;
+  const claimed = new Set<string>();
   const store: ChatStore = {
     async create(o) { const c = { id: `00000000-0000-0000-0000-00000000000${convs.length + 1}`, user_id: o.userId, title: o.title, model: o.model, ephemeral: o.ephemeral, created_at: "", last_message_at: "", expires_at: o.expiresAt }; convs.push(c); msgs[c.id] = []; return c; },
     async get(userId, id) { return convs.find((c) => c.id === id && c.user_id === userId) ?? null; },
     async messages(id) { return msgs[id].map((m) => ({ ...m, content: JSON.parse(JSON.stringify(m.content)) })); },
     async append(id, m) { const row: MsgRow = { id: `m${++n}`, role: m.role, content: m.content as StoredBlock[], status: m.status ?? "ok", masked_count: m.masked ?? 0, created_at: "" }; msgs[id].push(row); return row.id; },
     async toolCalls(messageId, rows) { calls.push(...rows.map((r) => ({ messageId, tool: r.tool, status: r.status, summary: r.summary }))); },
+    async claimToolCalls(messageId, rows) { if (rows.some((r) => claimed.has(`${messageId}:${r.toolUseId}`))) return false; rows.forEach((r) => claimed.add(`${messageId}:${r.toolUseId}`)); return true; },
     async touch() {},
     async linkAttachments() { return []; },
   };
@@ -83,6 +85,16 @@ describe("runTurn", () => {
     expect(d.runServer).toHaveBeenCalledWith("teams_send", { chat_id: "19:x", chat_name: "개발팀", text: "안녕" });
     expect(events.at(-1)).toMatchObject({ type: "done" });
   });
+  it("같은 승인 요청이 동시에 두 번 와도 쓰기 도구는 한 번만", async () => {
+    stream.mockResolvedValueOnce(reply([use("t1", "teams_send", { chat_id: "19:x", text: "a" })]));
+    await runTurn(d, { ...base, text: "보내" }, emit);
+    stream.mockResolvedValue(reply([text("보냈어요")]));
+    const go = () => runTurn(d, { ...base, conversationId: mem.convs[0].id, actions: [{ id: "t1", approve: true }] }, emit);
+    const r = await Promise.allSettled([go(), go()]);
+    expect(d.runServer).toHaveBeenCalledTimes(1);
+    expect(r.filter((x) => x.status === "rejected")).toHaveLength(1);
+    expect(String((r.find((x) => x.status === "rejected") as PromiseRejectedResult).reason)).toContain("이미 처리 중");
+  });
   it("거절하면 실행하지 않고 취소 결과", async () => {
     stream.mockResolvedValueOnce(reply([use("t1", "teams_send", { chat_id: "19:x", text: "a" })]));
     await runTurn(d, { ...base, text: "보내" }, emit);
@@ -117,6 +129,13 @@ describe("runTurn", () => {
     expect(stream).toHaveBeenCalledTimes(MAX_SERVER_ROUNDS + 1);
     expect(stream.mock.calls.at(-1)![0].noTools).toBe(true);
     expect(d.recordUsage).toHaveBeenCalledTimes(MAX_SERVER_ROUNDS + 1);
+  });
+  it("도구 없는 마지막 호출에서 tool_use가 와도 실행하지 않고 done", async () => {
+    stream.mockImplementation(async () => reply([use(`t${Math.random()}`, "teams_chats")]));
+    await runTurn(d, { ...base, text: "채팅 목록" }, emit);
+    expect(stream).toHaveBeenCalledTimes(MAX_SERVER_ROUNDS + 1);
+    expect(d.runServer).toHaveBeenCalledTimes(MAX_SERVER_ROUNDS);
+    expect(events.at(-1)).toMatchObject({ type: "done" });
   });
   it("Claude 실패 → failed 저장·error(retryable), 다시 시도 → 실패 응답 빼고 재호출", async () => {
     stream.mockRejectedValueOnce(new Error("overloaded"));

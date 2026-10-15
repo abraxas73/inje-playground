@@ -35,11 +35,13 @@ create table if not exists public.chat_tool_calls (
   tool_use_id text not null,
   tool text not null,
   location text not null check (location in ('server','device','desktop-relay')),
-  status text not null check (status in ('ok','error','timeout','cancelled')),
+  status text not null check (status in ('running','ok','error','timeout','cancelled')),
   summary text not null default '',
   created_at timestamptz not null default now()
 );
 create index if not exists chat_tool_calls_msg_idx on public.chat_tool_calls(message_id);
+-- 승인 요청 중복 실행 방지: 실행 전 'running' 행으로 선점(같은 호출은 한 번만)
+create unique index if not exists chat_tool_calls_once on public.chat_tool_calls(message_id, tool_use_id);
 
 -- 첨부는 대화보다 먼저 올라온다(새 대화 첫 메시지). 대화가 지워지면 set null → 크론이 하루 지난 고아 행과 버킷 객체를 지운다.
 create table if not exists public.chat_attachments (
