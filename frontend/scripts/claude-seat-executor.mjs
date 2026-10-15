@@ -2,30 +2,28 @@
 // frontend/scripts/claude-seat-executor.mjs
 // Claude 시트 할당·해제 실행기 — 관리자 Mac에서 상시 실행(launchd com.innogrid.claude-seat-executor).
 //   node scripts/claude-seat-executor.mjs            # 15초마다 대기 요청을 claim해 claude.ai에 반영
-//   node scripts/claude-seat-executor.mjs --login    # 창을 띄워 소유자 계정으로 직접 로그인(1회). 창을 닫으면 끝
+//   node scripts/claude-seat-executor.mjs --check    # 읽기 전용 ego 연결/소유자 권한 점검
 //   node scripts/claude-seat-executor.mjs --once     # 한 행만 처리하고 종료(점검용)
 // 환경: CLAUDE_OTEL_INGEST_TOKEN(없으면 frontend/.env.local → ~/.config/inje-playground/work-metrics.env),
-//       APP_URL(기본 프로덕션), SEAT_PROFILE_DIR(기본 ~/.claude-seat/profile), SEAT_HEADLESS(기본 1)
+//       APP_URL(기본 프로덕션), SEAT_EGO_SPACE_ID(기존 ego 전용 워크스페이스 ID, 필수)
 // 서버 계약: GET ?claim=1 → {row}, PATCH {id,status,before_tier,after_tier,error,executor}, PUT heartbeat — src/app/api/admin/claude-usage/seat-actions
 // 스펙 docs/superpowers/specs/2026-09-29-claude-seat-actions-design.md §6
-import { chromium } from "playwright-core";
+import { egoRequest } from "./lib/claude-seat-ego.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TIER_TO_API, findMember, readToken } from "./lib/claude-seat.mjs";
 
-const VERSION = "2026-09-29.1";
+const VERSION = "2026-10-16.ego";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP_URL = (process.env.APP_URL || "https://inje-playground.vercel.app").replace(/\/$/, "");
-const PROFILE = process.env.SEAT_PROFILE_DIR || path.join(os.homedir(), ".claude-seat", "profile");
-const HEADLESS = process.env.SEAT_HEADLESS !== "0";
+const SPACE_ID = Number(process.env.SEAT_EGO_SPACE_ID);
 const POLL_MS = 15_000;
 const HOST = os.hostname();
 const API = `${APP_URL}/api/admin/claude-usage/seat-actions`;
 let busy = false;
 let stopping = false;
-let loginAt = 0;
 let loginOk = false;
 
 const log = (obj) => console.log(JSON.stringify({ t: new Date().toISOString(), ...obj }));
@@ -61,35 +59,13 @@ async function patchWithRetry(body) {
   }
 }
 
-async function launch(headless) {
-  fs.mkdirSync(PROFILE, { recursive: true, mode: 0o700 });
-  const opts = { headless, args: ["--disable-blink-features=AutomationControlled"], viewport: { width: 1280, height: 900 } };
-  try { return await chromium.launchPersistentContext(PROFILE, { ...opts, channel: "chrome" }); } // 로컬 Chrome 우선
-  catch { return chromium.launchPersistentContext(PROFILE, opts); }                                  // 없으면 Playwright Chromium
-}
+const claudeFetch = (_page, url, init) => egoRequest(SPACE_ID, url, init);
 
-/** claude.ai 페이지 안에서 fetch — 소유자 세션 쿠키가 붙는다. 반환은 {status, json|text} */
-async function claudeFetch(page, url, init) {
-  return page.evaluate(async ({ url, init }) => {
-    const r = await fetch(url, { credentials: "include", ...init });
-    const text = await r.text();
-    let json = null;
-    try { json = JSON.parse(text); } catch { /* not json */ }
-    return { status: r.status, json, text: text.slice(0, 200) };
-  }, { url, init: init ?? {} });
-}
-
-async function ensureClaudePage(ctx) {
-  const page = ctx.pages()[0] ?? (await ctx.newPage());
-  // Cloudflare 확인은 실제 창(headed)에서만 풀린다(2026-09-29: 헤드리스는 API 경로까지 403 challenge) — 래퍼는 SEAT_HEADLESS=0
-  if (!page.url().startsWith("https://claude.ai")) await page.goto("https://claude.ai/", { waitUntil: "domcontentloaded", timeout: 60_000 });
-  if (Date.now() - loginAt > 60_000) { // 로그인 확인은 60초 캐시 — 매 15초 루프마다 호출하지 않는다
-    const r = await claudeFetch(page, "/api/organizations");
-    loginAt = Date.now();
-    loginOk = r.status === 200;
-    if (!loginOk) log({ login_check: r.status, url: page.url().slice(0, 60), head: String(r.text ?? "").slice(0, 80) });
-  }
-  return { page, loggedIn: loginOk };
+async function ensureClaudePage() {
+  // Check access before claiming work, so a non-owner session leaves requests queued.
+  const r = await claudeFetch(null, "/api/organizations/4ad6b3e9-552f-4b67-bb96-25b51d1852f4/analytics/activity/overview");
+  loginOk = r.status === 200 && r.json !== null;
+  return { page: SPACE_ID, loggedIn: loginOk };
 }
 
 async function process1(page, row) {
@@ -117,13 +93,13 @@ async function process1(page, row) {
   }
 }
 
-async function loop(ctx, once) {
+async function loop(once) {
   for (;;) {
-    if (stopping) { await ctx.close().catch(() => {}); process.exit(0); }
+    if (stopping) { process.exit(0); }
     let page, loggedIn;
-    try { ({ page, loggedIn } = await ensureClaudePage(ctx)); }
+    try { ({ page, loggedIn } = await ensureClaudePage()); }
     catch (e) { log({ page_error: e.message }); await heartbeat(false, `페이지 오류: ${e.message.slice(0, 120)}`); if (once) return; await sleep(POLL_MS); continue; }
-    if (!loggedIn) { log({ logged_in: false }); await heartbeat(false, "로그인 필요 — claude-seat-login.sh 실행"); if (once) return; await sleep(POLL_MS); continue; }
+    if (!loggedIn) { log({ logged_in: false }); await heartbeat(false, "ego 전용 공간에서 조직 소유자 로그인/권한 확인 필요"); if (once) return; await sleep(POLL_MS); continue; }
     await heartbeat(true, null);
     let claimed;
     try { claimed = await api("GET", `${API}?claim=1&executor=${encodeURIComponent(HOST)}`); }
@@ -136,7 +112,7 @@ async function loop(ctx, once) {
       try { await patchWithRetry({ id: row.id, executor: HOST, ...result }); } catch (e) { log({ patch_error: e.message }); }
       log({ done: row.id, ...result });
       busy = false;
-      if (stopping) { await ctx.close().catch(() => {}); process.exit(0); }
+      if (stopping) { process.exit(0); }
       if (once) return;
       continue; // 대기 요청이 더 있을 수 있으니 바로 다음 claim
     }
@@ -147,27 +123,21 @@ async function loop(ctx, once) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
-  const login = process.argv.includes("--login");
-  const once = process.argv.includes("--once");
-  const ctx = await launch(login ? false : HEADLESS);
-  if (login) {
-    const page = ctx.pages()[0] ?? (await ctx.newPage());
-    await page.goto("https://claude.ai/login", { waitUntil: "domcontentloaded" });
-    console.log("브라우저에서 소유자 계정으로 로그인(Cloudflare 확인 포함)한 뒤 창을 닫으세요. 프로필:", PROFILE);
-    // Chrome은 창을 다 닫아도 프로세스가 남아 close 이벤트가 안 올 수 있다 — 열린 탭이 0개가 되면 우리가 닫는다(쿠키 flush)
-    await new Promise((r) => { ctx.on("close", r); const t = setInterval(() => { if (ctx.pages().length === 0) { clearInterval(t); r(); } }, 1000); });
-    stopping = true;
-    await ctx.close().catch(() => {});
-    console.log("로그인 세션을 저장했습니다. 프로필:", PROFILE);
+  if (process.argv.includes("--login")) {
+    console.log(`ego 전용 워크스페이스 ${SPACE_ID}의 Claude에 소유자 계정으로 로그인하세요. 공간과 탭은 닫지 마세요.`);
     return;
   }
-  ctx.on("close", () => { if (stopping) return; log({ browser_closed: true }); process.exit(1); });
-  log({ start: VERSION, host: HOST, app: APP_URL, headless: HEADLESS });
-  const stop = async () => { log({ stop: true }); stopping = true; if (!busy) { await ctx.close().catch(() => {}); process.exit(0); } };
+  if (process.argv.includes("--check")) {
+    const { loggedIn } = await ensureClaudePage();
+    console.log(JSON.stringify({ spaceId: SPACE_ID, loggedIn, readOnly: true }));
+    if (!loggedIn) process.exitCode = 2;
+    return;
+  }
+  log({ start: VERSION, host: HOST, app: APP_URL, ego_space_id: SPACE_ID });
+  const stop = () => { stopping = true; if (!busy) process.exit(0); };
   process.on("SIGTERM", stop); process.on("SIGINT", stop);
-  await loop(ctx, once);
-  stopping = true;
-  await ctx.close().catch(() => {});
+  await loop(process.argv.includes("--once"));
+  // User requested a persistent workspace: leave it open between runs.
 }
 
 function isMainModule() {

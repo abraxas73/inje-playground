@@ -9,10 +9,10 @@ Vercel Cron으로 돌릴 수 없는 작업(로컬 Chrome 세션·사내망·개�
 |---|---|---|---|---|
 | `com.innogrid.gitlab-metrics-sync` | 매일 07:45 | 사내 GitLab 커밋·MR 일 집계(최근 3일 창) → `POST /api/admin/work-metrics/sync` (Vercel IP 차단 우회) | `~/.claude/hooks/gitlab-metrics-sync-daily.sh` → `frontend/scripts/gitlab-metrics-sync.py` | `~/Library/Logs/gitlab-metrics-sync.log` |
 | `com.claude.teams-daily-quote` | 매일 08:00 | Teams 채널 오늘의 격언(claude -p 생성, 웹훅 전송) | `~/.claude/hooks/teams-daily-quote.sh` | `~/.claude/logs/teams-daily-quote.log` |
-| `com.innogrid.claude-usage-csv` | 매일 09:05 | Claude 사용량 CSV·멤버·초대·시트 수집 — `/claude-usage-csv` 스킬을 `claude -p --chrome`으로 헤드리스 실행 | `~/.claude/hooks/claude-usage-csv-daily.sh` | `~/.claude/logs/claude-usage-csv.log`, 회차별 `~/.claude/logs/claude-usage-csv/YYYY-MM-DD.json` |
-| `com.innogrid.claude-seat-executor` | 상시(KeepAlive) | Claude 시트 할당·해제 요청을 claude.ai에 반영(전용 프로필 Chrome 창 상시, 15초 폴링 — 헤드리스는 Cloudflare에 막힘). 런북 `docs/claude-usage.md` §9 | `~/.claude/hooks/claude-seat-executor.sh` → `frontend/scripts/claude-seat-executor.mjs` | `~/Library/Logs/claude-seat-executor.log` |
+| `com.innogrid.claude-usage-csv` | 매일 09:05 | Claude 사용량 CSV·멤버·초대·시트 수집 — `/claude-usage-csv` 스킬을 `claude -p --no-chrome` + ego-browser으로 헤드리스 실행 | `~/.claude/hooks/claude-usage-csv-daily.sh` | `~/.claude/logs/claude-usage-csv.log`, 회차별 `~/.claude/logs/claude-usage-csv/YYYY-MM-DD.json` |
+| `com.innogrid.claude-seat-executor` | 상시(KeepAlive) | Claude 시트 할당·해제 요청을 ego 전용 워크스페이스 29에서 처리(15초 폴링, Chrome 실행 없음). 런북 `docs/claude-usage.md` §9 | `~/.claude/hooks/claude-seat-executor.sh` → `frontend/scripts/claude-seat-executor.mjs` | `~/Library/Logs/claude-seat-executor.log` |
 
-plist는 모두 `~/Library/LaunchAgents/<라벨>.plist`. 전제: Mac이 깨어 있어야 하고(잠자기 중 놓친 일정은 깨어난 뒤 실행, 꺼져 있으면 실행 안 됨), `claude-usage-csv`는 Chrome 실행 + claude.ai 7개 조직 소유자 로그인 + Claude in Chrome 확장 연동이 필요하다. 스크립트는 **평소 프로필 Chrome**(`--user-data-dir` 없는 인스턴스)이 없으면 `open -nga`로 띄운다 — 시트 실행기 Chrome이 상시 떠 있어 `pgrep -x`만으로는 재부팅 뒤 평소 Chrome 미실행을 놓쳤다(2026-10-02). 확장이 붙지 않으면(연결 브라우저 0개) Chrome 확장 설정에서 로그아웃 → 재로그인하면 중계 서버에 다시 등록된다.
+plist는 모두 `~/Library/LaunchAgents/<라벨>.plist`. 전제: Mac이 깨어 있어야 한다(잠자기 중 놓친 일정은 깨어난 뒤 실행, 꺼져 있으면 실행 안 됨). `claude-usage-csv`는 ego-browser CLI와 **ego 브라우저의 claude.ai 7개 조직 소유자 로그인**이 필요하다. 예약 래퍼는 Chrome을 띄우지 않으며 `--no-chrome`으로 확장 연동을 끈다. ego 연결·로그인·조직 권한이 없으면 해당 조직을 보류하고 기존 데이터를 유지한다. 09:05 일정은 그대로이며 래퍼/스킬 수정은 다음 실행부터 적용된다(launchd 재등록 불필요). 전용 ego TaskSpace **28**과 p1을 계속 열어 두고 매일 재사용한다. 공간이 삭제되었거나 사용자 제어 중이면 보류한다. 시트 실행기도 별도 ego 공간 29를 재사용한다.
 
 ## 한 곳에서 보기: `claude-jobs`
 
@@ -41,3 +41,9 @@ claude-jobs gui             # 시스템 설정 > 일반 > 로그인 항목 및 �
 ## 비용·한도
 
 `claude -p`를 쓰는 작업(`claude-usage-csv`, `teams-daily-quote`)은 이 Mac의 CLI가 claude.ai Team 시트로 로그인돼 있어 **API 과금이 아니라 시트 사용량 한도**를 소모한다(`claude auth status`로 확인, `ANTHROPIC_API_KEY`는 설정하지 않는다). `--output-format json`의 `total_cost_usd`는 정가 기준 추정치일 뿐 청구액이 아니다. `claude-usage-csv` 1회는 약 10분·토큰 190만(대부분 캐시 읽기)이며 오전 인터랙티브 한도를 일부 소모하므로, 한도가 빠듯하면 래퍼에 `--model sonnet`을 넣는 것을 검토한다(안정성 재검증 필요).
+
+### 2026-10-16 ego 전환
+
+Chrome을 재실행하던 시트 실행기의 launchd 작업을 중지한 뒤, 실행기를 ego-browser로 전환했다. 래퍼의 `SEAT_EGO_SPACE_ID=29`로 같은 공간과 p1을 재사용한다. 공간 없음·사용자 제어 중·소유자 권한 부족이면 요청을 claim하지 않고 오프라인 하트비트로 대기한다. 공간/탭은 종료하지 않으며 삭제된 공간을 자동 생성하지 않는다. 사용량 수집은 별도 공간 28, 매일 09:05로 유지한다.
+
+예약 래퍼 원본은 `scripts/launchd/`에 보관한다. 이 Mac에는 같은 내용을 `~/.claude/hooks/`에 적용했다. 다른 Mac에서는 두 래퍼의 저장소 경로와 ego 공간 ID를 맞춘 뒤 설치해야 한다.
