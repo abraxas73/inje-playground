@@ -85,7 +85,7 @@
 - 데일리 브리핑 지침: 평일·휴일 아님·출근 기록 없음이면 첫 문장에서 출근 기록을 남기라고 알린다(`briefingSystemPrompt`). 같은 조건(`clockInPending`)이면 브리핑 카드에 "출퇴근 바로 가기" 버튼(앱 안 `/gw/attendance`)이 붙는다.
 
 ## 비서 이노봇 (2026-10-05)
-스펙 `docs/superpowers/specs/2026-10-05-mobile-assistant-design.md`. 모든 탭 오른쪽 아래 이노봇(길게 눌러 위아래 이동) → 대화 시트. 서버 `POST /api/assistant/turn`은 Claude(Sonnet 5.5, `thinking: between_tools`, 도구 37개) 한 번 호출을 중계만 하고(대화 저장 없음, 감사엔 도구 이름만), 앱 `lib/assistant/assistant_session.dart`가 턴 루프를 돈다. 아마란스 도구는 앱이 `GwClient`로 직접(`gw_assistant_api.dart` — inno-creed 실측 payload), Teams·Confluence·SharePoint 도구는 `POST /api/assistant/execute`(각각 Teams 채팅·Confluence·SharePoint 페이지 권한 필요).
+스펙 `docs/superpowers/specs/2026-10-05-mobile-assistant-design.md`. 모든 탭 오른쪽 아래 이노봇(길게 눌러 위아래 이동) → 대화 시트. 서버 `POST /api/chat/turn`(앱은 `client:"app"`, SSE)이 Claude(Sonnet 5.5, `thinking: between_tools`, max_tokens 8192, 스트리밍, 도구 37개)를 호출하고 대화를 저장한다(결과는 요약만, 감사엔 도구 이름·토큰·가린 건수). 앱 도구가 필요하면 서버가 `needs_action`을 보내고, 앱이 도구를 실행(쓰기는 확인 카드 후)해 `actions`로 회신한다. 서버 읽기 도구는 서버가 직접 실행하고, 서버 쓰기는 승인 때 서버가 실행한다. 앱 `lib/assistant/assistant_session.dart`가 턴 루프를 돈다. 아마란스 도구는 앱이 `GwClient`로 직접(`gw_assistant_api.dart` — inno-creed 실측 payload), Teams·Confluence·SharePoint 도구는 `POST /api/assistant/execute`(각각 Teams 채팅·Confluence·SharePoint 페이지 권한 필요) — 선택지(`offer_choices`) 안의 서버 쓰기와 확인 카드용 대상 조회도 이 경로. 🕘 대화 기록(`conversation_list_sheet.dart`)은 웹 `/chat`과 같은 서버 대화를 보여 주고 열어서 이어 간다. 초기화 = 새 대화. 구버전 앱용 `/api/assistant/turn`은 유지. 알려진 한계: 앱 쓰기를 실행한 뒤 회신이 실패하면 서버는 그 호출을 "취소됨"으로 기록한다, 중지하면 결과를 보내지 않는다.
 - 등급(`assistant_tools.dart` = 서버 `TOOL_TIERS`): 조회 즉시 · 쓰기 확인 카드 · 메일 발송은 경고 · `undo_last`는 실행 기록(`assistant.journal`, 20건, 24시간 안)에서 반대 작업 카드. **카드 문장은 모델이 쓴 이름이 아니라 앱이 조회한 실제 대상**(참석자 조직도 이름(부서), 회의실 이름, 예약·일정 제목, Teams 채팅방 이름)으로 만들고, 조회되지 않으면 카드 없이 모델에 오류로 돌려준다. 앞 작업이 실패하면 뒤 작업은 실행하지 않는다.
 - **메일 찾기 `mail_search`(2026-10-13)**: 기기 안 색인(§메일 검색)을 앱 검색 화면과 같은 검색식으로 — 결과는 제목·보낸 사람·시각·본문 발췌·muid, `index.syncing`이면 동기화를 띄운 상태(모델은 `search`로 보완). 결과 muid는 `mail_read` 허용 집합에 들어간다. 색인을 쓸 수 없는 기기면 안내만.
 - 메일 본문은 같은 요청의 목록·검색(mail_list·mail_search·search) muid만 5통, 8,000자. 메일 발송이 시간 초과면 "보낸편지함 확인" 안내(자동 재시도 없음). 일정 등록은 `mailSend: N`, 예약 참석자는 본인. 점심 13:00–14:00과 오늘 지난 시각은 빈 회의실에서 뺀다.
@@ -95,7 +95,7 @@
 - 관리자: `/admin/settings` "모바일 앱 — 비서(이노봇)" 스위치·사용자당 하루 턴 상한(기본 200, KST 하루, 설정·건수 조회 오류면 503으로 닫힘). 요청 하나는 보통 3~5턴, 한 번에 최대 10턴. 꺼져 있으면 앱 버튼이 숨는다.
 - **Claude 열기(데스크톱, 2026-10-13)**: macOS·Windows에서는 이노봇 바로 위에 Claude 열기 버튼(`ClaudeButton`, 같이 끌림)이 있다. `lib/assistant/claude_open.dart` — macOS `open -b com.anthropic.claudefordesktop`, Windows `%LOCALAPPDATA%\AnthropicClaude\claude.exe`(없으면 `claude://` 스킴 — Store 설치판), 둘 다 안 되면 브라우저로 `https://claude.ai/download`. 아이콘 `assets/brand/claude.png`(Claude 별, 바탕 `Brand.claudeInk`). 모바일에는 없다.
 
-2026-10-15부터 웹 채팅(`/chat`)이 서버 저장 대화 API(`/api/chat/turn`)를 쓴다. 하루 상한은 웹·앱 모두 `assistant_usage.turns`로 센다(기존 `action_history` '비서 턴' 건수 대신). 앱 이노봇의 새 API 이전은 별도 계획에서 한다 — 그때까지 `/api/assistant/turn`·`/execute`를 유지한다.
+2026-10-15부터 웹 채팅(`/chat`)이 서버 저장 대화 API(`/api/chat/turn`)를 쓴다. 하루 상한은 웹·앱 모두 `assistant_usage.turns`로 센다(기존 `action_history` '비서 턴' 건수 대신). 앱 이노봇도 이 API로 이전했다(앱 1.7.0~). `/api/assistant/turn`은 구버전 앱용으로, `/execute`는 선택지·카드 대상 조회용으로 유지한다.
 
 ## 더보기 프로필·Microsoft 연결 (2026-10-07)
 - 더보기 머리에는 아마란스 조직도 이름 → 앱 계정 이름 순으로 표시한다. 이메일은 아래 줄에 유지한다.
