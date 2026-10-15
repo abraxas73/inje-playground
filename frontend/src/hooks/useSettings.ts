@@ -32,6 +32,8 @@ export const SETTING_KEYS = [
   // 모바일 앱 비서(이노봇) — on(빈 값 포함)/off, 사용자당 하루 턴 상한(빈 값=200)
   "assistant_enabled",
   "assistant_daily_turns",
+  "assistant_models",
+  "assistant_retention_days",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
