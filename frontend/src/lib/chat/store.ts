@@ -38,7 +38,7 @@ export function supabaseChatStore(admin: SupabaseClient): ChatStore {
       return (data as ConvRow | null) ?? null;
     },
     async messages(convId) {
-      return must(await admin.from("chat_messages").select("id,role,content,status,masked_count,created_at").eq("conversation_id", convId).order("created_at").limit(400), "메시지 조회") as MsgRow[];
+      return (must(await admin.from("chat_messages").select("id,role,content,status,masked_count,created_at").eq("conversation_id", convId).order("created_at", { ascending: false }).limit(400), "메시지 조회") as MsgRow[]).reverse();
     },
     async append(convId, m) {
       const row = must(await admin.from("chat_messages").insert({ conversation_id: convId, role: m.role, content: m.content, status: m.status ?? "ok", input_tokens: m.inputTokens ?? 0, output_tokens: m.outputTokens ?? 0, masked_count: m.masked ?? 0 }).select("id").single(), "메시지 저장") as { id: string };
@@ -68,14 +68,26 @@ const hasToolResult = (r: MsgRow | undefined) => !!r && r.role === "user" && r.c
 
 /** 저장된 기록 → Claude 메시지. 실패 응답 제외, 첨부 펼침, 답 없이 지나간 도구 호출은 취소 결과로 닫는다(Anthropic은 짝 없는 tool_use를 거부). */
 export function historyForModel(rows: MsgRow[], attachments: Map<string, Anthropic.ContentBlockParam[]>): Anthropic.MessageParam[] {
-  const live = rows.filter((r) => r.status !== "failed");
+  let live = rows.filter((r) => r.status !== "failed");
+  // 최근 400행으로 잘렸을 때 앞쪽 고아(assistant·tool_result만 든 user)를 버린다 — Anthropic은 user 텍스트로 시작해야 한다.
+  const start = live.findIndex((r) => r.role === "user" && !hasToolResult(r));
+  live = start < 0 ? [] : live.slice(start);
   const out: Anthropic.MessageParam[] = [];
+  let missing: Anthropic.ToolResultBlockParam[] = [];
   live.forEach((r, i) => {
     const content = r.content.flatMap((b): Anthropic.ContentBlockParam[] => b.type === "attachment" ? (attachments.get(b.id) ?? [{ type: "text", text: `[첨부: ${b.name} — 보존 기간이 지나 내용을 읽을 수 없음]` }]) : [b]);
     if (!content.length) return;
-    out.push({ role: r.role, content });
+    out.push({ role: r.role, content: [...missing, ...content] });
+    missing = [];
     const uses = r.role === "assistant" ? r.content.filter(isToolUse) : [];
-    if (uses.length && i < live.length - 1 && !hasToolResult(live[i + 1])) out.push({ role: "user", content: uses.map((u) => cancelResult(u.id)) });
+    const next = live[i + 1];
+    if (!uses.length || !next) return;
+    if (!hasToolResult(next)) out.push({ role: "user", content: uses.map((u) => cancelResult(u.id)) });
+    else {
+      // 일부 id에만 답한 경우: 빠진 id의 취소 결과를 다음 user 행 앞에 합친다(tool_result는 바로 다음 메시지에 있어야 함).
+      const answered = new Set(next.content.flatMap((b) => (b.type === "tool_result" ? [b.tool_use_id] : [])));
+      missing = uses.filter((u) => !answered.has(u.id)).map((u) => cancelResult(u.id));
+    }
   });
   return out;
 }

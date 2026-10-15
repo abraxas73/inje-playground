@@ -32,6 +32,26 @@ describe("historyForModel", () => {
     expect(pendingCalls([...rows, row("3", "user", [{ type: "tool_result", tool_use_id: "t1", content: "ok" }])])).toBeNull();
   });
 });
+describe("historyForModel 보강", () => {
+  it("잘려 앞이 고아면 user 텍스트 행부터 시작", () => {
+    const h = historyForModel([
+      row("1", "assistant", [use("t0")]),
+      row("2", "user", [{ type: "tool_result", tool_use_id: "t0", content: "ok" }]),
+      row("3", "user", [{ type: "text", text: "다음" }]),
+    ], new Map());
+    expect(h).toEqual([{ role: "user", content: [{ type: "text", text: "다음" }] }]);
+  });
+  it("일부 id에만 답했으면 빠진 id를 취소로 닫는다", () => {
+    const h = historyForModel([
+      row("1", "user", [{ type: "text", text: "메일" }]),
+      row("2", "assistant", [use("t1"), use("t2")]),
+      row("3", "user", [{ type: "tool_result", tool_use_id: "t1", content: "ok" }]),
+    ], new Map());
+    expect(h).toHaveLength(3);
+    expect(JSON.stringify(h[2])).toContain('"tool_use_id":"t2"');
+    expect(JSON.stringify(h[2])).toContain('"tool_use_id":"t1"');
+  });
+});
 describe("보조 함수", () => {
   it("만료일 — 저장 안 함은 24시간", () => {
     const now = new Date("2026-10-15T00:00:00Z");
