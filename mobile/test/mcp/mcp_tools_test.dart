@@ -542,7 +542,7 @@ void main() {
       final gw = Gw({...org(), '/board/APIHandler/ViewPost': (_) => {...raw, 'art': {...raw['art'] as Map, 'art_content': '<p>안내</p><img src="/upload/a.png"><p>끝</p>'}}});
       final r = await run(gw, 'read_notice', {'art_seq_no': 3068});
       hasKeys(r, jsonDecode(File('$_fx/captured/read_notice-attach.json').readAsStringSync())['toolResult']);
-      expect([r['images'], r['content'], r['fileCnt'], r['readCnt']], [['/upload/a.png'], '안내\n[이미지]끝', 4, '98']);
+      expect([r['images'], r['content'], r['fileCnt'], r['readCnt']], [['/upload/a.png'], '안내\n[이미지]\n끝', 4, '98']); // 문단 사이 이미지 자리는 제 줄에(DOM 변환, 2026-10-15)
     });
 
     test('search — 모듈별 results, 범위·limit', () async {

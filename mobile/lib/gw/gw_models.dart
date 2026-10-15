@@ -1,4 +1,6 @@
 // 아마란스 응답 정제 — 순수 함수만(네트워크 없음). 필드 이름·의미의 출처는 inno-creed src/modules/*.rs.
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
 import 'gw_client.dart' show asStr, asBool, asInt;
 
 /// 한국 시각. 기기 시간대와 무관하게 '오늘'을 정하는 기준(근태·일정·대기일수).
@@ -24,27 +26,88 @@ int? daysBetween(String ymd8, DateTime today) {
   return DateTime(today.year, today.month, today.day).difference(a).inDays;
 }
 
-/// HTML → 평문. 블록 경계(<br>·</p>·</div>·</li>·</tr>)는 줄바꿈으로 남기고(상세 본문이 한 줄로 뭉치지 않게),
-/// HTML 소스 자체의 줄바꿈·들여쓰기는 공백으로 본다. 빈 줄은 최대 1개까지. 표는 행마다 한 줄, 칸은 " | "로 잇고(빈 칸은 뺌),
-/// `<head>`·`<style>`·`<script>`·주석(`<!--[if mso]>` 포함)은 글자까지 버린다.
+/// HTML → 평문(package:html로 DOM을 걸음). 블록 요소(p·div·li·tr·h1~6·br…) 경계는 줄바꿈으로 남기고(상세 본문이 한 줄로 뭉치지 않게)
+/// 소스의 줄바꿈·들여쓰기는 공백으로 본다. 빈 줄은 최대 1개까지. head·style·script·주석은 글자까지 버리고, 엔티티는 파서가 모두 푼다(&middot;·&hellip; 포함).
+/// 표: 칸이 둘 이상이고 안에 표가 없는 행은 "칸 | 칸"(칸 안의 블록·br은 한 칸 띄움, 빈 칸은 뺌 — 뉴스클리핑처럼 칸마다 p가 든 표도 한 행 = 한 줄).
+/// 칸 하나짜리 행·중첩 표가 든 행은 레이아웃 표로 보고 안의 줄바꿈을 그대로 둔다(2026-10-15, 정규식 변환이 칸 안 p 때문에 행을 못 묶던 원인).
 String htmlToText(String html) {
-  var s = html.replaceAll(RegExp(r'<!--.*?-->|<(style|script|head)\b[^>]*>.*?</\1\s*>', caseSensitive: false, dotAll: true), '').replaceAll(RegExp(r'\s+'), ' ');
-  s = s.replaceAll(RegExp(r'</t[dh]\s*>', caseSensitive: false), '\t').replaceAll(RegExp(r'<(br|/p|/div|/li|/tr|/h[1-6])\s*/?>', caseSensitive: false), '\n').replaceAll(RegExp(r'<[^>]+>'), '');
-  s = s.split('\n').map((l) => l.split('\t').map((c) => c.trim()).where((c) => c.isNotEmpty).join(' | ')).join('\n'); // 표: 한 행 = 한 줄, 칸은 " | "
-  return _tidyLines(decodeEntities(s).split('\n').map((l) => l.replaceAll(RegExp(r'[ \t]+'), ' ')).join('\n'));
+  if (html.isEmpty) return '';
+  final out = _Out();
+  final doc = html_parser.parse(html);
+  _walk(doc.body ?? doc, out);
+  return _tidyLines(out.b.toString().split('\n').map((l) => l.replaceAll(RegExp(r'[ \t]+'), ' ')).join('\n'));
 }
 
-/// HTML 엔티티 → 글자. 이름 있는 것 6개 + 숫자 참조(&#160;·&#x27;). `&amp;`는 맨 끝에 풀어야 `&amp;lt;`가 두 번 풀리지 않는다.
-String decodeEntities(String s) {
-  s = s.replaceAllMapped(RegExp(r'&#(x[0-9a-fA-F]{1,6}|\d{1,7});'), (m) {
-    final v = m[1]!;
-    final code = v.startsWith('x') ? int.tryParse(v.substring(1), radix: 16) : int.tryParse(v);
-    return code == null || code <= 0 || code > 0x10FFFF ? m[0]! : String.fromCharCode(code);
-  });
-  const ent = {'&nbsp;': ' ', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'", '&amp;': '&'};
-  ent.forEach((k, v) => s = s.replaceAll(k, v));
-  return s;
+const _blockTags = {'p', 'div', 'li', 'ul', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre', 'section', 'article', 'header', 'footer', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'caption', 'hr', 'address', 'dl', 'dt', 'dd', 'figure', 'figcaption', 'nav', 'aside', 'main', 'form', 'fieldset', 'center'};
+const _skipTags = {'head', 'style', 'script', 'title', 'noscript', 'template'};
+
+/// 줄 단위 출력 — 블록 경계는 "줄 처음이 아닐 때만" 줄바꿈(연속 p가 빈 줄 없이 이어지고, 태그 사이 공백만 있는 텍스트는 줄을 만들지 않는다).
+class _Out {
+  final b = StringBuffer();
+  bool nl = true;
+  void text(String t) {
+    if (t.trim().isEmpty) {
+      if (!nl) b.write(' ');
+      return;
+    }
+    b.write(t);
+    nl = false;
+  }
+  void br() {
+    b.write('\n');
+    nl = true;
+  }
+  void sep() {
+    if (!nl) br();
+  }
 }
+
+void _walk(dom.Node n, _Out out) {
+  if (n is dom.Text) {
+    out.text(n.text.replaceAll(RegExp(r'\s+'), ' '));
+    return;
+  }
+  if (n is! dom.Element) {
+    for (final c in n.nodes) {
+      _walk(c, out); // Document·DocumentFragment; 주석(dom.Comment)은 자식이 없어 글자가 안 남는다
+    }
+    return;
+  }
+  final tag = n.localName ?? '';
+  if (_skipTags.contains(tag)) return;
+  if (tag == 'br') {
+    out.br();
+    return;
+  }
+  if (tag == 'tr') {
+    final cells = n.children.where((c) => c.localName == 'td' || c.localName == 'th').toList();
+    if (cells.length >= 2 && n.querySelector('table') == null) {
+      final texts = cells.map((c) {
+        final cell = _Out();
+        for (final x in c.nodes) {
+          _walk(x, cell);
+        }
+        return cell.b.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+      }).where((t) => t.isNotEmpty);
+      out.sep();
+      out.text(texts.join(' | '));
+      out.br();
+      return;
+    }
+  }
+  final block = _blockTags.contains(tag);
+  if (block) out.sep();
+  final before = out.b.length;
+  for (final c in n.nodes) {
+    _walk(c, out);
+  }
+  if (block && out.b.length == before) out.br(); // 빈 문단(p·div 안이 비거나 공백뿐)은 빈 줄 하나 — _tidyLines가 연속 빈 줄을 1개로 줄인다
+  if (block) out.sep();
+}
+
+/// HTML 엔티티 → 글자. 파서가 이름·숫자 참조를 모두 푼다(&middot;·&hellip;·&#39;…). 날 `<`는 태그로 읽히지 않게 먼저 가리고,
+/// `&amp;lt;`는 한 번만 풀려 `&lt;`가 된다. `&nbsp;`(U+00A0)는 보통 공백으로.
+String decodeEntities(String s) => s.contains('&') ? (html_parser.parseFragment(s.replaceAll('<', '&lt;')).text ?? s).replaceAll('\u00a0', ' ') : s;
 
 /// mail002A01 `mime.body` → 본문 평문. plain이 있으면 plain(아마란스 plain은 HTML 메일의 태그만 벗긴 것이라 `&nbsp;` 같은 엔티티와 CR이
 /// 남는다 — html 부분이 함께 있을 때만 엔티티를 푼다; 순수 텍스트 메일의 `&lt;`는 글자 그대로), 없으면 html을 평문화.

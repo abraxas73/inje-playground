@@ -38,7 +38,13 @@ void main() {
     const html = '<html><head><title>t</title><style>td{color:red}</style></head><body><!--[if mso]>x<![endif]--><p>안녕하세요.</p>\n<table>\n <tr>\n  <th>구분</th>\n  <th>기사 제목</th>\n </tr>\n <tr>\n  <td>MS</td>\n  <td>자체 AI칩 &#39;마이아&#39; 공개</td>\n  <td></td>\n </tr>\n</table>\n<p>감사합니다.</p></body></html>';
     const plain = '\n \n \n  안녕하세요.\n  \n   \n    구분\n    \n    기사 제목\n   \n   \n    MS\n    \n    자체 AI칩 &#39;마이아&#39; 공개\n  \n  감사합니다.\n';
     expect(mailBodyText({'plain': plain, 'html': html}), '안녕하세요.\n구분 | 기사 제목\nMS | 자체 AI칩 \'마이아\' 공개\n감사합니다.');
-    expect(htmlToText('<TABLE><TR><TD>a</TD><td>b<br>c</td></TR></TABLE>'), 'a | b\nc', reason: '칸 안의 br은 줄을 나누되 칸 구분은 유지');
+    expect(htmlToText('<TABLE><TR><TD>a</TD><td>b<br>c</td></TR></TABLE>'), 'a | b c', reason: '칸 안의 br·블록은 한 칸 띄움으로 — 행은 한 줄');
+    // 실제 뉴스클리핑: 칸마다 <p>가 들어 있다(2026-10-15 실측에서 칸이 줄로 쪼개지던 원인). 이름 엔티티(&middot;·&hellip;)도 풀어야 한다.
+    expect(htmlToText('<table><tbody><tr><td><p>구분</p></td><td><p>기사 제목</p></td><td><p>벤더</p></td></tr>\n<tr><td><p>MS, 자체 AI칩 공개&hellip;배치</p></td><td><p>네트워크&middot;보안</p></td><td><p>MS</p></td></tr></tbody></table>'), '구분 | 기사 제목 | 벤더\nMS, 자체 AI칩 공개…배치 | 네트워크·보안 | MS');
+    // 레이아웃 표: 칸 하나짜리 행은 문단 줄바꿈을 지키고, 안에 표가 든 행은 구조를 그대로 둔다
+    expect(htmlToText('<table><tr><td><p>안녕하세요.</p><p>둘째 문단</p></td></tr></table>'), '안녕하세요.\n둘째 문단');
+    expect(htmlToText('<table><tr><td>왼쪽</td><td><table><tr><td>a</td><td>b</td></tr></table></td></tr></table>'), '왼쪽\na | b');
+    expect(decodeEntities('A&middot;B &hellip; &rsquo;x&rsquo; 1 &lt; 2 &amp;lt; raw<tag>'), 'A·B … ’x’ 1 < 2 &lt; raw<tag>', reason: 'plain 경로도 이름 엔티티를 풀되 날 < 는 태그로 보지 않는다');
     expect(mailBodyText({'plain': '  10시\r\n', 'html': '<p>10시</p>'}), '10시', reason: '표가 없으면 종전대로 plain');
   });
 
