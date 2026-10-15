@@ -8,8 +8,6 @@ export type ToolTier = "read" | "write" | "irreversible" | "meta" | "choice";
 export const ASSISTANT_ENABLED_KEY = "assistant_enabled";
 export const ASSISTANT_DAILY_TURNS_KEY = "assistant_daily_turns";
 export const DEFAULT_DAILY_TURNS = 200;
-export const ASSISTANT_BODY_MAX = 256 * 1024;
-export const ASSISTANT_MESSAGES_MAX = 60;
 export const DEFAULT_ASSISTANT_MODEL = "claude-sonnet-5-5";
 export const SERVER_TOOLS = ["teams_chats", "teams_mentions", "teams_send", "confluence_search", "confluence_read", "confluence_feed", "confluence_spaces", "confluence_create_page", "sharepoint_search", "sharepoint_recent", "sharepoint_read"] as const;
 
@@ -126,17 +124,4 @@ export function kstDayStartIso(now: Date): string {
   const k = new Date(now.getTime() + 9 * 3600_000);
   const p = (v: number) => String(v).padStart(2, "0");
   return `${k.getUTCFullYear()}-${p(k.getUTCMonth() + 1)}-${p(k.getUTCDate())}T00:00:00+09:00`;
-}
-
-/** 형식만 본다(블록 내용은 Anthropic이 검증). 첫 메시지는 user, 역할은 user|assistant, content는 문자열 또는 배열, 1~60개. */
-export function validateMessages(raw: unknown): Anthropic.MessageParam[] | null {
-  if (!Array.isArray(raw) || raw.length === 0 || raw.length > ASSISTANT_MESSAGES_MAX) return null;
-  for (const m of raw) {
-    if (!m || typeof m !== "object") return null;
-    const { role, content } = m as { role?: unknown; content?: unknown };
-    if (role !== "user" && role !== "assistant") return null;
-    if (typeof content !== "string" && !Array.isArray(content)) return null;
-  }
-  if ((raw[0] as { role: string }).role !== "user") return null;
-  return raw as Anthropic.MessageParam[];
 }

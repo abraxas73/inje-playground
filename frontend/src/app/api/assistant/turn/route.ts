@@ -1,47 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
-import { logAudit } from "@/lib/audit";
-import { requireUser } from "@/lib/rfp/require-user";
-import { ASSISTANT_BODY_MAX, assistantSystemPrompt, validateMessages } from "@/lib/assistant/tools";
-import { loadAssistantSettings } from "@/lib/assistant/settings";
-import { callAssistant } from "@/lib/assistant/llm";
-import { recordUsage, turnsToday } from "@/lib/chat/usage";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
-const NO_STORE = { "Cache-Control": "no-store" };
-const TURN_ACTION = "비서 턴";
 
 /**
- * POST /api/assistant/turn — 모바일 비서 한 턴. {messages, now} → Claude 한 번 → {enabled, message, stop_reason}.
- * 무상태 중계: 대화·도구 결과는 저장·로그하지 않는다(감사엔 이번 응답의 도구 이름만). 도구 실행은 앱(아마란스)·/api/assistant/execute(Teams).
+ * POST /api/assistant/turn — 1.7.0 미만 앱의 예전 이노봇 턴. 1.7.0부터 앱은 /api/chat/turn을 쓴다.
+ * Claude를 부르지 않고 업데이트 안내만 돌려준다(예전 앱은 {error} 문구를 대화창에 그대로 보인다). 보급이 끝나면 이 파일을 지운다.
  */
-export async function POST(request: NextRequest) {
-  const r = await requireUser();
-  if (!r.ok) return r.response;
-  const raw = await request.text();
-  if (Buffer.byteLength(raw, "utf8") > ASSISTANT_BODY_MAX) return NextResponse.json({ error: "대화가 너무 깁니다. 새 대화를 시작해 주세요." }, { status: 400 });
-  let parsed: { messages?: unknown; now?: unknown };
-  try { parsed = JSON.parse(raw); } catch { return NextResponse.json({ error: "JSON 형식이 아닙니다." }, { status: 400 }); }
-  const messages = validateMessages(parsed.messages);
-  if (!messages) return NextResponse.json({ error: "대화 형식이 올바르지 않습니다." }, { status: 400 });
-  const cfg = await loadAssistantSettings(r.admin);
-  if (!cfg.ok) return NextResponse.json({ error: "assistant unavailable" }, { status: 503 });
-  if (!cfg.enabled) return NextResponse.json({ enabled: false }, { headers: NO_STORE });
-  // 확인 후 기록이라 원자적이지 않다 — 동시 요청에서 상한을 조금 넘을 수 있으나 허용한다. 웹 채팅(/api/chat/turn)과 같은 assistant_usage를 센다.
-  const used = await turnsToday(r.admin, r.userId);
-  if (used === null) return NextResponse.json({ error: "assistant unavailable" }, { status: 503 });
-  if (used >= cfg.dailyLimit) return NextResponse.json({ error: "오늘 비서 사용 한도를 넘었습니다. 내일 다시 이용해 주세요." }, { status: 429 });
-  const { data: profile } = await r.admin.from("user_profiles").select("display_name,email").eq("user_id", r.userId).maybeSingle();
-  const p = (profile ?? {}) as { display_name?: string | null; email?: string | null };
-  const now = typeof parsed.now === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\+09:00)?$/.test(parsed.now) ? parsed.now : new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 16);
-  try {
-    const msg = await callAssistant(messages, assistantSystemPrompt({ now, name: p.display_name ?? "", email: p.email ?? "" }));
-    const tools = msg.content.filter((b) => b.type === "tool_use").map((b) => (b as { name: string }).name);
-    await recordUsage(r.admin, { userId: r.userId, model: msg.model, inputTokens: msg.usage?.input_tokens ?? 0, outputTokens: msg.usage?.output_tokens ?? 0, masked: 0 });
-    await logAudit(r.admin, request, { userId: r.userId, action: TURN_ACTION, category: "assistant", detail: { tools } });
-    return NextResponse.json({ enabled: true, message: { role: "assistant", content: msg.content }, stop_reason: msg.stop_reason }, { headers: NO_STORE });
-  } catch (e) {
-    console.error("[assistant] 턴 실패:", e instanceof Error ? e.message.slice(0, 200) : e);
-    return NextResponse.json({ error: "비서가 답하지 못했습니다. 잠시 후 다시 시도해 주세요." }, { status: 502 });
-  }
+export async function POST() {
+  return NextResponse.json(
+    { error: "이노봇이 새 버전으로 바뀌었습니다. 이노봇을 계속 쓰려면 앱을 최신 버전으로 업데이트해 주세요. iPhone은 TestFlight에서, Android·Mac·Windows는 https://innocrew.innogrid.com/apps 에서 받을 수 있습니다.", code: "app_update_required" },
+    { status: 426, headers: { "Cache-Control": "no-store" } },
+  );
 }
