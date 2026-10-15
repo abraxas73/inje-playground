@@ -27,10 +27,12 @@ export async function GET(request: NextRequest) {
   const { data: orphans, error: e2 } = await admin.from("chat_attachments").select("id,storage_path").is("conversation_id", null).lt("created_at", cutoff).limit(BATCH);
   if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
   const rows = (orphans ?? []) as Array<{ id: string; storage_path: string }>;
-  if (rows.length) {
-    await deleteAttachmentObjects(admin, rows);
+  let attachments = 0;
+  // 객체 삭제가 실패하면 행을 남겨 다음 실행에서 다시 시도한다(행을 지우면 객체가 영구 고아가 된다).
+  if (rows.length && (await deleteAttachmentObjects(admin, rows))) {
     const { error } = await admin.from("chat_attachments").delete().in("id", rows.map((r) => r.id));
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    attachments = rows.length;
   }
-  return NextResponse.json({ conversations: ids.length, attachments: rows.length });
+  return NextResponse.json({ conversations: ids.length, attachments });
 }

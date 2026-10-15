@@ -45,8 +45,8 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
   const o = await own(ctx);
   if (!o.ok) return o.response;
   const { data: atts } = await o.r.admin.from("chat_attachments").select("storage_path").eq("conversation_id", o.conv.id);
-  await deleteAttachmentObjects(o.r.admin, (atts ?? []) as Array<{ storage_path: string }>);
-  await o.r.admin.from("chat_attachments").delete().eq("conversation_id", o.conv.id);
+  // 객체 삭제가 실패하면 행을 남긴다 — 대화 삭제로 conversation_id가 null이 되어 보존 크론이 다시 지운다.
+  if (await deleteAttachmentObjects(o.r.admin, (atts ?? []) as Array<{ storage_path: string }>)) await o.r.admin.from("chat_attachments").delete().eq("conversation_id", o.conv.id);
   const { error } = await o.r.admin.from("chat_conversations").delete().eq("id", o.conv.id).eq("user_id", o.r.userId);
   if (error) return NextResponse.json({ error: "삭제하지 못했습니다." }, { status: 500 });
   await logAudit(o.r.admin, req, { userId: o.r.userId, action: "대화 삭제", category: "assistant", detail: {} });

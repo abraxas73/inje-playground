@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-const m = vi.hoisted(() => ({ conv: null as null | Record<string, unknown>, calls: [] as string[], removed: [] as string[][] }));
+const m = vi.hoisted(() => ({ conv: null as null | Record<string, unknown>, calls: [] as string[], removed: [] as string[][], fail: false }));
 function q(table: string) {
   const chain: Record<string, unknown> = {};
   for (const k of ["select", "eq", "in", "is", "order", "limit", "update"]) chain[k] = (...a: unknown[]) => { m.calls.push(`${table}.${k}:${JSON.stringify(a)}`); return chain; };
@@ -10,14 +10,14 @@ function q(table: string) {
   chain.then = (res: (v: unknown) => void) => res({ data: table === "chat_conversations" ? [{ id: "c1", title: "t", model: "s", last_message_at: "x" }] : table === "chat_attachments" ? [{ storage_path: "u1/a1/original.pdf" }] : [], error: null });
   return chain;
 }
-const admin = { from: q, storage: { from: () => ({ remove: async (p: string[]) => { m.removed.push(p); return { error: null }; } }) } };
+const admin = { from: q, storage: { from: () => ({ remove: async (p: string[]) => { m.removed.push(p); return { error: m.fail ? { message: "x" } : null }; } }) } };
 vi.mock("@/lib/rfp/require-user", () => ({ requireUser: async () => ({ ok: true, userId: "u1", role: "user", admin }) }));
 vi.mock("@/lib/audit", () => ({ logAudit: vi.fn() }));
 import { GET as LIST } from "@/app/api/chat/conversations/route";
 import { DELETE, GET, PATCH } from "@/app/api/chat/conversations/[id]/route";
 const ID = "00000000-0000-0000-0000-000000000001";
 const ctx = (id = ID) => ({ params: Promise.resolve({ id }) });
-beforeEach(() => { m.conv = { id: ID, user_id: "u1" }; m.calls = []; m.removed = []; });
+beforeEach(() => { m.conv = { id: ID, user_id: "u1" }; m.calls = []; m.removed = []; m.fail = false; });
 
 it("목록은 내 것·저장 안 함 제외", async () => {
   const j = await (await LIST(new NextRequest("https://a.test/api/chat/conversations"))).json();
@@ -39,5 +39,11 @@ it("이름 바꾸기는 1~80자", async () => {
 it("삭제는 첨부 원본·텍스트 객체를 지우고 대화를 지운다", async () => {
   expect((await DELETE(new NextRequest("https://a.test/x", { method: "DELETE" }), ctx())).status).toBe(200);
   expect(m.removed[0]).toEqual(["u1/a1/original.pdf", "u1/a1/text.txt"]);
+  expect(m.calls).toContain("chat_conversations.delete");
+});
+it("버킷 삭제가 실패하면 첨부 행은 남기고 대화는 지운다", async () => {
+  m.fail = true;
+  expect((await DELETE(new NextRequest("https://a.test/x", { method: "DELETE" }), ctx())).status).toBe(200);
+  expect(m.calls).not.toContain("chat_attachments.delete");
   expect(m.calls).toContain("chat_conversations.delete");
 });
