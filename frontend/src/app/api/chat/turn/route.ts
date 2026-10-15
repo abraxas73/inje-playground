@@ -8,6 +8,7 @@ import { streamAssistant } from "@/lib/assistant/llm";
 import { relayToolCall } from "@/lib/mcp/relay";
 import { recordUsage, turnsToday } from "@/lib/chat/usage";
 import { loadPermissions } from "@/lib/chat/access";
+import { attachmentLoader } from "@/lib/chat/attachments";
 import { supabaseChatStore } from "@/lib/chat/store";
 import { parseTurnBody, runTurn, TurnInputError, type TurnDeps } from "@/lib/chat/engine";
 import { sseLine, type ChatEvent } from "@/lib/chat/events";
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
       if (x.isError) return { ok: false, error: text };
       try { return { ok: true, result: JSON.parse(text) }; } catch { return { ok: true, result: text }; }
     },
-    loadAttachments: async () => new Map(), // Task 10에서 attachmentLoader로 교체
+    loadAttachments: attachmentLoader(r.admin, r.userId),
     recordUsage: (u) => recordUsage(r.admin, { userId: r.userId, ...u }),
     audit: (detail) => logAudit(r.admin, request, { userId: r.userId, action: "비서 턴", category: "assistant", detail }),
     signal: request.signal,
