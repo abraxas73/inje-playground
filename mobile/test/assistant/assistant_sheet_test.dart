@@ -45,6 +45,18 @@ void main() {
     expect(find.text('늦은 응답'), findsNothing);
   });
 
+  testWidgets('도구 칩(결과 요약·완료 아이콘)과 가린 개인정보 건수가 보인다', (tester) async {
+    final brain = ChatBrain([use([('s1', 'teams_chats', {})]), say('있어요')]);
+    await tester.pumpWidget(host(brain, const AssistantSheet()));
+    await tester.enterText(find.byType(TextField), '010-1234-5678 채팅 목록');
+    await tester.tap(find.byTooltip('보내기'));
+    await tester.pumpAndSettle();
+    expect(find.text('teams_chats 완료'), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.text('개인정보 1건 가림'), findsOneWidget);
+    expect(find.byIcon(Icons.shield_outlined), findsOneWidget);
+  });
+
   testWidgets('seed가 있으면 열리자마자 그 문장을 보내고 말풍선으로 남긴다(일정 화면 "추가")', (tester) async {
     final brain = ChatBrain([say('어떤 일정인가요? 제목과 시간을 알려 주세요.')]);
     await tester.pumpWidget(host(brain, Builder(builder: (context) => TextButton(onPressed: () => showAssistantSheet(context, seed: '10월 12일 (월)에 아마란스 일정 등록해줘. 제목·시간·장소를 물어봐 줘.'), child: const Text('추가')))));

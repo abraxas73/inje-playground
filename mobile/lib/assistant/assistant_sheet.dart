@@ -464,6 +464,50 @@ class _Bubble extends StatelessWidget {
             ],
           ),
         );
+      case ChatKind.tool:
+        final (icon, color) = switch (it.status) {
+          'ok' => (Icons.check_circle, Brand.success),
+          'running' => (null, Brand.muted),
+          'unknown' => (Icons.help_outline, Brand.muted),
+          _ => (Icons.error_outline, Brand.danger),
+        };
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Brand.line)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon == null)
+                  const SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 2))
+                else
+                  Icon(icon, size: 15, color: color),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    it.status == 'unknown' ? '${it.text} · 결과를 받지 못했습니다' : it.text,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12.5, color: Brand.muted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      case ChatKind.masked:
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.shield_outlined, size: 14, color: Brand.muted),
+              const SizedBox(width: 4),
+              Text(it.text, style: const TextStyle(fontSize: 12, color: Brand.muted)),
+            ],
+          ),
+        );
       case ChatKind.notice:
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),

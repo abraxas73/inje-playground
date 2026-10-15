@@ -952,6 +952,46 @@ void main() {
     expect(brain.bodies.last['conversationId'], 'c9');
   });
 
+  test('서버가 실행한 도구는 칩으로 남고(결과 요약), 입력에서 가린 개인정보는 건수로 보인다', () async {
+    final brain = ChatBrain([use([('s1', 'teams_chats', {})]), say('센터 채팅이 있어요')]);
+    final c = scope(brain, scenarioGw());
+    await c.read(assistantSessionProvider.notifier).send('내 번호 010-1234-5678 채팅 목록');
+    final items = c.read(assistantSessionProvider).items;
+    expect(items.map((i) => (i.kind, i.text, i.status)), containsAllInOrder([
+      (ChatKind.user, '내 번호 010-1234-5678 채팅 목록', null),
+      (ChatKind.masked, '개인정보 1건 가림', null),
+      (ChatKind.tool, 'teams_chats 완료', 'ok'),
+      (ChatKind.bot, '센터 채팅이 있어요', null),
+    ]));
+    expect(items.where((i) => i.kind == ChatKind.progress), isEmpty);
+  });
+
+  test('결과를 받기 전에 스트림이 끊긴 도구 칩은 unknown으로 멈춘다', () async {
+    final brain = ChatBrain([use([('s2', 'teams_chats', {})])])..cutAfterRunning = true;
+    final c = scope(brain, scenarioGw());
+    await c.read(assistantSessionProvider.notifier).send('채팅 목록');
+    final chip = c.read(assistantSessionProvider).items.lastWhere((i) => i.kind == ChatKind.tool);
+    expect((chip.id, chip.status), ('s2', 'unknown'));
+  });
+
+  test('open — 기록된 도구 호출은 칩으로, 가린 건수도 함께 되살린다', () async {
+    final brain = ChatBrain([]);
+    brain.saved['c9'] = [
+      {'id': 'm1', 'role': 'user', 'masked_count': 1, 'content': [{'type': 'text', 'text': '[전화번호]로 연락'}]},
+      {'id': 'm2', 'role': 'assistant', 'content': [{'type': 'tool_use', 'id': 't1', 'name': 'teams_chats', 'input': {}}]},
+      {'id': 'm3', 'role': 'assistant', 'content': [{'type': 'text', 'text': '보냈습니다'}]},
+    ];
+    brain.savedCalls['c9'] = [{'message_id': 'm2', 'tool_use_id': 't1', 'tool': 'teams_chats', 'status': 'ok', 'summary': 'Teams 채팅 목록 2건'}];
+    final c = scope(brain, scenarioGw());
+    await c.read(assistantSessionProvider.notifier).open('c9');
+    expect(c.read(assistantSessionProvider).items.map((i) => (i.kind, i.text)), [
+      (ChatKind.user, '[전화번호]로 연락'),
+      (ChatKind.masked, '개인정보 1건 가림'),
+      (ChatKind.tool, 'Teams 채팅 목록 2건'),
+      (ChatKind.bot, '보냈습니다'),
+    ]);
+  });
+
   test('open — 불러오는 사이 보내기가 시작되면 진행 중인 대화를 덮지 않는다', () async {
     final brain = ChatBrain([say('하나'), say('둘')]);
     brain.saved['c9'] = [

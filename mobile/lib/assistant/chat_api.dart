@@ -21,6 +21,9 @@ class TurnOutcome {
   final Map<String, String> toolStatus = {};
 }
 
+/// 불러온 대화의 한 줄 — kind: user|assistant|tool(status·요약)|masked(가린 건수 문구).
+typedef LoadedLine = ({String kind, String text, String? status});
+
 class ConversationSummary {
   const ConversationSummary(this.id, this.title, this.lastMessageAt);
   final String id, title, lastMessageAt;
@@ -31,7 +34,7 @@ class ChatApi {
   ChatApi(this.api);
   final ApiClient api;
 
-  Future<TurnOutcome> turn(Map<String, dynamic> body, {void Function(String delta)? onText, void Function(String id, String tool, String status)? onTool, Future<void>? abort}) async {
+  Future<TurnOutcome> turn(Map<String, dynamic> body, {void Function(String delta)? onText, void Function(String id, String tool, String status, String summary)? onTool, void Function(int count)? onMasked, Future<void>? abort}) async {
     final o = TurnOutcome();
     var finished = false;
     try {
@@ -43,8 +46,10 @@ class ChatApi {
             onText?.call('${e['delta'] ?? ''}');
           case 'tool':
             final id = '${e['id']}', status = '${e['status']}';
-            onTool?.call(id, '${e['tool']}', status);
+            onTool?.call(id, '${e['tool']}', status, '${e['summary'] ?? ''}');
             if (status != 'running') o.toolStatus[id] = status;
+          case 'masked':
+            if (e['count'] case final num n when n > 0) onMasked?.call(n.toInt());
           case 'needs_action':
             finished = true;
             o.needsAction = [
@@ -77,17 +82,29 @@ class ChatApi {
     return [for (final r in rows.whereType<Map>()) ConversationSummary('${r['id']}', '${r['title'] ?? ''}', '${r['last_message_at'] ?? ''}')];
   }
 
-  /// 화면에 다시 그릴 말 — 사용자·이노봇 텍스트만(도구 결과 행·실패 행·빈 행 제외).
-  Future<List<({String role, String text})>> load(String id) async {
+  /// 화면에 다시 그릴 줄 — 사용자·이노봇 텍스트, 기록된 도구 호출(칩), 가린 건수. 실패 행·도구 결과 행의 원문은 그리지 않는다.
+  Future<List<LoadedLine>> load(String id) async {
     final j = await api.getJson('/api/chat/conversations/${Uri.encodeComponent(id)}');
     final rows = j is Map && j['messages'] is List ? j['messages'] as List : const [];
-    return [
-      for (final r in rows.whereType<Map>())
-        if (r['status'] != 'failed')
-          if ([for (final b in (r['content'] as List? ?? const []).whereType<Map>()) if (b['type'] == 'text') '${b['text']}'].join('\n').trim() case final t when t.isNotEmpty)
-            (role: r['role'] == 'user' ? 'user' : 'assistant', text: t),
-    ];
+    final calls = {
+      for (final t in (j is Map && j['toolCalls'] is List ? j['toolCalls'] as List : const []).whereType<Map>()) '${t['message_id']}:${t['tool_use_id']}': t,
+    };
+    final out = <LoadedLine>[];
+    for (final r in rows.whereType<Map>()) {
+      if (r['status'] == 'failed') continue;
+      final blocks = (r['content'] as List? ?? const []).whereType<Map>();
+      final t = [for (final b in blocks) if (b['type'] == 'text') '${b['text']}'].join('\n').trim();
+      if (t.isNotEmpty) out.add((kind: r['role'] == 'user' ? 'user' : 'assistant', text: t, status: null));
+      for (final b in blocks) {
+        if (b['type'] != 'tool_use') continue;
+        if (calls['${r['id']}:${b['id']}'] case final c?) out.add((kind: 'tool', text: '${c['summary'] ?? ''}', status: '${c['status']}'));
+      }
+      if (r['masked_count'] case final num n when n > 0) out.add((kind: 'masked', text: maskedText(n.toInt()), status: null));
+    }
+    return out;
   }
 }
+
+String maskedText(int n) => '개인정보 $n건 가림';
 
 final chatApiProvider = Provider<ChatApi>((ref) => ChatApi(ref.watch(apiClientProvider)));

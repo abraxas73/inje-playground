@@ -13,7 +13,8 @@ import 'chat_api.dart';
 
 /// 비서 대화 — 서버(/api/chat/turn)가 대화를 저장한다. 앱은 needs_action을 받아 앱 도구를 실행하고 확인 카드를 보인 뒤 actions로 회신한다.
 /// 조회 도구는 바로 실행, 쓰기·되돌릴 수 없음은 확인 카드로 멈춘다. 서버 읽기는 서버가 실행하고, 서버 쓰기는 카드 확인 뒤 approve로 맡긴다.
-enum ChatKind { user, bot, progress, card, notice }
+/// tool = 도구 칩(id·status: running|ok|error|…, text = 진행 문구 또는 결과 요약), masked = "개인정보 N건 가림".
+enum ChatKind { user, bot, progress, card, notice, tool, masked }
 
 /// 선택지 카드의 한 선택지(화면용) — lines는 실제 대상으로 만든 카드 문장.
 class ChoiceView {
@@ -31,19 +32,24 @@ class ChatItem {
     this.irreversible = false,
     this.done = false,
     this.choices = const [],
+    this.id,
+    this.status,
   });
   final ChatKind kind;
+  final String? id, status;
   final String text;
   final List<String> lines;
   final bool irreversible, done;
   final List<ChoiceView> choices; // 비어 있지 않으면 선택지 카드(선택지마다 [실행])
-  ChatItem copyWith({bool? done, String? text}) => ChatItem(
+  ChatItem copyWith({bool? done, String? text, String? status}) => ChatItem(
     kind,
     text ?? this.text,
     lines: lines,
     irreversible: irreversible,
     done: done ?? this.done,
     choices: choices,
+    id: id,
+    status: status ?? this.status,
   );
 }
 
@@ -203,7 +209,7 @@ class AssistantSession extends Notifier<AssistantState> {
       (i) => i.kind == ChatKind.card && i.text.startsWith('실행 중'),
     );
     if (executing.isNotEmpty) _markCardDone('중지했습니다 · 실행 여부를 확인해 주세요', item: executing.last);
-    _set(busy: false, pending: false);
+    _set(busy: false, pending: false, items: _settled(state.items));
     _add(
       ChatItem(
         ChatKind.notice,
@@ -242,7 +248,13 @@ class AssistantSession extends Notifier<AssistantState> {
       state = build();
       _conversationId = id;
       _set(items: [
-        for (final l in lines) ChatItem(l.role == 'user' ? ChatKind.user : ChatKind.bot, l.text),
+        for (final l in lines)
+          switch (l.kind) {
+            'user' => ChatItem(ChatKind.user, l.text),
+            'tool' => ChatItem(ChatKind.tool, l.text, status: l.status),
+            'masked' => ChatItem(ChatKind.masked, l.text),
+            _ => ChatItem(ChatKind.bot, l.text),
+          },
         if (lines.isEmpty) const ChatItem(ChatKind.bot, '무엇을 도와드릴까요?'),
       ]);
     } catch (_) {
@@ -313,11 +325,29 @@ class AssistantSession extends Notifier<AssistantState> {
               }
               _set(items: items);
             },
-            onTool: (id, tool, status) {
+            onTool: (id, tool, status, summary) {
               if (!_active(run)) return;
-              if (status != 'running') { _toolStatus[id] = status; return; } // 스트림이 뒤에 끊겨도 받은 결과는 남긴다
-              botIndex = -1; // 도구 뒤 이어지는 답은 새 말풍선
-              _add(ChatItem(ChatKind.progress, progressText(tool)));
+              if (status == 'running') {
+                botIndex = -1; // 도구 뒤 이어지는 답은 새 말풍선
+                _add(ChatItem(ChatKind.tool, progressText(tool), id: id, status: status));
+                return;
+              }
+              _toolStatus[id] = status; // 스트림이 뒤에 끊겨도 받은 결과는 남긴다
+              _set(items: [
+                for (final i in state.items)
+                  if (i.kind == ChatKind.tool && i.id == id) i.copyWith(status: status, text: summary.isEmpty ? i.text : summary) else i,
+              ]);
+            },
+            onMasked: (n) {
+              if (!_active(run)) return;
+              // 진행 표시 앞에 끼운다(아직 생각하는 중)
+              final items = [...state.items];
+              var at = items.length;
+              while (at > 0 && items[at - 1].kind == ChatKind.progress) {
+                at--;
+              }
+              items.insert(at, ChatItem(ChatKind.masked, maskedText(n)));
+              _set(items: items);
             },
             abort: run.stopped.future,
           ));
@@ -366,13 +396,21 @@ class AssistantSession extends Notifier<AssistantState> {
     } finally {
       if (_active(run)) {
         _run = null;
-        _set(
-          busy: false,
-          items: [...state.items.where((x) => x.kind != ChatKind.progress)],
-        );
+        _set(busy: false, items: _settled(state.items));
       }
     }
   }
+
+  /// 진행 표시를 걷고, 결과를 못 받은 도구 칩은 unknown(실행 여부 미확인)으로 멈춘다.
+  static List<ChatItem> _settled(List<ChatItem> items) => [
+    for (final i in items)
+      if (i.kind == ChatKind.progress)
+        ...[]
+      else if (i.kind == ChatKind.tool && i.status == 'running')
+        i.copyWith(status: 'unknown')
+      else
+        i,
+  ];
 
   /// 스트림 대기 — _wait와 같지만 시간 상한은 assistantTurnTimeoutProvider(서버 도구 왕복·중계 때문에 길다).
   Future<T> _waitTurn<T>(_Run run, Future<T> future) async {

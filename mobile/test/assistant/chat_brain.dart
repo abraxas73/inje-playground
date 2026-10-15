@@ -31,11 +31,13 @@ class ChatBrain {
   final bodies = <Map<String, dynamic>>[];
   final history = <Map<String, dynamic>>[];
   final saved = <String, List<Map<String, dynamic>>>{}; // GET /api/chat/conversations/{id}가 돌려줄 메시지 행
+  final savedCalls = <String, List<Map<String, dynamic>>>{}; // 같은 GET의 toolCalls
   List<Map<String, dynamic>> _pending = [];
   var conversations = 0;
 
   ApiClient get client => ApiClient(httpClient: MockClient.streaming(_stream), tokens: BrainTokens(), baseUrl: base, userAgent: 'test');
   var _cut = false;
+  var cutAfterRunning = false; // 서버 읽기 도구의 running 이벤트까지 보내고 끊는다
 
   /// 스트리밍 래퍼 — __cut이면 받은 이벤트까지 흘려보낸 뒤 연결 예외로 끊는다.
   Future<http.StreamedResponse> _stream(http.BaseRequest req, http.ByteStream body) async {
@@ -63,7 +65,8 @@ class ChatBrain {
     if (r.method == 'GET') {
       if (waitForLoad != null) await waitForLoad;
       final rows = saved[Uri.decodeComponent(r.url.pathSegments.last)];
-      return rows == null ? _json({'error': '대화를 찾지 못했습니다.'}, 404) : _json({'messages': rows});
+      final id = Uri.decodeComponent(r.url.pathSegments.last);
+      return rows == null ? _json({'error': '대화를 찾지 못했습니다.'}, 404) : _json({'messages': rows, 'toolCalls': savedCalls[id] ?? const []});
     }
     if (r.url.path != '/api/chat/turn') {
       // 선택지 안의 서버 쓰기·카드용 대상 확인은 앱이 기존 /api/assistant/execute로 부른다
@@ -116,7 +119,7 @@ class ChatBrain {
           block = {'type': 'tool_result', 'tool_use_id': id, 'content': '앱 응답 없음', 'is_error': true};
         }
         results.add(block);
-        events.add({'type': 'tool', 'id': id, 'tool': c['tool'], 'location': c['location'], 'status': block['is_error'] == true ? 'error' : 'ok'});
+        events.add({'type': 'tool', 'id': id, 'tool': c['tool'], 'location': c['location'], 'status': block['is_error'] == true ? 'error' : 'ok', 'summary': '${c['tool']} ${block['is_error'] == true ? '실패' : '완료'}'});
       }
       history.add({'role': 'user', 'content': results});
       _pending = [];
@@ -127,6 +130,8 @@ class ChatBrain {
         _pending = [];
       }
       if (body['text'] != null) history.add({'role': 'user', 'content': body['text']});
+      // 진짜 서버처럼 입력의 전화번호를 가렸다고 알린다
+      if (RegExp(r'01\d-\d{3,4}-\d{4}').hasMatch('${body['text'] ?? ''}')) events.add({'type': 'masked', 'count': 1});
     }
     for (var round = 0; round < 12; round++) {
       received.add(List.of(history));
@@ -155,7 +160,12 @@ class ChatBrain {
       history.add({'role': 'user', 'content': [for (final c in calls) _toolResult('${c['id']}', _serverRun('${c['tool']}', c['input'] as Map, false))]});
       for (final c in calls) {
         events.add({'type': 'tool', 'id': c['id'], 'tool': c['tool'], 'location': 'server', 'status': 'running'});
-        events.add({'type': 'tool', 'id': c['id'], 'tool': c['tool'], 'location': 'server', 'status': 'ok'});
+        if (cutAfterRunning) {
+          cutAfterRunning = false;
+          _cut = true;
+          return _sse(events);
+        }
+        events.add({'type': 'tool', 'id': c['id'], 'tool': c['tool'], 'location': 'server', 'status': 'ok', 'summary': '${c['tool']} 완료'});
       }
     }
     events.add({'type': 'done', 'messageId': 'last'});

@@ -22,10 +22,12 @@ void main() {
   test('turn — 텍스트 스트림·서버 도구 상태·needs_action을 모은다', () async {
     final deltas = <String>[];
     final tools = <String>[];
+    final masked = <int>[];
     final api = apiWith((r) async => sse([
       {'type': 'conversation', 'id': 'c1'},
       {'type': 'tool', 'id': 's1', 'tool': 'teams_chats', 'location': 'server', 'status': 'running'},
       {'type': 'tool', 'id': 's1', 'tool': 'teams_chats', 'location': 'server', 'status': 'ok', 'summary': '1건'},
+      {'type': 'masked', 'count': 2},
       {'type': 'text', 'delta': '확인'},
       {'type': 'text', 'delta': '할게요'},
       {'type': 'needs_action', 'messageId': 'm2', 'calls': [
@@ -33,10 +35,11 @@ void main() {
         {'id': 't2', 'tool': 'teams_send', 'input': {'chat_id': '19:x', 'text': 'a'}, 'location': 'server', 'tier': 'write', 'target': '센터'},
       ]},
     ]));
-    final o = await api.turn({'text': 'x'}, onText: deltas.add, onTool: (id, tool, s) => tools.add('$id:$s'));
+    final o = await api.turn({'text': 'x'}, onText: deltas.add, onTool: (id, tool, s, sum) => tools.add('$id:$s:$sum'), onMasked: masked.add);
     expect(o.conversationId, 'c1');
     expect(deltas.join(), '확인할게요');
-    expect(tools, ['s1:running', 's1:ok']);
+    expect(tools, ['s1:running:', 's1:ok:1건']);
+    expect(masked, [2]);
     expect(o.toolStatus, {'s1': 'ok'});
     expect(o.needsAction!.map((c) => '${c.id}/${c.name}/${c.location}/${c.tier}/${c.target}'), ['t1/mail_list/device/read/null', 't2/teams_send/server/write/센터']);
     expect(o.needsAction![1].onServer, isTrue);
@@ -62,11 +65,11 @@ void main() {
     expect(o.error, isNotNull);
   });
 
-  test('list·load — 목록, 본문은 사람이 읽을 말만', () async {
+  test('list·load — 목록, 본문은 사람이 읽을 말·기록된 도구 칩·가린 건수', () async {
     final api = apiWith((r) async {
       if (r.url.path == '/api/chat/conversations') return json({'conversations': [{'id': 'c1', 'title': '주간보고', 'model': 'claude-sonnet-5-5', 'last_message_at': '2026-10-15T01:00:00Z'}]});
-      return json({'conversation': {'id': 'c1'}, 'toolCalls': [], 'messages': [
-        {'id': 'm1', 'role': 'user', 'status': 'ok', 'content': [{'type': 'text', 'text': '메일'}, {'type': 'attachment', 'id': 'a', 'name': 'x.pdf'}]},
+      return json({'conversation': {'id': 'c1'}, 'toolCalls': [{'message_id': 'm2', 'tool_use_id': 't1', 'tool': 'mail_list', 'status': 'ok', 'summary': '받은메일 목록 3건'}], 'messages': [
+        {'id': 'm1', 'role': 'user', 'status': 'ok', 'masked_count': 1, 'content': [{'type': 'text', 'text': '메일'}, {'type': 'attachment', 'id': 'a', 'name': 'x.pdf'}]},
         {'id': 'm2', 'role': 'assistant', 'status': 'ok', 'content': [{'type': 'tool_use', 'id': 't1', 'name': 'mail_list', 'input': {}}]},
         {'id': 'm3', 'role': 'user', 'status': 'ok', 'content': [{'type': 'tool_result', 'tool_use_id': 't1', 'content': '받은메일 목록 3건'}]},
         {'id': 'm4', 'role': 'assistant', 'status': 'ok', 'content': [{'type': 'text', 'text': '세 통입니다'}]},
@@ -74,7 +77,12 @@ void main() {
       ]});
     });
     expect((await api.list()).single.title, '주간보고');
-    expect(await api.load('c1'), [(role: 'user', text: '메일'), (role: 'assistant', text: '세 통입니다')]);
+    expect(await api.load('c1'), [
+      (kind: 'user', text: '메일', status: null),
+      (kind: 'masked', text: '개인정보 1건 가림', status: null),
+      (kind: 'tool', text: '받은메일 목록 3건', status: 'ok'),
+      (kind: 'assistant', text: '세 통입니다', status: null),
+    ]);
   });
 
   test('load — 404는 ApiException', () async {
