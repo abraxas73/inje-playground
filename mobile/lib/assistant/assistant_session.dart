@@ -236,6 +236,7 @@ class AssistantSession extends Notifier<AssistantState> {
     if (state.busy) return;
     try {
       final lines = await ref.read(chatApiProvider).load(id);
+      if (state.busy) return; // 불러오는 사이 보내기가 시작됐다 — 진행 중인 대화를 덮지 않는다
       state = build();
       _conversationId = id;
       _set(items: [

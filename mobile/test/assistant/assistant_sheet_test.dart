@@ -77,6 +77,7 @@ void main() {
     await tester.pumpWidget(host(brain, const InnobotButton()));
     await tester.tap(find.byTooltip('비서 이노봇'));
     await tester.pumpAndSettle();
+    expect(find.byTooltip('대화 기록'), findsOneWidget);
     expect(find.text('무엇을 도와드릴까요?'), findsOneWidget);
     expect(find.text('오늘 내 일정 알려줘'), findsOneWidget);
     expect(

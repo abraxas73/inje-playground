@@ -880,11 +880,45 @@ void main() {
     await s.open('없는 대화');
     expect(s.conversationId, isNull);
     expect(c.read(assistantSessionProvider).items.last.text, '대화를 불러오지 못했습니다.');
+    await s.send('먼저');
+    final before = c.read(assistantSessionProvider).items.length;
+    await s.open('없는 대화');
+    expect(s.conversationId, 'c1');
+    expect(c.read(assistantSessionProvider).items.length, before + 1);
+    expect(c.read(assistantSessionProvider).items.sublist(0, before).last.text, '이어서 답');
+    s.reset();
     await s.open('c9');
     expect(s.conversationId, 'c9');
     expect(c.read(assistantSessionProvider).items.map((i) => (i.kind, i.text)), [(ChatKind.user, '회의실 잡아줘'), (ChatKind.bot, '잡았습니다.')]);
     await s.send('계속');
     expect(brain.bodies.last['conversationId'], 'c9');
+  });
+
+  test('open — 불러오는 사이 보내기가 시작되면 진행 중인 대화를 덮지 않는다', () async {
+    final brain = ChatBrain([say('하나'), say('둘')]);
+    brain.saved['c9'] = [
+      {'role': 'user', 'content': [{'type': 'text', 'text': '옛 대화'}]},
+    ];
+    final c = scope(brain, scenarioGw());
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('첫째');
+    final load = Completer<void>();
+    final turn = Completer<void>();
+    brain.waitForLoad = load.future;
+    final opening = s.open('c9');
+    brain.waitForTurn = turn.future;
+    final sending = s.send('둘째');
+    await Future<void>.delayed(Duration.zero);
+    expect(c.read(assistantSessionProvider).busy, true);
+    final items = c.read(assistantSessionProvider).items.map((i) => i.text).toList();
+    load.complete();
+    await opening;
+    expect(s.conversationId, 'c1');
+    expect(c.read(assistantSessionProvider).items.map((i) => i.text), items);
+    turn.complete();
+    await sending;
+    expect(c.read(assistantSessionProvider).items.map((i) => i.text), contains('둘'));
+    expect(c.read(assistantSessionProvider).items.map((i) => i.text), isNot(contains('옛 대화')));
   });
 }
 

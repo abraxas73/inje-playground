@@ -22,6 +22,7 @@ class BrainTokens implements TokenSource {
 class ChatBrain {
   ChatBrain(this.turns, {this.waitForTurn});
   final List<Map<String, dynamic>> turns;
+  Future<void>? waitForLoad; // GET 대화 불러오기가 이걸 기다린 뒤 답한다
   Future<void>? waitForTurn; // 요청마다 이걸 기다린 뒤 답한다(테스트가 중간에 바꿀 수 있음)
   final received = <List<dynamic>>[];
   final executed = <Map<String, dynamic>>[];
@@ -46,6 +47,7 @@ class ChatBrain {
 
   Future<http.Response> _handle(http.Request r) async {
     if (r.method == 'GET') {
+      if (waitForLoad != null) await waitForLoad;
       final rows = saved[Uri.decodeComponent(r.url.pathSegments.last)];
       return rows == null ? _json({'error': '대화를 찾지 못했습니다.'}, 404) : _json({'messages': rows});
     }

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/theme.dart';
 import 'assistant_session.dart';
 import 'assistant_voice.dart';
+import 'conversation_list_sheet.dart';
 
 /// [seed]가 있으면 시트가 열리자마자 그 문장을 보낸다(예: 일정 화면 "추가" → "… 아마란스 일정 등록해줘"). 말풍선으로 남아 "고쳐 줘"로 바로잡을 수 있다.
 Future<void> showAssistantSheet(BuildContext context, {String? seed}) =>
@@ -229,6 +230,19 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                   ),
                 ),
                 const Spacer(),
+                IconButton(
+                  tooltip: '대화 기록',
+                  icon: const Icon(Icons.history),
+                  onPressed: st.busy
+                      ? null
+                      : () async {
+                          final id = await showConversationList(context);
+                          if (id != null) {
+                            _stopSpeaking();
+                            await s.open(id);
+                          }
+                        },
+                ),
                 IconButton(
                   tooltip: '새 대화',
                   icon: const Icon(Icons.refresh),
