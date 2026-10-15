@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildToolset, clientPromptLines, needsAction, tierOf } from "@/lib/chat/toolset";
-import { summarizeToolResult } from "@/lib/chat/summary";
+import { buildToolset, clientPromptLines, needsAction, RELAY_READ_TOOLS, tierOf } from "@/lib/chat/toolset";
+import { summarizeToolResult, TOOL_LABEL } from "@/lib/chat/summary";
 import { sseLine } from "@/lib/chat/events";
 
 const all = () => true;
@@ -40,6 +40,9 @@ describe("도구 목록", () => {
     expect(needsAction({ location: "server", tier: tierOf("teams_chats") })).toBe(false);
     expect(needsAction({ location: "desktop-relay", tier: tierOf("read_mail") })).toBe(false);
     expect(needsAction({ location: null, tier: "write" })).toBe(false);
+  });
+  it("아마란스 중계 읽기 도구는 모두 한국어 이름표가 있다", () => {
+    for (const name of RELAY_READ_TOOLS) expect(TOOL_LABEL[name], name).toBeTruthy();
   });
   it("웹 문구 — 앱이 꺼져 있으면 안내 줄", () => {
     expect(clientPromptLines("web", false).join("\n")).toContain("데스크톱 앱");

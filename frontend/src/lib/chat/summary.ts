@@ -2,7 +2,7 @@
 export const TOOL_LABEL: Record<string, string> = {
   list_mail_inbox: "받은메일 목록", mail_list: "받은메일 목록", read_mail: "메일 읽기", mail_read: "메일 읽기", search_mail_index: "메일 검색", mail_search: "메일 검색",
   pending_approvals: "미결 결재", approvals_pending: "미결 결재", read_approval: "결재 문서", approval_read: "결재 문서", approval_counts: "결재 건수", list_approvals: "결재 목록",
-  list_notices: "게시판", notices_list: "게시판", read_notice: "게시글", notice_read: "게시글", search: "아마란스 통합검색",
+  mailbox_counts: "메일함 건수", list_notices: "게시판", notices_list: "게시판", read_notice: "게시글", notice_read: "게시글", search: "아마란스 통합검색",
   list_events: "일정", list_calendars: "캘린더", find_person: "사람 찾기", my_team: "우리 팀", org_chart: "조직도", get_attendance_today: "출퇴근", attendance_today: "출퇴근",
   my_reservations: "내 회의실 예약", list_resources: "회의실", list_rooms: "회의실", find_free_rooms: "빈 회의실",
   teams_chats: "Teams 채팅 목록", teams_mentions: "Teams 답장 대기", teams_send: "Teams 보내기",
