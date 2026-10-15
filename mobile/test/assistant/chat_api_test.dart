@@ -47,6 +47,9 @@ void main() {
     expect((await apiWith((r) async => sse([{'type': 'conversation', 'id': 'c1'}, {'type': 'done', 'messageId': 'm1'}])).turn({'text': 'x'})).needsAction, isNull);
     final e = await apiWith((r) async => sse([{'type': 'conversation', 'id': 'c1'}, {'type': 'error', 'message': '이노봇이 답하지 못했습니다. 다시 시도해 주세요.', 'retryable': true}])).turn({'text': 'x'});
     expect(e.error, '이노봇이 답하지 못했습니다. 다시 시도해 주세요.');
+    expect(e.rejected, isFalse);
+    final bad = await apiWith((r) async => sse([{'type': 'error', 'message': '처리할 작업이 없습니다.', 'retryable': false}])).turn({'actions': []});
+    expect((bad.error, bad.rejected), ('처리할 작업이 없습니다.', true), reason: '입력 오류(retryable:false)는 거절로 구분');
     final off = await apiWith((r) async => json({'error': '관리자가 이노봇을 꺼 두었습니다.', 'code': 'assistant_disabled'}, 403)).turn({'text': 'x'});
     expect(off.disabled, isTrue);
     final limit = await apiWith((r) async => json({'error': '오늘 이노봇 사용 한도를 다 썼습니다. 내일 다시 이용해 주세요.'}, 429)).turn({'text': 'x'});

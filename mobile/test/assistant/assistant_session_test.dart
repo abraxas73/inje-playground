@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../gw/fakes.dart';
 import 'chat_brain.dart';
 import 'gw_assistant_api_test.dart' show Gw, base;
+import 'gw_assistant_mail_test.dart' show init;
 
 /// 첫 load만 실패하는 아마란스 자격 저장소(러너 생성 예외).
 class _FlakyStore extends FakeGwStore {
@@ -130,7 +131,7 @@ void main() {
     expect(c.read(assistantSessionProvider).busy, false);
   });
 
-  test('쓰기 중 중지하면 나머지 쓰기를 실행하지 않고 서버에 아무것도 보내지 않는다 — 다음 입력 때 서버가 "취소됨"으로 닫는다', () async {
+  test('쓰기 중 중지하면 나머지 쓰기를 실행하지 않고, 다음 입력 전에 결과를 회신한다 — 시작한 쓰기는 "실행되었을 수 있습니다", 안 한 쓰기는 "중지되어 실행하지 않았습니다"', () async {
     late AssistantSession s;
     final routes = {...scenarioGw().routes};
     final orig = routes['/schres/rs121A06']!;
@@ -155,11 +156,16 @@ void main() {
     expect(st.busy, isFalse);
     expect(st.items.lastWhere((i) => i.kind == ChatKind.card).text, '중지했습니다 · 실행 여부를 확인해 주세요');
     await s.send('상태 확인');
+    final sent = brain.bodies[1]['actions'] as List;
+    expect(sent.map((a) => a['id']), ['a', 'b']);
+    expect(sent.every((a) => a['isError'] == true), isTrue);
+    expect('${sent[0]['result']}', contains('실행되었을 수 있습니다'));
+    expect('${sent[1]['result']}', contains('중지되어 실행하지 않았습니다'));
+    expect(brain.bodies.last['text'], '상태 확인');
+    expect(gw.calls['/schres/rs121A06'], hasLength(1), reason: '다시 실행하지 않음');
     final msgs = brain.received.last;
     expect(msgs.last['content'], '상태 확인');
-    final cancelled = msgs[msgs.length - 2]['content'] as List;
-    expect(cancelled.map((r) => r['tool_use_id']), ['a', 'b']);
-    expect(cancelled.every((r) => '${r['content']}'.contains('취소됨')), isTrue);
+    expect(jsonEncode(msgs), isNot(contains('취소됨')));
   });
 
   test('응답이 오지 않으면 시간 초과로 중지한다', () async {
@@ -221,6 +227,8 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     await s.send('결과 알려줘');
     expect(gw.calls['/schres/rs121A06'], hasLength(1), reason: '다시 실행하지 않음');
+    expect(brain.bodies.map((b) => b.containsKey('actions') ? 'actions' : 'text'), ['text', 'actions', 'actions', 'text'], reason: '끝나지 못한 회신을 다시 보내고, "처리할 작업이 없습니다"면 조용히 텍스트로');
+    expect(c.read(assistantSessionProvider).items.any((x) => x.text.contains('처리할 작업이 없습니다')), isFalse);
     expect(toolResults(brain.received[1]).single['tool_use_id'], 'd');
     final st = c.read(assistantSessionProvider);
     expect(st.items.any((x) => x.text == '지연 응답'), isFalse, reason: '중지한 요청의 늦은 답은 그리지 않는다');
@@ -494,6 +502,21 @@ void main() {
     expect(items.last.text, '보냈습니다.');
   });
 
+  test('서버 쓰기 승인 뒤 회신 스트림이 끊김 — tool ok를 받았으면 "실행했습니다", 못 받았으면 "실행 여부를 확인해 주세요"', () async {
+    Future<String> run(Map<String, dynamic> cut) async {
+      final brain = ChatBrain([
+        use([('t', 'teams_send', {'chat_id': '19:a@thread.v2', 'text': '안녕'})]),
+        cut,
+      ]);
+      final c = scope(brain, scenarioGw());
+      await c.read(assistantSessionProvider.notifier).send('인사해줘');
+      await c.read(assistantSessionProvider.notifier).confirm();
+      return c.read(assistantSessionProvider).items.lastWhere((i) => i.kind == ChatKind.card).text;
+    }
+    expect(await run({'__cut': true}), '실행했습니다');
+    expect(await run({'__cut': 'before'}), '실행 여부를 확인해 주세요');
+  });
+
   /// 요청 messages 유효성 — 모든 tool_result는 바로 앞 assistant의 tool_use와 짝, 모든 tool_use는 다음 user의 tool_result와 짝.
   void expectValid(List msgs) {
     expect(msgs.first['role'], 'user');
@@ -529,13 +552,13 @@ void main() {
     ),
   ]);
 
-  test('확인 뒤 회신이 429로 거절 → 안내만(대화 유지), 다음 입력 때 서버가 대기 호출을 닫아 고아 tool_use가 없다', () async {
+  test('확인 뒤 회신이 429로 거절 → 안내만(대화 유지), 다음 입력 전에 실행 결과를 다시 회신한다("취소됨"이 아님)', () async {
     final brain = ChatBrain([
       wr('w1'),
       {'__status': 429},
       say('완료'),
     ]);
-    final gw = scenarioGw();
+    final gw = Gw({...scenarioGw().routes, '/mail/mail014A01': (_) => init, '/mail/mail014A04': (_) => {'result': true, 'muid': 9}});
     final c = scope(brain, gw);
     final s = c.read(assistantSessionProvider.notifier);
     await s.send('보내줘');
@@ -547,10 +570,43 @@ void main() {
     expect(s.conversationId, 'c1');
     await s.send('다시 시도');
     expect(brain.bodies.last['conversationId'], 'c1');
+    final resent = brain.bodies[2]['actions'] as List;
+    expect(resent.single['id'], 'w1');
+    expect(resent.single['result']['ok'], isTrue);
+    expect(gw.calls['/mail/mail014A04'], hasLength(1), reason: '다시 실행하지 않음');
     final msgs = brain.received.last;
     expectValid(msgs);
-    expect((msgs[msgs.length - 2]['content'] as List).single['tool_use_id'], 'w1');
+    final r = toolResults(brain.received[1]).single;
+    expect(r['tool_use_id'], 'w1');
+    expect('${r['content']}', isNot(contains('취소됨')));
     expect(msgs.last['content'], '다시 시도');
+  });
+
+  test('보내지 못한 회신은 reset 뒤엔 다시 보내지 않는다', () async {
+    final brain = ChatBrain([wr('w1'), {'__status': 429}]);
+    final c = scope(brain, scenarioGw());
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('보내줘');
+    await s.confirm();
+    s.reset();
+    await s.send('새 대화');
+    expect(brain.bodies, hasLength(3));
+    expect(brain.bodies.last, isNot(contains('actions')));
+    expect(brain.bodies.last['conversationId'], isNull);
+  });
+
+  test('다시 보낸 회신이 확인 카드를 내면 사용자 말은 보내지 않고 카드를 먼저 보인다', () async {
+    final brain = ChatBrain([wr('w1'), {'__status': 429}, wr('w2')]);
+    final c = scope(brain, scenarioGw());
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('보내줘');
+    await s.confirm();
+    await s.send('하나 더');
+    final st = c.read(assistantSessionProvider);
+    expect(brain.bodies.last.containsKey('actions'), isTrue, reason: '텍스트는 보내지 않음');
+    expect(st.pending, isTrue);
+    expect(st.items.any((x) => x.kind == ChatKind.user && x.text == '하나 더'), isTrue);
+    expect(st.items.last.text, '확인할 작업이 있어 먼저 보여 드립니다. 처리 후 다시 말씀해 주세요.');
   });
 
   test('읽기 루프 중 네트워크 오류 → 네트워크 안내, 다음 입력도 같은 불변식', () async {
@@ -567,7 +623,9 @@ void main() {
     await s.send('다시');
     final msgs = brain.received.last;
     expectValid(msgs);
-    expect((msgs[msgs.length - 2]['content'] as List).first['tool_use_id'], 'r1');
+    final r = toolResults(brain.received[1]).single;
+    expect(r['tool_use_id'], 'r1');
+    expect('${r['content']}', isNot(contains('취소됨')), reason: '끊긴 회신(조회 결과)을 다시 보낸다');
     expect(msgs.last['content'], '다시');
   });
 

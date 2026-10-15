@@ -129,6 +129,7 @@ class AssistantSession extends Notifier<AssistantState> {
   Map<String, PendingCall> _calls = {}; // 현재 needs_action 호출(id → 위치·등급)
   final _toolStatus = <String, String>{}; // 이번 _drive에서 서버가 알려 준 도구 결과(id → ok|error|…)
   final _guard = MailReadGuard();
+  List<Map<String, dynamic>>? _unsent; // 서버에 닿지 못한 회신(오류·끊김·중지) — 다음 입력 전에 먼저 보낸다(그냥 텍스트를 보내면 서버가 대기 호출을 "취소됨"으로 닫는다)
   _Pending? _pending;
   AssistantJournal? _journal;
   _Run? _run;
@@ -146,6 +147,7 @@ class AssistantSession extends Notifier<AssistantState> {
     _calls = {};
     _approved.clear();
     _toolStatus.clear();
+    _unsent = null;
     _pending = null;
     _guard.reset();
     _journal = null;
@@ -249,6 +251,7 @@ class AssistantSession extends Notifier<AssistantState> {
   }
 
   /// 사용자 입력. 대기 카드는 그만두기로 닫는다 — 서버가 대기 호출을 "취소됨"으로 닫고 이 입력을 붙인다(고쳐 줘도 같은 길).
+  /// 보내지 못한 회신이 있으면 먼저 보낸다 — 그 결과 확인 카드가 뜨면 이 입력은 보내지 않고 카드를 먼저 보인다.
   Future<void> send(String text) async {
     final t = text.trim();
     if (t.isEmpty || state.busy) return;
@@ -259,6 +262,12 @@ class AssistantSession extends Notifier<AssistantState> {
     _add(ChatItem(ChatKind.user, t));
     if (!state.awaitingFix) _guard.reset();
     _set(awaitingFix: false);
+    if (_unsent case final u?) {
+      if (!await _drive({'actions': u}, resend: true)) {
+        if (state.pending) _add(const ChatItem(ChatKind.notice, '확인할 작업이 있어 먼저 보여 드립니다. 처리 후 다시 말씀해 주세요.'));
+        return;
+      }
+    }
     await _drive({'text': t});
   }
 
@@ -276,7 +285,9 @@ class AssistantSession extends Notifier<AssistantState> {
     return r['ok'] == false ? {'id': id, 'result': jsonEncode(v), 'isError': true} : {'id': id, 'result': v};
   }
 
-  Future<void> _drive(Map<String, dynamic> first) async {
+  /// 서버로 이어 간다. done으로 끝나면 true(카드 대기·오류·중지는 false).
+  /// resend: 보내지 못한 회신을 다시 보내는 중 — 서버가 입력 오류(이미 처리됨·처리 중)로 거절하면 조용히 true.
+  Future<bool> _drive(Map<String, dynamic> first, {bool resend = false}) async {
     final run = _run = _Run();
     _set(busy: true);
     _toolStatus.clear();
@@ -285,6 +296,8 @@ class AssistantSession extends Notifier<AssistantState> {
       for (var turn = 0; turn < maxTurns; turn++) {
         _add(const ChatItem(ChatKind.progress, '생각하는 중…'));
         var botIndex = -1;
+        final sent = body['actions'] is List ? List<Map<String, dynamic>>.from(body['actions'] as List) : null;
+        if (sent != null) _unsent = sent; // 결과를 받으면 비운다 — 오류·끊김·중지면 남아 다음 입력 전에 다시 보낸다(서버가 중복 실행을 막는다)
         TurnOutcome outcome;
         try {
           outcome = await _waitTurn(run, ref.read(chatApiProvider).turn(
@@ -301,7 +314,8 @@ class AssistantSession extends Notifier<AssistantState> {
               _set(items: items);
             },
             onTool: (id, tool, status) {
-              if (!_active(run) || status != 'running') return;
+              if (!_active(run)) return;
+              if (status != 'running') { _toolStatus[id] = status; return; } // 스트림이 뒤에 끊겨도 받은 결과는 남긴다
               botIndex = -1; // 도구 뒤 이어지는 답은 새 말풍선
               _add(ChatItem(ChatKind.progress, progressText(tool)));
             },
@@ -312,21 +326,25 @@ class AssistantSession extends Notifier<AssistantState> {
         } catch (_) {
           // ChatApi.turn은 ApiException만 결과로 바꾼다 — 연결 끊김 등은 여기로
           _add(const ChatItem(ChatKind.notice, '네트워크 연결을 확인하고 다시 시도해 주세요.'));
-          return;
+          return false;
         }
         if (outcome.conversationId != null) _conversationId = outcome.conversationId;
-        _toolStatus.addAll(outcome.toolStatus);
+        if (resend && turn == 0 && outcome.rejected) {
+          _unsent = null; // 서버가 이미 받았거나 처리 중 — 다시 보낼 것 없음
+          return true;
+        }
         if (outcome.disabled) {
           ref.read(assistantAvailableProvider.notifier).disable();
           _add(const ChatItem(ChatKind.notice, '관리자가 비서를 꺼 두었습니다.'));
-          return;
+          return false;
         }
         if (outcome.error != null) {
           _add(ChatItem(ChatKind.notice, outcome.error!));
-          return;
+          return false;
         }
+        if (sent != null) _unsent = null;
         final calls = outcome.needsAction;
-        if (calls == null) return;
+        if (calls == null) return true;
         List<Map<String, dynamic>>? replies;
         try {
           replies = await _handle(calls, run);
@@ -336,14 +354,15 @@ class AssistantSession extends Notifier<AssistantState> {
           // 보이지 않는 대기 카드는 버린다 — 다음 입력 때 서버가 대기 호출을 "취소됨"으로 닫는다
           _pending = null;
           _add(const ChatItem(ChatKind.notice, '처리하지 못했습니다. 다시 시도해 주세요.'));
-          return;
+          return false;
         }
-        if (replies == null || replies.isEmpty) return; // 확인 카드 대기(빈 회신은 서버가 받지 않는다)
+        if (replies == null || replies.isEmpty) return false; // 확인 카드 대기(빈 회신은 서버가 받지 않는다)
         body = {'actions': replies};
       }
       _add(const ChatItem(ChatKind.notice, '요청이 너무 복잡합니다. 나눠서 다시 말씀해 주세요.'));
+      return false;
     } on _Stopped {
-      return;
+      return false;
     } finally {
       if (_active(run)) {
         _run = null;
@@ -633,6 +652,22 @@ class AssistantSession extends Notifier<AssistantState> {
     _set(busy: true);
     final out = <String, Map<String, dynamic>>{};
     var failed = false;
+    String? started; // 실행을 시작한 앱 쓰기(결과 전)
+    List<Map<String, dynamic>> replies(Map<String, Map<String, dynamic>> res) => _replies(_resultsFor(
+      p,
+      picked == null
+          ? res
+          : {
+              p.choiceId!: {
+                'ok': writes.every((w) => res[w.id]?['ok'] == true),
+                'chosen': picked.label,
+                'results': [
+                  for (final (j, w) in writes.indexed)
+                    {'action': picked.lines[j], 'result': res[w.id] ?? {'ok': false, 'error': '실행되지 않았습니다'}},
+                ],
+              },
+            },
+    ));
     try {
       final runner = await _runner(run);
       for (final w in writes) {
@@ -650,12 +685,22 @@ class AssistantSession extends Notifier<AssistantState> {
             '${cardLine(w).split(' · ').first} 하는 중…',
           ),
         );
+        started = w.id;
         final r = await _wait(run, runner.run(w)); // 취소·삭제 성공은 러너가 실행 기록에서 지운다
         out[w.id] = r;
         if (r['ok'] != true) failed = true;
       }
     } on _Stopped {
-      return; // 서버에는 보내지 않는다 — 다음 입력 때 서버가 대기 호출을 "취소됨"으로 닫는다
+      // 지금은 보내지 않고 다음 입력 전에 회신한다 — 끝난 앱 쓰기는 실제 결과, 서버 쓰기는 미승인(그냥 텍스트를 보내면 서버가 "취소됨"으로 닫는다)
+      _approved.clear();
+      _unsent = replies({
+        for (final w in writes)
+          w.id: out[w.id] ??
+              (w.id == started
+                  ? {'ok': false, 'error': '응답 대기를 중지했습니다. 이미 요청한 작업은 실행되었을 수 있습니다. 다시 실행하지 말고 실행 여부를 조회하세요.'}
+                  : {'ok': false, 'error': '중지되어 실행하지 않았습니다'}),
+      });
+      return;
     } catch (_) {
       for (final w in writes) {
         if (!_approved.contains(w.id)) out.putIfAbsent(w.id, () => {'ok': false, 'error': '실행되지 않았습니다'});
@@ -671,6 +716,8 @@ class AssistantSession extends Notifier<AssistantState> {
     }
     bool ok(ToolCall w) => _approved.contains(w.id) ? _toolStatus[w.id] == 'ok' : out[w.id]?['ok'] == true;
     String status() {
+      // 승인한 서버 쓰기의 결과를 못 받았으면(스트림 끊김 등) 판정하지 않는다
+      if (writes.any((w) => _approved.contains(w.id) && _toolStatus[w.id] == null)) return '실행 여부를 확인해 주세요';
       final okCount = writes.where(ok).length;
       final s = okCount == writes.length
           ? '실행했습니다'
@@ -681,27 +728,7 @@ class AssistantSession extends Notifier<AssistantState> {
     }
     final onServer = writes.any((w) => _approved.contains(w.id));
     if (!onServer) _markCardDone(status(), item: card); // 결과를 이미 안다
-    final okAll = writes.every((w) => out[w.id]?['ok'] == true);
-    final replies = _replies(_resultsFor(
-      p,
-      picked == null
-          ? out
-          : {
-              p.choiceId!: {
-                'ok': okAll,
-                'chosen': picked.label,
-                'results': [
-                  for (final (j, w) in writes.indexed)
-                    {
-                      'action': picked.lines[j],
-                      'result':
-                          out[w.id] ?? {'ok': false, 'error': '실행되지 않았습니다'},
-                    },
-                ],
-              },
-            },
-    ));
-    await _drive({'actions': replies});
+    await _drive({'actions': replies(out)});
     // 서버 쓰기는 회신 스트림의 결과로 — 중지됐으면 stop()이 이미 "실행 여부를 확인해 주세요"로 바꿨다
     if (onServer && state.items.any((x) => identical(x, card))) _markCardDone(status(), item: card);
   }

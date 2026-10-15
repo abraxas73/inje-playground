@@ -19,6 +19,7 @@ class BrainTokens implements TokenSource {
 /// 거절(__status·__throw·꺼짐)은 진짜 서버처럼 대화를 바꾸기 전에 일어난다(대기 호출은 그대로 남는다).
 /// received: 각 Claude 호출 직전의 대화(옛 messages 형식), executed: 서버에서 실행된 도구 {tool, args}(선택지·카드 확인용 /api/assistant/execute 포함),
 /// viaExecute: /api/assistant/execute로 불린 도구 이름, bodies: /api/chat/turn 요청 본문.
+/// {__cut: true}: 작업 회신을 처리해 tool 이벤트까지 보낸 뒤 스트림이 끊긴다(연결 예외), {__cut: 'before'}: 처리 전에 끊긴다(대기 호출 그대로).
 class ChatBrain {
   ChatBrain(this.turns, {this.waitForTurn});
   final List<Map<String, dynamic>> turns;
@@ -33,7 +34,20 @@ class ChatBrain {
   List<Map<String, dynamic>> _pending = [];
   var conversations = 0;
 
-  ApiClient get client => ApiClient(httpClient: MockClient(_handle), tokens: BrainTokens(), baseUrl: base, userAgent: 'test');
+  ApiClient get client => ApiClient(httpClient: MockClient.streaming(_stream), tokens: BrainTokens(), baseUrl: base, userAgent: 'test');
+  var _cut = false;
+
+  /// 스트리밍 래퍼 — __cut이면 받은 이벤트까지 흘려보낸 뒤 연결 예외로 끊는다.
+  Future<http.StreamedResponse> _stream(http.BaseRequest req, http.ByteStream body) async {
+    final r = await _handle(http.Request(req.method, req.url)..bodyBytes = await body.toBytes());
+    final cut = _cut;
+    _cut = false;
+    return http.StreamedResponse(Stream.multi((c) {
+      c.add(r.bodyBytes);
+      if (cut) c.addError(http.ClientException('cut'));
+      c.close();
+    }), r.statusCode, headers: r.headers);
+  }
   static const base = 'https://brain.test';
 
   Map<String, dynamic> _serverRun(String name, Map input, bool approved) {
@@ -75,7 +89,13 @@ class ChatBrain {
     }
     // 진짜 서버의 입력 검사 — 작업 응답은 대화 id와 대기 호출이 있어야 한다
     if (body['actions'] is List && (body['conversationId'] == null || _pending.isEmpty || (body['actions'] as List).isEmpty)) {
-      return _json({'error': '처리할 작업이 없습니다.'}, 400);
+      return _sse([{'type': 'error', 'message': '처리할 작업이 없습니다.', 'retryable': false}]); // 진짜 서버처럼 200 스트림 안의 오류 이벤트
+    }
+    final cut = head?['__cut'];
+    if (cut != null) {
+      turns.removeAt(0);
+      _cut = true;
+      if (cut == 'before') return _sse([{'type': 'conversation', 'id': body['conversationId'] ?? 'c1'}]);
     }
     final events = <Map<String, dynamic>>[];
     if (body['conversationId'] == null) conversations++;
@@ -100,6 +120,7 @@ class ChatBrain {
       }
       history.add({'role': 'user', 'content': results});
       _pending = [];
+      if (cut != null) return _sse(events);
     } else {
       if (_pending.isNotEmpty) {
         history.add({'role': 'user', 'content': [for (final c in _pending) {'type': 'tool_result', 'tool_use_id': '${c['id']}', 'content': '취소됨(사용자가 다른 요청을 함)', 'is_error': true}]});

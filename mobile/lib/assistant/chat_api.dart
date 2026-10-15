@@ -16,6 +16,8 @@ class TurnOutcome {
   List<PendingCall>? needsAction;
   String? error;
   bool disabled = false;
+  /// 서버가 입력 오류로 거절(SSE error, retryable:false — "처리할 작업이 없습니다" 등)
+  bool rejected = false;
   final Map<String, String> toolStatus = {};
 }
 
@@ -54,6 +56,7 @@ class ChatApi {
           case 'error':
             finished = true;
             o.error = '${e['message'] ?? '이노봇이 답하지 못했습니다.'}';
+            o.rejected = e['retryable'] == false;
         }
       }, abortTrigger: abort);
     } on ApiException catch (e) {
