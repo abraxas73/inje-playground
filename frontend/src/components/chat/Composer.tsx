@@ -16,12 +16,16 @@ export default function Composer({ busy, models, model, onModel, onSend, onStop,
   const [text, setText] = useState("");
   const [uploads, setUploads] = useState<Upload[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  const countRef = useRef(0); // 연속 끌어 놓기·붙여 넣기에서도 상한을 지키려고 클로저 대신 ref로 센다
+  const [notice, setNotice] = useState("");
   const uploading = uploads.some((u) => !u.id && !u.error);
   const ready = uploads.filter((u) => u.id) as Array<Upload & { id: string }>;
 
   async function add(files: File[]) {
-    const room = MAX_FILES - uploads.length;
-    for (const f of files.slice(0, Math.max(0, room))) {
+    const room = Math.max(0, MAX_FILES - countRef.current);
+    setNotice(files.length > room ? `첨부는 ${MAX_FILES}개까지입니다.` : "");
+    countRef.current += Math.min(files.length, room);
+    for (const f of files.slice(0, room)) {
       const key = `${f.name}-${Math.random()}`;
       setUploads((u) => [...u, { key, name: f.name }]);
       const fd = new FormData();
@@ -35,7 +39,7 @@ export default function Composer({ busy, models, model, onModel, onSend, onStop,
     const t = text.trim();
     if (busy || uploading || (!t && !ready.length)) return;
     onSend(t, ready.map((u) => ({ id: u.id, name: u.name })));
-    setText(""); setUploads([]);
+    setText(""); setUploads([]); countRef.current = 0; setNotice("");
   }
   return (
     <div className="rounded-2xl border bg-background p-2 shadow-sm" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void add([...e.dataTransfer.files]); }}>
@@ -44,11 +48,12 @@ export default function Composer({ busy, models, model, onModel, onSend, onStop,
           {uploads.map((u) => (
             <li key={u.key} className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${u.error ? "border-destructive text-destructive" : ""}`} title={u.error ?? u.warning}>
               {!u.id && !u.error ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}{u.name}{u.error ? ` — ${u.error}` : ""}
-              <button type="button" aria-label={`${u.name} 빼기`} onClick={() => setUploads((x) => x.filter((y) => y.key !== u.key))}><X className="h-3 w-3" /></button>
+              <button type="button" aria-label={`${u.name} 빼기`} onClick={() => { countRef.current = Math.max(0, countRef.current - 1); setUploads((x) => x.filter((y) => y.key !== u.key)); }}><X className="h-3 w-3" /></button>
             </li>
           ))}
         </ul>
       )}
+      {notice && <p role="status" className="mb-1 px-1 text-xs text-muted-foreground">{notice}</p>}
       {uploads.some((u) => u.warning) && <p className="mb-1 px-1 text-xs text-amber-600">이미지·스캔 문서 안의 개인정보는 가려지지 않습니다.</p>}
       <Textarea aria-label="메시지" value={text} placeholder={placeholder} rows={2} className="min-h-[3rem] resize-none border-0 shadow-none focus-visible:ring-0"
         onChange={(e) => setText(e.target.value)}
