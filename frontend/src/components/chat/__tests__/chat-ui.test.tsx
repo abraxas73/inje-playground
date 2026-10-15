@@ -44,3 +44,16 @@ describe("채팅 UI", () => {
     expect(onSend).toHaveBeenCalledWith("안녕", []);
   });
 });
+
+describe("마크다운 서식", () => {
+  it("표·목록·굵게를 HTML로 그리고 표는 가로 스크롤 상자에 담는다", () => {
+    const text = "**장기근속**\n\n- 3년 주기\n\n| 근속 | 휴가 |\n|---|---|\n| 3년 | 3일 |";
+    const { container } = render(<MessageView message={{ id: "m1", role: "assistant", text, attachments: [], tools: [], status: "ok", masked: 0 }} />);
+    expect(container.querySelector("table")).toBeTruthy();
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(1);
+    expect(container.querySelector("th")?.textContent).toBe("근속");
+    expect(container.querySelector("table")?.parentElement?.className).toContain("overflow-x-auto");
+    expect(container.querySelector("li")?.textContent).toBe("3년 주기");
+    expect(container.textContent).not.toContain("|---|");
+  });
+});
