@@ -32,6 +32,8 @@ class ChatBrain {
   final history = <Map<String, dynamic>>[];
   final saved = <String, List<Map<String, dynamic>>>{}; // GET /api/chat/conversations/{id}가 돌려줄 메시지 행
   final savedCalls = <String, List<Map<String, dynamic>>>{}; // 같은 GET의 toolCalls
+  final savedModel = <String, String>{}; // 같은 GET의 conversation.model
+  Map<String, dynamic> config = {'enabled': true, 'models': ['claude-sonnet-5-5'], 'defaultModel': 'claude-sonnet-5-5'};
   List<Map<String, dynamic>> _pending = [];
   var conversations = 0;
 
@@ -62,11 +64,12 @@ class ChatBrain {
   }
 
   Future<http.Response> _handle(http.Request r) async {
+    if (r.method == 'GET' && r.url.path == '/api/chat/config') return _json(config);
     if (r.method == 'GET') {
       if (waitForLoad != null) await waitForLoad;
       final rows = saved[Uri.decodeComponent(r.url.pathSegments.last)];
       final id = Uri.decodeComponent(r.url.pathSegments.last);
-      return rows == null ? _json({'error': '대화를 찾지 못했습니다.'}, 404) : _json({'messages': rows, 'toolCalls': savedCalls[id] ?? const []});
+      return rows == null ? _json({'error': '대화를 찾지 못했습니다.'}, 404) : _json({'conversation': {'id': id, 'model': savedModel[id] ?? 'claude-sonnet-5-5'}, 'messages': rows, 'toolCalls': savedCalls[id] ?? const []});
     }
     if (r.url.path != '/api/chat/turn') {
       // 선택지 안의 서버 쓰기·카드용 대상 확인은 앱이 기존 /api/assistant/execute로 부른다

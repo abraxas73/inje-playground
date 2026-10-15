@@ -68,7 +68,8 @@ void main() {
   test('list·load — 목록, 본문은 사람이 읽을 말·기록된 도구 칩·가린 건수', () async {
     final api = apiWith((r) async {
       if (r.url.path == '/api/chat/conversations') return json({'conversations': [{'id': 'c1', 'title': '주간보고', 'model': 'claude-sonnet-5-5', 'last_message_at': '2026-10-15T01:00:00Z'}]});
-      return json({'conversation': {'id': 'c1'}, 'toolCalls': [{'message_id': 'm2', 'tool_use_id': 't1', 'tool': 'mail_list', 'status': 'ok', 'summary': '받은메일 목록 3건'}], 'messages': [
+      if (r.url.path == '/api/chat/config') return json({'enabled': true, 'models': ['claude-sonnet-5-5', 'claude-opus-5-5'], 'defaultModel': 'claude-sonnet-5-5'});
+      return json({'conversation': {'id': 'c1', 'model': 'claude-opus-5-5'}, 'toolCalls': [{'message_id': 'm2', 'tool_use_id': 't1', 'tool': 'mail_list', 'status': 'ok', 'summary': '받은메일 목록 3건'}], 'messages': [
         {'id': 'm1', 'role': 'user', 'status': 'ok', 'masked_count': 1, 'content': [{'type': 'text', 'text': '메일'}, {'type': 'attachment', 'id': 'a', 'name': 'x.pdf'}]},
         {'id': 'm2', 'role': 'assistant', 'status': 'ok', 'content': [{'type': 'tool_use', 'id': 't1', 'name': 'mail_list', 'input': {}}]},
         {'id': 'm3', 'role': 'user', 'status': 'ok', 'content': [{'type': 'tool_result', 'tool_use_id': 't1', 'content': '받은메일 목록 3건'}]},
@@ -77,7 +78,12 @@ void main() {
       ]});
     });
     expect((await api.list()).single.title, '주간보고');
-    expect(await api.load('c1'), [
+    final cfg = await api.config();
+    expect(cfg.models, ['claude-sonnet-5-5', 'claude-opus-5-5']);
+    expect(cfg.defaultModel, 'claude-sonnet-5-5');
+    final loaded = await api.load('c1');
+    expect(loaded.model, 'claude-opus-5-5');
+    expect(loaded.lines, [
       (kind: 'user', text: '메일', status: null),
       (kind: 'masked', text: '개인정보 1건 가림', status: null),
       (kind: 'tool', text: '받은메일 목록 3건', status: 'ok'),

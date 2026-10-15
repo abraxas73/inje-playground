@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../app/theme.dart';
 import 'assistant_session.dart';
 import 'assistant_voice.dart';
+import 'chat_api.dart';
 import 'conversation_list_sheet.dart';
 
 /// [seed]가 있으면 시트가 열리자마자 그 문장을 보낸다(예: 일정 화면 "추가" → "… 아마란스 일정 등록해줘"). 말풍선으로 남아 "고쳐 줘"로 바로잡을 수 있다.
@@ -243,6 +244,24 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                   ),
                 ),
                 const Spacer(),
+                if (ref.watch(chatConfigProvider).value case final cfg? when cfg.models.length > 1)
+                  PopupMenuButton<String>(
+                    tooltip: '모델 고르기',
+                    enabled: !st.busy,
+                    initialValue: ref.watch(assistantModelProvider) ?? cfg.defaultModel,
+                    onSelected: ref.read(assistantModelProvider.notifier).pick,
+                    itemBuilder: (_) => [for (final m in cfg.models) PopupMenuItem(value: m, child: Text(modelLabel(m)))],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(modelLabel(ref.watch(assistantModelProvider) ?? cfg.defaultModel), style: const TextStyle(fontSize: 13, color: Brand.muted)),
+                          const Icon(Icons.arrow_drop_down, size: 18, color: Brand.muted),
+                        ],
+                      ),
+                    ),
+                  ),
                 IconButton(
                   tooltip: '대화 기록',
                   icon: const Icon(Icons.history),

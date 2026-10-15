@@ -243,10 +243,11 @@ class AssistantSession extends Notifier<AssistantState> {
   Future<void> open(String id) async {
     if (state.busy) return;
     try {
-      final lines = await ref.read(chatApiProvider).load(id);
+      final (:model, :lines) = await ref.read(chatApiProvider).load(id);
       if (state.busy) return; // 불러오는 사이 보내기가 시작됐다 — 진행 중인 대화를 덮지 않는다
       state = build();
       _conversationId = id;
+      if (model != null) ref.read(assistantModelProvider.notifier).pick(model);
       _set(items: [
         for (final l in lines)
           switch (l.kind) {
@@ -313,7 +314,7 @@ class AssistantSession extends Notifier<AssistantState> {
         TurnOutcome outcome;
         try {
           outcome = await _waitTurn(run, ref.read(chatApiProvider).turn(
-            {...body, 'client': 'app', 'now': nowIso(), if (_conversationId != null) 'conversationId': _conversationId},
+            {...body, 'client': 'app', 'now': nowIso(), if (_conversationId != null) 'conversationId': _conversationId, 'model': ?ref.read(assistantModelProvider)},
             onText: (d) {
               if (!_active(run) || d.isEmpty) return;
               final items = [...state.items.where((x) => x.kind != ChatKind.progress)];

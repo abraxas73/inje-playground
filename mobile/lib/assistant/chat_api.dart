@@ -83,7 +83,7 @@ class ChatApi {
   }
 
   /// 화면에 다시 그릴 줄 — 사용자·이노봇 텍스트, 기록된 도구 호출(칩), 가린 건수. 실패 행·도구 결과 행의 원문은 그리지 않는다.
-  Future<List<LoadedLine>> load(String id) async {
+  Future<({String? model, List<LoadedLine> lines})> load(String id) async {
     final j = await api.getJson('/api/chat/conversations/${Uri.encodeComponent(id)}');
     final rows = j is Map && j['messages'] is List ? j['messages'] as List : const [];
     final calls = {
@@ -101,8 +101,38 @@ class ChatApi {
       }
       if (r['masked_count'] case final num n when n > 0) out.add((kind: 'masked', text: maskedText(n.toInt()), status: null));
     }
-    return out;
+    final conv = j is Map && j['conversation'] is Map ? j['conversation'] as Map : const {};
+    return (model: conv['model'] is String ? conv['model'] as String : null, lines: out);
   }
+
+  /// 고를 수 있는 모델(관리자 설정 assistant_models)과 기본 모델.
+  Future<({List<String> models, String defaultModel})> config() async {
+    final j = await api.getJson('/api/chat/config');
+    final models = [for (final m in (j is Map && j['models'] is List ? j['models'] as List : const [])) '$m'];
+    return (models: models, defaultModel: j is Map && j['defaultModel'] is String ? j['defaultModel'] as String : (models.isEmpty ? '' : models.first));
+  }
+}
+
+/// 모델 이름표(웹 Composer와 같은 표기).
+const modelLabels = {'claude-sonnet-5-5': 'Sonnet 5.5', 'claude-opus-5-5': 'Opus 5.5'};
+String modelLabel(String m) => modelLabels[m] ?? m;
+
+/// 채팅 설정(모델 선택지) — 실패하면 선택지 없음(선택 버튼을 숨긴다).
+final chatConfigProvider = FutureProvider<({List<String> models, String defaultModel})>((ref) async {
+  try {
+    return await ref.read(chatApiProvider).config();
+  } catch (_) {
+    return (models: const <String>[], defaultModel: '');
+  }
+});
+
+/// 이노봇이 쓸 모델 — null이면 보내지 않아 서버 기본값. 새 대화에도 유지하고, 대화를 열면 그 대화의 모델로 바뀐다.
+final assistantModelProvider = NotifierProvider<AssistantModel, String?>(AssistantModel.new);
+
+class AssistantModel extends Notifier<String?> {
+  @override
+  String? build() => null;
+  void pick(String? m) => state = m;
 }
 
 String maskedText(int n) => '개인정보 $n건 가림';

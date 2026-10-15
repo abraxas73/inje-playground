@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:playground/api/client.dart';
 import 'package:playground/assistant/assistant_session.dart';
 import 'package:playground/assistant/assistant_journal.dart';
+import 'package:playground/assistant/chat_api.dart' show assistantModelProvider;
 import 'package:playground/gw/gw_client.dart';
 import 'package:playground/gw/gw_creds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -990,6 +991,24 @@ void main() {
       (ChatKind.tool, 'Teams 채팅 목록 2건'),
       (ChatKind.bot, '보냈습니다'),
     ]);
+  });
+
+  test('모델 — 고른 모델로 보내고, 안 고르면 보내지 않는다(서버 기본값), 대화를 열면 그 대화의 모델로', () async {
+    final brain = ChatBrain([say('a'), say('b'), say('c')]);
+    brain.saved['c9'] = [{'id': 'm1', 'role': 'user', 'content': [{'type': 'text', 'text': '옛'}]}];
+    brain.savedModel['c9'] = 'claude-opus-5-5';
+    final c = scope(brain, scenarioGw());
+    final s = c.read(assistantSessionProvider.notifier);
+    await s.send('하나');
+    expect(brain.bodies.last.containsKey('model'), isFalse);
+    c.read(assistantModelProvider.notifier).pick('claude-opus-5-5');
+    await s.send('둘');
+    expect(brain.bodies.last['model'], 'claude-opus-5-5');
+    c.read(assistantModelProvider.notifier).pick('claude-sonnet-5-5');
+    s.reset();
+    expect(c.read(assistantModelProvider), 'claude-sonnet-5-5', reason: '새 대화도 고른 모델 유지(웹과 같게)');
+    await s.open('c9');
+    expect(c.read(assistantModelProvider), 'claude-opus-5-5');
   });
 
   test('open — 불러오는 사이 보내기가 시작되면 진행 중인 대화를 덮지 않는다', () async {
