@@ -30,6 +30,20 @@ void main() {
     expect(got, hasLength(2));
   });
 
+  test('SseDecoder — onEvent 예외는 삼키지 않고 던진다', () {
+    final d = SseDecoder((_) => throw StateError('boom'));
+    expect(() => d.add('data: {"type":"text"}\n\n'), throwsStateError);
+  });
+
+  test('SseDecoder — \\r과 \\n\\r\\n으로 갈라진 청크도 이벤트 하나', () {
+    final got = <Map<String, dynamic>>[];
+    final d = SseDecoder(got.add);
+    d.add('data: {"type":"text"}\r');
+    d.add('\n\r');
+    d.add('\n');
+    expect(got, hasLength(1));
+  });
+
   test('postSse — 이벤트를 차례로, Bearer·Accept, 본문 JSON', () async {
     late http.BaseRequest seen;
     final api = ApiClient(httpClient: MockClient((r) async { seen = r; return http.Response.bytes(utf8.encode(sse([{'type': 'conversation', 'id': 'c1'}, {'type': 'text', 'delta': '안녕'}, {'type': 'done', 'messageId': 'm1'}])), 200, headers: {'content-type': 'text/event-stream; charset=utf-8'}); }), tokens: _Tokens(), baseUrl: 'https://x.test', userAgent: 'UA');
