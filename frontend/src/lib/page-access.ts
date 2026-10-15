@@ -13,6 +13,7 @@ export const PAGES = [
   { key: "team", href: "/team", label: "커피 타임", group: "daily", minRole: "guest" },
   { key: "survey", href: "/survey", label: "설문", group: "daily", minRole: "guest" },
   { key: "apps", href: "/apps", label: "모바일 앱", group: "daily", minRole: "user" },
+  { key: "assistant", href: "/chat", label: "이노봇", group: "ai", minRole: "user" },
   { key: "usage_code", href: "/usage/code", label: "Claude Code", group: "ai", minRole: "user" },
   { key: "usage_chat", href: "/usage/chat", label: "Claude 채팅", group: "ai", minRole: "user" },
   { key: "usage_perf", href: "/usage/perf", label: "성과", group: "ai", minRole: "user" },
