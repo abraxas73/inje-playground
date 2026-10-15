@@ -2,7 +2,9 @@ import 'dart:async';
 // mobile/lib/assistant/assistant_sheet.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../app/theme.dart';
 import 'assistant_session.dart';
 import 'assistant_voice.dart';
@@ -45,6 +47,17 @@ const _examples = [
   '오늘 오후 회의 회의록 Confluence에 만들어줘',
   'SharePoint에서 최근 제안서 찾아서 요약해줘',
 ];
+
+/// 읽어 주기용 글 — 이노봇 답(마크다운)에서 기호를 뺀다. 표는 칸을 쉼표로 잇고 구분 줄은 버린다.
+String speakableText(String md) => md
+    .split('\n')
+    .where((l) => !RegExp(r'^\s*\|?\s*:?-{2,}').hasMatch(l))
+    .map((l) {
+      var t = l.replaceAll(RegExp(r'^\s*#{1,6}\s+'), '').replaceAll(RegExp(r'^\s*[-*+]\s+'), '');
+      if (t.trim().startsWith('|')) t = t.trim().replaceAll(RegExp(r'^\||\|$'), '').split('|').map((c) => c.trim()).join(', ');
+      return t.replaceAllMapped(RegExp(r'\[([^\]]+)\]\([^)]*\)'), (m) => m[1]!).replaceAll(RegExp(r'\*\*|__|`'), '');
+    })
+    .join('\n');
 
 /// 비서 대화 시트 — 말풍선·진행 표시·확인 카드·입력창. 상태는 assistantSessionProvider(앱이 켜져 있는 동안 유지).
 class AssistantSheet extends ConsumerStatefulWidget {
@@ -270,7 +283,7 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                         it.kind == ChatKind.card &&
                         !it.done,
                     speaking: _speaking == i,
-                    onSpeak: () => _toggleSpeak(i, it.text),
+                    onSpeak: () => _toggleSpeak(i, speakableText(it.text)),
                     onRun: (choice) => s.confirm(choice: choice),
                     onFix: s.fix,
                     onDismiss: s.dismiss,
@@ -431,7 +444,7 @@ class _Bubble extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Flexible(child: _box(it.text, Colors.white, Brand.navy)),
+              Flexible(child: _markdown(context, it.text)),
               IconButton(
                 tooltip: speaking ? '그만 읽기' : '읽어 주기',
                 icon: Icon(
@@ -667,6 +680,42 @@ class _Bubble extends StatelessWidget {
           ),
         );
     }
+  }
+
+  /// 이노봇 답 — 웹 /chat과 같은 마크다운(표는 가로로 밀어 본다, 링크는 바깥 브라우저).
+  Widget _markdown(BuildContext context, String t) {
+    final base = Theme.of(context).textTheme.bodyMedium!.copyWith(color: Brand.navy, fontSize: 15, height: 1.5);
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.8),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      child: MarkdownBody(
+        data: t,
+        selectable: true,
+        softLineBreak: true, // 한 줄 바꿈도 줄을 바꾼다(앱의 기존 말풍선과 같게)
+        styleSheet: MarkdownStyleSheet(
+          p: base,
+          listBullet: base,
+          strong: const TextStyle(fontWeight: FontWeight.w700),
+          h1: base.copyWith(fontSize: 17, fontWeight: FontWeight.w700),
+          h2: base.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
+          h3: base.copyWith(fontWeight: FontWeight.w700),
+          code: base.copyWith(fontFamily: 'monospace', fontSize: 13, backgroundColor: Brand.ground),
+          codeblockDecoration: BoxDecoration(color: Brand.ground, borderRadius: BorderRadius.circular(8)),
+          tableHead: base.copyWith(fontSize: 13, fontWeight: FontWeight.w700),
+          tableBody: base.copyWith(fontSize: 13),
+          tableBorder: TableBorder.all(color: Brand.line),
+          tableColumnWidth: const IntrinsicColumnWidth(),
+          tableCellsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          a: base.copyWith(color: Brand.blue, decoration: TextDecoration.underline),
+        ),
+        onTapLink: (_, href, _) {
+          final u = href == null ? null : Uri.tryParse(href);
+          if (u != null && (u.scheme == 'https' || u.scheme == 'http')) launchUrl(u, mode: LaunchMode.externalApplication);
+        },
+      ),
+    );
   }
 
   Widget _box(String t, Color bg, Color fg) => Container(

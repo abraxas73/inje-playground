@@ -57,6 +57,32 @@ void main() {
     expect(find.byIcon(Icons.shield_outlined), findsOneWidget);
   });
 
+  testWidgets('이노봇 답은 마크다운(굵게·표)으로 그리고, 읽어 주기는 기호를 뺀 글로', (tester) async {
+    final brain = ChatBrain([say('**요약**\n\n| 이름 | 팀 |\n|---|---|\n| 강 | 플랫폼 |')]);
+    await tester.pumpWidget(host(brain, const AssistantSheet()));
+    await tester.enterText(find.byType(TextField), '표로');
+    await tester.tap(find.byTooltip('보내기'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Table), findsOneWidget);
+    expect(find.textContaining('**'), findsNothing);
+    expect(find.textContaining('플랫폼', findRichText: true), findsOneWidget);
+  });
+
+  testWidgets('넓은 표는 넘치지 않고 가로로 밀어 본다', (tester) async {
+    final row = List.filled(8, '아주 긴 칸 내용입니다').join(' | ');
+    final brain = ChatBrain([say('| ${List.generate(8, (i) => '열$i').join(' | ')} |\n|${List.filled(8, '---').join('|')}|\n| $row |')]);
+    await tester.pumpWidget(host(brain, const AssistantSheet()));
+    await tester.enterText(find.byType(TextField), '넓은 표');
+    await tester.tap(find.byTooltip('보내기'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Table), findsOneWidget);
+    expect(find.ancestor(of: find.byType(Table), matching: find.byWidgetPredicate((w) => w is SingleChildScrollView && w.scrollDirection == Axis.horizontal)), findsOneWidget);
+  });
+
+  test('speakableText — 마크다운 기호를 뺀 읽을 글', () {
+    expect(speakableText('## 제목\n**굵게** 와 `코드`, [링크](https://x.test)\n\n| 이름 | 팀 |\n|---|---|\n| 강 | 플랫폼 |\n- 하나'), '제목\n굵게 와 코드, 링크\n\n이름, 팀\n강, 플랫폼\n하나');
+  });
+
   testWidgets('seed가 있으면 열리자마자 그 문장을 보내고 말풍선으로 남긴다(일정 화면 "추가")', (tester) async {
     final brain = ChatBrain([say('어떤 일정인가요? 제목과 시간을 알려 주세요.')]);
     await tester.pumpWidget(host(brain, Builder(builder: (context) => TextButton(onPressed: () => showAssistantSheet(context, seed: '10월 12일 (월)에 아마란스 일정 등록해줘. 제목·시간·장소를 물어봐 줘.'), child: const Text('추가')))));
