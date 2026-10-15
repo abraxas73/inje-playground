@@ -54,6 +54,8 @@ describe("요약·SSE", () => {
   it("단건은 제목, 실패는 사유", () => {
     expect(summarizeToolResult("read_mail", true, { subject: "주간보고" })).toBe("메일 읽기: 주간보고");
     expect(summarizeToolResult("teams_send", false, "권한이 없습니다")).toBe("Teams 보내기 실패: 권한이 없습니다");
+    expect(summarizeToolResult("read_approval", true, { title: "휴가 신청", lines: [{ name: "a" }, { name: "b" }] })).toBe("결재 문서: 휴가 신청");
+    expect(summarizeToolResult("teams_send", false, { message: "거부됨" })).toBe("Teams 보내기 실패: 거부됨");
     expect(summarizeToolResult("whatever", true, { ok: 1 })).toBe("whatever 완료");
   });
   it("SSE 한 줄", () => {

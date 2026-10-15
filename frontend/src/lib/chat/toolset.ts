@@ -57,7 +57,7 @@ export function clientPromptLines(client: "web" | "app", desktopOnline: boolean)
     "지금은 웹 채팅이다. 답에 마크다운(목록·표·굵게)을 써도 된다. 쓰기 도구는 웹 화면이 확인 카드를 띄운다.",
     "웹에서 아마란스는 조회만 된다. 회의실 예약·일정 등록·출퇴근·메일 저장·발송·결재 같은 아마란스 쓰기는 모바일·데스크톱 앱의 이노봇에서 하라고 안내한다.",
     desktopOnline
-      ? "아마란스 도구 이름은 list_mail_inbox·read_mail·search_mail_index·pending_approvals 등이다."
+      ? "아마란스 도구 이름은 list_mail_inbox·read_mail·search_mail_index·pending_approvals 등이다. 메일을 찾을 때는 search_mail_index를 먼저 쓰고, 메일 본문은 사용자가 그 메일을 요청했을 때만 read_mail로 읽는다(읽음 처리된다)."
       : "데스크톱 앱이 꺼져 있어 아마란스 도구가 없다. 메일·결재·일정 같은 아마란스 요청이면 INNOGRID 데스크톱 앱을 켜면 처리할 수 있다고 안내한다.",
   ];
 }

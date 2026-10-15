@@ -13,14 +13,26 @@ export const toolLabel = (name: string) => TOOL_LABEL[name] ?? name;
 
 const LIST_KEYS = ["items", "chats", "hits", "spaces", "events", "Records", "records", "results", "list", "people", "rooms"];
 const TITLE_KEYS = ["subject", "title", "name", "topic", "docTitle", "artTitle"];
-function findList(v: unknown): unknown[] | null {
+function findList(v: unknown, anyArray = false): unknown[] | null {
   if (Array.isArray(v)) return v;
   if (!v || typeof v !== "object") return null;
   const o = v as Record<string, unknown>;
   for (const k of LIST_KEYS) if (Array.isArray(o[k])) return o[k] as unknown[];
-  for (const x of Object.values(o)) if (Array.isArray(x)) return x;
+  if (anyArray) for (const x of Object.values(o)) if (Array.isArray(x)) return x;
   return null;
 }
+function reasonOf(r: unknown): string {
+  if (typeof r === "string") return r;
+  if (r && typeof r === "object") {
+    const o = r as Record<string, unknown>;
+    for (const k of ["message", "error"]) if (typeof o[k] === "string") return o[k] as string;
+  }
+  return JSON.stringify(r) ?? String(r);
+}
+const listLine = (label: string, list: unknown[]) => {
+  const titles = list.slice(0, 5).map(titleOf).filter(Boolean);
+  return `${label} ${list.length}건${titles.length ? `: ${titles.join(", ")}` : ""}`.slice(0, 300);
+};
 function titleOf(v: unknown): string {
   if (!v || typeof v !== "object") return "";
   const o = v as Record<string, unknown>;
@@ -31,12 +43,11 @@ function titleOf(v: unknown): string {
 
 export function summarizeToolResult(tool: string, ok: boolean, result: unknown): string {
   const label = toolLabel(tool);
-  if (!ok) return `${label} 실패: ${String(result).slice(0, 120)}`;
+  if (!ok) return `${label} 실패: ${reasonOf(result).slice(0, 120)}`;
   const list = findList(result);
-  if (list) {
-    const titles = list.slice(0, 5).map(titleOf).filter(Boolean);
-    return `${label} ${list.length}건${titles.length ? `: ${titles.join(", ")}` : ""}`.slice(0, 300);
-  }
+  if (list) return listLine(label, list);
   const t = titleOf(result);
-  return (t ? `${label}: ${t}` : `${label} 완료`).slice(0, 300);
+  if (t) return `${label}: ${t}`.slice(0, 300);
+  const any = findList(result, true);
+  return any ? listLine(label, any) : `${label} 완료`;
 }
