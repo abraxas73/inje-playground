@@ -93,9 +93,10 @@ export async function masterExport(contacts: Contact[], filters: ReturnType<type
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "INNOGRID"; workbook.created = generatedAt;
   const sheet = workbook.addWorksheet("01_Master_DB");
-  const widths = [20, 16, 24, 12, 20, 16, 34, 22, 26, 22, 26, 12, 16, 18, 18, 18, 16, 45];
+  const widths = [20, 16, 24, 12, 20, 16, 34, 22, 12, 16, 18, 18, 12, 10, 10, 14, 14, 16, 45, 22, 26];
   sheet.columns = widths.map(width => ({ width, style: { numFmt: "@", font: { name: "맑은 고딕", size: 11 }, alignment: { vertical: "top", wrapText: true } } }));
-  sheet.mergeCells("A1:R1"); sheet.getCell("A1").value = "INNOGRID Master DB List";
+  const last = sheet.getColumn(HEADERS.length).letter;
+  sheet.mergeCells(`A1:${last}1`); sheet.getCell("A1").value = "INNOGRID Master DB List";
   sheet.getRow(1).height = 32;
   let col = 1;
   for (const group of MASTER_HEADER_GROUPS) {
@@ -103,9 +104,9 @@ export async function masterExport(contacts: Contact[], filters: ReturnType<type
     sheet.getCell(2, col).value = group.label; col += group.span;
   }
   sheet.getRow(2).height = 26;
-  sheet.getRow(3).values = HEADERS.map(h => h === "최종확인일" ? "최종\n확인일" : h);
+  sheet.getRow(3).values = HEADERS;
   sheet.getRow(3).height = 34;
-  for (let row = 1; row <= 3; row++) for (let column = 1; column <= 18; column++) {
+  for (let row = 1; row <= 3; row++) for (let column = 1; column <= HEADERS.length; column++) {
     const cell = sheet.getCell(row, column);
     cell.font = { name: "맑은 고딕", size: row === 1 ? 14 : 11, bold: true, color: { argb: row < 3 ? "FFFFFFFF" : "FF1E293B" } };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: row < 3 ? "FF2454DB" : "FFE8EDF5" } };
@@ -120,7 +121,7 @@ export async function masterExport(contacts: Contact[], filters: ReturnType<type
     row.height = Math.min(409, Math.max(24, Math.max(...lines) * 16 + 6));
   }
   sheet.views = [{ state: "frozen", ySplit: 3, xSplit: 2, topLeftCell: "C4" }];
-  sheet.autoFilter = { from: "A3", to: `R${Math.max(3, sheet.rowCount)}` };
+  sheet.autoFilter = { from: "A3", to: `${last}${Math.max(3, sheet.rowCount)}` };
   const info = workbook.addWorksheet("조회 조건");
   info.columns = [{ width: 24 }, { width: 80 }];
   info.addRows([

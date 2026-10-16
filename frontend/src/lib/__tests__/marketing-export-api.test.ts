@@ -11,7 +11,7 @@ const request = () => new NextRequest("https://test.local/api/marketing/export?q
 beforeEach(() => { mocks.rpc.mockReset(); mocks.auth.mockReset().mockResolvedValue({ db: { rpc: mocks.rpc } }); });
 
 it("exports every matched row, preserves 2-row headers and literal text, and ignores UI pagination", async () => {
-  const rows = Array.from({ length: 37 }, (_, i) => ({ id: String(i), db_id: `DB-${i}`, data: { ...emptyContact(), company: "원본명", name: "담당자", phone: "010-0012-0034", ecoId: "00012", notes: '=HYPERLINK("https://example.test")' }, organization: { name: "한빛 표준명", category: "IT기업" } }));
+  const rows = Array.from({ length: 37 }, (_, i) => ({ id: String(i), db_id: `DB-${i}`, data: { ...emptyContact(), company: "원본명", name: "담당자", phone: "010-0012-0034", softBounce3m: "00012", notes: '=HYPERLINK("https://example.test")' }, organization: { name: "한빛 표준명", category: "IT기업" } }));
   mocks.rpc.mockResolvedValue({ data: { rows, total: rows.length } });
   const response = await GET(request());
   expect(response.status).toBe(200);
@@ -22,12 +22,12 @@ it("exports every matched row, preserves 2-row headers and literal text, and ign
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
   const sheet = workbook.getWorksheet("01_Master_DB")!;
-  expect(sheet.rowCount).toBe(40); expect(sheet.columnCount).toBe(18);
-  expect(sheet.model.merges).toEqual(expect.arrayContaining(["A1:R1", "B2:H2", "I2:K2", "L2:P2", "Q2:R2"]));
-  expect(sheet.getCell("B2").value).toBe("기본정보"); expect(sheet.getCell("Q3").value).toBe("최종\n확인일");
+  expect(sheet.rowCount).toBe(40); expect(sheet.columnCount).toBe(21);
+  expect(sheet.model.merges).toEqual(expect.arrayContaining(["A1:U1", "B2:H2", "I2:L2", "M2:S2", "T2:U2"]));
+  expect(sheet.getCell("B2").value).toBe("기본정보"); expect(sheet.getCell("M2").value).toBe("DM 발송 관리정보"); expect(sheet.getCell("R3").value).toBe("발송 상태 확인일");
   expect(sheet.getCell("C4").value).toBe("한빛 표준명"); expect(sheet.getCell("A4").value).toBe("IT기업");
-  expect(sheet.getCell("H4").value).toBe("010-0012-0034"); expect(sheet.getCell("M4").value).toBe("00012");
-  expect(sheet.getCell("R4").value).toBe(rows[0].data.notes); expect(sheet.getCell("R4").type).toBe(ExcelJS.ValueType.String);
+  expect(sheet.getCell("H4").value).toBe("010-0012-0034"); expect(sheet.getCell("P4").value).toBe("00012");
+  expect(sheet.getCell("S4").value).toBe(rows[0].data.notes); expect(sheet.getCell("S4").type).toBe(ExcelJS.ValueType.String);
   expect(sheet.getCell("B40").value).toBe("DB-36"); expect(sheet.views[0]).toMatchObject({ state: "frozen", ySplit: 3 });
   expect(workbook.getWorksheet("조회 조건")!.getCell("B3").value).toBe(37);
   expect(workbook.getWorksheet("조회 조건")!.getCell("B6").value).toBe("마케팅");

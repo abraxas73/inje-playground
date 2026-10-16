@@ -12,6 +12,9 @@ export async function POST(req: NextRequest) {
     if (b.action === "check") {
       const checked = await db.rpc("marketing_review_check", { p_id: b.id, p_final: { ...cleanData(b.final), category: b.category || "확인 필요" }, p_target: b.targetId || null, p_org: b.organizationId || null }); dbCheck(checked.error); return response(checked.data);
     }
+    if (b.action === "delete-candidate") {
+      const r = await db.rpc("marketing_resolve_delete_candidate", { p_id: b.id, p_version: b.version, p_action: b.decision, p_reason: b.reason }); dbCheck(r.error); return response({ ok: true });
+    }
     if (b.action === "inspect") {
       const row = await db.from("marketing_submissions").select("*").eq("id", b.id).single(); dbCheck(row.error);
       let s = row.data as Submission;

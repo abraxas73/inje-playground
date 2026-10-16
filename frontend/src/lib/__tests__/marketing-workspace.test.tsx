@@ -31,9 +31,9 @@ it("switches between populated tabs without interpreting the previous rows as a 
   render(<MarketingWorkspace />); await tick(); await reply(0);
   expect(screen.getByRole("tab", { name: "Master DB" })).toHaveAttribute("aria-selected", "true");
   const headers = screen.getAllByRole("columnheader");
-  expect(headers.filter(header => header.getAttribute("scope") === "col")).toHaveLength(18);
+  expect(headers.filter(header => header.getAttribute("scope") === "col")).toHaveLength(21);
   expect(headers.filter(header => header.getAttribute("scope") === "colgroup").map(header => [header.textContent, header.getAttribute("colspan")])).toEqual([
-    ["회사·기관 분류", "1"], ["기본정보", "7"], ["원본정보", "3"], ["Eco Partner 연계", "5"], ["관리정보", "2"],
+    ["회사·기관 분류", "1"], ["기본정보", "7"], ["Eco Partner 연계", "4"], ["DM 발송 관리정보", "7"], ["원본정보", "2"],
   ]);
   for (const [label, content] of [["검수 대기", "테스트 제출"], ["회사·기관", "테스트 기관"], ["검수 대기", "테스트 제출"], ["변경 이력", "테스트 이력"], ["Master DB", "TEST-001"]]) {
     fireEvent.click(screen.getByRole("tab", { name: new RegExp(label) }));

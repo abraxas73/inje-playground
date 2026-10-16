@@ -1,18 +1,19 @@
 export const CATEGORIES = ["IT기업", "솔루션·제품사", "공공기관", "확인 필요", "기타", "교육·연구", "제조사", "금융", "협회·단체", "언론"] as const;
 export const KINDS = ["신규 등록", "기존 정보 업데이트", "중복 의심", "확인 필요"] as const;
-export const FIELDS = { company: "회사명", name: "성명", department: "소속부서", position: "직책", email: "이메일", phone: "연락처", source: "원본출처", sourceSheet: "원본시트", ownerDepartment: "내부 관리부서(기존)", eco: "Eco 여부", ecoId: "Eco ID", ecoType: "Eco 구분", ecoMiddle: "Eco 중분류", ecoSmall: "Eco 소분류", confirmedAt: "최종확인일", notes: "비고" } as const;
+// 엑셀 01_Master_DB v2.0(2026-10-06) 컬럼 순서. 원본출처·Eco ID·최종확인일은 v2.0에서 빠졌다(기존 값은 원본 행 이력에 남음).
+export const FIELDS = { company: "회사명", name: "성명", department: "소속부서", position: "직책", email: "이메일", phone: "연락처", eco: "Eco 여부", ecoType: "Eco 구분", ecoMiddle: "Eco 중분류", ecoSmall: "Eco 소분류", dmTarget: "DM 발송 대상", unsubscribed: "수신거부", hardBounce: "Hard Bounce", softBounce3m: "3개월 연속 Soft Bounce", unopened3m: "3개월 연속 미오픈", dmCheckedAt: "발송 상태 확인일", notes: "비고", ownerDepartment: "내부 관리부서(기존)", sourceSheet: "원본시트" } as const;
 export type Field = keyof typeof FIELDS;
 export const MASTER_SORT_FIELDS = { category: "분류", db_id: "DB ID", ...FIELDS } as const;
 export type MasterSortField = keyof typeof MASTER_SORT_FIELDS;
 export type SortDirection = "asc" | "desc";
 export const MASTER_HEADER_GROUPS = [
   { label: "회사·기관 분류", span: 1 }, { label: "기본정보", span: 7 },
-  { label: "원본정보", span: 3 }, { label: "Eco Partner 연계", span: 5 }, { label: "관리정보", span: 2 },
+  { label: "Eco Partner 연계", span: 4 }, { label: "DM 발송 관리정보", span: 7 }, { label: "원본정보", span: 2 },
 ] as const;
 export type ContactData = Record<Field, string>;
 export const emptyContact = (): ContactData => Object.fromEntries(Object.keys(FIELDS).map(k => [k, ""])) as ContactData;
 export interface Organization { id: string; name: string; category: string; aliases: string[]; version: number; review_status?: "pending" | "confirmed" }
-export interface Contact { id: string; db_id: string; organization_id: string | null; version: number; data: ContactData; organization?: Organization | null; needs_maintenance?: boolean }
+export interface Contact { id: string; db_id: string; organization_id: string | null; version: number; data: ContactData; organization?: Organization | null; needs_maintenance?: boolean; delete_candidate?: { reason: string; at: string } | null }
 export interface Validation {
   ruleCheck?: import("./rules").RuleCheck;
   kind: typeof KINDS[number]; reasons: string[]; errors: string[]; candidates: string[];

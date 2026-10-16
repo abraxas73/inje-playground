@@ -3,11 +3,11 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { FIELDS, MASTER_HEADER_GROUPS, MASTER_SORT_FIELDS, visibleData, type Contact, type Field, type MasterSortField, type SortDirection } from "@/lib/marketing/types";
 import { KindBadge } from "./shared";
 
-// Same merged header ranges as 01_Master_DB: A, B:H, I:K, L:P, Q:R.
+// Same merged header ranges as 01_Master_DB v2.0: A, B:H, I:L, M:S, T:U.
 const COLUMN_GROUPS = MASTER_HEADER_GROUPS.map((group, i) => ({ ...group, widths: [
-  [120], [100, 148, 76, 112, 80, 200, 128], [160, 104, 136], [80, 80, 88, 96, 96], [96, 200],
+  [120], [100, 148, 76, 112, 80, 200, 128], [80, 88, 96, 96], [80, 80, 80, 96, 96, 104, 200], [136, 104],
 ][i] }));
-const GROUP_STARTS = new Set([0, 1, 8, 11, 16]);
+const GROUP_STARTS = new Set([0, 1, 8, 12, 19]);
 const tableWidth = COLUMN_GROUPS.flatMap(group => group.widths).reduce((sum, width) => sum + width, 0);
 const cellClass = (index: number) => `px-2 py-2 align-top whitespace-pre-wrap [overflow-wrap:anywhere]${index > 0 && GROUP_STARTS.has(index) ? " border-l" : ""}`;
 
@@ -22,7 +22,7 @@ export default function MasterTable({ contacts, onOpen, sort, direction, onSort,
           const selected = sort === field;
           const Icon = selected ? direction === "asc" ? ArrowUp : ArrowDown : ArrowUpDown;
           const next = selected && direction === "asc" ? "내림차순" : "오름차순";
-          return <th key={field} scope="col" aria-sort={selected ? direction === "asc" ? "ascending" : "descending" : undefined} className={`${cellClass(i)} !px-0 !py-0 !align-middle font-medium ${selected ? "text-primary" : "text-muted-foreground"}`}><button type="button" aria-label={`${label} ${next} 정렬`} title={`${label} ${next} 정렬`} onClick={() => onSort(field)} className="flex min-h-12 w-full items-center gap-1 px-2 py-2 text-left hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-ring"><span className="min-w-0">{label === "최종확인일" ? <>최종<br />확인일</> : label}</span><Icon aria-hidden="true" className={`h-3 w-3 shrink-0 ${selected ? "opacity-100" : "opacity-40"}`} /></button></th>;
+          return <th key={field} scope="col" aria-sort={selected ? direction === "asc" ? "ascending" : "descending" : undefined} className={`${cellClass(i)} !px-0 !py-0 !align-middle font-medium ${selected ? "text-primary" : "text-muted-foreground"}`}><button type="button" aria-label={`${label} ${next} 정렬`} title={`${label} ${next} 정렬`} onClick={() => onSort(field)} className="flex min-h-12 w-full items-center gap-1 px-2 py-2 text-left hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-ring"><span className="min-w-0">{label}</span><Icon aria-hidden="true" className={`h-3 w-3 shrink-0 ${selected ? "opacity-100" : "opacity-40"}`} /></button></th>;
         })}</tr>
       </thead>
       <tbody>{contacts.map(contact => {
@@ -30,7 +30,7 @@ export default function MasterTable({ contacts, onOpen, sort, direction, onSort,
         return <tr key={contact.id} className="border-t hover:bg-muted/30">
           {onSelection && <td className="p-2"><input type="checkbox" aria-label={`${contact.db_id} 선택`} checked={selectedIds?.includes(contact.id)??false} onChange={e=>onSelection(e.target.checked?[...selectedIds??[],contact.id]:(selectedIds??[]).filter(id=>id!==contact.id))}/></td>}
           <td className={cellClass(0)}><KindBadge kind={contact.organization?.category ?? "확인 필요"} /></td>
-          <td className={cellClass(1)}><button className="text-primary underline-offset-4 hover:underline" onClick={() => onOpen(contact)}>{contact.db_id}</button>{contact.needs_maintenance && <span className="mt-1 block text-xs text-amber-700">기존 데이터 정비 필요</span>}</td>
+          <td className={cellClass(1)}><button className="text-primary underline-offset-4 hover:underline" onClick={() => onOpen(contact)}>{contact.db_id}</button>{contact.delete_candidate ? <span className="mt-1 block text-xs font-medium text-destructive">삭제 후보</span> : contact.needs_maintenance && <span className="mt-1 block text-xs text-amber-700">기존 데이터 정비 필요</span>}</td>
           {(Object.keys(FIELDS) as Field[]).map((field, i) => <td key={field} className={cellClass(i + 2)}>{data[field] || "—"}</td>)}
         </tr>;
       })}</tbody>

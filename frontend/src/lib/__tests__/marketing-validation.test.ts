@@ -34,9 +34,9 @@ describe("marketing comparison", () => {
   });
   it("leaves configurable business fields to DB rules and enforces structural size limits", () => {
     expect(fieldErrors(emptyContact())).toEqual([]);
-    expect(fieldErrors({ ...data, confirmedAt: "2025-02-29" })).toEqual([]);
+    expect(fieldErrors({ ...data, dmCheckedAt: "2025-02-29" })).toEqual([]);
     expect(fieldErrors({ ...data, notes: "x".repeat(2001) })).toHaveLength(1);
-    expect(fieldErrors({ ...data, confirmedAt: "2024-02-29" })).toEqual([]);
+    expect(fieldErrors({ ...data, dmCheckedAt: "2024-02-29" })).toEqual([]);
   });
   it("rejects nontext and excessively long fields", () => {
     expect(() => cleanData({ email: 123 })).toThrow(); expect(() => cleanData({ name: "x".repeat(2001) })).toThrow();
