@@ -24,6 +24,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Updater probe configure failed' }
           cmake --build mobile/build/updater-tests --config Release
           if ($LASTEXITCODE -ne 0) { throw 'Updater probe build failed' }
+          ctest --test-dir mobile/build/updater-tests -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw 'Updater policy tests failed' }
       - name: Verify updater redirect credentials
         shell: pwsh
         run: node mobile/scripts/test-windows-update-redirect.mjs mobile/build/updater-tests/Release/winsparkle_redirect_probe.exe
