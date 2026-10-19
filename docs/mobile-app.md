@@ -84,7 +84,7 @@
 
 ## 잠금 화면 브리핑(라이브 액티비티) (2026-10-19)
 스펙 `docs/superpowers/specs/2026-10-19-live-activity-briefing-design.md`. iOS 16.2+ 잠금 화면·다이내믹 아일랜드, Android 상시 알림(채널 `briefing_live`) — 평일 KST 07:00~18:30, 더보기 "잠금 화면 브리핑" 스위치(기기 저장, 기본 켬).
-- 내용: 다음 회의(시작까지 카운트다운 — 시스템이 줄임) + 결재·Teams 답장 대기·오늘 안 읽은 메일·새 공지 건수(`lib/briefing/live_briefing.dart`). 메일 제목·본문은 싣지 않는다.
+- 내용(`lib/briefing/live_briefing.dart`): 회의 → 결재 → 메일 각 최대 2줄, **전체 5줄**(셋 다 2건이면 마지막 메일 빠짐) + 맨 아래 건수 줄(일정·결재·Teams·메일·공지, 0은 생략). 회의는 시작이 **지금 − 10분 이후**인 것만(종일·근태 제외), 시작까지 카운트다운(시스템이 줄임). 결재는 제목·기안자, 메일은 오늘 안 읽은 것의 **제목·보낸 사람**(본문 없음 — 2026-10-19 사용자 결정). iOS 잠금 화면 높이 상한(약 160pt)에 맞춰 글자·간격을 줄였다. Android는 펼친 알림(InboxStyle) 줄 + 요약 건수.
 - 다이내믹 아일랜드는 평소 아이콘·합계만, **건수가 늘었을 때만** `AlertConfiguration`으로 펼친다(Android는 채널 `briefing_alert` heads-up 10초).
 - 갱신: 앱에서 홈 브리핑이 새로 수집될 때 + 앱 밖 `workmanager` 주기 작업(`com.innogrid.playground.briefing` — Android 15분, iOS `BGAppRefreshTask` 간격은 OS가 정함). **백그라운드는 아마란스만 수집**(Supabase 세션을 백그라운드 엔진에서 열면 리프레시 토큰 회전으로 앱이 로그아웃될 수 있어 Teams 등 서버 API는 부르지 않고 직전 값 유지).
 - iOS 구성: 위젯 확장 타깃 `BriefingLiveActivity`(번들 `com.innogrid.playground.BriefingLiveActivity`, iOS 16.2, 버전은 `Flutter/Generated.xcconfig`에서), 공용 `ios/BriefingLiveActivity/BriefingActivityAttributes.swift`, 앱 쪽 `Runner/BriefingLiveActivityPlugin.swift`(채널 `innogrid/live_activity`, 앱·백그라운드 엔진 양쪽 등록 — `AppDelegate`). **새 액티비티 시작은 앱이 화면에 있을 때만**(iOS 제약) — 8시간 한도로 끝난 뒤에는 앱을 열어야 다시 뜬다. "Embed Foundation Extensions" 단계는 Thin Binary보다 앞에 있어야 한다(빌드 순환).

@@ -31,12 +31,18 @@ final class BriefingLiveActivityPlugin: NSObject, FlutterPlugin {
 
   @available(iOS 16.2, *)
   private static func update(_ a: [String: Any]) async {
-    func date(_ key: String) -> Date? { (a[key] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue / 1000) } }
+    func date(_ v: Any?) -> Date? { (v as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue / 1000) } }
     let alert = a["alert"] as? String
+    let items = (a["items"] as? [[String: Any]] ?? []).map { i in
+      BriefingActivityAttributes.ContentState.Item(
+        kind: i["kind"] as? String ?? "", title: i["title"] as? String ?? "", sub: i["sub"] as? String ?? "",
+        start: date(i["start"]), end: date(i["end"]))
+    }
     let state = BriefingActivityAttributes.ContentState(
+      items: items,
       meetingTitle: a["meetingTitle"] as? String ?? "",
-      meetingStart: date("meetingStart"),
-      meetingEnd: date("meetingEnd"),
+      meetingStart: date(a["meetingStart"]),
+      meetingEnd: date(a["meetingEnd"]),
       countsLine: a["countsLine"] as? String ?? "",
       total: (a["total"] as? NSNumber)?.intValue ?? 0,
       alert: alert
