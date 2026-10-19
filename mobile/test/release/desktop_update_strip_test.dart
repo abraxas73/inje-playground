@@ -1,73 +1,83 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:playground/release/desktop_update_host.dart';
+import 'package:playground/release/desktop_updater.dart';
 import 'package:playground/release/release_check.dart';
-import 'package:playground/release/release_provider.dart';
-import 'package:playground/release/update_banner.dart';
-
-Widget scope(DesktopReleaseInfo? release, Widget child) => ProviderScope(
-  key: UniqueKey(),
-  overrides: [desktopReleaseProvider.overrideWith((_) async => release)],
-  child: MaterialApp(home: Scaffold(body: child)),
-);
+import 'desktop_updater_test.dart' show signedRelease, updateChannel;
 
 void main() {
-  const latest = DesktopReleaseInfo(
-    version: '1.7.3',
-    url: 'https://storage.test/setup',
+  testWidgets(
+    'automatic strip is hidden for current, older, dev and unavailable releases',
+    (tester) async {
+      for (final (release, version) in [
+        (signedRelease, '1.7.8'),
+        (signedRelease, '1.7.9'),
+        (signedRelease, 'dev'),
+        (null, '1.7.7'),
+      ]) {
+        final updater = DesktopUpdater(
+          platform: 'windows',
+          currentVersion: version,
+          account: () => 'a',
+          loadRelease: () async => release,
+          refreshToken: () async => 'token',
+        );
+        await updater.check(manual: false);
+        await tester.pumpWidget(
+          ProviderScope(
+            key: UniqueKey(),
+            overrides: [desktopUpdaterProvider.overrideWithValue(updater)],
+            child: MaterialApp(
+              builder: (_, child) => DesktopUpdateHost(child: child!),
+              home: const Scaffold(),
+            ),
+          ),
+        );
+        expect(find.textContaining('업데이트가 필요합니다'), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+        updater.dispose();
+      }
+    },
   );
 
-  testWidgets('최신 데스크톱 설치본이 더 높으면 맨 위 띠에 정확한 버전과 업데이트 링크를 보인다', (tester) async {
-    await tester.pumpWidget(
-      scope(latest, const DesktopUpdateStrip(appVersion: '1.7.2')),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('1.7.3 버전으로 업데이트가 필요합니다.'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, '업데이트'), findsOneWidget);
-  });
-
-  testWidgets('현재 버전이 같거나 더 높고 개발 빌드이거나 릴리스가 없으면 띠를 숨긴다', (tester) async {
-    for (final (release, version) in [
-      (latest, '1.7.3'),
-      (latest, '1.7.4'),
-      (latest, 'dev'),
-      (null, '1.7.2'),
-    ]) {
-      await tester.pumpWidget(
-        scope(release, DesktopUpdateStrip(appVersion: version)),
+  testWidgets(
+    'legacy unsigned desktop releases cannot launch a browser installer',
+    (tester) async {
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(updateChannel, (call) async {
+          calls.add(call);
+          return null;
+          });
+      final updater = DesktopUpdater(
+        platform: 'windows',
+        currentVersion: '1.7.7',
+        account: () => 'a',
+        loadRelease: () async => const DesktopReleaseInfo(
+          version: '1.7.8',
+          url: 'https://storage.test/setup',
+        ),
+        refreshToken: () async => 'token',
       );
-      await tester.pumpAndSettle();
-      expect(find.textContaining('업데이트가 필요합니다'), findsNothing, reason: version);
-    }
-  });
-
-  testWidgets('업데이트를 누르면 만료될 수 있는 기존 URL 대신 서버에서 새 링크를 받아 연다', (tester) async {
-    var calls = 0;
-    final opened = <String>[];
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          desktopReleaseProvider.overrideWith(
-            (_) async => DesktopReleaseInfo(
-              version: '1.7.3',
-              url: 'https://storage.test/${++calls}',
-            ),
-          ),
-        ],
-        child: MaterialApp(
-          home: Scaffold(
-            body: DesktopUpdateStrip(
-              appVersion: '1.7.2',
-              launch: (uri) async => opened.add(uri.toString()),
-            ),
+      await updater.check(manual: true);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [desktopUpdaterProvider.overrideWithValue(updater)],
+          child: MaterialApp(
+            builder: (_, child) => DesktopUpdateHost(child: child!),
+            home: const Scaffold(),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(calls, 1);
-    await tester.tap(find.widgetWithText(TextButton, '업데이트'));
-    await tester.pumpAndSettle();
-    expect(opened, ['https://storage.test/2']);
-  });
+      );
+      expect(find.textContaining('서명이 준비되지'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, '업데이트'), findsNothing);
+      expect(calls, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      updater.dispose();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(updateChannel, null);
+    },
+  );
 }

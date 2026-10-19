@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'api/client.dart';
 import 'package:flutter/material.dart';
+import 'release/desktop_update_host.dart';
 import 'assistant/innobot_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -86,7 +87,7 @@ class _AppState extends ConsumerState<App> {
       theme: appTheme(),
       routerConfig: _router,
       // 이노봇 버튼은 앱 전체 위에 한 번 — 탭·웹·아마란스·Dooray 어느 화면에서나(InnobotOverlay)
-      builder: (context, child) => Stack(children: [DoorayCalendarHost(child: child ?? const SizedBox.shrink()), InnobotOverlay(router: _router)]),
+      builder: (context, child) => DesktopUpdateHost(child: Stack(children: [DoorayCalendarHost(child: child ?? const SizedBox.shrink()), InnobotOverlay(router: _router)])),
     );
   }
 }

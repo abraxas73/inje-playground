@@ -115,7 +115,6 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
       child: Scaffold(
         body: Column(
           children: [
-            const DesktopUpdateStrip(),
             const UpdateBanner(),
             Expanded(
               // 띠가 상단 안전 영역을 차지했으면 아래 화면은 그만큼 다시 비우지 않는다
