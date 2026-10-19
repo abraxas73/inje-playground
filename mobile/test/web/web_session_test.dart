@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:playground/api/client.dart';
+import 'package:playground/config.dart';
 import 'package:playground/web/web_session.dart';
 
 class _Tokens implements TokenSource {
@@ -15,6 +16,44 @@ class _Tokens implements TokenSource {
 
 void main() {
   final origin = Uri.parse('https://inje-playground.vercel.app');
+  test('기본 앱의 세션 발급과 SharePoint·MS 연결은 정식 도메인 안에서 처리', () async {
+    final api = ApiClient(
+      httpClient: MockClient((request) async {
+        expect(
+          request.url.toString(),
+          'https://innocrew.innogrid.com/api/mobile/web-token',
+        );
+        return http.Response('{"tokenHash":"canonical-session"}', 200);
+      }),
+      tokens: _Tokens(),
+      baseUrl: Config.apiBase,
+      userAgent: 'InnogridApp/test (windows)',
+    );
+    final url = await initialWebSessionUrl(
+      api,
+      Config.apiBase,
+      '/sharepoint',
+      eagerBootstrap: true,
+    );
+    expect(Uri.parse(url).origin, 'https://innocrew.innogrid.com');
+    expect(Uri.parse(url).queryParameters['next'], '/sharepoint');
+    for (final path in ['/settings', '/sharepoint']) {
+      expect(
+        WebNavPolicy.decide(
+          Uri.parse('https://innocrew.innogrid.com$path'),
+          appOrigin: Uri.parse(Config.apiBase),
+        ),
+        NavAction.inApp,
+      );
+    }
+    expect(
+      WebNavPolicy.decide(
+        Uri.parse('https://innocrew.innogrid.com/api/ms/connect'),
+        appOrigin: Uri.parse(Config.apiBase),
+      ),
+      NavAction.oauthConnect,
+    );
+  });
   test(
     'browser session keeps local path but never bootstraps external origins',
     () {
@@ -339,12 +378,22 @@ void main() {
       );
     },
   );
-  test('머리 제목: 페이지 제목 > 로딩 중 > 경로', () {
-    expect(webTitleFor(title: '설정', loading: true, path: '/settings'), '설정');
-    expect(webTitleFor(title: '', loading: true, path: '/settings'), '로딩 중…');
-    expect(
-      webTitleFor(title: '', loading: false, path: '/settings'),
-      '/settings',
-    );
+  test('머리 제목: 페이지 제목을 사용하고 없으면 주소 대신 앱 이름', () {
+    expect(webTitleFor(title: '설정', loading: true), '설정');
+    expect(webTitleFor(title: '', loading: true), '로딩 중…');
+    expect(webTitleFor(title: '', loading: false), '이노그리드');
+  });
+  test('Windows가 제목 대신 반환하는 URL과 빈 문서는 앱 이름으로 표시', () {
+    for (final title in [
+      'https://inje-playground.vercel.app/sharepoint',
+      'https://inje-playground.vercel.app/auth/mobile?next=/sharepoint#token=once',
+      'http://localhost:3000/settings',
+      'about:blank',
+      '/sharepoint',
+      '   ',
+    ]) {
+      expect(webTitleFor(title: title, loading: false), '이노그리드', reason: title);
+    }
+    expect(webTitleFor(title: ' 이노그리드 ', loading: false), '이노그리드');
   });
 }

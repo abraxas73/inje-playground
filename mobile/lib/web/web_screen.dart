@@ -46,6 +46,9 @@ class _WebScreenState extends ConsumerState<WebScreen>
       ..setNavigationDelegate(
         AppNavigationDelegate(
           onNavigationRequest: _onNav,
+          onTitleChanged: (title) {
+            if (mounted) setState(() => _title = title ?? '');
+          },
           onPageStarted: (u) {
             if (!mounted) return;
             // 뒤로 가다가 /login·/auth/mobile에 닿으면 세션 시작점(첫 로드의 유령 항목) — 부트스트랩을 또 하지 말고 화면을 닫는다
@@ -353,7 +356,7 @@ class _WebScreenState extends ConsumerState<WebScreen>
           appBar: AppBar(
             leading: BackButton(onPressed: _goBack),
             title: Text(
-              webTitleFor(title: _title, loading: _loading, path: widget.path),
+              webTitleFor(title: _title, loading: _loading),
               overflow: TextOverflow.ellipsis,
             ),
             actions: [
