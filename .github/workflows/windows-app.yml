@@ -50,6 +50,9 @@ jobs:
       - name: Verify unattended installer lifecycle
         shell: pwsh
         run: ./mobile/scripts/test-windows-update-installer.ps1
+      - name: Verify actual signed updater lifecycle
+        shell: pwsh
+        run: node mobile/scripts/test-windows-signed-upgrade.mjs
       - name: Build installer
         if: ${{ !inputs.probe_only }}
         shell: pwsh

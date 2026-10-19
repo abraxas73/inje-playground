@@ -20,7 +20,9 @@ try {
     $output = Join-Path $caseRoot 'output'
     foreach ($dir in @($install, $state, $payload, $output)) { [void](New-Item -ItemType Directory -Path $dir -Force) }
     Copy-Item (Join-Path $fixture 'updater_fixture_1.exe') (Join-Path $install 'INNOGRID.exe')
+    Copy-Item (Join-Path $fixture 'WinSparkle.dll') $install
     Copy-Item (Join-Path $fixture 'updater_fixture_2.exe') (Join-Path $payload 'INNOGRID.exe')
+    Copy-Item (Join-Path $fixture 'WinSparkle.dll') $payload
     'test-session-and-settings' | Set-Content (Join-Path $state 'preserved.txt')
     if ($scenario -eq 'busy') { [void](New-Item (Join-Path $state 'ignore-close')) }
     & $iscc '/Q' '/DAppVersion=9.0.2' '/DUpdaterTest=1' "/DTestPayload=$payload" "/DTestOutput=$output" $script
@@ -32,6 +34,7 @@ try {
     $other = Join-Path $caseRoot 'unrelated/App'
     [void](New-Item -ItemType Directory -Path $other -Force)
     Copy-Item (Join-Path $fixture 'updater_fixture_1.exe') (Join-Path $other 'INNOGRID.exe')
+    Copy-Item (Join-Path $fixture 'WinSparkle.dll') $other
     $unrelated = Start-Process (Join-Path $other 'INNOGRID.exe') -PassThru
     $owned.Add($unrelated)
     $arguments = "/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS /NORESTARTAPPLICATIONS /INNOCREWAUTOUPDATE=1 /INNOCREWPID=$($old.Id) /DIR=`"$install`" /LOG=`"$caseRoot/setup.log`""
