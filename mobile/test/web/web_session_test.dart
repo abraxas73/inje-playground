@@ -1,5 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:playground/api/client.dart';
 import 'package:playground/web/web_session.dart';
+
+class _Tokens implements TokenSource {
+  @override
+  Future<String?> accessToken() async => 'native-session';
+  @override
+  Future<String?> refreshToken() async => 'refreshed-session';
+  @override
+  Future<void> onUnauthorized() async {}
+}
 
 void main() {
   final origin = Uri.parse('https://inje-playground.vercel.app');
@@ -14,7 +26,7 @@ void main() {
     expect(WebNavPolicy.decide(origin.resolve('/api/rfp/projects/123/xlsx'), appOrigin: origin),
         NavAction.external);
   });
-  test('Microsoft 연결은 동일 오리진에서만 별도 브라우저 세션으로 시작한다', () {
+  test('Microsoft 연결은 동일 오리진에서만 앱 인증 흐름으로 시작한다', () async {
     expect(WebNavPolicy.decide(origin.resolve('/api/jira/connect'), appOrigin: origin), NavAction.oauthConnect);
     expect(WebNavPolicy.decide(origin.resolve('/api/ms/connect?returnTo=%2Fsettings'), appOrigin: origin), NavAction.oauthConnect);
     expect(WebNavPolicy.decide(origin.resolve('/api/ms/callback?code=x'), appOrigin: origin), NavAction.inApp);
@@ -25,6 +37,30 @@ void main() {
     final bootstrap = Uri.parse(bootstrapUrl(apiBase: origin.toString(), nextPath: next, tokenHash: 'once'));
     expect(bootstrap.queryParameters['next'], '/api/ms/connect?returnTo=%2Fteams%2Fchat');
     expect(bootstrap.fragment, 'token=once');
+
+    http.Request? seen;
+    final api = ApiClient(
+      httpClient: MockClient((request) async {
+        seen = request;
+        return http.Response('{"url":"https://login.microsoftonline.com/tenant/oauth2/v2.0/authorize?state=signed"}', 200);
+      }),
+      tokens: _Tokens(), baseUrl: origin.toString(), userAgent: 'InnogridApp/test (windows)',
+    );
+    final launch = await oauthLaunchUrl(api, origin.resolve('/api/ms/connect?returnTo=%2Fsharepoint'));
+    expect(launch, 'https://login.microsoftonline.com/tenant/oauth2/v2.0/authorize?state=signed');
+    expect(seen?.method, 'POST');
+    expect(seen?.url.path, '/api/mobile/ms-connect');
+    expect(seen?.headers['authorization'], 'Bearer native-session');
+    expect(seen?.body, '{"returnTo":"/sharepoint"}');
+  });
+  test('Microsoft 승인 URL은 공식 HTTPS 호스트만 외부 브라우저로 연다', () async {
+    for (final unsafe in ['http://login.microsoftonline.com/x', 'https://evil.test/x', 'not-a-url']) {
+      final api = ApiClient(
+        httpClient: MockClient((_) async => http.Response('{"url":"$unsafe"}', 200)),
+        tokens: _Tokens(), baseUrl: origin.toString(), userAgent: 'test',
+      );
+      await expectLater(oauthLaunchUrl(api, origin.resolve('/api/ms/connect')), throwsA(isA<FormatException>()));
+    }
   });
   test('같은 오리진 페이지는 앱 안, /login은 세션 부트스트랩 신호, 다른 도메인·파일은 외부', () {
     expect(WebNavPolicy.decide(Uri.parse('https://inje-playground.vercel.app/ppt/abc'), appOrigin: origin), NavAction.inApp);

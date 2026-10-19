@@ -7,8 +7,8 @@ const cfg: MsAppConfig = { tenantId: "tenant-1", clientId: "client-1", clientSec
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
 
 describe("buildAuthorizeUrl", () => {
-  it("v2.0 authorize 엔드포인트에 스코프 5개(Teams 채팅 Chat.ReadWrite 포함)·state·redirect_uri·prompt=select_account", () => {
-    const u = new URL(buildAuthorizeUrl({ tenantId: "tenant-1", clientId: "client-1", redirectUri: "http://localhost:3003/api/ms/callback", state: "abc.def" }));
+  it("로그인 사용자를 힌트로 넘기고 계정 선택을 강제하지 않아 Windows 브라우저 SSO를 재사용한다", () => {
+    const u = new URL(buildAuthorizeUrl({ tenantId: "tenant-1", clientId: "client-1", redirectUri: "http://localhost:3003/api/ms/callback", state: "abc.def", loginHint: "user@innogrid.com" } as never));
     expect(u.origin + u.pathname).toBe("https://login.microsoftonline.com/tenant-1/oauth2/v2.0/authorize");
     expect(u.searchParams.get("client_id")).toBe("client-1");
     expect(u.searchParams.get("response_type")).toBe("code");
@@ -16,7 +16,8 @@ describe("buildAuthorizeUrl", () => {
     expect(u.searchParams.get("redirect_uri")).toBe("http://localhost:3003/api/ms/callback");
     expect(u.searchParams.get("scope")).toBe("offline_access User.Read Files.ReadWrite.All Sites.Read.All Chat.ReadWrite");
     expect(u.searchParams.get("state")).toBe("abc.def");
-    expect(u.searchParams.get("prompt")).toBe("select_account");
+    expect(u.searchParams.get("login_hint")).toBe("user@innogrid.com");
+    expect(u.searchParams.has("prompt")).toBe(false);
     expect([...MS_SCOPES]).toEqual(["offline_access", "User.Read", "Files.ReadWrite.All", "Sites.Read.All", "Chat.ReadWrite"]);
   });
 });

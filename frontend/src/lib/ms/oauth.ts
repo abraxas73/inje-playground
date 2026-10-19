@@ -47,7 +47,7 @@ export function oauthErrorMessage(code: string): string {
   }
 }
 
-export function buildAuthorizeUrl(p: { tenantId: string; clientId: string; redirectUri: string; state: string }): string {
+export function buildAuthorizeUrl(p: { tenantId: string; clientId: string; redirectUri: string; state: string; loginHint?: string | null }): string {
   const q = new URLSearchParams({
     client_id: p.clientId,
     response_type: "code",
@@ -55,8 +55,9 @@ export function buildAuthorizeUrl(p: { tenantId: string; clientId: string; redir
     response_mode: "query",
     scope: SCOPE,
     state: p.state,
-    prompt: "select_account",
   });
+  const loginHint = p.loginHint?.trim();
+  if (loginHint) q.set("login_hint", loginHint);
   return `${LOGIN_BASE}/${encodeURIComponent(p.tenantId)}/oauth2/v2.0/authorize?${q.toString()}`;
 }
 

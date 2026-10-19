@@ -5,6 +5,7 @@ import '../assistant/innobot_prefs.dart';
 import '../auth/session.dart';
 import '../more/catalog.dart';
 import '../more/service_grid.dart';
+import '../release/update_banner.dart';
 import 'menu_layout.dart';
 import 'router.dart';
 import 'theme.dart';
@@ -63,7 +64,12 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
     // 접히는 중에 다른 그룹을 펼치면(forward) 이 reverse는 취소된다 — orCancel로 받아 무시
     _fan.reverse().orCancel.then((_) {
       innobotFanOpen.value = false;
-      if (mounted) setState(() { _open = null; _closing = false; });
+      if (mounted) {
+        setState(() {
+          _open = null;
+          _closing = false;
+        });
+      }
     }, onError: (_) {});
   }
 
@@ -104,20 +110,29 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
         if (!didPop) _close();
       },
       child: Scaffold(
-        body: Stack(children: [
-          widget.shell,
-          if (openIdx >= 0)
-            FanMenu(
-              key: ValueKey(_open),
-              pages: groups[openIdx].$2,
-              slot: 1 + openIdx,
-              slotCount: slotCount,
-              currentBranch: current,
-              progress: _fan,
-              onSelect: _closing ? (_) {} : _openPage,
-              onDismiss: _close,
+        body: Column(
+          children: [
+            const DesktopUpdateStrip(),
+            Expanded(
+              child: Stack(
+                children: [
+                  widget.shell,
+                  if (openIdx >= 0)
+                    FanMenu(
+                      key: ValueKey(_open),
+                      pages: groups[openIdx].$2,
+                      slot: 1 + openIdx,
+                      slotCount: slotCount,
+                      currentBranch: current,
+                      progress: _fan,
+                      onSelect: _closing ? (_) {} : _openPage,
+                      onDismiss: _close,
+                    ),
+                ],
+              ),
             ),
-        ]),
+          ],
+        ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: selected,
           onDestinationSelected: (i) {

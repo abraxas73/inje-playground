@@ -154,13 +154,12 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
     }
   }
 
-  // OAuth 시작·콜백이 같은 브라우저의 쿠키를 사용하도록 먼저 별도 웹 세션을 만든다.
+  // Microsoft는 네이티브 세션으로 승인 URL을 발급해 별도 웹 로그인을 만들지 않는다. Jira는 기존 웹 세션 흐름을 유지한다.
   Future<void> _connectOAuth(Uri uri) async {
     if (_openingOAuth) return;
     _openingOAuth = true;
     try {
-      final next = Uri(path: uri.path, query: uri.hasQuery ? uri.query : null).toString();
-      final url = await webBootstrapUrl(ref.read(apiClientProvider), Config.apiBase, next);
+      final url = await oauthLaunchUrl(ref.read(apiClientProvider), uri);
       if (!mounted) return;
       _refreshAfterOAuth = true;
       if (!await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)) {
