@@ -5,6 +5,7 @@ import ObjectiveC
 import webview_flutter_wkwebview
 
 class MainFlutterWindow: NSWindow {
+  private(set) var desktopUpdater: DesktopUpdater?
   override func performKeyEquivalent(with event: NSEvent) -> Bool {
     // Flutter can consume Cmd+V before the Edit menu reaches a platform WebView.
     if pasteIntoFocusedWebView(event) { return true }
@@ -36,6 +37,7 @@ class MainFlutterWindow: NSWindow {
     self.setFrameAutosaveName("INNOGRIDMainWindow")
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+    desktopUpdater = DesktopUpdater(messenger: flutterViewController.engine.binaryMessenger)
     let channel = FlutterMethodChannel(name: "com.innogrid.playground/webview",
                                        binaryMessenger: flutterViewController.engine.binaryMessenger)
     channel.setMethodCallHandler { [weak flutterViewController] call, result in

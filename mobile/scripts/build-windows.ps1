@@ -1,11 +1,17 @@
 param(
-  [ValidateSet('All', 'Build', 'Package')][string]$Phase = 'All',
+  [ValidateSet('All', 'Build', 'Package', 'Sign')][string]$Phase = 'All',
   [switch]$RequireSignedPayload
 )
 $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..')
 $versionLine = (Select-String -Path pubspec.yaml -Pattern '^version: (.+)$').Matches[0].Groups[1].Value
 $version, $build = $versionLine.Split('+')
+if ($Phase -eq 'Sign') {
+  $artifact = "build/windows/distribution/INNOGRID-Windows-$version-Setup.exe"
+  node scripts/sign-desktop-update.mjs windows $artifact $build
+  if ($LASTEXITCODE -ne 0) { throw 'Final update signature failed' }
+  return
+}
 if ($Phase -ne 'Package') {
   flutter pub get --enforce-lockfile
   if ($LASTEXITCODE -ne 0) { throw 'Dependency resolution failed' }

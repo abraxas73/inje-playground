@@ -26,6 +26,7 @@ def notarize(path, credentials):
     print(f"Notarization accepted: {path.name}", flush=True)
 
 def main():
+    run('node', 'scripts/sign-desktop-update.mjs', 'macos', '--check-key')
     config = {}
     for line in (ROOT / '.env.release').read_text().splitlines():
         if '=' in line and not line.lstrip().startswith('#'):
@@ -49,22 +50,39 @@ def main():
     subprocess.run(['flutter', 'build', 'macos', '--release',
                     f'--dart-define=APP_VERSION={version}', f'--dart-define=APP_BUILD={build}'],
                    cwd=ROOT, env=env, check=True)
+    # Upstream 2.10.0's helper compares NFC NSString paths with NFD URL paths,
+    # missing running apps in Korean paths. Build only the two-line fixed helper
+    # from the pinned committed source; never ship a release without the fix.
+    run('node', 'scripts/build-sparkle-helper.mjs')
+    helper_receipt = json.loads((ROOT / 'build/desktop-updater/sparkle-helper.json').read_text())
+    helper = Path(helper_receipt['helper'])
+    if hashlib.sha256((helper / 'Contents/MacOS/Updater').read_bytes()).hexdigest() != helper_receipt['executableSha256']:
+        raise RuntimeError('Patched Sparkle helper hash mismatch')
     output = ROOT / 'build/macos/distribution'
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='innocrew-release-') as temporary:
         stage = Path(temporary)
         app = stage / 'INNOGRID.app'
         run('ditto', ROOT / 'build/macos/Build/Products/Release/INNOGRID.app', app)
+        run('ditto', helper, app / 'Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app')
+        with (app / 'Contents/Info.plist').open('rb') as source:
+            bundle_id = plistlib.load(source)['CFBundleIdentifier']
+        # codesign does not expand Xcode variables in an entitlements template.
+        entitlements = stage / 'Release.entitlements'
+        entitlements.write_text((ROOT / 'macos/Runner/Release.entitlements').read_text()
+                                .replace('$(PRODUCT_BUNDLE_IDENTIFIER)', bundle_id))
         sign = ['codesign', '--force', '--options', 'runtime', '--timestamp', '--sign', IDENTITY]
         # Sign nested Mach-O files and bundles from the inside out.
         for path in sorted(app.rglob('*'), key=lambda p: len(p.parts), reverse=True):
             if path.is_symlink():
                 continue
             if path.is_file() and 'Mach-O' in run('file', '-b', path, capture=True).stdout:
-                run(*sign, path)
+                preserve = ['--preserve-metadata=entitlements'] if 'Downloader.xpc' in path.parts else []
+                run(*sign, *preserve, path)
             elif path.is_dir() and path.suffix in ('.framework', '.app', '.xpc'):
-                run(*sign, path)
-        run(*sign, '--entitlements', ROOT / 'macos/Runner/Release.entitlements', app)
+                preserve = ['--preserve-metadata=entitlements'] if path.name == 'Downloader.xpc' else []
+                run(*sign, *preserve, path)
+        run(*sign, '--entitlements', entitlements, app)
         run('codesign', '--verify', '--deep', '--strict', '--verbose=2', app)
         archive = output / 'INNOGRID-notarization.zip'
         run('ditto', '-c', '-k', '--keepParent', app, archive)
@@ -89,6 +107,7 @@ def main():
         run('hdiutil', 'verify', dmg)
         (output / (dmg.name + '.sha256')).write_text(
             hashlib.sha256(dmg.read_bytes()).hexdigest() + '  ' + dmg.name + '\n')
+        run('node', 'scripts/sign-desktop-update.mjs', 'macos', dmg, build)
         print(f'Verified DMG: {dmg}', flush=True)
 
 if __name__ == '__main__':

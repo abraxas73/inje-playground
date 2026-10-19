@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,6 +6,9 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:playground/api/client.dart';
 import 'package:playground/release/release_provider.dart';
+import 'package:playground/release/desktop_updater.dart';
+import 'package:playground/auth/session.dart';
+import '../auth/fake_auth.dart';
 
 class _Tokens implements TokenSource {
   @override
@@ -16,6 +20,61 @@ class _Tokens implements TokenSource {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'updater provider waits for restored role and checks only once across reads',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      final auth = FakeAuth()..current = session(expired: false);
+      final restored = Completer<AppSession>();
+      var calls = 0;
+      final api = ApiClient(
+        httpClient: MockClient((request) async {
+          calls++;
+          expect(request.url.queryParameters, {
+            'platform': 'windows',
+            'mode': 'automatic',
+          });
+          return http.Response(
+            '{"version":"1.7.8","url":"https://innocrew.innogrid.com/apps"}',
+            200,
+          );
+        }),
+        tokens: _Tokens(),
+        baseUrl: 'https://innocrew.innogrid.com',
+        userAgent: 'test',
+      );
+      final container = ProviderContainer(
+        overrides: [
+          authClientProvider.overrideWithValue(auth),
+          apiClientProvider.overrideWithValue(api),
+          sessionFetcherProvider.overrideWithValue(
+            (_, {required record}) => restored.future,
+          ),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await auth.ctrl.close();
+        debugDefaultTargetPlatformOverride = null;
+      });
+      container.read(desktopUpdaterProvider);
+      await pump();
+      expect(calls, 0);
+      restored.complete(
+        AppSession(
+          email: 'a@example.test',
+          role: 'user',
+          permissions: const {},
+        ),
+      );
+      await container.read(sessionProvider.future);
+      await pump();
+      container.read(desktopUpdaterProvider);
+      await pump();
+      expect(calls, 1);
+    },
+  );
   for (final platform in [
     TargetPlatform.macOS,
     TargetPlatform.windows,

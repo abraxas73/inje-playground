@@ -90,7 +90,10 @@ void main() {
       auth.current = session(expired: false);
       await c.read(sessionProvider.future);
       expect((await c.read(gwProvider.future)).creds, isNotNull);
-      await c.read(sessionProvider.notifier).signOut();
+      final signingOut = c.read(sessionProvider.notifier).signOut();
+      final visibleSessionAtSignOut = c.read(sessionProvider).asData?.value;
+      await signingOut;
+      expect(visibleSessionAtSignOut, isNull, reason: '업데이트와 같은 계정 종속 작업을 데이터 정리보다 먼저 중지해야 한다');
       final p = await SharedPreferences.getInstance();
       expect(p.getKeys(), {'assistant.button.bottom'});
       expect(await const FlutterSecureStorage().readAll(), isEmpty);

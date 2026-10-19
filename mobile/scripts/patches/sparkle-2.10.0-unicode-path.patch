@@ -1,0 +1,21 @@
+diff --git a/Sparkle/InstallerProgress/InstallerProgressAppController.m b/Sparkle/InstallerProgress/InstallerProgressAppController.m
+--- a/Sparkle/InstallerProgress/InstallerProgressAppController.m
++++ b/Sparkle/InstallerProgress/InstallerProgressAppController.m
+@@ -196,7 +196,7 @@
+ - (NSArray<NSRunningApplication *> *)runningApplicationsWithBundle:(NSBundle *)bundle SPU_OBJC_DIRECT
+ {
+     // Resolve symlinks otherwise when we compare file paths, we may not realize two paths that are represented differently are the same
+-    NSArray<NSString *> *bundlePathComponents = bundle.bundlePath.stringByResolvingSymlinksInPath.pathComponents;
++    NSArray<NSString *> *bundlePathComponents = bundle.bundlePath.stringByResolvingSymlinksInPath.precomposedStringWithCanonicalMapping.pathComponents;
+     NSString *bundleIdentifier = bundle.bundleIdentifier;
+     
+     NSMutableArray<NSRunningApplication *> *matchedRunningApplications = [[NSMutableArray alloc] init];
+@@ -223,7 +223,7 @@
+             // Comparing the URLs hasn't worked well for me in practice, so I'm comparing the file paths instead
+             NSString *candidatePath = runningApplication.bundleURL.URLByResolvingSymlinksInPath.path;
+             if (candidatePath != nil) {
+-                NSArray<NSString *> *candidatePathComponents = candidatePath.pathComponents;
++                NSArray<NSString *> *candidatePathComponents = candidatePath.precomposedStringWithCanonicalMapping.pathComponents;
+ 
+                 if (needsToHandleImproperBundles) {
+                     // Workaround cases where macOS appends Contents/MacOS/<executable> to the bundle path which can happen in corner cases (eg: mishandled bundles or helper executables).

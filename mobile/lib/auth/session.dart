@@ -140,6 +140,9 @@ class SessionNotifier extends AsyncNotifier<AppSession?> {
 
   /// 앱 세션 종료 + WebView 쿠키·localStorage 정리(같은 기기에서 다른 계정이 이전 사용자의 웹 세션·설정을 보지 않게).
   Future<void> signOut() async {
+    // Revoke app-level authorization before asynchronous cookie/data cleanup.
+    // Stay on splash so a new login cannot race the old account's cleanup.
+    state = const AsyncValue.loading();
     ref.read(doorayCalendarTransportProvider.notifier).clear();
     await ref.read(doorayCalendarConnectionProvider.notifier).disconnect();
     try {

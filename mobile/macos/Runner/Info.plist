@@ -2,6 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
+	<key>SUPublicEDKey</key>
+	<string>$(INNOCREW_UPDATE_PUBLIC_KEY)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
@@ -37,7 +47,7 @@
 			<string>com.innogrid.playground</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>innogrid</string>
+				<string>$(INNOCREW_URL_SCHEME)</string>
 			</array>
 		</dict>
 	</array>

@@ -54,6 +54,6 @@ export function DesktopDownloads() {
         </CardContent></Card>;
       })}
     </div>
-    <p className="text-sm text-muted-foreground">데스크톱 업데이트는 이 페이지에서 새 설치 파일을 받아 설치합니다. iPhone·Android 테스트 신청과는 별도로 설치할 수 있습니다.</p>
+    <p className="text-sm text-muted-foreground">1.7.9부터 앱 내 자동 업데이트를 지원합니다. 이전 버전은 이 페이지에서 최초 한 번 설치해 주세요. 이후 앱 상단의 업데이트 띠를 누르면 다운로드 후 자동 설치·재시작됩니다. 누르기 전에 작업을 저장해 주세요. iPhone·Android 테스트 신청과는 별도로 설치할 수 있습니다.</p>
   </section>;
 }
