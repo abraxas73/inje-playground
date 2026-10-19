@@ -101,6 +101,19 @@ class UpdateLifecycle {
   std::string id_, version_;
 };
 
+/// Launching the just-verified installer. Windows Defender/indexers can briefly
+/// hold a freshly downloaded, not-yet-Authenticode-signed EXE; the first open or
+/// launch then fails with one of these codes and a retry seconds later succeeds
+/// (2026-10-20, 1.7.11 -> 1.7.12 first attempt). Bounded: at most kLaunchAttempts
+/// tries inside ONE user-initiated update; any other error fails immediately.
+constexpr int kLaunchAttempts = 3;
+inline bool TransientLaunchError(uint32_t code) {
+  return code == 5 /* ERROR_ACCESS_DENIED */ || code == 32 /* ERROR_SHARING_VIOLATION */ || code == 33 /* ERROR_LOCK_VIOLATION */;
+}
+/// Wait before the next try: 2 s after the first failure, 4 s after the second.
+inline uint32_t LaunchRetryDelayMs(int failed_attempt) { return failed_attempt <= 1 ? 2000u : 4000u; }
+inline bool ShouldRetryLaunch(int failed_attempt, uint32_t code) { return failed_attempt < kLaunchAttempts && TransientLaunchError(code); }
+
 inline std::wstring InstallerArguments(const std::wstring& directory, uint32_t process_id) {
   if (!process_id || directory.empty() || directory.back() == L'\\' ||
       directory.find_first_of(L"\"\r\n") != std::wstring::npos || directory.find(L'\0') != std::wstring::npos) return {};
