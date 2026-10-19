@@ -9,6 +9,9 @@ import 'package:playground/app/tab_shell.dart';
 import 'package:playground/auth/session.dart';
 import 'package:playground/gw/gw_creds.dart';
 import 'package:playground/features/ladder/ladder_screen.dart';
+import 'package:playground/features/home/home_screen.dart';
+import 'package:playground/gw/mail_screen.dart';
+import 'package:playground/assistant/innobot_prefs.dart';
 import '../auth/fake_auth.dart';
 import '../gw/fakes.dart';
 
@@ -43,6 +46,22 @@ Finder tab(String label) => find.descendant(of: find.byType(NavigationBar), matc
 
 void main() {
   final user = AppSession(email: 'u@innogrid.com', role: 'user', permissions: const {});
+
+  testWidgets('하위 메뉴에서 연 화면(아마란스 메일)에도 하단 바가 남고, 메뉴 펼침 상태가 바로 풀려 이노봇이 숨지 않는다; 홈 탭으로 돌아온다', (tester) async {
+    await pumpShell(tester, user);
+    await tester.tap(tab('아마란스'));
+    await tester.pumpAndSettle();
+    expect(innobotFanOpen.value, isTrue);
+    await tester.tap(fanItem('메일'));
+    await tester.pumpAndSettle();
+    expect(find.byType(MailScreen), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(innobotFanOpen.value, isFalse, reason: '새 화면이 셸 Ticker를 멈춰도 펼침 상태가 남지 않아야 이노봇이 보인다');
+    await tester.tap(tab('홈'));
+    await tester.pumpAndSettle();
+    expect(find.byType(MailScreen), findsNothing);
+    expect(find.byType(HomeScreen), findsOneWidget);
+  });
 
   testWidgets('하위 메뉴에는 탭과 항목을 잇는 선이 없다', (tester) async {
     await pumpShell(tester, user);

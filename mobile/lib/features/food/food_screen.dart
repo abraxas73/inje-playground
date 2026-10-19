@@ -155,7 +155,7 @@ class _FoodScreenState extends ConsumerState<FoodScreen> {
     final theme = Theme.of(context);
     final showPayco = !_showFavs && _payco.isNotEmpty;
     return Scaffold(
-      appBar: BrandHeader(title: '뭐 먹지', actions: [SquareIconButton(icon: Icons.tune, tooltip: '필터', onPressed: _openFilters)]),
+      appBar: BrandHeader(title: '뭐 먹지', favoritePath: '/food', actions: [SquareIconButton(icon: Icons.tune, tooltip: '필터', onPressed: _openFilters)]),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),

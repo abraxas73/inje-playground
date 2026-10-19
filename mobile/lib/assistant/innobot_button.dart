@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../favorites/favorites_panel.dart';
 import '../app/theme.dart';
 import 'assistant_session.dart';
 import 'assistant_sheet.dart';
@@ -16,11 +18,14 @@ import 'innobot_prefs.dart';
 /// showClaude면 바로 위에 Claude 열기 버튼(ClaudeButton)을 함께 띄우고 같이 끌린다(기본: 데스크톱).
 /// bottomInset은 하단 바·안전 영역만큼 올리는 값, sheetContext는 시트를 띄울 내비게이터 아래 context(앱 전체 레이어에서 쓸 때).
 class InnobotButton extends ConsumerStatefulWidget {
-  const InnobotButton({super.key, this.showClaude, this.bottomInset = 0, this.sheetContext});
+  const InnobotButton({super.key, this.showClaude, this.bottomInset = 0, this.sheetContext, this.onOpenPath});
   static bool get showsClaude => Platform.isMacOS || Platform.isWindows;
   final bool? showClaude;
   final double bottomInset;
   final BuildContext? Function()? sheetContext;
+
+  /// 즐겨찾기 페이지 열기(앱 안 경로). 없으면 ★ 버튼을 그리지 않는다.
+  final void Function(String path)? onOpenPath;
   @override
   ConsumerState<InnobotButton> createState() => _InnobotButtonState();
 }
@@ -63,7 +68,33 @@ class _InnobotButtonState extends ConsumerState<InnobotButton> {
                 .catchError((_) => false),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                if (widget.onOpenPath != null) ...[
+                  if (favoritesOpen.value)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: FavoritesPanel(
+                        onOpenPath: widget.onOpenPath!,
+                        onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication),
+                        // 버튼 세 개(56+10씩)와 위 여백을 뺀 높이까지, 넘치면 목록 안에서 스크롤
+                        maxHeight: math.max(120.0, MediaQuery.of(context).size.height - widget.bottomInset - _bottom - 66 * 3 - 40),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _RoundButton(
+                      color: favoritesOpen.value ? Brand.navy : Colors.white,
+                      tooltip: favoritesOpen.value ? '즐겨찾기 닫기' : '즐겨찾기',
+                      onTap: () => favoritesOpen.value = !favoritesOpen.value,
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Icon(favoritesOpen.value ? Icons.close_rounded : Icons.star_rounded, size: 28, color: favoritesOpen.value ? Colors.white : const Color(0xFFF5B301)),
+                      ),
+                    ),
+                  ),
+                ],
                 if (widget.showClaude ?? InnobotButton.showsClaude)
                   const Padding(
                     padding: EdgeInsets.only(bottom: 10),
@@ -99,7 +130,7 @@ class InnobotOverlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => Overlay.wrap(
         child: ListenableBuilder(
-          listenable: Listenable.merge([router.routerDelegate, innobotPopups, innobotFanOpen]),
+          listenable: Listenable.merge([router.routerDelegate, innobotPopups, innobotFanOpen, favoritesOpen]),
           builder: (context, _) {
             // push로 연 화면(/web·/gw/*)은 uri가 바뀌지 않으므로 맨 위 경로를 본다
             final cfg = router.routerDelegate.currentConfiguration;
@@ -112,11 +143,30 @@ class InnobotOverlay extends ConsumerWidget {
               enabled: ref.watch(innobotButtonPrefProvider).value ?? true,
               available: ref.watch(assistantAvailableProvider),
             );
-            if (!visible) return const SizedBox.shrink();
+            if (!visible) {
+              // 숨겨지면(팝업·로그아웃·설정 off) 펼친 즐겨찾기도 닫는다 — 다시 나타날 때 열린 채 남지 않게
+              if (favoritesOpen.value) WidgetsBinding.instance.addPostFrameCallback((_) => favoritesOpen.value = false);
+              return const SizedBox.shrink();
+            }
             // 탭 화면은 하단 바(NavigationBar 80) 위로
-            final inset = MediaQuery.paddingOf(context).bottom + (isTabPath(path) ? 80 : 0);
+            final inset = MediaQuery.paddingOf(context).bottom + (hasBottomBar(path) ? 80 : 0);
             return Stack(children: [
-              InnobotButton(showClaude: showsClaudeAt(path), bottomInset: inset, sheetContext: () => router.routerDelegate.navigatorKey.currentContext),
+              // 즐겨찾기를 펼치면 바깥을 살짝 어둡게 — 누르면 닫힌다
+              if (favoritesOpen.value)
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => favoritesOpen.value = false,
+                    child: const ColoredBox(color: Color(0x33000000)),
+                  ),
+                ),
+              InnobotButton(
+                showClaude: showsClaudeAt(path),
+                bottomInset: inset,
+                sheetContext: () => router.routerDelegate.navigatorKey.currentContext,
+                // 탭 화면(/food 등)은 그 탭으로, 나머지(웹·아마란스·Dooray)는 바 틀 안에 쌓는다
+                onOpenPath: (p) => isBranchRoot(p) ? router.go(p) : router.push(p),
+              ),
             ]);
           },
         ),

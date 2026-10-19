@@ -62,13 +62,14 @@ class InnobotPopupObserver extends NavigatorObserver {
 }
 
 const _hiddenPaths = {'/splash', '/login', '/guest'};
-const _tabPaths = ['/home', '/food', '/ladder', '/team', '/more'];
-
-/// 하단 바가 있는 탭 화면인가(버튼을 바 위로 올린다).
-bool isTabPath(String path) => _tabPaths.any((t) => path == t || path.startsWith('$t/'));
+/// 하단 바가 있는 화면인가(버튼을 바 위로 올린다) — 로그인 전 화면 말고는 모두 바 틀 안(2026-10-20).
+bool hasBottomBar(String path) => !_hiddenPaths.contains(path);
 
 bool innobotOverlayVisible({required bool signedIn, required String path, required int popups, required bool fanOpen, required bool enabled, required bool available}) =>
     signedIn && available && enabled && popups == 0 && !fanOpen && !_hiddenPaths.contains(path);
 
 /// Claude 열기 버튼은 데스크톱 홈에서만.
 bool showsClaudeAt(String path, {bool? desktop}) => (desktop ?? (Platform.isMacOS || Platform.isWindows)) && path == '/home';
+
+/// 탭 첫 화면 경로인가(즐겨찾기를 열 때 push 대신 그 탭으로 간다).
+bool isBranchRoot(String path) => const {'/home', '/food', '/ladder', '/team', '/more'}.contains(path);

@@ -167,6 +167,7 @@ class _LadderScreenState extends ConsumerState<LadderScreen>
     return Scaffold(
       appBar: BrandHeader(
         title: '사다리',
+        favoritePath: '/ladder',
         actions: [
           SquareIconButton(
             icon: Icons.history,

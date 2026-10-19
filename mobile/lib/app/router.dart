@@ -47,6 +47,11 @@ GoRouter buildRouter({
     GoRoute(path: '/splash', builder: (c, s) => const SplashScreen()),
     GoRoute(path: '/login', builder: (c, s) => const LoginScreen()),
     GoRoute(path: '/guest', builder: (c, s) => const GuestScreen()),
+    // 하단 바 틀: 탭 화면과 그 안에서 연 웹·아마란스·Dooray 화면 모두 같은 바 아래(push는 이 틀의 내비게이터에 쌓인다)
+    ShellRoute(
+      observers: [InnobotPopupObserver()],
+      builder: (c, s, child) => TabShell(child: child),
+      routes: [
     GoRoute(
       path: '/web',
       builder: (c, s) => WebScreen(path: s.uri.queryParameters['path'] ?? '/'),
@@ -59,7 +64,7 @@ GoRouter buildRouter({
     GoRoute(path: '/gw/mail', builder: (c, s) => const MailScreen()),
     GoRoute(path: '/gw/board', builder: (c, s) => BoardScreen(initialArt: s.uri.queryParameters['art'])),
     StatefulShellRoute.indexedStack(
-      builder: (c, s, shell) => TabShell(shell: shell),
+      builder: (c, s, shell) => TabShell.attach(shell),
       branches: [
         StatefulShellBranch(
           observers: [InnobotPopupObserver()],
@@ -109,6 +114,8 @@ GoRouter buildRouter({
             GoRoute(path: '/more', builder: (c, s) => const MoreScreen()),
           ],
         ),
+      ],
+    ),
       ],
     ),
   ],

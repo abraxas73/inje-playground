@@ -180,3 +180,11 @@ const blankLinkBridgeJs =
     """(function(){if(window.__innoBlankBridge)return;window.__innoBlankBridge=true;
 document.addEventListener('click',function(e){var t=e.target;var a=t&&t.closest?t.closest('a[href]'):null;if(!a||e.defaultPrevented)return;if(a.target!=='_blank'||!/^https?:/i.test(a.href))return;e.preventDefault();window.location.href=a.href;},true);
 var open=window.open;window.open=function(u){if(typeof u==='string'&&/^https?:/i.test(u)){window.location.href=u;return null;}return open?open.apply(window,arguments):null;};})();""";
+
+/// WebView 주소 → 우리 웹 경로(경로+쿼리). 다른 오리진·로그인 경유 주소는 null(즐겨찾기 대상 아님).
+String? pagePathOf(String? url, {required Uri appOrigin}) {
+  final u = url == null ? null : Uri.tryParse(url);
+  if (u == null || u.origin != appOrigin.origin) return null;
+  if (u.path == '/login' || u.path.startsWith('/auth/')) return null;
+  return u.hasQuery ? '${u.path}?${u.query}' : u.path;
+}

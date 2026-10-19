@@ -12,6 +12,8 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../api/client.dart';
 import '../config.dart';
 import 'web_session.dart';
+import '../favorites/favorites.dart';
+import '../more/catalog.dart';
 
 /// 웹 기능을 앱 안에서 연다. 세션은 앱과 별개 — /login으로 튕기면 web-token으로 부트스트랩, 연속 2회 실패면 오류 상태.
 class WebScreen extends ConsumerStatefulWidget {
@@ -26,6 +28,8 @@ class _WebScreenState extends ConsumerState<WebScreen>
   late final AppWebController _c;
   final _origin = Uri.parse(Config.apiBase);
   String _title = '';
+  /// 지금 보고 있는 우리 웹 경로(경로+쿼리) — 페이지 안에서 이동하면 따라 바뀐다(즐겨찾기 대상).
+  late String _pagePath = widget.path;
   bool _loading = true;
   String? _error;
   final _guard = BootstrapGuard();
@@ -86,10 +90,12 @@ class _WebScreenState extends ConsumerState<WebScreen>
               await _c.runJavaScript(blankLinkBridgeJs);
             } catch (_) {} // 새 창 링크를 같은 창 이동으로(외부는 _onNav가 브라우저로)
             final t = await _c.getTitle();
+            final here = pagePathOf(await _c.currentUrl(), appOrigin: _origin);
             if (mounted) {
               setState(() {
                 _loading = false;
                 _title = t ?? '';
+                if (here != null) _pagePath = here;
               });
             }
           },
@@ -355,10 +361,19 @@ class _WebScreenState extends ConsumerState<WebScreen>
         child: Scaffold(
           appBar: AppBar(
             leading: BackButton(onPressed: _goBack),
-            title: Text(
-              webTitleFor(title: _title, loading: _loading),
-              overflow: TextOverflow.ellipsis,
-            ),
+            title: Row(children: [
+              Flexible(
+                child: Text(
+                  webTitleFor(title: _title, loading: _loading),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (!_loading && _error == null)
+                FavoriteStar(
+                  path: '/web?path=${Uri.encodeComponent(_pagePath)}',
+                  title: pageLabelFor(_pagePath) ?? webTitleFor(title: _title, loading: false),
+                ),
+            ]),
             actions: [
               IconButton(
                 icon: const Icon(Icons.refresh),

@@ -91,6 +91,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `GET /api/members/users` — 앱 사용자 명단(user_profiles, guest 제외) → `{id, name, email}` (멤버 소스 provider `users`)
 - `GET /api/members/directory` — 사내 조직도 명부(company_directory active, service role로 읽음) → `{id: email, name, email, team}` (멤버 소스 provider `directory`)
 - `/api/users/members` — 내 팀(user_members: name, email, external_id, dooray_member_id, is_card_holder) GET/POST(교체)/PATCH(법카)/DELETE
+- `GET·PUT /api/users/favorites` — 앱 페이지 즐겨찾기(계정 단위 user_settings `app_favorites`, `{path,title}` 최대 30, 앱 안 경로만 — `lib/app-favorites.ts`). 데스크톱·모바일 앱의 이노봇 위 ★ 목록과 화면 제목 옆 ☆
 - `GET·PUT·DELETE /api/users/sharepoint-folder` — 개인 SharePoint 업로드 기본 폴더(링크를 본인 Graph 권한으로 해석해 저장, `lib/rfp/user-folder.ts`·`lib/ms/folder-route.ts` 공용)
 - `GET·PUT·DELETE·POST /api/users/notify-channel` — 개인 채널 알림 웹훅(POST는 테스트 1건 발송). https 공개 주소만(`lib/notify/url-guard.ts`), 감사 로그에는 호스트만 남긴다
 - `GET /api/users/[id]`, `DELETE /api/users/[id]` — 관리자용 사용자 상세(프로필·설정·로그인 이력·조직도 소속·활동 요약)/삭제(개인 데이터 → 프로필 → auth.users; 자기 자신·관리자 역할 거부). `/admin/users` 행 클릭 → `components/admin/users/UserDetailSheet`

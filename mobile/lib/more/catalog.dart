@@ -82,3 +82,13 @@ List<(PageGroup, List<PageEntry>)> visibleGroups(AppSession s) {
       if (all.where((p) => p.group == g.id) case final ps when ps.isNotEmpty) (g, ps.toList()),
   ];
 }
+
+/// 웹 경로의 메뉴 이름(즐겨찾기 이름) — 가장 길게 맞는 메뉴(예: /ppt/abc → "PPT 만들기"). 웹 문서 제목은 모두 "이노그리드"라 쓰지 않는다.
+String? pageLabelFor(String path) {
+  final p = path.split('?').first;
+  PageEntry? best;
+  for (final e in [...pages, ...adminPages, ...appPages]) {
+    if ((p == e.href || p.startsWith('${e.href}/')) && e.href != '/' && (best == null || e.href.length > best.href.length)) best = e;
+  }
+  return best?.label ?? (p == '/manual' ? '사용자 매뉴얼' : null);
+}

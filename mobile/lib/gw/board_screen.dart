@@ -66,7 +66,7 @@ class _BodyState extends State<_Body> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: const BrandHeader(title: '게시판', showBack: true),
+      appBar: const BrandHeader(title: '게시판', showBack: true, favoritePath: '/gw/board'),
       body: RefreshIndicator(
         onRefresh: () => _load(reset: true),
         child: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 24), children: [

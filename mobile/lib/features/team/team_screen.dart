@@ -154,6 +154,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen>
     return Scaffold(
       appBar: BrandHeader(
         title: '커피 타임',
+        favoritePath: '/team',
         actions: [
           SquareIconButton(
             icon: Icons.history,

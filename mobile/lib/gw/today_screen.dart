@@ -93,7 +93,7 @@ class _BodyState extends ConsumerState<_Body> {
     final doorayNote = !doorayOn ? null : dooray.hasError ? 'Dooray 일정을 불러오지 못했습니다. Dooray 화면에서 다시 로그인해 주세요.' : dooray.isLoading ? 'Dooray 일정을 불러오는 중…' : null;
     final rooms = _rooms == null ? null : (_allRooms ? _rooms! : _rooms!.where((r) => r.ownerEmpSeq == me).toList());
     return Scaffold(
-      appBar: const BrandHeader(title: '일정', showBack: true),
+      appBar: const BrandHeader(title: '일정', showBack: true, favoritePath: '/gw/today'),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 24), children: [

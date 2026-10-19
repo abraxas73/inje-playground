@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
+import '../favorites/favorites.dart';
 
 /// 이노그리드 워드마크(frontend/public/logo.svg를 PNG로 뜬 것, 1320×177). 밝은 바탕엔 네이비, 어두운 바탕엔 흰색.
 class BrandLogo extends StatelessWidget {
@@ -17,10 +18,13 @@ class BrandLogo extends StatelessWidget {
 /// 탭 화면 머리: 작은 워드마크 + 큰 제목 + 오른쪽 44px 아이콘 버튼. Scaffold.appBar 자리에 쓴다(상태 표시줄 여백은 SafeArea가 먹는다).
 /// 셸 밖 push 화면(하단 바 없음)은 [showBack]으로 왼쪽에 뒤로 버튼을 둔다.
 class BrandHeader extends StatelessWidget implements PreferredSizeWidget {
-  const BrandHeader({super.key, required this.title, this.actions = const [], this.showBack = false});
+  const BrandHeader({super.key, required this.title, this.actions = const [], this.showBack = false, this.favoritePath});
   final String title;
   final List<Widget> actions;
   final bool showBack;
+
+  /// 앱 안 경로를 주면 제목 옆에 즐겨찾기(☆/★) — 누르면 떠 있는 ★ 목록에서 바로 갈 수 있다.
+  final String? favoritePath;
   @override
   Size get preferredSize => const Size.fromHeight(76);
   @override
@@ -34,7 +38,10 @@ class BrandHeader extends StatelessWidget implements PreferredSizeWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                 const BrandLogo(width: 86, opacity: 0.8),
                 const SizedBox(height: 6),
-                Text(title, style: Theme.of(context).textTheme.headlineSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                Row(children: [
+                  Flexible(child: Text(title, style: Theme.of(context).textTheme.headlineSmall, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  if (favoritePath != null) FavoriteStar(path: favoritePath!, title: title),
+                ]),
               ]),
             ),
             for (final a in actions) Padding(padding: const EdgeInsets.only(left: 8), child: a),

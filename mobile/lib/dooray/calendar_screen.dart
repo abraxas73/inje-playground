@@ -8,6 +8,7 @@ import '../calendar/calendar_view.dart';
 import '../gw/gw_models.dart' show kstNow;
 import 'calendar_session.dart';
 import 'calendar_webview.dart';
+import '../favorites/favorites.dart';
 
 /// (시작일 'YYYY-MM-DD', 날 수 1~42) 범위의 Dooray 일정. 연결이 없으면 null.
 final doorayRangeProvider = FutureProvider.autoDispose
@@ -67,7 +68,7 @@ class _DoorayCalendarScreenState extends ConsumerState<DoorayCalendarScreen> {
     final result = ref.watch(doorayRangeProvider((doorayDay(start), endEx.difference(start).inDays)));
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dooray'),
+        title: const Row(children: [Flexible(child: Text('Dooray')), FavoriteStar(path: '/dooray/calendar', title: 'Dooray 캘린더')]),
         actions: [
           IconButton(
             tooltip: '일정 새로고침',

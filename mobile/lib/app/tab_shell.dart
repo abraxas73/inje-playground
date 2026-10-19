@@ -15,9 +15,29 @@ import 'theme.dart';
 
 /// 하단 바: 홈 · 그룹(일상/AI/업무 — 웹 2단 메뉴의 1단) · 더보기. 그룹을 누르면 하위 메뉴가 바 위로 한두 줄로 펼쳐지고,
 /// 네이티브 화면(뭐 먹지·사다리·커피 타임)은 탭 브랜치로, 나머지는 WebView로 연다.
+/// 바깥 틀(ShellRoute)이라 탭 화면뿐 아니라 그 안에서 연 웹·아마란스·Dooray 화면에도 바가 남는다(사용자 요청 2026-10-20).
 class TabShell extends ConsumerStatefulWidget {
-  const TabShell({super.key, required this.shell});
-  final StatefulNavigationShell shell;
+  const TabShell({super.key, required this.child});
+  final Widget child;
+
+  /// 탭 브랜치 셸 — StatefulShellRoute builder가 매번 갱신한다(바깥 틀이 브랜치 이동에 쓴다).
+  static StatefulNavigationShell? _shell;
+  static Widget attach(StatefulNavigationShell shell) {
+    _shell = shell;
+    return shell;
+  }
+
+  static const branchRoots = ['/home', '/food', '/ladder', '/team', '/more'];
+  static int _lastBranch = homeBranch;
+
+  /// 맨 위 화면 경로 → 탭 브랜치. 탭 화면이 아니면(웹·아마란스 등) null.
+  static int? branchOf(String path) {
+    for (var i = 0; i < branchRoots.length; i++) {
+      if (path == branchRoots[i] || path.startsWith('${branchRoots[i]}/')) return i;
+    }
+    return null;
+  }
+
   @override
   ConsumerState<TabShell> createState() => _TabShellState();
 }
@@ -76,16 +96,39 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
     }, onError: (_) {});
   }
 
+  /// 애니메이션 없이 바로 접는다 — 새 화면을 열면 이 셸의 Ticker가 멈춰 reverse가 끝나지 않고,
+  /// innobotFanOpen이 true로 남아 그 화면에서 이노봇이 사라지던 문제(2026-10-20).
+  void _closeNow() {
+    _fan.stop();
+    _fan.value = 0;
+    innobotFanOpen.value = false;
+    if (_open != null || _closing) {
+      setState(() {
+        _open = null;
+        _closing = false;
+      });
+    }
+  }
+
+  String _top() {
+    final cfg = GoRouter.of(context).routerDelegate.currentConfiguration;
+    return cfg.isEmpty ? cfg.uri.path : cfg.last.matchedLocation;
+  }
+
   void _goBranch(int i) {
-    _close();
+    final onBranch = TabShell.branchOf(_top()) != null;
+    _closeNow();
     ref.read(tabTapProvider.notifier).bump(i);
-    widget.shell.goBranch(i, initialLocation: i == widget.shell.currentIndex);
+    final shell = TabShell._shell;
+    if (shell == null) return context.go(TabShell.branchRoots[i]);
+    // 웹·아마란스 화면 위에서 탭을 누르면 그 화면을 닫고 탭의 마지막 상태로(같은 탭을 다시 누르면 첫 화면으로)
+    shell.goBranch(i, initialLocation: onBranch && i == shell.currentIndex);
   }
 
   void _openPage(PageEntry p) {
     final b = nativeBranch[p.key];
     if (b != null) return _goBranch(b);
-    _close();
+    _closeNow();
     // 앱 전용 네이티브 화면(/gw/*)은 그대로 push, 나머지는 WebView
     context.push(p.key == 'dooray' ? '/dooray/calendar' : p.href.startsWith('/gw/') ? p.href : '/web?path=${Uri.encodeComponent(p.href)}');
   }
@@ -98,7 +141,9 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
     final slotCount = groups.length + 2;
     final openIdx = groups.indexWhere((g) => g.$1.id == _open);
     final shownIdx = _closing ? -1 : openIdx; // 접히는 중엔 선택 표시를 원래 탭으로
-    final current = widget.shell.currentIndex;
+    final branch = TabShell.branchOf(_top());
+    if (branch != null) TabShell._lastBranch = branch;
+    final current = branch ?? TabShell._lastBranch;
     final dailyIdx = groups.indexWhere((g) => g.$1.id == 'daily');
     final selected = shownIdx >= 0
         ? 1 + shownIdx
@@ -123,7 +168,7 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
                 removeTop: hasUpdate(ref.watch(releaseProvider).value, Config.appBuild),
                 child: Stack(
                 children: [
-                  widget.shell,
+                  widget.child,
                   if (openIdx >= 0)
                     FanMenu(
                       key: ValueKey(_open),
