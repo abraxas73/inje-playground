@@ -40,6 +40,36 @@ Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime 
 }
 
 void main() {
+  for (final failure in [
+    (502, {'code': 'briefing_usage_limit', 'error': 'raw upstream secret'}, '사용 한도'),
+    (502, {'code': 'briefing_credit_balance', 'error': 'raw upstream secret'}, '잔액'),
+    (429, {'code': 'briefing_rate_limit', 'error': 'raw upstream secret'}, '요청이 몰려'),
+    (503, {'code': 'briefing_configuration', 'error': 'raw upstream secret'}, '관리자'),
+    (200, {'enabled': false, 'code': 'briefing_disabled'}, '비활성화'),
+    (200, {'enabled': false, 'code': 'briefing_configuration'}, '관리자'),
+  ]) {
+    testWidgets('수동 갱신 실패 ${failure.$2['code']}는 원인 안내·기존 브리핑 보존·복구가 된다', (tester) async {
+      final app = await pumpHome(tester, creds: testCreds);
+      app.routes['/api/mobile/briefing'] = (failure.$1, failure.$2);
+      await tester.tap(find.byTooltip('브리핑 새로고침'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining(failure.$3), findsOneWidget);
+      expect(find.textContaining('raw upstream secret'), findsNothing);
+      expect(find.text('오늘 10시 주간회의가 있습니다.'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+      app.routes['/api/mobile/briefing'] = (200, {'enabled': true, 'text': '복구된 브리핑'});
+      await tester.tap(find.byTooltip('브리핑 새로고침'));
+      await tester.pumpAndSettle();
+      expect(find.text('복구된 브리핑'), findsOneWidget);
+      app.routes['/api/mobile/briefing'] = (502, {'code': 'unknown', 'error': 'raw upstream secret'});
+      await tester.tap(find.byTooltip('브리핑 새로고침'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('브리핑을 새로 받지 못했습니다'), findsOneWidget);
+      expect(find.textContaining('raw upstream secret'), findsNothing);
+      expect(find.textContaining(failure.$3), findsNothing, reason: '이전 실패 원인을 재사용하지 않는다');
+    });
+  }
   testWidgets('기기 연결 없이 서버 목록만 비어 있으면 Dooray 영역을 숨긴다', (tester) async {
     final app = await pumpHome(tester, creds: null, routes: {'/api/dooray/overview': (200, {
       'connected': true, 'events': {'items': []}, 'mail': {'items': []},

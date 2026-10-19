@@ -121,7 +121,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     try {
       final ok = await ref.read(summaryProvider.notifier).ensure(d, force: force);
       if (force && mounted && !ok) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('브리핑을 새로 받지 못했습니다. 잠시 후 다시 시도해 주세요.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(ref.read(summaryProvider.notifier).failureMessage),
+          duration: const Duration(seconds: 8),
+        ));
       }
     } finally {
       if (mounted) setState(() => _summaryRequests--);
