@@ -9,8 +9,18 @@
 
 namespace innocrew {
 struct UpdateRequest {
-  std::string feed_url, token, version, session_id;
+  std::string feed_url, token, version, session_id, signature;
 };
+
+inline bool ValidUpdateSignature(const std::string& signature) {
+  if (signature.size() != 88 || signature.substr(86) != "==") return false;
+  for (size_t i = 0; i < 86; ++i) {
+    const char c = signature[i];
+    if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+          (c >= '0' && c <= '9') || c == '+' || c == '/')) return false;
+  }
+  return std::string("AQgw").find(signature[85]) != std::string::npos;
+}
 
 inline bool ParseUpdateVersion(const std::string& value, std::array<uint32_t, 3>& parts) {
   size_t start = 0;
@@ -30,6 +40,7 @@ inline bool ParseUpdateVersion(const std::string& value, std::array<uint32_t, 3>
 }
 
 inline bool ValidateUpdateRequest(const UpdateRequest& r, const std::string& current) {
+  if (!ValidUpdateSignature(r.signature)) return false;
   std::array<uint32_t, 3> wanted{}, installed{};
   if (!ParseUpdateVersion(r.version, wanted) || !ParseUpdateVersion(current, installed) || wanted <= installed) return false;
   if (r.feed_url != "https://innocrew.innogrid.com/api/desktop/update/appcast?platform=windows&version=" + r.version) return false;

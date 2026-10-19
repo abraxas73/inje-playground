@@ -4,7 +4,11 @@
 
 using namespace innocrew;
 int main() {
-  UpdateRequest request{"https://innocrew.innogrid.com/api/desktop/update/appcast?platform=windows&version=1.7.8", "fixture-token", "1.7.8", "job-1"};
+  const auto signature = std::string(86, 'A') + "==";
+  assert(ValidUpdateSignature(signature));
+  assert(!ValidUpdateSignature(std::string(85, 'A') + "B=="));
+  assert(!ValidUpdateSignature("\" injected=\"value"));
+  UpdateRequest request{"https://innocrew.innogrid.com/api/desktop/update/appcast?platform=windows&version=1.7.8", "fixture-token", "1.7.8", "job-1", signature};
   assert(ValidateUpdateRequest(request, "1.7.7"));
   assert(!ValidateUpdateRequest(request, "1.7.8"));
   assert(!ValidateUpdateRequest(request, "2.0.0"));

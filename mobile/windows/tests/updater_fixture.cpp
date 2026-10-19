@@ -5,6 +5,7 @@
 #include <winsparkle.h>
 #include <shellapi.h>
 #include "../runner/desktop_update_policy.h"
+#include "../runner/local_update_feed.h"
 
 #ifndef FIXTURE_VERSION
 #define FIXTURE_VERSION 1
@@ -53,15 +54,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
   ShowWindow(window, SW_SHOW);
   fixture_window = window;
   bool updating = false;
+  innocrew::LocalUpdateFeed local_feed;
   if (FIXTURE_VERSION == 1 && std::filesystem::exists(state / "update-config")) {
-    std::ifstream config(state / "update-config"); std::string feed, key;
+    std::ifstream config(state / "update-config"); std::string feed, key, signature, artifact;
     std::getline(config, feed); std::getline(config, key);
+    std::getline(config, signature); std::getline(config, artifact);
+    if (!local_feed.StartForTesting("9.0.2", signature, artifact)) return 11;
     if (!win_sparkle_set_eddsa_public_key(key.c_str())) return 10;
     lifecycle.Begin("isolated-test", "9.0.2");
     win_sparkle_set_app_details(L"INNOGRID-Tests", L"Isolated Updater Fixture", L"9.0.1");
     win_sparkle_set_registry_path("Software\\InnoCrew\\IsolatedUpdaterFixture");
     win_sparkle_set_automatic_check_for_updates(0);
-    win_sparkle_set_appcast_url(feed.c_str());
+    win_sparkle_set_appcast_url(local_feed.URL().c_str());
     win_sparkle_set_http_header("Authorization", "Bearer isolated-upgrade-fixture");
     win_sparkle_set_error_callback(UpdateError);
     win_sparkle_set_can_shutdown_callback(CanShutdown);
@@ -73,5 +77,6 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
   MSG message{};
   while (GetMessageW(&message, nullptr, 0, 0) > 0) { TranslateMessage(&message); DispatchMessageW(&message); }
   if (updating) { win_sparkle_clear_http_headers(); win_sparkle_cleanup(); }
+  local_feed.Stop();
   return 0;
 }

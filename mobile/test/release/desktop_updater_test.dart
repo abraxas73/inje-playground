@@ -92,6 +92,10 @@ void main() {
         installs.single.arguments,
         containsPair('expectedVersion', '1.7.8'),
       );
+      expect(
+        installs.single.arguments,
+        containsPair('edSignature', signedRelease.update!.edSignature),
+      );
       expect(updater.state.toString(), isNot(contains('secret-access-token')));
     },
   );
@@ -209,6 +213,26 @@ void main() {
     expect(updater.state.phase, isNot(DesktopUpdatePhase.available));
     expect(calls.where((c) => c.method == 'install'), isEmpty);
   });
+  test(
+    'failed native cleanup requires process restart, never another install',
+    () async {
+      await updater.check(manual: false);
+      await updater.start();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(updateChannel, (call) async {
+            calls.add(call);
+            if (call.method == 'cancel')
+              throw PlatformException(code: 'cleanup_failed');
+            return null;
+          });
+      await updater.cancelForSignOut();
+      await updater.check(manual: true);
+      await updater.start();
+      expect(calls.where((c) => c.method == 'install'), hasLength(1));
+      expect(updater.state.phase, DesktopUpdatePhase.error);
+      expect(updater.state.message, contains('앱을 완전히 종료'));
+    },
+  );
   test(
     'native events from an account that just changed cannot advance installation',
     () async {

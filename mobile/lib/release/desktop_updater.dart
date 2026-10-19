@@ -40,9 +40,7 @@ class DesktopUpdater extends ChangeNotifier {
     required this.account,
     required this.loadRelease,
     required this.refreshToken,
-    this._channel = const MethodChannel(
-      'com.innogrid.playground/updater',
-    ),
+    this._channel = const MethodChannel('com.innogrid.playground/updater'),
   }) {
     _channel.setMethodCallHandler(_onNativeCall);
   }
@@ -198,6 +196,7 @@ class DesktopUpdater extends ChangeNotifier {
         'feedUrl': feed.toString(),
         'accessToken': token,
         'expectedVersion': release.version,
+        'edSignature': release.update!.edSignature,
         'sessionId': _activeSession,
       });
     } catch (_) {
@@ -206,9 +205,11 @@ class DesktopUpdater extends ChangeNotifier {
         await _cancelNative();
         if (_current(epoch, id)) {
           _set(
-            const DesktopUpdateState(
+            DesktopUpdateState(
               DesktopUpdatePhase.error,
-              message: '업데이트를 시작하지 못했습니다. 로그인 상태를 확인하고 다시 시도해 주세요.',
+              message: _cancelFailed
+                  ? '이전 업데이트를 안전하게 정리하지 못했습니다. 앱을 완전히 종료한 후 다시 실행해 주세요.'
+                  : '업데이트를 시작하지 못했습니다. 로그인 상태를 확인하고 다시 시도해 주세요.',
               visible: true,
             ),
           );

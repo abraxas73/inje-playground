@@ -9,6 +9,7 @@ include(../cmake/winsparkle.cmake)
 # Any new source files that you add to the application should be added here.
 add_executable(${BINARY_NAME} WIN32
   "desktop_updater.cpp"
+  "local_update_feed.cpp"
   "flutter_window.cpp"
   "main.cpp"
   "utils.cpp"
@@ -42,7 +43,7 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "INNOCREW_UPDATE_PUBLIC_KEY=\"
 # dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
-target_link_libraries(${BINARY_NAME} PRIVATE WinSparkle "version.lib")
+target_link_libraries(${BINARY_NAME} PRIVATE WinSparkle "version.lib" "ws2_32.lib")
 target_compile_options(${BINARY_NAME} PRIVATE /utf-8)
 add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:WinSparkle> $<TARGET_FILE_DIR:${BINARY_NAME}>)

@@ -41,13 +41,14 @@ for (const scenario of ['success', 'bad-signature', 'expired-auth', 'interrupted
       res.end(`<?xml version="1.0"?><rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><title>Isolated test</title><item><enclosure url="http://127.0.0.1:${server.address().port}/${filename}" sparkle:version="9.0.2" sparkle:edSignature="${signature}" length="${bytes.length}" type="application/octet-stream" /></item></channel></rss>`);
     } else {
       downloadHit = true;
+      if (scenario === 'expired-auth') { res.writeHead(401); res.end(); return; }
       res.writeHead(200, { 'Content-Length': bytes.length, 'Content-Disposition': `attachment; filename="${filename}"` });
       if (scenario === 'interrupted-download') { res.write(bytes.subarray(0, 512)); setTimeout(() => res.destroy(), 50); }
       else res.end(bytes);
     }
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
-  await writeFile(join(state, 'update-config'), `http://127.0.0.1:${server.address().port}/feed\n${publicKey}\n`);
+  await writeFile(join(state, 'update-config'), `http://127.0.0.1:${server.address().port}/feed\n${publicKey}\n${signature}\nhttp://127.0.0.1:${server.address().port}/${filename}\n`);
   const old = spawn(join(app, 'INNOGRID.exe'), [], { stdio: 'ignore' });
   let oldExited = false; old.once('exit', () => { oldExited = true; });
   let newPid;
@@ -69,7 +70,7 @@ for (const scenario of ['success', 'bad-signature', 'expired-auth', 'interrupted
       assert.equal(await exists(join(state, 'installer-launched')), false, 'rejected update never executes');
       if (scenario !== 'expired-auth') assert.equal(downloadHit, true);
     }
-    assert.equal(feedHit, true);
+    assert.equal(feedHit, false, 'remote appcast is never parsed');
     assert.equal(await readFile(join(state, 'session-settings'), 'utf8'), 'synthetic-account-and-settings');
     console.log(`PASS: actual WinSparkle signed-upgrade ${scenario}; old PID=${old.pid}${newPid ? ` new PID=${newPid}` : ''}`);
   } finally {

@@ -58,9 +58,16 @@ final class UpdaterUserDriver: NSObject, SPUUserDriver {
     if session.authorized { status("installing", nil) }
     // Sparkle sends graceful termination itself. Never force-kill unrelated PIDs.
   }
-  func showUpdateInstalledAndRelaunched(_ relaunched: Bool, acknowledgement: @escaping () -> Void) { acknowledgement() }
+  func showUpdateInstalledAndRelaunched(_ relaunched: Bool, acknowledgement: @escaping () -> Void) {
+    if !relaunched && session.authorized { status("error", nil) }
+    session.cancel(); acknowledgement()
+  }
   func dismissUpdateInstallation() {
-    if dismissed { return }; dismissed = true; cancellation = nil; session.cancel(); finished()
+    if dismissed { return }; dismissed = true; cancellation = nil
+    // If the old process is still receiving callbacks, a silent dismissal must
+    // not leave Flutter permanently in its installing phase.
+    if session.authorized { status("error", nil) }
+    session.cancel(); finished()
   }
   func showUpdateInFocus() { NSApp.activate(ignoringOtherApps: true) }
 }

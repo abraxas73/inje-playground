@@ -54,7 +54,7 @@ DesktopUpdater::DesktopUpdater(flutter::BinaryMessenger* messenger, HWND window)
   channel_->SetMethodCallHandler([this](const auto& call, auto result) {
     const auto* args = call.arguments() ? std::get_if<Map>(call.arguments()) : nullptr;
     if (call.method_name() == "install") {
-      if (!args || !Install({StringAt(*args, "feedUrl"), StringAt(*args, "accessToken"), StringAt(*args, "expectedVersion"), StringAt(*args, "sessionId")})) {
+      if (!args || !Install({StringAt(*args, "feedUrl"), StringAt(*args, "accessToken"), StringAt(*args, "expectedVersion"), StringAt(*args, "sessionId"), StringAt(*args, "edSignature")})) {
         result->Error("update_unavailable", "업데이트를 시작하지 못했습니다."); return;
       }
       result->Success();
@@ -80,11 +80,14 @@ bool DesktopUpdater::Install(const innocrew::UpdateRequest& request) {
   const std::string key = INNOCREW_UPDATE_PUBLIC_KEY;
   if (key.empty() || !win_sparkle_set_eddsa_public_key(key.c_str())) return false;
   if (!lifecycle_.Begin(request.session_id, request.version)) return false;
+  if (!local_feed_.Start(request.version, request.signature)) { lifecycle_.Reset(); return false; }
   const std::string version = FLUTTER_VERSION;
   const std::wstring wide_version(version.begin(), version.end());
   win_sparkle_set_app_details(L"INNOGRID", L"이노크루", wide_version.c_str());
   win_sparkle_set_automatic_check_for_updates(0);
-  win_sparkle_set_appcast_url(request.feed_url.c_str());
+  // Remote appcasts can redirect and introduce a new credential-bearing request.
+  // Our exclusively owned loopback feed contains only the fixed official URL.
+  win_sparkle_set_appcast_url(local_feed_.URL().c_str());
   win_sparkle_set_http_header("Authorization", ("Bearer " + request.token).c_str());
   win_sparkle_set_error_callback(Failed);
   win_sparkle_set_did_not_find_update_callback(Failed);
@@ -104,7 +107,9 @@ void DesktopUpdater::Cleanup() {
     // cleanup join them without a cross-thread SendMessage deadlock.
     win_sparkle_clear_http_headers();
     win_sparkle_cleanup(); initialized_ = false;
+    win_sparkle_clear_http_headers();
   }
+  local_feed_.Stop();
   lifecycle_.Reset();
   std::lock_guard<std::mutex> lock(events_mutex_); events_.clear();
 }

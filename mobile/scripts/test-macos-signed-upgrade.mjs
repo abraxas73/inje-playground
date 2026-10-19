@@ -80,7 +80,8 @@ try {
   signature = signUpdate({ body: bytes, build: 2, minimumOS: '12.0', privateKey, publicKey }).edSignature;
   for (const test of ['success', 'bad-signature', 'expired-auth', 'interrupted-download']) {
     scenario = test; events = []; downloadHit = false;
-    const installed = join(root, `${test} 한글 path`, 'InnoCrewUpdaterFixture.app');
+    // Diagnostic override compares exactly the same engine with an ASCII path.
+    const installed = join(root, process.env.INNOCREW_FIXTURE_ASCII_PATH === '1' ? `${test} path` : `${test} 한글 path`, 'InnoCrewUpdaterFixture.app');
     run('ditto', [oldApp, installed]);
     // LaunchServices grants normal app-bundle sandbox access and registers the
     // process for Sparkle's quit Apple event. exec'ing Contents/MacOS directly

@@ -11,6 +11,7 @@
 #include <optional>
 #include <string>
 #include "desktop_update_policy.h"
+#include "local_update_feed.h"
 
 class DesktopUpdater {
  public:
@@ -33,6 +34,7 @@ class DesktopUpdater {
   HWND window_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel_;
   innocrew::UpdateLifecycle lifecycle_;
+  innocrew::LocalUpdateFeed local_feed_;
   std::mutex events_mutex_;
   std::deque<Event> events_;
   bool initialized_ = false;
