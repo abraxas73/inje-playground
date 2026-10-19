@@ -89,7 +89,7 @@ class UpdateLifecycle {
 inline std::wstring InstallerArguments(const std::wstring& directory, uint32_t process_id) {
   if (!process_id || directory.empty() || directory.back() == L'\\' ||
       directory.find_first_of(L"\"\r\n") != std::wstring::npos || directory.find(L'\0') != std::wstring::npos) return {};
-  return L"/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS /NORESTARTAPPLICATIONS /INNOCREWAUTOUPDATE=1 /INNOCREWPID=" +
+  return L"/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS /NORESTARTAPPLICATIONS /INNOCREWAUTOUPDATE=1 /INNOCREWPID=" +
     std::to_wstring(process_id) + L" /DIR=\"" + directory + L"\"";
 }
 }  // namespace innocrew

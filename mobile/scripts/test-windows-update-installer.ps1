@@ -6,10 +6,10 @@ $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
 if (-not (Test-Path $iscc)) { $iscc = (Get-Command ISCC.exe).Source }
 $root = Join-Path ([IO.Path]::GetTempPath()) ('innocrew-updater-' + [guid]::NewGuid().ToString('N'))
 $owned = [Collections.Generic.List[Diagnostics.Process]]::new()
-function Wait-Until([scriptblock]$Condition, [int]$Seconds = 15) {
+function Wait-Until([scriptblock]$Condition, [string]$Label, [int]$Seconds = 15) {
   $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
   do { if (& $Condition) { return }; Start-Sleep -Milliseconds 100 } while ([DateTime]::UtcNow -lt $deadline)
-  throw 'Timed out waiting for updater fixture'
+  throw "Timed out waiting for updater fixture: $Label"
 }
 try {
   foreach ($scenario in @('success', 'busy')) {
@@ -27,7 +27,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Fixture installer compilation failed' }
     $old = Start-Process (Join-Path $install 'INNOGRID.exe') -PassThru
     $owned.Add($old)
-    Wait-Until { $old.Refresh(); $old.MainWindowHandle -ne 0 }
+    Wait-Until { $old.Refresh(); $old.MainWindowHandle -ne 0 } 'old process window'
     # Another app with the same executable name must remain untouched.
     $other = Join-Path $caseRoot 'unrelated/App'
     [void](New-Item -ItemType Directory -Path $other -Force)
@@ -45,7 +45,8 @@ try {
     if ((Get-Content (Join-Path $state 'preserved.txt') -Raw).Trim() -ne 'test-session-and-settings') { throw 'Persistent data changed' }
     if ($scenario -eq 'success') {
       if ($setup.ExitCode -ne 0) { throw "Installer failed: $($setup.ExitCode)" }
-      Wait-Until { (Get-Content (Join-Path $state 'launches.log')) -match '^2 ' }
+      Write-Host 'Installer succeeded; waiting for automatic relaunch'
+      Wait-Until { (Get-Content (Join-Path $state 'launches.log')) -match '^2 ' } 'new version automatic relaunch'
       $starts = @(Get-Content (Join-Path $state 'launches.log') | Where-Object { $_ -match '^2 ' })
       if ($starts.Count -ne 1 -or -not $old.HasExited) { throw 'Expected one new process after old process exit' }
       $new = Get-Process -Id ([int]($starts[0].Split(' ')[1]))

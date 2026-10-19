@@ -47,6 +47,7 @@ int main() {
   assert(args.find(L"/INNOCREWPID=1234") != std::wstring::npos);
   assert(args.find(L"/DIR=\"C:\\Users\\홍길동\\My Apps\\INNOGRID\"") != std::wstring::npos);
   assert(args.find(L"/NORESTART ") != std::wstring::npos);
+  assert(args.find(L"/SP- ") != std::wstring::npos);
   assert(args.find(L"/NOCLOSEAPPLICATIONS") != std::wstring::npos);
   assert(InstallerArguments(L"C:\\bad\" /taskkill", 1234).empty());
   assert(InstallerArguments(L"C:\\INNOGRID", 0).empty());
