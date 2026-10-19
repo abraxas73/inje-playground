@@ -3,6 +3,7 @@ import { logAudit } from "@/lib/audit";
 import { requireUser } from "@/lib/rfp/require-user";
 import { BRIEFING_BODY_MAX, briefingEnabled, countsOf, MOBILE_BRIEFING_LLM_KEY, sanitizePayload } from "@/lib/mobile/briefing";
 import { generateBriefing } from "@/lib/mobile/briefing-llm";
+import { briefingFailure } from "@/lib/mobile/briefing-error";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -20,13 +21,18 @@ export async function POST(request: NextRequest) {
   try { parsed = JSON.parse(raw); } catch { return NextResponse.json({ error: "JSON 형식이 아닙니다." }, { status: 400 }); }
   const payload = sanitizePayload(parsed);
   const { data } = await r.admin.from("settings").select("value").eq("key", MOBILE_BRIEFING_LLM_KEY).maybeSingle();
-  if (!briefingEnabled((data as { value?: string } | null)?.value, process.env.ANTHROPIC_API_KEY)) return NextResponse.json({ enabled: false }, { headers: { "Cache-Control": "no-store" } });
+  const setting = (data as { value?: string } | null)?.value;
+  if (!briefingEnabled(setting, process.env.ANTHROPIC_API_KEY)) {
+    const disabled = setting?.trim().toLowerCase() === "off";
+    return NextResponse.json({ enabled: false, code: disabled ? "briefing_disabled" : "briefing_configuration" }, { headers: { "Cache-Control": "no-store" } });
+  }
   try {
     const { text, model } = await generateBriefing(payload);
     await logAudit(r.admin, request, { userId: r.userId, action: "모바일 브리핑 생성", category: "mobile", detail: { ...countsOf(payload), model } });
     return NextResponse.json({ enabled: true, text, model, at: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
-    console.error("[mobile] 브리핑 생성 실패:", e instanceof Error ? e.message : e);
-    return NextResponse.json({ error: "브리핑을 만들지 못했습니다. 잠시 후 다시 시도해 주세요." }, { status: 502 });
+    const { status, ...failure } = briefingFailure(e);
+    console.error("[mobile] 브리핑 생성 실패:", failure.code);
+    return NextResponse.json(failure, { status, headers: { "Cache-Control": "no-store" } });
   }
 }

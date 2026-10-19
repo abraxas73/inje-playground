@@ -22,6 +22,7 @@ import '../../more/service_grid.dart';
 import '../../release/release_provider.dart';
 import 'greeting.dart';
 import 'quotes.dart';
+import 'home_card_layout.dart';
 
 /// 홈 = 오늘의 브리핑. 인사말 → 오늘의 한 줄(격언) → 데일리 브리핑(Claude, 없으면 숨김) → 지금 필요한 것 → 일정 → 팀원 부재 → 결재 → 메일 → Teams → 공지 → 바로 가기·사내 서비스.
 /// 수집은 홈을 열 때·홈 탭을 다시 누를 때·당겨서 새로고침. 브리핑은 매일 한국 시간 07:00 및 수동 요청 때 다시 만든다.
@@ -121,7 +122,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     try {
       final ok = await ref.read(summaryProvider.notifier).ensure(d, force: force);
       if (force && mounted && !ok) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('브리핑을 새로 받지 못했습니다. 잠시 후 다시 시도해 주세요.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(ref.read(summaryProvider.notifier).failureMessage),
+          duration: const Duration(seconds: 8),
+        ));
       }
     } finally {
       if (mounted) setState(() => _summaryRequests--);
@@ -169,6 +173,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             const SizedBox(height: 4),
             Text(g.subtitle, style: theme.textTheme.bodySmall),
             const SizedBox(height: 16),
+            HomeCardLayout(children: [
             QuoteCard(quote: q),
             BriefingCard(
               summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at),
@@ -219,8 +224,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               if (data.errors.containsKey('teams')) RetryLine(label: 'Teams', onTap: _refresh) else TeamsSection(mentions: data.mentions, onOpen: () => open(teamsRoute)),
             ],
             const GwNoticesCard(),
-
-
+            ]),
             const SizedBox(height: 20),
             Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('바로 가기', style: theme.textTheme.titleSmall)),
             ServiceCardGrid(

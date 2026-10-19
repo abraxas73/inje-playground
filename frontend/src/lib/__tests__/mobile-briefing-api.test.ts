@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
 const m = vi.hoisted(() => ({ ok: true as boolean, setting: null as string | null, gen: vi.fn(), audit: vi.fn() }));
 vi.mock("@/lib/rfp/require-user", () => ({ requireUser: async () => m.ok
   ? { ok: true, userId: "u1", role: "user", admin: { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: m.setting === null ? null : { value: m.setting }, error: null }) }) }) }) } }
@@ -26,9 +27,9 @@ it("설정이 없거나 on이면 Claude 문장을 돌려주고 감사에는 건�
 });
 it("설정 off 또는 API 키 없음이면 enabled:false, Claude 호출 없음", async () => {
   m.setting = "off";
-  expect(await (await POST(req())).json()).toEqual({ enabled: false });
+  expect(await (await POST(req())).json()).toMatchObject({ enabled: false, code: "briefing_disabled" });
   m.setting = "on"; vi.stubEnv("ANTHROPIC_API_KEY", "");
-  expect(await (await POST(req())).json()).toEqual({ enabled: false });
+  expect(await (await POST(req())).json()).toMatchObject({ enabled: false, code: "briefing_configuration" });
   expect(m.gen).not.toHaveBeenCalled();
 });
 it("본문 16KB 초과·깨진 JSON은 400, 거대 문자열은 잘려서 간다", async () => {
@@ -42,4 +43,23 @@ it("Claude 오류는 502, 비로그인은 401", async () => {
   expect((await POST(req())).status).toBe(502);
   m.ok = false;
   expect((await POST(req())).status).toBe(401);
+});
+
+it.each([
+  [400, "invalid_request_error", "You have reached your specified API usage limits. You will regain access on 2026-11-01 at 00:00 UTC.", "briefing_usage_limit", "사용 한도", 502],
+  [400, "invalid_request_error", "Your credit balance is too low to access the Anthropic API.", "briefing_credit_balance", "잔액", 502],
+  [429, "rate_limit_error", "Too many requests", "briefing_rate_limit", "요청이 몰려", 429],
+  [401, "authentication_error", "invalid x-api-key sk-secret", "briefing_configuration", "관리자", 503],
+  [403, "permission_error", "not allowed", "briefing_configuration", "관리자", 503],
+  [529, "overloaded_error", "Overloaded", "briefing_unavailable", "잠시 후", 502],
+  [400, "invalid_request_error", "bad input private title", "briefing_unavailable", "잠시 후", 502],
+] as const)("공급자 오류 %s/%s를 안전한 원인과 조치로 전달한다", async (status, type, message, code, hint, expectedStatus) => {
+  m.gen.mockRejectedValue(Anthropic.APIError.generate(status, { type: "error", error: { type, message } }, undefined, new Headers()));
+  const res = await POST(req());
+  expect(res.status).toBe(expectedStatus);
+  const j = await res.json();
+  expect(j.code).toBe(code);
+  expect(j.error).toContain(hint);
+  expect(JSON.stringify(j)).not.toContain(message);
+  expect(res.headers.get("Cache-Control")).toBe("no-store");
 });
