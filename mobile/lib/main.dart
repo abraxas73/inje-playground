@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'release/desktop_update_host.dart';
 import 'assistant/innobot_button.dart';
+import 'assistant/assistant_window.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -93,7 +94,7 @@ class _AppState extends ConsumerState<App> {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       // 이노봇 버튼은 앱 전체 위에 한 번 — 탭·웹·아마란스·Dooray 어느 화면에서나(InnobotOverlay)
       // 모든 네이티브 화면의 글자를 끌어서(데스크톱)·길게 눌러(모바일) 골라 복사 — 이노봇 버튼 레이어는 밖(길게 눌러 옮기기와 겹치지 않게)
-      builder: (context, child) => DesktopUpdateHost(child: Stack(children: [DoorayCalendarHost(child: SelectAllText(child: child ?? const SizedBox.shrink())), InnobotOverlay(router: _router)])),
+      builder: (context, child) => DesktopUpdateHost(child: Stack(children: [DoorayCalendarHost(child: SelectAllText(child: child ?? const SizedBox.shrink())), Overlay(key: assistantWindowOverlay), InnobotOverlay(router: _router)])),
     );
   }
 }

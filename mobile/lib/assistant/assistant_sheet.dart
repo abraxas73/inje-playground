@@ -8,13 +8,16 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api/client.dart';
 import '../app/theme.dart';
 import 'assistant_session.dart';
+import 'assistant_window.dart';
 import 'assistant_voice.dart';
 import 'chat_api.dart';
 import 'conversation_list_sheet.dart';
 
 /// [seed]가 있으면 시트가 열리자마자 그 문장을 보낸다(예: 일정 화면 "추가" → "… 아마란스 일정 등록해줘"). 말풍선으로 남아 "고쳐 줘"로 바로잡을 수 있다.
-Future<void> showAssistantSheet(BuildContext context, {String? seed}) =>
-    showModalBottomSheet<void>(
+/// 데스크톱(macOS·Windows)은 끌어서 옮길 수 있는 떠 있는 창(assistant_window.dart), 휴대폰은 아래 시트.
+Future<void> showAssistantSheet(BuildContext context, {String? seed}) => assistantUsesWindow
+    ? showAssistantWindow(seed: seed)
+    : showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
