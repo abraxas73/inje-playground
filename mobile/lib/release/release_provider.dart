@@ -17,3 +17,23 @@ final releaseProvider = FutureProvider<ReleaseInfo?>((ref) async {
     return null;
   }
 });
+
+/// 서버에 게시된 자기 플랫폼의 macOS/Windows 설치본. 실패는 업데이트 띠를 숨긴다.
+final desktopReleaseProvider = FutureProvider<DesktopReleaseInfo?>((ref) async {
+  if (kIsWeb ||
+      (defaultTargetPlatform != TargetPlatform.macOS &&
+          defaultTargetPlatform != TargetPlatform.windows)) {
+    return null;
+  }
+  try {
+    final platform = defaultTargetPlatform == TargetPlatform.macOS
+        ? 'macos'
+        : 'windows';
+    final json = await ref
+        .read(apiClientProvider)
+        .getJson('/api/desktop/release', query: {'platform': platform});
+    return parseDesktopRelease(json);
+  } catch (_) {
+    return null;
+  }
+});

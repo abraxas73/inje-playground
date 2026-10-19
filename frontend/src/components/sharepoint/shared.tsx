@@ -21,7 +21,8 @@ export const asProblem = (e: unknown): ApiProblem => (e && typeof e === "object"
 export function ConnectNotice({ problem }: { problem: ApiProblem }) {
   return <Card><CardContent className="space-y-3 py-6">
     <p className="text-sm">{problem.message}</p>
-    <Button asChild><Link href="/settings">Microsoft 계정 연결</Link></Button>
+    <p className="text-xs text-muted-foreground">앱 로그인은 완료된 상태입니다. SharePoint 문서를 읽을 권한만 한 번 연결하면 이 화면으로 돌아옵니다.</p>
+    <Button asChild><Link href="/api/ms/connect?returnTo=%2Fsharepoint">SharePoint 권한 연결</Link></Button>
   </CardContent></Card>;
 }
 

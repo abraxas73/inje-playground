@@ -25,6 +25,23 @@ Future<String> webBootstrapUrl(ApiClient api, String apiBase, String nextPath) a
   return bootstrapUrl(apiBase: apiBase, nextPath: nextPath, tokenHash: j['tokenHash'] as String);
 }
 
+/// Microsoft 연결은 네이티브 Bearer 세션으로 승인 URL만 발급받는다. Jira 구버전 흐름은 웹 세션 부트스트랩을 유지한다.
+Future<String> oauthLaunchUrl(ApiClient api, Uri source) async {
+  if (source.path == '/api/ms/connect') {
+    final j = await api.postJson('/api/mobile/ms-connect', {
+      'returnTo': source.queryParameters['returnTo'] ?? '/settings',
+    }) as Map<String, dynamic>;
+    final value = j['url'];
+    final target = value is String ? Uri.tryParse(value) : null;
+    if (target == null || target.scheme != 'https' || target.host != 'login.microsoftonline.com') {
+      throw const FormatException('Invalid Microsoft authorization URL');
+    }
+    return target.toString();
+  }
+  final next = Uri(path: source.path, query: source.hasQuery ? source.query : null).toString();
+  return webBootstrapUrl(api, api.baseUrl, next);
+}
+
 /// 지금 보이는 페이지가 /auth/mobile(부트스트랩 페이지)인가. 조각 토큰은 페이지가 바로 지우므로 여기서 reload하면 토큰 없이 다시 열린다 — 새로고침은 재부트스트랩으로.
 bool isAuthBootstrapPage(String? currentUrl, {required Uri appOrigin}) {
   final u = currentUrl == null ? null : Uri.tryParse(currentUrl);

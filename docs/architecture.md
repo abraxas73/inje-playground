@@ -221,6 +221,7 @@ sequenceDiagram
   - 앱 전용 API는 세 가지다.
     - `POST /api/mobile/login`: 로그인 기록과 역할·권한
     - `POST /api/mobile/web-token`: WebView용 일회용 magiclink 토큰
+    - `POST /api/mobile/ms-connect`: 네이티브 Bearer 세션으로 Microsoft 승인 URL 발급(외부 브라우저용 Supabase 세션을 만들지 않음)
     - `/auth/mobile`: 토큰을 쿠키 세션으로 바꾼다
 - **역할**: `user_profiles.role`의 `guest < user < admin`이다. `requireUser()`(`lib/rfp/require-user.ts`)는 user 이상만 통과시키고 `{userId, role, admin}`을 준다. 여기서 `admin`은 service role 클라이언트다. 관리자 API는 `requireAdmin`을 쓴다.
 - **service role 클라이언트**(`lib/supabase-admin.ts`)는 RLS를 우회하므로 서버 라우트·크론·감사에서만 쓴다.
@@ -691,7 +692,7 @@ LLM 의존 기능은 키가 없으면 **UI에서 숨긴다**(비활성 버튼으
 
 로그인·탭·뭐 먹지·사다리·커피 타임은 네이티브이고, 나머지 웹 페이지는 WebView로 연다.
 
-- **세션**: WebView는 앱 세션을 **복사하지 않는다**(리프레시 토큰 회전 충돌). 대신 `POST /api/mobile/web-token`으로 일회용 magiclink 토큰을 받아 `/auth/mobile#token=…`으로 쿠키 세션을 만든다. 부트스트랩은 1회만 한다(무한 루프 방지).
+- **세션**: WebView는 앱 세션을 **복사하지 않는다**(리프레시 토큰 회전 충돌). 대신 `POST /api/mobile/web-token`으로 일회용 magiclink 토큰을 받아 `/auth/mobile#token=…`으로 쿠키 세션을 만든다. 부트스트랩은 1회만 한다(무한 루프 방지). Microsoft 권한 연결은 예외적으로 `POST /api/mobile/ms-connect`가 앱 Bearer 사용자와 짧은 만기를 서명한 승인 URL만 돌려주며, 콜백은 그 서명을 검증해 앱 딥링크로 복귀한다. 따라서 권한 연결 때문에 외부 브라우저용 Supabase 세션을 추가 생성하지 않는다.
 - **내비게이션 정책**(`WebNavPolicy`):
   - 다른 오리진·파일 링크 → 외부 앱
   - `/api/ms/connect`·`/api/jira/connect` → OAuth 연결
@@ -733,7 +734,7 @@ LLM 의존 기능은 키가 없으면 **UI에서 숨긴다**(비활성 버튼으
 
 - **캘린더**(`lib/calendar/`): 일간·주간·월간 보기를 아마란스 일정과 Dooray 화면이 공유한다. 시각은 `DateTime.utc` 기반 KST 벽시계로 통일한다. 아마란스 일정 화면에서 "추가"를 누르면 이노봇이 그 날짜로 열린다.
 - **Dooray**: 화면 밖에 숨긴 WebView 엔진이 HttpOnly 쿠키로 같은 오리진 읽기를 한다(개인 캘린더만).
-- **업데이트 확인**: `GET /api/mobile/release`(모바일만). 서버 빌드 번호가 더 크면 배너를 띄운다. APK 서명 URL은 600초면 만료되므로 누를 때마다 새로 받는다.
+- **업데이트 확인**: Android·iOS는 `GET /api/mobile/release`의 빌드 번호를 비교해 홈 배너를 띄운다. macOS·Windows는 `GET /api/desktop/release?platform=…`의 게시 버전을 `x.y.z`로 비교해 전역 셸 맨 위에 `특정 버전으로 업데이트가 필요합니다` 띠를 띄운다. APK·데스크톱 설치본 서명 URL은 만료되므로 업데이트 버튼을 누를 때마다 새로 받는다.
 
 ### 8.9 앱의 이노봇
 
@@ -767,7 +768,7 @@ LLM 의존 기능은 키가 없으면 **UI에서 숨긴다**(비활성 버튼으
 - **MCP 워커**([§5](#5-claude-커넥터와-데스크톱-중계)): 이 PC를 Claude 커넥터와 웹 아마란스 기능의 실행기로 만든다.
 - **메신저 멘션 OS 알림**, **Claude 데스크톱 앱 열기**(설치돼 있지 않으면 내려받기 페이지).
 - **웹의 설치 여부 판단**: 별도 신호가 없다. 웹은 `login_history`의 앱 User-Agent로 데스크톱 앱 로그인 여부를 판단한다(홈 설치 안내 카드). 그래서 `Config.userAgent` 형식을 바꾸면 `lib/desktop/presence.ts`도 함께 바꿔야 한다.
-- 데스크톱은 업데이트 배너를 쓰지 않는다. 웹 `/apps`에서 내려받는다.
+- **업데이트 띠**: `settings.desktop_app_release`에 자기 플랫폼의 더 높은 버전이 게시되면 모든 탭의 맨 윗줄에 정확한 버전과 업데이트 버튼을 보여 준다. 버튼은 로그인된 API에서 5분짜리 설치 링크를 새로 발급받아 외부 브라우저로 연다. 개발 빌드와 같거나 낮은 게시 버전에는 띠가 없다.
 
 ### 8.11 테스트
 

@@ -35,6 +35,6 @@ export async function GET(request: NextRequest) {
   const returnTo = sanitizeReturnTo(request.nextUrl.searchParams.get("returnTo"));
   const appReturn = request.nextUrl.searchParams.get("app_return") === "1";
   const state = signState({ u: auth.userId, n: newNonce(), r: returnTo, e: Math.floor(Date.now() / 1000) + STATE_TTL_S, ...(appReturn ? { a: true as const } : {}) }, cfg.config.encKey);
-  const url = buildAuthorizeUrl({ tenantId: cfg.config.app.tenantId, clientId: cfg.config.app.clientId, redirectUri: `${origin}/api/ms/callback`, state });
+  const url = buildAuthorizeUrl({ tenantId: cfg.config.app.tenantId, clientId: cfg.config.app.clientId, redirectUri: `${origin}/api/ms/callback`, state, loginHint: auth.email });
   return NextResponse.redirect(url, 302);
 }
