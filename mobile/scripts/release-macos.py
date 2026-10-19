@@ -55,16 +55,24 @@ def main():
         stage = Path(temporary)
         app = stage / 'INNOGRID.app'
         run('ditto', ROOT / 'build/macos/Build/Products/Release/INNOGRID.app', app)
+        with (app / 'Contents/Info.plist').open('rb') as source:
+            bundle_id = plistlib.load(source)['CFBundleIdentifier']
+        # codesign does not expand Xcode variables in an entitlements template.
+        entitlements = stage / 'Release.entitlements'
+        entitlements.write_text((ROOT / 'macos/Runner/Release.entitlements').read_text()
+                                .replace('$(PRODUCT_BUNDLE_IDENTIFIER)', bundle_id))
         sign = ['codesign', '--force', '--options', 'runtime', '--timestamp', '--sign', IDENTITY]
         # Sign nested Mach-O files and bundles from the inside out.
         for path in sorted(app.rglob('*'), key=lambda p: len(p.parts), reverse=True):
             if path.is_symlink():
                 continue
             if path.is_file() and 'Mach-O' in run('file', '-b', path, capture=True).stdout:
-                run(*sign, path)
+                preserve = ['--preserve-metadata=entitlements'] if 'Downloader.xpc' in path.parts else []
+                run(*sign, *preserve, path)
             elif path.is_dir() and path.suffix in ('.framework', '.app', '.xpc'):
-                run(*sign, path)
-        run(*sign, '--entitlements', ROOT / 'macos/Runner/Release.entitlements', app)
+                preserve = ['--preserve-metadata=entitlements'] if path.name == 'Downloader.xpc' else []
+                run(*sign, *preserve, path)
+        run(*sign, '--entitlements', entitlements, app)
         run('codesign', '--verify', '--deep', '--strict', '--verbose=2', app)
         archive = output / 'INNOGRID-notarization.zip'
         run('ditto', '-c', '-k', '--keepParent', app, archive)
