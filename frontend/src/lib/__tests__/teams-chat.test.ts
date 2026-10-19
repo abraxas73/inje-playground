@@ -25,11 +25,21 @@ describe("normalizeChatMessages", () => {
       raw({ id: "3", createdDateTime: "2026-10-03T12:02:00Z", lastModifiedDateTime: "2026-10-03T12:02:00Z" }),
       raw({ id: "2", createdDateTime: "2026-10-03T12:01:00Z", messageType: "systemEventMessage" }),
       raw({ id: "4", createdDateTime: "2026-10-03T12:03:00Z", deletedDateTime: "2026-10-03T12:05:00Z" }),
-      raw({ id: "1", body: { contentType: "text", content: "plain & text" }, attachments: [{ id: "a" }, { id: "b" }] }),
+      raw({ id: "1", body: { contentType: "text", content: "plain & text" }, attachments: [
+        { id: "a", contentType: "reference", contentUrl: "https://innogrid-my.sharepoint.com/x/발표.pptx", name: "발표.pptx" },
+        { id: "b", contentType: "application/vnd.microsoft.card.adaptive", content: "{}" },
+        { id: "q", contentType: "messageReference", content: "{}" },
+        { id: "d", contentType: "image/png", contentUrl: "data:image/png;base64,AAAA", name: "x.png" },
+      ] }),
       raw({ id: "5", createdDateTime: "2026-10-03T12:04:00Z", from: { application: { id: "app-1", displayName: "알림봇" } } }),
     ] });
     expect(out.map((m) => m.id)).toEqual(["1", "3", "5"]);
-    expect(out[0]).toEqual({ id: "1", createdAt: "2026-10-03T12:00:00Z", modifiedAt: "2026-10-03T12:00:00Z", from: { id: "aad-1", name: "강승욱" }, text: "plain & text", attachments: 2 });
+    // 첨부: 파일은 contentUrl 링크, 카드는 url 없음(이름 없으면 "첨부"), 답글 인용(messageReference)은 제외, data: 주소는 링크로 안 씀
+    expect(out[0]).toEqual({ id: "1", createdAt: "2026-10-03T12:00:00Z", modifiedAt: "2026-10-03T12:00:00Z", from: { id: "aad-1", name: "강승욱" }, text: "plain & text", attachments: [
+      { id: "a", name: "발표.pptx", url: "https://innogrid-my.sharepoint.com/x/발표.pptx" },
+      { id: "b", name: "첨부", url: null },
+      { id: "d", name: "x.png", url: null },
+    ] });
     expect(out[1].text).toBe("hi");
     expect(out[2].from).toEqual({ id: "app-1", name: "알림봇" });
     expect(normalizeChatMessages({})).toEqual([]);
@@ -58,22 +68,36 @@ describe("Graph 호출", () => {
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({ body: { contentType: "text", content: "보냄" } });
   });
-  it("listMyChats — 내가 속한 그룹·1:1 채팅(모임 채팅 제외), 주제 없으면 나를 뺀 구성원 이름, 최근 활동 순", async () => {
+  it("listMyChats — 내가 속한 그룹·1:1 채팅(모임 채팅 제외), 주제 없으면 나를 뺀 구성원 이름, 마지막 메시지 순(lastUpdatedDateTime은 이름·구성원 변경 시각이라 안 씀)", async () => {
     const fetchImpl = vi.fn(async () => json(200, { value: [
-      { id: "19:a@thread.v2", chatType: "group", topic: null, webUrl: "https://teams/a", lastUpdatedDateTime: "2026-10-01T00:00:00Z", members: [{ userId: "me", displayName: "강승욱" }, { userId: "u2", displayName: "김민준" }, { userId: "u3", displayName: "이서연" }] },
-      { id: "19:b@thread.v2", chatType: "group", topic: "개발팀 수다", webUrl: "https://teams/b", lastUpdatedDateTime: "2026-10-03T00:00:00Z", members: [{ userId: "me", displayName: "강승욱" }] },
-      { id: "19:me_u2@unq.gbl.spaces", chatType: "oneOnOne", topic: null, webUrl: "https://teams/c", lastUpdatedDateTime: "2026-10-02T00:00:00Z", members: [{ userId: "me", displayName: "강승욱" }, { userId: "u2", displayName: "김민준" }] },
+      { id: "19:a@thread.v2", chatType: "group", topic: null, webUrl: "https://teams/a", lastUpdatedDateTime: "2026-10-05T00:00:00Z", lastMessagePreview: { createdDateTime: "2026-10-01T00:00:00Z" }, members: [{ userId: "me", displayName: "강승욱" }, { userId: "u2", displayName: "김민준" }, { userId: "u3", displayName: "이서연" }] },
+      { id: "19:b@thread.v2", chatType: "group", topic: "개발팀 수다", webUrl: "https://teams/b", lastUpdatedDateTime: "2026-09-01T00:00:00Z", lastMessagePreview: { createdDateTime: "2026-10-03T00:00:00Z" }, members: [{ userId: "me", displayName: "강승욱" }] },
+      { id: "19:me_u2@unq.gbl.spaces", chatType: "oneOnOne", topic: null, webUrl: "https://teams/c", lastUpdatedDateTime: "2026-10-02T00:00:00Z", lastMessagePreview: null, members: [{ userId: "me", displayName: "강승욱" }, { userId: "u2", displayName: "김민준" }] },
       { id: "19:meeting@thread.v2", chatType: "meeting", topic: "주간 회의", webUrl: null, lastUpdatedDateTime: "2026-10-04T00:00:00Z", members: [] },
     ] }));
     const out = await listMyChats("AT", "me", fetchImpl as never);
     const url = (fetchImpl.mock.calls[0] as unknown as [string])[0];
     expect(url).toContain("/me/chats?");
-    expect(url).toContain("$expand=members&$top=50"); // 중첩 $select는 Graph가 400으로 거절(2026-10-03 운영 재현)
+    expect(url).toContain("$expand=members,lastMessagePreview&$orderby=lastMessagePreview/createdDateTime%20desc&$top=50"); // 중첩 $select는 Graph가 400으로 거절(2026-10-03 운영 재현)
     expect(out).toEqual([
       { id: "19:b@thread.v2", type: "group", topic: "개발팀 수다", members: ["강승욱"], webUrl: "https://teams/b", lastUpdated: "2026-10-03T00:00:00Z" },
-      { id: "19:me_u2@unq.gbl.spaces", type: "oneOnOne", topic: "김민준", members: ["강승욱", "김민준"], webUrl: "https://teams/c", lastUpdated: "2026-10-02T00:00:00Z" },
+      { id: "19:me_u2@unq.gbl.spaces", type: "oneOnOne", topic: "김민준", members: ["강승욱", "김민준"], webUrl: "https://teams/c", lastUpdated: "2026-10-02T00:00:00Z" }, // 메시지 없으면 lastUpdatedDateTime
       { id: "19:a@thread.v2", type: "group", topic: "김민준, 이서연", members: ["강승욱", "김민준", "이서연"], webUrl: "https://teams/a", lastUpdated: "2026-10-01T00:00:00Z" },
     ]);
+  });
+  it("listMyChats — 조합 쿼리를 Graph가 400으로 거절하면 members만 펼친 옛 쿼리로 한 번 재시도(다른 오류는 그대로 던짐)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(json(400, { error: { code: "BadRequest", message: "unsupported" } }))
+      .mockResolvedValueOnce(json(200, { value: [{ id: "19:a@thread.v2", chatType: "group", topic: "개발팀", webUrl: null, lastUpdatedDateTime: "2026-10-01T00:00:00Z", members: [] }] }));
+    const out = await listMyChats("AT", "me", fetchImpl as never);
+    expect(out).toEqual([{ id: "19:a@thread.v2", type: "group", topic: "개발팀", members: [], webUrl: null, lastUpdated: "2026-10-01T00:00:00Z" }]);
+    expect((fetchImpl.mock.calls[1] as unknown as [string])[0]).toContain("$expand=members&$top=50");
+    expect(warn).toHaveBeenCalledTimes(1);
+    const denied = vi.fn(async () => json(403, { error: { code: "Forbidden", message: "x" } }));
+    await expect(listMyChats("AT", "me", denied as never)).rejects.toMatchObject({ status: 403 });
+    expect(denied).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
   it("getChatInfo — 주제·webUrl", async () => {
     const fetchImpl = vi.fn(async () => json(200, { id: "19:a", topic: "개발팀", webUrl: "https://teams/a", chatType: "group" }));

@@ -10,13 +10,15 @@ export const CHAT_MESSAGE_MAX = 4000;
 /** Teams 채팅 ID(`19:…@thread.v2`, 1:1은 `19:…@unq.gbl.spaces`). 경로 조각으로 쓰므로 허용 문자만. */
 export const CHAT_ID_RE = /^[0-9A-Za-z:_@.\-]{3,200}$/;
 
+/** 첨부 — 파일(`reference`)은 contentUrl(SharePoint·OneDrive, 본인 권한으로 열림), 카드류는 url 없음 */
+export interface ChatAttachment { id: string; name: string; url: string | null }
 export interface ChatMessage {
   id: string;
   createdAt: string;
   modifiedAt: string;
   from: { id: string; name: string } | null;
   text: string;
-  attachments: number;
+  attachments: ChatAttachment[];
 }
 
 export type ChatType = "group" | "oneOnOne";
@@ -27,6 +29,7 @@ export interface ChatSummary {
   topic: string;
   members: string[];
   webUrl: string | null;
+  /** 마지막 메시지 시각(lastMessagePreview). 메시지가 없으면 이름·구성원 변경 시각(lastUpdatedDateTime) */
   lastUpdated: string | null;
 }
 
@@ -57,6 +60,18 @@ export function teamsHtmlToText(html: string): string {
   return s.split("\n").map((l) => l.replace(/\s+/g, " ").trim()).filter((l) => l !== "").join("\n");
 }
 
+/** 답글 인용(messageReference)은 본문이 이미 대화에 있으니 첨부로 세지 않는다. contentUrl은 http(s)만(파일 첨부는 data: 가능). */
+function normalizeAttachments(list: unknown): ChatAttachment[] {
+  if (!Array.isArray(list)) return [];
+  return (list as Array<Record<string, unknown>>)
+    .filter((a) => a && typeof a === "object" && a.contentType !== "messageReference")
+    .map((a) => ({
+      id: String(a.id ?? ""),
+      name: typeof a.name === "string" && a.name ? a.name : "첨부",
+      url: typeof a.contentUrl === "string" && /^https?:\/\//i.test(a.contentUrl) ? a.contentUrl : null,
+    }));
+}
+
 export function normalizeChatMessage(r: unknown): ChatMessage | null {
   if (!r || typeof r !== "object") return null;
   const o = r as Record<string, unknown>;
@@ -71,7 +86,7 @@ export function normalizeChatMessage(r: unknown): ChatMessage | null {
     modifiedAt: String(o.lastModifiedDateTime ?? o.createdDateTime ?? ""),
     from: who ? { id: String(who.id ?? ""), name: String(who.displayName ?? "") } : null,
     text: body?.contentType === "html" ? teamsHtmlToText(content) : content.trim(),
-    attachments: Array.isArray(o.attachments) ? o.attachments.length : 0,
+    attachments: normalizeAttachments(o.attachments),
   };
 }
 
@@ -113,14 +128,25 @@ export async function listChatMessages(token: string, chatId: string, since?: st
 export async function sendChatMessage(token: string, chatId: string, text: string, fetchImpl: FetchLike = fetch): Promise<ChatMessage> {
   const j = await graph(token, `${GRAPH_BASE}/chats/${encodeURIComponent(chatId)}/messages`, { method: "POST", body: JSON.stringify({ body: { contentType: "text", content: text } }) }, fetchImpl);
   const now = new Date().toISOString();
-  return normalizeChatMessage(j) ?? { id: String((j as { id?: unknown } | null)?.id ?? ""), createdAt: now, modifiedAt: now, from: null, text, attachments: 0 };
+  return normalizeChatMessage(j) ?? { id: String((j as { id?: unknown } | null)?.id ?? ""), createdAt: now, modifiedAt: now, from: null, text, attachments: [] };
 }
 
-/** 내가 속한 채팅(그룹·1:1, 모임 채팅 제외) — 최근 활동 순. 주제가 없으면 나(meId)를 뺀 구성원 이름을 주제로. */
+/**
+ * 내가 속한 채팅(그룹·1:1, 모임 채팅 제외) — 마지막 메시지 순. 주제가 없으면 나(meId)를 뺀 구성원 이름을 주제로.
+ * lastUpdatedDateTime은 이름·구성원 변경 시각이라 메시지가 와도 안 바뀐다 — lastMessagePreview.createdDateTime으로 정렬(Graph $orderby는 desc만 지원).
+ */
 export async function listMyChats(token: string, meId: string, fetchImpl: FetchLike = fetch): Promise<ChatSummary[]> {
   // $expand 안의 중첩 $select는 채팅 목록에서 400(BadRequest) — members 전체를 펼친다(displayName·userId 포함)
-  const url = `${GRAPH_BASE}/me/chats?$expand=members&$top=50`;
-  const j = (await graph(token, url, {}, fetchImpl)) as { value?: Array<Record<string, unknown>> } | null;
+  const url = `${GRAPH_BASE}/me/chats?$expand=members,lastMessagePreview&$orderby=lastMessagePreview/createdDateTime%20desc&$top=50`;
+  let j: { value?: Array<Record<string, unknown>> } | null;
+  try {
+    j = (await graph(token, url, {}, fetchImpl)) as typeof j;
+  } catch (e) {
+    // ponytail: 조합 쿼리를 Graph가 400으로 거절하면 옛 쿼리(이름·구성원 변경 시각 정렬)로 한 번 재시도 — 운영에서 조합이 확인되면 제거
+    if (!(e instanceof GraphError && e.status === 400)) throw e;
+    console.warn("[teams-chat] 채팅 목록 $expand·$orderby 조합 거절(400) — members만 펼쳐 재시도:", e.message);
+    j = (await graph(token, `${GRAPH_BASE}/me/chats?$expand=members&$top=50`, {}, fetchImpl)) as typeof j;
+  }
   return (j?.value ?? [])
     .filter((c) => c.chatType === "group" || c.chatType === "oneOnOne")
     .map((c) => {
@@ -133,7 +159,7 @@ export async function listMyChats(token: string, meId: string, fetchImpl: FetchL
         topic: typeof c.topic === "string" && c.topic ? c.topic : others.join(", ") || members.join(", ") || "(이름 없음)",
         members,
         webUrl: typeof c.webUrl === "string" ? c.webUrl : null,
-        lastUpdated: typeof c.lastUpdatedDateTime === "string" ? c.lastUpdatedDateTime : null,
+        lastUpdated: [(c.lastMessagePreview as { createdDateTime?: unknown } | null)?.createdDateTime, c.lastUpdatedDateTime].find((v): v is string => typeof v === "string") ?? null,
       };
     })
     .sort((a, b) => (b.lastUpdated ?? "").localeCompare(a.lastUpdated ?? ""));

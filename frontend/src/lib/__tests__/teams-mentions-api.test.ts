@@ -16,8 +16,8 @@ beforeEach(() => {
   m.user = true; m.status = { connected: true, scopes: ["User.Read", "Chat.ReadWrite"] }; m.token = { ok: true, token: "AT" }; m.profileName = "강승욱";
   m.chats.mockReset().mockResolvedValue([{ id: "g1", type: "group", topic: "센터", members: [], webUrl: null, lastUpdated: recent }, { id: "d1", type: "oneOnOne", topic: "김민준", members: [], webUrl: null, lastUpdated: recent }]);
   m.messages.mockReset().mockImplementation(async (_t: string, chatId: string) => chatId === "g1"
-    ? [{ id: "1", createdAt: recent, modifiedAt: recent, from: { id: "u2", name: "김민준" }, text: "강승욱님 확인 부탁", attachments: 0 }, { id: "2", createdAt: recent, modifiedAt: recent, from: { id: "u2", name: "김민준" }, text: "다들 수고", attachments: 0 }]
-    : [{ id: "3", createdAt: recent, modifiedAt: recent, from: { id: "u2", name: "김민준" }, text: "시간 되세요?", attachments: 0 }]);
+    ? [{ id: "1", createdAt: recent, modifiedAt: recent, from: { id: "u2", name: "김민준" }, text: "강승욱님 확인 부탁", attachments: [] }, { id: "2", createdAt: recent, modifiedAt: recent, from: { id: "u2", name: "김민준" }, text: "다들 수고", attachments: [] }]
+    : [{ id: "3", createdAt: recent, modifiedAt: recent, from: { id: "u2", name: "김민준" }, text: "시간 되세요?", attachments: [] }]);
 });
 
 it("미연결·권한 없음이면 Graph 호출 없이 connected:false", async () => {
@@ -35,7 +35,7 @@ it("최근 채팅을 훑어 답장 대기만 — 그룹은 한글 이름(user_pr
   expect(m.messages.mock.calls[0][2]).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 });
 it("days는 1~7 밖이면 2로, 비로그인은 401, 채팅 하나의 Graph 오류는 그 채팅만 비운다", async () => {
-  m.messages.mockImplementation(async (_t: string, chatId: string) => { if (chatId === "g1") throw new Error("boom"); return [{ id: "3", createdAt: recent, modifiedAt: recent, from: { id: "u2", name: "김민준" }, text: "시간 되세요?", attachments: 0 }]; });
+  m.messages.mockImplementation(async (_t: string, chatId: string) => { if (chatId === "g1") throw new Error("boom"); return [{ id: "3", createdAt: recent, modifiedAt: recent, from: { id: "u2", name: "김민준" }, text: "시간 되세요?", attachments: [] }]; });
   const j = await (await GET(req("?days=99"))).json();
   expect(j.items.map((x: { id: string }) => x.id)).toEqual(["3"]);
   m.user = false;

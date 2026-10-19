@@ -11,10 +11,11 @@ import { cn } from "@/lib/utils";
 /**
  * 내가 속한 Teams 채팅(그룹·1:1)을 우리 화면에서 읽고 보낸다(Graph 위임 — 본인 이름으로 전송).
  * 왼쪽 목록에서 채팅을 고르면 오른쪽에 대화. 5초 폴링(since = 마지막 수정 시각, 탭이 보일 때만). 앱 WebView에서는 목록 → 대화 두 화면.
+ * 목록은 마지막 메시지 순(서버) — 열어 둔 채팅에 새 메시지가 오거나 보내면 그 채팅을 맨 위로 올린다. 첨부 파일은 링크(본인 Microsoft 권한으로 열림).
  */
 interface ChatSummary { id: string; type: "group" | "oneOnOne"; topic: string; members: string[]; webUrl: string | null; lastUpdated: string | null }
 interface Info { connected: boolean; hasChatScope: boolean; meId?: string; chats?: ChatSummary[] }
-interface Msg { id: string; createdAt: string; modifiedAt: string; from: { id: string; name: string } | null; text: string; attachments: number }
+interface Msg { id: string; createdAt: string; modifiedAt: string; from: { id: string; name: string } | null; text: string; attachments: Array<{ id: string; name: string; url: string | null }> }
 
 const POLL_MS = 5000;
 const LAST_KEY = "teams-chat:last";
@@ -81,7 +82,14 @@ export default function TeamsChatPage() {
       return [...map.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     });
     for (const m of incoming) if (!sinceRef.current || m.modifiedAt > sinceRef.current) sinceRef.current = m.modifiedAt;
-  }, []);
+    const newest = incoming.reduce((t, m) => (m.createdAt > t ? m.createdAt : t), "");
+    setInfo((i) => {
+      const cur = i?.chats?.find((c) => c.id === chatId);
+      if (!i?.chats || !cur || (cur.lastUpdated ?? "") >= newest) return i;
+      const chats = i.chats.map((c) => (c.id === chatId ? { ...c, lastUpdated: newest } : c)).sort((a, b) => (b.lastUpdated ?? "").localeCompare(a.lastUpdated ?? ""));
+      return { ...i, chats };
+    });
+  }, [chatId]);
 
   const load = useCallback(async () => {
     if (!chatId) return;
@@ -210,8 +218,15 @@ export default function TeamsChatPage() {
                         <time dateTime={m.createdAt} className="shrink-0 text-[11px]">{fmtTime(m.createdAt)}</time>
                       </div>
                       <div className={cn("w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-2xl px-3 py-2 text-sm", mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted")}>
-                        {m.text || (m.attachments ? "" : "(내용 없음)")}
-                        {m.attachments > 0 && <span className={cn("mt-1 flex items-center gap-1 text-xs", mine ? "text-primary-foreground/80" : "text-muted-foreground")}><Paperclip className="h-3 w-3 shrink-0" />첨부 {m.attachments}개 — Teams에서 확인</span>}
+                        {m.text || (m.attachments.length ? "" : "(내용 없음)")}
+                        {m.attachments.length > 0 && (
+                          <span className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs", mine ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                            <Paperclip className="h-3 w-3 shrink-0" />
+                            {m.attachments.map((a, i) => a.url
+                              ? <a key={a.id || i} href={a.url} target="_blank" rel="noopener noreferrer" className="break-all underline underline-offset-2">{a.name}</a>
+                              : <span key={a.id || i}>{a.name} — Teams에서 확인</span>)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
