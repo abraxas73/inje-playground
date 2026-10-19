@@ -21,7 +21,8 @@ class WebScreen extends ConsumerStatefulWidget {
   ConsumerState<WebScreen> createState() => _WebScreenState();
 }
 
-class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserver {
+class _WebScreenState extends ConsumerState<WebScreen>
+    with WidgetsBindingObserver {
   late final AppWebController _c;
   final _origin = Uri.parse(Config.apiBase);
   String _title = '';
@@ -42,49 +43,79 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
     WidgetsBinding.instance.addObserver(this);
     _c = AppWebController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(AppNavigationDelegate(
-        onNavigationRequest: _onNav,
-        onPageStarted: (u) {
-          if (!mounted) return;
-          // 뒤로 가다가 /login·/auth/mobile에 닿으면 세션 시작점(첫 로드의 유령 항목) — 부트스트랩을 또 하지 말고 화면을 닫는다
-          if (_back.consume() && isSessionBoundary(u, appOrigin: _origin)) {
-            if (mounted) Navigator.of(context).pop();
-            return;
-          }
-          _loadSeq++;
-          _errTimer?.cancel();
-          setState(() { _loading = true; _error = null; });
-        },
-        onPageFinished: (_) async {
-          if (Platform.isMacOS) {
-            try {
-              await const MethodChannel('com.innogrid.playground/webview').invokeMethod<void>(
-                'enableFilePicker', (_c.platform as WebKitWebViewController).webViewIdentifier);
-            } on PlatformException catch (_) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('파일 선택창을 준비하지 못했습니다. 브라우저로 열어 이용해 주세요.')));
+      ..setNavigationDelegate(
+        AppNavigationDelegate(
+          onNavigationRequest: _onNav,
+          onPageStarted: (u) {
+            if (!mounted) return;
+            // 뒤로 가다가 /login·/auth/mobile에 닿으면 세션 시작점(첫 로드의 유령 항목) — 부트스트랩을 또 하지 말고 화면을 닫는다
+            if (_back.consume() && isSessionBoundary(u, appOrigin: _origin)) {
+              if (mounted) Navigator.of(context).pop();
+              return;
+            }
+            _loadSeq++;
+            _errTimer?.cancel();
+            setState(() {
+              _loading = true;
+              _error = null;
+            });
+          },
+          onPageFinished: (_) async {
+            if (Platform.isMacOS) {
+              try {
+                await const MethodChannel(
+                  'com.innogrid.playground/webview',
+                ).invokeMethod<void>(
+                  'enableFilePicker',
+                  (_c.platform as WebKitWebViewController).webViewIdentifier,
+                );
+              } on PlatformException catch (_) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('파일 선택창을 준비하지 못했습니다. 브라우저로 열어 이용해 주세요.'),
+                    ),
+                  );
+                }
               }
             }
-          }
-          try { await _c.runJavaScript(blankLinkBridgeJs); } catch (_) {} // 새 창 링크를 같은 창 이동으로(외부는 _onNav가 브라우저로)
-          final t = await _c.getTitle();
-          if (mounted) setState(() { _loading = false; _title = t ?? ''; });
-        },
-        onWebResourceError: (e) {
-          if (!(e.isForMainFrame ?? true) || isIgnorableWebError(code: e.errorCode, description: e.description)) return;
-          final seq = _loadSeq;
-          _errTimer?.cancel();
-          _errTimer = Timer(const Duration(milliseconds: 700), () {
-            if (mounted && seq == _loadSeq) setState(() { _loading = false; _error = '페이지를 불러오지 못했습니다 (${e.description})'; });
-          });
-        },
-      ));
-    _setUserAgent().then((_) {
-      if (mounted) _c.loadRequest(Uri.parse('${Config.apiBase}${widget.path}'));
-    });
+            try {
+              await _c.runJavaScript(blankLinkBridgeJs);
+            } catch (_) {} // 새 창 링크를 같은 창 이동으로(외부는 _onNav가 브라우저로)
+            final t = await _c.getTitle();
+            if (mounted) {
+              setState(() {
+                _loading = false;
+                _title = t ?? '';
+              });
+            }
+          },
+          onWebResourceError: (e) {
+            if (!(e.isForMainFrame ?? true) ||
+                isIgnorableWebError(
+                  code: e.errorCode,
+                  description: e.description,
+                )) {
+              return;
+            }
+            final seq = _loadSeq;
+            _errTimer?.cancel();
+            _errTimer = Timer(const Duration(milliseconds: 700), () {
+              if (mounted && seq == _loadSeq) {
+                setState(() {
+                  _loading = false;
+                  _error = '페이지를 불러오지 못했습니다 (${e.description})';
+                });
+              }
+            });
+          },
+        ),
+      );
+    unawaited(_loadInitial());
     if (Platform.isAndroid) {
-      (_c.platform as AndroidWebViewController).setOnShowFileSelector((params) async {
+      (_c.platform as AndroidWebViewController).setOnShowFileSelector((
+        params,
+      ) async {
         if (params.mode == FileSelectorMode.openMultiple) {
           final files = await FilePicker.pickFiles();
           return files.map((f) => f.uri.toString()).toList();
@@ -104,7 +135,38 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
 
   Future<void> _setUserAgent() async {
     final ua = await _c.getUserAgent();
-    await _c.setUserAgent('${ua ?? ''} ${Config.userAgent(Platform.operatingSystem)}'.trim());
+    await _c.setUserAgent(
+      '${ua ?? ''} ${Config.userAgent(Platform.operatingSystem)}'.trim(),
+    );
+  }
+
+  Future<void> _loadInitial() async {
+    try {
+      await _setUserAgent();
+      final url = await initialWebSessionUrl(
+        ref.read(apiClientProvider),
+        Config.apiBase,
+        widget.path,
+        eagerBootstrap: Platform.isWindows,
+      );
+      if (mounted) {
+        await _c.loadRequest(Uri.parse(url));
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = e.message;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = '로그인 상태를 만들지 못했습니다: $e';
+        });
+      }
+    }
   }
 
   Future<NavigationDecision> _onNav(NavigationRequest req) async {
@@ -128,26 +190,39 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
     if (_openingBrowser) return;
     setState(() => _openingBrowser = true);
     try {
-      var target = destination ?? Uri.tryParse(await _c.currentUrl() ?? '') ??
+      var target =
+          destination ??
+          Uri.tryParse(await _c.currentUrl() ?? '') ??
           _origin.resolve(widget.path);
-      if (!target.hasScheme || isSessionBoundary(target.toString(), appOrigin: _origin)) {
+      if (!target.hasScheme ||
+          isSessionBoundary(target.toString(), appOrigin: _origin)) {
         target = _origin.resolve(widget.path);
       }
       // Blob URLs belong to the WebView process; open the source page instead.
       if (target.scheme == 'blob') {
-        target = Uri.tryParse(await _c.currentUrl() ?? '') ?? _origin.resolve(widget.path);
+        target =
+            Uri.tryParse(await _c.currentUrl() ?? '') ??
+            _origin.resolve(widget.path);
       }
       final next = browserSessionPath(target, appOrigin: _origin);
-      final url = next == null ? target : Uri.parse(await webBootstrapUrl(
-        ref.read(apiClientProvider), Config.apiBase, next));
+      final url = next == null
+          ? target
+          : Uri.parse(
+              await webBootstrapUrl(
+                ref.read(apiClientProvider),
+                Config.apiBase,
+                next,
+              ),
+            );
       if (!mounted) return;
       if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
         throw StateError('Browser unavailable');
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('브라우저로 열지 못했습니다. 다시 시도해 주세요.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('브라우저로 열지 못했습니다. 다시 시도해 주세요.')),
+        );
       }
     } finally {
       if (mounted) setState(() => _openingBrowser = false);
@@ -162,15 +237,26 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
       final url = await oauthLaunchUrl(ref.read(apiClientProvider), uri);
       if (!mounted) return;
       _refreshAfterOAuth = true;
-      if (!await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)) {
+      if (!await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      )) {
         throw StateError('브라우저를 열지 못했습니다');
       }
     } catch (_) {
       _refreshAfterOAuth = false;
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('계정 연결을 시작하지 못했습니다. 다시 시도해 주세요.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('계정 연결을 시작하지 못했습니다. 다시 시도해 주세요.')),
+        );
+      }
     } finally {
       _openingOAuth = false;
-      if (mounted) setState(() { _loading = false; });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -184,18 +270,33 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
 
   Future<void> _bootstrap(String nextPath) async {
     if (!_guard.tryBegin()) {
-      if (mounted) setState(() { _loading = false; _error = '로그인 상태를 만들지 못했습니다. 다시 시도해 주세요.'; });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = '로그인 상태를 만들지 못했습니다. 다시 시도해 주세요.';
+        });
+      }
       return;
     }
     try {
-      final url = await webBootstrapUrl(ref.read(apiClientProvider), Config.apiBase, nextPath.startsWith('/') ? nextPath : widget.path);
+      final url = await webBootstrapUrl(
+        ref.read(apiClientProvider),
+        Config.apiBase,
+        nextPath.startsWith('/') ? nextPath : widget.path,
+      );
       await _c.loadRequest(Uri.parse(url));
     } on ApiException catch (e) {
       if (!mounted) return;
-      setState(() { _loading = false; _error = e.message; });
+      setState(() {
+        _loading = false;
+        _error = e.message;
+      });
     } catch (e) {
       if (!mounted) return;
-      setState(() { _loading = false; _error = '로그인 상태를 만들지 못했습니다: $e'; });
+      setState(() {
+        _loading = false;
+        _error = '로그인 상태를 만들지 못했습니다: $e';
+      });
     }
   }
 
@@ -209,8 +310,12 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
   }
 
   void _retry() {
-    setState(() { _error = null; _guard.reset(); });
-    _c.loadRequest(Uri.parse('${Config.apiBase}${widget.path}'));
+    setState(() {
+      _error = null;
+      _loading = true;
+      _guard.reset();
+    });
+    unawaited(_loadInitial());
   }
 
   Future<void> _goBack() async {
@@ -226,10 +331,17 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
 
   @override
   Widget build(BuildContext context) => CallbackShortcuts(
-    bindings: Platform.isMacOS ? {
-      const SingleActivator(LogicalKeyboardKey.keyR, meta: true): () => unawaited(_reload()),
-      const SingleActivator(LogicalKeyboardKey.bracketLeft, meta: true): () => unawaited(_goBack()),
-    } : {},
+    bindings: Platform.isMacOS
+        ? {
+            const SingleActivator(LogicalKeyboardKey.keyR, meta: true): () =>
+                unawaited(_reload()),
+            const SingleActivator(
+              LogicalKeyboardKey.bracketLeft,
+              meta: true,
+            ): () =>
+                unawaited(_goBack()),
+          }
+        : {},
     child: Focus(
       autofocus: Platform.isMacOS,
       child: PopScope(
@@ -240,21 +352,52 @@ class _WebScreenState extends ConsumerState<WebScreen> with WidgetsBindingObserv
         child: Scaffold(
           appBar: AppBar(
             leading: BackButton(onPressed: _goBack),
-            title: Text(webTitleFor(title: _title, loading: _loading, path: widget.path), overflow: TextOverflow.ellipsis),
+            title: Text(
+              webTitleFor(title: _title, loading: _loading, path: widget.path),
+              overflow: TextOverflow.ellipsis,
+            ),
             actions: [
-              IconButton(icon: const Icon(Icons.refresh), tooltip: '새로고침', onPressed: _reload),
-              IconButton(icon: const Icon(Icons.open_in_browser), tooltip: '브라우저로 열기', onPressed: _openingBrowser ? null : () => _openInBrowser()),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: '새로고침',
+                onPressed: _reload,
+              ),
+              IconButton(
+                icon: const Icon(Icons.open_in_browser),
+                tooltip: '브라우저로 열기',
+                onPressed: _openingBrowser ? null : () => _openInBrowser(),
+              ),
             ],
-            bottom: _loading ? const PreferredSize(preferredSize: Size.fromHeight(2), child: LinearProgressIndicator(minHeight: 2)) : null,
+            bottom: _loading
+                ? const PreferredSize(
+                    preferredSize: Size.fromHeight(2),
+                    child: LinearProgressIndicator(minHeight: 2),
+                  )
+                : null,
           ),
-          body: Stack(fit: StackFit.expand, children: [
-            Offstage(offstage: _error != null, child: _c.build(context)),
-            if (_error != null) Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text(_error!, textAlign: TextAlign.center),
-                  const SizedBox(height: 12),
-                  FilledButton(onPressed: _retry, child: const Text('다시 시도')),
-                ]))),
-          ]),
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              Offstage(offstage: _error != null, child: _c.build(context)),
+              if (_error != null)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_error!, textAlign: TextAlign.center),
+                        const SizedBox(height: 12),
+                        FilledButton(
+                          onPressed: _retry,
+                          child: const Text('다시 시도'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     ),
