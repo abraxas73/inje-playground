@@ -1,6 +1,11 @@
 name: Windows app
 on:
   workflow_dispatch:
+    inputs:
+      probe_only:
+        description: Run updater transport probe without packaging
+        type: boolean
+        default: false
   push:
     branches: [abraxas73/mobile]
     paths: ['mobile/**', '.github/workflows/windows-app.yml']
@@ -12,7 +17,18 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+      - name: Build updater transport probe
+        shell: pwsh
+        run: |
+          cmake -S mobile/windows/tests -B mobile/build/updater-tests -A x64
+          if ($LASTEXITCODE -ne 0) { throw 'Updater probe configure failed' }
+          cmake --build mobile/build/updater-tests --config Release
+          if ($LASTEXITCODE -ne 0) { throw 'Updater probe build failed' }
+      - name: Verify updater redirect credentials
+        shell: pwsh
+        run: node mobile/scripts/test-windows-update-redirect.mjs mobile/build/updater-tests/Release/winsparkle_redirect_probe.exe
       - uses: subosito/flutter-action@v2
+        if: ${{ !inputs.probe_only }}
         with:
           flutter-version: '3.47.7'
           channel: stable
@@ -27,12 +43,15 @@ jobs:
             if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
           }
       - name: Install packaging tools
+        if: ${{ !inputs.probe_only }}
         shell: pwsh
         run: choco install innosetup nuget.commandline -y --no-progress
       - name: Build installer
+        if: ${{ !inputs.probe_only }}
         shell: pwsh
         run: ./mobile/scripts/build-windows.ps1
       - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.probe_only }}
         with:
           name: INNOGRID-Windows
           path: mobile/build/windows/distribution/*
