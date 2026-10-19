@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:playground/briefing/briefing_sections.dart';
+import 'package:playground/app/service_card_grid.dart';
 import 'package:playground/briefing/briefing_provider.dart';
 import 'package:playground/gw/gw_org_absences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,6 +42,35 @@ Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime 
 }
 
 void main() {
+  testWidgets('데스크톱 홈은 창 너비에 따라 1·2·3열, 바로가기는 전체 너비를 유지한다', (tester) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.binding.setSurfaceSize(const Size(1400, 2400));
+    final app = await pumpHome(tester, creds: testCreds);
+    final quote = find.byType(QuoteCard);
+    final briefing = find.byType(BriefingCard);
+    final focus = find.byType(FocusSection);
+    expect(tester.getTopLeft(briefing).dx, greaterThan(tester.getTopLeft(quote).dx));
+    expect(tester.getTopLeft(focus).dx, greaterThan(tester.getTopLeft(briefing).dx));
+    expect(tester.getSize(quote).width, closeTo((1360 - 32) / 3, 1));
+    await tester.ensureVisible(find.byType(ServiceCardGrid).first);
+    expect(tester.getSize(find.byType(ServiceCardGrid).first).width, closeTo(1360, 1));
+    final calls = app.calls['/api/mobile/briefing'];
+    for (final (width, columns) in [(1000.0, 2), (700.0, 1), (2000.0, 3)]) {
+      await tester.binding.setSurfaceSize(Size(width, 2400));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(quote, -500, scrollable: find.byType(Scrollable).first);
+      expect(tester.getSize(quote).width, closeTo((width - 40 - 16 * (columns - 1)) / columns, 1));
+      expect(tester.takeException(), isNull);
+    }
+    expect(app.calls['/api/mobile/briefing'], calls, reason: '리사이즈는 재수집하지 않는다');
+  }, variant: TargetPlatformVariant({TargetPlatform.windows}));
+
+  testWidgets('모바일은 넓어도 기존 1열 홈을 유지한다', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 2400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await pumpHome(tester, creds: testCreds);
+    expect(tester.getSize(find.byType(QuoteCard)).width, 1360);
+  });
   for (final failure in [
     (502, {'code': 'briefing_usage_limit', 'error': 'raw upstream secret'}, '사용 한도'),
     (502, {'code': 'briefing_credit_balance', 'error': 'raw upstream secret'}, '잔액'),
