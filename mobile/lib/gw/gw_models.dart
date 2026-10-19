@@ -205,12 +205,14 @@ List<Map<String, String>> calListFor(List<GwCalendar> cals) => [for (final c in 
 
 /// 일정(sc111A03 resultList[]). delYn은 이름과 달리 "내 일정(참석자/작성자)" 플래그.
 class GwEvent {
-  const GwEvent({required this.schSeq, required this.title, required this.start, required this.end, required this.allDay, required this.calendar, required this.mcalSeq, required this.mine, required this.createName, required this.place});
+  const GwEvent({required this.schSeq, required this.title, required this.start, required this.end, required this.allDay, required this.calendar, required this.mcalSeq, required this.mine, required this.createName, required this.place, this.attendees = '', this.contents = ''});
   final String schSeq, title, start, end, calendar, mcalSeq, createName, place;
+  /// 참석자 이름 목록(schUserList 원문)과 내용(contents, HTML일 수 있음) — 일정 캘린더 펼침 상세용
+  final String attendees, contents;
   final bool allDay, mine;
   factory GwEvent.fromRow(Map r) => GwEvent(
         schSeq: asStr(r['schSeq']), title: asStr(r['schTitle']), start: asStr(r['startDate']), end: asStr(r['endDate']), allDay: asBool(r['alldayYn']), calendar: asStr(r['calTitle']), mcalSeq: asStr(r['mcalSeq']),
-        mine: asStr(r['delYn']) == 'Y', createName: asStr(r['createName']), place: asStr(r['schPlace']));
+        mine: asStr(r['delYn']) == 'Y', createName: asStr(r['createName']), place: asStr(r['schPlace']), attendees: asStr(r['schUserList']), contents: asStr(r['contents']));
 }
 
 List<GwEvent> myEvents(List<GwEvent> all, List<GwCalendar> cals, String empSeq) {

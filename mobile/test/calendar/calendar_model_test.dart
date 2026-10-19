@@ -56,4 +56,15 @@ void main() {
     expect(zero.on(DateTime.utc(2026, 10, 13)), true);
     expect(calOn([zero, morning, trip, whole], DateTime.utc(2026, 10, 13)).map((e) => e.title).toList(), ['휴가', '출장', '회의', '메모']);
   });
+
+  test('펼침 상세 — 아마란스는 캘린더·장소·등록자·참석자·내용(HTML은 글자로, 빈 값 제외), Dooray는 캘린더·출처, 일시 표기', () {
+    final g = calFromGw(const GwEvent(schSeq: '1', title: '주간회의', start: '202610121000', end: '202610121100', allDay: false, calendar: '이노그리드', mcalSeq: '1', mine: true, createName: '강승욱', place: '', attendees: '강승욱, 김민준', contents: '<p>안건</p><p>정리</p>'))!;
+    expect(g.details, [('캘린더', '이노그리드'), ('등록자', '강승욱'), ('참석자', '강승욱, 김민준'), ('내용', '안건\n정리')]);
+    expect(g.whenLabel, '10월 12일 (월) 10:00–11:00');
+    final d = calFromDooray({'subject': '기기 회의', 'startedAt': '2026-10-12T14:00:00+09:00', 'endedAt': '2026-10-13T09:00:00+09:00', 'calendar': '내 캘린더'})!;
+    expect(d.details, [('캘린더', '내 캘린더'), ('출처', 'Dooray')]);
+    expect(d.whenLabel, '10월 12일 (월) 14:00 – 10월 13일 (화) 09:00');
+    final allDay = calFromDooray({'subject': '휴가', 'startedAt': '2026-10-12+09:00', 'endedAt': '2026-10-14+09:00', 'wholeDayFlag': true})!;
+    expect(allDay.whenLabel, '10월 12일 (월) – 10월 13일 (화) 종일');
+  });
 }

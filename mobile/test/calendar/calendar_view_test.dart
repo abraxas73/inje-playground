@@ -109,4 +109,20 @@ void main() {
     await tester.pumpWidget(_Host(mode: CalMode.week, day: today, error: '세션이 끊겼습니다'));
     expect(find.text('세션이 끊겼습니다'), findsOneWidget);
   });
+
+  testWidgets('일정을 누르면 아코디언으로 상세(일시·캘린더·장소·참석자·내용)가 펼쳐지고, 다시 누르면 접힌다', (tester) async {
+    final detailed = CalEvent(start: DateTime.utc(2026, 10, 12, 10), end: DateTime.utc(2026, 10, 12, 11), allDay: false, title: '월요 회의', sub: '이노그리드', source: CalSource.gw,
+        details: const [('캘린더', '이노그리드'), ('장소', '3층 회의실'), ('참석자', '강승욱, 김민준'), ('내용', '안건 1\n안건 2')]);
+    await tester.pumpWidget(_Host(mode: CalMode.day, day: DateTime.utc(2026, 10, 12), events: [detailed, ev('기기 회의', DateTime.utc(2026, 10, 12, 14), DateTime.utc(2026, 10, 12, 15), source: CalSource.dooray)]));
+    expect(find.text('3층 회의실'), findsNothing);
+    await tester.tap(find.text('월요 회의'));
+    await tester.pumpAndSettle();
+    expect(find.text('10월 12일 (월) 10:00–11:00'), findsOneWidget);
+    expect(find.text('3층 회의실'), findsOneWidget);
+    expect(find.text('강승욱, 김민준'), findsOneWidget);
+    expect(find.text('안건 1\n안건 2'), findsOneWidget);
+    await tester.tap(find.text('월요 회의'));
+    await tester.pumpAndSettle();
+    expect(find.text('3층 회의실'), findsNothing);
+  });
 }

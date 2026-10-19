@@ -7,11 +7,13 @@ enum CalMode { day, week, month }
 enum CalSource { gw, dooray }
 
 class CalEvent {
-  const CalEvent({required this.start, required this.end, required this.allDay, required this.title, this.sub = '', required this.source, this.mine = true});
+  const CalEvent({required this.start, required this.end, required this.allDay, required this.title, this.sub = '', required this.source, this.mine = true, this.details = const []});
   final DateTime start, end;
   final bool allDay, mine;
   final String title, sub;
   final CalSource source;
+  /// 펼침 상세(항목 이름, 값) — 빈 값은 넣지 않는다. 일시는 위젯이 [whenLabel]로 붙인다.
+  final List<(String, String)> details;
 
   /// [day](00:00~24:00)에 걸치는가. end가 start 이전·같은 행(종일 하루 등)은 start 하루로 본다. 다음 날 00:00에 끝나는 일정은 다음 날에 없다.
   bool on(DateTime day) {
@@ -21,6 +23,15 @@ class CalEvent {
   }
 
   String get timeLabel => allDay ? '종일' : '${_hm(start)}–${_hm(end)}';
+
+  /// 펼침 상세의 일시 — "10월 12일 (월) 10:00–11:00", 여러 날이면 "10월 12일 (월) 10:00 – 10월 13일 (화) 18:00", 종일은 날짜만.
+  String get whenLabel {
+    String day(DateTime t) => '${t.month}월 ${t.day}일 (${calWeekdays[t.weekday - 1]})';
+    final last = allDay && end.isAfter(start) && end.hour == 0 && end.minute == 0 ? end.subtract(const Duration(minutes: 1)) : end;
+    final sameDay = start.year == last.year && start.month == last.month && start.day == last.day;
+    if (allDay) return sameDay || !last.isAfter(start) ? '${day(start)} 종일' : '${day(start)} – ${day(last)} 종일';
+    return sameDay || !end.isAfter(start) ? '${day(start)} ${_hm(start)}–${_hm(end)}' : '${day(start)} ${_hm(start)} – ${day(end)} ${_hm(end)}';
+  }
 }
 
 String _hm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
@@ -87,9 +98,14 @@ DateTime? _gwTime(String s) {
 CalEvent? calFromGw(GwEvent e) {
   final s = _gwTime(e.start);
   if (s == null) return null;
+  final body = htmlToText(e.contents).trim();
   return CalEvent(
     start: s, end: _gwTime(e.end) ?? s, allDay: e.allDay, title: e.title, source: CalSource.gw, mine: e.mine,
     sub: [e.calendar, if (e.place.isNotEmpty) e.place, if (!e.mine && e.createName.isNotEmpty) e.createName].where((x) => x.isNotEmpty).join(' · '),
+    details: [
+      for (final (k, v) in [('캘린더', e.calendar), ('장소', e.place), ('등록자', e.createName), ('참석자', e.attendees.trim()), ('내용', body)])
+        if (v.isNotEmpty) (k, v),
+    ],
   );
 }
 
@@ -113,5 +129,7 @@ CalEvent? calFromDooray(Map e) {
   final s = _kst(e['startedAt']);
   if (s == null || e['subject'] is! String) return null;
   final mine = e['owner'] != false;
-  return CalEvent(start: s, end: _kst(e['endedAt']) ?? s, allDay: e['wholeDayFlag'] == true, title: e['subject'] as String, source: CalSource.dooray, mine: mine, sub: mine ? '' : (e['calendar'] is String ? e['calendar'] as String : ''));
+  final cal = e['calendar'] is String ? e['calendar'] as String : '';
+  return CalEvent(start: s, end: _kst(e['endedAt']) ?? s, allDay: e['wholeDayFlag'] == true, title: e['subject'] as String, source: CalSource.dooray, mine: mine, sub: mine ? '' : cal,
+      details: [if (cal.isNotEmpty) ('캘린더', cal), ('출처', 'Dooray')]);
 }

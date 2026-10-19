@@ -164,22 +164,47 @@ class _MonthGrid extends StatelessWidget {
       });
 }
 
-/// 한 줄 일정 — 시간(출처·내 것에 따라 색) · 제목 · 보조 문구, Dooray는 꼬리표.
+/// 한 줄 일정 — 시간(출처·내 것에 따라 색) · 제목 · 보조 문구, Dooray는 꼬리표. 누르면 아코디언으로 상세(일시·캘린더·장소·등록자·참석자·내용)가 펼쳐진다.
 class _EventRow extends StatelessWidget {
   const _EventRow(this.e);
   final CalEvent e;
   @override
-  Widget build(BuildContext context) => ListTile(
+  Widget build(BuildContext context) => ExpansionTile(
+        key: ValueKey('cal-ev-${e.source.name}-${e.start.toIso8601String()}-${e.title}'),
         dense: true,
+        shape: const Border(),
+        collapsedShape: const Border(),
+        tilePadding: const EdgeInsets.only(left: 16, right: 8),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        expandedCrossAxisAlignment: CrossAxisAlignment.start,
         leading: SizedBox(width: 92, child: Text(e.timeLabel, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: CalendarView.colorOf(e)))),
-        title: Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: Row(children: [
+          Expanded(child: Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis)),
+          if (e.source == CalSource.dooray)
+            Container(
+              margin: const EdgeInsets.only(left: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(color: Brand.success.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
+              child: const Text('Dooray', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Brand.success)),
+            ),
+        ]),
         subtitle: e.sub.isEmpty ? null : Text(e.sub, maxLines: 1, overflow: TextOverflow.ellipsis),
-        trailing: e.source == CalSource.dooray
-            ? Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: Brand.success.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
-                child: const Text('Dooray', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Brand.success)),
-              )
-            : null,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Brand.blueTint, borderRadius: BorderRadius.circular(10)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              for (final (i, (k, v)) in [('일시', e.whenLabel), ...e.details].indexed)
+                Padding(
+                  padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    SizedBox(width: 52, child: Text(k, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Brand.muted))),
+                    Expanded(child: Text(v, style: const TextStyle(fontSize: 13, color: Brand.navy, height: 1.4))),
+                  ]),
+                ),
+            ]),
+          ),
+        ],
       );
 }
