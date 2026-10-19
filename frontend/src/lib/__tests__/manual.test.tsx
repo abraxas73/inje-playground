@@ -28,6 +28,12 @@ it("shows the Windows SmartScreen guide images with captions in the desktop inst
   expect(screen.getByText(/앱 이름이 INNOGRID 설치 파일인지 확인하고 ‘실행’을 누릅니다/)).toBeInTheDocument();
   expect(searchManual("SmartScreen").map((s) => s.id)).toContain("desktop-install");
 });
+it("Windows 브라우저 다운로드 경고 해제 방법을 강조색과 굵은 글씨로 표시한다", () => {
+  render(<ManualPage />);
+  const warning = screen.getByText("Edge는 다운로드 목록의 ‘…’ 메뉴 → 유지 → 그래도 유지, Chrome은 ‘유지’를 누릅니다.");
+  expect(warning.tagName).toBe("STRONG");
+  expect(warning).toHaveClass("font-bold", "text-amber-800");
+});
 it("앱 기능 절은 목차와 제목에 (모바일·데스크톱 앱) 표시가 붙고 앱 이름으로도 검색된다", () => {
   const tagged = manualSections.filter((s) => s.app);
   expect(tagged.map((s) => s.id)).toEqual(expect.arrayContaining(["app-approvals", "app-attendance", "app-today", "app-mail", "app-board", "desktop-mentions", "desktop-connector", "desktop-install"]));
