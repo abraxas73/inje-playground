@@ -2,7 +2,14 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 import { signState } from "@/lib/ms/crypto";
-const m = vi.hoisted(() => ({ status: 200, exchange: vi.fn(), save: vi.fn(), admin: {} }));
+const m = vi.hoisted(() => ({
+  status: 200,
+  exchange: vi.fn(),
+  save: vi.fn(),
+  getUserById: vi.fn(),
+  me: { mail: "test@example.com", userPrincipalName: "test@example.com", displayName: "Test" },
+  admin: {} as Record<string, unknown>,
+}));
 const key = Buffer.alloc(32, 1);
 vi.mock("@/lib/rfp/require-user", () => ({ requireUser: async () => m.status === 200
   ? { ok: true, userId: "u1", email: "user@innogrid.com", admin: {} }
@@ -11,10 +18,17 @@ vi.mock("@/lib/supabase-server", () => ({ createServerSupabase: async () => ({})
 vi.mock("@/lib/claude-usage/require-admin", () => ({ adminClientOr500: () => ({ ok: true, admin: m.admin }) }));
 vi.mock("@/lib/ms/config", () => ({ loadMsConfig: async () => ({ ok: true, config: { app: {}, encKey: Buffer.alloc(32, 1) } }), missingConfigMessage: () => "설정 누락" }));
 vi.mock("@/lib/ms/connections", () => ({ saveConnection: m.save }));
-vi.mock("@/lib/ms/oauth", async (orig) => ({ ...(await orig<typeof import("@/lib/ms/oauth")>()), exchangeCode: m.exchange, fetchMe: async () => ({ mail: "test@example.com", displayName: "Test" }) }));
+vi.mock("@/lib/ms/oauth", async (orig) => ({ ...(await orig<typeof import("@/lib/ms/oauth")>()), exchangeCode: m.exchange, fetchMe: async () => m.me }));
 import { GET } from "@/app/api/ms/callback/route";
 const req = (user = "u1", expiry = Date.now() / 1000 + 600, appReturn = false) => new NextRequest(`https://inje-playground.vercel.app/api/ms/callback?code=secret-code&state=${signState({ u: user, n: "nonce", r: "/settings", e: expiry, ...(appReturn ? { a: true as const } : {}) }, key)}`);
-beforeEach(() => { m.status = 200; m.exchange.mockReset().mockResolvedValue({ accessToken: "at", refreshToken: "rt", scope: "User.Read" }); m.save.mockReset(); });
+beforeEach(() => {
+  m.status = 200;
+  m.exchange.mockReset().mockResolvedValue({ accessToken: "at", refreshToken: "rt", scope: "User.Read" });
+  m.save.mockReset();
+  m.me = { mail: "test@example.com", userPrincipalName: "test@example.com", displayName: "Test" };
+  m.getUserById.mockReset().mockResolvedValue({ data: { user: { email: "test@example.com" } }, error: null });
+  m.admin = { auth: { admin: { getUserById: m.getUserById } } };
+});
 it.each([401, 403])("인증 실패 %s는 UTF-8 안내 화면이며 코드 교환·저장을 하지 않는다", async (status) => {
   m.status = status;
   const res = await GET(req());
@@ -38,7 +52,7 @@ it("다른 사용자와 만료된 state는 저장하지 않는다", async () => 
 it("일치하는 세션과 state만 연결을 저장한다", async () => {
   const res = await GET(req());
   expect(res.headers.get("location")).toBe("https://inje-playground.vercel.app/settings?ms_connected=1");
-  expect(m.save).toHaveBeenCalledWith({}, key, expect.objectContaining({ userId: "u1", refreshToken: "rt" }));
+  expect(m.save).toHaveBeenCalledWith(m.admin, key, expect.objectContaining({ userId: "u1", refreshToken: "rt" }));
 });
 
 it("앱 연결 완료는 JavaScript 완료 화면을 거치지 않고 등록된 앱 스킴으로 직접 리다이렉트한다", async () => {
@@ -55,6 +69,30 @@ it("앱에서 발급한 서명 state는 브라우저 쿠키 없이도 state의 �
   expect(res.status).toBe(302);
   expect(res.headers.get("location")).toBe("innogrid://login-callback?ms_connected=1");
   expect(m.save).toHaveBeenCalledWith(m.admin, key, expect.objectContaining({ userId: "u2" }));
+});
+it("앱 state의 사용자 이메일과 동의한 Microsoft 계정이 다르면 토큰을 저장하지 않는다", async () => {
+  m.getUserById.mockResolvedValueOnce({ data: { user: { email: "owner@innogrid.com" } }, error: null });
+  m.me = { mail: "colleague@innogrid.com", userPrincipalName: "colleague@innogrid.com", displayName: "Colleague" };
+  const res = await GET(req("u1", Date.now() / 1000 + 600, true));
+  expect(res.headers.get("location")).toContain("ms_error=");
+  expect(m.save).not.toHaveBeenCalled();
+});
+it("앱 계정 비교는 대소문자를 무시하고 Microsoft mail이 없으면 UPN을 쓴다", async () => {
+  m.getUserById.mockResolvedValueOnce({ data: { user: { email: "Owner@INNOGRID.com" } }, error: null });
+  m.me = { mail: "", userPrincipalName: "owner@innogrid.COM", displayName: "Owner" };
+  await GET(req("u1", Date.now() / 1000 + 600, true));
+  expect(m.save).toHaveBeenCalledTimes(1);
+});
+it.each([
+  ["앱 사용자 조회 실패", { data: { user: null }, error: new Error("lookup failed") }, { mail: "owner@innogrid.com", userPrincipalName: "owner@innogrid.com", displayName: "Owner" }],
+  ["앱 사용자 이메일 누락", { data: { user: { email: null } }, error: null }, { mail: "owner@innogrid.com", userPrincipalName: "owner@innogrid.com", displayName: "Owner" }],
+  ["Microsoft 이메일 누락", { data: { user: { email: "owner@innogrid.com" } }, error: null }, { mail: "", userPrincipalName: "", displayName: "Owner" }],
+])("%s이면 앱 연결을 실패 처리한다", async (_name, lookup, me) => {
+  m.getUserById.mockResolvedValueOnce(lookup);
+  m.me = me;
+  const res = await GET(req("u1", Date.now() / 1000 + 600, true));
+  expect(res.headers.get("location")).toContain("ms_error=");
+  expect(m.save).not.toHaveBeenCalled();
 });
 it("웹 사용자 불일치·앱 저장 실패는 성공으로 보내지 않는다", async () => {
   const mismatch = await GET(req("u2"));
