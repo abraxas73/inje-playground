@@ -49,9 +49,14 @@ void main() {
     final quote = find.byType(QuoteCard);
     final briefing = find.byType(BriefingCard);
     final focus = find.byType(FocusSection);
-    expect(tester.getTopLeft(briefing).dx, greaterThan(tester.getTopLeft(quote).dx));
+    // 여러 열이면 오늘의 한 줄은 인사말 옆(카드 줄 전체 폭) — 인사말이 1열 폭, 한 줄이 나머지 2열.
+    const column = (1360 - 32) / 3;
+    expect(tester.getTopLeft(quote).dy, lessThan(tester.getTopLeft(briefing).dy));
+    expect(tester.getTopLeft(quote).dx, closeTo(20 + column + 16, 1));
+    expect(tester.getTopLeft(find.textContaining('좋은')).dx, 20);
+    expect(tester.getTopLeft(briefing).dx, 20);
     expect(tester.getTopLeft(focus).dx, greaterThan(tester.getTopLeft(briefing).dx));
-    expect(tester.getSize(quote).width, closeTo((1360 - 32) / 3, 1));
+    expect(tester.getSize(quote).width, closeTo(1360 - column - 16, 1));
     await tester.ensureVisible(find.byType(ServiceCardGrid).first);
     expect(tester.getSize(find.byType(ServiceCardGrid).first).width, closeTo(1360, 1));
     final calls = app.calls['/api/mobile/briefing'];
@@ -59,7 +64,9 @@ void main() {
       await tester.binding.setSurfaceSize(Size(width, 2400));
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(quote, -500, scrollable: find.byType(Scrollable).first);
-      expect(tester.getSize(quote).width, closeTo((width - 40 - 16 * (columns - 1)) / columns, 1));
+      final card = (width - 40 - 16 * (columns - 1)) / columns;
+      expect(tester.getSize(quote).width, closeTo(columns == 1 ? card : width - 40 - card - 16, 1));
+      expect(tester.getSize(briefing).width, closeTo(card, 1));
       expect(tester.takeException(), isNull);
     }
     expect(app.calls['/api/mobile/briefing'], calls, reason: '리사이즈는 재수집하지 않는다');

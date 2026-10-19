@@ -169,12 +169,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               SquareIconButton(icon: Icons.menu_book_outlined, tooltip: '사용자 매뉴얼', onPressed: () => open('/web?path=${Uri.encodeComponent('/manual')}')), // 첫 화면에서 바로 매뉴얼(웹 /manual)로
             ]),
             const SizedBox(height: 14),
-            Text(g.title, style: theme.textTheme.headlineSmall),
-            const SizedBox(height: 4),
-            Text(g.subtitle, style: theme.textTheme.bodySmall),
+            LayoutBuilder(builder: (context, constraints) {
+            // 데스크톱 여러 열: 오늘의 한 줄을 인사말 옆, 카드 줄 전체 폭(인사말 1열 + 한 줄 나머지 열)으로 — 사용자 요청.
+            final columns = HomeCardLayout.columnsFor(context, constraints.maxWidth);
+            final greeting = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(g.title, style: theme.textTheme.headlineSmall),
+              const SizedBox(height: 4),
+              Text(g.subtitle, style: theme.textTheme.bodySmall),
+            ]);
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (columns > 1)
+              Row(children: [
+                SizedBox(width: (constraints.maxWidth - 16 * (columns - 1)) / columns, child: greeting), // 아래 카드 1열과 같은 폭
+                const SizedBox(width: 16),
+                Expanded(child: QuoteCard(quote: q)),
+              ])
+            else
+              greeting,
             const SizedBox(height: 16),
             HomeCardLayout(children: [
-            QuoteCard(quote: q),
+            if (columns == 1) QuoteCard(quote: q),
             BriefingCard(
               summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at),
               busy: _summaryBusy || _manualBusy,
@@ -225,6 +239,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             ],
             const GwNoticesCard(),
             ]),
+            ]);
+            }),
             const SizedBox(height: 20),
             Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('바로 가기', style: theme.textTheme.titleSmall)),
             ServiceCardGrid(

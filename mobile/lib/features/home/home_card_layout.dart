@@ -9,8 +9,8 @@ class HomeCardLayout extends StatelessWidget {
   const HomeCardLayout({super.key, required this.children});
   final List<Widget> children;
 
-  @override
-  Widget build(BuildContext context) {
+  /// Columns for [width]; the home header uses the same split to line up with the cards.
+  static int columnsFor(BuildContext context, double width) {
     final desktop =
         !kIsWeb &&
         switch (defaultTargetPlatform) {
@@ -21,16 +21,17 @@ class HomeCardLayout extends StatelessWidget {
         };
     final minimumWidth =
         380 * math.max(1, MediaQuery.textScalerOf(context).scale(14) / 14);
+    return desktop
+        ? ((width + 16) / (minimumWidth + 16)).floor().clamp(1, 3)
+        : 1;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = desktop
-            ? ((constraints.maxWidth + 16) / (minimumWidth + 16)).floor().clamp(
-                1,
-                3,
-              )
-            : 1;
         return _HomeCards(
-          columns: columns,
+          columns: columnsFor(context, constraints.maxWidth),
           direction: Directionality.of(context),
           children: children,
         );
