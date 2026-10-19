@@ -52,6 +52,21 @@ void main() {
     await tester.pumpWidget(wrap(MeetingsSection(meetings: const [], tomorrowCount: 0, onMore: () {})));
     expect(find.text('오늘 일정'), findsNothing);
   });
+  testWidgets('홈 일정 줄은 일정 화면으로, 메일 줄은 그 메일 상세로(없으면 목록) 이동한다', (tester) async {
+    var more = 0;
+    await tester.pumpWidget(wrap(MeetingsSection(meetings: const [GwEvent(schSeq: '1', title: '주간회의', start: '202610051000', end: '202610051100', allDay: false, calendar: '', mcalSeq: '1', mine: true, createName: '', place: '')], tomorrowCount: 0, onMore: () => more++)));
+    await tester.tap(find.text('주간회의'));
+    expect(more, 1);
+    const m = MailItem(muid: '7', subject: '견적 요청', fromName: '박지훈', fromEmail: '', date: '', tooltip: '2026-10-05 09:12:00', seen: false, attach: false);
+    MailItem? opened;
+    var list = 0;
+    await tester.pumpWidget(wrap(MailsSection(items: const [m], unreadTotal: 1, onMore: () => list++, onOpen: (x) => opened = x)));
+    await tester.tap(find.text('견적 요청'));
+    expect((opened?.muid, list), ('7', 0));
+    await tester.pumpWidget(wrap(MailsSection(items: const [m], unreadTotal: 1, onMore: () => list++)));
+    await tester.tap(find.text('견적 요청'));
+    expect(list, 1);
+  });
   testWidgets('AbsenceSection·ApprovalsSection·MailsSection·TeamsSection', (tester) async {
     await tester.pumpWidget(wrap(Column(children: [
       const AbsenceSection(absences: [Absence(who: '김민준', what: '연차', kind: AbsenceKind.leave)]),

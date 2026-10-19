@@ -14,7 +14,9 @@ import '../../briefing/briefing_sections.dart';
 import '../../briefing/live_activity.dart';
 import '../../briefing/summary_provider.dart';
 import '../../gw/gw_creds.dart';
-import '../../gw/gw_models.dart' show myEvents;
+import '../../gw/gw_api.dart' show gwApiProvider;
+import '../../gw/gw_models.dart' show MailItem, myEvents;
+import '../../gw/mail_detail_screen.dart';
 import '../../gw/gw_notices_card.dart';
 import '../../gw/messenger_open.dart';
 import '../../more/catalog.dart';
@@ -157,6 +159,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       await context.push(route);
       if (mounted && route.contains('/web?path=')) await _refresh();
     }
+    // 메일 한 통은 바로 상세로 — 본문을 열면 아마란스가 읽음 처리하므로 돌아오면 다시 불러온다
+    Future<void> openMail(MailItem m) async {
+      final api = ref.read(gwApiProvider);
+      if (api == null) return open('/gw/mail');
+      await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => MailDetailScreen(api: api, item: m)));
+      if (mounted) await _refresh();
+    }
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -231,7 +240,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 onRetry: _allAbsences ? () => ref.invalidate(companyAbsencesProvider) : _refresh,
               ),
               if (data.errors.containsKey('approvals')) RetryLine(label: '미결 결재', onTap: _refresh) else ApprovalsSection(total: data.approvals?.$1 ?? 0, items: data.approvals?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals')),
-              if (data.errors.containsKey('inbox')) RetryLine(label: '메일', onTap: _refresh) else MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail')),
+              if (data.errors.containsKey('inbox')) RetryLine(label: '메일', onTap: _refresh) else MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail'), onOpen: openMail),
               if (!data.errors.containsKey('talks')) TalkMentionSection(talks: data.talks, onOpen: openMessenger),
             ],
             if (data != null) ...[
