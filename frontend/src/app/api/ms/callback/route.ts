@@ -11,6 +11,11 @@ import { mobileConnectionComplete } from "@/lib/ms/mobile-return";
 export const runtime = "nodejs";
 
 const EXPIRED = "연결 요청이 만료되었습니다. 다시 시도하세요.";
+const ACCOUNT_MISMATCH = "앱 로그인 계정과 Microsoft 계정이 일치하지 않습니다. 같은 계정으로 다시 연결해 주세요.";
+
+function normalizedEmail(value: string | null | undefined) {
+  return value?.trim().toLowerCase() || null;
+}
 
 /**
  * GET /api/ms/callback?code&state[&error&error_description] — Azure에서 돌아오는 곳(스펙 §3.1).
@@ -59,6 +64,17 @@ export async function GET(request: NextRequest) {
     const tok = await exchangeCode(app, { code, redirectUri: `${origin}/api/ms/callback` });
     if (!tok.refreshToken) return back(returnTo, "ms_error", "오프라인 접근 권한이 필요합니다. 동의 화면에서 모든 권한을 허용하세요.");
     const me = await fetchMe(tok.accessToken);
+    if (state.a) {
+      const { data, error } = await service.admin.auth.admin.getUserById(state.u);
+      const appEmail = normalizedEmail(data.user?.email);
+      const microsoftEmails = [normalizedEmail(me.mail), normalizedEmail(me.userPrincipalName)].filter(
+        (email): email is string => Boolean(email),
+      );
+      if (error || !appEmail || !microsoftEmails.includes(appEmail)) {
+        console.warn("[ms] 앱 사용자와 Microsoft 계정이 일치하지 않아 연결을 거부했습니다.");
+        return back(returnTo, "ms_error", ACCOUNT_MISMATCH);
+      }
+    }
     await saveConnection(service.admin, encKey, {
       userId: state.u,
       refreshToken: tok.refreshToken,
