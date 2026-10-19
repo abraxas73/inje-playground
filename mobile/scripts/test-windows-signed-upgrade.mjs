@@ -48,7 +48,9 @@ for (const scenario of ['success', 'bad-signature', 'expired-auth', 'interrupted
     }
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
-  await writeFile(join(state, 'update-config'), `http://127.0.0.1:${server.address().port}/feed\n${publicKey}\n${signature}\nhttp://127.0.0.1:${server.address().port}/${filename}\n`);
+  // Production's artifact URL has no .exe suffix; the native downloader must
+  // honor our fixed Content-Disposition filename before installer validation.
+  await writeFile(join(state, 'update-config'), `http://127.0.0.1:${server.address().port}/feed\n${publicKey}\n${signature}\nhttp://127.0.0.1:${server.address().port}/artifact/windows/9.0.2\n`);
   const old = spawn(join(app, 'INNOGRID.exe'), [], { stdio: 'ignore' });
   let oldExited = false; old.once('exit', () => { oldExited = true; });
   let newPid;

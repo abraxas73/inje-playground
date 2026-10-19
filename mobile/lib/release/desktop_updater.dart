@@ -268,9 +268,11 @@ class DesktopUpdater extends ChangeNotifier {
       await _cancelNative();
       if (_current(epoch, id)) {
         _set(
-          const DesktopUpdateState(
+          DesktopUpdateState(
             DesktopUpdatePhase.error,
-            message: '업데이트에 실패했습니다. 다시 확인해 주세요.',
+            message: _cancelFailed
+                ? '이전 업데이트를 안전하게 정리하지 못했습니다. 앱을 완전히 종료한 후 다시 실행해 주세요.'
+                : '업데이트에 실패했습니다. 다시 확인해 주세요.',
             visible: true,
           ),
         );

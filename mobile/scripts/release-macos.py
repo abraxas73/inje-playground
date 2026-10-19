@@ -50,12 +50,21 @@ def main():
     subprocess.run(['flutter', 'build', 'macos', '--release',
                     f'--dart-define=APP_VERSION={version}', f'--dart-define=APP_BUILD={build}'],
                    cwd=ROOT, env=env, check=True)
+    # Upstream 2.10.0's helper compares NFC NSString paths with NFD URL paths,
+    # missing running apps in Korean paths. Build only the two-line fixed helper
+    # from the pinned committed source; never ship a release without the fix.
+    run('node', 'scripts/build-sparkle-helper.mjs')
+    helper_receipt = json.loads((ROOT / 'build/desktop-updater/sparkle-helper.json').read_text())
+    helper = Path(helper_receipt['helper'])
+    if hashlib.sha256((helper / 'Contents/MacOS/Updater').read_bytes()).hexdigest() != helper_receipt['executableSha256']:
+        raise RuntimeError('Patched Sparkle helper hash mismatch')
     output = ROOT / 'build/macos/distribution'
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='innocrew-release-') as temporary:
         stage = Path(temporary)
         app = stage / 'INNOGRID.app'
         run('ditto', ROOT / 'build/macos/Build/Products/Release/INNOGRID.app', app)
+        run('ditto', helper, app / 'Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app')
         with (app / 'Contents/Info.plist').open('rb') as source:
             bundle_id = plistlib.load(source)['CFBundleIdentifier']
         # codesign does not expand Xcode variables in an entitlements template.

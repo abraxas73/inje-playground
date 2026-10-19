@@ -221,8 +221,9 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(updateChannel, (call) async {
             calls.add(call);
-            if (call.method == 'cancel')
+            if (call.method == 'cancel') {
               throw PlatformException(code: 'cleanup_failed');
+            }
             return null;
           });
       await updater.cancelForSignOut();

@@ -9,6 +9,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import { signUpdate } from './desktop-update-signing.mjs';
 
 const framework = resolve(process.argv[2]);
+const patchedHelper = process.argv[3] ? resolve(process.argv[3]) : null;
 const identity = 'Developer ID Application: SeungUk Kang (LME2TNRC9G)';
 const root = await mkdtemp(join(tmpdir(), 'innocrew-macos-upgrade-'));
 const identifier = `com.innogrid.playground.upgrade-fixture-${Date.now()}`;
@@ -67,6 +68,7 @@ try {
     await mkdir(join(app, 'Contents/Frameworks'), { recursive: true });
     run('ditto', [binary, join(app, 'Contents/MacOS/Fixture')]);
     run('ditto', [framework, join(app, 'Contents/Frameworks/Sparkle.framework')]);
+    if (patchedHelper) run('ditto', [patchedHelper, join(app, 'Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app')]);
     await writeFile(join(app, 'Contents/Info.plist'), `<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>${identifier}</string><key>CFBundleName</key><string>InnoCrewUpdaterFixture</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleExecutable</key><string>Fixture</string><key>CFBundleVersion</key><string>${version}</string><key>CFBundleShortVersionString</key><string>9.0.${version}</string><key>LSMinimumSystemVersion</key><string>12.0</string><key>SUPublicEDKey</key><string>${publicKey}</string><key>SUEnableAutomaticChecks</key><false/><key>SUAutomaticallyUpdate</key><false/><key>SUEnableInstallerLauncherService</key><true/><key>SUVerifyUpdateBeforeExtraction</key><true/><key>FixtureBaseURL</key><string>${base}</string><key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict></dict></plist>`);
     await signNested(app);
     run('codesign', ['--force', '--options', 'runtime', '--timestamp', '--sign', identity, '--entitlements', entitlementFile, app]);
@@ -78,11 +80,18 @@ try {
   run('hdiutil', ['create', '-srcfolder', dirname(newApp), '-format', 'UDZO', '-volname', 'InnoCrew Updater Fixture', image]);
   bytes = await readFile(image);
   signature = signUpdate({ body: bytes, build: 2, minimumOS: '12.0', privateKey, publicKey }).edSignature;
-  for (const test of ['success', 'bad-signature', 'expired-auth', 'interrupted-download']) {
+  for (const test of ['success', 'bad-signature', 'expired-auth', 'interrupted-download', 'read-only']) {
     scenario = test; events = []; downloadHit = false;
+    let mount;
     // Diagnostic override compares exactly the same engine with an ASCII path.
-    const installed = join(root, process.env.INNOCREW_FIXTURE_ASCII_PATH === '1' ? `${test} path` : `${test} 한글 path`, 'InnoCrewUpdaterFixture.app');
-    run('ditto', [oldApp, installed]);
+    let installed = join(root, process.env.INNOCREW_FIXTURE_ASCII_PATH === '1' ? `${test} path` : `${test} 한글 path`, 'InnoCrewUpdaterFixture.app');
+    if (test === 'read-only') {
+      const readOnlyImage = join(root, 'read-only-old.dmg');
+      run('hdiutil', ['create', '-srcfolder', dirname(oldApp), '-format', 'UDZO', '-volname', 'InnoCrew Read Only Fixture', readOnlyImage]);
+      mount = join(root, 'read-only-volume'); await mkdir(mount);
+      run('hdiutil', ['attach', '-readonly', '-nobrowse', '-mountpoint', mount, readOnlyImage]);
+      installed = join(mount, 'InnoCrewUpdaterFixture.app');
+    } else run('ditto', [oldApp, installed]);
     // LaunchServices grants normal app-bundle sandbox access and registers the
     // process for Sparkle's quit Apple event. exec'ing Contents/MacOS directly
     // does neither and is not a faithful installed-app lifecycle test.
@@ -104,7 +113,10 @@ try {
       } else {
         await until(() => events.some(e => e.event === 'error' || (e.event === 'status' && e.phase === 'error')), 'native rejection');
         assert.equal(alive(oldPid), true); assert.equal(events.some(e => e.event === 'launch' && e.version === '2'), false);
-        if (test !== 'expired-auth') assert.equal(downloadHit, true);
+        if (test === 'read-only') {
+          assert.equal(downloadHit, false, 'read-only app rejected before download');
+          assert.equal(run('/usr/libexec/PlistBuddy', ['-c', 'Print :CFBundleVersion', join(installed, 'Contents/Info.plist')]).trim(), '1');
+        } else if (test !== 'expired-auth') assert.equal(downloadHit, true);
       }
       console.log(`PASS: actual sandboxed Sparkle signed-upgrade ${test}; old PID=${oldPid}${newPid ? ` new PID=${newPid}` : ''}`);
     }
@@ -112,6 +124,7 @@ try {
       if (oldPid && alive(oldPid)) process.kill(oldPid);
       if (newPid) { try { process.kill(newPid); } catch {} }
       await delay(500);
+      if (mount) run('hdiutil', ['detach', mount]);
     }
   }
 } finally { server.closeAllConnections(); server.close(); console.log(`macOS upgrade evidence: ${root}`); }

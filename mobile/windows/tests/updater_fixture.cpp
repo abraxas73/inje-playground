@@ -21,6 +21,9 @@ void __cdecl Shutdown() {
   if (lifecycle.ConsumeShutdown()) PostMessageW(fixture_window, WM_CLOSE, 0, 0);
 }
 int __cdecl RunInstaller(const wchar_t* path) {
+  if (!path || std::filesystem::path(path).filename() != L"INNOGRID-Windows-9.0.2-Setup.exe") {
+    UpdateError(); return -1;
+  }
   if (!lifecycle.BeginInstall()) return -1;
   const auto args = innocrew::InstallerArguments(install_directory.wstring(), GetCurrentProcessId());
   SHELLEXECUTEINFOW execute{}; execute.cbSize = sizeof(execute);
