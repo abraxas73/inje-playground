@@ -1,0 +1,2 @@
+// 앱과 같은 버전·빌드 번호(FLUTTER_BUILD_NAME/NUMBER)를 쓰기 위해 Flutter 생성 설정만 가져온다(Pods는 쓰지 않음).
+#include "../Flutter/Generated.xcconfig"

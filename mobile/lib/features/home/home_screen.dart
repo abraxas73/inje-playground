@@ -11,6 +11,7 @@ import '../../auth/session.dart';
 import '../../briefing/briefing_model.dart';
 import '../../briefing/briefing_provider.dart';
 import '../../briefing/briefing_sections.dart';
+import '../../briefing/live_activity.dart';
 import '../../briefing/summary_provider.dart';
 import '../../gw/gw_creds.dart';
 import '../../gw/gw_models.dart' show myEvents;
@@ -143,7 +144,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     ref.listen(tabTapProvider, (_, t) { if (t.branch == homeBranch) _refresh(); }); // 홈 탭을 눌렀을 때만(다른 브랜치 전환은 무시)
     ref.listen(briefingProvider, (prev, next) {
       final d = next.value;
-      if (!_manualBusy && d != null && d != prev?.value) _summary(d);
+      if (d == null || d == prev?.value) return;
+      // 새로 수집될 때마다 잠금 화면 라이브 액티비티·Android 상시 알림도 갱신(부가 기능 — 실패는 무시)
+      if (liveActivitySupported) syncLiveActivity(d, foreground: true).catchError((_) {});
+      if (!_manualBusy) _summary(d);
     });
     Future<void> open(String route) async {
       await context.push(route);

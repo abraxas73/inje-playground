@@ -81,6 +81,14 @@
 - 서버: `POST /api/mobile/briefing`(제목 수준 payload ≤16KB → 서버가 다시 자름 → Claude, 감사엔 건수만; settings `mobile_briefing_llm=off` 또는 `ANTHROPIC_API_KEY` 없음이면 `{enabled:false}`), `GET /api/teams/mentions?days=2`(기존 Microsoft 연결, 그룹은 내 이름(Graph displayName·메일 로컬파트·앱 표시 이름) 멘션, 1:1은 전부, 내가 그 뒤에 답했으면 제외). 관리자: `/admin/settings` "모바일 앱 — 홈 브리핑" 스위치. 모델은 env `MOBILE_BRIEFING_MODEL`(기본 `claude-sonnet-5-5`).
 - 소스 하나가 실패해도 나머지는 보이고 그 섹션만 "다시 시도". Teams 401/403은 오류가 아니라 미연결(섹션 숨김). 수집은 홈을 열 때·홈 탭 재터치·당겨서 새로고침(`BriefingNotifier.refresh` — 첫 로딩 중이면 이름만 반영하고 중복 수집 없음).
 
+## 잠금 화면 브리핑(라이브 액티비티) (2026-10-19)
+스펙 `docs/superpowers/specs/2026-10-19-live-activity-briefing-design.md`. iOS 16.2+ 잠금 화면·다이내믹 아일랜드, Android 상시 알림(채널 `briefing_live`) — 평일 KST 07:00~18:30, 더보기 "잠금 화면 브리핑" 스위치(기기 저장, 기본 켬).
+- 내용: 다음 회의(시작까지 카운트다운 — 시스템이 줄임) + 결재·Teams 답장 대기·오늘 안 읽은 메일·새 공지 건수(`lib/briefing/live_briefing.dart`). 메일 제목·본문은 싣지 않는다.
+- 다이내믹 아일랜드는 평소 아이콘·합계만, **건수가 늘었을 때만** `AlertConfiguration`으로 펼친다(Android는 채널 `briefing_alert` heads-up 10초).
+- 갱신: 앱에서 홈 브리핑이 새로 수집될 때 + 앱 밖 `workmanager` 주기 작업(`com.innogrid.playground.briefing` — Android 15분, iOS `BGAppRefreshTask` 간격은 OS가 정함). **백그라운드는 아마란스만 수집**(Supabase 세션을 백그라운드 엔진에서 열면 리프레시 토큰 회전으로 앱이 로그아웃될 수 있어 Teams 등 서버 API는 부르지 않고 직전 값 유지).
+- iOS 구성: 위젯 확장 타깃 `BriefingLiveActivity`(번들 `com.innogrid.playground.BriefingLiveActivity`, iOS 16.2, 버전은 `Flutter/Generated.xcconfig`에서), 공용 `ios/BriefingLiveActivity/BriefingActivityAttributes.swift`, 앱 쪽 `Runner/BriefingLiveActivityPlugin.swift`(채널 `innogrid/live_activity`, 앱·백그라운드 엔진 양쪽 등록 — `AppDelegate`). **새 액티비티 시작은 앱이 화면에 있을 때만**(iOS 제약) — 8시간 한도로 끝난 뒤에는 앱을 열어야 다시 뜬다. "Embed Foundation Extensions" 단계는 Thin Binary보다 앞에 있어야 한다(빌드 순환).
+- 첫 릴리스 전 확인: 새 번들 ID의 프로비저닝(자동 서명이 Xcode 계정으로 만든다 — `flutter build ipa` 실패 시 Xcode에서 확장 타깃 Signing 한 번 열기).
+
 ## 출근 Teams 알림 (2026-10-05)
 출퇴근 화면의 **출근 기록** 확인창에서 내 Teams 채팅방(그룹·1:1, `GET /api/teams/chat` — 본인 Microsoft 위임 토큰)을 한 번 골라 두면, "Teams에 알리기" 스위치(기억됨)와 **추가 문구(선택)** 입력이 나온다. 출근이 실제로 기록됐을 때만(`PunchResult.ok && !already`) `POST /api/teams/chat/messages`로 "9시 23분 출근했습니다."(정각은 "10시 출근했습니다.") + 추가 문구를 내 이름으로 보낸다. 전송 실패는 기록에 영향 없이 안내 문구만. 설정은 기기 SharedPreferences(`clockin.teams.*`)에만. 코드 `mobile/lib/gw/clockin_notify.dart`. 퇴근은 대상 아님(사용자 결정). 출근 기록 뒤에는 홈 브리핑을 다시 수집하고 데일리 브리핑도 한 번 다시 만든다(출근 안내 문장이 남지 않게).
 - 데일리 브리핑 지침: 평일·휴일 아님·출근 기록 없음이면 첫 문장에서 출근 기록을 남기라고 알린다(`briefingSystemPrompt`). 같은 조건(`clockInPending`)이면 브리핑 카드에 "출퇴근 바로 가기" 버튼(앱 안 `/gw/attendance`)이 붙는다.

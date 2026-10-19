@@ -44,6 +44,17 @@
 		<string>tel</string>
 		<string>kakaomap</string>
 	</array>
+	<!-- 잠금 화면 브리핑: 라이브 액티비티 + workmanager 주기 갱신(BGAppRefreshTask, lib/briefing/live_background.dart와 같은 이름) -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.innogrid.playground.briefing</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>

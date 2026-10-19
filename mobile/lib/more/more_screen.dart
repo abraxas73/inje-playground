@@ -6,6 +6,7 @@ import '../app/brand.dart';
 import '../app/theme.dart';
 import '../auth/session.dart';
 import '../briefing/briefing_provider.dart';
+import '../briefing/live_activity.dart';
 import '../release/update_banner.dart';
 import '../gw/gw_creds.dart';
 import '../gw/gw_settings_sheet.dart';
@@ -111,6 +112,7 @@ class MoreScreen extends ConsumerWidget {
                 const Divider(),
                 const _InnobotSwitch(),
                 const Divider(),
+                if (liveActivitySupported) ...[const _LiveBriefingSwitch(), const Divider()],
                 const ListTile(leading: Icon(Icons.info_outline), title: Text('앱 버전'), trailing: VersionTrailing()),
               ]),
             ),
@@ -151,6 +153,34 @@ class _GwRow extends StatelessWidget {
       onTap: onTap,
     );
   }
+}
+
+/// 잠금 화면 브리핑(iOS 라이브 액티비티·Android 상시 알림) — 이 기기에만 저장.
+class _LiveBriefingSwitch extends StatefulWidget {
+  const _LiveBriefingSwitch();
+  @override
+  State<_LiveBriefingSwitch> createState() => _LiveBriefingSwitchState();
+}
+
+class _LiveBriefingSwitchState extends State<_LiveBriefingSwitch> {
+  bool _on = true;
+  @override
+  void initState() {
+    super.initState();
+    liveActivityEnabled().then((v) { if (mounted) setState(() => _on = v); });
+  }
+
+  @override
+  Widget build(BuildContext context) => SwitchListTile(
+        secondary: const Icon(Icons.lock_clock_outlined),
+        title: const Text('잠금 화면 브리핑'),
+        subtitle: const Text('평일 07:00~18:30 다음 회의와 결재·메일 건수 · 새로 도착하면 알림'),
+        value: _on,
+        onChanged: (v) {
+          setState(() => _on = v);
+          setLiveActivityEnabled(v).catchError((_) {});
+        },
+      );
 }
 
 /// 떠 있는 이노봇 버튼 표시 — 계정 설정(user_settings.innobot_button)이라 모든 기기의 앱에 적용. 저장 실패면 되돌리고 알린다.

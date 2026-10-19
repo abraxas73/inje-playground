@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/router.dart';
+import 'briefing/live_background.dart';
 import 'gw/talk_notifications.dart';
 import 'mcp/mcp_worker_provider.dart';
 import 'app/theme.dart';
@@ -21,6 +22,7 @@ Future<void> main() async {
     url: Config.supabaseUrl,
     publishableKey: Config.supabaseAnonKey,
   );
+  unawaited(registerLiveBackground());
   runApp(const ProviderScope(child: App()));
 }
 
