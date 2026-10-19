@@ -5,6 +5,12 @@ import { manualSections, searchManual } from "@/lib/manual/sections";
 import { PAGES } from "@/lib/page-access";
 
 afterEach(cleanup);
+it("explains one-click desktop updates and the first manual-install migration", () => {
+  const guide = manualSections.find(s => s.id === 'desktop-install')!;
+  expect(guide.steps.join(' ')).toContain('자동으로 설치하고 재시작');
+  expect(guide.steps.join(' ')).toContain('한 번 수동 설치');
+  expect(guide.steps.join(' ')).toContain('About 이노크루');
+});
 it("covers every service in the navigation catalog, including the hidden guide", () => {
   const links = manualSections.flatMap((s) => s.links?.map((l) => l.href) ?? []);
   for (const p of PAGES) expect(links, p.label).toContain(p.href);

@@ -75,6 +75,15 @@
 ## D. 분기마다
 - [ ] TestFlight 빌드는 **90일 만료** — 만료 전에 `+N`을 올려 `release-mobile.sh ios` 한 번(그룹 추가 포함). 만료되면 iPhone에서 앱이 열리지 않는다.
 
+## 데스크톱 자동 업데이트 릴리스 게이트
+
+- [ ] 원격 main과 게시된 두 플랫폼 버전 확인 후 새 버전/빌드 번호 결정. 이미 게시한 버전의 파일을 다른 바이트로 덮어쓰지 않는다.
+- [ ] macOS/Windows 실제 signed 이전→새 버전 교체, old PID 종료·new PID 1회 실행·테스트 로그인/설정 보존 확인. 실패/취소/서명 오류 및 OS별 제약은 `desktop-auto-update-validation.md`에 기록한다.
+- [ ] 업데이트 개인키는 Keychain 서비스 `com.innogrid.innocrew.desktop-update.ed25519`의 플랫폼 계정과 GitHub secret `INNOCREW_WINDOWS_UPDATE_PRIVATE_KEY`만 사용한다. 소스·로그·CLI 인수에 넣지 않는다. 별도 승인된 비밀 관리 저장소에 키 백업을 보관해야 하며 키 손실 시 설치된 앱의 신뢰 키를 임의 교체하지 않는다.
+- [ ] macOS `release-macos.py`는 Developer ID 서명·공증·staple 이후 최종 DMG를 Ed25519 서명한다. Windows는 최종 EXE(Authenticode 사용 시 그 이후)에 `build-windows.ps1 -Phase Sign`을 수행한다. `.update.json` 생성 이후 설치 파일을 변경하지 않는다.
+- [ ] 게시 직전 Supabase MCP로 현재 플랫폼 SHA-256을 읽는다. `frontend/scripts/publish-desktop.mjs PLATFORM VERSION FILE EXPECTED_PLATFORM_SHA256`은 서명·업로드·다운로드 해시 검증만 하고 **DB를 수정하지 않는다**. 출력 SQL을 Supabase MCP로 실행하여 반환 행이 정확히 1개인지 확인한다. 0개면 동시 게시/버전 역행 가능성이므로 중단한다. 다른 플랫폼은 `jsonb_set`으로 보존한다.
+- [ ] 공식 `https://innocrew.innogrid.com/apps`에서 버전·KST 게시일시·실제 다운로드 해시를 확인한다. 최초 기능 포함 버전은 기존 1.7.7 이하 사용자에게 한 번 수동 설치를 안내한다.
+
 ## E. 결정이 필요한 것(급하지 않음)
 - [ ] 앱 UI 팔레트(`#0B1A3A` 네이비·`#0441FF` 블루)를 CI 전용색(`#002447`·`#006cdb`)으로 맞출지. 아이콘은 이미 CI 색이다.
 - [ ] 회사 MDM이 Android 사이드로딩을 막는 기기가 있으면 Google Play 비공개 트랙 검토(현재 비범위).

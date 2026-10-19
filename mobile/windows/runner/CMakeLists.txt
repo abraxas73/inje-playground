@@ -31,6 +31,12 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_BUILD=${FLUTT
 
 # Disable Windows macros that collide with C++ standard library functions.
 target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../../desktop-update-public-keys.json" INNOCREW_UPDATE_KEYS)
+string(REGEX MATCH "\"windows\": *\"([^\"]+)\"" INNOCREW_KEY_MATCH "${INNOCREW_UPDATE_KEYS}")
+if(NOT INNOCREW_KEY_MATCH)
+  message(FATAL_ERROR "Windows update public key missing")
+endif()
+target_compile_definitions(${BINARY_NAME} PRIVATE "INNOCREW_UPDATE_PUBLIC_KEY=\"${CMAKE_MATCH_1}\"")
 
 # Add dependency libraries and include directories. Add any application-specific
 # dependencies here.

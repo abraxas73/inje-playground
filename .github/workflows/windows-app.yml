@@ -54,6 +54,12 @@ jobs:
         if: ${{ !inputs.probe_only }}
         shell: pwsh
         run: ./mobile/scripts/build-windows.ps1
+      - name: Sign final update artifact
+        if: ${{ !inputs.probe_only }}
+        shell: pwsh
+        env:
+          INNOCREW_UPDATE_PRIVATE_KEY: ${{ secrets.INNOCREW_WINDOWS_UPDATE_PRIVATE_KEY }}
+        run: ./mobile/scripts/build-windows.ps1 -Phase Sign
       - uses: actions/upload-artifact@v4
         if: ${{ !inputs.probe_only }}
         with:

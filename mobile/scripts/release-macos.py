@@ -26,6 +26,7 @@ def notarize(path, credentials):
     print(f"Notarization accepted: {path.name}", flush=True)
 
 def main():
+    run('node', 'scripts/sign-desktop-update.mjs', 'macos', '--check-key')
     config = {}
     for line in (ROOT / '.env.release').read_text().splitlines():
         if '=' in line and not line.lstrip().startswith('#'):
@@ -97,6 +98,7 @@ def main():
         run('hdiutil', 'verify', dmg)
         (output / (dmg.name + '.sha256')).write_text(
             hashlib.sha256(dmg.read_bytes()).hexdigest() + '  ' + dmg.name + '\n')
+        run('node', 'scripts/sign-desktop-update.mjs', 'macos', dmg, build)
         print(f'Verified DMG: {dmg}', flush=True)
 
 if __name__ == '__main__':

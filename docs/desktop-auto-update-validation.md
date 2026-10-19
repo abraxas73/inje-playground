@@ -11,10 +11,10 @@ Implementation branch: `feat/desktop-auto-update`. This record is **not** a rele
 - Native test app has identity `com.innogrid.playground.updater-tests` and URL scheme `innocrew-updater-tests`; production installation/data are not the test target.
 - Actual Xcode sandboxed/ad-hoc-signed XCTest run passed six adapter tests (exact feed/enclosure validation, one-click install continuation, cancellation using `.skip`, sanitized error, real system-menu target). Menu responder-chain failure was reproduced and fixed by targeting AppDelegate directly. Result: `/tmp/innocrew-updater-native-debug/Logs/Test/Test-Runner-2026.10.19_17-06-20-+0900.xcresult`.
 - Local transport probe passed cross-host AND cross-port redirect cases with a synthetic bearer. It exercises the default Foundation URLSession configuration used by Sparkle 2.10.0 SPUDownloader, not a real signed artifact upgrade.
+- Windows pinned WinSparkle 0.9.4 actual-DLL redirect probe and C++ lifecycle tests passed on GitHub Windows runner. Full Flutter Windows build and isolated Inno Setup harness passed in run `39221979372` (commit `c08877b`). Unicode/spaced install directory, exact old-process graceful close, exactly one new process, byte-for-byte installed payload, persistent fixture data, unrelated same-named process and 30-second busy-process abort verified. This harness did not yet download a signed update through WinSparkle.
 
 ## Still required before publishing
 
-- Windows native adapter, menu and Setup lifecycle tests/build.
 - Platform update signing keys in secure storage; verified signed immutable publication pipeline.
 - Real two-version signed upgrades on macOS and Windows: old process exits, new version starts exactly once, session/settings preserved.
 - Real signature mismatch, expired authentication, interrupted transfer, busy/locked target and canceled authorization cases.

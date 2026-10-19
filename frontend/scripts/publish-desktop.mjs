@@ -1,30 +1,31 @@
-// From frontend: node --env-file=.env.local scripts/publish-desktop.mjs macos 1.4.5 /path/file.dmg
+// Upload/verify only. Apply emitted compare-and-set SQL through Supabase MCP.
+// node --env-file=.env.local scripts/publish-desktop.mjs PLATFORM VERSION FILE EXPECTED_PLATFORM_SHA256
 import { createClient } from '@supabase/supabase-js';
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { createHash } from 'node:crypto';
-const [platform, version, file] = process.argv.slice(2);
-if (!['macos', 'windows'].includes(platform) || !/^\d+\.\d+\.\d+$/.test(version ?? '') || !file) throw new Error('platform version file required');
-const filename = basename(file);
-if (!/^INNOGRID-[A-Za-z0-9.+-]+\.(dmg|exe)$/.test(filename)) throw new Error('Invalid filename');
-const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
-const bucket = 'desktop-releases';
-const { data: existing, error: bucketError } = await client.storage.getBucket(bucket);
-if (bucketError) {
-  const { error } = await client.storage.createBucket(bucket, { public: false, fileSizeLimit: 209715200 });
-  if (error) throw error;
-} else if (existing.public) throw new Error('Release bucket must be private');
-const body = await readFile(file), path = `${platform}/${version}/${filename}`;
-const sha256 = createHash('sha256').update(body).digest('hex');
-const { error: uploadError } = await client.storage.from(bucket).upload(path, body, { contentType: 'application/octet-stream', upsert: false });
-if (uploadError && String(uploadError.statusCode) !== '409') throw uploadError;
-const { data: downloaded, error: downloadError } = await client.storage.from(bucket).download(path);
-if (downloadError) throw downloadError;
-if (createHash('sha256').update(Buffer.from(await downloaded.arrayBuffer())).digest('hex') !== sha256) throw new Error('Uploaded file hash mismatch');
-const { data, error: readError } = await client.from('settings').select('value').eq('key', 'desktop_app_release').maybeSingle();
-if (readError) throw readError;
-const release = JSON.parse(data?.value ?? '{}');
-release[platform] = { version, filename, path, sha256, bytes: body.length, releasedAt: new Date().toISOString() };
-const { error } = await client.from('settings').upsert({ key: 'desktop_app_release', value: JSON.stringify(release) }, { onConflict: 'key' });
-if (error) throw error;
-console.log(JSON.stringify({ platform, filename, bytes: body.length, sha256, verified: true }));
+import { preparePublication, verifyStoredArtifact, publicationSQL } from './lib/desktop-publication.mjs';
+
+async function main() {
+  const [platform, version, file, expectedHash] = process.argv.slice(2);
+  if (!file) throw new Error('Missing artifact');
+  const body = await readFile(file);
+  const update = JSON.parse(await readFile(`${file}.update.json`, 'utf8'));
+  const keys = JSON.parse(await readFile(new URL('../../mobile/desktop-update-public-keys.json', import.meta.url), 'utf8'));
+  const artifact = preparePublication(platform, version, basename(file), body, update, keys[platform]);
+  const sql = publicationSQL(platform, artifact, expectedHash);
+  const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const bucket = 'desktop-releases';
+  const { data: existing, error: bucketError } = await client.storage.getBucket(bucket);
+  if (bucketError || !existing || existing.public) throw new Error('Private release bucket unavailable');
+  const { error: uploadError } = await client.storage.from(bucket).upload(artifact.path, body, { contentType: 'application/octet-stream', upsert: false });
+  const duplicate = uploadError && (String(uploadError.statusCode) === '409' ||
+    (String(uploadError.statusCode) === '400' && /already exists/i.test(uploadError.message)));
+  if (uploadError && !duplicate) throw new Error('Release upload failed');
+  const { data: downloaded, error: downloadError } = await client.storage.from(bucket).download(artifact.path);
+  if (downloadError || !downloaded) throw new Error('Release verification download failed');
+  verifyStoredArtifact(Buffer.from(await downloaded.arrayBuffer()), artifact);
+  // No SDK database access: MCP applies one platform atomically. Zero returned
+  // rows means stale snapshot/rollback; stop rather than overwrite another job.
+  console.log(JSON.stringify({ platform, artifact, storageVerified: true, published: false, publicationSQL: sql }, null, 2));
+}
+main().catch(() => { console.error('Release preparation failed; no metadata was published. Check immutable artifact, signature, private bucket and expected platform hash.'); process.exitCode = 1; });
