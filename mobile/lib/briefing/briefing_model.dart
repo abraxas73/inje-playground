@@ -90,7 +90,7 @@ DateTime? gwTime(String s) {
   return DateTime.utc(int.parse(d.substring(0, 4)), int.parse(d.substring(4, 6)), int.parse(d.substring(6, 8)), int.parse(d.substring(8, 10)), int.parse(d.substring(10, 12)));
 }
 
-GwEvent _prefixed(GwEvent e, AbsenceKind k) => GwEvent(schSeq: e.schSeq, title: '${k.label}: ${e.title}', start: e.start, end: e.end, allDay: e.allDay, calendar: e.calendar, mcalSeq: e.mcalSeq, mine: e.mine, createName: e.createName, place: e.place);
+GwEvent _prefixed(GwEvent e, AbsenceKind k) => GwEvent(schSeq: e.schSeq, title: '${k.label}: ${e.title}', start: e.start, end: e.end, allDay: e.allDay, calendar: e.calendar, mcalSeq: e.mcalSeq, mine: e.mine, createName: e.createName, place: e.place, attendees: e.attendees, contents: e.contents);
 
 /// 내 일정(myEvents) 시간순. 내 근태는 빼지 않고 "휴가: " 접두를 붙인다.
 List<GwEvent> myMeetings(BriefingData d) {
