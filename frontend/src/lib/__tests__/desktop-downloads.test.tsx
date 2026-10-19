@@ -14,3 +14,9 @@ it("Windows 카드는 실행 전 다운로드 경고(유지 → 그래도 유지
   expect(container.querySelector('a[href="/manual#desktop-install"]')).not.toBeNull();
   expect(container.textContent).toContain("Apple 서명·공증 완료"); // macOS 카드는 경고 안내 없음
 });
+
+it("각 다운로드 버튼 옆에 설치 파일의 KST 업데이트 게시일과 시각을 표시한다", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => release })));
+  render(<DesktopDownloads />);
+  expect(await screen.findAllByText("업데이트 게시: 2026. 10. 13. 01:32 (KST)")).toHaveLength(2);
+});
