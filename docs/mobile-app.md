@@ -193,7 +193,7 @@ Jira/Microsoft 연결 완료 URL(`innogrid://login-callback`)은 화면 경로�
 
 ### Android 업데이트 링크 (2026-10-07)
 
-앱 업데이트 배너·더보기 및 웹 `/apps`의 Android 설치 버튼은 `https://play.google.com/apps/internaltest/4701070333674267983`(Google Play 내부 테스트)로 이동한다. API에서 링크를 내려주므로 기존 설치 앱에도 서버 배포만으로 적용된다. APK·SharePoint 사본 업로드는 릴리스 백업용으로 유지하며 업데이트 버튼은 해당 파일로 연결하지 않는다.
+앱 맨 위 업데이트 띠(모든 탭 화면, 앱으로 돌아올 때 다시 확인)·더보기 및 웹 `/apps`의 Android 설치 버튼은 `https://play.google.com/apps/internaltest/4701070333674267983`(Google Play 내부 테스트)로 이동한다. API에서 링크를 내려주므로 기존 설치 앱에도 서버 배포만으로 적용된다. APK·SharePoint 사본 업로드는 릴리스 백업용으로 유지하며 업데이트 버튼은 해당 파일로 연결하지 않는다.
 
 ### 앱 사용 신청
 

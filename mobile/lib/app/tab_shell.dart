@@ -5,6 +5,9 @@ import '../assistant/innobot_prefs.dart';
 import '../auth/session.dart';
 import '../more/catalog.dart';
 import '../more/service_grid.dart';
+import '../config.dart';
+import '../release/release_check.dart';
+import '../release/release_provider.dart';
 import '../release/update_banner.dart';
 import 'menu_layout.dart';
 import 'router.dart';
@@ -113,8 +116,13 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
         body: Column(
           children: [
             const DesktopUpdateStrip(),
+            const UpdateBanner(),
             Expanded(
-              child: Stack(
+              // 띠가 상단 안전 영역을 차지했으면 아래 화면은 그만큼 다시 비우지 않는다
+              child: MediaQuery.removePadding(
+                context: context,
+                removeTop: hasUpdate(ref.watch(releaseProvider).value, Config.appBuild),
+                child: Stack(
                 children: [
                   widget.shell,
                   if (openIdx >= 0)
@@ -129,6 +137,7 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
                       onDismiss: _close,
                     ),
                 ],
+              ),
               ),
             ),
           ],

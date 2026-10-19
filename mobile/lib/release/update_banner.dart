@@ -72,7 +72,7 @@ class DesktopUpdateStrip extends ConsumerWidget {
   }
 }
 
-/// 홈 맨 위 "새 버전" 한 줄 카드. 서버 빌드가 앱 빌드보다 클 때만 보인다(개발 빌드 0은 안 보임).
+/// Android·iOS 탭 화면 맨 위 띠(데스크톱 `DesktopUpdateStrip`과 같은 자리·모양). 서버 빌드가 앱 빌드보다 클 때만 보인다(개발 빌드 0은 안 보임).
 class UpdateBanner extends ConsumerWidget {
   const UpdateBanner({super.key, this.appBuild = Config.appBuild, this.launch = _launchExternal});
   final int appBuild;
@@ -82,21 +82,25 @@ class UpdateBanner extends ConsumerWidget {
     final r = ref.watch(releaseProvider).value;
     if (!hasUpdate(r, appBuild)) return const SizedBox.shrink();
     final hasLink = r!.url != null;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-      decoration: BoxDecoration(color: Brand.blueTint, borderRadius: BorderRadius.circular(14)),
-      child: Row(children: [
-        const Icon(Icons.system_update_alt, size: 18, color: Brand.blue),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            hasLink ? '새 버전 ${r.version}이 있어요' : '새 버전 ${r.version}이 있어요 · 웹 /apps에서 받으세요',
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Brand.navy),
-          ),
+    return Material(
+      color: Brand.blueTint,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+          child: Row(children: [
+            const Icon(Icons.system_update_alt, size: 18, color: Brand.blue),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                hasLink ? '새 버전 ${r.version}이 있어요' : '새 버전 ${r.version}이 있어요 · 웹 /apps에서 받으세요',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Brand.navy),
+              ),
+            ),
+            if (hasLink) TextButton(onPressed: () => openRelease(ref, launch), child: const Text('업데이트')),
+          ]),
         ),
-        if (hasLink) TextButton(onPressed: () => openRelease(ref, launch), child: const Text('업데이트')),
-      ]),
+      ),
     );
   }
 }

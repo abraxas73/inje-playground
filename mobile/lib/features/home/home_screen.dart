@@ -18,7 +18,7 @@ import '../../gw/gw_notices_card.dart';
 import '../../gw/messenger_open.dart';
 import '../../more/catalog.dart';
 import '../../more/service_grid.dart';
-import '../../release/update_banner.dart';
+import '../../release/release_provider.dart';
 import 'greeting.dart';
 import 'quotes.dart';
 
@@ -60,6 +60,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _checkDay();
+      ref.invalidate(releaseProvider); // 며칠 떠 있는 앱도 돌아올 때 새 버전을 다시 확인한다
     } else if (state == AppLifecycleState.paused) {
       _dailyTimer?.cancel();
     }
@@ -160,7 +161,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               SquareIconButton(icon: Icons.menu_book_outlined, tooltip: '사용자 매뉴얼', onPressed: () => open('/web?path=${Uri.encodeComponent('/manual')}')), // 첫 화면에서 바로 매뉴얼(웹 /manual)로
             ]),
             const SizedBox(height: 14),
-            const UpdateBanner(),
             Text(g.title, style: theme.textTheme.headlineSmall),
             const SizedBox(height: 4),
             Text(g.subtitle, style: theme.textTheme.bodySmall),
