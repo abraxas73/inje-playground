@@ -41,8 +41,12 @@ class QuoteCard extends StatelessWidget {
 
 /// "데일리 브리핑" — Claude가 하루 1회 쓴 2~3문장. 최신 업무 데이터로 다시 생성할 수 있다.
 class BriefingCard extends StatelessWidget {
-  const BriefingCard({super.key, required this.summary, this.busy = false, this.onClockIn, this.onRefresh, this.jira, this.onJiraMore, this.onJiraIssue, this.dooray, this.onDoorayMore, this.onDoorayRetry});
+  const BriefingCard({super.key, required this.summary, this.busy = false, this.onClockIn, this.onRefresh, this.jira, this.onJiraMore, this.onJiraIssue, this.dooray, this.onDoorayMore, this.onDoorayRetry, this.onGwConnect, this.gwRelogin = false});
   final SummaryText? summary;
+  /// 아마란스가 연결돼 있지 않을 때만 넘긴다 — 브리핑에 일정·결재·메일이 빠졌다는 안내와 연결 버튼.
+  /// 보여 줄 브리핑이 없으면 카드째 숨는다(그때는 홈 아래 GwConnectCard가 안내).
+  final VoidCallback? onGwConnect;
+  final bool gwRelogin;
   final JiraBriefing? jira;
   final DoorayBriefing? dooray;
   final VoidCallback? onDoorayMore, onDoorayRetry;
@@ -64,6 +68,15 @@ class BriefingCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (onGwConnect != null) ...[
+            Row(children: [
+              const Icon(Icons.link_off, size: 18, color: Brand.dangerText),
+              const SizedBox(width: 8),
+              Expanded(child: Text(gwRelogin ? '아마란스 로그인이 만료되어 일정·결재·메일이 브리핑에 빠졌습니다.' : '아마란스가 연결되지 않아 일정·결재·메일이 브리핑에 빠졌습니다.', style: const TextStyle(fontSize: 13, color: Brand.dangerText))),
+              TextButton(onPressed: onGwConnect, child: Text(gwRelogin ? '다시 연결' : '연결하기')),
+            ]),
+            const Divider(height: 20),
+          ],
           if (s == null && (busy || !showDooray))
             (busy ? const LinearProgressIndicator(minHeight: 2) : const Text('새로고침을 눌러 브리핑을 받아보세요.'))
           else if (s != null) Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -76,4 +76,16 @@ void main() {
     expect(hits, 1);
     expect(find.text('아마란스 로그인이 만료되었습니다'), findsOneWidget);
   });
+  testWidgets('BriefingCard — 아마란스 미연결·만료면 브리핑에 빠졌다고 알리고 연결 버튼', (tester) async {
+    var hits = 0;
+    await tester.pumpWidget(wrap(BriefingCard(summary: const SummaryText(text: 'Jira 업무 2건이 있습니다.', at: '08:40'), onGwConnect: () => hits++, gwRelogin: true)));
+    expect(find.textContaining('아마란스 로그인이 만료되어'), findsOneWidget);
+    expect(find.text('Jira 업무 2건이 있습니다.'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, '다시 연결'));
+    expect(hits, 1);
+    await tester.pumpWidget(wrap(BriefingCard(summary: null, onGwConnect: () {})));
+    expect(find.text('데일리 브리핑'), findsNothing, reason: '보여 줄 브리핑이 없으면 아래 연결 카드가 안내한다');
+    await tester.pumpWidget(wrap(const BriefingCard(summary: SummaryText(text: 'x', at: '08:40'))));
+    expect(find.textContaining('아마란스'), findsNothing);
+  });
 }

@@ -181,6 +181,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               onDoorayRetry: _refresh,
               onJiraMore: () => open('/web?path=${Uri.encodeComponent('/jira')}'),
               onJiraIssue: (key) => open('/web?path=${Uri.encodeComponent('/jira/$key')}'),
+              onGwConnect: gw != null && gw.status != GwStatus.connected ? () => context.push('/gw/connect') : null,
+              gwRelogin: gw?.status == GwStatus.needsRelogin,
             ),
             if (data != null && !data.errors.containsKey('confluence') && (session?.isAdmin == true || session?.permissions['confluence'] != false))
               ConfluenceSection(
