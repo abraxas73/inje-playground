@@ -10,6 +10,9 @@ int main() {
   assert(!ValidUpdateSignature("\" injected=\"value"));
   UpdateRequest request{"https://innocrew.innogrid.com/api/desktop/update/appcast?platform=windows&version=1.7.8", "fixture-token", "1.7.8", "job-1", signature};
   assert(ValidateUpdateRequest(request, "1.7.7"));
+  // Real Windows builds pass FLUTTER_VERSION with the pubspec build number.
+  assert(ValidateUpdateRequest(request, "1.7.7+58"));
+  assert(!ValidateUpdateRequest(request, "1.7.8+59"));
   assert(!ValidateUpdateRequest(request, "1.7.8"));
   assert(!ValidateUpdateRequest(request, "2.0.0"));
   assert(!ValidateUpdateRequest(request, "dev"));

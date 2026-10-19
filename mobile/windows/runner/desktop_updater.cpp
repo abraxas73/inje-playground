@@ -81,7 +81,7 @@ bool DesktopUpdater::Install(const innocrew::UpdateRequest& request) {
   if (key.empty() || !win_sparkle_set_eddsa_public_key(key.c_str())) return false;
   if (!lifecycle_.Begin(request.session_id, request.version)) return false;
   if (!local_feed_.Start(request.version, request.signature)) { lifecycle_.Reset(); return false; }
-  const std::string version = FLUTTER_VERSION;
+  const std::string version = innocrew::MarketingVersion(FLUTTER_VERSION);
   const std::wstring wide_version(version.begin(), version.end());
   win_sparkle_set_app_details(L"INNOGRID", L"이노크루", wide_version.c_str());
   win_sparkle_set_automatic_check_for_updates(0);

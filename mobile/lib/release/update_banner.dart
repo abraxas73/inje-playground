@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../app/theme.dart';
 import '../config.dart';
+import 'desktop_updater.dart';
 import 'release_check.dart';
 import 'release_provider.dart';
 
@@ -60,9 +61,18 @@ class VersionTrailing extends ConsumerWidget {
   final LaunchFn launch;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final r = ref.watch(releaseProvider).value;
     final style = Theme.of(context).textTheme.bodySmall;
     final current = versionLabel(appVersion, appBuild);
+    // 데스크톱은 앱이 직접 받아 설치한다 — 확인 결과·설치는 상단 업데이트 띠에 뜬다(Windows는 시스템 메뉴가 안 보여서 여기에 둔다).
+    final updater = ref.watch(desktopUpdaterProvider);
+    if (updater != null) {
+      return Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(current, style: style),
+        const SizedBox(width: 4),
+        TextButton(onPressed: () => updater.check(manual: true), child: const Text('업데이트 확인')),
+      ]);
+    }
+    final r = ref.watch(releaseProvider).value;
     if (!hasUpdate(r, appBuild)) return Text(current, style: style);
     if (r!.url == null) {
       return Text('$current · 새 버전 ${r.version}은 웹 /apps에서', style: style);

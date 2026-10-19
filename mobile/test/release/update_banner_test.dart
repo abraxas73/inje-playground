@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:playground/release/desktop_updater.dart';
 import 'package:playground/release/release_check.dart';
 import 'package:playground/release/release_provider.dart';
 import 'package:playground/release/update_banner.dart';
@@ -62,5 +63,28 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, '업데이트').last);
     await tester.pumpAndSettle();
     expect(opened, ['https://x/2', 'https://x/3']);
+  });
+  testWidgets('데스크톱 더보기 버전 줄 — 업데이트 확인 버튼이 수동 확인을 실행한다', (tester) async {
+    var loads = 0;
+    final updater = DesktopUpdater(
+      platform: 'windows',
+      currentVersion: '1.7.9',
+      account: () => 'a',
+      loadRelease: () async { loads++; return null; },
+      refreshToken: () async => 'token',
+    );
+    await tester.pumpWidget(ProviderScope(
+      overrides: [releaseProvider.overrideWith((_) async => newer), desktopUpdaterProvider.overrideWithValue(updater)],
+      child: const MaterialApp(home: Scaffold(body: VersionTrailing(appVersion: '1.7.9', appBuild: 60))),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('1.7.9 (60)'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '업데이트'), findsNothing);
+    await tester.tap(find.widgetWithText(TextButton, '업데이트 확인'));
+    await tester.pumpAndSettle();
+    expect(loads, 1);
+    expect(updater.state.visible, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+    updater.dispose();
   });
 }

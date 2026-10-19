@@ -39,10 +39,14 @@ inline bool ParseUpdateVersion(const std::string& value, std::array<uint32_t, 3>
   return true;
 }
 
+/// Flutter's FLUTTER_VERSION carries the pubspec build number ("1.7.9+60");
+/// update versions compare on the marketing version only.
+inline std::string MarketingVersion(const std::string& value) { return value.substr(0, value.find('+')); }
+
 inline bool ValidateUpdateRequest(const UpdateRequest& r, const std::string& current) {
   if (!ValidUpdateSignature(r.signature)) return false;
   std::array<uint32_t, 3> wanted{}, installed{};
-  if (!ParseUpdateVersion(r.version, wanted) || !ParseUpdateVersion(current, installed) || wanted <= installed) return false;
+  if (!ParseUpdateVersion(r.version, wanted) || !ParseUpdateVersion(MarketingVersion(current), installed) || wanted <= installed) return false;
   if (r.feed_url != "https://innocrew.innogrid.com/api/desktop/update/appcast?platform=windows&version=" + r.version) return false;
   if (r.token.empty() || r.token.size() >= 8192 || r.session_id.empty() || r.session_id.size() > 128) return false;
   for (unsigned char c : r.token) if (c <= 32 || c >= 127) return false;
