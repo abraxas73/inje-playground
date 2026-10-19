@@ -53,6 +53,9 @@ jobs:
       - name: Verify actual signed updater lifecycle
         shell: pwsh
         run: node mobile/scripts/test-windows-signed-upgrade.mjs
+      - name: Verify redirected feed credential isolation
+        shell: pwsh
+        run: node mobile/scripts/test-windows-feed-credential-chain.mjs
       - name: Build installer
         if: ${{ !inputs.probe_only }}
         shell: pwsh

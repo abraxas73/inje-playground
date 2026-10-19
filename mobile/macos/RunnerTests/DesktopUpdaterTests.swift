@@ -82,4 +82,15 @@ final class DesktopUpdaterTests: XCTestCase {
     driver.showReady { choice = $0 }
     XCTAssertEqual(choice, .skip)
   }
+
+  func testCompletionWithoutRelaunchReportsTerminalError() throws {
+    let job = try DesktopUpdateSession(arguments: args())
+    var phases: [String] = []
+    let driver = UpdaterUserDriver(session: job, status: { phase, _ in phases.append(phase) }, finished: {})
+    var acknowledged = false
+    driver.showUpdateInstalledAndRelaunched(false) { acknowledged = true }
+    XCTAssertTrue(acknowledged)
+    XCTAssertEqual(phases, ["error"])
+    XCTAssertFalse(job.authorized)
+  }
 }
