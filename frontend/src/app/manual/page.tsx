@@ -8,6 +8,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { manualSections, searchManual } from "@/lib/manual/sections";
 
+function renderStep(step: string, emphasis?: string) {
+  if (!emphasis) return step;
+  const start = step.indexOf(emphasis);
+  if (start < 0) return step;
+  return <>
+    {step.slice(0, start)}
+    <strong className="rounded bg-amber-100 px-1.5 py-0.5 font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-200">{emphasis}</strong>
+    {step.slice(start + emphasis.length)}
+  </>;
+}
+
 export default function ManualPage() {
   const [query, setQuery] = useState("");
   const sections = searchManual(query);
@@ -46,7 +57,7 @@ export default function ManualPage() {
           <h2 id={`${section.id}-heading`} className="mb-3 text-xl font-bold">{section.title}</h2>
           <p className="mb-5 text-sm leading-relaxed text-muted-foreground">{section.description}</p>
           <ol className="ml-5 list-decimal space-y-3 marker:font-semibold marker:text-primary">
-            {section.steps.map((step) => <li key={step} className="pl-1 text-sm leading-7">{step}</li>)}
+            {section.steps.map((step, index) => <li key={step} className="pl-1 text-sm leading-7">{renderStep(step, section.emphasis?.find((item) => item.step === index)?.text)}</li>)}
           </ol>
           {section.note && <p className="mt-5 rounded-lg bg-muted p-4 text-sm leading-relaxed"><strong>알아두세요. </strong>{section.note}</p>}
           {section.images && <div className="mt-5 grid gap-4 sm:grid-cols-2">
