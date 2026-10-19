@@ -121,7 +121,7 @@ export default function HomePage() {
 
   const canChat = canAccessPage("/chat");
   return (
-    <div className="py-6 md:py-10">
+    <div className="pt-2 pb-6 md:pt-4 md:pb-10">
       <DesktopAppCard />
       <DailyGreeting />
       {canChat && <><HomeChatBox /><RecentConversations /></>}
