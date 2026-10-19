@@ -19,10 +19,12 @@ class DesktopUpdater {
   ~DesktopUpdater();
   std::optional<LRESULT> HandleMessage(UINT message, WPARAM wparam);
  private:
-  struct Event { std::string id, version, phase; };
+  /// reason: fixed step name of a terminal installer failure (never remote text); win_error: GetLastError; attempts: tries made.
+  struct Event { std::string id, version, phase, reason; uint32_t win_error = 0; int attempts = 0; };
   bool Install(const innocrew::UpdateRequest& request);
   void Cleanup();
   void PostStatus(const char* phase);
+  void PostFailure(const char* reason, uint32_t win_error, int attempts);
   void DrainEvents();
   int RunInstaller(const wchar_t* filename);
   static void __cdecl Failed();

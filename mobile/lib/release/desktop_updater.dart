@@ -40,6 +40,7 @@ class DesktopUpdater extends ChangeNotifier {
     required this.account,
     required this.loadRelease,
     required this.refreshToken,
+    this.reportFailure,
     this._channel = const MethodChannel('com.innogrid.playground/updater'),
   }) {
     _channel.setMethodCallHandler(_onNativeCall);
@@ -48,6 +49,8 @@ class DesktopUpdater extends ChangeNotifier {
   final String? Function() account;
   final Future<DesktopReleaseInfo?> Function() loadRelease;
   final Future<String?> Function() refreshToken;
+  /// 네이티브가 알려 준 설치 실패 단계·OS 오류 코드를 서버 감사 로그로(실패해도 무시). 토큰·경로는 넣지 않는다.
+  final Future<void> Function(Map<String, Object> failure)? reportFailure;
   final MethodChannel _channel;
   final String _instance = DateTime.now().microsecondsSinceEpoch.toString();
   DesktopUpdateState _state = const DesktopUpdateState(DesktopUpdatePhase.idle);
@@ -265,6 +268,10 @@ class DesktopUpdater extends ChangeNotifier {
     if (phase == 'error' || phase == 'cancelled') {
       final epoch = _epoch;
       final id = _activeAccount!;
+      final failure = phase == 'error' ? nativeFailure(args) : null;
+      if (failure != null && reportFailure != null) {
+        unawaited(reportFailure!({'platform': platform, 'version': state.release?.version ?? '', ...failure}).catchError((_) {}));
+      }
       await _cancelNative();
       if (_current(epoch, id)) {
         _set(
@@ -272,7 +279,7 @@ class DesktopUpdater extends ChangeNotifier {
             DesktopUpdatePhase.error,
             message: _cancelFailed
                 ? '이전 업데이트를 안전하게 정리하지 못했습니다. 앱을 완전히 종료한 후 다시 실행해 주세요.'
-                : '업데이트에 실패했습니다. 다시 확인해 주세요.',
+                : '업데이트에 실패했습니다. 다시 확인해 주세요.${failure == null ? '' : ' (오류 코드 ${failure['reason']}-${failure['winError']})'}',
             visible: true,
           ),
         );
@@ -316,6 +323,14 @@ class DesktopUpdater extends ChangeNotifier {
   }
 }
 
+/// Windows 설치 단계 실패(desktop_updater.cpp PostFailure) — 정해진 단계 이름과 정수만 받는다(그 밖의 값은 버림).
+const nativeFailureReasons = {'file', 'arguments', 'name', 'version', 'session', 'launch'};
+Map<String, Object>? nativeFailure(Map args) {
+  final reason = args['reason'], code = args['winError'], attempts = args['attempts'];
+  if (reason is! String || !nativeFailureReasons.contains(reason) || code is! int || code < 0 || code > 0xFFFFFFFF || attempts is! int || attempts < 1 || attempts > 10) return null;
+  return {'reason': reason, 'winError': code, 'attempts': attempts};
+}
+
 final desktopUpdaterProvider = Provider<DesktopUpdater?>((ref) {
   if (kIsWeb ||
       (defaultTargetPlatform != TargetPlatform.macOS &&
@@ -344,6 +359,7 @@ final desktopUpdaterProvider = Provider<DesktopUpdater?>((ref) {
           ),
     ),
     refreshToken: () => ref.read(apiClientProvider).tokens.refreshToken(),
+    reportFailure: (f) async => ref.read(apiClientProvider).postJson('/api/desktop/update-failure', f),
   );
   ref.listen(sessionProvider, (_, _) {
     unawaited(updater.sessionChanged());

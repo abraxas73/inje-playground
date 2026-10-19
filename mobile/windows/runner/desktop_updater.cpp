@@ -120,6 +120,12 @@ void DesktopUpdater::PostStatus(const char* phase) {
   { std::lock_guard<std::mutex> lock(events_mutex_); events_.push_back({identity.first, identity.second, phase}); }
   PostMessageW(window_, kStatusMessage, 0, 0);
 }
+void DesktopUpdater::PostFailure(const char* reason, uint32_t win_error, int attempts) {
+  const auto identity = lifecycle_.Identity();
+  if (identity.first.empty()) return;
+  { std::lock_guard<std::mutex> lock(events_mutex_); events_.push_back({identity.first, identity.second, "error", reason, win_error, attempts}); }
+  PostMessageW(window_, kStatusMessage, 0, 0);
+}
 void DesktopUpdater::DrainEvents() {
   std::deque<Event> events;
   { std::lock_guard<std::mutex> lock(events_mutex_); events.swap(events_); }
@@ -129,8 +135,13 @@ void DesktopUpdater::DrainEvents() {
       if (lifecycle_.Committed()) continue;
       lifecycle_.Cancel(event.id); Cleanup();
     }
-    channel_->InvokeMethod("status", std::make_unique<Value>(Map{
-      {Value("sessionId"), Value(event.id)}, {Value("version"), Value(event.version)}, {Value("phase"), Value(event.phase)}}));
+    Map status{{Value("sessionId"), Value(event.id)}, {Value("version"), Value(event.version)}, {Value("phase"), Value(event.phase)}};
+    if (!event.reason.empty()) {
+      status[Value("reason")] = Value(event.reason);
+      status[Value("winError")] = Value(static_cast<int64_t>(event.win_error));
+      status[Value("attempts")] = Value(event.attempts);
+    }
+    channel_->InvokeMethod("status", std::make_unique<Value>(std::move(status)));
   }
 }
 
@@ -167,23 +178,39 @@ int __cdecl DesktopUpdater::InstallPayload(const wchar_t* filename) {
 int DesktopUpdater::RunInstaller(const wchar_t* filename) {
   // WinSparkle invokes this only after Ed25519 verification (pinned 0.9.4).
   // Never return 0: that would allow remote appcast installerArguments to run.
-  if (!filename) return -1;
+  if (!filename) { PostFailure("file", 0, 1); return -1; }
   const auto identity = lifecycle_.Identity();
   const std::string expected = "INNOGRID-Windows-" + identity.second + "-Setup.exe";
   const std::wstring expected_wide(expected.begin(), expected.end());
   const auto basename = std::filesystem::path(filename).filename().wstring();
   const auto args = innocrew::InstallerArguments(install_directory_, GetCurrentProcessId());
-  if (args.empty() || CompareStringOrdinal(basename.c_str(), -1, expected_wide.c_str(), -1, TRUE) != CSTR_EQUAL ||
-      !InstallerVersionMatches(filename, identity.second)) { PostStatus("error"); return -1; }
-  if (!lifecycle_.BeginInstall()) return -1;
-  SHELLEXECUTEINFOW execute{};
-  execute.cbSize = sizeof(execute);
-  execute.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI;
-  execute.hwnd = window_; execute.lpVerb = L"open"; execute.lpFile = filename;
-  execute.lpParameters = args.c_str(); execute.lpDirectory = install_directory_.c_str(); execute.nShow = SW_SHOWNORMAL;
-  const bool success = ShellExecuteExW(&execute) != FALSE;
-  if (execute.hProcess) CloseHandle(execute.hProcess);
+  if (args.empty()) { PostFailure("arguments", 0, 1); return -1; }
+  if (CompareStringOrdinal(basename.c_str(), -1, expected_wide.c_str(), -1, TRUE) != CSTR_EQUAL) { PostFailure("name", 0, 1); return -1; }
+  // Bounded retries only for "file briefly held" errors (policy header). A readable file with
+  // the wrong version reports ERROR_SUCCESS and fails at once.
+  for (int attempt = 1;; ++attempt) {
+    SetLastError(ERROR_SUCCESS);
+    if (InstallerVersionMatches(filename, identity.second)) break;
+    const DWORD code = GetLastError();
+    if (!innocrew::ShouldRetryLaunch(attempt, code)) { PostFailure("version", code, attempt); return -1; }
+    Sleep(innocrew::LaunchRetryDelayMs(attempt));
+  }
+  if (!lifecycle_.BeginInstall()) { PostFailure("session", 0, 1); return -1; }
+  bool success = false; DWORD code = ERROR_SUCCESS; int attempt = 1;
+  for (;; ++attempt) {
+    SHELLEXECUTEINFOW execute{};
+    execute.cbSize = sizeof(execute);
+    execute.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI;
+    execute.hwnd = window_; execute.lpVerb = L"open"; execute.lpFile = filename;
+    execute.lpParameters = args.c_str(); execute.lpDirectory = install_directory_.c_str(); execute.nShow = SW_SHOWNORMAL;
+    // FALSE means no process was created, so another try cannot start a second installer.
+    success = ShellExecuteExW(&execute) != FALSE;
+    code = success ? ERROR_SUCCESS : GetLastError();
+    if (execute.hProcess) CloseHandle(execute.hProcess);
+    if (success || !innocrew::ShouldRetryLaunch(attempt, code)) break;
+    Sleep(innocrew::LaunchRetryDelayMs(attempt));
+  }
   lifecycle_.InstallerResult(success);
-  PostStatus(success ? "installing" : "error");
+  if (success) PostStatus("installing"); else PostFailure("launch", code, attempt);
   return success ? 1 : -1;
 }

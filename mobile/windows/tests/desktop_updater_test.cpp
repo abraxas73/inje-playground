@@ -27,6 +27,16 @@ int main() {
   invalid = request; invalid.version = "1.7.999999999999999999999999999";
   assert(!ValidateUpdateRequest(invalid, "1.7.7"));
 
+  // Installer launch retries: only "briefly held" errors, never more than kLaunchAttempts tries.
+  assert(TransientLaunchError(5) && TransientLaunchError(32) && TransientLaunchError(33));
+  assert(!TransientLaunchError(0) && !TransientLaunchError(2) && !TransientLaunchError(225) && !TransientLaunchError(1223));
+  assert(ShouldRetryLaunch(1, 32) && ShouldRetryLaunch(2, 32));
+  assert(!ShouldRetryLaunch(kLaunchAttempts, 32));
+  assert(!ShouldRetryLaunch(1, 0)); // readable file, wrong version: fail at once
+  int tries = 1; while (ShouldRetryLaunch(tries, 5)) ++tries;
+  assert(tries == kLaunchAttempts);
+  assert(LaunchRetryDelayMs(1) == 2000 && LaunchRetryDelayMs(2) == 4000);
+
   UpdateLifecycle lifecycle;
   assert(lifecycle.Begin("job-1", "1.7.8"));
   assert(!lifecycle.Begin("job-2", "1.7.9"));

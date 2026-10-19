@@ -203,6 +203,31 @@ void main() {
       expect(updater.state.message, isNot(contains('secret-access-token')));
     },
   );
+  test('nativeFailure keeps only known step names and integer codes', () {
+    expect(nativeFailure({'reason': 'launch', 'winError': 32, 'attempts': 3}), {'reason': 'launch', 'winError': 32, 'attempts': 3});
+    expect(nativeFailure({'reason': 'secret-access-token', 'winError': 32, 'attempts': 1}), isNull);
+    expect(nativeFailure({'reason': 'launch', 'winError': 'x', 'attempts': 1}), isNull);
+    expect(nativeFailure({'code': 'secret-access-token'}), isNull);
+  });
+  test('installer failure is reported and shown with its code', () async {
+    final reports = <Map<String, Object>>[];
+    final reporting = DesktopUpdater(
+      platform: 'windows',
+      currentVersion: '1.7.7',
+      account: () => account,
+      loadRelease: () => Future.value(signedRelease),
+      refreshToken: () => Future.value('token'),
+      reportFailure: (f) async => reports.add(f),
+    );
+    addTearDown(reporting.dispose);
+    await reporting.check(manual: false);
+    await reporting.start();
+    final install = Map<String, dynamic>.from(calls.lastWhere((c) => c.method == 'install').arguments);
+    await nativeStatus({'phase': 'error', 'version': '1.7.8', 'sessionId': install['sessionId'], 'reason': 'launch', 'winError': 32, 'attempts': 3});
+    expect(reporting.state.phase, DesktopUpdatePhase.error);
+    expect(reporting.state.message, contains('오류 코드 launch-32'));
+    expect(reports, [{'platform': 'windows', 'version': '1.7.8', 'reason': 'launch', 'winError': 32, 'attempts': 3}]);
+  });
   test('account switch during discovery discards the old response', () async {
     final pending = Completer<DesktopReleaseInfo?>();
     load = () => pending.future;
