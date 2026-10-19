@@ -190,7 +190,7 @@ class MeetingsSection extends StatelessWidget {
       trailing: _more('일정', onMore),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         for (final e in shown)
-          ListTile(dense: true, leading: SizedBox(width: 52, child: Text(e.allDay ? '종일' : hm(e.start), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.navy))), title: Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: e.place.isEmpty ? null : Text(e.place, style: const TextStyle(fontSize: 12))),
+          ListTile(dense: true, onTap: onMore, leading: SizedBox(width: 52, child: Text(e.allDay ? '종일' : hm(e.start), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.navy))), title: Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: e.place.isEmpty ? null : Text(e.place, style: const TextStyle(fontSize: 12))),
         if (rest > 0 || tomorrowCount > 0)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
@@ -247,10 +247,12 @@ class ApprovalsSection extends StatelessWidget {
 }
 
 class MailsSection extends StatelessWidget {
-  const MailsSection({super.key, required this.items, required this.unreadTotal, required this.onMore});
+  const MailsSection({super.key, required this.items, required this.unreadTotal, required this.onMore, this.onOpen});
   final List<MailItem> items;
   final int unreadTotal;
   final VoidCallback onMore;
+  /// 메일 한 통을 눌렀을 때(상세 화면). 없으면 목록(onMore)으로.
+  final ValueChanged<MailItem>? onOpen;
   @override
   Widget build(BuildContext context) {
     final unread = items.where((m) => !m.seen).take(3).toList();
@@ -259,7 +261,7 @@ class MailsSection extends StatelessWidget {
       title: '안 읽은 메일 $unreadTotal',
       trailing: _more('더 보기', onMore),
       child: Column(children: [
-        for (final m in unread) ListTile(dense: true, leading: InitialBadge(m.fromName, size: 32, circle: true), title: Text(m.subject, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text('${m.fromName} · ${niceDate(m.tooltip.isNotEmpty ? m.tooltip : m.date)}', style: const TextStyle(fontSize: 12))),
+        for (final m in unread) ListTile(dense: true, onTap: () => (onOpen ?? (_) => onMore())(m), leading: InitialBadge(m.fromName, size: 32, circle: true), title: Text(m.subject, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text('${m.fromName} · ${niceDate(m.tooltip.isNotEmpty ? m.tooltip : m.date)}', style: const TextStyle(fontSize: 12))),
       ]),
     );
   }
