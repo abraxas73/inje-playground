@@ -55,8 +55,8 @@ Future<String> webBootstrapUrl(
   );
 }
 
-/// Windows WebView2는 서버 307로 이동한 `/login`을 navigation delegate에 알리지 않을 수 있다.
-/// 첫 화면부터 네이티브 Bearer 세션으로 웹 쿠키를 만들면 로그인 페이지와 외부 브라우저로 빠지지 않는다.
+/// Windows의 임시 WebView 프로필은 시작 시 웹 세션이 없다.
+/// 첫 화면부터 네이티브 Bearer 세션으로 웹 쿠키를 만들어 로그인 리다이렉트에 의존하지 않는다.
 Future<String> initialWebSessionUrl(
   ApiClient api,
   String apiBase,
@@ -116,12 +116,24 @@ bool isIgnorableWebError({required int code, required String description}) {
   return d.contains('cancel') || d.contains('interrupt');
 }
 
-/// 머리 제목: 페이지 제목이 있으면 그것, 로딩 중이면 "로딩 중…", 아니면 경로.
-String webTitleFor({
-  required String title,
-  required bool loading,
-  required String path,
-}) => title.isNotEmpty ? title : (loading ? '로딩 중…' : path);
+/// WebView2는 실제 문서 제목이 오기 전 URL을 제목으로 반환할 수 있다.
+/// 주소나 인증 토큰을 앱 상단에 노출하지 않고, 제목이 없으면 앱 이름을 쓴다.
+String webTitleFor({required String title, required bool loading}) {
+  final text = title.trim();
+  final uri = Uri.tryParse(text);
+  final isAddress =
+      text.startsWith('/') ||
+      (uri != null &&
+          const {
+            'http',
+            'https',
+            'about',
+            'file',
+            'data',
+          }.contains(uri.scheme));
+  if (text.isNotEmpty && !isAddress) return text;
+  return loading ? '로딩 중…' : '이노그리드';
+}
 
 /// 뒤로 가다가 닿으면 "세션 시작점을 지난 것"인 페이지 — /login(세션 없음)·/auth/mobile(부트스트랩). 여기 닿으면 WebView 안에서 더 뒤로 갈 곳이 없으니 화면을 닫는다.
 /// Android WebView는 첫 로드에서 가로챈(/settings → 307 /login) 내비게이션을 히스토리에 남겨 canGoBack()이 true가 되고, goBack()은 그 /login을 실제로 연다(실기기 실측 2026-10-04).

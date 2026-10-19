@@ -17,7 +17,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 MOBILE="$ROOT/mobile"
-APP_URL="https://inje-playground.vercel.app"
+APP_URL="https://innocrew.innogrid.com"
 TARGET=${1:-}; [ $# -gt 0 ] && shift
 FOLDER_URL=""; if [ "$TARGET" = sharepoint-folder ]; then FOLDER_URL=${1:-}; [ $# -gt 0 ] && shift; case "$FOLDER_URL" in http://*|https://*) ;; *) echo "sharepoint-folder에는 폴더 링크(https://…)가 필요합니다." >&2; exit 2;; esac; fi
 NOTES=""; TF_URL=""; DRY=0; ALLOW_DIRTY=0
@@ -263,8 +263,8 @@ fi
 
 # 7. 다음 할 일
 say "다음 할 일"
-[ "$DO_ANDROID" = 1 ] && echo "  · Android: 웹 https://inje-playground.vercel.app/apps 에서 바로 받을 수 있습니다. 설치된 앱은 다음 실행 때 배너로 안내합니다."
+[ "$DO_ANDROID" = 1 ] && echo "  · Android: 웹 $APP_URL/apps 에서 바로 받을 수 있습니다. 설치된 앱은 다음 실행 때 배너로 안내합니다."
 [ "$TARGET" = sharepoint-folder ] && echo "  · 다음 android 릴리스부터 APK 사본이 이 폴더에 innogrid-app-<X.Y.Z>.apk로 올라갑니다. 지금 것은: $0 sharepoint"
 [ "$TARGET" = link ] && echo "  · 웹 /apps의 'TestFlight에서 열기' 버튼과 iOS 앱 배너 링크가 이 주소를 씁니다."
 [ "$DO_IOS" = 1 ] && echo "  · iOS: App Store Connect → TestFlight에서 처리 완료 후 내부 테스트로 확인하세요. 외부 테스트 심사는 운영자의 명시적 요청이 있을 때만 제출합니다."
-echo "  · 공지 예시: [이노그리드 앱 $VERSION] ${NOTES:-변경 내용} — 설치·업데이트: https://inje-playground.vercel.app/apps"
+echo "  · 공지 예시: [이노그리드 앱 $VERSION] ${NOTES:-변경 내용} — 설치·업데이트: $APP_URL/apps"

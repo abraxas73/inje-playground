@@ -7,6 +7,7 @@ import 'package:flutter_inappwebview_platform_interface/flutter_inappwebview_pla
     as ia;
 import 'package:flutter_inappwebview_windows/flutter_inappwebview_windows.dart'
     as win;
+import 'windows_webview_settings.dart';
 
 /// Keep the existing Apple/Android engines; use WebView2 only on Windows.
 class AppNavigationDelegate {
@@ -14,12 +15,14 @@ class AppNavigationDelegate {
     this.onNavigationRequest,
     this.onPageStarted,
     this.onPageFinished,
+    this.onTitleChanged,
     this.onUrlChange,
     this.onWebResourceError,
   });
   final FutureOr<NavigationDecision> Function(NavigationRequest)?
   onNavigationRequest;
   final void Function(String)? onPageStarted, onPageFinished;
+  final void Function(String?)? onTitleChanged;
   final void Function(UrlChange)? onUrlChange;
   final void Function(WebResourceError)? onWebResourceError;
 }
@@ -87,9 +90,7 @@ class AppWebController {
       await native!.setUserAgent(value);
       return;
     }
-    await (await _ready.future).setSettings(
-      settings: ia.InAppWebViewSettings(userAgent: value),
-    );
+    await setWindowsUserAgent(await _ready.future, value);
   }
 
   Future<String?> getTitle() async =>
@@ -167,6 +168,7 @@ class AppWebController {
         onWebViewCreated: (controller) => _ready.complete(controller),
         onLoadStart: (_, url) => _delegate?.onPageStarted?.call(url.toString()),
         onLoadStop: (_, url) => _delegate?.onPageFinished?.call(url.toString()),
+        onTitleChanged: (_, title) => _delegate?.onTitleChanged?.call(title),
         onUpdateVisitedHistory: (_, url, _) =>
             _delegate?.onUrlChange?.call(UrlChange(url: url?.toString())),
         shouldOverrideUrlLoading: (_, action) async {

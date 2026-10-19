@@ -1,7 +1,7 @@
 class Config {
   static const apiBase = String.fromEnvironment(
     'API_BASE',
-    defaultValue: 'https://inje-playground.vercel.app',
+    defaultValue: 'https://innocrew.innogrid.com',
   );
   static const supabaseUrl = 'https://avooqcxehfeurjhqqgui.supabase.co';
 
