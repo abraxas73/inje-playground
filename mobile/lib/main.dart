@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'api/client.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'release/desktop_update_host.dart';
 import 'assistant/innobot_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -86,8 +87,35 @@ class _AppState extends ConsumerState<App> {
       title: '이노그리드',
       theme: appTheme(),
       routerConfig: _router,
+      // 기본 위젯 문구(글자 선택의 복사·전체 선택, 날짜 선택 등)를 한국어로
+      locale: const Locale('ko'),
+      supportedLocales: const [Locale('ko'), Locale('en')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       // 이노봇 버튼은 앱 전체 위에 한 번 — 탭·웹·아마란스·Dooray 어느 화면에서나(InnobotOverlay)
-      builder: (context, child) => DesktopUpdateHost(child: Stack(children: [DoorayCalendarHost(child: child ?? const SizedBox.shrink()), InnobotOverlay(router: _router)])),
+      // 모든 네이티브 화면의 글자를 끌어서(데스크톱)·길게 눌러(모바일) 골라 복사 — 이노봇 버튼 레이어는 밖(길게 눌러 옮기기와 겹치지 않게)
+      builder: (context, child) => DesktopUpdateHost(child: Stack(children: [DoorayCalendarHost(child: SelectAllText(child: child ?? const SizedBox.shrink())), InnobotOverlay(router: _router)])),
     );
   }
+}
+
+/// 앱 전체 글자 선택·복사. SelectionArea는 선택 손잡이·복사 메뉴를 띄울 Overlay가 위에 있어야 하는데 builder 자리는 Navigator 밖이라
+/// 전용 Overlay를 하나 둔다. 엔트리는 한 번만 만들고, child가 바뀌면 다시 그리게 한다. 웹 화면(WebView)은 웹뷰 자체 선택을 쓴다.
+class SelectAllText extends StatefulWidget {
+  const SelectAllText({super.key, required this.child});
+  final Widget child;
+  @override
+  State<SelectAllText> createState() => _SelectAllTextState();
+}
+
+class _SelectAllTextState extends State<SelectAllText> {
+  late final OverlayEntry _entry = OverlayEntry(builder: (_) => SelectionArea(child: widget.child));
+
+  @override
+  void didUpdateWidget(SelectAllText old) {
+    super.didUpdateWidget(old);
+    if (old.child != widget.child) _entry.markNeedsBuild();
+  }
+
+  @override
+  Widget build(BuildContext context) => Overlay(initialEntries: [_entry]);
 }
