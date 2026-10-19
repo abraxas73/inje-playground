@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
 import { DESKTOP_BUCKET, DESKTOP_RELEASE_KEY, DesktopPlatform, parseDesktopRelease } from "@/lib/desktop/release";
+import { canAutoUpdate, UPDATE_HEADERS, UPDATE_ORIGIN } from "@/lib/desktop/update-feed";
 
 export async function GET(request: NextRequest) {
   const r = await requireUser();
@@ -20,6 +21,12 @@ export async function GET(request: NextRequest) {
   const artifact = release[platform];
   if (!artifact) {
     return NextResponse.json({ error: "설치 파일을 준비 중입니다." }, { status: 404 });
+  }
+  if (request.nextUrl.searchParams.get("mode") === "automatic") {
+    return NextResponse.json({ ...artifact,
+      update: canAutoUpdate(platform, artifact) ? artifact.update : undefined,
+      url: `${UPDATE_ORIGIN}/api/desktop/update/artifact/${platform}/${encodeURIComponent(artifact.version)}`,
+    }, { headers: UPDATE_HEADERS });
   }
   const { data: signed, error: signingError } = await r.admin.storage
     .from(DESKTOP_BUCKET)
