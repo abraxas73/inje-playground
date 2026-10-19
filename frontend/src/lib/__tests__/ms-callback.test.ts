@@ -55,19 +55,22 @@ it("일치하는 세션과 state만 연결을 저장한다", async () => {
   expect(m.save).toHaveBeenCalledWith(m.admin, key, expect.objectContaining({ userId: "u1", refreshToken: "rt" }));
 });
 
-it("앱 연결 완료는 JavaScript 완료 화면을 거치지 않고 등록된 앱 스킴으로 직접 리다이렉트한다", async () => {
+it("앱 연결 완료는 자동 복귀와 사용자가 누를 수 있는 앱 복귀 링크를 함께 제공한다", async () => {
   const res = await GET(req("u1", Date.now() / 1000 + 600, true));
-  expect(res.status).toBe(302);
-  expect(res.headers.get("location")).toBe("innogrid://login-callback?ms_connected=1");
+  expect(res.status).toBe(200);
+  expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
   expect(res.headers.get("cache-control")).toBe("no-store");
-  expect(await res.text()).toBe("");
+  const html = await res.text();
+  expect(html).toContain('href="innogrid://login-callback?ms_connected=1"');
+  expect(html).toContain("window.location.replace");
+  expect(html).not.toContain("/settings");
   expect(m.save).toHaveBeenCalledTimes(1);
 });
 it("앱에서 발급한 서명 state는 브라우저 쿠키 없이도 state의 사용자에게 저장한다", async () => {
   m.status = 401;
   const res = await GET(req("u2", Date.now() / 1000 + 600, true));
-  expect(res.status).toBe(302);
-  expect(res.headers.get("location")).toBe("innogrid://login-callback?ms_connected=1");
+  expect(res.status).toBe(200);
+  expect(await res.text()).toContain("innogrid://login-callback?ms_connected=1");
   expect(m.save).toHaveBeenCalledWith(m.admin, key, expect.objectContaining({ userId: "u2" }));
 });
 it("앱 state의 사용자 이메일과 동의한 Microsoft 계정이 다르면 토큰을 저장하지 않는다", async () => {
@@ -112,4 +115,15 @@ it("connect는 앱 복귀 플래그를 서명하며 일반 웹 요청은 표시�
     expect(url.searchParams.has("prompt")).toBe(false);
     expect(verifyState(url.searchParams.get("state")!, key)?.a).toBe(expected);
   }
+});
+it("Windows WebView가 연결 이동을 가로채지 못해도 앱 User-Agent면 앱 복귀 state를 서명한다", async () => {
+  const { GET: connect } = await import("@/app/api/ms/connect/route");
+  const { verifyState } = await import("@/lib/ms/crypto");
+  const res = await connect(new NextRequest("https://inje-playground.vercel.app/api/ms/connect?returnTo=%2Fsettings", {
+    headers: { "user-agent": "Mozilla/5.0 InnogridApp/1.7.4 (windows) InnogridBuild/55" },
+  }));
+  expect(res.status).toBe(302);
+  const url = new URL(res.headers.get("location")!);
+  expect(url.origin).toBe("https://login.microsoftonline.com");
+  expect(verifyState(url.searchParams.get("state")!, key)).toMatchObject({ u: "u1", r: "/settings", a: true });
 });
