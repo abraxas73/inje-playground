@@ -1,5 +1,4 @@
 import { isInnogridAppUA } from "@/lib/mobile/app-ua";
-import { oauthNotice } from "@/lib/mobile/oauth-notice";
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
 import { createServerSupabase } from "@/lib/supabase-server";
@@ -15,11 +14,6 @@ export const runtime = "nodejs";
  * 400 허용되지 않은 오리진 / 500 설정 누락(항목명 포함).
  */
 export async function GET(request: NextRequest) {
-  // 최신 앱은 이 요청을 가로채 Safari/Chrome에 별도 세션을 먼저 만든다.
-  // 여기까지 WebView UA로 도달했다면 쿠키가 분리되는 구버전 경로다.
-  if (isInnogridAppUA(request.headers.get("user-agent") || "")) {
-    return oauthNotice("현재 앱에서는 안전한 계정 연결을 시작할 수 없습니다. 최신 앱이 필요합니다.", 426);
-  }
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
 
@@ -33,7 +27,11 @@ export async function GET(request: NextRequest) {
   }
 
   const returnTo = sanitizeReturnTo(request.nextUrl.searchParams.get("returnTo"));
-  const appReturn = request.nextUrl.searchParams.get("app_return") === "1";
+  // Windows WebView2가 내비게이션 가로채기를 놓쳐 이 GET까지 도달해도 앱 전용 state로 처리한다.
+  // 콜백에서는 앱 사용자와 Microsoft 이메일을 다시 비교하므로 웹 세션을 앱 연결로 위조할 수 없다.
+  const appReturn =
+    isInnogridAppUA(request.headers.get("user-agent") || "") ||
+    request.nextUrl.searchParams.get("app_return") === "1";
   const state = signState({ u: auth.userId, n: newNonce(), r: returnTo, e: Math.floor(Date.now() / 1000) + STATE_TTL_S, ...(appReturn ? { a: true as const } : {}) }, cfg.config.encKey);
   const url = buildAuthorizeUrl({ tenantId: cfg.config.app.tenantId, clientId: cfg.config.app.clientId, redirectUri: `${origin}/api/ms/callback`, state, loginHint: auth.email });
   return NextResponse.redirect(url, 302);
