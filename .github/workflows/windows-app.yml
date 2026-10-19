@@ -45,9 +45,11 @@ jobs:
             if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
           }
       - name: Install packaging tools
-        if: ${{ !inputs.probe_only }}
         shell: pwsh
         run: choco install innosetup nuget.commandline -y --no-progress
+      - name: Verify unattended installer lifecycle
+        shell: pwsh
+        run: ./mobile/scripts/test-windows-update-installer.ps1
       - name: Build installer
         if: ${{ !inputs.probe_only }}
         shell: pwsh
