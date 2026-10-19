@@ -8,7 +8,8 @@ import 'briefing_model.dart';
 import 'live_briefing.dart';
 
 /// 브리핑 라이브 액티비티 — iOS는 ActivityKit(네이티브 `BriefingLiveActivityPlugin`), Android는 상시 알림.
-/// 앱(홈 브리핑 수집 후)과 workmanager 백그라운드가 같은 [syncLiveActivity]를 부른다. 메일 제목·본문은 싣지 않는다(건수·회의 제목만).
+/// 앱(홈 브리핑 수집 후)과 workmanager 백그라운드가 같은 [syncLiveActivity]를 부른다.
+/// 잠금 화면에는 회의·결재·메일 각 2건(전체 5줄)과 건수 줄을 싣는다 — 메일은 제목·보낸 사람만(본문 없음, 2026-10-19 사용자 결정).
 const _channel = MethodChannel('innogrid/live_activity');
 const _kOn = 'live_briefing.enabled', _kPrev = 'live_briefing.prev', _kDay = 'live_briefing.day';
 const _liveId = 7001, _alertId = 7002;
@@ -37,7 +38,7 @@ Future<void> syncLiveActivity(BriefingData d, {bool foreground = false}) async {
   final next = liveBriefingFrom(d, prev: prev);
   final alert = liveAlert(prev, next);
   if (Platform.isIOS) {
-    await _channel.invokeMethod('update', {...next.toJson(), 'countsLine': next.countsLine, 'total': next.total, 'alert': alert});
+    await _channel.invokeMethod('update', {...next.toJson(), 'items': next.lockItems, 'countsLine': next.countsLine, 'total': next.total, 'alert': alert});
   } else {
     await _androidShow(next, alert, foreground: foreground);
   }
@@ -69,12 +70,17 @@ Future<void> _androidShow(LiveBriefing l, String? alert, {required bool foregrou
   }
   final start = l.meetingStart;
   final countdown = start != null && start.isAfter(DateTime.now());
+  final title = l.meetingTitle.isEmpty ? '오늘 남은 회의 없음' : l.meetingTitle;
+  final counts = l.countsLine.isEmpty ? '지금 확인할 항목이 없습니다' : l.countsLine;
+  final lines = l.lockLines;
   await plugin.show(
     id: _liveId,
-    title: l.meetingTitle.isEmpty ? '오늘 남은 회의 없음' : l.meetingTitle,
-    body: l.countsLine.isEmpty ? '지금 확인할 항목이 없습니다' : l.countsLine,
+    title: title,
+    body: counts,
     notificationDetails: NotificationDetails(
       android: AndroidNotificationDetails(
+        // 펼치면(잠금 화면 맨 위 알림은 펼쳐 보인다) 회의·결재·메일 줄 + 맨 아래 건수
+        styleInformation: lines.isEmpty ? null : InboxStyleInformation(lines, contentTitle: '데일리 브리핑', summaryText: counts),
         'briefing_live', '오늘 브리핑',
         channelDescription: '다음 회의와 결재·메일 건수를 상단에 계속 보여 줍니다',
         importance: Importance.low, priority: Priority.low,
