@@ -124,7 +124,19 @@ try {
       if (oldPid && alive(oldPid)) process.kill(oldPid);
       if (newPid) { try { process.kill(newPid); } catch {} }
       await delay(500);
-      if (mount) run('hdiutil', ['detach', mount]);
+      if (mount) {
+        // LaunchServices/Spotlight may briefly retain the read-only fixture
+        // volume after its process exits. Eject only this owned mount, never
+        // force-unmount unrelated disks, and wait for normal release.
+        if (oldPid) await until(() => !alive(oldPid), 'read-only fixture exit', 10000);
+        let ejected = false;
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const result = spawnSync('/usr/sbin/diskutil', ['eject', mount], { encoding: 'utf8' });
+          if (result.status === 0) { ejected = true; break; }
+          await delay(1000);
+        }
+        assert.equal(ejected, true, `owned read-only fixture volume could not eject: ${mount}`);
+      }
     }
   }
 } finally { server.closeAllConnections(); server.close(); console.log(`macOS upgrade evidence: ${root}`); }

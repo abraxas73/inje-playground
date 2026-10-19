@@ -20,3 +20,12 @@ it("각 다운로드 버튼 옆에 설치 파일의 KST 업데이트 게시일�
   render(<DesktopDownloads />);
   expect(await screen.findAllByText("업데이트 게시: 2026. 10. 13. 01:32 (KST)")).toHaveLength(2);
 });
+
+it("최초 수동 설치 이후 앱 안에서 자동 설치·재시작됨을 안내한다", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => release })));
+  const { container } = render(<DesktopDownloads />);
+  await screen.findByText(/설치 파일 다운로드/);
+  expect(container.textContent).toContain("1.7.9부터 앱 내 자동 업데이트");
+  expect(container.textContent).toContain("최초 한 번");
+  expect(container.textContent).toContain("자동 설치·재시작");
+});
