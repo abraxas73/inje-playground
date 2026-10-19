@@ -4,41 +4,89 @@ enum NavAction { inApp, external, loginRedirect, oauthConnect }
 
 /// WebView 내비게이션 정책(순수). 같은 오리진 페이지만 앱 안에서, /login으로 가면 세션이 없다는 뜻, 파일·다른 도메인·tel 등은 시스템으로.
 class WebNavPolicy {
-  static const _fileExt = ['.pptx', '.xlsx', '.docx', '.pdf', '.zip', '.csv', '.yaml'];
+  static const _fileExt = [
+    '.pptx',
+    '.xlsx',
+    '.docx',
+    '.pdf',
+    '.zip',
+    '.csv',
+    '.yaml',
+  ];
   static NavAction decide(Uri target, {required Uri appOrigin}) {
-    if (target.scheme != 'http' && target.scheme != 'https') return NavAction.external;
+    if (target.scheme != 'http' && target.scheme != 'https') {
+      return NavAction.external;
+    }
     if (target.origin != appOrigin.origin) return NavAction.external;
     final p = target.path;
-    if (p == '/api/ms/connect' || p == '/api/jira/connect') return NavAction.oauthConnect;
-    if (p == '/login' || p.startsWith('/login/')) return NavAction.loginRedirect;
-    if (p.endsWith('/file') || p.endsWith('/xlsx') || _fileExt.any((e) => p.toLowerCase().endsWith(e))) return NavAction.external;
+    if (p == '/api/ms/connect' || p == '/api/jira/connect') {
+      return NavAction.oauthConnect;
+    }
+    if (p == '/login' || p.startsWith('/login/')) {
+      return NavAction.loginRedirect;
+    }
+    if (p.endsWith('/file') ||
+        p.endsWith('/xlsx') ||
+        _fileExt.any((e) => p.toLowerCase().endsWith(e))) {
+      return NavAction.external;
+    }
     return NavAction.inApp;
   }
 }
 
-String bootstrapUrl({required String apiBase, required String nextPath, required String tokenHash}) =>
+String bootstrapUrl({
+  required String apiBase,
+  required String nextPath,
+  required String tokenHash,
+}) =>
     '$apiBase/auth/mobile?next=${Uri.encodeComponent(nextPath)}#token=$tokenHash';
 
 /// POST /api/mobile/web-token → 부트스트랩 URL. 호출자는 이걸 WebView에 로드한다.
-Future<String> webBootstrapUrl(ApiClient api, String apiBase, String nextPath) async {
+Future<String> webBootstrapUrl(
+  ApiClient api,
+  String apiBase,
+  String nextPath,
+) async {
   final j = await api.postJson('/api/mobile/web-token') as Map<String, dynamic>;
-  return bootstrapUrl(apiBase: apiBase, nextPath: nextPath, tokenHash: j['tokenHash'] as String);
+  return bootstrapUrl(
+    apiBase: apiBase,
+    nextPath: nextPath,
+    tokenHash: j['tokenHash'] as String,
+  );
 }
+
+/// Windows WebView2는 서버 307로 이동한 `/login`을 navigation delegate에 알리지 않을 수 있다.
+/// 첫 화면부터 네이티브 Bearer 세션으로 웹 쿠키를 만들면 로그인 페이지와 외부 브라우저로 빠지지 않는다.
+Future<String> initialWebSessionUrl(
+  ApiClient api,
+  String apiBase,
+  String nextPath, {
+  required bool eagerBootstrap,
+}) => eagerBootstrap
+    ? webBootstrapUrl(api, apiBase, nextPath)
+    : Future.value('$apiBase$nextPath');
 
 /// Microsoft 연결은 네이티브 Bearer 세션으로 승인 URL만 발급받는다. Jira 구버전 흐름은 웹 세션 부트스트랩을 유지한다.
 Future<String> oauthLaunchUrl(ApiClient api, Uri source) async {
   if (source.path == '/api/ms/connect') {
-    final j = await api.postJson('/api/mobile/ms-connect', {
-      'returnTo': source.queryParameters['returnTo'] ?? '/settings',
-    }) as Map<String, dynamic>;
+    final j =
+        await api.postJson('/api/mobile/ms-connect', {
+              'returnTo': source.queryParameters['returnTo'] ?? '/settings',
+            })
+            as Map<String, dynamic>;
     final value = j['url'];
     final target = value is String ? Uri.tryParse(value) : null;
-    if (target == null || target.scheme != 'https' || target.host != 'login.microsoftonline.com') {
+    if (target == null ||
+        target.scheme != 'https' ||
+        target.host != 'login.microsoftonline.com') {
       throw const FormatException('Invalid Microsoft authorization URL');
     }
     return target.toString();
   }
-  final next = Uri(path: source.path, query: source.hasQuery ? source.query : null).toString();
+  final next = Uri(
+    path: source.path,
+    query: source.hasQuery ? source.query : null,
+  ).toString();
   return webBootstrapUrl(api, api.baseUrl, next);
 }
 
@@ -56,6 +104,7 @@ class BootstrapGuard {
     _attempts++;
     return true;
   }
+
   void reset() => _attempts = 0;
 }
 
@@ -68,14 +117,20 @@ bool isIgnorableWebError({required int code, required String description}) {
 }
 
 /// 머리 제목: 페이지 제목이 있으면 그것, 로딩 중이면 "로딩 중…", 아니면 경로.
-String webTitleFor({required String title, required bool loading, required String path}) => title.isNotEmpty ? title : (loading ? '로딩 중…' : path);
+String webTitleFor({
+  required String title,
+  required bool loading,
+  required String path,
+}) => title.isNotEmpty ? title : (loading ? '로딩 중…' : path);
 
 /// 뒤로 가다가 닿으면 "세션 시작점을 지난 것"인 페이지 — /login(세션 없음)·/auth/mobile(부트스트랩). 여기 닿으면 WebView 안에서 더 뒤로 갈 곳이 없으니 화면을 닫는다.
 /// Android WebView는 첫 로드에서 가로챈(/settings → 307 /login) 내비게이션을 히스토리에 남겨 canGoBack()이 true가 되고, goBack()은 그 /login을 실제로 연다(실기기 실측 2026-10-04).
 bool isSessionBoundary(String? url, {required Uri appOrigin}) {
   final u = url == null ? null : Uri.tryParse(url);
   if (u == null || u.host != appOrigin.host) return false;
-  return u.path == '/login' || u.path.startsWith('/login/') || u.path == '/auth/mobile';
+  return u.path == '/login' ||
+      u.path.startsWith('/login/') ||
+      u.path == '/auth/mobile';
 }
 
 /// "방금 뒤로 가기를 눌렀다"를 다음 페이지 시작 한 번에만 전달한다. 히스토리 이동(goBack)은 onNavigationRequest를 거치지 않으므로 onPageStarted에서 쓴다.
@@ -99,13 +154,17 @@ String? browserSessionPath(Uri target, {required Uri appOrigin}) {
     return null;
   }
   if (isSessionBoundary(target.toString(), appOrigin: appOrigin)) return null;
-  return Uri(path: target.path, query: target.hasQuery ? target.query : null,
-      fragment: target.hasFragment ? target.fragment : null).toString();
+  return Uri(
+    path: target.path,
+    query: target.hasQuery ? target.query : null,
+    fragment: target.hasFragment ? target.fragment : null,
+  ).toString();
 }
 
 /// WebView 안에서 `target="_blank"` 링크·`window.open`은 새 창을 만들 수 없어 아무 일도 일어나지 않았다(2026-10-11 데스크톱 Confluence 문서 목록):
 /// macOS WKWebView는 targetFrame이 없어 isMainFrame=false로 들어와 _onNav가 조용히 막고, Windows WebView2는 새 창 요청을 버린다.
 /// 같은 창 이동으로 바꿔 _onNav(main frame)가 외부 주소를 브라우저로 넘기게 한다. 페이지마다 한 번만 건다.
-const blankLinkBridgeJs = """(function(){if(window.__innoBlankBridge)return;window.__innoBlankBridge=true;
+const blankLinkBridgeJs =
+    """(function(){if(window.__innoBlankBridge)return;window.__innoBlankBridge=true;
 document.addEventListener('click',function(e){var t=e.target;var a=t&&t.closest?t.closest('a[href]'):null;if(!a||e.defaultPrevented)return;if(a.target!=='_blank'||!/^https?:/i.test(a.href))return;e.preventDefault();window.location.href=a.href;},true);
 var open=window.open;window.open=function(u){if(typeof u==='string'&&/^https?:/i.test(u)){window.location.href=u;return null;}return open?open.apply(window,arguments):null;};})();""";
