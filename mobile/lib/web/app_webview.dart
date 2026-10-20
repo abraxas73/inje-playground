@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter_inappwebview_platform_interface/flutter_inappwebview_platform_interface.dart'
@@ -145,7 +147,14 @@ class AppWebController {
       : (await (await _ready.future).evaluateJavascript(source: source)) ?? '';
 
   Widget build(BuildContext context) {
-    if (native != null) return WebViewWidget(controller: native!);
+    // 앱 전체 SelectionArea(main.dart SelectAllText)의 탭·길게 누르기 인식기가 WebView 위 터치를 가져가면
+    // iOS에서 탭할 때마다 Flutter가 포커스를 뺏어 키보드가 닫힌다(아마란스 비밀번호 입력 불가, 2026-10-20).
+    // WebView가 자기 영역의 제스처를 먼저 갖고, 글자 선택은 WebView 자체 선택에 맡긴다.
+    if (native != null) {
+      return SelectionContainer.disabled(
+        child: WebViewWidget(controller: native!, gestureRecognizers: {Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new)}),
+      );
+    }
     if (_unavailable) {
       return Center(
         child: Padding(
