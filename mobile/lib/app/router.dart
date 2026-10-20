@@ -47,6 +47,8 @@ GoRouter buildRouter({
     GoRoute(path: '/splash', builder: (c, s) => const SplashScreen()),
     GoRoute(path: '/login', builder: (c, s) => const LoginScreen()),
     GoRoute(path: '/guest', builder: (c, s) => const GuestScreen()),
+    // 아마란스 연결은 하단 바 틀 밖(루트 내비게이터) — 1.7.16에 틀 안으로 옮긴 뒤 iPhone(iOS 27)에서 입력칸 포커스 때 화면이 새로 그려졌다(2026-10-20)
+    GoRoute(path: '/gw/connect', builder: (c, s) => const GwConnectScreen()),
     // 하단 바 틀: 탭 화면과 그 안에서 연 웹·아마란스·Dooray 화면 모두 같은 바 아래(push는 이 틀의 내비게이터에 쌓인다)
     ShellRoute(
       observers: [InnobotPopupObserver()],
@@ -57,7 +59,6 @@ GoRouter buildRouter({
       builder: (c, s) => WebScreen(path: s.uri.queryParameters['path'] ?? '/'),
     ),
     GoRoute(path: '/dooray/calendar', builder: (c, s) => const DoorayCalendarScreen()),
-    GoRoute(path: '/gw/connect', builder: (c, s) => const GwConnectScreen()),
     GoRoute(path: '/gw/approvals', builder: (c, s) => const ApprovalsScreen()),
     GoRoute(path: '/gw/attendance', builder: (c, s) => const AttendanceScreen()),
     GoRoute(path: '/gw/today', builder: (c, s) => const TodayScreen()),

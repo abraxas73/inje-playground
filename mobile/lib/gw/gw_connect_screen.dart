@@ -39,6 +39,9 @@ class GwConnectScreen extends ConsumerStatefulWidget {
 }
 
 class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
+  // 임시 진단(2026-10-20 iPhone 입력칸 포커스 때 "새로고침" 원인 확인용): 화면 생성·페이지 이벤트 횟수와 키보드 높이를 배너 아래에 보인다
+  static int _inits = 0;
+  int _started = 0, _finished = 0, _urlChanges = 0;
   AppWebController? _c;
   Timer? _poll, _hintTimer;
   bool _busy = false, _hint = false, _idDone = false, _pwDone = false, _manual = false, _loginChecked = false, _ticking = false;
@@ -53,6 +56,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
   @override
   void initState() {
     super.initState();
+    _inits++;
     ref.read(gwLoginStoreProvider).load().then((l) {
       if (mounted) setState(() { _login = l; _loginChecked = true; });
     }).catchError((_) {
@@ -62,9 +66,9 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
       _c = AppWebController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setNavigationDelegate(AppNavigationDelegate(
-          onPageStarted: (_) => _fixViewport(),
-          onPageFinished: (_) { _fixViewport(); _tick(); },
-          onUrlChange: (_) => _tick(), // SPA 라우팅은 onPageFinished가 안 온다
+          onPageStarted: (_) { _bump(() => _started++); _fixViewport(); },
+          onPageFinished: (_) { _bump(() => _finished++); _fixViewport(); _tick(); },
+          onUrlChange: (_) { _bump(() => _urlChanges++); _tick(); }, // SPA 라우팅은 onPageFinished가 안 온다
         ))
         ..loadRequest(Uri.parse('$gwOrigin/'));
       _poll = Timer.periodic(const Duration(seconds: 1), (_) { if (gwShouldPoll(auto: _auto, busy: _busy)) _tick(); });
@@ -72,6 +76,10 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
     _hintTimer = Timer(const Duration(seconds: 60), () {
       if (mounted) setState(() => _hint = true);
     });
+  }
+
+  void _bump(void Function() f) {
+    if (mounted) setState(f);
   }
 
   @override
@@ -186,7 +194,10 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
                 : _auto
                 ? '저장된 아이디로 자동 로그인합니다.'
                 : '평소처럼 아마란스에 로그인하세요. 로그인되면 자동으로 연결되고 이 화면은 닫힙니다.${_hint ? '\n로그인했는데도 연결되지 않으면 오른쪽 위 "쿠키 지우고 로그인"을 눌러 다시 시도하세요.' : ''}');
+    final kb = MediaQuery.viewInsetsOf(context).bottom;
     return Scaffold(
+      // 키보드가 올라와도 WebView 크기를 바꾸지 않는다 — 크기 변화에 로그인 페이지가 입력칸을 다시 그리면 포커스가 날아간다
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(title: const Text('아마란스 연결'), actions: [TextButton(onPressed: _clearCookies, child: const Text('쿠키 지우고 로그인'))]),
       body: Column(children: [
         Container(
@@ -194,6 +205,10 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
           color: Brand.blueTint,
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
           child: Text(banner, style: theme.textTheme.bodySmall?.copyWith(color: _error != null ? Brand.dangerText : Brand.navy)),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+          child: Text('진단 · 화면 생성 $_inits · 페이지 시작 $_started · 완료 $_finished · 주소 변경 $_urlChanges · 키보드 ${kb.round()}', style: theme.textTheme.labelSmall?.copyWith(color: Brand.navy.withValues(alpha: 0.6))),
         ),
         Expanded(
           child: Stack(fit: StackFit.expand, children: [
@@ -216,7 +231,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
               Material(
                 color: Brand.ground,
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                  padding: EdgeInsets.fromLTRB(24, 32, 24, 24 + kb),
                   child: AutofillGroup(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       Text('아마란스 로그인', style: theme.textTheme.titleLarge),

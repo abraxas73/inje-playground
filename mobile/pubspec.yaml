@@ -1,7 +1,7 @@
 name: playground
 description: "A new Flutter project."
 publish_to: 'none'
-version: 1.7.20+71
+version: 1.7.21+72
 
 environment:
   sdk: ^3.12.0
