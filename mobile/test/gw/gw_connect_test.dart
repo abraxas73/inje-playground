@@ -20,13 +20,32 @@ void main() {
     await expectLater(verifyGwCookies('nothing=1', MockClient((_) async => ok(session))), throwsA(isA<GwException>()));
     await expectLater(verifyGwCookies('oAuthToken=a; signKey=b', MockClient((_) async => http.Response('{}', 401))), throwsA(isA<GwUnauthorized>()));
   });
-  testWidgets('연결 화면: 저장된 로그인 정보가 없으면 WebView를 바로 보여 주고 안내 문구', (tester) async {
+  testWidgets('연결 화면: 저장된 로그인 정보가 없으면 네이티브 입력칸 → 자동 입력 경로(WebView 입력칸을 누르지 않게)', (tester) async {
     FlutterSecureStorage.setMockInitialValues({});
     await tester.pumpWidget(gwScope(http: MockClient((_) async => ok(session)), child: GwConnectScreen(webView: () => const Text('WEBVIEW'))));
     await tester.pumpAndSettle();
-    expect(find.text('WEBVIEW'), findsOneWidget);
-    expect(find.textContaining('아마란스에 로그인'), findsOneWidget);
+    expect(find.text('아마란스 로그인'), findsOneWidget);
     expect(find.textContaining('자동 로그인 중'), findsNothing);
+    await tester.tap(find.text('로그인'));
+    await tester.pump();
+    expect(find.textContaining('모두 입력하세요'), findsOneWidget); // 빈 값은 넘기지 않는다
+    await tester.enterText(find.widgetWithText(TextField, '아이디'), 'me');
+    await tester.enterText(find.widgetWithText(TextField, '비밀번호'), 'pw');
+    await tester.tap(find.text('로그인'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.textContaining('자동 로그인 중'), findsOneWidget);
+    expect(find.text('아마란스 로그인'), findsNothing);
+  });
+  testWidgets('연결 화면: 입력칸 대신 웹 화면에서 직접 로그인할 수도 있다', (tester) async {
+    FlutterSecureStorage.setMockInitialValues({});
+    await tester.pumpWidget(gwScope(http: MockClient((_) async => ok(session)), child: GwConnectScreen(webView: () => const Text('WEBVIEW'))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('아마란스 웹 화면에서 직접 로그인'));
+    await tester.pumpAndSettle();
+    expect(find.text('아마란스 로그인'), findsNothing);
+    expect(find.textContaining('아마란스에 로그인'), findsOneWidget);
+    expect(find.text('WEBVIEW'), findsOneWidget);
   });
   testWidgets('연결 화면: 저장된 로그인 정보가 있으면 WebView를 가리고 자동 로그인 패널', (tester) async {
     FlutterSecureStorage.setMockInitialValues({'gw.loginId': 'me', 'gw.loginPw': 'pw'});

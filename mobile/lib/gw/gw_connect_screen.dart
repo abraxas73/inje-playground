@@ -22,6 +22,8 @@ Future<GwCreds> verifyGwCookies(String cookieString, http.Client httpClient) asy
 
 /// WebView로 gw.innogrid.com에 로그인시킨다. 저장된 아이디·비밀번호가 있으면 WebView를 가린 채 자동으로 넣고,
 /// 쿠키가 생기는 즉시(URL 변경·1초 폴링) 검증·저장하고 닫는다. 아마란스 메인은 보여 주지 않는다.
+/// 저장된 정보가 없거나 틀렸으면 앱의 네이티브 입력칸으로 받아 같은 자동 입력 경로로 넣는다 —
+/// iPhone에서 WebView 입력칸을 직접 누르면 키보드가 열렸다 닫히기를 반복해 입력할 수 없었다(2026-10-20, 1.7.16~1.7.18).
 class GwConnectScreen extends ConsumerStatefulWidget {
   const GwConnectScreen({super.key, this.webView});
 
@@ -37,8 +39,11 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
   bool _busy = false, _hint = false, _idDone = false, _pwDone = false, _manual = false, _loginChecked = false, _ticking = false;
   GwLogin? _login;
   String? _error, _status;
+  final _idCtl = TextEditingController(), _pwCtl = TextEditingController();
+  bool _remember = false, _retry = false;
 
   bool get _auto => _login != null && !_manual;
+  bool get _form => _loginChecked && _login == null && !_manual && !_busy;
 
   @override
   void initState() {
@@ -68,6 +73,8 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
   void dispose() {
     _poll?.cancel();
     _hintTimer?.cancel();
+    _idCtl.dispose();
+    _pwCtl.dispose();
     super.dispose();
   }
 
@@ -107,8 +114,16 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
           await c.runJavaScript(fillJs(selector: '#reqLoginPw', value: _login!.pw, submitText: '로그인'));
         case FillAction.reveal:
           setState(() {
-            _manual = true;
-            _error = probe.hasOtp ? '추가 인증이 필요합니다. 아래에서 직접 진행하세요.' : (probe.error.isNotEmpty ? '아마란스: ${probe.error}' : '자동 로그인을 못 했습니다. 직접 로그인하세요.');
+            if (probe.hasOtp) {
+              _manual = true;
+              _error = '추가 인증이 필요합니다. 아래에서 직접 진행하세요.';
+            } else {
+              // 아이디·비밀번호 문제는 WebView 입력칸 대신 네이티브 입력 화면으로 되돌린다(같은 아이디는 채워 둔다)
+              if (_login != null && _idCtl.text.isEmpty) _idCtl.text = _login!.id;
+              _login = null;
+              _retry = true;
+              _error = probe.error.isNotEmpty ? '아마란스: ${probe.error}' : '자동 로그인을 못 했습니다. 아이디·비밀번호를 확인하세요.';
+            }
           });
         case FillAction.none:
           break;
@@ -132,6 +147,23 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
     }
   }
 
+  /// 네이티브 입력칸 → 자동 입력 경로. 오류 뒤 재시도면 로그인 첫 화면부터 다시 연다(남은 오류 문구가 곧바로 reveal을 부르지 않게).
+  Future<void> _submitForm() async {
+    final id = _idCtl.text.trim(), pw = _pwCtl.text;
+    if (id.isEmpty || pw.isEmpty) return setState(() => _error = '아이디와 비밀번호를 모두 입력하세요.');
+    FocusScope.of(context).unfocus();
+    final login = GwLogin(id: id, pw: pw);
+    if (_remember) {
+      try {
+        await ref.read(gwLoginProvider.notifier).save(login);
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    final reload = _retry;
+    setState(() { _login = login; _idDone = false; _pwDone = false; _error = null; _retry = false; _status = null; });
+    if (reload) await _c?.loadRequest(Uri.parse('$gwOrigin/'));
+  }
+
   Future<void> _clearCookies() async {
     await AppWebController.clearCookies();
     setState(() { _idDone = false; _pwDone = false; _error = null; });
@@ -144,7 +176,9 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
     final banner = _error ??
         (_busy
             ? '로그인을 확인하는 중…'
-            : _auto
+            : _form
+                ? '아마란스 아이디와 비밀번호를 입력하세요. 로그인되면 자동으로 연결되고 이 화면은 닫힙니다.'
+                : _auto
                 ? '저장된 아이디로 자동 로그인합니다.'
                 : '평소처럼 아마란스에 로그인하세요. 로그인되면 자동으로 연결되고 이 화면은 닫힙니다.${_hint ? '\n로그인했는데도 연결되지 않으면 오른쪽 위 "쿠키 지우고 로그인"을 눌러 다시 시도하세요.' : ''}');
     return Scaffold(
@@ -171,6 +205,27 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
                     const SizedBox(height: 20),
                     if (!_busy) TextButton(onPressed: () => setState(() => _manual = true), child: const Text('직접 로그인')),
                   ]),
+                ),
+              ),
+            if (_form)
+              Material(
+                color: Brand.ground,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                  child: AutofillGroup(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      Text('아마란스 로그인', style: theme.textTheme.titleLarge),
+                      const SizedBox(height: 20),
+                      TextField(controller: _idCtl, autocorrect: false, enableSuggestions: false, textInputAction: TextInputAction.next, autofillHints: const [AutofillHints.username], decoration: const InputDecoration(labelText: '아이디', border: OutlineInputBorder())),
+                      const SizedBox(height: 12),
+                      TextField(controller: _pwCtl, obscureText: true, autocorrect: false, enableSuggestions: false, textInputAction: TextInputAction.done, autofillHints: const [AutofillHints.password], onSubmitted: (_) => _submitForm(), decoration: const InputDecoration(labelText: '비밀번호', border: OutlineInputBorder())),
+                      CheckboxListTile(value: _remember, onChanged: (v) => setState(() => _remember = v ?? false), contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading, title: const Text('이 기기에 저장하고 다음부터 자동 로그인'), subtitle: const Text('보안 저장소(Keychain)에만 저장됩니다. 더보기 → 아마란스에서 지울 수 있습니다.')),
+                      const SizedBox(height: 8),
+                      FilledButton(onPressed: _submitForm, child: const Text('로그인')),
+                      const SizedBox(height: 8),
+                      TextButton(onPressed: () => setState(() => _manual = true), child: const Text('아마란스 웹 화면에서 직접 로그인')),
+                    ]),
+                  ),
                 ),
               ),
           ]),
