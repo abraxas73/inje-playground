@@ -58,6 +58,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('자동 로그인 중'), findsNothing);
   });
+  test('1초 감시는 앱이 가리고 자동 입력할 때만(사람이 입력하는 동안은 페이지 이동 신호로만 — iOS 27 키보드 닫힘)', () {
+    expect(gwShouldPoll(auto: true, busy: false), isTrue);
+    expect(gwShouldPoll(auto: false, busy: false), isFalse);
+    expect(gwShouldPoll(auto: true, busy: true), isFalse);
+  });
   testWidgets('GwGate: 미연결이면 연결 안내, 연결되면 builder', (tester) async {
     await tester.pumpWidget(gwScope(http: MockClient((_) async => ok(session)), child: GwGate(title: '미결 결재', builder: (_, api) => const Text('BODY'))));
     await tester.pumpAndSettle();

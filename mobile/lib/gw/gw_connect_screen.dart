@@ -12,6 +12,11 @@ import 'gw_login_store.dart';
 
 const gwOrigin = 'https://gw.innogrid.com';
 
+/// 1초 감시(쿠키·로그인 화면 탐지)는 앱이 WebView를 가리고 자동 입력할 때만 돈다.
+/// 사람이 입력하는 동안(앱 입력칸·웹 화면 직접 로그인) 매초 WebView에 스크립트를 실행하면
+/// iOS 27에서 입력칸 키보드가 1초마다 닫혔다(2026-10-20 iPhone 17 실측 영상). 그때는 페이지 이동 신호로만 확인한다.
+bool gwShouldPoll({required bool auto, required bool busy}) => auto && !busy;
+
 /// document.cookie → 크레덴셜 → gw050A02 검증(이름·이메일 확보). 토큰 값은 예외 메시지에 넣지 않는다.
 Future<GwCreds> verifyGwCookies(String cookieString, http.Client httpClient) async {
   final c = parseGwCookies(cookieString);
@@ -62,7 +67,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
           onUrlChange: (_) => _tick(), // SPA 라우팅은 onPageFinished가 안 온다
         ))
         ..loadRequest(Uri.parse('$gwOrigin/'));
-      _poll = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+      _poll = Timer.periodic(const Duration(seconds: 1), (_) { if (gwShouldPoll(auto: _auto, busy: _busy)) _tick(); });
     }
     _hintTimer = Timer(const Duration(seconds: 60), () {
       if (mounted) setState(() => _hint = true);
