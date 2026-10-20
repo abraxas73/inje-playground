@@ -1,10 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart' show JavaScriptMode, NavigationDecision;
+import '../web/app_webview.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
 import 'gw_api.dart';
 import 'gw_models.dart';
+import 'mail_html.dart';
 import 'mail_indexer.dart';
 
 /// 메일 본문(서식 없는 텍스트). 열면 아마란스에서 읽음 처리되므로 '안 읽음으로 되돌리기'를 둔다. 첨부는 이름만(내려받기는 아마란스에서).
@@ -52,20 +56,27 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
             }
             if (!snap.hasData) return const Center(child: CircularProgressIndicator());
             final m = snap.data!;
-            return ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 32), children: [
-              Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 8),
-              _row('보낸 사람', m.from),
-              _Recipients('받는 사람', m.to),
-              if (m.cc.isNotEmpty) _Recipients('참조', m.cc),
-              _row('시각', niceDate(m.date)),
-              if (m.attachments.isNotEmpty)
+            if (m.html.trim().isNotEmpty) {
+              // 서식 있는 본문(아마란스 웹처럼 표·굵게·강조) — 머리 정보는 위에 접어 두고, 본문은 남은 높이를 다 쓴다
+              return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.4),
+                  child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: _header(m))),
+                ),
+                const Divider(height: 20),
+                Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: _MailHtmlView(html: m.html))),
                 Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: Wrap(spacing: 6, runSpacing: 6, children: [
-                    for (final (name, size) in m.attachments) Chip(avatar: const Icon(Icons.attach_file, size: 16), label: Text(size > 0 ? '$name · ${_size(size)}' : name), visualDensity: VisualDensity.compact),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                  child: Row(children: [
+                    Expanded(child: Text('${m.remoteImages > 0 ? '외부 이미지 ${m.remoteImages}개는 표시하지 않습니다 · ' : ''}본문 속 링크는 브라우저로 열립니다 · 첨부 내려받기는 아마란스에서 하세요.', style: const TextStyle(fontSize: 12, color: Brand.muted))),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(onPressed: _busy ? null : _unread, icon: const Icon(Icons.mark_email_unread_outlined), label: const Text('안 읽음으로 되돌리기')),
                   ]),
                 ),
+              ]);
+            }
+            return ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 32), children: [
+              ..._header(m),
               const Divider(height: 28),
               SelectableText(m.body.isEmpty ? '(본문 없음)' : m.body, style: const TextStyle(fontSize: 15, height: 1.5)),
               const SizedBox(height: 20),
@@ -76,6 +87,22 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
           },
         ),
       );
+
+  List<Widget> _header(MailDetail m) => [
+        Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        _row('보낸 사람', m.from),
+        _Recipients('받는 사람', m.to),
+        if (m.cc.isNotEmpty) _Recipients('참조', m.cc),
+        _row('시각', niceDate(m.date)),
+        if (m.attachments.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final (name, size) in m.attachments) Chip(avatar: const Icon(Icons.attach_file, size: 16), label: Text(size > 0 ? '$name · ${_size(size)}' : name), visualDensity: VisualDensity.compact),
+            ]),
+          ),
+      ];
 
   Widget _row(String k, String v) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
@@ -119,4 +146,34 @@ class _RecipientsState extends State<_Recipients> {
       ]),
     );
   }
+}
+
+/// 메일 본문 HTML 웹뷰 — JavaScript 끔, 처음 그리는 빈 문서 밖으로는 이동하지 않고 링크는 시스템 브라우저로.
+class _MailHtmlView extends StatefulWidget {
+  const _MailHtmlView({required this.html});
+  final String html;
+  @override
+  State<_MailHtmlView> createState() => _MailHtmlViewState();
+}
+
+class _MailHtmlViewState extends State<_MailHtmlView> {
+  final _c = AppWebController(javaScript: false);
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(() async {
+      await _c.setJavaScriptMode(JavaScriptMode.disabled);
+      await _c.setNavigationDelegate(AppNavigationDelegate(onNavigationRequest: (r) {
+        if (mailHtmlInitial(r.url)) return NavigationDecision.navigate;
+        final u = mailHtmlExternal(r.url);
+        if (u != null) unawaited(launchUrl(u, mode: LaunchMode.externalApplication));
+        return NavigationDecision.prevent;
+      }));
+      await _c.loadHtmlString(mailHtmlDocument(widget.html));
+    }());
+  }
+
+  @override
+  Widget build(BuildContext context) => _c.build(context);
 }
