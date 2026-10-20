@@ -32,6 +32,6 @@ revoke insert, delete on public.mcp_calls from authenticated, anon;
 
 do $$ begin
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'mcp_calls') then
-    alter publication supabase_realtime add table public.mcp_calls;
+    alter publication supabase_realtime add table public.mcp_calls; -- 2026-10-21 제거: 2026-10-21-mcp-calls-drop-realtime.sql
   end if;
 end $$;

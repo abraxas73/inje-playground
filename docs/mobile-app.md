@@ -272,7 +272,7 @@ Graph 메모: 검색 hit는 `fields`에 file·folder를 넣어도 폴더에 `fol
 
 목적: inno-creed 바이너리를 대체한다. claude.ai 조직 커넥터 **"INNOGRID 아마란스"**(URL `https://innocrew.innogrid.com/api/mcp`)로 Claude(웹·Desktop·모바일·Claude Code)가 각자 아마란스(메일·일정·결재·조직도 등)를 부른다. 스펙 `docs/superpowers/specs/2026-10-10-desktop-mcp-connector-design.md`.
 
-**구조**: claude.ai → `/api/mcp`(Streamable HTTP, 무상태 JSON-RPC) → Supabase `mcp_calls`(RLS·Realtime, SQL `docs/sql/2026-10-10-mcp-calls.sql`) → 데스크탑 앱 `lib/mcp/` McpWorker(클레임 → 실행 → 결과 저장) → `GwClient` → 아마란스. 아마란스 세션·크레덴셜은 앱 안에만 있다.
+**구조**: claude.ai → `/api/mcp`(Streamable HTTP, 무상태 JSON-RPC) → Supabase `mcp_calls`(RLS, SQL `docs/sql/2026-10-10-mcp-calls.sql` — Realtime 구독은 2026-10-21에 걷어내고 앱이 2초 폴링, `2026-10-21-mcp-calls-drop-realtime.sql`) → 데스크탑 앱 `lib/mcp/` McpWorker(클레임 → 실행 → 결과 저장) → `GwClient` → 아마란스. 아마란스 세션·크레덴셜은 앱 안에만 있다.
 
 **인증**: Supabase OAuth 2.1 서버 + 동적 클라이언트 등록(DCR). 동의 화면은 `/oauth/consent`(user 이상, 미로그인은 로그인 후 복귀). DCR로 누구나 클라이언트를 등록할 수 있으므로 동의 화면은 돌아갈 주소(redirect_uri)가 `claude.ai`·`claude.com`(하위 도메인 포함, https) 또는 루프백(localhost·127.0.0.1·[::1])일 때만 [허용]을 열고, 그 밖의 주소는 거부 문구를 보인다(`lib/mcp/consent.ts` `redirectAllowed`; Claude가 다른 콜백 도메인을 쓰면 목록 갱신). 접근 범위 요약("아마란스 … 읽고 쓸 수 있습니다")을 항상 표시한다. 메타데이터 `/.well-known/oauth-protected-resource`.
 
@@ -327,5 +327,5 @@ inno-creed 호출은 mitmproxy + `HTTPS_PROXY`로 캡처했다(rustls-platform-v
 | 동의 화면이 홈으로 감 | guest 역할(user 이상만 허용) |
 | 동의 화면에 "허용할 수 없습니다"가 보임 | 돌아갈 주소가 Claude·루프백이 아님(피싱 링크 의심 — 링크 출처를 관리자에게) |
 | Claude가 "앱이 실행 중이 아닙니다"라고 함 | 데스크탑 앱이 꺼짐·다른 계정 로그인·더보기 > Claude 커넥터 "요청 받기" 꺼짐·모바일만 켜 둠 |
-| 앱이 켜져 있는데 "미실행" 안내 | 더보기 > Claude 커넥터 스위치·앱 로그인·`mcp_calls` Realtime publication |
+| 앱이 켜져 있는데 "미실행" 안내 | 더보기 > Claude 커넥터 스위치·앱 로그인·앱 워커 폴링(2초) |
 | 연결은 되는데 도구가 실패 | 앱의 아마란스 연결(재로그인) 상태 |

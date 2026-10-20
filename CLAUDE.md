@@ -126,7 +126,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `ppt_decks`, `ppt_deck_versions`(삭제 없음, `template_id`·`template_name`, source_kind text|file|pptx|url), `ppt_templates`(업로드 템플릿, 비활성화만), 버킷 `ppt`(`source/`·`decks/`·`templates/`) — SQL `docs/sql/2026-09-30-ppt-maker.sql`, `2026-10-01-ppt-templates.sql`, `2026-10-01-ppt-url-source.sql`
 
 ### Supabase Tables (mcp)
-- `mcp_calls`(MCP 도구 호출 중계 행: status·result jsonb·worker, RLS·Realtime, 응답 후 삭제·10분 크론 정리) — SQL `docs/sql/2026-10-10-mcp-calls.sql`
+- `mcp_calls`(MCP 도구 호출 중계 행: status·result jsonb·worker, RLS, 앱은 2초 폴링(Realtime 발행 제외 — 2026-10-21 슬로우 쿼리), 응답 후 삭제·10분 크론 정리) — SQL `docs/sql/2026-10-10-mcp-calls.sql`
 
 ### Supabase Tables (chat)
 - `chat_conversations`·`chat_messages`·`chat_tool_calls`(결과 원문 없이 요약만)·`chat_attachments`(버킷 `chat`)·`assistant_usage`(사용자×KST 날짜, RPC `chat_usage_add`) — RLS 본인만, SQL `docs/sql/2026-10-15-chat-portal.sql`, 쓰기 확인 중복 실행 방지는 `docs/sql/2026-10-15-chat-tool-calls-once.sql`(승인은 status `running`으로 먼저 claim)
