@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { logAudit } from "@/lib/audit";
+import { adminClientOr500 } from "@/lib/claude-usage/require-admin";
+import { selectAll } from "@/lib/work-metrics/common";
+import { installsFromRows } from "@/lib/desktop/presence";
 
 /** GET /api/users — 사용자 목록 + 개인 설정 (admin only) */
 export async function GET() {
@@ -55,11 +58,22 @@ export async function GET() {
     .eq("active", true);
   const dirMap = new Map((dir ?? []).map((d) => [String(d.email).toLowerCase(), d]));
 
+  // 앱 설치 현황: 앱 로그인이 login_history에 남긴 User-Agent에서 사용자별·플랫폼별 마지막 로그인(버전·빌드·시각).
+  // login_history는 service_role로 읽는다(홈 설치 안내 카드와 같은 출처). 실패해도 목록은 내려준다.
+  const svc = adminClientOr500();
+  const logins = svc.ok
+    ? await selectAll<{ user_id: string; user_agent: string | null; logged_in_at: string }>(() =>
+        svc.admin.from("login_history").select("user_id, user_agent, logged_in_at", { count: "exact" })
+          .like("user_agent", "InnogridApp/%").order("logged_in_at", { ascending: false }).order("id"))
+    : { data: null };
+  const installs = installsFromRows(logins.data ?? []);
+
   // Merge
   const users = (profiles || []).map((p) => ({
     ...p,
     settings: settingsMap[p.user_id] || {},
     directory: dirMap.get(String(p.email ?? "").toLowerCase()) ?? null,
+    installs: installs[p.user_id] ?? {},
   }));
 
   return NextResponse.json({ users });
