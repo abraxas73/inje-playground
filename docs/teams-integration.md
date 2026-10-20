@@ -141,12 +141,12 @@ curl -i -X POST "$TEAMS_DM_WEBHOOK_URL" -H "Content-Type: application/json" -d '
   `{"value":[{"id":…,"displayName":…` 가 보이면 정상. 앱에서는 `GET /api/teams/members` → `{ members: [...], source: "webhook" }`.
 - 주의: 흐름 소유자 계정의 권한으로 조회된다(소유자가 해당 팀을 볼 수 있어야 함). 소유자 퇴사·연결 만료 시 흐름이 멈추므로 가능하면 공용/서비스 계정 소유로 만든다. HTTP 트리거/응답은 Power Automate 프리미엄 기능(채널·DM 흐름과 동일 조건).
 
-## 3-C. RFP 분석 SharePoint 업로드 — Microsoft Graph 위임 권한 (관리자 동의 불필요)
+## 3-C. RFP 분석 SharePoint 업로드 — Microsoft Graph 위임 권한 (이 테넌트는 관리자 동의 필요 — §3-F)
 
 > 3-A의 앱 권한과 달리 **위임된 권한**은 사용자가 스스로 동의한다. 테넌트가 사용자 동의를 막아 "관리자 승인 필요"가 뜨더라도 Application Administrator가 동의할 수 있다(GA 불필요). 설계: `docs/superpowers/specs/2026-09-05-rfp-analyzer-phase3-design.md`, 런북: `docs/rfp-analyzer.md`.
 
 1. Entra 앱 등록(3-A와 같은 앱) → 인증 → 플랫폼 "웹" 리디렉션 URI 추가: `https://innocrew.innogrid.com/api/ms/callback`(정식 도메인, 2026-10-10), `https://inje-playground.vercel.app/api/ms/callback`, `http://localhost:3003/api/ms/callback` (다른 도메인을 쓰면 env `MS_ALLOWED_ORIGINS`에도 추가 — 운영 값 `https://innocrew.innogrid.com,https://inje-playground.vercel.app,http://localhost:3003`; Supabase Auth Redirect URLs에도 `https://<도메인>/**` 추가해야 로그인 후 그 도메인으로 돌아온다).
-2. API 권한 → Microsoft Graph → **위임된 권한** → `Files.ReadWrite.All`, `Sites.Read.All`, `User.Read`, `offline_access` 추가. "관리자 동의 부여"는 누르지 않아도 된다.
+2. API 권한 → Microsoft Graph → **위임된 권한** → `Files.ReadWrite.All`, `Sites.Read.All`, `User.Read`, `offline_access`, `Chat.ReadWrite` 추가 후 **"이노그리드에 대한 관리자 동의 허용"**(이 테넌트는 사용자 동의를 막아 둠 — §3-F).
 3. 인증서 및 암호 → 클라이언트 암호(없으면 새로) → `TEAMS_GRAPH_CLIENT_SECRET`. `openssl rand -hex 32` → `MS_TOKEN_ENC_KEY`. 둘 다 Vercel env(+로컬 `.env.local`), settings에는 저장하지 않는다.
 4. settings `teams_tenant_id`·`teams_graph_client_id`는 3-A와 공용.
 5. 흐름: `/settings` "Microsoft 계정 연결" → `GET /api/ms/connect`(state HMAC 서명·10분) → `login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize` → `GET /api/ms/callback`(state 검증·세션 사용자 일치 → 코드 교환 → `GET /me` → refresh 토큰 AES-256-GCM 암호화 → `ms_connections` upsert) → `returnTo?ms_connected=1`. 업로드 때마다 refresh로 access 토큰(서버 메모리 5분 캐시) → `GET /shares/{u!base64url(폴더 링크)}/driveItem`, `PUT /drives/{driveId}/items/{itemId}:/{파일명}:/content?@microsoft.graph.conflictBehavior=replace`(4MiB 이상은 `createUploadSession` + 10MiB 청크).
@@ -176,15 +176,30 @@ curl -i -X POST "$TEAMS_DM_WEBHOOK_URL" -H "Content-Type: application/json" -d '
 - 가이드 답변 DM(Teams)은 로그인 이메일로 간다 — 개인 설정의 "Dooray 본인 선택"은 Dooray DM에만 쓰인다.
 - `GET /api/settings`는 비admin에게 웹훅 URL을 숨긴다. `dooray_token`은 브라우저 확장 브리지 때문에 계속 노출된다(기존과 동일).
 
-## 3-D. 채팅 페이지 `/teams/chat` — 내가 속한 Teams 채팅(위임 Graph, 관리자 동의 불필요) — 2026-10-03
+## 3-D. 채팅 페이지 `/teams/chat` — 내가 속한 Teams 채팅(위임 Graph) — 2026-10-03
 
 사용자가 **자기가 속한 그룹·1:1 채팅**을 목록에서 골라 웹과 앱(WebView)에서 읽고 보낸다. 본인 Microsoft 계정의 위임 토큰(§3-C와 같은 `ms_connections`)으로 Graph `GET /me/chats`, `GET/POST /chats/{id}/messages`를 호출하므로 메시지는 **본인 이름**으로 올라가고 참여 여부도 Graph가 검사한다(미참여 403 → 409 reconnect). 서버는 내용을 저장·로그하지 않는다(감사 로그는 "Teams 채팅 전송" + 글자 수). 관리자 설정은 없다.
 
-- **스코프**: `MS_SCOPES`에 `Chat.ReadWrite`(위임, 관리자 동의 불필요) 추가. 기존 연결은 이 스코프가 없으므로 채팅 페이지가 "다시 연결(권한 추가)"을 안내한다. 토큰 갱신은 **그 연결이 동의한 스코프(ms_connections.scopes)** 로 요청하므로 SharePoint만 쓰던 기존 연결은 그대로 동작한다(`refreshScope`).
+- **스코프**: `MS_SCOPES`에 `Chat.ReadWrite`(위임) 추가 — 앱 등록 API 사용 권한에도 넣고 관리자 동의해야 한다(§3-F). 기존 연결은 이 스코프가 없으므로 채팅 페이지가 "다시 연결(권한 추가)"을 안내한다. 토큰 갱신은 **그 연결이 동의한 스코프(ms_connections.scopes)** 로 요청하므로 SharePoint만 쓰던 기존 연결은 그대로 동작한다(`refreshScope`).
 - **API**: `GET /api/teams/chat`(connected·hasChatScope·meId·chats — 그룹·1:1, 모임 채팅 제외, **마지막 메시지 순**(`$expand=lastMessagePreview` + `$orderby=lastMessagePreview/createdDateTime desc`; `lastUpdatedDateTime`은 이름·구성원 변경 시각이라 메시지가 와도 안 바뀜 — 2026-10-19 수정); 주제 없으면 나를 뺀 구성원 이름), `GET /api/teams/chat/messages?chat=&since=`(최근 50건, since 뒤 수정분 — 5초 폴링), `POST /api/teams/chat/messages {chat, text}`(4,000자). 페이지 권한 키 `teams_chat`(업무·소식 그룹 첫 메뉴, user 이상; 웹 홈 첫 카드·앱 홈 바로 가기 첫 칸).
 - **채널(팀 안)**로 넓히려면 읽기 스코프 `ChannelMessage.Read.All`이 테넌트 관리자 동의(GA)를 요구한다(§3-A.0 절차). 채팅은 그 절차가 없다.
 - **함정**: `GET /me/chats`에 `$expand=members($select=…)`처럼 중첩 `$select`를 넣으면 Graph가 400 BadRequest(2026-10-03 운영 재현) — `$expand=members`만 쓴다. Graph 오류는 서버 로그 `[teams-chat] Graph <status> <code> request-id=… — <message>`로 남는다(`vercel logs <배포 URL>`).
 - **한계(1차)**: 첨부 파일은 이름 링크(Graph `attachments[].contentUrl` — SharePoint·OneDrive 주소, 본인 권한으로 열림; 카드류는 "이름 — Teams에서 확인", 답글 인용 `messageReference`는 첨부로 안 셈), 본문 이미지는 "[이미지]", 반응·답글 스레드는 표시하지 않음, 실시간 아님(폴링), 목록은 최근 50개. 변경 알림(webhook) 구독은 공개 수신점 + 리소스 데이터 암호화가 필요해 2단계.
+
+## 3-F. Microsoft 연결 "관리자 승인 필요" — 앱 등록 권한 목록과 관리자 동의 (2026-10-20)
+
+**증상**: 처음 연결하는 사용자에게 Microsoft "관리자 승인 필요 — Innogrid Playground Login에는 관리자만 권한을 부여할 수 있는…" 화면. 이미 연결한 사람(개인 동의가 남아 있음)은 문제없어서 일부만 막힌다.
+
+**원인**: `MS_SCOPES`(offline_access·User.Read·Files.ReadWrite.All·Sites.Read.All·Chat.ReadWrite)는 Microsoft 기본값으론 사용자 동의 권한이지만, 이 테넌트는 **사용자 동의를 막아 두었다**. 앱 등록 "API 사용 권한" 목록에 **Chat.ReadWrite가 빠져 있어** 관리자 동의(조직 전체)가 그 권한을 덮지 못했다 — "관리자 동의 허용" 버튼은 목록에 있는 권한에만 동의한다.
+
+**해결(운영자, 2026-10-20 적용)**:
+1. 역할: **권한 있는 역할 관리자**(또는 전역 관리자). 앱 등록에 애플리케이션 권한 `GroupMember.Read.All`(멤버 조회 Graph 방식)이 있어 클라우드 애플리케이션 관리자로는 "관리자 동의 허용"이 안 된다. 역할은 상위 관리자가 Entra → ID → 역할 및 관리자 → 역할 → 할당 추가로 준다(PIM이면 활성화 후 다시 로그인).
+2. Entra → 앱 등록 → Innogrid Playground Login(`c9f9e8ae-…`) → **API 사용 권한** → 구성된 권한에 `MS_SCOPES`의 위임 권한이 **모두** 있는지 확인, 없으면 + 권한 추가 → Microsoft Graph → 위임된 권한.
+3. **"이노그리드에 대한 관리자 동의 허용" → 예** → 모든 줄 상태 "이노그리드에 대해 허용됨".
+4. 막혔던 사용자가 창을 닫고 "Microsoft 계정 연결"을 다시 누른다.
+
+**앞으로**: `MS_SCOPES`에 권한을 더하면 **배포 전에** 앱 등록 API 사용 권한에 추가하고 관리자 동의를 다시 받는다(안 하면 새로 연결하는 사람부터 막힌다). 화면 문구는 "회사 설정에 따라 관리자 승인 화면이 나오면 IT 담당자에게 요청"으로 둔다.
+- 참고: 우리 연결 주소에는 `prompt=consent`가 없어, 이미 개인 동의한 관리자는 동의 화면이 안 떠서 "조직을 대신하여 동의" 체크박스를 볼 수 없다 — 조직 동의는 위 Entra 화면에서 한다.
 
 ## 3-E. SharePoint 문서 `/sharepoint` — 자주 쓰는 문서·즐겨찾기·검색(위임 Graph, 추가 권한 없음) — 2026-10-10
 

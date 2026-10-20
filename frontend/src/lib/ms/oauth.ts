@@ -5,7 +5,11 @@
 import type { FetchLike } from "@/lib/notify/types";
 import { GRAPH_BASE } from "@/lib/teams-graph";
 
-/** Teams 그룹 채팅 읽기·보내기(위임, 관리자 동의 불필요). 기존 연결은 이 스코프가 없으므로 채팅을 쓰려면 한 번 재연결한다. */
+/**
+ * Teams 그룹 채팅 읽기·보내기(위임). Microsoft 기본값으론 사용자 동의 권한이지만 이 테넌트는 사용자 동의를 막아 둬서,
+ * MS_SCOPES의 권한은 모두 Entra 앱 등록 'API 사용 권한'에 넣고 관리자 동의를 받아야 한다(2026-10-20, 런북 teams-integration §3-F).
+ * 기존 연결은 이 스코프가 없으므로 채팅을 쓰려면 한 번 재연결한다.
+ */
 export const TEAMS_CHAT_SCOPE = "Chat.ReadWrite";
 export const MS_SCOPES = ["offline_access", "User.Read", "Files.ReadWrite.All", "Sites.Read.All", TEAMS_CHAT_SCOPE] as const;
 const SCOPE = MS_SCOPES.join(" ");
