@@ -43,7 +43,9 @@ class AppWebController {
     }
   }
 
-  AppWebController() : native = Platform.isWindows ? null : WebViewController();
+  /// [javaScript]가 false면 Windows WebView2도 스크립트를 끈다(메일 본문 같은 신뢰할 수 없는 HTML용). 다른 플랫폼은 setJavaScriptMode로.
+  AppWebController({this.javaScript = true}) : native = Platform.isWindows ? null : WebViewController();
+  final bool javaScript;
   final WebViewController? native;
   final _ready = Completer<ia.PlatformInAppWebViewController>();
   AppNavigationDelegate? _delegate;
@@ -75,6 +77,16 @@ class AppWebController {
     await (await _ready.future).loadUrl(
       urlRequest: ia.URLRequest(url: ia.WebUri(url.toString())),
     );
+  }
+
+  /// HTML 문자열을 바로 그린다(주소 없음 — about:blank).
+  Future<void> loadHtmlString(String html) async {
+    if (native == null && _unavailable) return;
+    if (native != null) {
+      await native!.loadHtmlString(html);
+      return;
+    }
+    await (await _ready.future).loadData(data: html, mimeType: 'text/html', encoding: 'utf8', baseUrl: ia.WebUri('about:blank'));
   }
 
   Future<String?> getUserAgent() async => _unavailable && native == null
@@ -162,7 +174,7 @@ class AppWebController {
       win.WindowsInAppWebViewWidgetCreationParams(
         webViewEnvironment: _environment,
         initialSettings: ia.InAppWebViewSettings(
-          javaScriptEnabled: true,
+          javaScriptEnabled: javaScript,
           useShouldOverrideUrlLoading: true,
         ),
         onWebViewCreated: (controller) => _ready.complete(controller),
