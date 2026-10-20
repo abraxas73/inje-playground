@@ -141,8 +141,8 @@ export default function TeamsChatPage() {
         <div className="flex items-center gap-2 font-semibold"><MessageCircle className="h-5 w-5 text-primary" />Teams 채팅</div>
         <p className="text-sm text-muted-foreground">
           {info.connected
-            ? "연결된 Microsoft 계정에 Teams 채팅 권한(Chat.ReadWrite)이 없습니다. 다시 연결하면 권한이 추가됩니다(관리자 동의는 필요 없습니다)."
-            : "내가 속한 Teams 채팅을 본인 Microsoft 계정으로 읽고 보냅니다. 먼저 Microsoft 계정을 연결하세요(관리자 동의는 필요 없습니다)."}
+            ? "연결된 Microsoft 계정에 Teams 채팅 권한(Chat.ReadWrite)이 없습니다. 다시 연결하면 권한이 추가됩니다(회사 설정에 따라 관리자 승인 화면이 나오면 IT 담당자에게 요청해 주세요)."
+            : "내가 속한 Teams 채팅을 본인 Microsoft 계정으로 읽고 보냅니다. 먼저 Microsoft 계정을 연결하세요(회사 설정에 따라 관리자 승인 화면이 나오면 IT 담당자에게 요청해 주세요)."}
         </p>
         <Button asChild><a href={connectHref}>{info.connected ? "Microsoft 계정 다시 연결(권한 추가)" : "Microsoft 계정 연결"}</a></Button>
         {error && <p className="text-sm text-destructive">{error}</p>}
