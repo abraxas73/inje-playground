@@ -7,7 +7,7 @@ export async function readError(res: Response, fallback: string): Promise<string
   return j?.error ?? fallback;
 }
 
-export async function postJson<T>(url: string, body: unknown, method: "POST" | "PUT" | "DELETE" = "POST"): Promise<T> {
+export async function postJson<T>(url: string, body: unknown, method: "POST" | "PUT" | "PATCH" | "DELETE" = "POST"): Promise<T> {
   const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!res.ok) {
     const j = (await res.json().catch(() => null)) as { error?: string; code?: string } | null;

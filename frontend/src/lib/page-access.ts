@@ -24,6 +24,7 @@ export const PAGES = [
   { key: "sharepoint", href: "/sharepoint", label: "SharePoint 문서", group: "work", minRole: "user" },
   { key: "rfp", href: "/rfp", label: "RFP 분석", group: "work", minRole: "user" },
   { key: "ppt", href: "/ppt", label: "PPT 만들기", group: "work", minRole: "user" },
+  { key: "proposal", href: "/proposal/general", label: "제안도우미-일반현황", group: "work", minRole: "user" },
   { key: "people_news", href: "/people-news", label: "인사·부고", group: "work", minRole: "user" },
   { key: "marketing", href: "/marketing", label: "마케팅 Master DB", group: "work", minRole: "user" },
   // 아마란스 메일(웹은 데스크톱 앱 중계). 키는 앱 catalog.dart appPages와 같아 한 스위치로 웹·앱을 함께 제어한다. 웹 메뉴에는 안 보이고 매뉴얼 링크로 연다. DB 함수 키 목록은 docs/sql/2026-10-11-page-keys-sync.sql
@@ -60,7 +61,7 @@ export function pagesForPath(path: string): PageKey[] {
     ["/api/team-sessions", ["team"]], ["/api/team-attendance", ["team"]],
     ["/api/team-comments", ["team"]], ["/api/team-notify", ["team"]],
     ["/api/surveys", ["survey"]], ["/api/guide", ["guide"]], ["/api/teams/chat", ["teams_chat"]], ["/api/teams/mentions", ["teams_chat"]],
-    ["/api/rfp", ["rfp"]], ["/api/ppt", ["ppt"]], ["/api/people-news", ["people_news"]],
+    ["/api/rfp", ["rfp"]], ["/api/ppt", ["ppt"]], ["/api/proposal", ["proposal"]], ["/api/people-news", ["people_news"]],
     ["/api/marketing", ["marketing"]], ["/api/dooray/overview", ["dooray"]], ["/api/dooray/messenger", ["dooray"]], ["/api/jira", ["jira"]], ["/api/confluence", ["confluence"]], ["/api/sharepoint", ["sharepoint"]], ["/api/mcp", ["mcp"]], ["/api/gw/mail", ["gw_mail"]], ["/api/chat", ["assistant"]],
     ["/media-directory", ["people_news"]], ["/api/media-directory", ["people_news"]],
     ["/api/usage/code", ["usage_code"]], ["/api/usage/tools", ["usage_code"]],

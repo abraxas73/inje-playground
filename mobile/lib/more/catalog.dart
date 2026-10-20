@@ -39,6 +39,7 @@ const pages = <PageEntry>[
   PageEntry('sharepoint', '/sharepoint', 'SharePoint 문서', 'work', 'user'),
   PageEntry('rfp', '/rfp', 'RFP 분석', 'work', 'user'),
   PageEntry('ppt', '/ppt', 'PPT 만들기', 'work', 'user'),
+  PageEntry('proposal', '/proposal/general', '제안도우미-일반현황', 'work', 'user'),
   PageEntry('people_news', '/people-news', '인사·부고', 'work', 'user'),
   PageEntry('marketing', '/marketing', '마케팅 Master DB', 'work', 'user'),
 ];

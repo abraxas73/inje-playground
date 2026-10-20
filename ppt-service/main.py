@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from innogrid_ppt import tokens as T
-from service import builder as B, catalog as C, extract as X, storage as S, templates as TP
+from service import builder as B, catalog as C, extract as X, proposal as PR, storage as S, templates as TP
 
 app = FastAPI(title="innogrid ppt-service", docs_url=None, redoc_url=None)
 
@@ -141,5 +141,75 @@ def build(req: BuildRequest, request: Request, x_ppt_token: str | None = Header(
         import traceback
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"ok": False, "kind": "internal", "message": f"내부 오류: {type(e).__name__}: {e}", "section": None, "slide": None})
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+# ── 제안도우미-일반현황 ───────────────────────────────────────────
+
+class ProposalOutlineRequest(BaseModel):
+    profileUrl: str | None = None   # 일반현황 PPT — 장표 내용(제목·글·표·그림 id)
+    templateUrl: str | None = None  # 고객사 템플릿 — 슬라이드 크기·레이아웃
+
+
+@app.post("/proposal/outline")
+def proposal_outline(req: ProposalOutlineRequest, request: Request, x_ppt_token: str | None = Header(default=None)):
+    """일반현황 내용·고객사 레이아웃을 읽는다(업로드 검증과 레이아웃 재구성의 LLM 재료)."""
+    check_token(x_ppt_token)
+    check_body(request)
+    urls = [u for u in (req.profileUrl, req.templateUrl) if u]
+    if not urls or not all(S.allowed_host(u) for u in urls):
+        raise HTTPException(status_code=400, detail="파일 주소가 없거나 허용되지 않습니다")
+    work = Path(tempfile.gettempdir()) / f"ppt-{uuid.uuid4().hex}"
+    try:
+        out = {}
+        if req.profileUrl:
+            out["profile"] = PR.profile_outline(PR.open_pptx(S.download(req.profileUrl, work / "profile.pptx")))
+        if req.templateUrl:
+            out["template"] = PR.template_info(PR.open_pptx(S.download(req.templateUrl, work / "template.pptx")))
+        return out
+    except PR.ProposalError as e:
+        return JSONResponse(status_code=422, content={"ok": False, "message": str(e)})
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=400, detail=f"파일을 내려받지 못했습니다({e.response.status_code})")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="파일을 내려받지 못했습니다(연결 오류)")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+class ProposalBuildRequest(BaseModel):
+    mode: str                       # restyle | reflow
+    profileUrl: str
+    templateUrl: str
+    pptxUrl: str                    # 결과 업로드 서명 URL
+    spec: dict | None = None        # reflow 배치 JSON
+
+
+@app.post("/proposal/build")
+def proposal_build(req: ProposalBuildRequest, request: Request, x_ppt_token: str | None = Header(default=None)):
+    check_token(x_ppt_token)
+    check_body(request)
+    if req.mode not in ("restyle", "reflow") or (req.mode == "reflow" and not req.spec):
+        raise HTTPException(status_code=400, detail="mode·spec이 올바르지 않습니다")
+    if not all(S.allowed_host(u) for u in (req.profileUrl, req.templateUrl, req.pptxUrl)):
+        raise HTTPException(status_code=400, detail="파일 주소가 허용되지 않습니다")
+    work = Path(tempfile.gettempdir()) / f"ppt-{uuid.uuid4().hex}"
+    try:
+        profile = S.download(req.profileUrl, work / "profile.pptx")
+        template = S.download(req.templateUrl, work / "template.pptx")
+        out = work / "result.pptx"
+        res = PR.restyle(profile, template, out) if req.mode == "restyle" else PR.reflow(profile, template, req.spec, out)
+        return {"ok": True, **res, "bytes": S.upload(req.pptxUrl, out, PR.PPTX_MIME)}
+    except PR.ProposalError as e:
+        return JSONResponse(status_code=422, content={"ok": False, "message": str(e)})
+    except httpx.HTTPStatusError as e:
+        return JSONResponse(status_code=502, content={"ok": False, "message": f"스토리지 응답 오류({e.response.status_code})"})
+    except httpx.RequestError:
+        return JSONResponse(status_code=502, content={"ok": False, "message": "스토리지 연결 오류"})
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"ok": False, "message": f"내부 오류: {type(e).__name__}"})
     finally:
         shutil.rmtree(work, ignore_errors=True)
