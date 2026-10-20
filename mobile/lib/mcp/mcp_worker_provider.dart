@@ -51,7 +51,7 @@ Future<String> _workerId() async {
   return '$id/${Platform.operatingSystem}';
 }
 
-/// macOS·Windows에서만: 앱 로그인 + 스위치 켬일 때 `mcp_calls`를 구독·폴링해 Claude 커넥터 요청을 대신 실행한다.
+/// macOS·Windows에서만: 앱 로그인 + 스위치 켬일 때 `mcp_calls`를 폴링해 Claude 커넥터 요청을 대신 실행한다.
 final mcpWorkerProvider = Provider<McpWorker?>((ref) {
   if (!(Platform.isMacOS || Platform.isWindows)) return null;
   if (!ref.watch(sessionProvider.select((s) => s.asData?.value != null)) || !ref.watch(mcpEnabledProvider)) return null; // 로그인 여부만 — reload()로 채널을 다시 만들지 않게
@@ -61,22 +61,9 @@ final mcpWorkerProvider = Provider<McpWorker?>((ref) {
   final table = client.from('mcp_calls');
   final workerId = _workerId();
   final schemas = ApprovalSchemas();
-  final inserts = StreamController<McpCall>();
-  final channel = client
-      .channel('mcp_calls:$uid')
-      .onPostgresChanges(
-        event: PostgresChangeEvent.insert,
-        schema: 'public',
-        table: 'mcp_calls',
-        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'user_id', value: uid),
-        callback: (payload) {
-          final c = McpCall.fromRow(payload.newRecord);
-          if (c != null && !inserts.isClosed) inserts.add(c);
-        },
-      )
-      .subscribe();
+  // 실시간 구독(postgres_changes)은 쓰지 않는다 — Realtime이 WAL 전체를 0.1초마다 디코딩해 DB 1위 슬로우 쿼리가 됐다(2026-10-21). 2초 폴링으로 충분.
   final w = McpWorker(
-    inserts: inserts.stream,
+    poll: const Duration(seconds: 2),
     // 아마란스 연결은 호출 때마다 읽는다(연결·만료가 바뀌어도 워커를 다시 만들지 않게).
     execute: (tool, args) => McpTools(gw: ref.read(gwApiProvider), appSupportDir: mcpAppSupportDir, schemas: schemas, mailIndex: ref.read(mailIndexProvider.notifier)).execute(tool, args),
     fetchPending: () async => [for (final r in await table.select('id, tool, args').eq('status', 'pending').order('created_at')) ?McpCall.fromRow(r)],
@@ -90,8 +77,6 @@ final mcpWorkerProvider = Provider<McpWorker?>((ref) {
   w.start();
   ref.onDispose(() {
     w.dispose();
-    inserts.close();
-    client.removeChannel(channel);
   });
   return w;
 });
