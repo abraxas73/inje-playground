@@ -45,6 +45,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   bool _manualBusy = false;
   bool _allAbsences = false;
   bool _editing = false; // 데스크톱 대시보드 편집 모드
+  Offset _toolbarOffset = Offset.zero; // 떠 있는 위젯 툴바를 끌어 옮긴 만큼(기본 위치=하단 가운데 기준)
   Timer? _dailyTimer;
   late String _period;
 
@@ -306,7 +307,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 ]),
                 const SizedBox(height: 12),
                 if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(bottom: 12), child: LinearProgressIndicator(minHeight: 2)),
-                if (_editing) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text('위젯 위쪽 손잡이를 끌어 옮기고, 오른쪽 아래 모서리로 크기를 바꾸세요. ✕로 삭제, 아래 떠 있는 팔레트에서 추가.', style: TextStyle(fontSize: 12, color: Brand.muted))),
+                if (_editing) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text('위젯 위쪽 손잡이를 끌어 옮기면 놓을 자리가 점선으로 보이고, 놓으면 그 자리에 배치돼요. 오른쪽 아래 모서리로 크기를 바꾸세요. ✕로 삭제, 떠 있는 툴바에서 추가·자동 배열(툴바 머리줄을 끌면 옮겨져요).', style: TextStyle(fontSize: 12, color: Brand.muted))),
                 DashboardView(
                   layout: layout,
                   widgets: sections,
@@ -319,7 +320,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             if (_editing)
               Positioned(
                 left: 16, right: 16, bottom: 16,
-                child: Center(child: DashboardPalette(widgets: sections, layout: layout, onAdd: addWidget, onDone: () => setState(() => _editing = false))),
+                child: Center(child: Transform.translate(
+                  offset: _toolbarOffset,
+                  child: DashboardPalette(
+                    widgets: sections, layout: layout, onAdd: addWidget,
+                    onArrange: () => ref.read(homeDashboardProvider.notifier).save(autoArrange(layout)),
+                    onDone: () => setState(() => _editing = false),
+                    onDrag: (d) {
+                      // 화면 밖으로 사라지지 않게 대략 화면 안으로 묶는다
+                      final size = MediaQuery.sizeOf(context);
+                      final o = _toolbarOffset + d;
+                      setState(() => _toolbarOffset = Offset(o.dx.clamp(-size.width / 2 + 80, size.width / 2 - 80), o.dy.clamp(-size.height + 160, 0)));
+                    },
+                  ),
+                )),
               ),
           ]),
         ),

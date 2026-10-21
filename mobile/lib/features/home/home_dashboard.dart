@@ -54,6 +54,38 @@ List<DashboardTile> _migrate(List<DashboardTile> tiles) {
   return out;
 }
 
+bool _overlaps(DashboardTile a, int y, DashboardTile o) =>
+    a.x < o.x + o.w && a.x + a.w > o.x && y < o.y + o.h && y + a.h > o.y;
+
+/// 겹침 해소 — 방금 옮기거나 키운 타일(pinned)은 놓은 자리 그대로 두고, 그것과(연쇄적으로) 겹치는 타일만 아래로 내린다.
+/// 겹치지 않는 타일은 손대지 않는다.
+List<DashboardTile> resolveCollisions(List<DashboardTile> tiles, {String? pinned}) {
+  final sorted = [...tiles]..sort((a, b) => a.id == pinned ? -1 : b.id == pinned ? 1 : a.y != b.y ? a.y - b.y : a.x - b.x);
+  final placed = <DashboardTile>[];
+  for (final t in sorted) {
+    var y = t.y;
+    for (var o = placed.where((o) => _overlaps(t, y, o)).firstOrNull; o != null; o = placed.where((o) => _overlaps(t, y, o)).firstOrNull) {
+      y = o.y + o.h;
+    }
+    placed.add(t.copyWith(y: y));
+  }
+  return placed;
+}
+
+/// 자동 배열 — 칼럼·크기는 그대로, 위에서부터 빈 칸이 없게 각 타일을 올릴 수 있는 만큼 끌어올린다.
+List<DashboardTile> autoArrange(List<DashboardTile> tiles) {
+  final sorted = [...tiles]..sort((a, b) => a.y != b.y ? a.y - b.y : a.x - b.x);
+  final placed = <DashboardTile>[];
+  for (final t in sorted) {
+    var y = 0;
+    while (placed.any((o) => _overlaps(t, y, o))) {
+      y++;
+    }
+    placed.add(t.copyWith(y: y));
+  }
+  return placed;
+}
+
 List<DashboardTile> _parse(Object? j) {
   if (j is! Map || j['tiles'] is! List) return const [];
   return (j['tiles'] as List).map(DashboardTile.fromJson).whereType<DashboardTile>().toList();
