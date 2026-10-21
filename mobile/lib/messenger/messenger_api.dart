@@ -39,8 +39,8 @@ class MessengerApi {
   Future<Map<String, String>> userNames(List<String> empSeqs) async {
     final uniq = empSeqs.where((e) => e.isNotEmpty).toSet().toList();
     if (uniq.isEmpty) return {};
-    final sess = await client.ensureSession();
-    final dynamic d = await client.call('P1471', {'groupSeq': sess.groupSeq, 'empSeqList': uniq, 'searchTarget': ['empName'], 'grouppingTp': '', 'page': 1, 'pageSize': uniq.length});
+    // 원본 메신저 reqSearchUserInfo의 실제 요청 본문은 {empSeqList, grouppingTp}뿐이다(groupSeq·searchTarget·page는 안 보냄).
+    final dynamic d = await client.call('P1471', {'empSeqList': uniq, 'grouppingTp': ''});
     final list = d is List ? d : (d is Map ? (d['userList'] ?? d['empList'] ?? d['list'] ?? const []) : const []);
     final out = <String, String>{};
     if (list is List) {
