@@ -192,16 +192,26 @@ class MsgAttend {
   }
 }
 
-/// 동료 접속 상태(P322). state: 접속/부재/오프라인 등 서버 코드.
+/// 동료 접속 상태(P322). code: -1 오프라인 · 0 온라인 · 1 부재 · 2 바쁨 · 3 회의 · 4 통화 · 5 외근 · 6 휴가 · 7 재택.
+/// (출처: 메신저 dzSymbols KEY_CLIENT_INFO_STATE_*, connect!='Y'면 오프라인.)
 class MsgClientState {
-  const MsgClientState({required this.empSeq, required this.state, required this.stateMsg});
-  final String empSeq, state, stateMsg;
+  const MsgClientState({required this.empSeq, required this.code, required this.stateMsg});
+  final String empSeq, code, stateMsg;
 
-  static MsgClientState fromRow(Map r) => MsgClientState(
-        empSeq: _asStr(r['empSeq']),
-        state: _asStr(r['clientState']).isNotEmpty ? _asStr(r['clientState']) : _asStr(r['state']),
-        stateMsg: _asStr(r['stateMsg']),
-      );
+  bool get online => code == '0' || code == '6'; // 접속·휴가(접속 중)로 본다
+  String get label => switch (code) {
+        '0' => '접속', '1' => '부재', '2' => '다른 용무', '3' => '회의', '4' => '통화', '5' => '외근', '6' => '휴가', '7' => '재택', _ => '오프라인',
+      };
+
+  static MsgClientState fromRow(Map r) {
+    final connect = _asStr(r['connect']);
+    final raw = _asStr(r['clientState']).isNotEmpty ? _asStr(r['clientState']) : _asStr(r['state']);
+    return MsgClientState(
+      empSeq: _asStr(r['empSeq']),
+      code: (connect.isNotEmpty && connect != 'Y') ? '-1' : (raw.isEmpty ? '-1' : raw),
+      stateMsg: _asStr(r['stateMsg']),
+    );
+  }
 
   static List<MsgClientState> parseList(dynamic d) {
     final list = d is List ? d : (d is Map && (d['clientList'] ?? d['list']) is List ? (d['clientList'] ?? d['list']) as List : const []);

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
 import 'messenger_api.dart';
-import 'messenger_client.dart';
 import 'messenger_models.dart';
 import 'messenger_provider.dart';
+import 'messenger_search_screen.dart';
+import 'messenger_ui.dart';
 
 /// 아마란스 메신저 대화방 목록 — 저장된 아마란스 로그인으로 P076 세션을 만들어 조회한다.
 /// 자격증명이 없거나 만료면 아마란스 연결로 안내. 토큰·비밀번호는 화면에 노출하지 않는다.
@@ -19,6 +19,7 @@ class MessengerChatScreen extends ConsumerStatefulWidget {
 class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
   late Future<List<MsgRoom>> _future = _load();
   Map<String, String> _names = const {}; // empSeq → 이름(제목 표시용)
+  Map<String, MsgClientState> _states = const {}; // empSeq → 접속 상태(1:1 방 점)
 
   Future<List<MsgRoom>> _load() async {
     final api = ref.read(messengerApiProvider);
@@ -34,6 +35,14 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
         // 이름 해석 실패는 치명적이지 않다 — 기본 제목 유지
       }
     }
+    // 1:1 방 상대의 접속 상태(실패해도 무시)
+    final oneToOne = {for (final r in rooms) if (r.roomType != '7' && r.receiverSeqs.where((s) => s != myEmpSeq).length == 1) ...r.receiverSeqs.where((s) => s != myEmpSeq)};
+    if (oneToOne.isNotEmpty) {
+      try {
+        final states = await api.clientStates(oneToOne.toList());
+        if (mounted) setState(() => _states = {..._states, for (final s in states) s.empSeq: s});
+      } catch (_) {}
+    }
     return rooms;
   }
 
@@ -45,12 +54,22 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: BrandHeader(title: '메신저', showBack: true),
+      appBar: BrandHeader(
+        title: '메신저',
+        showBack: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: '검색',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MessengerSearchScreen())),
+          ),
+        ],
+      ),
       body: FutureBuilder<List<MsgRoom>>(
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-          if (snap.hasError) return _error(context, snap.error!);
+          if (snap.hasError) return MessengerError(error: snap.error!, onRetry: _refresh);
           final rooms = snap.data ?? const [];
           if (rooms.isEmpty) {
             return RefreshIndicator(onRefresh: _refresh, child: ListView(children: const [SizedBox(height: 120), Center(child: Text('대화방이 없습니다', style: TextStyle(color: Brand.muted)))]));
@@ -71,8 +90,26 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
   Widget _roomTile(BuildContext context, MsgRoom r) {
     final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
     final title = r.titleWith(_names, myEmpSeq);
+    final others = r.receiverSeqs.where((s) => s != myEmpSeq).toList();
+    final state = (r.roomType != '7' && others.length == 1) ? _states[others.first] : null;
     return ListTile(
-      leading: InitialBadge(title),
+      leading: Stack(clipBehavior: Clip.none, children: [
+        InitialBadge(title),
+        if (state != null)
+          Positioned(
+            right: -1,
+            bottom: -1,
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: state.online ? const Color(0xFF34C759) : (state.code == '-1' ? Brand.faint : const Color(0xFFFF9500)),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+          ),
+      ]),
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(r.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Brand.muted)),
       trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -86,32 +123,6 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
     );
   }
 
-  Widget _error(BuildContext context, Object e) {
-    // 저장된 자격증명 자체가 없을 때만 '연결' 안내. 로그인은 됐는데 서버가 거부하면 실제 코드·메시지를 보여 준다.
-    final noCreds = e is MessengerAuthException && e.noCreds;
-    final detail = switch (e) {
-      MessengerAuthException a => '메신저 로그인 거부 (코드 ${a.resultCode})\n${a.message}',
-      MessengerException m => '메신저 오류 (코드 ${m.resultCode})\n${m.message}',
-      _ => '$e',
-    };
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TintIcon(noCreds ? Icons.apartment_outlined : Icons.error_outline, size: 56),
-          const SizedBox(height: 16),
-          Text(noCreds ? '아마란스를 연결하면 메신저를 씁니다' : '메신저를 불러오지 못했습니다', style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
-          const SizedBox(height: 6),
-          Text(noCreds ? '자동 로그인에 저장된 아이디·비밀번호로 메신저에 로그인합니다. 토큰은 이 기기에만 저장됩니다.' : detail, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Brand.muted), textAlign: TextAlign.center),
-          const SizedBox(height: 20),
-          if (noCreds)
-            FilledButton.icon(onPressed: () => context.push('/gw/connect'), icon: const Icon(Icons.login, size: 18), label: const Text('아마란스 연결하기'))
-          else
-            OutlinedButton.icon(onPressed: _refresh, icon: const Icon(Icons.refresh, size: 18), label: const Text('다시 시도')),
-        ]),
-      ),
-    );
-  }
 }
 
 /// 한 대화방 — 최근 대화를 읽고, 보내기. 내 메시지는 오른쪽 정렬(세션 empSeq 기준).
@@ -130,12 +141,9 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
 
   MessengerApi get _api => ref.read(messengerApiProvider);
 
-  final _scroll = ScrollController();
-
   Future<List<MsgChat>> _load() async {
     final chats = await _api.chats(widget.room.roomId);
-    chats.sort((a, b) => a.timeStamp.compareTo(b.timeStamp)); // 오래된→최신(최신이 아래)
-    _jumpToBottomSoon();
+    chats.sort((a, b) => a.timeStamp.compareTo(b.timeStamp)); // 오래된→최신(화면은 reverse로 최신이 아래)
     final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
     final seqs = {for (final c in chats) if (c.sendEmpSeq != myEmpSeq) c.sendEmpSeq};
     if (seqs.isNotEmpty) {
@@ -152,16 +160,9 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
     await _future.catchError((_) => <MsgChat>[]);
   }
 
-  void _jumpToBottomSoon() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
-    });
-  }
-
   @override
   void dispose() {
     _input.dispose();
-    _scroll.dispose();
     super.dispose();
   }
 
@@ -184,7 +185,23 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
   Widget build(BuildContext context) {
     final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
     return Scaffold(
-      appBar: BrandHeader(title: widget.room.title, showBack: true),
+      appBar: BrandHeader(
+        title: widget.room.title,
+        showBack: true,
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (v) {
+              if (v == 'notice') _openRoomSheet(title: '공지', loader: () => _api.roomNotices(widget.room.roomId), build: _noticeTile);
+              if (v == 'files') _openRoomSheet(title: '파일함', loader: () => _api.roomFiles(widget.room.roomId), build: _fileTile);
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'notice', child: Text('공지')),
+              PopupMenuItem(value: 'files', child: Text('파일함')),
+            ],
+          ),
+        ],
+      ),
       body: Column(children: [
         Expanded(
           child: FutureBuilder<List<MsgChat>>(
@@ -194,22 +211,21 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
               if (snap.hasError) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('불러오지 못했습니다: ${snap.error}', textAlign: TextAlign.center)));
               final chats = snap.data ?? const [];
               if (chats.isEmpty) return const Center(child: Text('대화가 없습니다', style: TextStyle(color: Brand.muted)));
-              return RefreshIndicator(
-                onRefresh: _refresh,
-                child: ListView.builder(
-                  controller: _scroll,
-                  padding: const EdgeInsets.all(12),
-                  itemCount: chats.length,
-                  itemBuilder: (_, i) {
-                    final c = chats[i];
-                    final prev = i == 0 ? null : chats[i - 1];
-                    final showDate = prev == null || !_sameDay(prev.at, c.at);
-                    return Column(children: [
-                      if (showDate) _dateDivider(c.at),
-                      _bubble(c, c.sendEmpSeq == myEmpSeq),
-                    ]);
-                  },
-                ),
+              // reverse:true → 맨 아래(최신)부터 보인다. i=0=최신, 올라갈수록 과거. chats는 오름차순이라 j로 뒤집어 읽는다.
+              return ListView.builder(
+                reverse: true,
+                padding: const EdgeInsets.all(12),
+                itemCount: chats.length,
+                itemBuilder: (_, i) {
+                  final j = chats.length - 1 - i;
+                  final c = chats[j];
+                  final older = j == 0 ? null : chats[j - 1];
+                  final showDate = older == null || !_sameDay(older.at, c.at); // 그날의 첫(가장 오래된) 메시지 위에 날짜
+                  return Column(children: [
+                    if (showDate) _dateDivider(c.at),
+                    _bubble(c, c.sendEmpSeq == myEmpSeq),
+                  ]);
+                },
               );
             },
           ),
@@ -218,6 +234,47 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
       ]),
     );
   }
+
+  /// 공지·파일함 공용 바텀시트(목록 로드 → 타일).
+  Future<void> _openRoomSheet<T>({required String title, required Future<List<T>> Function() loader, required Widget Function(T) build}) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        builder: (_, ctl) => Column(children: [
+          Padding(padding: const EdgeInsets.fromLTRB(20, 16, 20, 8), child: Row(children: [Text(title, style: Theme.of(context).textTheme.titleLarge)])),
+          Expanded(
+            child: FutureBuilder<List<T>>(
+              future: loader(),
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                if (snap.hasError) return Padding(padding: const EdgeInsets.all(24), child: Text('불러오지 못했습니다: ${snap.error}'));
+                final items = snap.data ?? const [];
+                if (items.isEmpty) return Center(child: Text('$title가 없습니다', style: const TextStyle(color: Brand.muted)));
+                return ListView(controller: ctl, children: [for (final it in items) build(it)]);
+              },
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _noticeTile(MsgRoomNotice n) => ListTile(
+        leading: const Icon(Icons.campaign_outlined, color: Brand.faint),
+        title: Text(n.content),
+        subtitle: n.empName.isEmpty ? null : Text(n.empName, style: const TextStyle(color: Brand.muted)),
+      );
+
+  Widget _fileTile(MsgRoomFile f) => ListTile(
+        leading: const Icon(Icons.insert_drive_file_outlined, color: Brand.faint),
+        title: Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text([if (f.empName.isNotEmpty) f.empName, if (f.size > 0) _fileSize(f.size)].join(' · '), style: const TextStyle(color: Brand.muted)),
+      );
+
+  String _fileSize(int b) => b >= 1048576 ? '${(b / 1048576).toStringAsFixed(1)}MB' : b >= 1024 ? '${(b / 1024).toStringAsFixed(0)}KB' : '${b}B';
 
   Widget _bubble(MsgChat c, bool mine) {
     final text = c.deleted ? '삭제된 메시지입니다.' : c.content;

@@ -29,6 +29,8 @@ const serviceMeta = <String, (IconData, String)>{
   'gw_mail': (Icons.mail_outline, '받은메일 미읽음'),
   'gw_board': (Icons.article_outlined, '공지·새 글'),
   'gw_messenger': (Icons.chat_outlined, '대화방·대화'),
+  'gw_notes': (Icons.markunread_mailbox_outlined, '쪽지'),
+  'gw_attend': (Icons.event_available_outlined, '오늘 전사 근태'),
 };
 const nativeTabKeys = {'food', 'ladder', 'team'};
 /// 홈 "바로 가기"에 따로 나오는 것(네이티브 탭 3개 + Teams 채팅) — 사내 서비스 그리드에서는 뺀다.
