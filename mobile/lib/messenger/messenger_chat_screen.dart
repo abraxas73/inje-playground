@@ -4,6 +4,7 @@ import '../app/brand.dart';
 import '../app/theme.dart';
 import 'dart:async';
 import 'messenger_api.dart';
+import 'messenger_client.dart' show MessengerAuthException;
 import 'messenger_models.dart';
 import 'messenger_mqtt.dart';
 import 'messenger_provider.dart';
@@ -13,7 +14,9 @@ import 'messenger_ui.dart';
 /// 아마란스 메신저 대화방 목록 — 저장된 아마란스 로그인으로 P076 세션을 만들어 조회한다.
 /// 자격증명이 없거나 만료면 아마란스 연결로 안내. 토큰·비밀번호는 화면에 노출하지 않는다.
 class MessengerChatScreen extends ConsumerStatefulWidget {
-  const MessengerChatScreen({super.key});
+  const MessengerChatScreen({super.key, this.embedded = false});
+  /// 대시보드 타일 안(스코프 Navigator)에 들어갈 때 true — 목록 화면의 '뒤로'를 숨긴다.
+  final bool embedded;
   @override
   ConsumerState<MessengerChatScreen> createState() => _MessengerChatScreenState();
 }
@@ -87,7 +90,7 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
     return Scaffold(
       appBar: BrandHeader(
         title: '메신저',
-        showBack: true,
+        showBack: !widget.embedded,
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
@@ -339,7 +342,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
   String _fileSize(int b) => b >= 1048576 ? '${(b / 1048576).toStringAsFixed(1)}MB' : b >= 1024 ? '${(b / 1024).toStringAsFixed(0)}KB' : '${b}B';
 
   Widget _bubble(MsgChat c, bool mine) {
-    final text = c.deleted ? '삭제된 메시지입니다.' : c.content;
+    final text = c.deleted ? '삭제된 메시지입니다.' : c.displayContent;
     final name = _names[c.sendEmpSeq];
     final time = c.at == null ? '' : _hhmm(c.at!);
     final bubble = Container(
@@ -415,4 +418,114 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
 String _hhmm(DateTime t) {
   final k = t.toUtc().add(const Duration(hours: 9));
   return '${k.hour.toString().padLeft(2, '0')}:${k.minute.toString().padLeft(2, '0')}';
+}
+
+/// 홈 대시보드용 아마란스 메신저 카드 — 안 읽은 방 우선, 상위 몇 개를 간단히 보여 주고 누르면 그 방으로.
+/// 자격증명·세션 실패는 조용히 안내만 한다(토큰·비밀번호 노출 금지).
+class MessengerDashboardCard extends ConsumerStatefulWidget {
+  const MessengerDashboardCard({super.key, required this.onMore});
+  final VoidCallback onMore; // '메신저 열기' → /gw/messenger
+  @override
+  ConsumerState<MessengerDashboardCard> createState() => _MessengerDashboardCardState();
+}
+
+class _MessengerDashboardCardState extends ConsumerState<MessengerDashboardCard> {
+  late Future<List<MsgRoom>> _future;
+  Map<String, String> _names = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    ensureMessengerRealtime(ref);
+    _future = _load();
+  }
+
+  Future<List<MsgRoom>> _load() async {
+    final api = ref.read(messengerApiProvider);
+    final rooms = await api.rooms();
+    final my = ref.read(messengerClientProvider).session?.empSeq ?? '';
+    final needing = {for (final r in rooms) if (r.roomType != '7' && r.rawTitle.isEmpty) ...r.unresolvedSeqs(my)};
+    if (needing.isNotEmpty) {
+      try {
+        final names = await api.userNames(needing.toList());
+        if (mounted) setState(() => _names = {..._names, ...names});
+      } catch (_) {}
+    }
+    rooms.sort((a, b) {
+      final ua = a.unreadCount > 0 ? 1 : 0, ub = b.unreadCount > 0 ? 1 : 0;
+      if (ua != ub) return ub - ua;
+      return (b.lastAt ?? DateTime(2000)).compareTo(a.lastAt ?? DateTime(2000));
+    });
+    return rooms;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final my = ref.read(messengerClientProvider).session?.empSeq ?? '';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 6, 8),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Text('아마란스 메신저', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.muted)),
+            const Spacer(),
+            TextButton(onPressed: widget.onMore, child: const Text('메신저 열기', style: TextStyle(fontSize: 12))),
+          ]),
+          FutureBuilder<List<MsgRoom>>(
+            future: _future,
+            builder: (context, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Padding(padding: EdgeInsets.all(16), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))));
+              }
+              if (snap.hasError) {
+                final noCreds = snap.error is MessengerAuthException && (snap.error as MessengerAuthException).noCreds;
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(2, 10, 10, 10),
+                  child: Text(noCreds ? '아마란스 연결이 필요합니다' : '메신저를 불러오지 못했습니다', style: TextStyle(fontSize: 12, color: Brand.faint)),
+                );
+              }
+              final rooms = (snap.data ?? const []).take(6).toList();
+              if (rooms.isEmpty) {
+                return Padding(padding: const EdgeInsets.fromLTRB(2, 10, 10, 10), child: Text('대화가 없습니다', style: TextStyle(fontSize: 12, color: Brand.faint)));
+              }
+              return Column(children: [
+                for (final r in rooms)
+                  ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.only(right: 10),
+                    leading: InitialBadge(r.titleWith(_names, my), size: 34, circle: true),
+                    title: Text(r.titleWith(_names, my), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    subtitle: Text(r.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Brand.muted)),
+                    trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      if (r.lastAt != null) Text(_hhmm(r.lastAt!), style: TextStyle(fontSize: 11, color: Brand.faint)),
+                      if (r.unreadCount > 0) ...[
+                        const SizedBox(height: 3),
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Brand.botViolet, borderRadius: BorderRadius.circular(9)), child: Text('${r.unreadCount}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600))),
+                      ],
+                    ]),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r))),
+                  ),
+              ]);
+            },
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// 홈 대시보드용 "상세" 메신저 패널 — 타일 안에 스코프 Navigator를 두어 대화방 목록 → 대화방까지
+/// 위젯 안에서 오간다(전체 화면으로 안 나감). 간략 카드(MessengerDashboardCard)와 함께 제공.
+class MessengerPanel extends StatelessWidget {
+  const MessengerPanel({super.key});
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Material(
+          color: Brand.surface,
+          child: Navigator(
+            onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => const MessengerChatScreen(embedded: true)),
+          ),
+        ),
+      );
 }

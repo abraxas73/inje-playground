@@ -20,6 +20,7 @@ import '../../gw/gw_models.dart' show MailItem, myEvents;
 import '../../gw/mail_detail_screen.dart';
 import '../../gw/gw_notices_card.dart';
 import '../../gw/messenger_open.dart';
+import '../../messenger/messenger_chat_screen.dart' show MessengerDashboardCard, MessengerPanel;
 import '../../more/catalog.dart';
 import '../../more/service_grid.dart';
 import '../../release/release_provider.dart';
@@ -175,10 +176,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     // 앱 타깃 기준(테스트는 기본 android라 모바일 경로)으로 가른다 — Platform.isMacOS는 테스트 호스트라 부정확.
     if (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows) {
       final sections = <String, DashboardWidgetDef>{};
-      void add(String id, String title, Widget child, {int w = 6, int h = 3}) => sections[id] = DashboardWidgetDef(title, child, defaultW: w, defaultH: h);
+      void add(String id, String title, Widget child, {int w = 6, int h = 3, bool fill = false}) => sections[id] = DashboardWidgetDef(title, child, defaultW: w, defaultH: h, fill: fill);
       final canConfluence = session?.isAdmin == true || session?.permissions['confluence'] != false;
       final canSharepoint = session?.isAdmin == true || session?.permissions['sharepoint'] != false;
-      add('quote', '오늘의 한 줄', QuoteCard(quote: q), w: 4, h: 2);
+      add('greeting', '인사 · 오늘의 한 줄', HomeGreetingCard(title: g.title, subtitle: g.subtitle, quote: q), w: 12, h: 2);
       add('briefing', '데일리 브리핑', BriefingCard(
         summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at),
         busy: _summaryBusy || _manualBusy,
@@ -265,6 +266,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       } else {
         addPh('teams', 'Teams', !tmConnected ? 'Teams 연결이 필요합니다' : '답장 대기가 없습니다', onConnect: !tmConnected ? settingsConnect : null, label: '연결 설정');
       }
+      // 아마란스 메신저 — 간략(대화방 목록 카드)·상세(목록→대화방까지 위젯 안에서) 2종. 카드가 스스로 세션·로딩·빈 상태를 처리.
+      add('messenger', '아마란스 메신저(간략)', MessengerDashboardCard(onMore: () => open('/gw/messenger')), w: 6, h: 4);
+      add('messenger_full', '아마란스 메신저(대화)', const MessengerPanel(), w: 6, h: 7, fill: true);
       add('notices', '공지', const GwNoticesCard(), w: 6, h: 3);
       add('quick', '바로 가기', ServiceCardGrid(children: [
         if (session != null && canUsePage(session, teamsChatEntry)) _quick(context, Icons.forum_outlined, 'Teams 채팅', '내가 속한 채팅 읽기·보내기', () => context.push(teamsRoute), Brand.tints[3]),
@@ -300,11 +304,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                   const SizedBox(width: 4),
                   SquareIconButton(icon: Icons.menu_book_outlined, tooltip: '사용자 매뉴얼', onPressed: () => open('/web?path=${Uri.encodeComponent('/manual')}')),
                 ]),
-                const SizedBox(height: 14),
-                Text(g.title, style: theme.textTheme.headlineSmall),
-                const SizedBox(height: 4),
-                Text(g.subtitle, style: theme.textTheme.bodySmall),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(bottom: 12), child: LinearProgressIndicator(minHeight: 2)),
                 if (_editing) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text('위젯 위쪽 손잡이를 끌어 옮기고, 오른쪽 아래 모서리로 크기를 바꾸세요. ✕로 삭제, 아래 떠 있는 팔레트에서 추가.', style: TextStyle(fontSize: 12, color: Brand.muted))),
                 DashboardView(
