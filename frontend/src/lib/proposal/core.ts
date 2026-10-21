@@ -25,6 +25,9 @@ export function uploadExtension(fileName: string, kind: "profile" | "template"):
 export const profilePath = (id: string) => `proposal/profiles/${id}.pptx`;
 export const templatePath = (id: string, ext: string) => `proposal/templates/${id}.${ext}`;
 export const resultPath = (jobId: string) => `proposal/results/${jobId}.pptx`;
+/** 일반현황 미리보기 — 앞 3장 JPEG(올린 사람의 브라우저가 그려 올린다) */
+export const PREVIEW_COUNT = 3;
+export const previewPath = (profileId: string, n: number) => `proposal/previews/${profileId}/${n}.jpg`;
 
 /** 업로드 직후 받은 경로가 그 종류의 우리 경로인지(다른 사람 파일·임의 경로로 바꿔치기 방지) */
 export function isOwnUploadPath(path: unknown, kind: "profile" | "template"): path is string {
