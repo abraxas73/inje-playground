@@ -75,7 +75,9 @@ class NotifCenter extends AsyncNotifier<List<NotifItem>> {
       await _safe(() async {
         final talks = await api.talkAlerts(pageSize: 10);
         for (final t in talks.where((t) => !t.read)) {
-          items.add(NotifItem(kind: NotifKind.mention, title: t.sender.isEmpty ? '아마란스 멘션' : '${t.sender}${t.room.isEmpty ? '' : ' · ${t.room}'}', subtitle: t.text, at: t.at, path: '/gw/messenger'));
+          // roomId가 있으면 그 대화방으로 바로, 없으면 목록으로
+          final path = t.roomId.isEmpty ? '/gw/messenger' : '/gw/room?id=${Uri.encodeComponent(t.roomId)}&title=${Uri.encodeComponent(t.sender.isEmpty ? t.room : t.sender)}';
+          items.add(NotifItem(kind: NotifKind.mention, title: t.sender.isEmpty ? '아마란스 멘션' : '${t.sender}${t.room.isEmpty ? '' : ' · ${t.room}'}', subtitle: t.text, at: t.at, path: path));
         }
       });
       await _safe(() async {
@@ -91,7 +93,9 @@ class NotifCenter extends AsyncNotifier<List<NotifItem>> {
       final tm = TeamsMentions.parse(await ref.read(apiClientProvider).getJson('/api/teams/mentions', query: {'days': '2'}));
       if (tm.connected) {
         for (final x in tm.items) {
-          items.add(NotifItem(kind: NotifKind.teams, title: '${x.from}${x.topic.isEmpty ? '' : ' · ${x.topic}'}', subtitle: x.text, at: DateTime.tryParse(x.at), path: _web('/teams/chat')));
+          // 웹 /teams/chat은 ?chat=<id>로 그 채팅을 바로 연다
+          final href = x.chatId.isEmpty ? '/teams/chat' : '/teams/chat?chat=${x.chatId}';
+          items.add(NotifItem(kind: NotifKind.teams, title: '${x.from}${x.topic.isEmpty ? '' : ' · ${x.topic}'}', subtitle: x.text, at: DateTime.tryParse(x.at), path: _web(href)));
         }
       }
     });
