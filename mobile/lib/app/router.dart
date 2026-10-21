@@ -15,6 +15,7 @@ import '../features/team/team_screen.dart';
 import '../gw/approvals_screen.dart';
 import '../gw/attendance_screen.dart';
 import '../gw/board_screen.dart';
+import '../messenger/messenger_chat_screen.dart';
 import '../gw/gw_connect_screen.dart';
 import '../gw/mail_screen.dart';
 import '../gw/today_screen.dart';
@@ -64,6 +65,7 @@ GoRouter buildRouter({
     GoRoute(path: '/gw/today', builder: (c, s) => const TodayScreen()),
     GoRoute(path: '/gw/mail', builder: (c, s) => const MailScreen()),
     GoRoute(path: '/gw/board', builder: (c, s) => BoardScreen(initialArt: s.uri.queryParameters['art'])),
+    GoRoute(path: '/gw/messenger', builder: (c, s) => const MessengerChatScreen()),
     StatefulShellRoute.indexedStack(
       builder: (c, s, shell) => TabShell.attach(shell),
       branches: [

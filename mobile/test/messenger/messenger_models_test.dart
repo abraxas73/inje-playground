@@ -1,0 +1,67 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:playground/messenger/messenger_models.dart';
+
+void main() {
+  group('MsgRoom', () {
+    test('roomTitle·lastChat·unReadCount·receiver를 읽고, 나와의 대화는 제목 치환', () {
+      final rooms = MsgRoom.parseList({'roomList': [
+        {'roomId': 'r1', 'roomType': '1', 'roomTitle': '개발팀', 'lastChat': '회의합시다', 'lastChatTimeStamp': 1700000000000, 'unReadCount': 3, 'contentType': '0', 'roomAlarmYn': 'Y', 'receiver': [{'empSeq': '7'}, {'empSeq': '8'}]},
+        {'roomId': 'r2', 'roomType': '7', 'content': '메모', 'timeStamp': 1700000001000, 'unReadCount': 0, 'contentType': '0'},
+      ]});
+      expect(rooms.length, 2);
+      expect(rooms[0].title, '개발팀');
+      expect(rooms[0].preview, '회의합시다');
+      expect(rooms[0].unreadCount, 3);
+      expect(rooms[0].receiverSeqs, ['7', '8']);
+      expect(rooms[0].lastAt!.millisecondsSinceEpoch, 1700000000000);
+      expect(rooms[1].title, '나와의 대화');
+      expect(rooms[1].lastChat, '메모'); // content 폴백
+    });
+    test('제목 없으면 인원수, contentType별 미리보기 치환', () {
+      final r = MsgRoom.fromRow({'roomId': 'x', 'roomType': '1', 'receiver': ['7', '8', '9'], 'contentType': '7'});
+      expect(r.title, '3명 대화');
+      expect(r.preview, '삭제된 메시지입니다.');
+    });
+  });
+
+  test('MsgChat: chatList 파싱 + 삭제/내 메시지 판별', () {
+    final chats = MsgChat.parseList({'chatList': [
+      {'chatId': 'c1', 'roomId': 'r1', 'sendEmpSeq': '7', 'content': '안녕', 'contentType': '0', 'timeStamp': 1700000000000, 'unReadUserCount': 2},
+      {'chatId': 'c2', 'roomId': 'r1', 'sendEmpSeq': '8', 'content': '', 'contentType': '7', 'timeStamp': 1700000001000},
+    ]});
+    expect(chats[0].content, '안녕');
+    expect(chats[0].sendEmpSeq, '7');
+    expect(chats[1].deleted, isTrue);
+  });
+
+  group('MsgAttend', () {
+    test('messengerYn=Y·atNm 있는 건만, 시간대 유효 판정', () {
+      final list = MsgAttend.parseList([
+        {'empSeq': '7', 'empNm': '강승억', 'atNm': '연차', 'messengerYn': 'Y', 'startTimestamp': 100, 'endTimestamp': 200},
+        {'empSeq': '8', 'empNm': '홍길동', 'atNm': '출장', 'messengerYn': 'N'}, // 제외
+        {'empSeq': '9', 'empNm': '김', 'atNm': '', 'messengerYn': 'Y'}, // atNm 없음 제외
+      ]);
+      expect(list.length, 1);
+      expect(list[0].atName, '연차');
+      expect(list[0].activeAt(DateTime.fromMillisecondsSinceEpoch(150)), isTrue);
+      expect(list[0].activeAt(DateTime.fromMillisecondsSinceEpoch(300)), isFalse);
+    });
+    test('attendList 키·배열 둘 다 받는다', () {
+      expect(MsgAttend.parseList({'attendList': [{'empSeq': '1', 'empNm': 'a', 'atNm': '재택', 'messengerYn': 'Y'}]}).length, 1);
+    });
+  });
+
+  test('MsgNote: 제목·보낸이 폴백 파싱', () {
+    final notes = MsgNote.parseList({'msgList': [
+      {'msgId': 'm1', 'msgTitle': '공지', 'sendEmpName': '관리자', 'recvDate': '20261021'},
+    ]});
+    expect(notes[0].title, '공지');
+    expect(notes[0].sender, '관리자');
+  });
+
+  test('빈/비정상 응답은 빈 목록', () {
+    expect(MsgRoom.parseList(null), isEmpty);
+    expect(MsgChat.parseList({'chatList': 'x'}), isEmpty);
+    expect(MsgAttend.parseList({}), isEmpty);
+  });
+}

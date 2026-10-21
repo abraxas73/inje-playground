@@ -1,13 +1,14 @@
 name: playground
 description: "A new Flutter project."
 publish_to: 'none'
-version: 1.7.22+73
+version: 1.7.23+74
 
 environment:
   sdk: ^3.12.0
 
 dependencies:
   crypto: ^3.0.6
+  pointycastle: ^4.0.0 # 아마란스 메신저 로그인(P076) 아이디·비밀번호 AES-256-CBC — 이미 transitive로 설치돼 있던 것을 직접 의존성으로 승격
   file_picker: ^13.1.0
   flutter:
     sdk: flutter

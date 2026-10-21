@@ -14,3 +14,6 @@ String wehagoSign({required String authToken, required String transactionId, req
   final mac = Hmac(sha256, utf8.encode(signKey));
   return base64.encode(mac.convert(utf8.encode('$authToken$transactionId$timestamp$path')).bytes);
 }
+
+/// 메신저 비인증 요청 서명용 — 평문 UTF-8의 SHA-256 바이트(메신저 get_token 서명: base64(sha256(token‖cur_date‖transId‖path))).
+List<int> sha256OfUtf8(String s) => sha256.convert(utf8.encode(s)).bytes;

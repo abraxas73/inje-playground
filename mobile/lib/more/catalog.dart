@@ -22,6 +22,7 @@ const appPages = <PageEntry>[
   PageEntry('gw_today', '/gw/today', '일정', 'gw', 'user'),
   PageEntry('gw_mail', '/gw/mail', '메일', 'gw', 'user'),
   PageEntry('gw_board', '/gw/board', '게시판', 'gw', 'user'),
+  PageEntry('gw_messenger', '/gw/messenger', '메신저', 'gw', 'user'),
 ];
 
 const pages = <PageEntry>[
