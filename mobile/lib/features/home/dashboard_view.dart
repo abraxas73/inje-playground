@@ -80,7 +80,11 @@ class _DashboardViewState extends State<DashboardView> {
   double _cellW(double width) => (width + _gap) / dashboardCols;
 
   // 편집한 타일(pinned)은 놓은 자리 그대로, 그와 겹치는 타일만 밀어낸다(나머지는 그대로).
-  void _commit(List<DashboardTile> tiles, {String? pinned}) => widget.onChanged(resolveCollisions(tiles, pinned: pinned));
+  // 지금 안 보이는(데이터·권한이 아직 없는) 타일은 그대로 보존해 함께 올린다 — 편집 한 번에 서버 배치에서 사라지지 않게.
+  void _commit(List<DashboardTile> tiles, {String? pinned}) => widget.onChanged([
+        ...resolveCollisions(tiles, pinned: pinned),
+        ...widget.layout.where((t) => !widget.widgets.containsKey(t.id)),
+      ]);
 
   void _remove(String id) =>
       _commit(_tiles.where((t) => t.id != id).toList());
@@ -113,7 +117,9 @@ class _DashboardViewState extends State<DashboardView> {
       return t.copyWith(w: nw, h: nh);
     }
     final nx = ((t.x * cellW + _dx) / cellW).round().clamp(0, dashboardCols - t.w);
-    final ny = ((t.y * _rowHeight + _dy) / _rowHeight).round().clamp(0, 999);
+    // 아래로 너무 멀리 끌어 놓아도 다른 타일들 바로 아래까지만(거대한 빈 공간 방지)
+    final others = _tiles.where((o) => o.id != t.id).fold<int>(0, (m, o) => o.y + o.h > m ? o.y + o.h : m);
+    final ny = ((t.y * _rowHeight + _dy) / _rowHeight).round().clamp(0, others);
     return t.copyWith(x: nx, y: ny);
   }
 
@@ -188,6 +194,7 @@ class _DashboardViewState extends State<DashboardView> {
           onPanStart: (_) => setState(() { _activeId = t.id; _resizing = false; _dx = 0; _dy = 0; }),
           onPanUpdate: (d) => setState(() { _dx += d.delta.dx; _dy += d.delta.dy; }),
           onPanEnd: (_) => _end(t, context),
+          onPanCancel: () => setState(() { _activeId = null; _resizing = false; _dx = 0; _dy = 0; }),
           child: Container(
             height: 26,
             decoration: BoxDecoration(
@@ -217,6 +224,7 @@ class _DashboardViewState extends State<DashboardView> {
           onPanStart: (_) => setState(() { _activeId = t.id; _resizing = true; _dx = 0; _dy = 0; }),
           onPanUpdate: (d) => setState(() { _dx += d.delta.dx; _dy += d.delta.dy; }),
           onPanEnd: (_) => _end(t, context),
+          onPanCancel: () => setState(() { _activeId = null; _resizing = false; _dx = 0; _dy = 0; }),
           child: Container(
             width: 26, height: 26,
             decoration: BoxDecoration(color: Brand.blue, borderRadius: const BorderRadius.only(topLeft: Radius.circular(10))),

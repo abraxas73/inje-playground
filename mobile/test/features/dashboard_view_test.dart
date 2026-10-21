@@ -130,10 +130,10 @@ void main() {
     await _pump(tester, editing: true,
       layout: const [DashboardTile('briefing', 0, 0, 6, 3), DashboardTile('mails', 6, 0, 6, 3)],
       onChanged: (t) => out = t);
-    // 1200폭 → 칸 폭 = (1200+12)/12 = 101. 브리핑 손잡이를 오른쪽 6칸·아래 4줄만큼 끈다.
+    // 1200폭 → 칸 폭 = (1200+12)/12 = 101. 브리핑 손잡이를 오른쪽 6칸·아래 3줄만큼 끈다(mails 바로 아래).
     final g = await tester.startGesture(tester.getCenter(find.text('브리핑')));
     await g.moveBy(const Offset(20, 0)); // 끌기 시작 판정
-    await g.moveBy(const Offset(606 - 20, 4 * 84));
+    await g.moveBy(const Offset(606 - 20, 3 * 84));
     await tester.pump();
     final guide = find.byWidgetPredicate((w) => w is CustomPaint && w.painter.runtimeType.toString() == '_DashedRectPainter');
     expect(guide, findsOneWidget);
@@ -141,8 +141,53 @@ void main() {
     await tester.pumpAndSettle();
     expect(guide, findsNothing);
     final b = out!.firstWhere((t) => t.id == 'briefing');
-    expect((b.x, b.y), (6, 4));
+    expect((b.x, b.y), (6, 3));
     final m = out!.firstWhere((t) => t.id == 'mails');
     expect((m.x, m.y), (6, 0)); // 안 겹친 타일은 그대로
+  });
+
+  testWidgets('편집해도 지금 안 보이는 타일(정의 없음)은 배치에 그대로 남는다', (tester) async {
+    List<DashboardTile>? out;
+    await _pump(tester, editing: true,
+      layout: const [DashboardTile('briefing', 0, 0, 6, 3), DashboardTile('mails', 6, 0, 6, 3), DashboardTile('services', 0, 3, 12, 3)],
+      onChanged: (t) => out = t);
+    await tester.tap(find.byIcon(Icons.close).first); // briefing 삭제
+    await tester.pumpAndSettle();
+    final s = out!.firstWhere((t) => t.id == 'services');
+    expect((s.x, s.y, s.w, s.h), (0, 3, 12, 3));
+  });
+
+  testWidgets('아래로 멀리 끌어 놓아도 다른 타일 바로 아래까지만', (tester) async {
+    List<DashboardTile>? out;
+    await _pump(tester, editing: true,
+      layout: const [DashboardTile('briefing', 0, 0, 6, 3), DashboardTile('mails', 6, 0, 6, 3)],
+      onChanged: (t) => out = t);
+    final g = await tester.startGesture(tester.getCenter(find.text('브리핑')));
+    await g.moveBy(const Offset(0, 20));
+    await g.moveBy(const Offset(0, 3000));
+    await g.up();
+    await tester.pumpAndSettle();
+    expect(out!.firstWhere((t) => t.id == 'briefing').y, 3); // mails(h3) 바로 아래
+  });
+
+  testWidgets('끌기가 취소되면 안내선·이동 상태가 풀린다', (tester) async {
+    await _pump(tester, editing: true,
+      layout: const [DashboardTile('briefing', 0, 0, 6, 3)],
+      onChanged: (_) {});
+    final g = await tester.startGesture(tester.getCenter(find.text('브리핑')));
+    await g.moveBy(const Offset(40, 40));
+    await tester.pump();
+    final guide = find.byWidgetPredicate((w) => w is CustomPaint && w.painter.runtimeType.toString() == '_DashedRectPainter');
+    expect(guide, findsOneWidget);
+    await g.cancel();
+    await tester.pump();
+    expect(guide, findsNothing);
+  });
+
+  test('자동 배열: visible만 배열하고 안 보이는 타일은 그대로', () {
+    final out = autoArrange(const [DashboardTile('a', 0, 5, 6, 2), DashboardTile('hidden', 0, 0, 12, 4)], visible: {'a'});
+    final by = {for (final t in out) t.id: t};
+    expect(by['a']!.y, 0);
+    expect((by['hidden']!.y, by['hidden']!.h), (0, 4));
   });
 }

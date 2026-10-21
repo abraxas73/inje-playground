@@ -73,8 +73,10 @@ List<DashboardTile> resolveCollisions(List<DashboardTile> tiles, {String? pinned
 }
 
 /// 자동 배열 — 칼럼·크기는 그대로, 위에서부터 빈 칸이 없게 각 타일을 올릴 수 있는 만큼 끌어올린다.
-List<DashboardTile> autoArrange(List<DashboardTile> tiles) {
-  final sorted = [...tiles]..sort((a, b) => a.y != b.y ? a.y - b.y : a.x - b.x);
+/// visible을 주면 그 id만 배열하고 나머지(지금 안 보이는 타일)는 그대로 둔다.
+List<DashboardTile> autoArrange(List<DashboardTile> tiles, {Set<String>? visible}) {
+  final keep = visible == null ? const <DashboardTile>[] : tiles.where((t) => !visible.contains(t.id)).toList();
+  final sorted = tiles.where((t) => visible == null || visible.contains(t.id)).toList()..sort((a, b) => a.y != b.y ? a.y - b.y : a.x - b.x);
   final placed = <DashboardTile>[];
   for (final t in sorted) {
     var y = 0;
@@ -83,7 +85,7 @@ List<DashboardTile> autoArrange(List<DashboardTile> tiles) {
     }
     placed.add(t.copyWith(y: y));
   }
-  return placed;
+  return [...placed, ...keep];
 }
 
 List<DashboardTile> _parse(Object? j) {
