@@ -18,48 +18,42 @@ class NotificationPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(notifCenterProvider);
-    return Container(
-      width: 320,
-      constraints: BoxConstraints(maxHeight: maxHeight),
-      decoration: BoxDecoration(
+    final body = async.when(
+      loading: () => const [Padding(padding: EdgeInsets.all(28), child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))))],
+      error: (e, _) => const [Padding(padding: EdgeInsets.all(20), child: Text('알림을 불러오지 못했습니다', style: TextStyle(color: Brand.muted, fontSize: 13)))],
+      data: (items) => items.isEmpty
+          ? const [Padding(padding: EdgeInsets.fromLTRB(20, 8, 20, 24), child: Text('새 알림이 없습니다', style: TextStyle(color: Brand.muted)))]
+          : [for (final n in items) _tile(n)],
+    );
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: 320, maxHeight: maxHeight),
+      child: Material(
         color: Colors.white,
+        elevation: 8,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 16, offset: Offset(0, 6))],
-      ),
-      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
-          child: Row(children: [
-            const Text('알림', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Brand.navy)),
-            const Spacer(),
-            IconButton(icon: const Icon(Icons.refresh, size: 18), tooltip: '새로고침', onPressed: () => ref.read(notifCenterProvider.notifier).refresh()),
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 6, 6),
+              child: Row(children: [
+                const Text('알림', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Brand.navy)),
+                const Spacer(),
+                IconButton(icon: const Icon(Icons.refresh, size: 18), tooltip: '새로고침', onPressed: () => ref.read(notifCenterProvider.notifier).refresh()),
+              ]),
+            ),
+            ...body,
+            const Divider(height: 1),
+            // 인사·부고는 앱 데이터 소스가 없어 링크로(웹 화면 열기)
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.newspaper_outlined, color: Brand.faint, size: 20),
+              title: const Text('인사·부고 소식', style: TextStyle(fontSize: 13)),
+              trailing: const Icon(Icons.chevron_right, size: 18, color: Brand.faint),
+              onTap: () => _go('/web?path=${Uri.encodeComponent('/people-news')}'),
+            ),
           ]),
         ),
-        Flexible(
-          child: async.when(
-            loading: () => const Padding(padding: EdgeInsets.all(28), child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)))),
-            error: (e, _) => Padding(padding: const EdgeInsets.all(20), child: Text('알림을 불러오지 못했습니다', style: TextStyle(color: Brand.muted, fontSize: 13))),
-            data: (items) => items.isEmpty
-                ? const Padding(padding: EdgeInsets.fromLTRB(20, 8, 20, 24), child: Text('새 알림이 없습니다', style: TextStyle(color: Brand.muted)))
-                : ListView.separated(
-                    shrinkWrap: true,
-                    padding: EdgeInsets.zero,
-                    itemCount: items.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1, indent: 52),
-                    itemBuilder: (_, i) => _tile(items[i]),
-                  ),
-          ),
-        ),
-        const Divider(height: 1),
-        // 인사·부고는 앱 데이터 소스가 없어 링크로(웹 화면 열기)
-        ListTile(
-          dense: true,
-          leading: const Icon(Icons.newspaper_outlined, color: Brand.faint, size: 20),
-          title: const Text('인사·부고 소식', style: TextStyle(fontSize: 13)),
-          trailing: const Icon(Icons.chevron_right, size: 18, color: Brand.faint),
-          onTap: () => _go('/web?path=${Uri.encodeComponent('/people-news')}'),
-        ),
-      ]),
+      ),
     );
   }
 
