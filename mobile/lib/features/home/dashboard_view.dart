@@ -99,46 +99,22 @@ class _DashboardViewState extends State<DashboardView> {
   void _remove(String id) =>
       _commit(_tiles.where((t) => t.id != id).toList());
 
-  void _add(String id) {
-    final def = widget.widgets[id]!;
-    final maxY = _tiles.fold<int>(0, (m, t) => t.y + t.h > m ? t.y + t.h : m);
-    _commit([..._tiles, DashboardTile(id, 0, maxY, def.defaultW, def.defaultH)]);
-  }
-
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, c) {
       final cellW = _cellW(c.maxWidth);
       final tiles = _tiles;
       final maxBottom = tiles.fold<int>(0, (m, t) => t.y + t.h > m ? t.y + t.h : m);
-      final gridHeight = (maxBottom + (widget.editing ? 2 : 0)) * _rowHeight + 8;
-      final hidden = widget.widgets.keys.where((id) => !tiles.any((t) => t.id == id)).toList();
+      // 편집 모드에선 아래 여백을 넉넉히(떠 있는 팔레트에 가리지 않게)
+      final gridHeight = (maxBottom) * _rowHeight + 8 + (widget.editing ? 180 : 0);
 
-      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        SizedBox(
-          height: gridHeight,
-          child: Stack(children: [
-            if (widget.editing) _grid(cellW, gridHeight),
-            for (final t in tiles) _positioned(context, t, cellW),
-          ]),
-        ),
-        if (widget.editing && hidden.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text('추가할 위젯', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.muted)),
-          ),
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            for (final id in hidden)
-              ActionChip(
-                avatar: const Icon(Icons.add, size: 16),
-                label: Text(widget.widgets[id]!.title),
-                onPressed: () => _add(id),
-              ),
-          ]),
-        ],
-      ]);
+      return SizedBox(
+        height: gridHeight,
+        child: Stack(children: [
+          if (widget.editing) _grid(cellW, gridHeight),
+          for (final t in tiles) _positioned(context, t, cellW),
+        ]),
+      );
     });
   }
 
@@ -266,6 +242,48 @@ class _DashboardViewState extends State<DashboardView> {
     final nh = (((t.h * _rowHeight - _gap + _dy) + _gap) / _rowHeight).round().clamp(1, 40);
     setState(() { _activeId = null; _resizing = false; _dx = 0; _dy = 0; });
     _commit(_tiles.map((e) => e.id == t.id ? e.copyWith(w: nw, h: nh) : e).toList());
+  }
+}
+
+/// 편집 모드에서 화면에 떠 있는 "위젯 추가" 팔레트 — 배치 안 된(삭제했거나 아직 안 넣은) 위젯을 칩으로 보여 주고 누르면 추가.
+class DashboardPalette extends StatelessWidget {
+  const DashboardPalette({super.key, required this.widgets, required this.layout, required this.onAdd, required this.onDone});
+  final Map<String, DashboardWidgetDef> widgets;
+  final List<DashboardTile> layout;
+  final void Function(String id) onAdd;
+  final VoidCallback onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    final hidden = widgets.keys.where((id) => !layout.any((t) => t.id == id)).toList();
+    return Material(
+      color: Brand.surface,
+      elevation: 12,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 720),
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 14),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.dashboard_customize_outlined, size: 18, color: Brand.blue),
+            const SizedBox(width: 6),
+            const Text('위젯 추가', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+            const SizedBox(width: 8),
+            Text(hidden.isEmpty ? '모두 배치됨' : '${hidden.length}개', style: TextStyle(fontSize: 12, color: Brand.faint)),
+            const Spacer(),
+            TextButton.icon(onPressed: onDone, icon: const Icon(Icons.check, size: 18), label: const Text('편집 완료')),
+          ]),
+          const SizedBox(height: 8),
+          if (hidden.isEmpty)
+            Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text('모든 위젯이 홈에 있습니다. 위젯의 ✕로 지우면 여기서 다시 추가할 수 있어요.', style: TextStyle(fontSize: 12, color: Brand.muted)))
+          else
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final id in hidden)
+                ActionChip(avatar: const Icon(Icons.add, size: 16), label: Text(widgets[id]!.title), onPressed: () => onAdd(id)),
+            ]),
+        ]),
+      ),
+    );
   }
 }
 

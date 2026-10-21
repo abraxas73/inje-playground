@@ -55,8 +55,9 @@ void main() {
     expect(find.text('홈 편집'), findsOneWidget);
     await tester.tap(find.text('홈 편집'));
     await tester.pumpAndSettle();
-    expect(find.text('편집 완료'), findsOneWidget);
+    expect(find.text('편집 완료'), findsWidgets); // 상단 토글 + 떠 있는 팔레트
     expect(find.textContaining('손잡이를 끌어'), findsOneWidget); // 편집 안내
+    expect(find.byType(DashboardPalette), findsOneWidget); // 떠 있는 추가 팔레트
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant({TargetPlatform.windows}));
 
