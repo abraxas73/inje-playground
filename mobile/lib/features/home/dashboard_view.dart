@@ -79,25 +79,8 @@ class _DashboardViewState extends State<DashboardView> {
 
   double _cellW(double width) => (width + _gap) / dashboardCols;
 
-  void _commit(List<DashboardTile> tiles) => widget.onChanged(_compact(tiles));
-
-  /// 겹침 해소 — 읽기 순서(y,x)로 놓으며 앞선 타일과 겹치면 그 아래로 내린다.
-  List<DashboardTile> _compact(List<DashboardTile> tiles) {
-    final sorted = [...tiles]..sort((a, b) => a.y != b.y ? a.y - b.y : a.x - b.x);
-    final placed = <DashboardTile>[];
-    for (final t in sorted) {
-      var y = t.y;
-      while (placed.any((o) => _overlaps(t.x, y, t.w, t.h, o))) {
-        final o = placed.firstWhere((o) => _overlaps(t.x, y, t.w, t.h, o));
-        y = o.y + o.h;
-      }
-      placed.add(t.copyWith(y: y));
-    }
-    return placed;
-  }
-
-  bool _overlaps(int x, int y, int w, int h, DashboardTile o) =>
-      x < o.x + o.w && x + w > o.x && y < o.y + o.h && y + h > o.y;
+  // 편집한 타일(pinned)은 놓은 자리 그대로, 그와 겹치는 타일만 밀어낸다(나머지는 그대로).
+  void _commit(List<DashboardTile> tiles, {String? pinned}) => widget.onChanged(resolveCollisions(tiles, pinned: pinned));
 
   void _remove(String id) =>
       _commit(_tiles.where((t) => t.id != id).toList());
@@ -115,11 +98,33 @@ class _DashboardViewState extends State<DashboardView> {
         height: gridHeight,
         child: Stack(children: [
           if (widget.editing) _grid(cellW, gridHeight),
+          if (_activeId != null && tiles.any((t) => t.id == _activeId)) _dropGuide(_snap(tiles.firstWhere((t) => t.id == _activeId), cellW), cellW),
           for (final t in tiles) _positioned(context, t, cellW),
         ]),
       );
     });
   }
+
+  /// 지금 끌고 있는 타일을 놓으면 들어갈 칸(격자에 맞춘 위치·크기).
+  DashboardTile _snap(DashboardTile t, double cellW) {
+    if (_resizing) {
+      final nw = (((t.w * cellW - _gap + _dx) + _gap) / cellW).round().clamp(1, dashboardCols - t.x);
+      final nh = (((t.h * _rowHeight - _gap + _dy) + _gap) / _rowHeight).round().clamp(1, 40);
+      return t.copyWith(w: nw, h: nh);
+    }
+    final nx = ((t.x * cellW + _dx) / cellW).round().clamp(0, dashboardCols - t.w);
+    final ny = ((t.y * _rowHeight + _dy) / _rowHeight).round().clamp(0, 999);
+    return t.copyWith(x: nx, y: ny);
+  }
+
+  // 놓을 자리 안내 — 점선 사각형.
+  Widget _dropGuide(DashboardTile s, double cellW) => Positioned(
+        left: s.x * cellW,
+        top: s.y * _rowHeight,
+        width: s.w * cellW - _gap,
+        height: s.h * _rowHeight - _gap,
+        child: IgnorePointer(child: CustomPaint(painter: _DashedRectPainter(Brand.blue))),
+      );
 
   // 편집 모드 배경 격자(칼럼 안내선).
   Widget _grid(double cellW, double height) => Positioned.fill(
@@ -151,6 +156,7 @@ class _DashboardViewState extends State<DashboardView> {
     );
 
     return AnimatedPositioned(
+      key: ValueKey(t.id), // 순서가 바뀌어도 위젯 상태(대화방 목록·로딩)를 다시 만들지 않게
       duration: active ? Duration.zero : const Duration(milliseconds: 150),
       curve: Curves.easeOut,
       left: left,
@@ -181,7 +187,7 @@ class _DashboardViewState extends State<DashboardView> {
           behavior: HitTestBehavior.opaque,
           onPanStart: (_) => setState(() { _activeId = t.id; _resizing = false; _dx = 0; _dy = 0; }),
           onPanUpdate: (d) => setState(() { _dx += d.delta.dx; _dy += d.delta.dy; }),
-          onPanEnd: (_) => _endMove(t, context),
+          onPanEnd: (_) => _end(t, context),
           child: Container(
             height: 26,
             decoration: BoxDecoration(
@@ -210,7 +216,7 @@ class _DashboardViewState extends State<DashboardView> {
           behavior: HitTestBehavior.opaque,
           onPanStart: (_) => setState(() { _activeId = t.id; _resizing = true; _dx = 0; _dy = 0; }),
           onPanUpdate: (d) => setState(() { _dx += d.delta.dx; _dy += d.delta.dy; }),
-          onPanEnd: (_) => _endResize(t, context),
+          onPanEnd: (_) => _end(t, context),
           child: Container(
             width: 26, height: 26,
             decoration: BoxDecoration(color: Brand.blue, borderRadius: const BorderRadius.only(topLeft: Radius.circular(10))),
@@ -231,30 +237,25 @@ class _DashboardViewState extends State<DashboardView> {
         ),
       );
 
-  void _endMove(DashboardTile t, BuildContext context) {
-    final cellW = _cellW(context.size!.width);
-    final nx = ((t.x * cellW + _dx) / cellW).round().clamp(0, dashboardCols - t.w);
-    final ny = ((t.y * _rowHeight + _dy) / _rowHeight).round().clamp(0, 999);
-    setState(() { _activeId = null; _dx = 0; _dy = 0; });
-    _commit(_tiles.map((e) => e.id == t.id ? e.copyWith(x: nx, y: ny) : e).toList());
-  }
 
-  void _endResize(DashboardTile t, BuildContext context) {
-    final cellW = _cellW(context.size!.width);
-    final nw = (((t.w * cellW - _gap + _dx) + _gap) / cellW).round().clamp(1, dashboardCols - t.x);
-    final nh = (((t.h * _rowHeight - _gap + _dy) + _gap) / _rowHeight).round().clamp(1, 40);
+  // 놓으면 안내선 자리 그대로 배치(겹친 타일만 밀림).
+  void _end(DashboardTile t, BuildContext context) {
+    final snapped = _snap(t, _cellW(context.size!.width));
     setState(() { _activeId = null; _resizing = false; _dx = 0; _dy = 0; });
-    _commit(_tiles.map((e) => e.id == t.id ? e.copyWith(w: nw, h: nh) : e).toList());
+    _commit(_tiles.map((e) => e.id == t.id ? snapped : e).toList(), pinned: t.id);
   }
 }
 
-/// 편집 모드에서 화면에 떠 있는 "위젯 추가" 팔레트 — 배치 안 된(삭제했거나 아직 안 넣은) 위젯을 칩으로 보여 주고 누르면 추가.
+/// 편집 모드에서 화면에 떠 있는 위젯 툴바 — 배치 안 된(삭제했거나 아직 안 넣은) 위젯을 칩으로 보여 주고 누르면 추가,
+/// 자동 배열·편집 완료. 머리줄을 끌면 툴바 위치를 옮긴다(onDrag).
 class DashboardPalette extends StatelessWidget {
-  const DashboardPalette({super.key, required this.widgets, required this.layout, required this.onAdd, required this.onDone});
+  const DashboardPalette({super.key, required this.widgets, required this.layout, required this.onAdd, required this.onDone, this.onArrange, this.onDrag});
   final Map<String, DashboardWidgetDef> widgets;
   final List<DashboardTile> layout;
   final void Function(String id) onAdd;
   final VoidCallback onDone;
+  final VoidCallback? onArrange;
+  final void Function(Offset delta)? onDrag;
 
   @override
   Widget build(BuildContext context) {
@@ -267,15 +268,24 @@ class DashboardPalette extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 720),
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 14),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Icons.dashboard_customize_outlined, size: 18, color: Brand.blue),
-            const SizedBox(width: 6),
-            const Text('위젯 추가', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-            const SizedBox(width: 8),
-            Text(hidden.isEmpty ? '모두 배치됨' : '${hidden.length}개', style: TextStyle(fontSize: 12, color: Brand.faint)),
-            const Spacer(),
-            TextButton.icon(onPressed: onDone, icon: const Icon(Icons.check, size: 18), label: const Text('편집 완료')),
-          ]),
+          MouseRegion(
+            cursor: onDrag == null ? MouseCursor.defer : SystemMouseCursors.move,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onPanUpdate: onDrag == null ? null : (d) => onDrag!(d.delta),
+              child: Row(children: [
+                if (onDrag != null) ...[Tooltip(message: '끌어서 툴바 옮기기', child: Icon(Icons.drag_indicator, size: 18, color: Brand.faint)), const SizedBox(width: 2)],
+                Icon(Icons.dashboard_customize_outlined, size: 18, color: Brand.blue),
+                const SizedBox(width: 6),
+                const Text('위젯 추가', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                const SizedBox(width: 8),
+                Text(hidden.isEmpty ? '모두 배치됨' : '${hidden.length}개', style: TextStyle(fontSize: 12, color: Brand.faint)),
+                const Spacer(),
+                if (onArrange != null) TextButton.icon(onPressed: onArrange, icon: const Icon(Icons.auto_awesome_mosaic_outlined, size: 18), label: const Text('자동 배열')),
+                TextButton.icon(onPressed: onDone, icon: const Icon(Icons.check, size: 18), label: const Text('편집 완료')),
+              ]),
+            ),
+          ),
           const SizedBox(height: 8),
           if (hidden.isEmpty)
             Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text('모든 위젯이 홈에 있습니다. 위젯의 ✕로 지우면 여기서 다시 추가할 수 있어요.', style: TextStyle(fontSize: 12, color: Brand.muted)))
@@ -309,4 +319,26 @@ class _GridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_GridPainter old) => old.cellW != cellW || old.rowH != rowH;
+}
+
+class _DashedRectPainter extends CustomPainter {
+  _DashedRectPainter(this.color);
+  final Color color;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(16));
+    canvas.drawRRect(rect, Paint()..color = color.withValues(alpha: 0.08));
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    for (final m in (Path()..addRRect(rect)).computeMetrics()) {
+      for (var d = 0.0; d < m.length; d += 12) {
+        canvas.drawPath(m.extractPath(d, d + 7), stroke);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedRectPainter old) => old.color != color;
 }

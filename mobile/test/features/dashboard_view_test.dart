@@ -81,4 +81,68 @@ void main() {
     expect(added!.map((t) => t.id), containsAll(['briefing', 'mails']));
     expect(added!.firstWhere((t) => t.id == 'mails').y, 4); // briefing(h4) 아래
   });
+
+  test('겹침 해소: 옮긴 타일은 그 자리, 겹친 타일만 아래로 — 나머지는 그대로', () {
+    // mails를 briefing 자리(0,0)로 옮김 → briefing만 아래로, 겹치지 않는 teams는 그대로
+    final out = resolveCollisions(const [
+      DashboardTile('briefing', 0, 0, 6, 3),
+      DashboardTile('teams', 6, 0, 6, 3),
+      DashboardTile('mails', 0, 0, 6, 2),
+    ], pinned: 'mails');
+    final by = {for (final t in out) t.id: t};
+    expect((by['mails']!.x, by['mails']!.y), (0, 0));
+    expect(by['briefing']!.y, 2);
+    expect((by['teams']!.x, by['teams']!.y), (6, 0));
+  });
+
+  test('자동 배열: 칼럼·크기 유지, 빈 줄 없이 위로 끌어올림', () {
+    final out = autoArrange(const [
+      DashboardTile('a', 0, 3, 6, 2),
+      DashboardTile('b', 6, 10, 6, 3),
+      DashboardTile('c', 0, 9, 12, 2),
+    ]);
+    final by = {for (final t in out) t.id: t};
+    expect((by['a']!.x, by['a']!.y, by['a']!.w, by['a']!.h), (0, 0, 6, 2));
+    expect(by['c']!.y, 2); // a 아래
+    expect(by['b']!.y, 4); // c(전체 폭) 아래
+  });
+
+  testWidgets('툴바: 자동 배열 버튼과 머리줄 끌기', (tester) async {
+    var arranged = 0;
+    Offset moved = Offset.zero;
+    await tester.pumpWidget(MaterialApp(theme: appTheme(), home: Scaffold(body: Center(child: DashboardPalette(
+      widgets: {'a': DashboardWidgetDef('A', _box('a'))},
+      layout: const [],
+      onAdd: (_) {},
+      onDone: () {},
+      onArrange: () => arranged++,
+      onDrag: (d) => moved += d,
+    )))));
+    await tester.tap(find.text('자동 배열'));
+    expect(arranged, 1);
+    await tester.drag(find.text('위젯 추가'), const Offset(-60, -40));
+    expect(moved.dx, lessThan(0));
+    expect(moved.dy, lessThan(0));
+  });
+
+  testWidgets('편집 모드: 끄는 동안 놓을 자리 점선 안내, 놓으면 그 칸에 배치', (tester) async {
+    List<DashboardTile>? out;
+    await _pump(tester, editing: true,
+      layout: const [DashboardTile('briefing', 0, 0, 6, 3), DashboardTile('mails', 6, 0, 6, 3)],
+      onChanged: (t) => out = t);
+    // 1200폭 → 칸 폭 = (1200+12)/12 = 101. 브리핑 손잡이를 오른쪽 6칸·아래 4줄만큼 끈다.
+    final g = await tester.startGesture(tester.getCenter(find.text('브리핑')));
+    await g.moveBy(const Offset(20, 0)); // 끌기 시작 판정
+    await g.moveBy(const Offset(606 - 20, 4 * 84));
+    await tester.pump();
+    final guide = find.byWidgetPredicate((w) => w is CustomPaint && w.painter.runtimeType.toString() == '_DashedRectPainter');
+    expect(guide, findsOneWidget);
+    await g.up();
+    await tester.pumpAndSettle();
+    expect(guide, findsNothing);
+    final b = out!.firstWhere((t) => t.id == 'briefing');
+    expect((b.x, b.y), (6, 4));
+    final m = out!.firstWhere((t) => t.id == 'mails');
+    expect((m.x, m.y), (6, 0)); // 안 겹친 타일은 그대로
+  });
 }
