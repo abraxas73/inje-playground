@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../api/client.dart';
 import '../briefing/briefing_model.dart';
 import '../gw/gw_api.dart';
@@ -16,8 +17,11 @@ final notifOpen = ValueNotifier<bool>(false);
 enum NotifKind { mention, chat, approval, mail, teams }
 
 class NotifItem {
-  const NotifItem({required this.kind, required this.title, required this.subtitle, required this.path, this.at, this.branchRoot = false});
+  const NotifItem({required this.kind, required this.key, required this.title, required this.subtitle, required this.path, this.at, this.branchRoot = false});
   final NotifKind kind;
+
+  /// 로컬 '읽음' 식별자(탭하면 이 키를 읽음 처리해 배지·목록에서 뺀다).
+  final String key;
   final String title, subtitle, path;
   final DateTime? at;
   final bool branchRoot;
@@ -77,16 +81,16 @@ class NotifCenter extends AsyncNotifier<List<NotifItem>> {
         for (final t in talks.where((t) => !t.read)) {
           // roomId가 있으면 그 대화방으로 바로, 없으면 목록으로
           final path = t.roomId.isEmpty ? '/gw/messenger' : '/gw/room?id=${Uri.encodeComponent(t.roomId)}&title=${Uri.encodeComponent(t.sender.isEmpty ? t.room : t.sender)}';
-          items.add(NotifItem(kind: NotifKind.mention, title: t.sender.isEmpty ? '아마란스 멘션' : '${t.sender}${t.room.isEmpty ? '' : ' · ${t.room}'}', subtitle: t.text, at: t.at, path: path));
+          items.add(NotifItem(kind: NotifKind.mention, key: 'm:${t.alertId}', title: t.sender.isEmpty ? '아마란스 멘션' : '${t.sender}${t.room.isEmpty ? '' : ' · ${t.room}'}', subtitle: t.text, at: t.at, path: path));
         }
       });
       await _safe(() async {
         final (cnt, _) = await api.pendingApprovals();
-        if (cnt > 0) items.add(NotifItem(kind: NotifKind.approval, title: '미결 결재', subtitle: '$cnt건 대기', path: '/gw/approvals'));
+        if (cnt > 0) items.add(NotifItem(kind: NotifKind.approval, key: 'a:$cnt', title: '미결 결재', subtitle: '$cnt건 대기', path: '/gw/approvals'));
       });
       await _safe(() async {
         final m = await api.mailSummary();
-        if (m.unread > 0) items.add(NotifItem(kind: NotifKind.mail, title: '안 읽은 메일', subtitle: '${m.unread}통', path: '/gw/mail'));
+        if (m.unread > 0) items.add(NotifItem(kind: NotifKind.mail, key: 'l:${m.unread}', title: '안 읽은 메일', subtitle: '${m.unread}통', path: '/gw/mail'));
       });
     }
     await _safe(() async {
@@ -95,7 +99,7 @@ class NotifCenter extends AsyncNotifier<List<NotifItem>> {
         for (final x in tm.items) {
           // 웹 /teams/chat은 ?chat=<id>로 그 채팅을 바로 연다
           final href = x.chatId.isEmpty ? '/teams/chat' : '/teams/chat?chat=${x.chatId}';
-          items.add(NotifItem(kind: NotifKind.teams, title: '${x.from}${x.topic.isEmpty ? '' : ' · ${x.topic}'}', subtitle: x.text, at: DateTime.tryParse(x.at), path: _web(href)));
+          items.add(NotifItem(kind: NotifKind.teams, key: 't:${x.chatId}:${x.at}', title: '${x.from}${x.topic.isEmpty ? '' : ' · ${x.topic}'}', subtitle: x.text, at: DateTime.tryParse(x.at), path: _web(href)));
         }
       }
     });
@@ -112,5 +116,40 @@ class NotifCenter extends AsyncNotifier<List<NotifItem>> {
 
 final notifCenterProvider = AsyncNotifierProvider<NotifCenter, List<NotifItem>>(NotifCenter.new);
 
-/// 배지 숫자(안 읽은 알림 건수). 로딩·오류면 0.
-final notifUnreadProvider = Provider<int>((ref) => ref.watch(notifCenterProvider).maybeWhen(data: (l) => l.length, orElse: () => 0));
+/// 로컬 '읽음' 키 집합(기기 저장). 탭하거나 '모두 읽음'으로 추가하면 배지·목록에서 빠진다.
+class NotifSeen extends Notifier<Set<String>> {
+  static const _key = 'notif_seen';
+
+  @override
+  Set<String> build() {
+    _load();
+    return <String>{};
+  }
+
+  Future<void> _load() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      state = (p.getStringList(_key) ?? const []).toSet();
+    } catch (_) {}
+  }
+
+  Future<void> mark(Iterable<String> keys) async {
+    state = {...state, ...keys};
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setStringList(_key, state.toList());
+    } catch (_) {}
+  }
+}
+
+final notifSeenProvider = NotifierProvider<NotifSeen, Set<String>>(NotifSeen.new);
+
+/// 아직 안 읽은 알림만(배지·목록 공용).
+final notifVisibleProvider = Provider<List<NotifItem>>((ref) {
+  final items = ref.watch(notifCenterProvider).maybeWhen(data: (l) => l, orElse: () => const <NotifItem>[]);
+  final seen = ref.watch(notifSeenProvider);
+  return items.where((i) => !seen.contains(i.key)).toList();
+});
+
+/// 배지 숫자(안 읽은 알림 건수).
+final notifUnreadProvider = Provider<int>((ref) => ref.watch(notifVisibleProvider).length);

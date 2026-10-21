@@ -5,6 +5,7 @@ import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 import '../gw/gw_client.dart' show asStr, asInt;
 import '../gw/gw_sign.dart' show gwTransactionId;
+import '../gw/talk_notifications.dart' show showMessengerPush;
 import 'messenger_client.dart';
 import 'messenger_crypto.dart';
 import 'messenger_provider.dart';
@@ -15,13 +16,14 @@ import 'messenger_provider.dart';
 
 /// MQTT로 들어온 신호(한 건). raw는 원본 맵.
 class MessengerMqttEvent {
-  const MessengerMqttEvent({required this.topic, required this.type, required this.roomId, required this.empSeq, required this.stateCode, required this.raw});
-  final String topic, type, roomId, empSeq, stateCode;
+  const MessengerMqttEvent({required this.topic, required this.type, required this.roomId, required this.empSeq, required this.stateCode, required this.raw, this.notifyTitle = '', this.notifyBody = ''});
+  final String topic, type, roomId, empSeq, stateCode, notifyTitle, notifyBody;
   final Map raw;
 
   bool get isChat => topic.contains('/Chat') || type == '001' || type == '002' || type == '003' || type == '004' || type == '007';
   bool get isState => topic.endsWith('/State') || stateCode.isNotEmpty;
   bool get isAttend => topic.contains('attendApplication');
+  bool get hasNotify => notifyTitle.isNotEmpty || notifyBody.isNotEmpty;
 }
 
 class MessengerMqtt {
@@ -29,9 +31,13 @@ class MessengerMqtt {
 
   MqttServerClient? _client;
   final _controller = StreamController<MessengerMqttEvent>.broadcast();
-  final _rooms = <String, int>{}; // 구독 중인 방 토픽 참조수
+  final _rooms = <String, int>{}; // 구독 중인 방 토픽 참조수(열린 방 = 알림 억제)
   String _grp = '';
+  String _myEmpSeq = '';
   bool _connecting = false;
+
+  /// 알림으로 띄울 푸시가 오면 호출(title, body, 탭 시 이동 경로). 열린 방·내가 보낸 건은 제외된 상태로만 온다.
+  void Function(String title, String body, String path)? onPush;
 
   Stream<MessengerMqttEvent> get events => _controller.stream;
   bool get connected => _client?.connectionStatus?.state == MqttConnectionState.connected;
@@ -46,6 +52,7 @@ class MessengerMqtt {
     _connecting = true;
     try {
       _grp = s.groupSeq;
+      _myEmpSeq = s.empSeq;
       final ssl = asStr(m['sslYn']) == 'Y';
       final transId = gwTransactionId();
       final clientId = '${s.groupSeq}|${s.empSeq}|13|${s.currentTime}|$transId';
@@ -121,18 +128,50 @@ class MessengerMqtt {
         final text = MqttPublishPayload.bytesToStringAsString(msg.payload.message);
         final data = jsonDecode(text);
         if (data is! Map) continue;
+        final roomId = asStr(data['roomId']);
+        final empSeq = asStr(data['empSeq']);
+        // 알림 페이로드(title/content는 언어별 맵). 원본 규격: 내가 receiver에 있고 setting.alertYn=Y·pushYn=Y일 때만.
+        final title = _lang(data['title']);
+        final body = _lang(data['content']).isNotEmpty ? _lang(data['content']) : _lang(data['preview']);
         _controller.add(MessengerMqttEvent(
           topic: rec.topic,
           type: asStr(data['type']),
-          roomId: asStr(data['roomId']),
-          empSeq: asStr(data['empSeq']),
+          roomId: roomId,
+          empSeq: empSeq,
           stateCode: data.containsKey('state') ? asStr(data['state']) : '',
           raw: data,
+          notifyTitle: title,
+          notifyBody: body,
         ));
+        if (title.isNotEmpty && _shouldNotify(data, roomId, empSeq)) {
+          final path = roomId.isEmpty ? '/gw/messenger' : '/gw/room?id=${Uri.encodeComponent(roomId)}&title=${Uri.encodeComponent(title)}';
+          onPush?.call(title, body, path);
+        }
       } catch (_) {
         // 깨진 페이로드는 건너뛴다
       }
     }
+  }
+
+  /// 언어별 맵({kr:..,en:..})이면 kr 우선, 문자열이면 그대로.
+  String _lang(dynamic v) {
+    if (v is String) return v;
+    if (v is Map) return asStr(v['kr']).isNotEmpty ? asStr(v['kr']) : asStr(v.values.firstWhere((e) => asStr(e).isNotEmpty, orElse: () => ''));
+    return '';
+  }
+
+  /// 알림을 띄울지: 내가 보낸 게 아니고, 지금 열어 둔 방이 아니고, 수신 설정이 켜져 있을 때.
+  bool _shouldNotify(Map data, String roomId, String empSeq) {
+    if (empSeq.isNotEmpty && empSeq == _myEmpSeq) return false; // 내가 보낸 것
+    if (roomId.isNotEmpty && _rooms.containsKey(roomId)) return false; // 지금 보고 있는 방
+    final setting = data['setting'];
+    if (setting is Map && asStr(setting['alertYn']) == 'N') return false;
+    final receiver = data['receiver'];
+    if (receiver is Map && receiver.containsKey(_myEmpSeq)) {
+      final me = receiver[_myEmpSeq];
+      if (me is Map && asStr(me['pushYn']) == 'N') return false;
+    }
+    return true;
   }
 
   void dispose() {
@@ -145,7 +184,8 @@ class MessengerMqtt {
 
 /// 앱 생존 동안 유지되는 MQTT 서비스. 세션이 있어야 접속되므로 화면이 ensureConnected로 깨운다.
 final messengerMqttProvider = Provider<MessengerMqtt>((ref) {
-  final mqtt = MessengerMqtt();
+  final mqtt = MessengerMqtt()
+    ..onPush = (title, body, path) => showMessengerPush(title: title, body: body, path: path);
   ref.onDispose(mqtt.dispose);
   return mqtt;
 });

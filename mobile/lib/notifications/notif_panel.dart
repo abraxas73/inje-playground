@@ -10,20 +10,22 @@ class NotificationPanel extends ConsumerWidget {
   final void Function(String path) onOpenPath;
   final double maxHeight;
 
-  void _go(String path) {
+  void _go(WidgetRef ref, NotifItem n) {
+    ref.read(notifSeenProvider.notifier).mark([n.key]); // 읽음 처리(배지·목록에서 빠짐)
     notifOpen.value = false;
-    onOpenPath(path);
+    onOpenPath(n.path);
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(notifCenterProvider);
+    final visible = ref.watch(notifVisibleProvider);
     final body = async.when(
       loading: () => const [Padding(padding: EdgeInsets.all(28), child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))))],
       error: (e, _) => const [Padding(padding: EdgeInsets.all(20), child: Text('알림을 불러오지 못했습니다', style: TextStyle(color: Brand.muted, fontSize: 13)))],
-      data: (items) => items.isEmpty
+      data: (_) => visible.isEmpty
           ? const [Padding(padding: EdgeInsets.fromLTRB(20, 8, 20, 24), child: Text('새 알림이 없습니다', style: TextStyle(color: Brand.muted)))]
-          : [for (final n in items) _tile(n)],
+          : [for (final n in visible) _tile(ref, n)],
     );
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: 320, maxHeight: maxHeight),
@@ -38,6 +40,8 @@ class NotificationPanel extends ConsumerWidget {
               child: Row(children: [
                 const Text('알림', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Brand.navy)),
                 const Spacer(),
+                if (visible.isNotEmpty)
+                  TextButton(onPressed: () => ref.read(notifSeenProvider.notifier).mark(visible.map((n) => n.key)), child: const Text('모두 읽음', style: TextStyle(fontSize: 12))),
                 IconButton(icon: const Icon(Icons.refresh, size: 18), tooltip: '새로고침', onPressed: () => ref.read(notifCenterProvider.notifier).refresh()),
               ]),
             ),
@@ -49,7 +53,10 @@ class NotificationPanel extends ConsumerWidget {
               leading: const Icon(Icons.newspaper_outlined, color: Brand.faint, size: 20),
               title: const Text('인사·부고 소식', style: TextStyle(fontSize: 13)),
               trailing: const Icon(Icons.chevron_right, size: 18, color: Brand.faint),
-              onTap: () => _go('/web?path=${Uri.encodeComponent('/people-news')}'),
+              onTap: () {
+                notifOpen.value = false;
+                onOpenPath('/web?path=${Uri.encodeComponent('/people-news')}');
+              },
             ),
           ]),
         ),
@@ -57,13 +64,13 @@ class NotificationPanel extends ConsumerWidget {
     );
   }
 
-  Widget _tile(NotifItem n) => ListTile(
+  Widget _tile(WidgetRef ref, NotifItem n) => ListTile(
         dense: true,
         leading: TintIcon(n.icon, size: 34),
         title: Text(n.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
         subtitle: Text(n.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Brand.muted, fontSize: 12)),
         trailing: n.at == null ? null : Text(_hm(n.at!), style: const TextStyle(fontSize: 11, color: Brand.faint)),
-        onTap: () => _go(n.path),
+        onTap: () => _go(ref, n),
       );
 }
 
