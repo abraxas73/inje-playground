@@ -48,6 +48,16 @@ class _AppState extends ConsumerState<App> {
     super.initState();
     _router.routerDelegate.addListener(_auditPage);
     WidgetsBinding.instance.addPostFrameCallback((_) => _auditPage());
+    messengerNotifyTap.addListener(_onNotifyTap); // OS 알림 탭 → 우리 앱 화면으로
+  }
+
+  /// 메신저 OS 알림을 누르면 그 경로로 이동(push는 내비게이터 틀 안에 쌓는다). 한 번 처리하고 비운다.
+  void _onNotifyTap() {
+    final path = messengerNotifyTap.value;
+    if (path == null || path.isEmpty) return;
+    messengerNotifyTap.value = null;
+    if (Supabase.instance.client.auth.currentUser == null) return;
+    _router.push(path);
   }
 
   void _auditPage() {
@@ -76,6 +86,7 @@ class _AppState extends ConsumerState<App> {
   @override
   void dispose() {
     _router.routerDelegate.removeListener(_auditPage);
+    messengerNotifyTap.removeListener(_onNotifyTap);
     _router.dispose();
     super.dispose();
   }
