@@ -33,7 +33,7 @@ class _MessengerAttendScreenState extends ConsumerState<MessengerAttendScreen> {
           if (snap.hasError) return MessengerError(error: snap.error!, onRetry: _refresh);
           final list = [...(snap.data ?? const <MsgAttend>[])];
           if (list.isEmpty) {
-            return RefreshIndicator(onRefresh: _refresh, child: ListView(children: const [SizedBox(height: 120), Center(child: Text('오늘 등록된 근태가 없습니다', style: TextStyle(color: Brand.muted)))]));
+            return RefreshIndicator(onRefresh: _refresh, child: ListView(children: [SizedBox(height: 120), Center(child: Text('오늘 등록된 근태가 없습니다', style: TextStyle(color: Brand.muted)))]));
           }
           // 지금 유효한 근태 먼저, 그다음 이름순
           list.sort((a, b) {
@@ -53,7 +53,7 @@ class _MessengerAttendScreenState extends ConsumerState<MessengerAttendScreen> {
                 return ListTile(
                   leading: InitialBadge(a.empName.isEmpty ? '?' : a.empName),
                   title: Text(a.empName, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  subtitle: time.isEmpty ? null : Text(time, style: const TextStyle(color: Brand.muted)),
+                  subtitle: time.isEmpty ? null : Text(time, style: TextStyle(color: Brand.muted)),
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(color: active ? Brand.blueTint : Brand.ground, borderRadius: BorderRadius.circular(12)),

@@ -155,7 +155,7 @@ class _ParticipantPickerState extends State<ParticipantPicker> {
                   height: 48,
                   child: IconButton.filled(
                     style: IconButton.styleFrom(
-                      backgroundColor: Brand.navy,
+                      backgroundColor: Brand.hero,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
@@ -180,7 +180,7 @@ class _ParticipantPickerState extends State<ParticipantPicker> {
     final action = extra ? null : widget.rowAction?.call(n);
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(top: BorderSide(color: Brand.hairline)),
       ),
       child: Row(

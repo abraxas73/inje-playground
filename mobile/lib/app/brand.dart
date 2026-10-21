@@ -62,10 +62,10 @@ class SquareIconButton extends StatelessWidget {
         height: 44,
         child: IconButton(
           style: IconButton.styleFrom(
-            backgroundColor: Colors.white,
+            backgroundColor: Brand.surface,
             foregroundColor: Brand.navy,
             disabledForegroundColor: Brand.faint,
-            side: const BorderSide(color: Brand.line),
+            side: BorderSide(color: Brand.line),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             padding: EdgeInsets.zero,
           ),
@@ -94,15 +94,16 @@ class InitialBadge extends StatelessWidget {
 
 /// 연한 네모 안의 아이콘(위치 카드·빈 상태).
 class TintIcon extends StatelessWidget {
-  const TintIcon(this.icon, {super.key, this.size = 40, this.color = Brand.blue, this.background = Brand.blueTint});
+  const TintIcon(this.icon, {super.key, this.size = 40, this.color = Brand.blue, this.background});
   final IconData icon;
   final double size;
-  final Color color, background;
+  final Color color;
+  final Color? background; // 기본은 Brand.blueTint(밝기별 getter라 기본값으로 못 넣어 build에서 해석)
   @override
   Widget build(BuildContext context) => Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(size * 0.3)),
+        decoration: BoxDecoration(color: background ?? Brand.blueTint, borderRadius: BorderRadius.circular(size * 0.3)),
         child: Icon(icon, size: size / 2, color: color),
       );
 }
@@ -160,7 +161,7 @@ class GridBackdrop extends StatelessWidget {
   const GridBackdrop({super.key});
   @override
   Widget build(BuildContext context) => Stack(fit: StackFit.expand, children: [
-        const ColoredBox(color: Brand.navy),
+        ColoredBox(color: Brand.hero),
         CustomPaint(painter: _GridPainter()),
         Positioned(left: -140, top: -120, child: _Glow(360, Brand.blue.withValues(alpha: 0.45))),
         Positioned(right: -120, bottom: 120, child: _Glow(260, Brand.sky.withValues(alpha: 0.18))),

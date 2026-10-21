@@ -78,14 +78,14 @@ class _MessengerSearchScreenState extends ConsumerState<MessengerSearchScreen> {
 
   Widget _results(String myEmpSeq) {
     final f = _future;
-    if (f == null) return const Center(child: Text('검색어를 입력하세요', style: TextStyle(color: Brand.muted)));
+    if (f == null) return Center(child: Text('검색어를 입력하세요', style: TextStyle(color: Brand.muted)));
     return FutureBuilder<(List<MsgRoom>, List<MsgChat>)>(
       future: f,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
         if (snap.hasError) return MessengerError(error: snap.error!, onRetry: () async => _run());
         final (rooms, chats) = snap.data ?? (const <MsgRoom>[], const <MsgChat>[]);
-        if (rooms.isEmpty && chats.isEmpty) return const Center(child: Text('결과가 없습니다', style: TextStyle(color: Brand.muted)));
+        if (rooms.isEmpty && chats.isEmpty) return Center(child: Text('결과가 없습니다', style: TextStyle(color: Brand.muted)));
         return ListView(children: [
           if (rooms.isNotEmpty) ...[
             _header('대화방 ${rooms.length}'),
@@ -93,7 +93,7 @@ class _MessengerSearchScreenState extends ConsumerState<MessengerSearchScreen> {
               ListTile(
                 leading: InitialBadge(r.titleWith(_names, myEmpSeq)),
                 title: Text(r.titleWith(_names, myEmpSeq), maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(r.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Brand.muted)),
+                subtitle: Text(r.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Brand.muted)),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r))),
               ),
           ],
@@ -101,9 +101,9 @@ class _MessengerSearchScreenState extends ConsumerState<MessengerSearchScreen> {
             _header('대화 내용 ${chats.length}'),
             for (final c in chats)
               ListTile(
-                leading: const Icon(Icons.chat_bubble_outline, color: Brand.faint),
+                leading: Icon(Icons.chat_bubble_outline, color: Brand.faint),
                 title: Text(c.content, maxLines: 2, overflow: TextOverflow.ellipsis),
-                subtitle: Text([if (_names[c.sendEmpSeq] != null) _names[c.sendEmpSeq]!, if (c.at != null) '${c.at!.toUtc().add(const Duration(hours: 9))}'.substring(0, 16)].join(' · '), style: const TextStyle(color: Brand.muted)),
+                subtitle: Text([if (_names[c.sendEmpSeq] != null) _names[c.sendEmpSeq]!, if (c.at != null) '${c.at!.toUtc().add(const Duration(hours: 9))}'.substring(0, 16)].join(' · '), style: TextStyle(color: Brand.muted)),
                 onTap: c.roomId.isEmpty
                     ? null
                     : () => Navigator.of(context).push(MaterialPageRoute(
@@ -118,6 +118,6 @@ class _MessengerSearchScreenState extends ConsumerState<MessengerSearchScreen> {
 
   Widget _header(String t) => Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-        child: Text(t, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Brand.muted)),
+        child: Text(t, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Brand.muted)),
       );
 }

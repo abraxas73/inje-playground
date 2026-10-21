@@ -112,7 +112,7 @@ class _BodyState extends ConsumerState<_Body> {
           else ...[
             Container(
               padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(color: Brand.navy, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(color: Brand.hero, borderRadius: BorderRadius.circular(16)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('${_date(a.workDt)}${a.holiday ? ' · 휴일' : ''}', style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.7))),
                 const SizedBox(height: 12),

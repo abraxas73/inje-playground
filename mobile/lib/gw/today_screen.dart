@@ -155,7 +155,7 @@ class _Section extends StatelessWidget {
               : loading
                   ? const Padding(padding: EdgeInsets.all(24), child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))))
                   : items.isEmpty
-                      ? Padding(padding: const EdgeInsets.all(20), child: Center(child: Text(empty, style: const TextStyle(color: Brand.muted))))
+                      ? Padding(padding: const EdgeInsets.all(20), child: Center(child: Text(empty, style: TextStyle(color: Brand.muted))))
                       : Column(children: [for (final (i, w) in items.indexed) ...[if (i > 0) const Divider(height: 1), w]]),
         ),
       ]);

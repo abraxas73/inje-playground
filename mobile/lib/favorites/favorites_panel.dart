@@ -67,7 +67,7 @@ class _FavoritesPanelState extends ConsumerState<FavoritesPanel>
         padding: const EdgeInsets.only(top: 4, bottom: 6),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: Brand.navy,
+            color: Brand.hero,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Padding(
@@ -182,7 +182,7 @@ class _Chip extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: Material(
-      color: Colors.white,
+      color: Brand.surface,
       elevation: 4,
       borderRadius: BorderRadius.circular(22),
       child: InkWell(
@@ -206,7 +206,7 @@ class _Chip extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: Brand.navy,

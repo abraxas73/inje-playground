@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
+import '../app/theme_mode.dart';
 import '../auth/session.dart';
 import '../briefing/briefing_provider.dart';
 import '../briefing/live_activity.dart';
@@ -38,7 +39,7 @@ class MoreScreen extends ConsumerWidget {
       body: ListView(padding: EdgeInsets.zero, children: [
         Container(
           padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 12, 20, 20),
-          decoration: const BoxDecoration(color: Brand.navy, borderRadius: BorderRadius.vertical(bottom: Radius.circular(28))),
+          decoration: BoxDecoration(color: Brand.hero, borderRadius: BorderRadius.vertical(bottom: Radius.circular(28))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const BrandLogo(width: 86, white: true, opacity: 0.85),
             const SizedBox(height: 16),
@@ -80,7 +81,7 @@ class MoreScreen extends ConsumerWidget {
                 child: Column(children: [
                   for (final (i, p) in admin.indexed) ...[
                     if (i > 0) const Divider(),
-                    ListTile(title: Text(p.label), trailing: const Icon(Icons.chevron_right, color: Brand.faint), onTap: () => open(p.href)),
+                    ListTile(title: Text(p.label), trailing: Icon(Icons.chevron_right, color: Brand.faint), onTap: () => open(p.href)),
                   ],
                 ]),
               ),
@@ -96,7 +97,7 @@ class MoreScreen extends ConsumerWidget {
                     leading: const Icon(Icons.hub_outlined),
                     title: const Text('Claude 커넥터'),
                     subtitle: const Text('claude.ai·Claude Code 요청을 이 앱이 실행'),
-                    trailing: const Icon(Icons.chevron_right, color: Brand.faint),
+                    trailing: Icon(Icons.chevron_right, color: Brand.faint),
                     onTap: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (_) => const McpSettingsSheet()),
                   ),
                 ],
@@ -106,13 +107,15 @@ class MoreScreen extends ConsumerWidget {
                   leading: const Icon(Icons.settings_outlined),
                   title: const Text('설정'),
                   subtitle: const Text('내 팀 · 알림 채널 · Microsoft·Atlassian 연결'),
-                  trailing: const Icon(Icons.chevron_right, color: Brand.faint),
+                  trailing: Icon(Icons.chevron_right, color: Brand.faint),
                   onTap: () => open('/settings'),
                 ),
                 const Divider(),
                 const _InnobotSwitch(),
                 const Divider(),
                 if (liveActivitySupported) ...[const _LiveBriefingSwitch(), const Divider()],
+                const _ThemeModeTile(),
+                const Divider(),
                 const ListTile(leading: Icon(Icons.info_outline), title: Text('앱 버전'), trailing: VersionTrailing()),
               ]),
             ),
@@ -149,7 +152,7 @@ class _GwRow extends StatelessWidget {
         GwStatus.connected => '${c?.empName ?? ''} · ${c?.email ?? ''}',
         GwStatus.needsRelogin => '로그인이 만료되었습니다 — 다시 연결하세요',
       }),
-      trailing: status == GwStatus.none ? TextButton(onPressed: onTap, child: const Text('연결하기')) : const Icon(Icons.chevron_right, color: Brand.faint),
+      trailing: status == GwStatus.none ? TextButton(onPressed: onTap, child: const Text('연결하기')) : Icon(Icons.chevron_right, color: Brand.faint),
       onTap: onTap,
     );
   }
@@ -181,6 +184,34 @@ class _LiveBriefingSwitchState extends State<_LiveBriefingSwitch> {
           setLiveActivityEnabled(v).catchError((_) {});
         },
       );
+}
+
+/// 화면 테마(라이트·다크·시스템 따라가기) — 기기별 설정(SharedPreferences), 더보기에서 바꾼다.
+class _ThemeModeTile extends ConsumerWidget {
+  const _ThemeModeTile();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(themeModeProvider);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 12, 10),
+      child: Row(children: [
+        Icon(Icons.brightness_6_outlined, size: 22, color: Brand.muted),
+        const SizedBox(width: 20),
+        const Text('화면 테마', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        const Spacer(),
+        SegmentedButton<ThemeMode>(
+          segments: const [
+            ButtonSegment(value: ThemeMode.system, label: Text('시스템')),
+            ButtonSegment(value: ThemeMode.light, label: Text('라이트')),
+            ButtonSegment(value: ThemeMode.dark, label: Text('다크')),
+          ],
+          selected: {mode},
+          showSelectedIcon: false,
+          onSelectionChanged: (s) => ref.read(themeModeProvider.notifier).set(s.first),
+        ),
+      ]),
+    );
+  }
 }
 
 /// 떠 있는 이노봇 버튼 표시 — 계정 설정(user_settings.innobot_button)이라 모든 기기의 앱에 적용. 저장 실패면 되돌리고 알린다.

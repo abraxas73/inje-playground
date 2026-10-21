@@ -280,7 +280,7 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
               children: [
                 Image.asset('assets/brand/innobot.png', width: 32, height: 32),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   '이노봇',
                   style: TextStyle(
                     fontSize: 16,
@@ -301,8 +301,8 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(modelLabel(ref.watch(assistantModelProvider) ?? cfg.defaultModel), style: const TextStyle(fontSize: 13, color: Brand.muted)),
-                          const Icon(Icons.arrow_drop_down, size: 18, color: Brand.muted),
+                          Text(modelLabel(ref.watch(assistantModelProvider) ?? cfg.defaultModel), style: TextStyle(fontSize: 13, color: Brand.muted)),
+                          Icon(Icons.arrow_drop_down, size: 18, color: Brand.muted),
                         ],
                       ),
                     ),
@@ -375,7 +375,7 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
               margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
               padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Brand.surface,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -392,7 +392,7 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                   Expanded(
                     child: Text(
                       _voiceTip(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         height: 1.45,
                         color: Brand.navy,
@@ -432,7 +432,7 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                         ),
                     ],
                   ),
-                  if (_fileNote != null) Text(_fileNote!, style: const TextStyle(fontSize: 12, color: Brand.muted)),
+                  if (_fileNote != null) Text(_fileNote!, style: TextStyle(fontSize: 12, color: Brand.muted)),
                   if (_files.any((u) => u.warning != null))
                     const Text('이미지·스캔 문서 안의 개인정보는 가려지지 않습니다.', style: TextStyle(fontSize: 12, color: Brand.cardBadgeFg)),
                 ],
@@ -459,7 +459,7 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                 children: [
                   IconButton(
                     tooltip: '파일 첨부',
-                    icon: const Icon(Icons.attach_file, color: Brand.muted),
+                    icon: Icon(Icons.attach_file, color: Brand.muted),
                     onPressed: st.busy || _files.length >= attachMaxFiles ? null : _pick,
                   ),
                   Expanded(
@@ -478,7 +478,7 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                             : '이노봇에게 부탁하기',
                         isDense: true,
                         filled: true,
-                        fillColor: Colors.white,
+                        fillColor: Brand.surface,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
                           borderSide: BorderSide.none,
@@ -544,12 +544,12 @@ class _Bubble extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.attach_file, size: 14, color: Brand.muted),
-                      Flexible(child: Text(f, style: const TextStyle(fontSize: 13, color: Brand.muted), overflow: TextOverflow.ellipsis)),
+                      Icon(Icons.attach_file, size: 14, color: Brand.muted),
+                      Flexible(child: Text(f, style: TextStyle(fontSize: 13, color: Brand.muted), overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 ),
-              if (it.text.isNotEmpty) _box(it.text, Brand.navy, Colors.white),
+              if (it.text.isNotEmpty) _box(it.text, Brand.navy, Brand.surface),
             ],
           ),
         );
@@ -588,7 +588,7 @@ class _Bubble extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 it.text,
-                style: const TextStyle(fontSize: 13, color: Brand.muted),
+                style: TextStyle(fontSize: 13, color: Brand.muted),
               ),
             ],
           ),
@@ -604,7 +604,7 @@ class _Bubble extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Brand.line)),
+            decoration: BoxDecoration(color: Brand.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: Brand.line)),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -618,7 +618,7 @@ class _Bubble extends StatelessWidget {
                     it.status == 'unknown' ? '${it.text} · 결과를 받지 못했습니다' : it.text,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12.5, color: Brand.muted),
+                    style: TextStyle(fontSize: 12.5, color: Brand.muted),
                   ),
                 ),
               ],
@@ -631,9 +631,9 @@ class _Bubble extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.shield_outlined, size: 14, color: Brand.muted),
+              Icon(Icons.shield_outlined, size: 14, color: Brand.muted),
               const SizedBox(width: 4),
-              Text(it.text, style: const TextStyle(fontSize: 12, color: Brand.muted)),
+              Text(it.text, style: TextStyle(fontSize: 12, color: Brand.muted)),
             ],
           ),
         );
@@ -653,7 +653,7 @@ class _Bubble extends StatelessWidget {
               padding: const EdgeInsets.only(top: 6, bottom: 2),
               child: Text(
                 it.text,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w700,
                   color: Brand.navy,
                 ),
@@ -691,7 +691,7 @@ class _Bubble extends StatelessWidget {
                               padding: const EdgeInsets.only(top: 4),
                               child: Text(
                                 c.label,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
                                   color: Brand.muted,
                                 ),
@@ -748,7 +748,7 @@ class _Bubble extends StatelessWidget {
               children: [
                 Text(
                   it.done ? it.text : '실행할까요?',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     color: Brand.navy,
                   ),
@@ -805,7 +805,7 @@ class _Bubble extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.8),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(color: Brand.surface, borderRadius: BorderRadius.circular(16)),
       child: MarkdownBody(
         data: t,
         selectable: true,

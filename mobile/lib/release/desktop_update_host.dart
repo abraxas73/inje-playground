@@ -52,14 +52,14 @@ class DesktopUpdateStrip extends StatelessWidget {
                       available
                           ? '${state.release!.version} 버전으로 업데이트가 필요합니다.'
                           : '${state.message}${state.progress == null ? '' : ' ${(state.progress! * 100).round()}%'}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: Brand.navy,
                       ),
                     ),
                     if (available)
-                      const Text(
+                      Text(
                         '클릭하면 다운로드·설치 후 자동 재시작합니다. 작성 중인 내용을 먼저 저장해 주세요.',
                         style: TextStyle(fontSize: 12, color: Brand.navy),
                       ),

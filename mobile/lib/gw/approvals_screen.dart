@@ -55,7 +55,7 @@ class _BodyState extends State<_Body> {
               const SizedBox(height: 4),
               Text('기안 ${d.drafter}${d.dept.isEmpty ? '' : ' (${d.dept})'}${d.currentApprover.isEmpty ? '' : ' · 현재 결재자 ${d.currentApprover}'}${d.attachCount > 0 ? ' · 첨부 ${d.attachCount}' : ''}', style: theme.textTheme.bodySmall),
               const Divider(height: 24),
-              Text(d.content.isEmpty ? '(본문 없음)' : d.content, style: const TextStyle(fontSize: 15, height: 1.6, color: Brand.navy)),
+              Text(d.content.isEmpty ? '(본문 없음)' : d.content, style: TextStyle(fontSize: 15, height: 1.6, color: Brand.navy)),
               const SizedBox(height: 20),
               Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Brand.blueTint, borderRadius: BorderRadius.circular(12)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('승인·반려는 아마란스에서 처리하세요. 여기서는 열람 처리도 하지 않습니다.', style: theme.textTheme.bodySmall?.copyWith(color: Brand.navy)),
@@ -82,7 +82,7 @@ class _BodyState extends State<_Body> {
             if (snap.hasError) return ListView(children: [Padding(padding: const EdgeInsets.all(24), child: Column(children: [Text('${snap.error}', style: const TextStyle(color: Brand.dangerText)), const SizedBox(height: 12), FilledButton(onPressed: _refresh, child: const Text('다시 시도'))]))]);
             if (!snap.hasData) return const Center(child: CircularProgressIndicator());
             final (total, docs) = snap.data!;
-            if (docs.isEmpty) return ListView(children: const [Padding(padding: EdgeInsets.all(40), child: Center(child: Text('미결 문서가 없습니다', style: TextStyle(color: Brand.muted))))]);
+            if (docs.isEmpty) return ListView(children: [Padding(padding: EdgeInsets.all(40), child: Center(child: Text('미결 문서가 없습니다', style: TextStyle(color: Brand.muted))))]);
             return ListView.separated(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
               itemCount: docs.length + 1,
@@ -100,7 +100,7 @@ class _BodyState extends State<_Body> {
                       Expanded(child: Text(p.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: p.unread ? FontWeight.w800 : FontWeight.w600))),
                     ]),
                     subtitle: Text('${p.form} · ${p.drafter}${p.dept.isEmpty ? '' : ' (${p.dept})'}${days == null ? '' : ' · ${days == 0 ? '오늘' : '$days일째'}'}', maxLines: 1, overflow: TextOverflow.ellipsis),
-                    trailing: IconButton(icon: const Icon(Icons.open_in_new, size: 20, color: Brand.faint), tooltip: '아마란스에서 열기', onPressed: () => _openInGw(p)),
+                    trailing: IconButton(icon: Icon(Icons.open_in_new, size: 20, color: Brand.faint), tooltip: '아마란스에서 열기', onPressed: () => _openInGw(p)),
                   ),
                 );
               },

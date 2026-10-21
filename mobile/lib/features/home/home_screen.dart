@@ -1,5 +1,6 @@
 import '../../app/service_card_grid.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -25,6 +26,8 @@ import '../../release/release_provider.dart';
 import 'greeting.dart';
 import 'quotes.dart';
 import 'home_card_layout.dart';
+import 'home_dashboard.dart';
+import 'dashboard_view.dart';
 
 /// 홈 = 오늘의 브리핑. 인사말 → 오늘의 한 줄(격언) → 데일리 브리핑(Claude, 없으면 숨김) → 지금 필요한 것 → 일정 → 팀원 부재 → 결재 → 메일 → Teams → 공지 → 바로 가기·사내 서비스.
 /// 수집은 홈을 열 때·홈 탭을 다시 누를 때·당겨서 새로고침. 브리핑은 매일 한국 시간 07:00 및 수동 요청 때 다시 만든다.
@@ -40,6 +43,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   bool get _summaryBusy => _summaryRequests > 0;
   bool _manualBusy = false;
   bool _allAbsences = false;
+  bool _editing = false; // 데스크톱 대시보드 편집 모드
   Timer? _dailyTimer;
   late String _period;
 
@@ -166,6 +170,94 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => MailDetailScreen(api: api, item: m)));
       if (mounted) await _refresh();
     }
+
+    // 데스크톱(macOS·Windows): 홈을 위젯 대시보드로. 모바일은 아래 기존 세로 브리핑 그대로.
+    // 앱 타깃 기준(테스트는 기본 android라 모바일 경로)으로 가른다 — Platform.isMacOS는 테스트 호스트라 부정확.
+    if (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows) {
+      final sections = <String, DashboardWidgetDef>{};
+      void add(String id, String title, Widget child, {int w = 6, int h = 3}) => sections[id] = DashboardWidgetDef(title, child, defaultW: w, defaultH: h);
+      final canConfluence = session?.isAdmin == true || session?.permissions['confluence'] != false;
+      final canSharepoint = session?.isAdmin == true || session?.permissions['sharepoint'] != false;
+      add('quote', '오늘의 한 줄', QuoteCard(quote: q), w: 4, h: 2);
+      add('briefing', '데일리 브리핑', BriefingCard(
+        summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at),
+        busy: _summaryBusy || _manualBusy,
+        onRefresh: gw?.status == GwStatus.connected || data?.jira?.connected == true || dooray?.connected == true ? _forceSummary : null,
+        onClockIn: data != null && clockInPending(data.attendance, data.now) ? () => open('/gw/attendance') : null,
+        jira: data != null && !data.errors.containsKey('jira') && (session?.isAdmin == true || session?.permissions['jira'] != false) ? data.jira : null,
+        dooray: dooray,
+        onDoorayMore: () => open('/dooray/calendar'),
+        onDoorayRetry: _refresh,
+        onJiraMore: () => open('/web?path=${Uri.encodeComponent('/jira')}'),
+        onJiraIssue: (key) => open('/web?path=${Uri.encodeComponent('/jira/$key')}'),
+        onGwConnect: gw != null && gw.status != GwStatus.connected ? () => context.push('/gw/connect') : null,
+        gwRelogin: gw?.status == GwStatus.needsRelogin,
+      ), w: 8, h: 4);
+      if (data != null && !data.errors.containsKey('confluence') && canConfluence) add('confluence', 'Confluence', ConfluenceSection(data: data.confluence, onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication), onMore: () => open('/web?path=${Uri.encodeComponent('/confluence')}')), w: 6, h: 3);
+      if (data != null && !data.errors.containsKey('sharepoint') && canSharepoint) add('sharepoint', 'SharePoint', SharepointSection(data: data.sharepoint, onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication), onMore: () => open('/web?path=${Uri.encodeComponent('/sharepoint')}')), w: 6, h: 3);
+      if (data != null) {
+        add('focus', '지금 필요한 것', FocusSection(items: focusItems(data), onOpen: open), w: 4, h: 2);
+        if (!data.errors.containsKey('today')) add('meetings', '일정', MeetingsSection(meetings: myMeetings(data), tomorrowCount: myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).length, onMore: () => open('/gw/today')), w: 6, h: 3);
+        add('absence', '팀원 부재', AbsenceSection(
+          absences: _allAbsences ? orgAbsencesList(company?.asData?.value) : teamAbsences(data),
+          title: _allAbsences ? '회사 전체 부재' : data.orgAbsences?.isCenter == true ? '센터원 부재' : '팀원 부재',
+          allCompany: _allAbsences,
+          loading: _allAbsences && company?.isLoading == true,
+          failed: _allAbsences ? company?.hasError == true : data.errors.containsKey('absences'),
+          onToggle: (value) => setState(() => _allAbsences = value),
+          onRetry: _allAbsences ? () => ref.invalidate(companyAbsencesProvider) : _refresh,
+        ), w: 6, h: 3);
+        if (!data.errors.containsKey('approvals')) add('approvals', '미결 결재', ApprovalsSection(total: data.approvals?.$1 ?? 0, items: data.approvals?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals')), w: 6, h: 3);
+        if (!data.errors.containsKey('inbox')) add('mails', '메일', MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail'), onOpen: openMail), w: 6, h: 3);
+        if (!data.errors.containsKey('talks')) add('talks', '메신저 멘션', TalkMentionSection(talks: data.talks, onOpen: openMessenger), w: 6, h: 2);
+        if (!data.errors.containsKey('teams')) add('teams', 'Teams', TeamsSection(mentions: data.mentions, onOpen: () => open(teamsRoute)), w: 6, h: 3);
+      }
+      add('notices', '공지', const GwNoticesCard(), w: 6, h: 3);
+      add('quick', '바로 가기', ServiceCardGrid(children: [
+        if (session != null && canUsePage(session, teamsChatEntry)) _quick(context, Icons.forum_outlined, 'Teams 채팅', '내가 속한 채팅 읽기·보내기', () => context.push(teamsRoute), Brand.tints[3]),
+        _quick(context, Icons.restaurant, '뭐 먹지', '주변 식당·카페', () => context.go('/food'), Brand.tints[2]),
+        _quick(context, Icons.stairs, '사다리', '순서·당번 정하기', () => context.go('/ladder'), Brand.tints[0]),
+        _quick(context, Icons.coffee, '커피 타임', '팀 나누기·법카', () => context.go('/team'), Brand.tints[1]),
+      ]), w: 12, h: 2);
+      if (session != null && webServices(session).isNotEmpty) add('services', '사내 서비스', ServiceGrid(session: session), w: 12, h: 3);
+
+      final layout = ref.watch(homeDashboardProvider).value ?? defaultDashboard;
+      return Scaffold(
+        body: SafeArea(
+          bottom: false,
+          child: RefreshIndicator(
+            onRefresh: _refresh,
+            child: ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 24), children: [
+              Row(children: [
+                const BrandLogo(width: 86, opacity: 0.8),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => setState(() => _editing = !_editing),
+                  icon: Icon(_editing ? Icons.check : Icons.dashboard_customize_outlined, size: 18),
+                  label: Text(_editing ? '편집 완료' : '홈 편집'),
+                ),
+                const SizedBox(width: 4),
+                SquareIconButton(icon: Icons.menu_book_outlined, tooltip: '사용자 매뉴얼', onPressed: () => open('/web?path=${Uri.encodeComponent('/manual')}')),
+              ]),
+              const SizedBox(height: 14),
+              Text(g.title, style: theme.textTheme.headlineSmall),
+              const SizedBox(height: 4),
+              Text(g.subtitle, style: theme.textTheme.bodySmall),
+              const SizedBox(height: 16),
+              if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(bottom: 12), child: LinearProgressIndicator(minHeight: 2)),
+              if (_editing) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text('위젯 위쪽 손잡이를 끌어 옮기고, 오른쪽 아래 모서리로 크기를 바꾸세요. ✕로 삭제, 아래에서 추가.', style: TextStyle(fontSize: 12, color: Brand.muted))),
+              DashboardView(
+                layout: layout,
+                widgets: sections,
+                editing: _editing,
+                onChanged: (tiles) => ref.read(homeDashboardProvider.notifier).save(tiles),
+              ),
+            ]),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: SafeArea(
         bottom: false,

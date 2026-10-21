@@ -40,6 +40,7 @@ String _web(String href) => '/web?path=${Uri.encodeComponent(href)}';
 
 class NotifCenter extends AsyncNotifier<List<NotifItem>> {
   Timer? _debounce;
+  Timer? _poll;
 
   @override
   Future<List<NotifItem>> build() async {
@@ -50,9 +51,15 @@ class NotifCenter extends AsyncNotifier<List<NotifItem>> {
         _debounce = Timer(const Duration(seconds: 1), () => ref.invalidateSelf());
       }
     });
+    // Teams·메일·결재는 실시간 신호가 없어 주기 폴링으로 당겨온다(배지·목록만 조용히 갱신, 스피너·OS 배너 없음).
+    _poll?.cancel();
+    _poll = Timer.periodic(const Duration(seconds: 60), (_) async {
+      state = await AsyncValue.guard(_gather);
+    });
     ref.onDispose(() {
       sub.cancel();
       _debounce?.cancel();
+      _poll?.cancel();
     });
     // 메신저를 안 열어도 새 대화 알림이 오도록 MQTT를 깨운다(실패는 무시).
     () async {

@@ -85,7 +85,7 @@ class _ConversationListState extends ConsumerState<_ConversationList> {
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      const Padding(padding: EdgeInsets.fromLTRB(16, 16, 16, 8), child: Align(alignment: Alignment.centerLeft, child: Text('대화 기록', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Brand.navy)))),
+      Padding(padding: EdgeInsets.fromLTRB(16, 16, 16, 8), child: Align(alignment: Alignment.centerLeft, child: Text('대화 기록', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Brand.navy)))),
       Expanded(
         child: FutureBuilder<List<ConversationSummary>>(
           future: _items,

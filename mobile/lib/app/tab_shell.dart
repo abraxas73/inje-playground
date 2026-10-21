@@ -274,7 +274,7 @@ class FanItem extends StatelessWidget {
           width: FanMenu.circle,
           height: FanMenu.circle,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Brand.surface,
             shape: BoxShape.circle,
             border: active ? Border.all(color: Brand.blue, width: 2) : null,
             boxShadow: [BoxShadow(color: Brand.navy.withValues(alpha: 0.25), blurRadius: 14, offset: const Offset(0, 6))],

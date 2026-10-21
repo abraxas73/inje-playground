@@ -54,7 +54,7 @@ class _GwNoticesCardState extends ConsumerState<GwNoticesCard> {
               : items == null
                   ? const Padding(padding: EdgeInsets.all(18), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
                   : items.isEmpty
-                      ? const Padding(padding: EdgeInsets.all(18), child: Center(child: Text('새 글이 없습니다', style: TextStyle(color: Brand.muted))))
+                      ? Padding(padding: EdgeInsets.all(18), child: Center(child: Text('새 글이 없습니다', style: TextStyle(color: Brand.muted))))
                       : Column(children: [
                           for (final (i, n) in items.indexed) ...[
                             if (i > 0) const Divider(height: 1),
@@ -63,7 +63,7 @@ class _GwNoticesCardState extends ConsumerState<GwNoticesCard> {
                               onTap: () => context.push('/gw/board?art=${Uri.encodeComponent(n.artSeqNo)}'),
                               title: Text(n.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: n.read ? FontWeight.w600 : FontWeight.w800, color: Brand.navy)),
                               subtitle: Text([if (n.board.isNotEmpty) n.board, n.writer, n.writeDate.split(' ').first].where((s) => s.isNotEmpty).join(' · '), maxLines: 1, overflow: TextOverflow.ellipsis),
-                              trailing: const Icon(Icons.chevron_right, color: Brand.faint),
+                              trailing: Icon(Icons.chevron_right, color: Brand.faint),
                             ),
                           ],
                         ]),

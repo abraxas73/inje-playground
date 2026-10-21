@@ -25,7 +25,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final session = ref.watch(sessionProvider);
     final errorStyle = const TextStyle(fontSize: 13, color: Color(0xFFFFB4B4));
     return Scaffold(
-      backgroundColor: Brand.navy,
+      backgroundColor: Brand.hero,
       body: Stack(children: [
         const Positioned.fill(child: GridBackdrop()),
         SafeArea(
