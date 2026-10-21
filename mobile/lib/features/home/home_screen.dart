@@ -275,38 +275,53 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       if (session != null && webServices(session).isNotEmpty) add('services', '사내 서비스', ServiceGrid(session: session), w: 12, h: 3);
 
       final layout = ref.watch(homeDashboardProvider).value ?? defaultDashboard;
+      void addWidget(String id) {
+        if (layout.any((t) => t.id == id)) return;
+        final def = sections[id];
+        if (def == null) return;
+        final maxY = layout.fold<int>(0, (m, t) => t.y + t.h > m ? t.y + t.h : m);
+        ref.read(homeDashboardProvider.notifier).save([...layout, DashboardTile(id, 0, maxY, def.defaultW, def.defaultH)]);
+      }
       return Scaffold(
         body: SafeArea(
           bottom: false,
-          child: RefreshIndicator(
-            onRefresh: _refresh,
-            child: ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 24), children: [
-              Row(children: [
-                const BrandLogo(width: 86, opacity: 0.8),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () => setState(() => _editing = !_editing),
-                  icon: Icon(_editing ? Icons.check : Icons.dashboard_customize_outlined, size: 18),
-                  label: Text(_editing ? '편집 완료' : '홈 편집'),
+          child: Stack(children: [
+            RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 24), children: [
+                Row(children: [
+                  const BrandLogo(width: 86, opacity: 0.8),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () => setState(() => _editing = !_editing),
+                    icon: Icon(_editing ? Icons.check : Icons.dashboard_customize_outlined, size: 18),
+                    label: Text(_editing ? '편집 완료' : '홈 편집'),
+                  ),
+                  const SizedBox(width: 4),
+                  SquareIconButton(icon: Icons.menu_book_outlined, tooltip: '사용자 매뉴얼', onPressed: () => open('/web?path=${Uri.encodeComponent('/manual')}')),
+                ]),
+                const SizedBox(height: 14),
+                Text(g.title, style: theme.textTheme.headlineSmall),
+                const SizedBox(height: 4),
+                Text(g.subtitle, style: theme.textTheme.bodySmall),
+                const SizedBox(height: 16),
+                if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(bottom: 12), child: LinearProgressIndicator(minHeight: 2)),
+                if (_editing) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text('위젯 위쪽 손잡이를 끌어 옮기고, 오른쪽 아래 모서리로 크기를 바꾸세요. ✕로 삭제, 아래 떠 있는 팔레트에서 추가.', style: TextStyle(fontSize: 12, color: Brand.muted))),
+                DashboardView(
+                  layout: layout,
+                  widgets: sections,
+                  editing: _editing,
+                  onChanged: (tiles) => ref.read(homeDashboardProvider.notifier).save(tiles),
                 ),
-                const SizedBox(width: 4),
-                SquareIconButton(icon: Icons.menu_book_outlined, tooltip: '사용자 매뉴얼', onPressed: () => open('/web?path=${Uri.encodeComponent('/manual')}')),
               ]),
-              const SizedBox(height: 14),
-              Text(g.title, style: theme.textTheme.headlineSmall),
-              const SizedBox(height: 4),
-              Text(g.subtitle, style: theme.textTheme.bodySmall),
-              const SizedBox(height: 16),
-              if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(bottom: 12), child: LinearProgressIndicator(minHeight: 2)),
-              if (_editing) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text('위젯 위쪽 손잡이를 끌어 옮기고, 오른쪽 아래 모서리로 크기를 바꾸세요. ✕로 삭제, 아래에서 추가.', style: TextStyle(fontSize: 12, color: Brand.muted))),
-              DashboardView(
-                layout: layout,
-                widgets: sections,
-                editing: _editing,
-                onChanged: (tiles) => ref.read(homeDashboardProvider.notifier).save(tiles),
+            ),
+            // 편집 모드: 화면 하단에 떠 있는 "위젯 추가" 팔레트 — 스크롤과 무관하게 항상 보인다
+            if (_editing)
+              Positioned(
+                left: 16, right: 16, bottom: 16,
+                child: Center(child: DashboardPalette(widgets: sections, layout: layout, onAdd: addWidget, onDone: () => setState(() => _editing = false))),
               ),
-            ]),
-          ),
+          ]),
         ),
       );
     }
