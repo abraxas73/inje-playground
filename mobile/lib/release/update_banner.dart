@@ -42,7 +42,7 @@ class UpdateBanner extends ConsumerWidget {
             Expanded(
               child: Text(
                 hasLink ? '새 버전 ${r.version}이 있어요' : '새 버전 ${r.version}이 있어요 · 웹 /apps에서 받으세요',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Brand.navy),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Brand.navy),
               ),
             ),
             if (hasLink) TextButton(onPressed: () => openRelease(ref, launch), child: const Text('업데이트')),

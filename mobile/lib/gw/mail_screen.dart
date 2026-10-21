@@ -55,20 +55,20 @@ class _BodyState extends ConsumerState<_Body> {
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Brand.line)),
-                    child: const Row(children: [Icon(Icons.search, color: Brand.faint), SizedBox(width: 8), Text('메일 검색 · 제목·보낸 사람·본문', style: TextStyle(color: Brand.muted))]),
+                    decoration: BoxDecoration(color: Brand.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: Brand.line)),
+                    child: Row(children: [Icon(Icons.search, color: Brand.faint), SizedBox(width: 8), Text('메일 검색 · 제목·보낸 사람·본문', style: TextStyle(color: Brand.muted))]),
                   ),
                 ),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: Brand.navy, borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(color: Brand.hero, borderRadius: BorderRadius.circular(16)),
                   child: Text('미읽음 ${s.unread} · 나에게 온 것 ${s.toMe} · 전체 ${s.total}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
                 ),
                 const SizedBox(height: 12),
                 Card(
                   child: items.isEmpty
-                      ? const Padding(padding: EdgeInsets.all(20), child: Center(child: Text('받은 메일이 없습니다', style: TextStyle(color: Brand.muted))))
+                      ? Padding(padding: EdgeInsets.all(20), child: Center(child: Text('받은 메일이 없습니다', style: TextStyle(color: Brand.muted))))
                       : Column(children: [
                           for (final (i, m) in items.indexed) ...[
                             if (i > 0) const Divider(height: 1),
@@ -82,15 +82,15 @@ class _BodyState extends ConsumerState<_Body> {
                               title: Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: m.seen ? FontWeight.w500 : FontWeight.w800)),
                               subtitle: Text(m.fromName.isEmpty ? m.fromEmail : m.fromName, maxLines: 1, overflow: TextOverflow.ellipsis),
                               trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                                Text(m.date, style: const TextStyle(fontSize: 12, color: Brand.muted)),
-                                if (m.attach) const Icon(Icons.attach_file, size: 14, color: Brand.faint),
+                                Text(m.date, style: TextStyle(fontSize: 12, color: Brand.muted)),
+                                if (m.attach) Icon(Icons.attach_file, size: 14, color: Brand.faint),
                               ]),
                             ),
                           ],
                         ]),
                 ),
                 const SizedBox(height: 10),
-                const Text('메일을 열면 아마란스에서도 읽음으로 바뀝니다. 본문 화면에서 안 읽음으로 되돌릴 수 있습니다.', style: TextStyle(fontSize: 12, color: Brand.muted), textAlign: TextAlign.center),
+                Text('메일을 열면 아마란스에서도 읽음으로 바뀝니다. 본문 화면에서 안 읽음으로 되돌릴 수 있습니다.', style: TextStyle(fontSize: 12, color: Brand.muted), textAlign: TextAlign.center),
               ]);
             },
           ),

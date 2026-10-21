@@ -81,15 +81,15 @@ class _BodyState extends State<_Body> {
           Padding(padding: const EdgeInsets.only(left: 4, bottom: 6), child: CountTitle('글', _total)),
           if (_error != null) Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [Text(_error!, style: const TextStyle(color: Brand.dangerText)), const SizedBox(height: 8), FilledButton(onPressed: () => _load(reset: true), child: const Text('다시 시도'))])))
           else if (_items.isEmpty && _loading) const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
-          else if (_items.isEmpty) const Padding(padding: EdgeInsets.all(40), child: Center(child: Text('글이 없습니다', style: TextStyle(color: Brand.muted))))
+          else if (_items.isEmpty) Padding(padding: EdgeInsets.all(40), child: Center(child: Text('글이 없습니다', style: TextStyle(color: Brand.muted))))
           else ...[
             for (final n in _items) Card(child: ListTile(
               onTap: () => _openDetail(n.artSeqNo, title: n.title),
               title: Row(children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Brand.tintFor(n.board), borderRadius: BorderRadius.circular(6)), child: Text(n.board.isEmpty ? '게시판' : n.board, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Brand.navy))),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Brand.tintFor(n.board), borderRadius: BorderRadius.circular(6)), child: Text(n.board.isEmpty ? '게시판' : n.board, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Brand.navy))),
                 const SizedBox(width: 8),
                 Expanded(child: Text(n.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: n.read ? FontWeight.w600 : FontWeight.w800))),
-                if (n.fileCnt > 0) const Icon(Icons.attach_file, size: 14, color: Brand.faint),
+                if (n.fileCnt > 0) Icon(Icons.attach_file, size: 14, color: Brand.faint),
               ]),
               subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 if (n.preview.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(n.preview, maxLines: 1, overflow: TextOverflow.ellipsis)),
@@ -126,7 +126,7 @@ class _DetailPage extends StatelessWidget {
             const SizedBox(height: 6),
             Text([d.writer, if (d.dept.isNotEmpty) d.dept, d.writeDate, '조회 ${d.readCnt}', if (d.fileCnt > 0) '첨부 ${d.fileCnt}'].where((s) => s.isNotEmpty).join(' · '), style: theme.textTheme.bodySmall),
             const Divider(height: 24),
-            SelectableText(d.content.isEmpty ? '(본문 없음)' : d.content, style: const TextStyle(fontSize: 15, height: 1.65, color: Brand.navy)),
+            SelectableText(d.content.isEmpty ? '(본문 없음)' : d.content, style: TextStyle(fontSize: 15, height: 1.65, color: Brand.navy)),
             if (d.fileCnt > 0) Padding(padding: const EdgeInsets.only(top: 16), child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Brand.blueTint, borderRadius: BorderRadius.circular(12)), child: Text('첨부 ${d.fileCnt}건은 아마란스에서 내려받으세요.', style: theme.textTheme.bodySmall?.copyWith(color: Brand.navy)))),
             if (d.comments.isNotEmpty) ...[
               const SizedBox(height: 20),

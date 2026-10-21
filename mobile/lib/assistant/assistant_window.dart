@@ -132,9 +132,9 @@ class _AssistantWindowState extends State<AssistantWindow> {
                       padding: const EdgeInsets.only(left: 14, right: 4),
                       color: Brand.botViolet.withValues(alpha: 0.08),
                       child: Row(children: [
-                        const Icon(Icons.drag_indicator, size: 18, color: Brand.muted),
+                        Icon(Icons.drag_indicator, size: 18, color: Brand.muted),
                         const SizedBox(width: 6),
-                        const Text('비서 이노봇', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.navy)),
+                        Text('비서 이노봇', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.navy)),
                         const Spacer(),
                         IconButton(tooltip: '닫기', iconSize: 18, visualDensity: VisualDensity.compact, icon: const Icon(Icons.close), onPressed: widget.onClose),
                       ]),
@@ -160,7 +160,7 @@ class _AssistantWindowState extends State<AssistantWindow> {
                   _size = clampWindowSize(Size(math.min(want.width, screen.width - _margin - pos.dx), math.min(want.height, screen.height - _margin - pos.dy)), screen);
                 }),
                 onPanEnd: (_) => _save(),
-                child: const Align(alignment: Alignment.bottomRight, child: Icon(Icons.south_east, size: 12, color: Brand.muted)),
+                child: Align(alignment: Alignment.bottomRight, child: Icon(Icons.south_east, size: 12, color: Brand.muted)),
               ),
             ),
           ),

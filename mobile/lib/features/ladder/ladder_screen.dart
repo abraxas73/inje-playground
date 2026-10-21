@@ -246,7 +246,7 @@ class _LadderScreenState extends ConsumerState<LadderScreen>
                               child: DropdownButton<String>(
                                 value: _resultType,
                                 borderRadius: BorderRadius.circular(14),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: Brand.navy,
@@ -324,7 +324,7 @@ class _LadderScreenState extends ConsumerState<LadderScreen>
     height: 48,
     child: IconButton.filled(
       style: IconButton.styleFrom(
-        backgroundColor: Brand.navy,
+        backgroundColor: Brand.hero,
         foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),

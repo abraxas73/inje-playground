@@ -38,7 +38,7 @@ class CalendarView extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         IconButton(icon: const Icon(Icons.chevron_left), tooltip: prevTip, onPressed: () => onDay(calStep(mode, day, -1))),
-        Expanded(child: Center(child: Text(calLabel(mode, day), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Brand.navy)))),
+        Expanded(child: Center(child: Text(calLabel(mode, day), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Brand.navy)))),
         IconButton(icon: const Icon(Icons.chevron_right), tooltip: nextTip, onPressed: () => onDay(calStep(mode, day, 1))),
         if (!hasToday) TextButton(onPressed: () => onDay(t0), child: const Text('오늘')),
       ]),
@@ -70,7 +70,7 @@ class CalendarView extends StatelessWidget {
                     CalMode.month => _MonthGrid(days: days, events: events, today: t0, selected: day, month: day.month, onPick: onPickDay),
                   },
       ),
-      if (note != null) Padding(padding: const EdgeInsets.fromLTRB(4, 8, 4, 0), child: Text(note!, style: const TextStyle(fontSize: 12, color: Brand.muted))),
+      if (note != null) Padding(padding: const EdgeInsets.fromLTRB(4, 8, 4, 0), child: Text(note!, style: TextStyle(fontSize: 12, color: Brand.muted))),
     ]);
   }
 }
@@ -80,7 +80,7 @@ class _DayList extends StatelessWidget {
   final List<CalEvent> items;
   @override
   Widget build(BuildContext context) => items.isEmpty
-      ? const Padding(padding: EdgeInsets.all(20), child: Center(child: Text('일정이 없습니다', style: TextStyle(color: Brand.muted))))
+      ? Padding(padding: EdgeInsets.all(20), child: Center(child: Text('일정이 없습니다', style: TextStyle(color: Brand.muted))))
       : Column(children: [for (final (i, e) in items.indexed) ...[if (i > 0) const Divider(height: 1), _EventRow(e)]]);
 }
 
@@ -98,7 +98,7 @@ class _WeekList extends StatelessWidget {
             child: Align(alignment: Alignment.centerLeft, child: Text('${d.day}일 (${calWeekdays[d.weekday - 1]})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: d == today ? Brand.blue : d.weekday == 7 ? Brand.danger : Brand.navy))),
           ),
           for (final e in calOn(events, d)) _EventRow(e),
-          if (calOn(events, d).isEmpty) const Padding(padding: EdgeInsets.fromLTRB(16, 0, 16, 10), child: Align(alignment: Alignment.centerLeft, child: Text('일정 없음', style: TextStyle(fontSize: 12, color: Brand.faint)))),
+          if (calOn(events, d).isEmpty) Padding(padding: EdgeInsets.fromLTRB(16, 0, 16, 10), child: Align(alignment: Alignment.centerLeft, child: Text('일정 없음', style: TextStyle(fontSize: 12, color: Brand.faint)))),
         ],
       ]);
 }
@@ -145,14 +145,14 @@ class _MonthGrid extends StatelessWidget {
                     ),
                     if (wide) ...[
                       for (final e in items.take(3)) Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: CalendarView.colorOf(e))),
-                      if (items.length > 3) Text('+${items.length - 3}', style: const TextStyle(fontSize: 10, color: Brand.muted)),
+                      if (items.length > 3) Text('+${items.length - 3}', style: TextStyle(fontSize: 10, color: Brand.muted)),
                     ] else if (items.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4, left: 2),
                         child: Row(children: [
                           for (final (k, e) in items.take(3).indexed)
                             Container(key: ValueKey('cal-dot-$key-$k'), width: 6, height: 6, margin: const EdgeInsets.only(right: 3), decoration: BoxDecoration(color: CalendarView.colorOf(e), shape: BoxShape.circle)),
-                          if (items.length > 3) const Text('+', style: TextStyle(fontSize: 9, color: Brand.muted, height: 1)),
+                          if (items.length > 3) Text('+', style: TextStyle(fontSize: 9, color: Brand.muted, height: 1)),
                         ]),
                       ),
                   ]),
@@ -199,8 +199,8 @@ class _EventRow extends StatelessWidget {
                 Padding(
                   padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    SizedBox(width: 52, child: Text(k, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Brand.muted))),
-                    Expanded(child: Text(v, style: const TextStyle(fontSize: 13, color: Brand.navy, height: 1.4))),
+                    SizedBox(width: 52, child: Text(k, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Brand.muted))),
+                    Expanded(child: Text(v, style: TextStyle(fontSize: 13, color: Brand.navy, height: 1.4))),
                   ]),
                 ),
             ]),

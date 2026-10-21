@@ -109,7 +109,7 @@ class _MailSearchScreenState extends ConsumerState<MailSearchScreen> {
   }
 
   Widget _body(MailIndexStatus st) {
-    if (!st.available) return const Padding(padding: EdgeInsets.all(24), child: Text('이 기기에서는 색인을 저장할 수 없어 검색을 쓸 수 없습니다.', style: TextStyle(color: Brand.muted)));
+    if (!st.available) return Padding(padding: EdgeInsets.all(24), child: Text('이 기기에서는 색인을 저장할 수 없어 검색을 쓸 수 없습니다.', style: TextStyle(color: Brand.muted)));
     if (_ctl.text.trim().isEmpty) return ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 24), children: const [Card(child: Padding(padding: EdgeInsets.all(16), child: _SyntaxHelp()))]);
     if (_hits.isEmpty) {
       return Padding(
@@ -117,7 +117,7 @@ class _MailSearchScreenState extends ConsumerState<MailSearchScreen> {
         child: Column(children: [
           const Text('결과 없음', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
-          Text(st.syncing ? '동기화 중입니다 — 색인이 채워지면 결과가 바로 갱신됩니다.' : st.bodies < st.docs ? '본문은 이미 읽은 메일만 색인됩니다(안 읽은 메일은 제목·보낸 사람만). 검색식은 ? 도움말을 보세요.' : '검색식은 ? 도움말을 보세요.', style: const TextStyle(fontSize: 13, color: Brand.muted), textAlign: TextAlign.center),
+          Text(st.syncing ? '동기화 중입니다 — 색인이 채워지면 결과가 바로 갱신됩니다.' : st.bodies < st.docs ? '본문은 이미 읽은 메일만 색인됩니다(안 읽은 메일은 제목·보낸 사람만). 검색식은 ? 도움말을 보세요.' : '검색식은 ? 도움말을 보세요.', style: TextStyle(fontSize: 13, color: Brand.muted), textAlign: TextAlign.center),
         ]),
       );
     }
@@ -126,7 +126,7 @@ class _MailSearchScreenState extends ConsumerState<MailSearchScreen> {
       itemCount: _hits.length + 1,
       separatorBuilder: (_, i) => i == 0 ? const SizedBox.shrink() : const Divider(height: 1),
       itemBuilder: (context, i) {
-        if (i == 0) return Padding(padding: const EdgeInsets.only(bottom: 4), child: Text('${_hits.length}${_hits.length >= 300 ? '+' : ''}통', style: const TextStyle(fontSize: 12, color: Brand.muted)));
+        if (i == 0) return Padding(padding: const EdgeInsets.only(bottom: 4), child: Text('${_hits.length}${_hits.length >= 300 ? '+' : ''}통', style: TextStyle(fontSize: 12, color: Brand.muted)));
         final h = _hits[i - 1], d = h.doc;
         return ListTile(
           contentPadding: EdgeInsets.zero,
@@ -134,10 +134,10 @@ class _MailSearchScreenState extends ConsumerState<MailSearchScreen> {
           leading: InitialBadge(d.fromName.isEmpty ? d.fromEmail : d.fromName, size: 36, circle: true),
           title: RichText(maxLines: 1, overflow: TextOverflow.ellipsis, text: highlightSpan(d.subject.isEmpty ? '(제목 없음)' : d.subject, h.terms, TextStyle(fontSize: 15, fontWeight: d.seen ? FontWeight.w500 : FontWeight.w800, color: Colors.black87))),
           subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${d.box == 'SENT' ? '보낸 메일 · ${d.to.isEmpty ? '' : '받는 사람 ${d.to}'}' : d.from} · ${niceDate(d.date)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Brand.muted)),
+            Text('${d.box == 'SENT' ? '보낸 메일 · ${d.to.isEmpty ? '' : '받는 사람 ${d.to}'}' : d.from} · ${niceDate(d.date)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Brand.muted)),
             if (h.snippet.isNotEmpty) RichText(maxLines: 2, overflow: TextOverflow.ellipsis, text: highlightSpan(h.snippet, h.terms, const TextStyle(fontSize: 13, color: Colors.black87, height: 1.35))),
           ]),
-          trailing: d.attach ? const Icon(Icons.attach_file, size: 16, color: Brand.faint) : null,
+          trailing: d.attach ? Icon(Icons.attach_file, size: 16, color: Brand.faint) : null,
         );
       },
     );
@@ -201,8 +201,8 @@ class _SyntaxHelp extends StatelessWidget {
         const Text('검색식', style: TextStyle(fontWeight: FontWeight.w800)),
         const SizedBox(height: 8),
         for (final (ex, desc) in rows)
-          Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(ex, style: const TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.w700)), Text(desc, style: const TextStyle(fontSize: 12, color: Brand.muted))])),
+          Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(ex, style: const TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.w700)), Text(desc, style: TextStyle(fontSize: 12, color: Brand.muted))])),
         const SizedBox(height: 8),
-        const Text('색인은 이 기기 안에만 저장됩니다. 본문은 이미 읽은 메일만 담고, 안 읽은 메일은 열지 않습니다(열면 아마란스에서 읽음 처리되기 때문). 메일 화면을 열 때 10분마다 자동으로 동기화합니다.', style: TextStyle(fontSize: 12, color: Brand.muted)),
+        Text('색인은 이 기기 안에만 저장됩니다. 본문은 이미 읽은 메일만 담고, 안 읽은 메일은 열지 않습니다(열면 아마란스에서 읽음 처리되기 때문). 메일 화면을 열 때 10분마다 자동으로 동기화합니다.', style: TextStyle(fontSize: 12, color: Brand.muted)),
       ]);
 }

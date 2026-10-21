@@ -40,9 +40,9 @@ class _MessengerNotesScreenState extends ConsumerState<MessengerNotesScreen> {
             return ListView(controller: ctl, padding: const EdgeInsets.fromLTRB(20, 12, 20, 32), children: [
               Text(n.title.isEmpty ? '(제목 없음)' : n.title, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 6),
-              Text('${n.sender}${n.recvDate.isEmpty ? '' : ' · ${n.recvDate}'}', style: const TextStyle(color: Brand.muted, fontSize: 13)),
+              Text('${n.sender}${n.recvDate.isEmpty ? '' : ' · ${n.recvDate}'}', style: TextStyle(color: Brand.muted, fontSize: 13)),
               const Divider(height: 24),
-              Text(content.isEmpty ? '(내용 없음)' : content, style: const TextStyle(fontSize: 15, height: 1.6, color: Brand.navy)),
+              Text(content.isEmpty ? '(내용 없음)' : content, style: TextStyle(fontSize: 15, height: 1.6, color: Brand.navy)),
             ]);
           },
         ),
@@ -61,7 +61,7 @@ class _MessengerNotesScreenState extends ConsumerState<MessengerNotesScreen> {
           if (snap.hasError) return MessengerError(error: snap.error!, onRetry: _refresh);
           final notes = snap.data ?? const [];
           if (notes.isEmpty) {
-            return RefreshIndicator(onRefresh: _refresh, child: ListView(children: const [SizedBox(height: 120), Center(child: Text('받은 쪽지가 없습니다', style: TextStyle(color: Brand.muted)))]));
+            return RefreshIndicator(onRefresh: _refresh, child: ListView(children: [SizedBox(height: 120), Center(child: Text('받은 쪽지가 없습니다', style: TextStyle(color: Brand.muted)))]));
           }
           return RefreshIndicator(
             onRefresh: _refresh,
@@ -73,7 +73,7 @@ class _MessengerNotesScreenState extends ConsumerState<MessengerNotesScreen> {
                 return ListTile(
                   leading: InitialBadge(n.sender.isEmpty ? '쪽지' : n.sender),
                   title: Text(n.title.isEmpty ? '(제목 없음)' : n.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: n.read ? FontWeight.w400 : FontWeight.w700)),
-                  subtitle: Text('${n.sender}${n.recvDate.isEmpty ? '' : ' · ${n.recvDate}'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Brand.muted)),
+                  subtitle: Text('${n.sender}${n.recvDate.isEmpty ? '' : ' · ${n.recvDate}'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Brand.muted)),
                   onTap: () => _open(n),
                 );
               },

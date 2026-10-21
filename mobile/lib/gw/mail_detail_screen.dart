@@ -68,7 +68,7 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
                   child: Row(children: [
-                    Expanded(child: Text('${m.remoteImages > 0 ? '외부 이미지 ${m.remoteImages}개는 표시하지 않습니다 · ' : ''}본문 속 링크는 브라우저로 열립니다 · 첨부 내려받기는 아마란스에서 하세요.', style: const TextStyle(fontSize: 12, color: Brand.muted))),
+                    Expanded(child: Text('${m.remoteImages > 0 ? '외부 이미지 ${m.remoteImages}개는 표시하지 않습니다 · ' : ''}본문 속 링크는 브라우저로 열립니다 · 첨부 내려받기는 아마란스에서 하세요.', style: TextStyle(fontSize: 12, color: Brand.muted))),
                     const SizedBox(width: 8),
                     OutlinedButton.icon(onPressed: _busy ? null : _unread, icon: const Icon(Icons.mark_email_unread_outlined), label: const Text('안 읽음으로 되돌리기')),
                   ]),
@@ -80,7 +80,7 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
               const Divider(height: 28),
               SelectableText(m.body.isEmpty ? '(본문 없음)' : m.body, style: const TextStyle(fontSize: 15, height: 1.5)),
               const SizedBox(height: 20),
-              Text('서식 없는 텍스트로 보여 줍니다${m.remoteImages > 0 ? ' · 외부 이미지 ${m.remoteImages}개는 표시하지 않습니다' : ''}. 첨부 내려받기는 아마란스에서 하세요.', style: const TextStyle(fontSize: 12, color: Brand.muted)),
+              Text('서식 없는 텍스트로 보여 줍니다${m.remoteImages > 0 ? ' · 외부 이미지 ${m.remoteImages}개는 표시하지 않습니다' : ''}. 첨부 내려받기는 아마란스에서 하세요.', style: TextStyle(fontSize: 12, color: Brand.muted)),
               const SizedBox(height: 12),
               OutlinedButton.icon(onPressed: _busy ? null : _unread, icon: const Icon(Icons.mark_email_unread_outlined), label: const Text('안 읽음으로 되돌리기')),
             ]);
@@ -106,7 +106,7 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
 
   Widget _row(String k, String v) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 68, child: Text(k, style: const TextStyle(fontSize: 12, color: Brand.muted))), Expanded(child: SelectableText(v, style: const TextStyle(fontSize: 13)))]),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 68, child: Text(k, style: TextStyle(fontSize: 12, color: Brand.muted))), Expanded(child: SelectableText(v, style: const TextStyle(fontSize: 13)))]),
       );
 
   static String _size(int n) => n >= 1024 * 1024 ? '${(n / 1024 / 1024).toStringAsFixed(1)}MB' : '${(n / 1024).ceil().clamp(1, 1 << 30)}KB';
@@ -132,7 +132,7 @@ class _RecipientsState extends State<_Recipients> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 68, child: Text(widget.label, style: const TextStyle(fontSize: 12, color: Brand.muted))),
+        SizedBox(width: 68, child: Text(widget.label, style: TextStyle(fontSize: 12, color: Brand.muted))),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             SelectableText(list.isEmpty ? widget.value : list.join('\n'), style: const TextStyle(fontSize: 13)),

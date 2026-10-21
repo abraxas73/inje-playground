@@ -13,6 +13,7 @@ import 'briefing/live_background.dart';
 import 'gw/talk_notifications.dart';
 import 'mcp/mcp_worker_provider.dart';
 import 'app/theme.dart';
+import 'app/theme_mode.dart';
 import 'auth/session.dart';
 import 'config.dart';
 import 'web/app_webview.dart';
@@ -98,6 +99,8 @@ class _AppState extends ConsumerState<App> {
     return MaterialApp.router(
       title: '이노그리드',
       theme: appTheme(),
+      darkTheme: appTheme(brightness: Brightness.dark),
+      themeMode: ref.watch(themeModeProvider),
       routerConfig: _router,
       // 기본 위젯 문구(글자 선택의 복사·전체 선택, 날짜 선택 등)를 한국어로
       locale: const Locale('ko'),
@@ -105,7 +108,10 @@ class _AppState extends ConsumerState<App> {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       // 이노봇 버튼은 앱 전체 위에 한 번 — 탭·웹·아마란스·Dooray 어느 화면에서나(InnobotOverlay)
       // 모든 네이티브 화면의 글자를 끌어서(데스크톱)·길게 눌러(모바일) 골라 복사 — 이노봇 버튼 레이어는 밖(길게 눌러 옮기기와 겹치지 않게)
-      builder: (context, child) => DesktopUpdateHost(child: Stack(children: [DoorayCalendarHost(child: SelectAllText(child: child ?? const SizedBox.shrink())), Overlay(key: assistantWindowOverlay), InnobotOverlay(router: _router)])),
+      builder: (context, child) {
+        Brand.brightness = Theme.of(context).brightness; // 네이티브 화면이 읽는 Brand 토큰을 활성 밝기로 맞춘다
+        return DesktopUpdateHost(child: Stack(children: [DoorayCalendarHost(child: SelectAllText(child: child ?? const SizedBox.shrink())), Overlay(key: assistantWindowOverlay), InnobotOverlay(router: _router)]));
+      },
     );
   }
 }

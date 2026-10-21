@@ -61,7 +61,7 @@ Future<({String id, String topic})?> pickTeamsChat(BuildContext context, ApiClie
                 return const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Teams 채팅을 불러오지 못했습니다.\n웹 설정에서 Microsoft 계정을 연결(채팅 권한 포함)한 뒤 다시 시도하세요.', textAlign: TextAlign.center)));
               }
               return ListView(children: [
-                const Padding(padding: EdgeInsets.fromLTRB(20, 16, 20, 8), child: Text('출근 알림을 보낼 Teams 채팅방', style: TextStyle(fontWeight: FontWeight.w700, color: Brand.navy))),
+                Padding(padding: EdgeInsets.fromLTRB(20, 16, 20, 8), child: Text('출근 알림을 보낼 Teams 채팅방', style: TextStyle(fontWeight: FontWeight.w700, color: Brand.navy))),
                 for (final ch in chats) ListTile(leading: const Icon(Icons.forum_outlined), title: Text(ch.topic.isEmpty ? '(제목 없음)' : ch.topic), onTap: () => Navigator.pop(c, ch)),
               ]);
             },
@@ -110,7 +110,7 @@ class _ClockInDialogState extends State<ClockInDialog> {
               OutlinedButton.icon(onPressed: _choose, icon: const Icon(Icons.forum_outlined, size: 18), label: const Text('Teams 채팅방 고르기'))
             else ...[
               Row(children: [
-                Expanded(child: Text('Teams에 알리기 · ${_p.topic}', style: const TextStyle(fontSize: 14, color: Brand.navy), overflow: TextOverflow.ellipsis)),
+                Expanded(child: Text('Teams에 알리기 · ${_p.topic}', style: TextStyle(fontSize: 14, color: Brand.navy), overflow: TextOverflow.ellipsis)),
                 Switch(value: _p.enabled, onChanged: (v) => setState(() => _p = ClockInNotifyPrefs(chatId: _p.chatId, topic: _p.topic, enabled: v))),
               ]),
               Align(alignment: Alignment.centerLeft, child: TextButton(onPressed: _choose, child: const Text('채팅방 바꾸기'))),

@@ -201,7 +201,7 @@ class _FoodScreenState extends ConsumerState<FoodScreen> {
                 label: const Text('PAYCO'),
               ),
               FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: Brand.navy, minimumSize: const Size(0, 40), padding: const EdgeInsets.symmetric(horizontal: 14), textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                style: FilledButton.styleFrom(backgroundColor: Brand.hero, minimumSize: const Size(0, 40), padding: const EdgeInsets.symmetric(horizontal: 14), textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                 onPressed: _places.isEmpty ? null : () => showRecommendSheet(context, ref, _places),
                 icon: const Icon(Icons.auto_awesome, size: 16, color: Brand.sky),
                 label: const Text('오늘 뭐 먹지'),

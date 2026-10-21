@@ -6,8 +6,8 @@ import '../app/theme.dart';
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
   @override
-  Widget build(BuildContext context) => const Scaffold(
-        backgroundColor: Brand.navy,
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: Brand.hero,
         body: Stack(children: [
           Positioned.fill(child: GridBackdrop()),
           Center(

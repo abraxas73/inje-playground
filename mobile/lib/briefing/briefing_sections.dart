@@ -24,7 +24,7 @@ class QuoteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
-        decoration: BoxDecoration(color: Brand.navy, borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: Brand.hero, borderRadius: BorderRadius.circular(16)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Row(children: [
             Icon(Icons.format_quote_rounded, size: 18, color: Brand.sky),
@@ -81,13 +81,13 @@ class BriefingCard extends StatelessWidget {
             (busy ? const LinearProgressIndicator(minHeight: 2) : const Text('새로고침을 눌러 브리핑을 받아보세요.'))
           else if (s != null) Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 if (busy) const LinearProgressIndicator(minHeight: 2),
-                Text(s.text, style: const TextStyle(fontSize: 15, height: 1.6, color: Brand.navy)),
+                Text(s.text, style: TextStyle(fontSize: 15, height: 1.6, color: Brand.navy)),
                 if (onClockIn != null) ...[
                   const SizedBox(height: 10),
                   FilledButton.tonalIcon(onPressed: onClockIn, icon: const Icon(Icons.login, size: 18), label: const Text('출퇴근 바로 가기')),
                 ],
                 const SizedBox(height: 8),
-                Align(alignment: Alignment.centerRight, child: Text('Claude · ${s.at}', style: const TextStyle(fontSize: 12, color: Brand.muted))),
+                Align(alignment: Alignment.centerRight, child: Text('Claude · ${s.at}', style: TextStyle(fontSize: 12, color: Brand.muted))),
               ]),
           if (showJira) ...[
             const Divider(height: 24),
@@ -165,11 +165,11 @@ class FocusSection extends StatelessWidget {
   Widget build(BuildContext context) => _Section(
         title: '지금 필요한 것',
         child: items.isEmpty
-            ? const Padding(padding: EdgeInsets.all(14), child: Text('지금 당장 처리할 것은 없습니다', style: TextStyle(fontSize: 13, color: Brand.muted)))
+            ? Padding(padding: EdgeInsets.all(14), child: Text('지금 당장 처리할 것은 없습니다', style: TextStyle(fontSize: 13, color: Brand.muted)))
             : Column(children: [
                 for (final (i, it) in items.indexed) ...[
                   if (i > 0) const Divider(height: 1),
-                  ListTile(dense: true, leading: TintIcon(it.icon, size: 32, background: Brand.blueTint, color: Brand.navy), title: Text(it.text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)), trailing: const Icon(Icons.chevron_right, color: Brand.faint), onTap: () => onOpen(it.route)),
+                  ListTile(dense: true, leading: TintIcon(it.icon, size: 32, background: Brand.blueTint, color: Brand.navy), title: Text(it.text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)), trailing: Icon(Icons.chevron_right, color: Brand.faint), onTap: () => onOpen(it.route)),
                 ],
               ]),
       );
@@ -190,11 +190,11 @@ class MeetingsSection extends StatelessWidget {
       trailing: _more('일정', onMore),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         for (final e in shown)
-          ListTile(dense: true, onTap: onMore, leading: SizedBox(width: 52, child: Text(e.allDay ? '종일' : hm(e.start), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.navy))), title: Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: e.place.isEmpty ? null : Text(e.place, style: const TextStyle(fontSize: 12))),
+          ListTile(dense: true, onTap: onMore, leading: SizedBox(width: 52, child: Text(e.allDay ? '종일' : hm(e.start), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.navy))), title: Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: e.place.isEmpty ? null : Text(e.place, style: const TextStyle(fontSize: 12))),
         if (rest > 0 || tomorrowCount > 0)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-            child: Row(children: [if (rest > 0) Text('$rest개 더', style: const TextStyle(fontSize: 12, color: Brand.muted)), const Spacer(), if (tomorrowCount > 0) Text('내일 $tomorrowCount건', style: const TextStyle(fontSize: 12, color: Brand.muted))]),
+            child: Row(children: [if (rest > 0) Text('$rest개 더', style: TextStyle(fontSize: 12, color: Brand.muted)), const Spacer(), if (tomorrowCount > 0) Text('내일 $tomorrowCount건', style: TextStyle(fontSize: 12, color: Brand.muted))]),
           ),
       ]),
     );
@@ -221,7 +221,7 @@ class AbsenceSection extends StatelessWidget {
                 : failed
                     ? TextButton(onPressed: onRetry, child: const Text('조직도 상태를 불러오지 못했습니다 · 다시 시도'))
                     : absences.isEmpty
-                        ? const Text('현재 부재자가 없습니다.', style: TextStyle(color: Brand.muted))
+                        ? Text('현재 부재자가 없습니다.', style: TextStyle(color: Brand.muted))
                         : Wrap(spacing: 8, runSpacing: 8, children: [for (final a in absences) Chip(avatar: InitialBadge(a.who, size: 22, circle: true), label: Text('${a.who} · ${a.what}'))]),
           ),
         );
@@ -241,7 +241,7 @@ class ApprovalsSection extends StatelessWidget {
           trailing: _more('더 보기', onMore),
           child: Column(children: [
             for (final a in items.take(3))
-              ListTile(dense: true, leading: InitialBadge(a.drafter, size: 32, circle: true), title: Text(a.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: a.unread ? FontWeight.w700 : FontWeight.w500)), subtitle: Text('${a.drafter} · ${a.form}', style: const TextStyle(fontSize: 12)), trailing: Text(a.waitingDays(now) == null ? '' : '${a.waitingDays(now)}일째', style: const TextStyle(fontSize: 12, color: Brand.muted))),
+              ListTile(dense: true, leading: InitialBadge(a.drafter, size: 32, circle: true), title: Text(a.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: a.unread ? FontWeight.w700 : FontWeight.w500)), subtitle: Text('${a.drafter} · ${a.form}', style: const TextStyle(fontSize: 12)), trailing: Text(a.waitingDays(now) == null ? '' : '${a.waitingDays(now)}일째', style: TextStyle(fontSize: 12, color: Brand.muted))),
           ]),
         );
 }
@@ -304,7 +304,7 @@ class JiraSection extends StatelessWidget {
               defaultVerticalAlignment: TableCellVerticalAlignment.middle,
               border: const TableBorder(horizontalInside: BorderSide(color: Color(0xFFE5E7EB))),
               children: [
-                const TableRow(children: [
+                TableRow(children: [
                   Padding(padding: EdgeInsets.only(bottom: 8), child: Text('업무', style: TextStyle(fontSize: 12, color: Brand.muted))),
                   Padding(padding: EdgeInsets.only(bottom: 8), child: Text('상태', style: TextStyle(fontSize: 12, color: Brand.muted))),
                   Padding(padding: EdgeInsets.only(bottom: 8), child: Text('링크', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Brand.muted))),
@@ -316,7 +316,7 @@ class JiraSection extends StatelessWidget {
                       Text(item.key, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary, decoration: TextDecoration.underline)),
                       const SizedBox(height: 3),
                       Text(item.summary, style: const TextStyle(fontSize: 13)),
-                      if (item.dueDate != null) Text('마감 ${item.dueDate}', style: const TextStyle(fontSize: 11, color: Brand.muted)),
+                      if (item.dueDate != null) Text('마감 ${item.dueDate}', style: TextStyle(fontSize: 11, color: Brand.muted)),
                     ]),
                   )),
                   Padding(padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4), child: Text(item.status, style: const TextStyle(fontSize: 12))),
@@ -345,7 +345,7 @@ class ConfluenceSection extends StatelessWidget {
         for (final x in d.items.take(3))
           ListTile(
             dense: true,
-            leading: const Icon(Icons.alternate_email, color: Brand.muted),
+            leading: Icon(Icons.alternate_email, color: Brand.muted),
             title: Text(x.title, maxLines: 2, overflow: TextOverflow.ellipsis),
             subtitle: Text([x.space, x.by].where((s) => s.isNotEmpty).join(' · '), style: const TextStyle(fontSize: 12)),
             onTap: () => onOpenUrl(x.url),
@@ -443,7 +443,7 @@ class DooraySection extends StatelessWidget {
       if (data.events.isNotEmpty || data.eventsError != null) rows('오늘 일정', data.events, data.eventsError),
       if (data.mail.isNotEmpty) ...[
         rows('안 읽은 메일', data.mail, null),
-        if (data.partial) const Text('최근 소식 일부만 표시합니다.', style: TextStyle(fontSize: 11, color: Brand.muted)),
+        if (data.partial) Text('최근 소식 일부만 표시합니다.', style: TextStyle(fontSize: 11, color: Brand.muted)),
       ],
     ]);
   }

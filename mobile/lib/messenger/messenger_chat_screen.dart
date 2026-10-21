@@ -103,7 +103,7 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
           if (snap.hasError) return MessengerError(error: snap.error!, onRetry: _refresh);
           final rooms = snap.data ?? const [];
           if (rooms.isEmpty) {
-            return RefreshIndicator(onRefresh: _refresh, child: ListView(children: const [SizedBox(height: 120), Center(child: Text('대화방이 없습니다', style: TextStyle(color: Brand.muted)))]));
+            return RefreshIndicator(onRefresh: _refresh, child: ListView(children: [SizedBox(height: 120), Center(child: Text('대화방이 없습니다', style: TextStyle(color: Brand.muted)))]));
           }
           return RefreshIndicator(
             onRefresh: _refresh,
@@ -136,15 +136,15 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
               decoration: BoxDecoration(
                 color: state.online ? const Color(0xFF34C759) : (state.code == '-1' ? Brand.faint : const Color(0xFFFF9500)),
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
+                border: Border.all(color: Brand.surface, width: 2),
               ),
             ),
           ),
       ]),
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(r.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Brand.muted)),
+      subtitle: Text(r.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Brand.muted)),
       trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-        if (r.lastAt != null) Text(_hhmm(r.lastAt!), style: const TextStyle(fontSize: 12, color: Brand.faint)),
+        if (r.lastAt != null) Text(_hhmm(r.lastAt!), style: TextStyle(fontSize: 12, color: Brand.faint)),
         if (r.unreadCount > 0) ...[
           const SizedBox(height: 4),
           Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2), decoration: BoxDecoration(color: Brand.botViolet, borderRadius: BorderRadius.circular(10)), child: Text('${r.unreadCount}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600))),
@@ -268,7 +268,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
               if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
               if (snap.hasError) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('불러오지 못했습니다: ${snap.error}', textAlign: TextAlign.center)));
               final chats = snap.data ?? const [];
-              if (chats.isEmpty) return const Center(child: Text('대화가 없습니다', style: TextStyle(color: Brand.muted)));
+              if (chats.isEmpty) return Center(child: Text('대화가 없습니다', style: TextStyle(color: Brand.muted)));
               // reverse:true → 맨 아래(최신)부터 보인다. i=0=최신, 올라갈수록 과거. chats는 오름차순이라 j로 뒤집어 읽는다.
               return ListView.builder(
                 reverse: true,
@@ -314,7 +314,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
                 if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                 if (snap.hasError) return Padding(padding: const EdgeInsets.all(24), child: Text('불러오지 못했습니다: ${snap.error}'));
                 final items = snap.data ?? const [];
-                if (items.isEmpty) return Center(child: Text('$title가 없습니다', style: const TextStyle(color: Brand.muted)));
+                if (items.isEmpty) return Center(child: Text('$title가 없습니다', style: TextStyle(color: Brand.muted)));
                 return ListView(controller: ctl, children: [for (final it in items) build(it)]);
               },
             ),
@@ -325,15 +325,15 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
   }
 
   Widget _noticeTile(MsgRoomNotice n) => ListTile(
-        leading: const Icon(Icons.campaign_outlined, color: Brand.faint),
+        leading: Icon(Icons.campaign_outlined, color: Brand.faint),
         title: Text(n.content),
-        subtitle: n.empName.isEmpty ? null : Text(n.empName, style: const TextStyle(color: Brand.muted)),
+        subtitle: n.empName.isEmpty ? null : Text(n.empName, style: TextStyle(color: Brand.muted)),
       );
 
   Widget _fileTile(MsgRoomFile f) => ListTile(
-        leading: const Icon(Icons.insert_drive_file_outlined, color: Brand.faint),
+        leading: Icon(Icons.insert_drive_file_outlined, color: Brand.faint),
         title: Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text([if (f.empName.isNotEmpty) f.empName, if (f.size > 0) _fileSize(f.size)].join(' · '), style: const TextStyle(color: Brand.muted)),
+        subtitle: Text([if (f.empName.isNotEmpty) f.empName, if (f.size > 0) _fileSize(f.size)].join(' · '), style: TextStyle(color: Brand.muted)),
       );
 
   String _fileSize(int b) => b >= 1048576 ? '${(b / 1048576).toStringAsFixed(1)}MB' : b >= 1024 ? '${(b / 1024).toStringAsFixed(0)}KB' : '${b}B';
@@ -349,14 +349,14 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
       decoration: BoxDecoration(color: mine ? Brand.botViolet : Brand.blueTint, borderRadius: BorderRadius.circular(14)),
       child: Text(text, style: TextStyle(color: mine ? Colors.white : Brand.navy, height: 1.4, fontStyle: c.deleted ? FontStyle.italic : FontStyle.normal)),
     );
-    final stamp = Padding(padding: const EdgeInsets.only(bottom: 2), child: Text(time, style: const TextStyle(fontSize: 10, color: Brand.faint)));
+    final stamp = Padding(padding: const EdgeInsets.only(bottom: 2), child: Text(time, style: TextStyle(fontSize: 10, color: Brand.faint)));
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
         crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           if (!mine && name != null && name.isNotEmpty)
-            Padding(padding: const EdgeInsets.only(left: 4, top: 4), child: Text(name, style: const TextStyle(fontSize: 11, color: Brand.muted))),
+            Padding(padding: const EdgeInsets.only(left: 4, top: 4), child: Text(name, style: TextStyle(fontSize: 11, color: Brand.muted))),
           // 시각은 말풍선 바깥쪽 아래(내 것은 왼쪽, 상대는 오른쪽)
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -375,9 +375,9 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(children: [
-        const Expanded(child: Divider(color: Brand.faint)),
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: Text(label, style: const TextStyle(fontSize: 11, color: Brand.muted))),
-        const Expanded(child: Divider(color: Brand.faint)),
+        Expanded(child: Divider(color: Brand.faint)),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: Text(label, style: TextStyle(fontSize: 11, color: Brand.muted))),
+        Expanded(child: Divider(color: Brand.faint)),
       ]),
     );
   }
