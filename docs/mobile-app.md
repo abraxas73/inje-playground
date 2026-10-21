@@ -268,6 +268,18 @@ Graph 메모: 검색 hit는 `fields`에 file·folder를 넣어도 폴더에 `fol
 - 하단 바 하위 메뉴(`app/menu_layout.dart`): 한 줄 개수가 폭에 따라 늘어난다(폰 390 → 5개·셀 78 그대로, 넓은 창은 `max(5, 폭÷78)`개까지 한 줄, 셀 폭은 `min(폭÷5, 96, 폭÷가장 긴 줄)`로 묶어 가운데 모음) — 데스크톱에서 업무 9개가 두 줄로 나오던 것 수정.
 - 테스트: `test/calendar/*`(모델 6·위젯 5), `test/gw/screens_test.dart`(일간 오늘 픽스처·주간 범위·Dooray 병합·월간→일간·추가→이노봇 seed), `test/dooray/*`, `test/assistant/assistant_sheet_test.dart`(seed), `test/app/menu_layout_test.dart`.
 
+## 아마란스 메신저(앱 내장)·통합 알림 센터 (2026-10-21, 1.7.29~1.7.33)
+
+위 §멘션 알림은 그룹웨어 알림센터만 긁었지만, 이제 앱이 **메신저 백엔드에 직접** 붙어 대화방·메시지·검색·쪽지·접속 상태·팀 근태·방 공지/파일을 다룬다. 코드는 `lib/messenger/`, 데스크톱(macOS) 위주(모바일은 아마란스10 앱이 이미 푸시).
+
+- **P076 메신저 로그인(그룹웨어와 별개)**: 메신저는 웹 token을 받지 않는다(11008 거절) → 아이디·비밀번호로 `P076`을 따로 호출해 메신저 전용 token·hashKey를 받는다. 자격 증명은 **아마란스 자동 로그인**이 `flutter_secure_storage`(gwLoginStore)에 저장해 둔 값을 그대로 쓴다. 비밀번호는 AES-256-CBC(IV=0×16, PKCS7, 키는 `messenger_crypto.dart` `_loginKeys` 10개 중 kNum(0~9 랜덤), `pointycastle`)로 암호화. 프로토콜표 `proxymgw/proxymgw01A01`, 호출 봉투 `{header:{appType:13, loginId, mobileId:INNOGRID, osType:03, pid, tId, token}, body:{…}}` + wehago-sign(`gw_sign.dart`), 401·11008이면 재로그인 1회. 세션은 `MessengerSession`(token·hashKey·groupSeq·empSeq·companyInfo·mqtt·currentTime), `messengerClientProvider.ensureSession()`.
+- **기능**: 대화방 목록(`rooms(isUserInfo:Y)`)·메시지(`chats`)·보내기(`sendChat`)·읽음(`readChat`)·입장(`enterRoom`), 참여자 이름은 P1471 body `{empSeqList, grouppingTp}`만(다른 필드 넣으면 이름이 안 온다). 방 화면(`messenger_chat_screen.dart` `MessengerRoomScreen`)은 `reverse:true` ListView라 최신이 아래, 날짜 구분선·이름·시각 말풍선. 검색(`messenger_search_screen.dart`)·쪽지(`messenger_notes_screen.dart` CRUD)·접속 상태(presence 점, `MsgClientState`)·팀 근태(`messenger_attend_screen.dart`, `todayAttend`)·방 공지/파일(popup). 라우트 `/gw/messenger`·`/gw/room?id=&title=`(`MsgRoom.minimal`)·`/gw/notes`·`/gw/attend`, 더보기 카탈로그 `appPages`.
+- **실시간 MQTT**(`messenger_mqtt.dart`, `mqtt_client`): P076 응답의 `mqttInfo`로 접속(mqtts, `onBadCertificate→true` — 원본도 rejectUnauthorized:false), connId `{groupSeq}|{empSeq}|13|{currentTime}|{transId}`, QoS2. 비밀번호는 로그인과 같은 키 테이블로 복호화(`decryptLoginData`). 기본 토픽 `/{grp}/{OrgSync,empSeq,Chat,State,attendApplicationDetails}` + 방 입장 때 `/{grp}/Chat/{roomId}`(참조수). 알림 페이로드의 title/content는 언어별 맵(`{kr:…}` 우선). `_shouldNotify`: 내가 보낸 게 아니고·열어 둔 방이 아니고·`setting.alertYn`·`receiver[me].pushYn`가 N이 아닐 때만.
+- **통합 알림 센터**(`lib/notifications/`, 1.7.30~): 이노봇 떠 있는 버튼 옆 **종 버튼**(`innobot_button.dart`, 즐겨찾기 ★와 같은 오버레이·`notifOpen`·상호 배타)을 누르면 `NotificationPanel`. 소스는 소스별 try/catch 독립 — 아마란스 멘션(`talkAlerts`)+새 대화(MQTT)·미결 결재·안 읽은 메일·Teams 멘션, 인사·부고는 앱 데이터가 없어 웹 링크(`/people-news`). `NotifCenter`(AsyncNotifier)가 모으고 새 대화 MQTT 신호는 1초 디바운스로 `invalidateSelf`. 메신저를 안 열어도 알림이 오도록 build에서 MQTT를 깨운다.
+- **읽음·배지(로컬)**: 서버 읽음이 아니라 기기 로컬 — `notifSeenProvider`(SharedPreferences `notif_seen`)에 탭·'모두 읽음'으로 키를 넣으면 `notifVisibleProvider`·배지(`notifUnreadProvider`)에서 빠진다. 각 `NotifItem.key`(`m:alertId`·`a:cnt`·`l:unread`·`t:chatId:at`)가 식별자.
+- **새 대화 OS 배너**: MQTT `onPush`→`showMessengerPush`(`talk_notifications.dart`)로 OS 알림, 탭하면 payload 경로가 `messengerNotifyTap`에 실리고 `main.dart` `_onNotifyTap`이 그 대화방(`/gw/room?id=…`)으로 `push`. 로그인 전이면 무시.
+- **보안·한계**: token·비밀번호·메시지 본문은 로그·문서·감사에 남기지 않는다. 동시 접속이 막혀 있어 다른 기기에서 메신저를 쓰면 HTTP 401로 끊길 수 있다(재로그인으로 복구). 아마란스 메신저가 기기에 **설치**는 돼 있어야 한다(로그인은 불필요).
+
 ## Claude 커넥터(아마란스 MCP) (2026-10-10)
 
 목적: inno-creed 바이너리를 대체한다. claude.ai 조직 커넥터 **"INNOGRID 아마란스"**(URL `https://innocrew.innogrid.com/api/mcp`)로 Claude(웹·Desktop·모바일·Claude Code)가 각자 아마란스(메일·일정·결재·조직도 등)를 부른다. 스펙 `docs/superpowers/specs/2026-10-10-desktop-mcp-connector-design.md`.
