@@ -268,9 +268,10 @@ class MailsSection extends StatelessWidget {
 }
 
 class TeamsSection extends StatelessWidget {
-  const TeamsSection({super.key, required this.mentions, required this.onOpen});
+  const TeamsSection({super.key, required this.mentions, required this.onOpen, required this.onOpenChat});
   final TeamsMentions? mentions;
-  final VoidCallback onOpen;
+  final VoidCallback onOpen; // 머리글 'Teams 열기' — 채팅 목록
+  final void Function(String chatId) onOpenChat; // 행 클릭 — 그 사람의 채팅으로
   @override
   Widget build(BuildContext context) {
     final m = mentions;
@@ -279,7 +280,7 @@ class TeamsSection extends StatelessWidget {
       title: 'Teams 답장 대기 ${m.items.length}',
       trailing: _more('Teams 열기', onOpen),
       child: Column(children: [
-        for (final x in m.items.take(3)) ListTile(dense: true, leading: InitialBadge(x.from, size: 32, circle: true), title: Text(x.text, maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('${x.topic} · ${x.from}', style: const TextStyle(fontSize: 12)), onTap: onOpen),
+        for (final x in m.items.take(3)) ListTile(dense: true, leading: InitialBadge(x.from, size: 32, circle: true), title: Text(x.text, maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('${x.topic} · ${x.from}', style: const TextStyle(fontSize: 12)), onTap: () => onOpenChat(x.chatId)),
       ]),
     );
   }

@@ -68,12 +68,13 @@ void main() {
     expect(list, 1);
   });
   testWidgets('AbsenceSection·ApprovalsSection·MailsSection·TeamsSection', (tester) async {
+    String? openedChat;
     await tester.pumpWidget(wrap(Column(children: [
       const AbsenceSection(absences: [Absence(who: '김민준', what: '연차', kind: AbsenceKind.leave)]),
       ApprovalsSection(total: 5, items: [PendingApproval(docId: 'd', formId: 'f', title: '휴가 신청', form: 'f', drafter: '이서연', dept: '', arrivedDt: '20261002', status: '', unread: true, fileCount: 0)], now: now, onMore: () {}),
       MailsSection(items: const [MailItem(muid: '1', subject: '견적', fromName: '박지훈', fromEmail: '', date: '', tooltip: '2026-10-05 09:12:00', seen: false, attach: false)], unreadTotal: 2, onMore: () {}),
-      TeamsSection(mentions: const TeamsMentions(connected: true, items: [TeamsMention(chatId: 'c', topic: '센터', from: '김민준', text: '확인 부탁', at: '2026-10-05T00:00:00Z')]), onOpen: () {}),
-      TeamsSection(mentions: const TeamsMentions(connected: false, items: []), onOpen: () {}),
+      TeamsSection(mentions: const TeamsMentions(connected: true, items: [TeamsMention(chatId: 'c1', topic: '센터', from: '김민준', text: '확인 부탁', at: '2026-10-05T00:00:00Z')]), onOpen: () {}, onOpenChat: (id) => openedChat = id),
+      TeamsSection(mentions: const TeamsMentions(connected: false, items: []), onOpen: () {}, onOpenChat: (_) {}),
     ])));
     expect(find.text('김민준 · 연차'), findsOneWidget);
     expect(find.textContaining('김민준'), findsWidgets);
@@ -83,6 +84,9 @@ void main() {
     expect(find.text('안 읽은 메일 2'), findsOneWidget);
     expect(find.text('Teams 답장 대기 1'), findsOneWidget);
     expect(find.text('확인 부탁'), findsOneWidget);
+    // 행을 누르면 그 사람의 chatId로 간다(일반 목록이 아니라)
+    await tester.tap(find.text('확인 부탁'));
+    expect(openedChat, 'c1');
   });
   testWidgets('RetryLine과 GwConnectCard', (tester) async {
     var hits = 0;
