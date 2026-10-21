@@ -13,7 +13,7 @@ class MessengerApi {
   // ── 1) 대화방·대화 ───────────────────────────────────────────────
   /// 대화방 목록(P077). timeStamp '0' = 최초.
   Future<List<MsgRoom>> rooms({String timeStamp = '0', int pageSize = 50}) async {
-    final d = await client.callCo('P077', {'timeStamp': timeStamp, 'reqType': '1', 'reqSubType': 'N', 'searchType': 'A', 'pageSize': '$pageSize', 'isUserInfo': 'N'});
+    final d = await client.callCo('P077', {'timeStamp': timeStamp, 'reqType': '1', 'reqSubType': 'N', 'searchType': 'A', 'pageSize': '$pageSize', 'isUserInfo': 'Y'});
     return MsgRoom.parseList(d);
   }
 

@@ -22,6 +22,12 @@ void main() {
       expect(r.title, '3명 대화');
       expect(r.preview, '삭제된 메시지입니다.');
     });
+    test('receiver에 이름이 함께 오면(isUserInfo=Y) 제목에 바로 쓴다', () {
+      final r = MsgRoom.fromRow({'roomId': 'x', 'roomType': '1', 'receiver': [{'empSeq': '7', 'empName': '나'}, {'empSeq': '8', 'empName': '홍길동'}]});
+      expect(r.receiverNames['8'], '홍길동');
+      expect(r.titleWith(const {}, '7'), '홍길동'); // 외부 names 없이도 해석
+      expect(r.unresolvedSeqs('7'), isEmpty); // 더 조회할 것 없음
+    });
     test('titleWith: roomTitle 없으면 참여자 이름(나 제외), 7은 나와의 대화', () {
       final r = MsgRoom.fromRow({'roomId': 'x', 'roomType': '1', 'receiver': ['7', '8', '9']});
       expect(r.titleWith({'8': '홍길동', '9': '김철수'}, '7'), '홍길동, 김철수');

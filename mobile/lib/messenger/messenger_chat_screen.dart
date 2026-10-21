@@ -23,8 +23,9 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
   Future<List<MsgRoom>> _load() async {
     final api = ref.read(messengerApiProvider);
     final rooms = await api.rooms();
-    // 제목 없는 방의 참여자 이름을 한 번에 해석(실패해도 목록은 그대로 보여 준다)
-    final needing = {for (final r in rooms) if (r.roomType != '7' && r.rawTitle.isEmpty) ...r.receiverSeqs};
+    final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
+    // 방 응답에 이름이 안 온 참여자만 한 번에 해석(실패해도 목록은 그대로 보여 준다)
+    final needing = {for (final r in rooms) if (r.roomType != '7' && r.rawTitle.isEmpty) ...r.unresolvedSeqs(myEmpSeq)};
     if (needing.isNotEmpty) {
       try {
         final names = await api.userNames(needing.toList());
@@ -129,8 +130,12 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
 
   MessengerApi get _api => ref.read(messengerApiProvider);
 
+  final _scroll = ScrollController();
+
   Future<List<MsgChat>> _load() async {
     final chats = await _api.chats(widget.room.roomId);
+    chats.sort((a, b) => a.timeStamp.compareTo(b.timeStamp)); // 오래된→최신(최신이 아래)
+    _jumpToBottomSoon();
     final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
     final seqs = {for (final c in chats) if (c.sendEmpSeq != myEmpSeq) c.sendEmpSeq};
     if (seqs.isNotEmpty) {
@@ -147,9 +152,16 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
     await _future.catchError((_) => <MsgChat>[]);
   }
 
+  void _jumpToBottomSoon() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
+    });
+  }
+
   @override
   void dispose() {
     _input.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -185,10 +197,18 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
               return RefreshIndicator(
                 onRefresh: _refresh,
                 child: ListView.builder(
-                  reverse: true,
+                  controller: _scroll,
                   padding: const EdgeInsets.all(12),
                   itemCount: chats.length,
-                  itemBuilder: (_, i) => _bubble(chats[chats.length - 1 - i], chats[chats.length - 1 - i].sendEmpSeq == myEmpSeq),
+                  itemBuilder: (_, i) {
+                    final c = chats[i];
+                    final prev = i == 0 ? null : chats[i - 1];
+                    final showDate = prev == null || !_sameDay(prev.at, c.at);
+                    return Column(children: [
+                      if (showDate) _dateDivider(c.at),
+                      _bubble(c, c.sendEmpSeq == myEmpSeq),
+                    ]);
+                  },
                 ),
               );
             },
@@ -202,6 +222,15 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
   Widget _bubble(MsgChat c, bool mine) {
     final text = c.deleted ? '삭제된 메시지입니다.' : c.content;
     final name = _names[c.sendEmpSeq];
+    final time = c.at == null ? '' : _hhmm(c.at!);
+    final bubble = Container(
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      constraints: const BoxConstraints(maxWidth: 280),
+      decoration: BoxDecoration(color: mine ? Brand.botViolet : Brand.blueTint, borderRadius: BorderRadius.circular(14)),
+      child: Text(text, style: TextStyle(color: mine ? Colors.white : Brand.navy, height: 1.4, fontStyle: c.deleted ? FontStyle.italic : FontStyle.normal)),
+    );
+    final stamp = Padding(padding: const EdgeInsets.only(bottom: 2), child: Text(time, style: const TextStyle(fontSize: 10, color: Brand.faint)));
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
@@ -209,19 +238,35 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
         children: [
           if (!mine && name != null && name.isNotEmpty)
             Padding(padding: const EdgeInsets.only(left: 4, top: 4), child: Text(name, style: const TextStyle(fontSize: 11, color: Brand.muted))),
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 2),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            constraints: const BoxConstraints(maxWidth: 280),
-            decoration: BoxDecoration(
-              color: mine ? Brand.botViolet : Brand.blueTint,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Text(text, style: TextStyle(color: mine ? Colors.white : Brand.navy, height: 1.4, fontStyle: c.deleted ? FontStyle.italic : FontStyle.normal)),
+          // 시각은 말풍선 바깥쪽 아래(내 것은 왼쪽, 상대는 오른쪽)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: mine ? [stamp, const SizedBox(width: 4), Flexible(child: bubble)] : [Flexible(child: bubble), const SizedBox(width: 4), stamp],
           ),
         ],
       ),
     );
+  }
+
+  Widget _dateDivider(DateTime? at) {
+    if (at == null) return const SizedBox.shrink();
+    final k = at.toUtc().add(const Duration(hours: 9));
+    final label = '${k.year}년 ${k.month}월 ${k.day}일';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(children: [
+        const Expanded(child: Divider(color: Brand.faint)),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: Text(label, style: const TextStyle(fontSize: 11, color: Brand.muted))),
+        const Expanded(child: Divider(color: Brand.faint)),
+      ]),
+    );
+  }
+
+  bool _sameDay(DateTime? a, DateTime? b) {
+    if (a == null || b == null) return a == b;
+    final ka = a.toUtc().add(const Duration(hours: 9)), kb = b.toUtc().add(const Duration(hours: 9));
+    return ka.year == kb.year && ka.month == kb.month && ka.day == kb.day;
   }
 
   Widget _composer() {

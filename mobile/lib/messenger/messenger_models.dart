@@ -20,6 +20,7 @@ class MsgRoom {
     required this.contentType,
     required this.alarmOn,
     required this.receiverSeqs,
+    required this.receiverNames,
   });
 
   final String roomId, roomType, title, rawTitle, lastChat, contentType;
@@ -27,16 +28,26 @@ class MsgRoom {
   final bool alarmOn;
   final List<String> receiverSeqs;
 
-  /// 이름 맵이 있으면 그걸로 제목을 만든다: roomType7=나와의 대화 > roomTitle > 참여자 이름(나 제외) > 기본 title.
+  /// 방 응답에 참여자 이름이 함께 온 경우(empSeq → 이름). 없으면 비어 있고 외부 해석(P1471)을 쓴다.
+  final Map<String, String> receiverNames;
+
+  /// 제목: roomType7=나와의 대화 > roomTitle > 참여자 이름(나 제외, 방 자체 이름 우선 → 외부 names) > 기본 title.
   String titleWith(Map<String, String> names, String myEmpSeq) {
     if (roomType == '7') return '나와의 대화';
     if (rawTitle.isNotEmpty) return rawTitle;
     final others = receiverSeqs.where((s) => s != myEmpSeq).toList();
-    final resolved = [for (final s in others) if (names[s] != null && names[s]!.isNotEmpty) names[s]!];
+    final resolved = [
+      for (final s in others)
+        if ((receiverNames[s] ?? names[s] ?? '').isNotEmpty) (receiverNames[s] ?? names[s])!,
+    ];
     if (resolved.isEmpty) return title;
     final shown = resolved.take(4).join(', ');
     return others.length > 4 ? '$shown …' : shown;
   }
+
+  /// titleWith가 쓸, 아직 이름을 모르는 참여자 seq(외부 P1471로 해석할 대상).
+  List<String> unresolvedSeqs(String myEmpSeq) =>
+      [for (final s in receiverSeqs) if (s != myEmpSeq && (receiverNames[s] ?? '').isEmpty) s];
 
   DateTime? get lastAt => lastChatTimeStamp > 0 ? DateTime.fromMillisecondsSinceEpoch(lastChatTimeStamp) : null;
 
@@ -51,9 +62,16 @@ class MsgRoom {
   static MsgRoom fromRow(Map r) {
     final rawReceiver = r['receiver'] ?? r['roomReceiver'];
     final seqs = <String>[];
+    final rnames = <String, String>{};
     if (rawReceiver is List) {
       for (final x in rawReceiver) {
-        seqs.add(x is Map ? _asStr(x['empSeq']) : _asStr(x));
+        final seq = x is Map ? _asStr(x['empSeq']) : _asStr(x);
+        seqs.add(seq);
+        if (x is Map && seq.isNotEmpty) {
+          // isUserInfo=Y면 이름이 함께 올 수 있다(필드명은 구현마다 다름)
+          final nm = [x['empName'], x['empNm'], x['name'], x['userName']].map(_asStr).firstWhere((s) => s.isNotEmpty, orElse: () => '');
+          if (nm.isNotEmpty) rnames[seq] = nm;
+        }
       }
     }
     final type = _asStr(r['roomType']);
@@ -73,6 +91,7 @@ class MsgRoom {
       contentType: _asStr(r['contentType']),
       alarmOn: _asStr(r['roomAlarmYn']) != 'N',
       receiverSeqs: seqs,
+      receiverNames: rnames,
     );
   }
 
