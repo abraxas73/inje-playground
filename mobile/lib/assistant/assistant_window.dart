@@ -1,4 +1,4 @@
-// 데스크톱(macOS·Windows) 이노봇 창 — 앱 위에 떠 있는 창. 머리글을 끌어 원하는 곳에 두고(위치는 기기에 기억), 뒤 화면도 그대로 쓴다.
+// 데스크톱(macOS·Windows) 이노봇 창 — 앱 위에 떠 있는 창. 머리글을 끌어 원하는 곳에 두고, 오른쪽 아래 모서리를 끌어 크기를 바꾼다(위치·크기는 기기에 기억). 뒤 화면도 그대로 쓴다.
 // 라우터 내비게이터 위 전용 Overlay(main.dart assistantWindowOverlay)에 띄워 화면을 이동해도 가려지지 않는다.
 // 창 안의 대화 기록 등 팝업은 창 안 Navigator에서 열린다.
 import 'dart:async';
@@ -15,8 +15,8 @@ final assistantWindowOverlay = GlobalKey<OverlayState>();
 
 bool get assistantUsesWindow => !kIsWeb && (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows);
 
-const _kPos = 'innobot.window.pos';
-const assistantWindowSize = Size(440, 680);
+const _kPos = 'innobot.window.pos', _kSize = 'innobot.window.size';
+const assistantWindowSize = Size(440, 680), assistantWindowMinSize = Size(340, 420);
 const _margin = 16.0;
 
 OverlayEntry? _entry;
@@ -54,6 +54,12 @@ Offset clampWindow(Offset? want, Size screen, Size window) {
   return Offset(p.dx.clamp(_margin, maxX), p.dy.clamp(_margin, maxY));
 }
 
+/// 창 크기 — 최소 크기와 화면(여백 제외) 사이로 자른다. 저장값이 없으면 기본 크기. 화면이 최소보다 작으면 화면에 맞춘다.
+Size clampWindowSize(Size? want, Size screen) {
+  final w = want ?? assistantWindowSize, maxW = screen.width - _margin * 2, maxH = screen.height - _margin * 2;
+  return Size(math.min(math.max(w.width, assistantWindowMinSize.width), maxW), math.min(math.max(w.height, assistantWindowMinSize.height), maxH));
+}
+
 class AssistantWindow extends StatefulWidget {
   const AssistantWindow({super.key, this.seed, required this.onClose, this.body});
   final String? seed;
@@ -66,28 +72,42 @@ class AssistantWindow extends StatefulWidget {
 
 class _AssistantWindowState extends State<AssistantWindow> {
   Offset? _pos;
+  Size? _size;
   bool _dragging = false;
+
+  static List<double>? _pair(SharedPreferences p, String key) {
+    final v = p.getStringList(key);
+    final a = v == null || v.length != 2 ? null : double.tryParse(v[0]), b = v == null || v.length != 2 ? null : double.tryParse(v[1]);
+    return a == null || b == null ? null : [a, b];
+  }
 
   @override
   void initState() {
     super.initState();
     SharedPreferences.getInstance().then((p) {
-      final v = p.getStringList(_kPos);
-      final x = v == null || v.length != 2 ? null : double.tryParse(v[0]), y = v == null || v.length != 2 ? null : double.tryParse(v[1]);
-      if (mounted && x != null && y != null && _pos == null) setState(() => _pos = Offset(x, y));
+      final pos = _pair(p, _kPos), size = _pair(p, _kSize);
+      if (!mounted) return;
+      setState(() {
+        if (pos != null && _pos == null) _pos = Offset(pos[0], pos[1]);
+        if (size != null && _size == null) _size = Size(size[0], size[1]);
+      });
     }).catchError((_) {});
   }
 
   void _save() {
     final p = _pos;
     if (p == null) return;
-    SharedPreferences.getInstance().then((s) => s.setStringList(_kPos, [p.dx.toStringAsFixed(0), p.dy.toStringAsFixed(0)])).catchError((_) => false);
+    final z = _size;
+    SharedPreferences.getInstance().then((s) async {
+      await s.setStringList(_kPos, [p.dx.toStringAsFixed(0), p.dy.toStringAsFixed(0)]);
+      if (z != null) await s.setStringList(_kSize, [z.width.toStringAsFixed(0), z.height.toStringAsFixed(0)]);
+    }).catchError((_) {});
   }
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) {
         final screen = box.biggest;
-        final size = Size(math.min(assistantWindowSize.width, screen.width - _margin * 2), math.min(assistantWindowSize.height, screen.height - _margin * 2));
+        final size = clampWindowSize(_size, screen);
         final pos = clampWindow(_pos, screen, size);
         return Stack(children: [
           Positioned(
@@ -124,6 +144,24 @@ class _AssistantWindowState extends State<AssistantWindow> {
                 // 창 안 팝업(대화 기록·확인 대화상자)이 창 안에서 열리도록 작은 Navigator를 둔다. 창은 앱 글자 선택 영역 밖이라 따로 씌운다.
                 Expanded(child: SelectionArea(child: Navigator(onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => widget.body ?? AssistantSheet(seed: widget.seed))))),
               ]),
+            ),
+          ),
+          // 오른쪽 아래 모서리를 끌어 크기 조절 — 왼쪽 위는 그대로, 화면 오른쪽·아래 끝까지만
+          Positioned(
+            left: pos.dx + size.width - 18, top: pos.dy + size.height - 18, width: 18, height: 18,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.resizeUpLeftDownRight,
+              child: GestureDetector(
+                key: const ValueKey('innobot-window-resize'),
+                behavior: HitTestBehavior.opaque,
+                onPanStart: (_) => setState(() { _pos = pos; _size = size; }),
+                onPanUpdate: (d) => setState(() {
+                  final want = (_size ?? size) + d.delta;
+                  _size = clampWindowSize(Size(math.min(want.width, screen.width - _margin - pos.dx), math.min(want.height, screen.height - _margin - pos.dy)), screen);
+                }),
+                onPanEnd: (_) => _save(),
+                child: const Align(alignment: Alignment.bottomRight, child: Icon(Icons.south_east, size: 12, color: Brand.muted)),
+              ),
             ),
           ),
         ]);

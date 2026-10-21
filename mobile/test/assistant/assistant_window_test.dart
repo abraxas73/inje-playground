@@ -40,6 +40,41 @@ void main() {
     expect(closed, 1);
   });
 
+  test('clampWindowSize — 기본 440×680, 최소 340×420, 화면(여백 16) 밖으로는 안 커진다', () {
+    const screen = Size(1200, 800);
+    expect(clampWindowSize(null, screen), const Size(440, 680));
+    expect(clampWindowSize(const Size(100, 100), screen), const Size(340, 420));
+    expect(clampWindowSize(const Size(5000, 5000), screen), const Size(1168, 768));
+  });
+
+  testWidgets('오른쪽 아래 모서리를 끌면 크기가 바뀌고 기억하며, 최소 크기보다 작아지지 않는다', (tester) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    SharedPreferences.setMockInitialValues({'innobot.window.pos': ['100', '100']});
+    await tester.pumpWidget(_host(AssistantWindow(onClose: () {}, body: const SizedBox())));
+    await tester.pumpAndSettle();
+    final win = find.byKey(const ValueKey('innobot-window'));
+    await tester.drag(find.byKey(const ValueKey('innobot-window-resize')), const Offset(200, 100));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(win), const Size(640, 780));
+    expect(tester.getTopLeft(win), const Offset(100, 100));
+    expect((await SharedPreferences.getInstance()).getStringList('innobot.window.size'), ['640', '780']);
+    await tester.drag(find.byKey(const ValueKey('innobot-window-resize')), const Offset(-1000, -1000));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(win), const Size(340, 420));
+  });
+
+  testWidgets('기억한 크기로 다시 열린다', (tester) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    SharedPreferences.setMockInitialValues({'innobot.window.pos': ['100', '120'], 'innobot.window.size': ['500', '600']});
+    await tester.pumpWidget(_host(AssistantWindow(onClose: () {}, body: const SizedBox())));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byKey(const ValueKey('innobot-window'))), const Size(500, 600));
+  });
+
   testWidgets('기억한 위치에서 다시 열린다', (tester) async {
     tester.view.physicalSize = const Size(1200, 1000);
     tester.view.devicePixelRatio = 1;
