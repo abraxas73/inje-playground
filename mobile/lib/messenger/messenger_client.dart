@@ -253,6 +253,10 @@ class MessengerClient {
   }
 
   Map<String, dynamic> _envelope(http.Response res) {
+    // 401 = 세션 무효(동시 접속으로 우리 토큰이 밀렸거나 만료). 재로그인 신호로 올린다(call이 1회 재로그인·재시도).
+    if (res.statusCode == 401) {
+      throw MessengerAuthException(401, '메신저 세션이 만료되었습니다. (401)');
+    }
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw MessengerException(res.statusCode, '메신저 요청에 실패했습니다 (HTTP ${res.statusCode})');
     }

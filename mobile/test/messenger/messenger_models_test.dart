@@ -22,6 +22,16 @@ void main() {
       expect(r.title, '3명 대화');
       expect(r.preview, '삭제된 메시지입니다.');
     });
+    test('titleWith: roomTitle 없으면 참여자 이름(나 제외), 7은 나와의 대화', () {
+      final r = MsgRoom.fromRow({'roomId': 'x', 'roomType': '1', 'receiver': ['7', '8', '9']});
+      expect(r.titleWith({'8': '홍길동', '9': '김철수'}, '7'), '홍길동, 김철수');
+      final rt = MsgRoom.fromRow({'roomId': 'y', 'roomType': '1', 'roomTitle': '개발팀', 'receiver': ['8']});
+      expect(rt.titleWith({'8': '홍길동'}, '7'), '개발팀'); // roomTitle 우선
+      final me = MsgRoom.fromRow({'roomId': 'z', 'roomType': '7'});
+      expect(me.titleWith(const {}, '7'), '나와의 대화');
+      // 이름 못 찾으면 기본 제목 유지
+      expect(MsgRoom.fromRow({'roomId': 'w', 'roomType': '1', 'receiver': ['8', '9']}).titleWith(const {}, '7'), '2명 대화');
+    });
   });
 
   test('MsgChat: chatList 파싱 + 삭제/내 메시지 판별', () {

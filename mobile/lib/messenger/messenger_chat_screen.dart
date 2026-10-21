@@ -17,10 +17,27 @@ class MessengerChatScreen extends ConsumerStatefulWidget {
 }
 
 class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
-  late Future<List<MsgRoom>> _future = ref.read(messengerApiProvider).rooms();
+  late Future<List<MsgRoom>> _future = _load();
+  Map<String, String> _names = const {}; // empSeq → 이름(제목 표시용)
+
+  Future<List<MsgRoom>> _load() async {
+    final api = ref.read(messengerApiProvider);
+    final rooms = await api.rooms();
+    // 제목 없는 방의 참여자 이름을 한 번에 해석(실패해도 목록은 그대로 보여 준다)
+    final needing = {for (final r in rooms) if (r.roomType != '7' && r.rawTitle.isEmpty) ...r.receiverSeqs};
+    if (needing.isNotEmpty) {
+      try {
+        final names = await api.userNames(needing.toList());
+        if (mounted) setState(() => _names = {..._names, ...names});
+      } catch (_) {
+        // 이름 해석 실패는 치명적이지 않다 — 기본 제목 유지
+      }
+    }
+    return rooms;
+  }
 
   Future<void> _refresh() async {
-    setState(() => _future = ref.read(messengerApiProvider).rooms());
+    setState(() => _future = _load());
     await _future.catchError((_) => <MsgRoom>[]);
   }
 
@@ -51,9 +68,11 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
   }
 
   Widget _roomTile(BuildContext context, MsgRoom r) {
+    final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
+    final title = r.titleWith(_names, myEmpSeq);
     return ListTile(
-      leading: InitialBadge(r.title),
-      title: Text(r.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      leading: InitialBadge(title),
+      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(r.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Brand.muted)),
       trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
         if (r.lastAt != null) Text(_hhmm(r.lastAt!), style: const TextStyle(fontSize: 12, color: Brand.faint)),
@@ -105,11 +124,23 @@ class MessengerRoomScreen extends ConsumerStatefulWidget {
 class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
   final _input = TextEditingController();
   late Future<List<MsgChat>> _future = _load();
+  Map<String, String> _names = const {}; // sendEmpSeq → 이름
   bool _sending = false;
 
   MessengerApi get _api => ref.read(messengerApiProvider);
 
-  Future<List<MsgChat>> _load() => _api.chats(widget.room.roomId);
+  Future<List<MsgChat>> _load() async {
+    final chats = await _api.chats(widget.room.roomId);
+    final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
+    final seqs = {for (final c in chats) if (c.sendEmpSeq != myEmpSeq) c.sendEmpSeq};
+    if (seqs.isNotEmpty) {
+      try {
+        final names = await _api.userNames(seqs.toList());
+        if (mounted) setState(() => _names = {..._names, ...names});
+      } catch (_) {}
+    }
+    return chats;
+  }
 
   Future<void> _refresh() async {
     setState(() => _future = _load());
@@ -170,17 +201,25 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
 
   Widget _bubble(MsgChat c, bool mine) {
     final text = c.deleted ? '삭제된 메시지입니다.' : c.content;
+    final name = _names[c.sendEmpSeq];
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        constraints: const BoxConstraints(maxWidth: 280),
-        decoration: BoxDecoration(
-          color: mine ? Brand.botViolet : Brand.blueTint,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(text, style: TextStyle(color: mine ? Colors.white : Brand.navy, height: 1.4, fontStyle: c.deleted ? FontStyle.italic : FontStyle.normal)),
+      child: Column(
+        crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          if (!mine && name != null && name.isNotEmpty)
+            Padding(padding: const EdgeInsets.only(left: 4, top: 4), child: Text(name, style: const TextStyle(fontSize: 11, color: Brand.muted))),
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            constraints: const BoxConstraints(maxWidth: 280),
+            decoration: BoxDecoration(
+              color: mine ? Brand.botViolet : Brand.blueTint,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(text, style: TextStyle(color: mine ? Colors.white : Brand.navy, height: 1.4, fontStyle: c.deleted ? FontStyle.italic : FontStyle.normal)),
+          ),
+        ],
       ),
     );
   }

@@ -13,6 +13,7 @@ class MsgRoom {
     required this.roomId,
     required this.roomType,
     required this.title,
+    required this.rawTitle,
     required this.lastChat,
     required this.lastChatTimeStamp,
     required this.unreadCount,
@@ -21,10 +22,21 @@ class MsgRoom {
     required this.receiverSeqs,
   });
 
-  final String roomId, roomType, title, lastChat, contentType;
+  final String roomId, roomType, title, rawTitle, lastChat, contentType;
   final int lastChatTimeStamp, unreadCount;
   final bool alarmOn;
   final List<String> receiverSeqs;
+
+  /// 이름 맵이 있으면 그걸로 제목을 만든다: roomType7=나와의 대화 > roomTitle > 참여자 이름(나 제외) > 기본 title.
+  String titleWith(Map<String, String> names, String myEmpSeq) {
+    if (roomType == '7') return '나와의 대화';
+    if (rawTitle.isNotEmpty) return rawTitle;
+    final others = receiverSeqs.where((s) => s != myEmpSeq).toList();
+    final resolved = [for (final s in others) if (names[s] != null && names[s]!.isNotEmpty) names[s]!];
+    if (resolved.isEmpty) return title;
+    final shown = resolved.take(4).join(', ');
+    return others.length > 4 ? '$shown …' : shown;
+  }
 
   DateTime? get lastAt => lastChatTimeStamp > 0 ? DateTime.fromMillisecondsSinceEpoch(lastChatTimeStamp) : null;
 
@@ -54,6 +66,7 @@ class MsgRoom {
       roomId: _asStr(r['roomId']),
       roomType: type,
       title: title,
+      rawTitle: rt,
       lastChat: _asStr(r['lastChat']).isNotEmpty ? _asStr(r['lastChat']) : _asStr(r['content']),
       lastChatTimeStamp: _asInt(r['lastChatTimeStamp']) != 0 ? _asInt(r['lastChatTimeStamp']) : _asInt(r['timeStamp']),
       unreadCount: _asInt(r['unReadCount']),

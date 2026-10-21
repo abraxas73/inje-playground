@@ -1,5 +1,8 @@
+import '../gw/gw_client.dart' show asStr;
 import 'messenger_client.dart';
 import 'messenger_models.dart';
+
+String _s(Object? v) => asStr(v);
 
 /// 아마란스 메신저 기능 API — 모든 호출은 `MessengerClient`(P076 세션)로 서명·중계된다.
 /// PID·요청 파라미터 출처: 메신저 번들 `src/dz/dzhttp.js`. companyInfo는 클라이언트가 붙인다(callCo).
@@ -30,6 +33,26 @@ class MessengerApi {
 
   /// 방 입장(P087) — MQTT 구독 대상 등록용(실시간 단계에서 사용).
   Future<void> enterRoom(String roomId) => client.callCo('P087', {'roomId': roomId});
+
+  /// empSeq → 이름 해석(P1471 SearchUserInfo). 대화방 제목·발신자 이름 표시용. 실패·빈 입력이면 빈 맵.
+  /// 응답 배열 필드·키는 서버 구현에 따라 다를 수 있어 방어적으로 읽는다(userList/empList/list/최상위 배열, empSeq|emp_seq / empName|emp_name).
+  Future<Map<String, String>> userNames(List<String> empSeqs) async {
+    final uniq = empSeqs.where((e) => e.isNotEmpty).toSet().toList();
+    if (uniq.isEmpty) return {};
+    final sess = await client.ensureSession();
+    final dynamic d = await client.call('P1471', {'groupSeq': sess.groupSeq, 'empSeqList': uniq, 'searchTarget': ['empName'], 'grouppingTp': '', 'page': 1, 'pageSize': uniq.length});
+    final list = d is List ? d : (d is Map ? (d['userList'] ?? d['empList'] ?? d['list'] ?? const []) : const []);
+    final out = <String, String>{};
+    if (list is List) {
+      for (final e in list) {
+        if (e is! Map) continue;
+        final seq = _s(e['empSeq']).isNotEmpty ? _s(e['empSeq']) : _s(e['emp_seq']);
+        final name = _s(e['empName']).isNotEmpty ? _s(e['empName']) : _s(e['emp_name']);
+        if (seq.isNotEmpty && name.isNotEmpty) out[seq] = name;
+      }
+    }
+    return out;
+  }
 
   // ── 3) 검색 ──────────────────────────────────────────────────────
   /// 방 이름으로 대화방 검색(P326).

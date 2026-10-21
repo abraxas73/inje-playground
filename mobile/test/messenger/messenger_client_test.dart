@@ -126,6 +126,28 @@ void main() {
       expect(logins, 2); // 최초 + 재로그인
     });
 
+    test('HTTP 401(동시 접속으로 토큰 밀림)이면 재로그인 1회 후 재시도', () async {
+      var logins = 0;
+      var p077 = 0;
+      final m = MockClient((r) async {
+        if (r.url.path == '/get_token/') return _json({'token': 'tok', 'cur_date': '20261021'});
+        if (r.url.path == '/proxymgw/proxymgw01A01') {
+          return _json({'resultCode': 0, 'resultData': {'protocolList': [
+            {'protocolId': 'P076', 'protocolUrl': 'https://gw.innogrid.com/proxymgw/proxymgw17A14'},
+            {'protocolId': 'P077', 'protocolUrl': 'https://gw.innogrid.com/proxymgw/proxymgw29A39'},
+          ]}});
+        }
+        final env = jsonDecode(r.body) as Map;
+        if ((env['header'] as Map)['pid'] == 'P076') { logins++; return _json({'resultCode': 0, 'resultData': {'token': 'T$logins', 'hashKey': 'HK', 'companyList': []}}); }
+        p077++;
+        if (p077 == 1) return http.Response('unauthorized', 401); // 봉투가 아닌 순수 HTTP 401
+        return _json({'resultCode': 0, 'resultData': {'ok': 1}});
+      });
+      final c = client(m);
+      expect(await c.call('P077', {}), {'ok': 1});
+      expect(logins, 2);
+    });
+
     test('자격증명 없으면 MessengerAuthException', () async {
       final c = MessengerClient(httpClient: fakeServer(onLoginData: const {}), loadCreds: () async => null);
       await expectLater(c.call('P077', {}), throwsA(isA<MessengerAuthException>()));
