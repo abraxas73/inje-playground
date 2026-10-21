@@ -1,0 +1,83 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../app/brand.dart';
+import '../app/theme.dart';
+import 'notifications.dart';
+
+/// 종 버튼을 누르면 뜨는 알림 패널(이노봇 레이어, 즐겨찾기와 같은 자리 방식).
+class NotificationPanel extends ConsumerWidget {
+  const NotificationPanel({super.key, required this.onOpenPath, required this.maxHeight});
+  final void Function(String path) onOpenPath;
+  final double maxHeight;
+
+  void _go(String path) {
+    notifOpen.value = false;
+    onOpenPath(path);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(notifCenterProvider);
+    return Container(
+      width: 320,
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 16, offset: Offset(0, 6))],
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+          child: Row(children: [
+            const Text('알림', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Brand.navy)),
+            const Spacer(),
+            IconButton(icon: const Icon(Icons.refresh, size: 18), tooltip: '새로고침', onPressed: () => ref.read(notifCenterProvider.notifier).refresh()),
+          ]),
+        ),
+        Flexible(
+          child: async.when(
+            loading: () => const Padding(padding: EdgeInsets.all(28), child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)))),
+            error: (e, _) => Padding(padding: const EdgeInsets.all(20), child: Text('알림을 불러오지 못했습니다', style: TextStyle(color: Brand.muted, fontSize: 13))),
+            data: (items) => items.isEmpty
+                ? const Padding(padding: EdgeInsets.fromLTRB(20, 8, 20, 24), child: Text('새 알림이 없습니다', style: TextStyle(color: Brand.muted)))
+                : ListView.separated(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    itemCount: items.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1, indent: 52),
+                    itemBuilder: (_, i) => _tile(items[i]),
+                  ),
+          ),
+        ),
+        const Divider(height: 1),
+        // 인사·부고는 앱 데이터 소스가 없어 링크로(웹 화면 열기)
+        ListTile(
+          dense: true,
+          leading: const Icon(Icons.newspaper_outlined, color: Brand.faint, size: 20),
+          title: const Text('인사·부고 소식', style: TextStyle(fontSize: 13)),
+          trailing: const Icon(Icons.chevron_right, size: 18, color: Brand.faint),
+          onTap: () => _go('/web?path=${Uri.encodeComponent('/people-news')}'),
+        ),
+      ]),
+    );
+  }
+
+  Widget _tile(NotifItem n) => ListTile(
+        dense: true,
+        leading: TintIcon(n.icon, size: 34),
+        title: Text(n.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        subtitle: Text(n.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Brand.muted, fontSize: 12)),
+        trailing: n.at == null ? null : Text(_hm(n.at!), style: const TextStyle(fontSize: 11, color: Brand.faint)),
+        onTap: () => _go(n.path),
+      );
+}
+
+String _hm(DateTime t) {
+  final k = t.toUtc().add(const Duration(hours: 9));
+  final now = DateTime.now().toUtc().add(const Duration(hours: 9));
+  if (k.year == now.year && k.month == now.month && k.day == now.day) {
+    return '${k.hour.toString().padLeft(2, '0')}:${k.minute.toString().padLeft(2, '0')}';
+  }
+  return '${k.month}/${k.day}';
+}

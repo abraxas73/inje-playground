@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../favorites/favorites_panel.dart';
+import '../notifications/notifications.dart';
+import '../notifications/notif_panel.dart';
 import '../app/theme.dart';
 import 'assistant_session.dart';
 import 'assistant_sheet.dart';
@@ -70,6 +72,49 @@ class _InnobotButtonState extends ConsumerState<InnobotButton> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                // 통합 알림: 종 버튼 + 패널(즐겨찾기와 상호 배타)
+                if (notifOpen.value && widget.onOpenPath != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: NotificationPanel(
+                      onOpenPath: widget.onOpenPath!,
+                      maxHeight: math.max(160.0, MediaQuery.of(context).size.height - widget.bottomInset - _bottom - 66 * 3 - 40),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _RoundButton(
+                    color: notifOpen.value ? Brand.navy : Colors.white,
+                    tooltip: notifOpen.value ? '알림 닫기' : '알림',
+                    onTap: () {
+                      final open = !notifOpen.value;
+                      notifOpen.value = open;
+                      if (open) favoritesOpen.value = false;
+                    },
+                    child: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Stack(alignment: Alignment.center, children: [
+                        Icon(notifOpen.value ? Icons.close_rounded : Icons.notifications_rounded, size: 26, color: notifOpen.value ? Colors.white : Brand.navy),
+                        if (!notifOpen.value)
+                          Consumer(builder: (_, ref, _) {
+                            final n = ref.watch(notifUnreadProvider);
+                            if (n <= 0) return const SizedBox.shrink();
+                            return Positioned(
+                              top: 4,
+                              right: 2,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                constraints: const BoxConstraints(minWidth: 16),
+                                decoration: BoxDecoration(color: const Color(0xFFFF3B30), borderRadius: BorderRadius.circular(9), border: Border.all(color: Colors.white, width: 1.5)),
+                                child: Text(n > 99 ? '99+' : '$n', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700, height: 1.2)),
+                              ),
+                            );
+                          }),
+                      ]),
+                    ),
+                  ),
+                ),
                 if (widget.onOpenPath != null) ...[
                   if (favoritesOpen.value)
                     Padding(
@@ -86,7 +131,11 @@ class _InnobotButtonState extends ConsumerState<InnobotButton> {
                     child: _RoundButton(
                       color: favoritesOpen.value ? Brand.navy : Colors.white,
                       tooltip: favoritesOpen.value ? '즐겨찾기 닫기' : '즐겨찾기',
-                      onTap: () => favoritesOpen.value = !favoritesOpen.value,
+                      onTap: () {
+                        final open = !favoritesOpen.value;
+                        favoritesOpen.value = open;
+                        if (open) notifOpen.value = false;
+                      },
                       child: SizedBox(
                         width: 44,
                         height: 44,
@@ -130,7 +179,7 @@ class InnobotOverlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => Overlay.wrap(
         child: ListenableBuilder(
-          listenable: Listenable.merge([router.routerDelegate, innobotPopups, innobotFanOpen, favoritesOpen]),
+          listenable: Listenable.merge([router.routerDelegate, innobotPopups, innobotFanOpen, favoritesOpen, notifOpen]),
           builder: (context, _) {
             // push로 연 화면(/web·/gw/*)은 uri가 바뀌지 않으므로 맨 위 경로를 본다
             final cfg = router.routerDelegate.currentConfiguration;
@@ -144,19 +193,23 @@ class InnobotOverlay extends ConsumerWidget {
               available: ref.watch(assistantAvailableProvider),
             );
             if (!visible) {
-              // 숨겨지면(팝업·로그아웃·설정 off) 펼친 즐겨찾기도 닫는다 — 다시 나타날 때 열린 채 남지 않게
+              // 숨겨지면(팝업·로그아웃·설정 off) 펼친 즐겨찾기·알림도 닫는다 — 다시 나타날 때 열린 채 남지 않게
               if (favoritesOpen.value) WidgetsBinding.instance.addPostFrameCallback((_) => favoritesOpen.value = false);
+              if (notifOpen.value) WidgetsBinding.instance.addPostFrameCallback((_) => notifOpen.value = false);
               return const SizedBox.shrink();
             }
             // 탭 화면은 하단 바(NavigationBar 80) 위로
             final inset = MediaQuery.paddingOf(context).bottom + (hasBottomBar(path) ? 80 : 0);
             return Stack(children: [
-              // 즐겨찾기를 펼치면 바깥을 살짝 어둡게 — 누르면 닫힌다
-              if (favoritesOpen.value)
+              // 즐겨찾기·알림을 펼치면 바깥을 살짝 어둡게 — 누르면 닫힌다
+              if (favoritesOpen.value || notifOpen.value)
                 Positioned.fill(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => favoritesOpen.value = false,
+                    onTap: () {
+                      favoritesOpen.value = false;
+                      notifOpen.value = false;
+                    },
                     child: const ColoredBox(color: Color(0x33000000)),
                   ),
                 ),
