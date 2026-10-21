@@ -10,6 +10,38 @@ class DashboardWidgetDef {
   final int defaultW, defaultH;
 }
 
+/// 데이터·연결이 없어 내용을 못 그리는 위젯 자리 — 영역은 그대로 두고 "연결 필요"·안내를 보여 준다.
+/// (위젯을 건너뛰어 빈 공간이 생기거나 배치가 밀리지 않게 한다.)
+class DashboardPlaceholder extends StatelessWidget {
+  const DashboardPlaceholder({super.key, required this.title, required this.message, this.icon = Icons.link_off_rounded, this.onConnect, this.connectLabel = '연결하기'});
+  final String title, message, connectLabel;
+  final IconData icon;
+  final VoidCallback? onConnect;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.muted)),
+            Expanded(
+              child: Center(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(icon, size: 22, color: Brand.faint),
+                  const SizedBox(height: 6),
+                  Text(message, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Brand.faint)),
+                  if (onConnect != null) ...[
+                    const SizedBox(height: 10),
+                    FilledButton.tonal(onPressed: onConnect, style: FilledButton.styleFrom(minimumSize: const Size(0, 34), padding: const EdgeInsets.symmetric(horizontal: 14)), child: Text(connectLabel, style: const TextStyle(fontSize: 13))),
+                  ],
+                ]),
+              ),
+            ),
+          ]),
+        ),
+      );
+}
+
 const _rowHeight = 84.0;
 const _gap = 12.0;
 
@@ -125,13 +157,17 @@ class _DashboardViewState extends State<DashboardView> {
     final height = t.h * _rowHeight - _gap + (resizing ? _dy : 0);
     final def = widget.widgets[t.id]!;
 
+    // placeholder는 타일 높이를 채워야 하므로(Expanded 사용) 스크롤로 감싸지 않는다.
+    // 실제 섹션은 내용이 길 수 있어 스크롤로 감싼다.
     final content = ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: SizedBox.expand(
-        child: SingleChildScrollView(
-          physics: widget.editing ? const NeverScrollableScrollPhysics() : null,
-          child: def.child,
-        ),
+        child: def.child is DashboardPlaceholder
+            ? def.child
+            : SingleChildScrollView(
+                physics: widget.editing ? const NeverScrollableScrollPhysics() : null,
+                child: def.child,
+              ),
       ),
     );
 
