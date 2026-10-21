@@ -318,11 +318,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             ),
             // 편집 모드: 화면 하단에 떠 있는 "위젯 추가" 팔레트 — 스크롤과 무관하게 항상 보인다
             if (_editing)
+              // Transform으로 그림만 옮기면 클릭 영역은 원래 자리에 남는다 → Positioned 자체를 옮긴다.
               Positioned(
-                left: 16, right: 16, bottom: 16,
-                child: Center(child: Transform.translate(
-                  offset: _toolbarOffset,
-                  child: DashboardPalette(
+                left: 16 + _toolbarOffset.dx, right: 16 - _toolbarOffset.dx, bottom: 16 - _toolbarOffset.dy,
+                child: Center(child: DashboardPalette(
                     widgets: sections, layout: layout, onAdd: addWidget,
                     onArrange: () => ref.read(homeDashboardProvider.notifier).save(autoArrange(layout)),
                     onDone: () => setState(() => _editing = false),
@@ -332,7 +331,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                       final o = _toolbarOffset + d;
                       setState(() => _toolbarOffset = Offset(o.dx.clamp(-size.width / 2 + 80, size.width / 2 - 80), o.dy.clamp(-size.height + 160, 0)));
                     },
-                  ),
                 )),
               ),
           ]),

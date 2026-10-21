@@ -62,6 +62,14 @@ void main() {
     expect(find.text('편집 완료'), findsWidgets); // 상단 토글 + 떠 있는 팔레트
     expect(find.textContaining('손잡이를 끌어'), findsOneWidget); // 편집 안내
     expect(find.byType(DashboardPalette), findsOneWidget); // 떠 있는 추가 팔레트
+    // 툴바를 위로 끌어 옮긴 뒤에도 툴바 안 버튼이 눌린다(그림만 옮겨지고 클릭 영역은 남던 버그)
+    final before = tester.getCenter(find.text('위젯 추가'));
+    await tester.drag(find.text('위젯 추가'), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    expect(tester.getCenter(find.text('위젯 추가')).dy, lessThan(before.dy - 250));
+    await tester.tap(find.descendant(of: find.byType(DashboardPalette), matching: find.text('편집 완료')));
+    await tester.pumpAndSettle();
+    expect(find.byType(DashboardPalette), findsNothing);
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant({TargetPlatform.windows}));
 
