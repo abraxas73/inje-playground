@@ -59,6 +59,11 @@ class MsgRoom {
         _ => lastChat,
       };
 
+  /// roomId만 아는 상태에서 대화방 화면을 열기 위한 최소 방(검색의 대화 결과 → 방 이동).
+  static MsgRoom minimal(String roomId, {String title = '대화'}) => MsgRoom(
+        roomId: roomId, roomType: '', title: title, rawTitle: '', lastChat: '', lastChatTimeStamp: 0,
+        unreadCount: 0, contentType: '', alarmOn: true, receiverSeqs: const [], receiverNames: const {});
+
   static MsgRoom fromRow(Map r) {
     final rawReceiver = r['receiver'] ?? r['roomReceiver'];
     final seqs = <String>[];

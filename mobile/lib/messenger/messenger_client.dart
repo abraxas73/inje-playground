@@ -51,9 +51,13 @@ class MessengerSession {
     required this.empSeq,
     required this.companyInfo,
     required this.mqtt,
+    required this.currentTime,
   });
 
   final String token, hashKey, loginId, groupSeq, empSeq;
+
+  /// 서버 기준 시각(connId 구성에 쓴다). 없으면 0.
+  final int currentTime;
 
   /// 메신저 호출 본문 `companyInfo`(compSeq/bizSeq/deptSeq/emailAddr/emailDomain).
   final Map<String, String> companyInfo;
@@ -86,6 +90,7 @@ class MessengerSession {
         'emailDomain': asStr(comp['emailDomain']),
       },
       mqtt: data['mqttInfo'] is Map ? Map<String, dynamic>.from(data['mqttInfo'] as Map) : const {},
+      currentTime: asInt(data['currentTime']),
     );
   }
 }

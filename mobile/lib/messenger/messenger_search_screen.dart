@@ -104,6 +104,11 @@ class _MessengerSearchScreenState extends ConsumerState<MessengerSearchScreen> {
                 leading: const Icon(Icons.chat_bubble_outline, color: Brand.faint),
                 title: Text(c.content, maxLines: 2, overflow: TextOverflow.ellipsis),
                 subtitle: Text([if (_names[c.sendEmpSeq] != null) _names[c.sendEmpSeq]!, if (c.at != null) '${c.at!.toUtc().add(const Duration(hours: 9))}'.substring(0, 16)].join(' · '), style: const TextStyle(color: Brand.muted)),
+                onTap: c.roomId.isEmpty
+                    ? null
+                    : () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => MessengerRoomScreen(room: MsgRoom.minimal(c.roomId, title: _names[c.sendEmpSeq] ?? '대화'), focusChatId: c.chatId),
+                        )),
               ),
           ],
         ]);

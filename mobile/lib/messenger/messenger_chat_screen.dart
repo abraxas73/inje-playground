@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
+import 'dart:async';
 import 'messenger_api.dart';
 import 'messenger_models.dart';
+import 'messenger_mqtt.dart';
 import 'messenger_provider.dart';
 import 'messenger_search_screen.dart';
 import 'messenger_ui.dart';
@@ -20,6 +22,35 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
   late Future<List<MsgRoom>> _future = _load();
   Map<String, String> _names = const {}; // empSeq → 이름(제목 표시용)
   Map<String, MsgClientState> _states = const {}; // empSeq → 접속 상태(1:1 방 점)
+  StreamSubscription? _rtSub;
+  Timer? _rtDebounce;
+
+  @override
+  void initState() {
+    super.initState();
+    ensureMessengerRealtime(ref);
+    _rtSub = ref.read(messengerMqttProvider).events.listen(_onRealtime);
+  }
+
+  void _onRealtime(MessengerMqttEvent e) {
+    if (e.isState && e.empSeq.isNotEmpty && e.stateCode.isNotEmpty) {
+      // 접속 상태 실시간 갱신
+      final s = MsgClientState.fromRow(e.raw);
+      if (mounted) setState(() => _states = {..._states, e.empSeq: s});
+    }
+    if (e.isChat) {
+      // 대화/대화방 갱신 — 목록 새로고침(짧게 debounce해 연속 신호 묶기)
+      _rtDebounce?.cancel();
+      _rtDebounce = Timer(const Duration(milliseconds: 500), () { if (mounted) _refresh(); });
+    }
+  }
+
+  @override
+  void dispose() {
+    _rtSub?.cancel();
+    _rtDebounce?.cancel();
+    super.dispose();
+  }
 
   Future<List<MsgRoom>> _load() async {
     final api = ref.read(messengerApiProvider);
@@ -127,8 +158,11 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
 
 /// 한 대화방 — 최근 대화를 읽고, 보내기. 내 메시지는 오른쪽 정렬(세션 empSeq 기준).
 class MessengerRoomScreen extends ConsumerStatefulWidget {
-  const MessengerRoomScreen({super.key, required this.room});
+  const MessengerRoomScreen({super.key, required this.room, this.focusChatId});
   final MsgRoom room;
+
+  /// 검색에서 넘어온 경우: 이 메시지로 스크롤·강조.
+  final String? focusChatId;
   @override
   ConsumerState<MessengerRoomScreen> createState() => _MessengerRoomScreenState();
 }
@@ -141,9 +175,31 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
 
   MessengerApi get _api => ref.read(messengerApiProvider);
 
+  final _focusKey = GlobalKey();
+  StreamSubscription? _rtSub;
+
+  @override
+  void initState() {
+    super.initState();
+    final mqtt = ref.read(messengerMqttProvider);
+    mqtt.enterRoom(widget.room.roomId);
+    _rtSub = mqtt.events.listen((e) {
+      // 이 방 대화가 오면 새로고침(맨 아래로 이어진다)
+      if (e.isChat && (e.roomId == widget.room.roomId || e.roomId.isEmpty)) {
+        if (mounted) _refresh();
+      }
+    });
+  }
+
   Future<List<MsgChat>> _load() async {
     final chats = await _api.chats(widget.room.roomId);
     chats.sort((a, b) => a.timeStamp.compareTo(b.timeStamp)); // 오래된→최신(화면은 reverse로 최신이 아래)
+    if (widget.focusChatId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = _focusKey.currentContext;
+        if (ctx != null) Scrollable.ensureVisible(ctx, alignment: 0.5, duration: const Duration(milliseconds: 300));
+      });
+    }
     final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
     final seqs = {for (final c in chats) if (c.sendEmpSeq != myEmpSeq) c.sendEmpSeq};
     if (seqs.isNotEmpty) {
@@ -162,6 +218,8 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
 
   @override
   void dispose() {
+    _rtSub?.cancel();
+    ref.read(messengerMqttProvider).leaveRoom(widget.room.roomId);
     _input.dispose();
     super.dispose();
   }
@@ -221,9 +279,13 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
                   final c = chats[j];
                   final older = j == 0 ? null : chats[j - 1];
                   final showDate = older == null || !_sameDay(older.at, c.at); // 그날의 첫(가장 오래된) 메시지 위에 날짜
-                  return Column(children: [
+                  final focus = widget.focusChatId != null && c.chatId == widget.focusChatId;
+                  return Column(key: focus ? _focusKey : null, children: [
                     if (showDate) _dateDivider(c.at),
-                    _bubble(c, c.sendEmpSeq == myEmpSeq),
+                    DecoratedBox(
+                      decoration: BoxDecoration(color: focus ? Brand.blueTint.withValues(alpha: 0.6) : null, borderRadius: BorderRadius.circular(8)),
+                      child: _bubble(c, c.sendEmpSeq == myEmpSeq),
+                    ),
                   ]);
                 },
               );
