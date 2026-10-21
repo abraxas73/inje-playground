@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { postJson, readError } from "@/lib/ppt/client";
 import { latestProfile, MODE_LABEL, type JobRow, type ProfileRow, type ProposalMode } from "@/lib/proposal/core";
 import { fmt, JobStatus, ModePicker, profileLabel, ProfileSelect, uploadProposalFile } from "@/components/proposal/shared";
+import { ProfilePreview, renderPreviews, uploadPreviews } from "@/components/proposal/preview";
 
 export default function ProposalGeneralPage() {
   const router = useRouter();
@@ -82,6 +83,7 @@ function NewJob({ profiles, onCreated, onError }: { profiles: ProfileRow[]; onCr
           <span className="block text-xs text-muted-foreground">.pptx·.potx, 20MB 이하. 템플릿에 들어 있던 예시 장표는 빠집니다.</span>
         </label>
         <ProfileSelect profiles={profiles} value={chosen} onChange={setProfileId} disabled={busy} />
+        <ProfilePreview profileId={chosen} />
       </div>
       <ModePicker value={mode} onChange={setMode} disabled={busy} />
       <Button disabled={busy || !projectName.trim() || !file} onClick={() => void submit()}>{busy ? <><Loader2 className="mr-1 h-4 w-4 animate-spin" />요청 중…</> : "만들기"}</Button>
@@ -131,7 +133,10 @@ function Profiles({ profiles, onChanged, onError }: { profiles: ProfileRow[]; on
     setBusy(true); onError(null);
     try {
       const storagePath = await uploadProposalFile(file, "profile");
-      await postJson("/api/proposal/profiles", { storagePath, fileName: file.name, title: title.trim(), asOf: asOf || undefined });
+      const { item } = await postJson<{ item: ProfileRow }>("/api/proposal/profiles", { storagePath, fileName: file.name, title: title.trim(), asOf: asOf || undefined });
+      // 미리보기는 덤 — 못 그려도 등록은 그대로 두고 알리기만 한다
+      try { await uploadPreviews(item.id, await renderPreviews(await file.arrayBuffer())); }
+      catch { onError("등록은 됐지만 미리보기를 만들지 못했습니다. 내려받기로 확인해 주세요."); }
       setTitle(""); setAsOf(""); setFile(null);
       onChanged();
     } catch (e) { onError(e instanceof Error ? e.message : "등록에 실패했습니다."); }
@@ -166,7 +171,7 @@ function Profiles({ profiles, onChanged, onError }: { profiles: ProfileRow[]; on
         <label className="block space-y-1 text-sm"><span>제목</span><Input value={title} maxLength={100} placeholder="예: 2026년 4분기 일반현황" disabled={busy} onChange={(e) => setTitle(e.target.value)} /></label>
         <label className="block space-y-1 text-sm"><span>기준일</span><Input type="date" value={asOf} disabled={busy} onChange={(e) => setAsOf(e.target.value)} /></label>
         <label className="block space-y-1 text-sm"><span>일반현황 PPT(.pptx)</span><Input type="file" accept=".pptx" disabled={busy} onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
-        <Button variant="outline" disabled={busy || !title.trim() || !file} onClick={() => void upload()}>{busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}새 버전 올리기</Button>
+        <Button variant="outline" disabled={busy || !title.trim() || !file} onClick={() => void upload()}>{busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}{busy ? "올리는 중…" : "새 버전 올리기"}</Button>
       </div>
     </section>
   );
