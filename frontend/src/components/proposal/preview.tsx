@@ -72,9 +72,9 @@ export function ProfilePreview({ profileId }: { profileId: string }) {
       {urls === null ? (
         <div className="flex h-24 items-center justify-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /></div>
       ) : urls.length ? (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="flex flex-wrap gap-2">
           {urls.map((u, i) => (
-            <a key={u} href={u} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border bg-white hover:ring-2 hover:ring-primary/40" title={`${i + 1}장 크게 보기`}>
+            <a key={u} href={u} target="_blank" rel="noreferrer" className="block w-28 overflow-hidden rounded border bg-white hover:ring-2 hover:ring-primary/40" title={`${i + 1}장 크게 보기`}>
               {/* eslint-disable-next-line @next/next/no-img-element -- 10분짜리 서명 URL이라 next/image 최적화 대상이 아니다 */}
               <img src={u} alt={`${i + 1}장 미리보기`} className="h-auto w-full" loading="lazy" />
             </a>
