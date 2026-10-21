@@ -210,7 +210,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         if (!data.errors.containsKey('approvals')) add('approvals', '미결 결재', ApprovalsSection(total: data.approvals?.$1 ?? 0, items: data.approvals?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals')), w: 6, h: 3);
         if (!data.errors.containsKey('inbox')) add('mails', '메일', MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail'), onOpen: openMail), w: 6, h: 3);
         if (!data.errors.containsKey('talks')) add('talks', '메신저 멘션', TalkMentionSection(talks: data.talks, onOpen: openMessenger), w: 6, h: 2);
-        if (!data.errors.containsKey('teams')) add('teams', 'Teams', TeamsSection(mentions: data.mentions, onOpen: () => open(teamsRoute)), w: 6, h: 3);
+        if (!data.errors.containsKey('teams')) add('teams', 'Teams', TeamsSection(mentions: data.mentions, onOpen: () => open(teamsRoute), onOpenChat: (id) => open(id.isEmpty ? teamsRoute : '/web?path=${Uri.encodeComponent('/teams/chat?chat=$id')}')), w: 6, h: 3);
       }
       add('notices', '공지', const GwNoticesCard(), w: 6, h: 3);
       add('quick', '바로 가기', ServiceCardGrid(children: [
@@ -336,7 +336,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               if (!data.errors.containsKey('talks')) TalkMentionSection(talks: data.talks, onOpen: openMessenger),
             ],
             if (data != null) ...[
-              if (data.errors.containsKey('teams')) RetryLine(label: 'Teams', onTap: _refresh) else TeamsSection(mentions: data.mentions, onOpen: () => open(teamsRoute)),
+              if (data.errors.containsKey('teams')) RetryLine(label: 'Teams', onTap: _refresh) else TeamsSection(mentions: data.mentions, onOpen: () => open(teamsRoute), onOpenChat: (id) => open(id.isEmpty ? teamsRoute : '/web?path=${Uri.encodeComponent('/teams/chat?chat=$id')}')),
             ],
             const GwNoticesCard(),
             ]),
