@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:playground/briefing/briefing_sections.dart';
-import 'package:playground/app/service_card_grid.dart';
+import 'package:playground/features/home/dashboard_view.dart';
 import 'package:playground/briefing/briefing_provider.dart';
 import 'package:playground/gw/gw_org_absences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,34 +42,22 @@ Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime 
 }
 
 void main() {
-  testWidgets('데스크톱 홈은 창 너비에 따라 1·2·3열, 바로가기는 전체 너비를 유지한다', (tester) async {
+  testWidgets('데스크톱 홈은 위젯 대시보드(홈 편집 토글 → 편집 모드)', (tester) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.binding.setSurfaceSize(const Size(1400, 2400));
-    final app = await pumpHome(tester, creds: testCreds);
-    final quote = find.byType(QuoteCard);
-    final briefing = find.byType(BriefingCard);
-    final focus = find.byType(FocusSection);
-    // 여러 열이면 오늘의 한 줄은 인사말 옆(카드 줄 전체 폭) — 인사말이 1열 폭, 한 줄이 나머지 2열.
-    const column = (1360 - 32) / 3;
-    expect(tester.getTopLeft(quote).dy, lessThan(tester.getTopLeft(briefing).dy));
-    expect(tester.getTopLeft(quote).dx, closeTo(20 + column + 16, 1));
-    expect(tester.getTopLeft(find.textContaining('좋은')).dx, 20);
-    expect(tester.getTopLeft(briefing).dx, 20);
-    expect(tester.getTopLeft(focus).dx, greaterThan(tester.getTopLeft(briefing).dx));
-    expect(tester.getSize(quote).width, closeTo(1360 - column - 16, 1));
-    await tester.ensureVisible(find.byType(ServiceCardGrid).first);
-    expect(tester.getSize(find.byType(ServiceCardGrid).first).width, closeTo(1360, 1));
-    final calls = app.calls['/api/mobile/briefing'];
-    for (final (width, columns) in [(1000.0, 2), (700.0, 1), (2000.0, 3)]) {
-      await tester.binding.setSurfaceSize(Size(width, 2400));
-      await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(quote, -500, scrollable: find.byType(Scrollable).first);
-      final card = (width - 40 - 16 * (columns - 1)) / columns;
-      expect(tester.getSize(quote).width, closeTo(columns == 1 ? card : width - 40 - card - 16, 1));
-      expect(tester.getSize(briefing).width, closeTo(card, 1));
-      expect(tester.takeException(), isNull);
-    }
-    expect(app.calls['/api/mobile/briefing'], calls, reason: '리사이즈는 재수집하지 않는다');
+    await pumpHome(tester, creds: testCreds);
+    // 대시보드가 기본 배치로 뜨고, 브리핑·오늘의 한 줄 위젯이 타일로 들어간다
+    expect(find.byType(DashboardView), findsOneWidget);
+    expect(find.byType(BriefingCard), findsOneWidget);
+    expect(find.byType(QuoteCard), findsOneWidget);
+    expect(find.byType(FocusSection), findsOneWidget);
+    // 편집 토글
+    expect(find.text('홈 편집'), findsOneWidget);
+    await tester.tap(find.text('홈 편집'));
+    await tester.pumpAndSettle();
+    expect(find.text('편집 완료'), findsOneWidget);
+    expect(find.textContaining('손잡이를 끌어'), findsOneWidget); // 편집 안내
+    expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant({TargetPlatform.windows}));
 
   testWidgets('모바일은 넓어도 기존 1열 홈을 유지한다', (tester) async {
