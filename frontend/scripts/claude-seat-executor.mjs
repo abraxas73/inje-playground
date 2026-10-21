@@ -5,7 +5,7 @@
 //   node scripts/claude-seat-executor.mjs --check    # 읽기 전용 ego 연결/소유자 권한 점검
 //   node scripts/claude-seat-executor.mjs --once     # 한 행만 처리하고 종료(점검용)
 // 환경: CLAUDE_OTEL_INGEST_TOKEN(없으면 frontend/.env.local → ~/.config/inje-playground/work-metrics.env),
-//       APP_URL(기본 프로덕션), SEAT_EGO_SPACE_ID(기존 ego 전용 워크스페이스 ID, 필수)
+//       APP_URL(기본 프로덕션), SEAT_EGO_SPACE(ego 전용 워크스페이스 이름, 기본 claude-seat-executor — 없으면 같은 이름으로 다시 만든다)
 // 서버 계약: GET ?claim=1 → {row}, PATCH {id,status,before_tier,after_tier,error,executor}, PUT heartbeat — src/app/api/admin/claude-usage/seat-actions
 // 스펙 docs/superpowers/specs/2026-09-29-claude-seat-actions-design.md §6
 import { egoRequest } from "./lib/claude-seat-ego.mjs";
@@ -18,7 +18,7 @@ import { TIER_TO_API, findMember, readToken } from "./lib/claude-seat.mjs";
 const VERSION = "2026-10-16.ego";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP_URL = (process.env.APP_URL || "https://inje-playground.vercel.app").replace(/\/$/, "");
-const SPACE_ID = Number(process.env.SEAT_EGO_SPACE_ID);
+const SPACE_ID = process.env.SEAT_EGO_SPACE || "claude-seat-executor";
 const POLL_MS = 15_000;
 const HOST = os.hostname();
 const API = `${APP_URL}/api/admin/claude-usage/seat-actions`;

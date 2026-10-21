@@ -10,9 +10,9 @@ Vercel Cron으로 돌릴 수 없는 작업(로컬 Chrome 세션·사내망·개�
 | `com.innogrid.gitlab-metrics-sync` | 매일 07:45 | 사내 GitLab 커밋·MR 일 집계(최근 3일 창) → `POST /api/admin/work-metrics/sync` (Vercel IP 차단 우회) | `~/.claude/hooks/gitlab-metrics-sync-daily.sh` → `frontend/scripts/gitlab-metrics-sync.py` | `~/Library/Logs/gitlab-metrics-sync.log` |
 | `com.claude.teams-daily-quote` | 매일 08:00 | Teams 채널 오늘의 격언(claude -p 생성, 웹훅 전송) | `~/.claude/hooks/teams-daily-quote.sh` | `~/.claude/logs/teams-daily-quote.log` |
 | `com.innogrid.claude-usage-csv` | 매일 09:05 | Claude 사용량 CSV·멤버·초대·시트 수집 — `/claude-usage-csv` 스킬을 `claude -p --no-chrome` + ego-browser으로 헤드리스 실행 | `~/.claude/hooks/claude-usage-csv-daily.sh` | `~/.claude/logs/claude-usage-csv.log`, 회차별 `~/.claude/logs/claude-usage-csv/YYYY-MM-DD.json` |
-| `com.innogrid.claude-seat-executor` | 상시(KeepAlive) | Claude 시트 할당·해제 요청을 ego 전용 워크스페이스 32에서 처리(15초 폴링, Chrome 실행 없음). 런북 `docs/claude-usage.md` §9 | `~/.claude/hooks/claude-seat-executor.sh` → `frontend/scripts/claude-seat-executor.mjs` | `~/Library/Logs/claude-seat-executor.log` |
+| `com.innogrid.claude-seat-executor` | 상시(KeepAlive) | Claude 시트 할당·해제 요청을 ego 전용 워크스페이스 `claude-seat-executor`(이름)에서 처리(15초 폴링, Chrome 실행 없음). 런북 `docs/claude-usage.md` §9 | `~/.claude/hooks/claude-seat-executor.sh` → `frontend/scripts/claude-seat-executor.mjs` | `~/Library/Logs/claude-seat-executor.log` |
 
-plist는 모두 `~/Library/LaunchAgents/<라벨>.plist`. 전제: Mac이 깨어 있어야 한다(잠자기 중 놓친 일정은 깨어난 뒤 실행, 꺼져 있으면 실행 안 됨). `claude-usage-csv`는 ego-browser CLI와 **ego 브라우저의 claude.ai 7개 조직 소유자 로그인**이 필요하다. 예약 래퍼는 Chrome을 띄우지 않으며 `--no-chrome`으로 확장 연동을 끈다. ego 연결·로그인·조직 권한이 없으면 해당 조직을 보류하고 기존 데이터를 유지한다. 09:05 일정은 그대로이며 래퍼/스킬 수정은 다음 실행부터 적용된다(launchd 재등록 불필요). 전용 ego TaskSpace **33**과 p1을 계속 열어 두고 매일 재사용한다. 공간이 삭제되었거나 사용자 제어 중이면 보류한다. 시트 실행기도 별도 ego 공간 32를 재사용한다.
+plist는 모두 `~/Library/LaunchAgents/<라벨>.plist`. 전제: Mac이 깨어 있어야 한다(잠자기 중 놓친 일정은 깨어난 뒤 실행, 꺼져 있으면 실행 안 됨). `claude-usage-csv`는 ego-browser CLI와 **ego 브라우저의 claude.ai 7개 조직 소유자 로그인**이 필요하다. 예약 래퍼는 Chrome을 띄우지 않으며 `--no-chrome`으로 확장 연동을 끈다. ego 연결·로그인·조직 권한이 없으면 해당 조직을 보류하고 기존 데이터를 유지한다. 09:05 일정은 그대로이며 래퍼/스킬 수정은 다음 실행부터 적용된다(launchd 재등록 불필요). 전용 ego TaskSpace **`claude-usage-csv`**(이름)와 p1을 매일 재사용한다 — ego 재시작으로 사라지면 같은 이름으로 다시 만들고, 사용자 제어 중이면 보류한다. 시트 실행기도 별도 공간 `claude-seat-executor`를 이름으로 재사용한다.
 
 ## 한 곳에서 보기: `claude-jobs`
 
@@ -50,3 +50,7 @@ Chrome을 재실행하던 시트 실행기의 launchd 작업을 중지한 뒤, �
 
 ### ego 공간 재생성 (2026-10-19)
 ego 브라우저의 작업 공간이 모두 사라져(공간 목록 0개) 실행기가 "로그인 필요" 하트비트만 보냈다. 같은 이름으로 새로 만들었고 번호는 고를 수 없어 래퍼를 바꿨다: 시트 실행기 **32**(`claude-seat-executor`), 사용량 CSV **33**(`claude-usage-csv`). 공간이 다시 사라지면 `ego-browser nodejs -e 'console.log(JSON.stringify(await listTaskSpaces()))'`로 확인하고, `taskSpace("<이름>")`으로 만든 뒤 출력된 번호를 래퍼(`~/.claude/hooks/…`와 `scripts/launchd/…` 두 곳)와 이 문서에 반영한다. 로그인 계정이 조직 소유자가 아니면(overview 403) 그 공간의 p1에서 소유자 계정으로 다시 로그인한다.
+
+### 2026-10-22 — 공간을 번호 대신 이름으로
+
+ego 재시작(10-16 수동, 10-20 자동 업그레이드)마다 에이전트 공간이 모두 사라지고 번호가 다시 매겨져, 번호를 고정한 사용량 CSV(33)는 10-20·21 보류, 시트 실행기(32)는 "로그인 필요"로 멈췄다. `taskSpace("이름")`은 같은 이름 공간을 재사용하고 없으면 만든다(실측: 두 번 호출해 같은 번호). 래퍼·지시문·`frontend/scripts/lib/claude-seat-ego.mjs`를 이름(`claude-seat-executor`·`claude-usage-csv`)으로 바꿨고, 새 공간의 탭이 비어 있으면 claude.ai로 옮긴다. 로그인 쿠키는 ego 프로필 공용이라 공간을 다시 만들어도 로그인은 유지된다.
