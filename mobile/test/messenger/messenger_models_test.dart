@@ -80,4 +80,20 @@ void main() {
     expect(MsgChat.parseList({'chatList': 'x'}), isEmpty);
     expect(MsgAttend.parseList({}), isEmpty);
   });
+
+  test('멘션 표식은 @이름으로 보여 준다(본문·미리보기)', () {
+    const raw = '|>@empseq="2146",name="김민철"@<| |>@empseq="2773",name="김홍진"@<| CSO 본부 중심으로 진행해 주세요.';
+    final chat = MsgChat.fromRow({'chatId': '1', 'roomId': 'r', 'sendEmpSeq': '9', 'content': raw, 'contentType': '0', 'timeStamp': 1});
+    expect(chat.displayContent, '@김민철 @김홍진 CSO 본부 중심으로 진행해 주세요.');
+    final room = MsgRoom.minimal('r').copyPreview(raw);
+    expect(room.preview, startsWith('@김민철 @김홍진'));
+  });
+}
+
+extension on MsgRoom {
+  // 테스트용: lastChat만 바꾼 사본(미리보기 확인).
+  MsgRoom copyPreview(String lastChat) => MsgRoom(
+        roomId: roomId, roomType: roomType, title: title, rawTitle: rawTitle,
+        lastChat: lastChat, lastChatTimeStamp: lastChatTimeStamp, unreadCount: unreadCount,
+        contentType: '0', alarmOn: true, receiverSeqs: receiverSeqs, receiverNames: receiverNames);
 }

@@ -4,10 +4,13 @@ import 'home_dashboard.dart';
 
 /// 대시보드에 올릴 위젯 한 종류 — 제목(추가 팔레트용)과 실제 화면.
 class DashboardWidgetDef {
-  const DashboardWidgetDef(this.title, this.child, {this.defaultW = 6, this.defaultH = 3});
+  const DashboardWidgetDef(this.title, this.child, {this.defaultW = 6, this.defaultH = 3, this.fill = false});
   final String title;
   final Widget child;
   final int defaultW, defaultH;
+
+  /// true면 타일 높이를 그대로 채운다(스크롤로 감싸지 않음) — 안내 placeholder, 내부에 자체 스크롤/Navigator가 있는 위젯용.
+  final bool fill;
 }
 
 /// 데이터·연결이 없어 내용을 못 그리는 위젯 자리 — 영역은 그대로 두고 "연결 필요"·안내를 보여 준다.
@@ -138,7 +141,7 @@ class _DashboardViewState extends State<DashboardView> {
     final content = ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: SizedBox.expand(
-        child: def.child is DashboardPlaceholder
+        child: (def.fill || def.child is DashboardPlaceholder)
             ? def.child
             : SingleChildScrollView(
                 physics: widget.editing ? const NeverScrollableScrollPhysics() : null,

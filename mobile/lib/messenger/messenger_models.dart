@@ -1,4 +1,5 @@
 import '../gw/gw_client.dart' show asStr, asInt;
+import '../gw/talk_alerts.dart' show stripTalkMentions;
 
 /// 아마란스 메신저 응답 정제 — 순수 함수(네트워크 없음). 필드 출처: 메신저 번들 렌더러
 /// (`DZRoomCard.vue`·`DZChatItem.vue`·`roomInfo.js`)와 `dz/dzhttp.js`. 서버 값은 asStr/asInt로만 읽는다.
@@ -56,7 +57,7 @@ class MsgRoom {
         '6' => '사다리게임: 결과를 확인하세요.',
         '7' => '삭제된 메시지입니다.',
         '8' || '11' => '화상회의',
-        _ => lastChat,
+        _ => stripTalkMentions(lastChat), // 멘션 표식 |>@empseq=…,name="X"@<| → @X
       };
 
   /// roomId만 아는 상태에서 대화방 화면을 열기 위한 최소 방(검색의 대화 결과 → 방 이동).
@@ -124,6 +125,9 @@ class MsgChat {
 
   DateTime? get at => timeStamp > 0 ? DateTime.fromMillisecondsSinceEpoch(timeStamp) : null;
   bool get deleted => contentType == '7';
+
+  /// 화면에 보일 본문 — 멘션 표식 |>@empseq=…,name="X"@<| 을 @X로 바꾼다.
+  String get displayContent => stripTalkMentions(content);
 
   static MsgChat fromRow(Map r) => MsgChat(
         chatId: _asStr(r['chatId']),

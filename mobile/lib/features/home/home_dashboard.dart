@@ -27,18 +27,32 @@ class DashboardTile {
   }
 }
 
-/// 서버에 아무 배치도 없을 때의 기본 배치. 없는(데이터·권한 없는) 위젯은 뷰가 건너뛴다.
+/// 서버에 아무 배치도 없을 때의 기본 배치. 데이터·연결 없는 위젯은 그 자리에 "연결 필요" 안내로 그려진다.
+/// 맨 위는 인사+오늘의 한 줄 결합 위젯(greeting) — 홈 전체가 위젯 영역.
 const defaultDashboard = <DashboardTile>[
-  DashboardTile('briefing', 0, 0, 8, 4),
-  DashboardTile('quote', 8, 0, 4, 2),
+  DashboardTile('greeting', 0, 0, 12, 2),
+  DashboardTile('briefing', 0, 2, 8, 4),
   DashboardTile('focus', 8, 2, 4, 2),
-  DashboardTile('meetings', 0, 4, 6, 3),
-  DashboardTile('approvals', 6, 4, 6, 3),
-  DashboardTile('mails', 0, 7, 6, 3),
-  DashboardTile('teams', 6, 7, 6, 3),
-  DashboardTile('absence', 0, 10, 6, 3),
-  DashboardTile('notices', 6, 10, 6, 3),
+  DashboardTile('teams', 8, 4, 4, 2),
+  DashboardTile('meetings', 0, 6, 6, 3),
+  DashboardTile('approvals', 6, 6, 6, 3),
+  DashboardTile('mails', 0, 9, 6, 3),
+  DashboardTile('messenger', 6, 9, 6, 3),
+  DashboardTile('absence', 0, 12, 6, 3),
+  DashboardTile('notices', 6, 12, 6, 3),
 ];
+
+/// 예전 레이아웃 호환: 'quote'(인삿말 분리 전)는 'greeting'으로 옮긴다(위치 보존). 중복은 첫 것만.
+List<DashboardTile> _migrate(List<DashboardTile> tiles) {
+  final seen = <String>{};
+  final out = <DashboardTile>[];
+  for (final t in tiles) {
+    final id = t.id == 'quote' ? 'greeting' : t.id;
+    if (!seen.add(id)) continue;
+    out.add(id == t.id ? t : DashboardTile(id, t.x, t.y, t.w, t.h));
+  }
+  return out;
+}
 
 List<DashboardTile> _parse(Object? j) {
   if (j is! Map || j['tiles'] is! List) return const [];
@@ -54,7 +68,7 @@ class HomeDashboard extends AsyncNotifier<List<DashboardTile>> {
   Future<List<DashboardTile>> build() async {
     if (!ref.watch(innobotSignedInProvider)) return defaultDashboard;
     final tiles = _parse(await ref.read(apiClientProvider).getJson('/api/users/home-dashboard'));
-    return tiles.isEmpty ? defaultDashboard : tiles;
+    return tiles.isEmpty ? defaultDashboard : _migrate(tiles);
   }
 
   /// 바로 반영하고 서버에 저장. 실패하면 이전 배치로 되돌리고 false.

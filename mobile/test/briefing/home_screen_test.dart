@@ -11,6 +11,8 @@ import 'package:playground/briefing/summary_provider.dart';
 import 'package:playground/features/home/home_screen.dart';
 import 'package:playground/gw/gw_client.dart';
 import 'package:playground/gw/gw_creds.dart';
+import 'package:playground/messenger/messenger_client.dart';
+import 'package:playground/messenger/messenger_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../auth/fake_auth.dart';
 import '../gw/fakes.dart';
@@ -36,6 +38,8 @@ Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime 
     apiClientProvider.overrideWithValue(app.client),
     gwStoreProvider.overrideWithValue(FakeGwStore(creds)),
     gwHttpClientProvider.overrideWithValue(gwRoutes(gwAll)),
+    // 메신저 카드가 실기기 보안저장소를 건드리지 않게: 자격증명 없음으로 빠르게 안내 상태
+    messengerClientProvider.overrideWithValue(MessengerClient(httpClient: gwRoutes(gwAll), loadCreds: () async => null)),
   ], child: MaterialApp(home: HomeScreen(now: DateTime(2026, 10, 5, 8, 40)))));
   await tester.pumpAndSettle();
   return app;

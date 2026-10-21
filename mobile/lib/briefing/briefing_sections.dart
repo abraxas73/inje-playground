@@ -449,3 +449,26 @@ class DooraySection extends StatelessWidget {
     ]);
   }
 }
+
+/// 홈 대시보드용 "인사 + 오늘의 한 줄" 결합 위젯 — 상단 고정이던 인삿말을 위젯으로.
+class HomeGreetingCard extends StatelessWidget {
+  const HomeGreetingCard({super.key, required this.title, required this.subtitle, required this.quote});
+  final String title, subtitle;
+  final Quote quote;
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(title, style: theme.textTheme.headlineSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 2),
+          Text(subtitle, style: theme.textTheme.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 12),
+          QuoteCard(quote: quote),
+        ]),
+      ),
+    );
+  }
+}
