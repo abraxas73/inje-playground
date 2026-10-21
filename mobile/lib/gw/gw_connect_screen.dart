@@ -43,7 +43,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
   static int _inits = 0;
   int _started = 0, _finished = 0, _urlChanges = 0;
   AppWebController? _c;
-  Timer? _poll, _hintTimer;
+  Timer? _poll, _hintTimer, _autoWatch;
   bool _busy = false, _hint = false, _idDone = false, _pwDone = false, _manual = false, _loginChecked = false, _ticking = false;
   GwLogin? _login;
   String? _error, _status;
@@ -59,6 +59,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
     _inits++;
     ref.read(gwLoginStoreProvider).load().then((l) {
       if (mounted) setState(() { _login = l; _loginChecked = true; });
+      if (mounted && l != null) _armAutoWatch(); // 저장값이 잘못됐거나 로그인 페이지가 바뀌면 자동 입력이 멈출 수 있다 — 지나면 직접 로그인으로
     }).catchError((_) {
       if (mounted) setState(() => _loginChecked = true);
     });
@@ -82,10 +83,28 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
     if (mounted) setState(f);
   }
 
+  /// 자동 로그인 워치독 — 25초 안에 완료(쿠키 확보)나 수동 전환이 안 되면 직접 로그인으로 떨어뜨린다(무한 대기 방지).
+  void _armAutoWatch() {
+    _autoWatch?.cancel();
+    _autoWatch = Timer(const Duration(seconds: 25), () {
+      if (mounted && _auto && !_busy) {
+        setState(() {
+          // 오류 경로와 같게: 아이디를 채운 네이티브 입력 폼으로 떨어뜨린다(플랫폼 무관하게 안전).
+          if (_login != null && _idCtl.text.isEmpty) _idCtl.text = _login!.id;
+          _login = null;
+          _retry = true;
+          _status = null;
+          _error = '자동 로그인이 지연됩니다. 아이디·비밀번호를 확인해 직접 로그인해 주세요.';
+        });
+      }
+    });
+  }
+
   @override
   void dispose() {
     _poll?.cancel();
     _hintTimer?.cancel();
+    _autoWatch?.cancel();
     _idCtl.dispose();
     _pwCtl.dispose();
     super.dispose();
@@ -126,6 +145,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
           setState(() => _status = '비밀번호 입력 중…');
           await c.runJavaScript(fillJs(selector: '#reqLoginPw', value: _login!.pw, submitText: '로그인'));
         case FillAction.reveal:
+          _autoWatch?.cancel(); // 수동/재시도로 전환 — 워치독 불필요
           setState(() {
             if (probe.hasOtp) {
               _manual = true;
@@ -147,6 +167,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
   }
 
   Future<void> _finish(String raw) async {
+    _autoWatch?.cancel();
     setState(() { _busy = true; _error = null; _status = '로그인을 확인하는 중…'; });
     try {
       final creds = await verifyGwCookies(raw, ref.read(gwHttpClientProvider));
@@ -174,6 +195,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
     if (!mounted) return;
     final reload = _retry;
     setState(() { _login = login; _idDone = false; _pwDone = false; _error = null; _retry = false; _status = null; });
+    _armAutoWatch(); // 수동 입력값으로 다시 자동 입력을 시도 — 또 멈추면 25초 뒤 폼으로
     if (reload) await _c?.loadRequest(Uri.parse('$gwOrigin/'));
   }
 

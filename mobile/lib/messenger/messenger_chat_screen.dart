@@ -67,16 +67,22 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
   }
 
   Widget _error(BuildContext context, Object e) {
-    final noCreds = e is MessengerAuthException;
+    // 저장된 자격증명 자체가 없을 때만 '연결' 안내. 로그인은 됐는데 서버가 거부하면 실제 코드·메시지를 보여 준다.
+    final noCreds = e is MessengerAuthException && e.noCreds;
+    final detail = switch (e) {
+      MessengerAuthException a => '메신저 로그인 거부 (코드 ${a.resultCode})\n${a.message}',
+      MessengerException m => '메신저 오류 (코드 ${m.resultCode})\n${m.message}',
+      _ => '$e',
+    };
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(28),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           TintIcon(noCreds ? Icons.apartment_outlined : Icons.error_outline, size: 56),
           const SizedBox(height: 16),
-          Text(noCreds ? '아마란스를 연결하면 메신저를 씁니다' : '불러오지 못했습니다', style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
+          Text(noCreds ? '아마란스를 연결하면 메신저를 씁니다' : '메신저를 불러오지 못했습니다', style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
           const SizedBox(height: 6),
-          Text(noCreds ? '자동 로그인에 저장된 아이디·비밀번호로 메신저에 로그인합니다. 토큰은 이 기기에만 저장됩니다.' : '$e', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Brand.muted), textAlign: TextAlign.center),
+          Text(noCreds ? '자동 로그인에 저장된 아이디·비밀번호로 메신저에 로그인합니다. 토큰은 이 기기에만 저장됩니다.' : detail, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Brand.muted), textAlign: TextAlign.center),
           const SizedBox(height: 20),
           if (noCreds)
             FilledButton.icon(onPressed: () => context.push('/gw/connect'), icon: const Icon(Icons.login, size: 18), label: const Text('아마란스 연결하기'))

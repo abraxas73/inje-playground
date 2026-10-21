@@ -22,10 +22,12 @@ const _appType = '13';
 const _osType = '03';
 
 /// 메신저 로그인(P076)이 거부됐을 때. resultCode 11008(세션 만료)·11004(서비스 오류) 등.
+/// noCreds=true는 "저장된 아이디·비밀번호가 없다"(연결 안내), false는 "로그인은 시도했으나 서버가 거부"(실제 코드·메시지).
 class MessengerAuthException implements Exception {
-  MessengerAuthException(this.resultCode, this.message);
+  MessengerAuthException(this.resultCode, this.message, {this.noCreds = false});
   final int resultCode;
   final String message;
+  final bool noCreds;
   @override
   String toString() => message;
 }
@@ -130,7 +132,7 @@ class MessengerClient {
   Future<MessengerSession> _login() async {
     final creds = await loadCreds();
     if (creds == null || creds.id.isEmpty) {
-      throw MessengerAuthException(-1, '아마란스 자동 로그인 정보가 없습니다. 아마란스를 먼저 연결해 주세요.');
+      throw MessengerAuthException(-1, '아마란스 자동 로그인 정보가 없습니다. 아마란스를 먼저 연결해 주세요.', noCreds: true);
     }
     final protocols = await _loadProtocols(creds.id);
     final kNum = loginKeyIndex();
