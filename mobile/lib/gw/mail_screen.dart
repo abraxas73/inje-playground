@@ -40,7 +40,7 @@ class _BodyState extends ConsumerState<_Body> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: const BrandHeader(title: '메일', showBack: true, favoritePath: '/gw/mail'),
+        appBar: BrandHeader(title: '메일', showBack: true, favoritePath: '/gw/mail', onRefresh: _refresh),
         body: RefreshIndicator(
           onRefresh: _refresh,
           child: FutureBuilder(

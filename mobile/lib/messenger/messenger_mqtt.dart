@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,6 +41,10 @@ class MessengerMqtt {
   void Function(String title, String body, String path)? onPush;
 
   Stream<MessengerMqttEvent> get events => _controller.stream;
+
+  /// 테스트용: 실시간 이벤트를 흘려 넣는다.
+  @visibleForTesting
+  void debugEmit(MessengerMqttEvent e) => _controller.add(e);
   bool get connected => _client?.connectionStatus?.state == MqttConnectionState.connected;
 
   /// 세션으로 접속·기본 토픽 구독. 이미 접속돼 있으면 무시. 실패는 조용히(실시간은 부가 기능).

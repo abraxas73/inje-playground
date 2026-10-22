@@ -35,10 +35,11 @@ class App {
       }), tokens: _Tokens(), baseUrl: 'http://x', userAgent: 't');
 }
 
-Widget scope(Routes r, App app) => ProviderScope(
+/// nested=true면 앱처럼 탭 셸 안쪽 내비게이터에 화면을 둔다(확인창은 루트, 화면은 안쪽).
+Widget scope(Routes r, App app, {bool nested = false}) => ProviderScope(
       key: UniqueKey(),
       overrides: [gwStoreProvider.overrideWithValue(FakeGwStore(testCreds)), gwHttpClientProvider.overrideWithValue(r.client), apiClientProvider.overrideWithValue(app.client)],
-      child: const MaterialApp(home: AttendanceScreen()),
+      child: MaterialApp(home: nested ? Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => const AttendanceScreen())) : const AttendanceScreen()),
     );
 
 void main() {
@@ -86,5 +87,19 @@ void main() {
     expect(r.hits['$base/getJudgeTimeManagement'], 1);
     expect(app.sent, isEmpty);
     expect((await SharedPreferences.getInstance()).getBool('clockin.teams.enabled'), isFalse);
+  });
+
+  testWidgets('탭 셸 안 화면에서도: 출근 확인창 위로 채팅방 선택이 떠서 고를 수 있다(아이폰 제보)', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final r = gw(), app = App();
+    await tester.pumpWidget(scope(r, app, nested: true));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('출근 기록'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Teams 채팅방 고르기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('김민준')); // 확인창 배경에 가려지면 여기서 눌리지 않는다
+    await tester.pumpAndSettle();
+    expect((await SharedPreferences.getInstance()).getString('clockin.teams.chatId'), 'c2');
   });
 }

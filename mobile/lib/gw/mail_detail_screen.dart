@@ -52,7 +52,7 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
           future: _future,
           builder: (context, snap) {
             if (snap.hasError) {
-              return Padding(padding: const EdgeInsets.all(24), child: Column(children: [Text('${snap.error}', style: const TextStyle(color: Brand.dangerText)), const SizedBox(height: 12), FilledButton(onPressed: () => setState(() => _future = _load()), child: const Text('다시 시도'))]));
+              return Padding(padding: const EdgeInsets.all(24), child: Column(children: [Text('${snap.error}', style: const TextStyle(color: Brand.dangerText)), const SizedBox(height: 12), FilledButton(onPressed: () => setState(() { _future = _load(); }), child: const Text('다시 시도'))]));
             }
             if (!snap.hasData) return const Center(child: CircularProgressIndicator());
             final m = snap.data!;

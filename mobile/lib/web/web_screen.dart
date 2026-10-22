@@ -338,6 +338,11 @@ class _WebScreenState extends ConsumerState<WebScreen>
     }
   }
 
+  String _headerTitle() {
+    final t = webTitleFor(title: _title, loading: _loading);
+    return _loading || t != '이노그리드' ? t : (pageLabelFor(_pagePath) ?? t);
+  }
+
   @override
   Widget build(BuildContext context) => CallbackShortcuts(
     bindings: Platform.isMacOS
@@ -364,7 +369,8 @@ class _WebScreenState extends ConsumerState<WebScreen>
             title: Row(children: [
               Flexible(
                 child: Text(
-                  webTitleFor(title: _title, loading: _loading),
+                  // 웹 페이지 <title>이 사이트 이름(이노그리드)뿐이면 메뉴 이름으로(즐겨찾기 이름과 같게). 페이지가 구체적인 제목을 주면 그대로.
+                  _headerTitle(),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),

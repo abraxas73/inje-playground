@@ -18,7 +18,7 @@ class LadderHistoryScreen extends ConsumerStatefulWidget {
 class _LadderHistoryScreenState extends ConsumerState<LadderHistoryScreen> {
   late Future<List<LadderSession>> _future = ref.read(ladderRepositoryProvider).list();
   Future<void> _refresh() async {
-    setState(() => _future = ref.read(ladderRepositoryProvider).list());
+    setState(() { _future = ref.read(ladderRepositoryProvider).list(); });
     await _future;
   }
 

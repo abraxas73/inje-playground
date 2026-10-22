@@ -18,7 +18,7 @@ class _MessengerNotesScreenState extends ConsumerState<MessengerNotesScreen> {
   late Future<List<MsgNote>> _future = ref.read(messengerApiProvider).notes();
 
   Future<void> _refresh() async {
-    setState(() => _future = ref.read(messengerApiProvider).notes());
+    setState(() { _future = ref.read(messengerApiProvider).notes(); });
     await _future.catchError((_) => <MsgNote>[]);
   }
 
@@ -53,11 +53,11 @@ class _MessengerNotesScreenState extends ConsumerState<MessengerNotesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: BrandHeader(title: '쪽지', showBack: true),
+      appBar: BrandHeader(title: '쪽지', showBack: true, onRefresh: _refresh),
       body: FutureBuilder<List<MsgNote>>(
         future: _future,
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          if (snap.connectionState == ConnectionState.waiting && !snap.hasData) return const Center(child: CircularProgressIndicator());
           if (snap.hasError) return MessengerError(error: snap.error!, onRetry: _refresh);
           final notes = snap.data ?? const [];
           if (notes.isEmpty) {

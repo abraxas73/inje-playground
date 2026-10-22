@@ -17,7 +17,7 @@ class _MessengerAttendScreenState extends ConsumerState<MessengerAttendScreen> {
   late Future<List<MsgAttend>> _future = ref.read(messengerApiProvider).todayAttend();
 
   Future<void> _refresh() async {
-    setState(() => _future = ref.read(messengerApiProvider).todayAttend());
+    setState(() { _future = ref.read(messengerApiProvider).todayAttend(); });
     await _future.catchError((_) => <MsgAttend>[]);
   }
 
@@ -25,11 +25,11 @@ class _MessengerAttendScreenState extends ConsumerState<MessengerAttendScreen> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     return Scaffold(
-      appBar: BrandHeader(title: '오늘 근태', showBack: true),
+      appBar: BrandHeader(title: '오늘 근태', showBack: true, onRefresh: _refresh),
       body: FutureBuilder<List<MsgAttend>>(
         future: _future,
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          if (snap.connectionState == ConnectionState.waiting && !snap.hasData) return const Center(child: CircularProgressIndicator());
           if (snap.hasError) return MessengerError(error: snap.error!, onRetry: _refresh);
           final list = [...(snap.data ?? const <MsgAttend>[])];
           if (list.isEmpty) {
