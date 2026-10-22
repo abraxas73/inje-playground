@@ -290,7 +290,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       return Scaffold(
         body: SafeArea(
           bottom: false,
-          child: Stack(children: [
+          child: LayoutBuilder(builder: (context, box) {
+          // 툴바 이동 범위 = 실제 홈 영역(창 크기 바뀌면 다시 맞춤). 머리줄이 항상 영역 안에 남도록 위로는 240까지만.
+          final mx = (box.maxWidth / 2 - 80).clamp(0.0, double.infinity);
+          final my = (box.maxHeight - 240).clamp(0.0, double.infinity);
+          final tb = Offset(_toolbarOffset.dx.clamp(-mx, mx), _toolbarOffset.dy.clamp(-my, 0.0));
+          return Stack(children: [
             RefreshIndicator(
               onRefresh: _refresh,
               child: ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 24), children: [
@@ -298,7 +303,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                   const BrandLogo(width: 86, opacity: 0.8),
                   const Spacer(),
                   TextButton.icon(
-                    onPressed: () => setState(() => _editing = !_editing),
+                    onPressed: () => setState(() { _editing = !_editing; _toolbarOffset = Offset.zero; }),
                     icon: Icon(_editing ? Icons.check : Icons.dashboard_customize_outlined, size: 18),
                     label: Text(_editing ? '편집 완료' : '홈 편집'),
                   ),
@@ -318,24 +323,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             ),
             // 편집 모드: 화면 하단에 떠 있는 "위젯 추가" 팔레트 — 스크롤과 무관하게 항상 보인다
             if (_editing)
+              // Transform으로 그림만 옮기면 클릭 영역은 원래 자리에 남는다 → Positioned 자체를 옮긴다.
               Positioned(
-                left: 16, right: 16, bottom: 16,
-                child: Center(child: Transform.translate(
-                  offset: _toolbarOffset,
-                  child: DashboardPalette(
+                left: 16 + tb.dx, right: 16 - tb.dx, bottom: 16 - tb.dy,
+                child: Center(child: DashboardPalette(
                     widgets: sections, layout: layout, onAdd: addWidget,
-                    onArrange: () => ref.read(homeDashboardProvider.notifier).save(autoArrange(layout)),
-                    onDone: () => setState(() => _editing = false),
-                    onDrag: (d) {
-                      // 화면 밖으로 사라지지 않게 대략 화면 안으로 묶는다
-                      final size = MediaQuery.sizeOf(context);
-                      final o = _toolbarOffset + d;
-                      setState(() => _toolbarOffset = Offset(o.dx.clamp(-size.width / 2 + 80, size.width / 2 - 80), o.dy.clamp(-size.height + 160, 0)));
+                    onArrange: () {
+                      final next = autoArrange(layout, visible: sections.keys.toSet());
+                      final moved = next.where((t) => layout.any((o) => o.id == t.id && o.y != t.y)).length;
+                      // 바뀐 게 없으면 저장하지 않고 이유를 알려 준다(눌렀는데 아무 일도 없어 보이지 않게)
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(moved == 0
+                          ? '이미 빈 줄 없이 정리돼 있어요 — 위로 올릴 위젯이 없습니다.'
+                          : '위젯 $moved개를 위쪽 빈자리로 올렸어요.')));
+                      if (moved > 0) ref.read(homeDashboardProvider.notifier).save(next);
                     },
-                  ),
+                    onDone: () => setState(() { _editing = false; _toolbarOffset = Offset.zero; }),
+                    onDrag: (d) => setState(() => _toolbarOffset = tb + d),
                 )),
               ),
-          ]),
+          ]);
+          }),
         ),
       );
     }
