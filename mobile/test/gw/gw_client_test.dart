@@ -39,7 +39,18 @@ void main() {
     var called = 0;
     final c = client(MockClient((_) async => http.Response('{"resultCode":140,"resultMsg":"no token"}', 401)), onUnauthorized: () => called++);
     await expectLater(c.call('/p', {}), throwsA(isA<GwUnauthorized>().having((e) => e.message.contains('g|7|s'), 'leak', false)));
+    await Future<void>.delayed(const Duration(milliseconds: 10)); // 세션 조회로 한 번 더 확인한 뒤에 알린다
     expect(called, 1);
+  });
+  test('401이어도 세션 조회가 통하면 만료로 알리지 않는다(앱을 다시 켜면 되던 거짓 만료), 동시 401은 확인 한 번', () async {
+    var called = 0, checks = 0;
+    final c = client(MockClient((r) async {
+      if (r.url.path == '/gw/gw050A02') { checks++; return ok({}); }
+      return http.Response('{"resultCode":140}', 401);
+    }), onUnauthorized: () => called++);
+    await Future.wait([for (var i = 0; i < 3; i++) expectLater(c.call('/p', {}), throwsA(isA<GwUnauthorized>()))]);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect((called, checks), (0, 1));
   });
   test('네트워크 예외는 GwException(status 0)', () async {
     final c = client(MockClient((_) async => throw http.ClientException('down')));

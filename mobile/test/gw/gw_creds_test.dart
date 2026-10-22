@@ -65,6 +65,7 @@ void main() {
     final client = container.read(gwClientProvider)!;
     final results = await Future.wait([client.call('/p', {}), client.call('/q', {})].map((f) => f.then((_) => 'ok').catchError((e) => e.runtimeType.toString())));
     expect(results, ['GwUnauthorized', 'GwUnauthorized']);
+    await Future<void>.delayed(const Duration(milliseconds: 10)); // 세션 조회도 401이어야 만료
     expect(container.read(gwProvider).value?.status, GwStatus.needsRelogin);
     expect(container.read(gwClientProvider), isNull); // 만료면 요청을 보내지 않는다
     await container.read(gwProvider.notifier).connect(const GwCreds(authToken: 'a|b|c', signKey: 'k2'));

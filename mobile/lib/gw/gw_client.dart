@@ -94,12 +94,32 @@ class GwClient {
     final code = asInt(v['resultCode'], -1);
     final msg = asStr(v['resultMsg']);
     if (res.statusCode == 401) {
-      onUnauthorized?.call();
+      _confirmExpired();
       throw GwUnauthorized(code);
     }
     if (res.statusCode < 200 || res.statusCode >= 300) throw GwException(res.statusCode, code, msg.isEmpty ? '요청에 실패했습니다 (HTTP ${res.statusCode})' : msg);
     if (code != 0 && code != 200) throw GwException(res.statusCode, code, msg.isEmpty ? '요청에 실패했습니다 (resultCode $code)' : msg);
     return v['resultData'];
+  }
+
+  Future<void>? _confirming;
+
+  /// 401 한 번으로 만료 처리하지 않는다 — 어떤 화면의 401 하나에 전체가 '로그인 만료'가 되고, 앱을 다시 켜면 같은 토큰이 멀쩡히 통했다(2026-10-22).
+  /// 세션 조회(gw050A02)로 한 번 더 확인해 그것도 401일 때만 만료로 알린다. 동시에 난 401은 확인 한 번을 공유한다.
+  void _confirmExpired() {
+    if (onUnauthorized == null || _confirming != null) return;
+    _confirming = () async {
+      try {
+        final res = await httpClient
+            .post(Uri.parse('$baseUrl/gw/gw050A02'), headers: _signed('/gw/gw050A02', 'application/x-www-form-urlencoded'), body: 'a10Domain=${Uri.encodeQueryComponent(baseUrl)}')
+            .timeout(const Duration(seconds: 15));
+        if (res.statusCode == 401) onUnauthorized!();
+      } catch (_) {
+        // 네트워크 오류는 만료 근거가 아니다
+      } finally {
+        _confirming = null;
+      }
+    }();
   }
 
   /// multipart/form-data POST(메일 발송 mail014A04·임시저장 A14). 서명 헤더는 같고, Content-Type(경계 포함)은 http가 채운다.

@@ -24,10 +24,13 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
   late Future<MailDetail> _future = _load();
   bool _busy = false;
   bool _loaded = false; // 본문을 다 읽은 뒤에만 삭제(늦게 끝난 색인 저장이 지운 메일을 되살리지 않게)
+  bool? _headerOpen; // 머리 정보 펼침 — 처음엔 좁은 화면이면 접힘
+  bool _html = false; // 서식 있는 본문인지(위 아이콘 줄이 본다)
 
   /// 읽은 본문은 검색 색인에도 넣는다(서버가 이미 읽음 처리한 메일이라 부작용 없음). 색인 실패는 화면에 영향 없음.
   Future<MailDetail> _load() async {
     final d = await widget.api.readMail(widget.item.muid);
+    if (mounted) setState(() => _html = d.html.trim().isNotEmpty);
     // 색인 저장이 끝난 뒤에야 삭제를 켠다 — 삭제 후 늦게 끝난 저장이 지운 메일을 되살리지 않게(본문 표시는 기다리지 않음)
     unawaited(ref.read(mailIndexProvider.notifier).putDetail(widget.api, widget.item, d).catchError((_) {}).whenComplete(() {
       if (mounted) setState(() => _loaded = true);
@@ -79,7 +82,10 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
         appBar: BrandHeader(
           title: widget.item.subject.isEmpty ? '(제목 없음)' : widget.item.subject,
           showBack: true,
-          actions: [SquareIconButton(icon: Icons.delete_outline, tooltip: '삭제(휴지통으로)', onPressed: _busy || !_loaded ? null : _delete)],
+          actions: [
+            // 좁은 화면의 서식 본문은 아래 고정 줄이 없어 여기서 되돌린다
+            if (_narrow(context) && _html) SquareIconButton(icon: Icons.mark_email_unread_outlined, tooltip: '안 읽음으로 되돌리기', onPressed: _busy ? null : _unread),
+            SquareIconButton(icon: Icons.delete_outline, tooltip: '삭제(휴지통으로)', onPressed: _busy || !_loaded ? null : _delete)],
         ),
         body: FutureBuilder(
           future: _future,
@@ -90,18 +96,29 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
             if (!snap.hasData) return const Center(child: CircularProgressIndicator());
             final m = snap.data!;
             if (m.html.trim().isNotEmpty) {
-              // 서식 있는 본문(아마란스 웹처럼 표·굵게·강조) — 머리 정보는 위에 접어 두고, 본문은 남은 높이를 다 쓴다
+              // 서식 있는 본문(아마란스 웹처럼 표·굵게·강조) — 머리 정보는 접을 수 있고(좁은 화면은 처음부터 접힘), 본문은 남은 높이를 다 쓴다.
+              // 좁은 화면은 아래 고정 줄도 없앤다: 안내문은 펼친 머리 정보 끝에, 안 읽음 되돌리기는 위 아이콘으로.
+              final narrow = _narrow(context);
+              final open = _headerOpen ??= !narrow;
+              final note = '${m.remoteImages > 0 ? '외부 이미지 ${m.remoteImages}개는 표시하지 않습니다 · ' : ''}본문 속 링크는 브라우저로 열립니다 · 첨부 내려받기는 아마란스에서 하세요.';
               return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.4),
-                  child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: _header(m))),
-                ),
-                const Divider(height: 20),
+                if (open)
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.4),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        ..._header(m),
+                        if (narrow) Padding(padding: const EdgeInsets.only(top: 8), child: Text(note, style: TextStyle(fontSize: 12, color: Brand.muted))),
+                      ]),
+                    ),
+                  ),
+                _HeaderToggle(open: open, summary: _summary(m), onTap: () => setState(() => _headerOpen = !open)),
                 Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: _MailHtmlView(html: m.html))),
-                Padding(
+                if (!narrow) Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
                   child: Row(children: [
-                    Expanded(child: Text('${m.remoteImages > 0 ? '외부 이미지 ${m.remoteImages}개는 표시하지 않습니다 · ' : ''}본문 속 링크는 브라우저로 열립니다 · 첨부 내려받기는 아마란스에서 하세요.', style: TextStyle(fontSize: 12, color: Brand.muted))),
+                    Expanded(child: Text(note, style: TextStyle(fontSize: 12, color: Brand.muted))),
                     const SizedBox(width: 8),
                     OutlinedButton.icon(onPressed: _busy ? null : _unread, icon: const Icon(Icons.mark_email_unread_outlined), label: const Text('안 읽음으로 되돌리기')),
                   ]),
@@ -120,6 +137,14 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
           },
         ),
       );
+
+  static bool _narrow(BuildContext context) => MediaQuery.sizeOf(context).width < 600;
+
+  /// 접힌 머리 정보 한 줄 — 보낸 사람 이름 · 시각 · 첨부 수
+  static String _summary(MailDetail m) {
+    final from = m.from.replaceAll(RegExp(r'\s*<[^>]*>'), '').trim();
+    return [if (from.isNotEmpty) from, niceDate(m.date), if (m.attachments.isNotEmpty) '첨부 ${m.attachments.length}'].join(' · ');
+  }
 
   List<Widget> _header(MailDetail m) => [
         Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
@@ -143,6 +168,26 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
       );
 
   static String _size(int n) => n >= 1024 * 1024 ? '${(n / 1024 / 1024).toStringAsFixed(1)}MB' : '${(n / 1024).ceil().clamp(1, 1 << 30)}KB';
+}
+
+/// 머리 정보 접기·펼치기 줄 — 접혀 있으면 요약 한 줄을 보인다.
+class _HeaderToggle extends StatelessWidget {
+  const _HeaderToggle({required this.open, required this.summary, required this.onTap});
+  final bool open;
+  final String summary;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
+          decoration: BoxDecoration(border: Border(top: open ? BorderSide(color: Brand.line) : BorderSide.none, bottom: BorderSide(color: Brand.line))),
+          child: Row(children: [
+            Expanded(child: Text(open ? '머리 정보 접기' : summary, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Brand.muted))),
+            Icon(open ? Icons.expand_less : Icons.expand_more, size: 20, color: Brand.muted),
+          ]),
+        ),
+      );
 }
 
 /// 받는 사람·참조 — 2명까지만 보이고 나머지는 "외 N명 더보기"로 펼친다.

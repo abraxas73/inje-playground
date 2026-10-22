@@ -86,7 +86,8 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
   /// 자동 로그인 워치독 — 25초 안에 완료(쿠키 확보)나 수동 전환이 안 되면 직접 로그인으로 떨어뜨린다(무한 대기 방지).
   void _armAutoWatch() {
     _autoWatch?.cancel();
-    _autoWatch = Timer(const Duration(seconds: 12), () {
+    _autoWatch = Timer(const Duration(seconds: 12), () async {
+      await _tick(); // 그사이 로그인이 끝났을 수 있다(아마란스 응답이 느린 날) — 쿠키부터 한 번 더 본다
       if (mounted && _auto && !_busy) {
         setState(() {
           // 오류 경로와 같게: 아이디를 채운 네이티브 입력 폼으로 떨어뜨린다(플랫폼 무관하게 안전).
