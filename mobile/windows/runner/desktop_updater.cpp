@@ -83,7 +83,7 @@ bool DesktopUpdater::Install(const innocrew::UpdateRequest& request) {
   if (!local_feed_.Start(request.version, request.signature)) { lifecycle_.Reset(); return false; }
   const std::string version = innocrew::MarketingVersion(FLUTTER_VERSION);
   const std::wstring wide_version(version.begin(), version.end());
-  win_sparkle_set_app_details(L"INNOGRID", L"이노크루", wide_version.c_str());
+  win_sparkle_set_app_details(L"INNOGRID", L"INNOCREW", wide_version.c_str());
   win_sparkle_set_automatic_check_for_updates(0);
   // Remote appcasts can redirect and introduce a new credential-bearing request.
   // Our exclusively owned loopback feed contains only the fixed official URL.

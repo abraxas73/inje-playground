@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.innogrid" "\0"
-            VALUE "FileDescription", "INNOGRID" "\0"
+            VALUE "FileDescription", "INNOCREW" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "INNOGRID" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.innogrid. All rights reserved." "\0"
             VALUE "OriginalFilename", "INNOGRID.exe" "\0"
-            VALUE "ProductName", "INNOGRID" "\0"
+            VALUE "ProductName", "INNOCREW" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

@@ -37,7 +37,7 @@ Future<FlutterLocalNotificationsPlugin> _notifications() async {
   await plugin.initialize(
     settings: const InitializationSettings(
       macOS: DarwinInitializationSettings(requestBadgePermission: false),
-      windows: WindowsInitializationSettings(appName: 'INNOGRID', appUserModelId: 'Innogrid.INNOGRID', guid: 'c3b2a1f0-5d4e-4a6b-9c8d-7e6f5a4b3c2d'),
+      windows: WindowsInitializationSettings(appName: 'INNOCREW', appUserModelId: 'Innogrid.INNOGRID', guid: 'c3b2a1f0-5d4e-4a6b-9c8d-7e6f5a4b3c2d'),
     ),
     onDidReceiveNotificationResponse: (r) => messengerNotifyTap.value = (r.payload == null || r.payload!.isEmpty) ? '/gw/messenger' : r.payload,
   );
