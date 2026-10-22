@@ -53,7 +53,10 @@ class GwTalkAlert {
 final _mention = RegExp(r'\|>@empseq="[^"]*",name="([^"]*)"@<\|');
 
 /// 멘션 표식 → @이름, 공백 정리
-String stripTalkMentions(String s) => s.replaceAllMapped(_mention, (m) => '@${m[1]}').replaceAll(RegExp(r'\s+'), ' ').trim();
+String stripTalkMentions(String s) => replaceTalkMentions(s).replaceAll(RegExp(r'\s+'), ' ').trim();
+
+/// 멘션 표식만 @이름으로 — 줄바꿈·띄어쓰기는 그대로(대화 본문용). 한 줄 미리보기는 [stripTalkMentions].
+String replaceTalkMentions(String s) => s.replaceAllMapped(_mention, (m) => '@${m[1]}');
 
 /// "[일반미팅룸] 김명진님의 알파멘션" → "일반미팅룸"
 String talkRoom(String title) => RegExp(r'^\s*\[([^\]]+)\]').firstMatch(title)?.group(1)?.trim() ?? '';

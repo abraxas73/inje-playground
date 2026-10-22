@@ -23,11 +23,15 @@ class MailDetailScreen extends ConsumerStatefulWidget {
 class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
   late Future<MailDetail> _future = _load();
   bool _busy = false;
+  bool _loaded = false; // 본문을 다 읽은 뒤에만 삭제(늦게 끝난 색인 저장이 지운 메일을 되살리지 않게)
 
   /// 읽은 본문은 검색 색인에도 넣는다(서버가 이미 읽음 처리한 메일이라 부작용 없음). 색인 실패는 화면에 영향 없음.
   Future<MailDetail> _load() async {
     final d = await widget.api.readMail(widget.item.muid);
-    unawaited(ref.read(mailIndexProvider.notifier).putDetail(widget.api, widget.item, d).catchError((_) {}));
+    // 색인 저장이 끝난 뒤에야 삭제를 켠다 — 삭제 후 늦게 끝난 저장이 지운 메일을 되살리지 않게(본문 표시는 기다리지 않음)
+    unawaited(ref.read(mailIndexProvider.notifier).putDetail(widget.api, widget.item, d).catchError((_) {}).whenComplete(() {
+      if (mounted) setState(() => _loaded = true);
+    }));
     return d;
   }
 
@@ -45,9 +49,38 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
     }
   }
 
+  /// 휴지통으로 이동 — 되돌리기는 아마란스 휴지통에서. 확인을 받은 뒤에만.
+  Future<void> _delete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('이 메일을 삭제할까요?'),
+        content: const Text('아마란스 휴지통으로 옮깁니다. 되살리려면 아마란스 메일의 휴지통에서 복원하세요.'),
+        actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('취소')), FilledButton(style: FilledButton.styleFrom(backgroundColor: Brand.danger), onPressed: () => Navigator.pop(c, true), child: const Text('삭제'))],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await widget.api.deleteMail(widget.item.muid);
+      unawaited(ref.read(mailIndexProvider.notifier).remove(widget.item.muid).catchError((_) {}));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('휴지통으로 옮겼습니다.')));
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('삭제하지 못했습니다: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: BrandHeader(title: widget.item.subject.isEmpty ? '(제목 없음)' : widget.item.subject, showBack: true),
+        appBar: BrandHeader(
+          title: widget.item.subject.isEmpty ? '(제목 없음)' : widget.item.subject,
+          showBack: true,
+          actions: [SquareIconButton(icon: Icons.delete_outline, tooltip: '삭제(휴지통으로)', onPressed: _busy || !_loaded ? null : _delete)],
+        ),
         body: FutureBuilder(
           future: _future,
           builder: (context, snap) {

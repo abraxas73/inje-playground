@@ -88,6 +88,13 @@ void main() {
     final room = MsgRoom.minimal('r').copyPreview(raw);
     expect(room.preview, startsWith('@김민철 @김홍진'));
   });
+
+  test('대화 본문은 줄바꿈을 그대로 둔다(미리보기만 한 줄로)', () {
+    const raw = '안내드립니다.\n1. 첫째\n2. 둘째 |>@empseq="1",name="홍길동"@<|';
+    final chat = MsgChat.fromRow({'chatId': '1', 'roomId': 'r', 'sendEmpSeq': '9', 'content': raw, 'contentType': '0', 'timeStamp': 1});
+    expect(chat.displayContent, '안내드립니다.\n1. 첫째\n2. 둘째 @홍길동');
+    expect(MsgRoom.minimal('r').copyPreview(raw).preview, '안내드립니다. 1. 첫째 2. 둘째 @홍길동');
+  });
 }
 
 extension on MsgRoom {

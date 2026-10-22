@@ -1,5 +1,5 @@
 import '../gw/gw_client.dart' show asStr, asInt;
-import '../gw/talk_alerts.dart' show stripTalkMentions;
+import '../gw/talk_alerts.dart' show replaceTalkMentions, stripTalkMentions;
 
 /// 아마란스 메신저 응답 정제 — 순수 함수(네트워크 없음). 필드 출처: 메신저 번들 렌더러
 /// (`DZRoomCard.vue`·`DZChatItem.vue`·`roomInfo.js`)와 `dz/dzhttp.js`. 서버 값은 asStr/asInt로만 읽는다.
@@ -127,7 +127,7 @@ class MsgChat {
   bool get deleted => contentType == '7';
 
   /// 화면에 보일 본문 — 멘션 표식 |>@empseq=…,name="X"@<| 을 @X로 바꾼다.
-  String get displayContent => stripTalkMentions(content);
+  String get displayContent => replaceTalkMentions(content).trim(); // 줄바꿈 유지(목록 미리보기만 한 줄로 합침)
 
   static MsgChat fromRow(Map r) => MsgChat(
         chatId: _asStr(r['chatId']),

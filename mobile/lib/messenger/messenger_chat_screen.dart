@@ -353,14 +353,17 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
 
   String _fileSize(int b) => b >= 1048576 ? '${(b / 1048576).toStringAsFixed(1)}MB' : b >= 1024 ? '${(b / 1024).toStringAsFixed(0)}KB' : '${b}B';
 
-  Widget _bubble(MsgChat c, bool mine) {
+  Widget _bubble(MsgChat c, bool mine) => LayoutBuilder(builder: (context, box) => _bubbleIn(c, mine, box.maxWidth * 0.8));
+
+  Widget _bubbleIn(MsgChat c, bool mine, double maxW) {
     final text = c.deleted ? '삭제된 메시지입니다.' : c.displayContent;
     final name = _names[c.sendEmpSeq];
     final time = c.at == null ? '' : _hhmm(c.at!);
     final bubble = Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      constraints: const BoxConstraints(maxWidth: 280),
+      // 대화 영역 실제 폭의 80%까지(고정 상한 없음) — 강제 줄바꿈이 아니면 한 줄로. 좌우 정렬로 내 것/상대 것 구분은 유지.
+      constraints: BoxConstraints(maxWidth: maxW),
       decoration: BoxDecoration(color: mine ? Brand.botViolet : Brand.blueTint, borderRadius: BorderRadius.circular(14)),
       child: Text(text, style: TextStyle(color: mine ? Colors.white : Brand.navy, height: 1.4, fontStyle: c.deleted ? FontStyle.italic : FontStyle.normal)),
     );

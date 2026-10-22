@@ -61,4 +61,20 @@ void main() {
     expect(copied, '복사할 대화 본문입니다');
     expect(api.reads, 1); // 같은 마지막 대화면 새로고침해도 읽음 처리를 반복하지 않는다
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('넓은 창에서는 긴 메시지도 한 줄(줄바꿈 문자만 줄을 바꾼다)', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1800, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(ProviderScope(overrides: [
+      messengerApiProvider.overrideWithValue(_Api()),
+      messengerMqttProvider.overrideWithValue(MessengerMqtt()),
+    ], child: MaterialApp(home: MessengerRoomScreen(room: MsgRoom.minimal('r1', title: '개발팀')))));
+    await tester.pumpAndSettle();
+    final one = tester.getSize(find.text('복사할 대화 본문입니다'));
+    // 예전 고정 폭(280)이면 이 길이는 넘치지 않지만, 폭 제한 자체가 화면의 80%인지 확인
+    final box = tester.widget<Container>(find.ancestor(of: find.text('복사할 대화 본문입니다'), matching: find.byType(Container)).first);
+    expect(box.constraints?.maxWidth, greaterThan(1000));
+    expect(one.height, lessThan(30)); // 한 줄
+  });
 }
+

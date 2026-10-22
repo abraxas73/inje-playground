@@ -9,7 +9,7 @@ UsePreviousAppDir=no
 #else
 AppId={{CA6A3414-7E01-4B96-B198-913822B4E099}
 #endif
-AppName=INNOGRID
+AppName=INNOCREW
 AppVersion={#AppVersion}
 VersionInfoVersion={#AppVersion}
 AppPublisher=INNOGRID
@@ -39,14 +39,17 @@ Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignore
 #endif
 #ifndef UpdaterTest
 [Icons]
-Name: "{group}\INNOGRID"; Filename: "{app}\INNOGRID.exe"
+Name: "{group}\INNOCREW"; Filename: "{app}\INNOGRID.exe"
+[InstallDelete]
+; 이름 변경(2026-10-22) 전 시작 메뉴 바로가기 정리 — 설치 폴더·exe 이름은 업데이트 호환 위해 INNOGRID 유지
+Type: files; Name: "{group}\INNOGRID.lnk"
 [Registry]
 Root: HKCU; Subkey: "Software\Classes\innogrid"; ValueType: string; ValueData: "URL:INNOGRID Protocol"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\innogrid"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
 Root: HKCU; Subkey: "Software\Classes\innogrid\shell\open\command"; ValueType: string; ValueData: """{app}\INNOGRID.exe"" ""%1"""
 #endif
 [Run]
-Filename: "{app}\INNOGRID.exe"; Description: "INNOGRID 실행"; Flags: nowait postinstall skipifsilent; Check: not IsAutomaticUpdate
+Filename: "{app}\INNOGRID.exe"; Description: "INNOCREW 실행"; Flags: nowait postinstall skipifsilent; Check: not IsAutomaticUpdate
 Filename: "{app}\INNOGRID.exe"; Flags: nowait; Check: IsAutomaticUpdate
 
 [Code]
