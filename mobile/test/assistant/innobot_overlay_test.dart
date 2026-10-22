@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -196,4 +197,26 @@ void main() {
     expect(await c.read(appFavoritesProvider.notifier).toggle('/gw/mail', '메일'), isFalse);
     expect(c.read(appFavoritesProvider).value, isEmpty);
   });
+
+  testWidgets('버튼 오른쪽 클릭 → 버튼 숨기기 → 하단 작은 아이콘만, 누르면 복귀(기기 기억)', (t) async {
+    final s = FakeSettings();
+    final router = testRouter();
+    await t.pumpWidget(app(router, s));
+    await t.pumpAndSettle();
+    final bot = find.byType(InnobotButton);
+    expect(bot, findsOneWidget);
+    await t.tapAt(t.getCenter(find.byTooltip('비서 이노봇')), buttons: kSecondaryMouseButton, kind: PointerDeviceKind.mouse);
+    await t.pumpAndSettle();
+    await t.tap(find.text('버튼 숨기기'));
+    await t.pump(const Duration(milliseconds: 400)); // 복귀 아이콘이 계속 깜빡여 pumpAndSettle은 끝나지 않는다
+    expect(find.byType(InnobotButton), findsNothing);
+    expect(find.byType(FabsRestoreButton), findsOneWidget);
+    expect((await SharedPreferences.getInstance()).getBool('innobot.fabs.hidden'), isTrue);
+    await t.tap(find.byType(FabsRestoreButton));
+    await t.pump(const Duration(milliseconds: 100));
+    expect(find.byType(InnobotButton), findsOneWidget);
+    expect(find.byType(FabsRestoreButton), findsNothing);
+    expect((await SharedPreferences.getInstance()).getBool('innobot.fabs.hidden'), isFalse);
+  });
 }
+

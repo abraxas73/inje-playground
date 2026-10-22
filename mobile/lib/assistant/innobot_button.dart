@@ -20,7 +20,7 @@ import 'innobot_prefs.dart';
 /// showClaude면 바로 위에 Claude 열기 버튼(ClaudeButton)을 함께 띄우고 같이 끌린다(기본: 데스크톱).
 /// bottomInset은 하단 바·안전 영역만큼 올리는 값, sheetContext는 시트를 띄울 내비게이터 아래 context(앱 전체 레이어에서 쓸 때).
 class InnobotButton extends ConsumerStatefulWidget {
-  const InnobotButton({super.key, this.showClaude, this.bottomInset = 0, this.sheetContext, this.onOpenPath});
+  const InnobotButton({super.key, this.showClaude, this.bottomInset = 0, this.sheetContext, this.onOpenPath, this.onContextMenu});
   static bool get showsClaude => Platform.isMacOS || Platform.isWindows;
   final bool? showClaude;
   final double bottomInset;
@@ -28,6 +28,9 @@ class InnobotButton extends ConsumerStatefulWidget {
 
   /// 즐겨찾기 페이지 열기(앱 안 경로). 없으면 ★ 버튼을 그리지 않는다.
   final void Function(String path)? onOpenPath;
+
+  /// 버튼 묶음 오른쪽 클릭(데스크톱) — 화면 좌표. '버튼 숨기기' 메뉴용.
+  final void Function(Offset globalPosition)? onContextMenu;
   @override
   ConsumerState<InnobotButton> createState() => _InnobotButtonState();
 }
@@ -58,6 +61,7 @@ class _InnobotButtonState extends ConsumerState<InnobotButton> {
             math.max(8.0, MediaQuery.of(context).size.height - 200 - widget.bottomInset),
           ),
           child: GestureDetector(
+            onSecondaryTapUp: widget.onContextMenu == null ? null : (d) => widget.onContextMenu!(d.globalPosition),
             onLongPressStart: (_) => _dragStart = _bottom,
             onLongPressMoveUpdate: (d) => setState(
               () => _bottom = (_dragStart - d.offsetFromOrigin.dy).clamp(
@@ -199,7 +203,16 @@ class InnobotOverlay extends ConsumerWidget {
               return const SizedBox.shrink();
             }
             // 탭 화면은 하단 바(NavigationBar 80) 위로
-            final inset = MediaQuery.paddingOf(context).bottom + (hasBottomBar(path) ? 80 : 0);
+            final pad = MediaQuery.paddingOf(context).bottom, bar = hasBottomBar(path);
+            final inset = pad + (bar ? 80 : 0);
+            if (ref.watch(innobotFabsHiddenProvider)) {
+              if (favoritesOpen.value) WidgetsBinding.instance.addPostFrameCallback((_) => favoritesOpen.value = false);
+              if (notifOpen.value) WidgetsBinding.instance.addPostFrameCallback((_) => notifOpen.value = false);
+              // 숨김 상태 — 하단 바 오른쪽(더보기 옆)에 작은 아이콘이 숨 쉬듯 깜빡이며 기다린다. 누르면 복귀.
+              return Stack(children: [
+                Positioned(right: 10, bottom: bar ? pad + 26 : pad + 10, child: FabsRestoreButton(onTap: () => ref.read(innobotFabsHiddenProvider.notifier).set(false))),
+              ]);
+            }
             return Stack(children: [
               // 즐겨찾기·알림을 펼치면 바깥을 살짝 어둡게 — 누르면 닫힌다
               if (favoritesOpen.value || notifOpen.value)
@@ -219,6 +232,16 @@ class InnobotOverlay extends ConsumerWidget {
                 sheetContext: () => router.routerDelegate.navigatorKey.currentContext,
                 // 탭 화면(/food 등)은 그 탭으로, 나머지(웹·아마란스·Dooray)는 바 틀 안에 쌓는다
                 onOpenPath: (p) => isBranchRoot(p) ? router.go(p) : router.push(p),
+                onContextMenu: (pos) async {
+                  final ctx = router.routerDelegate.navigatorKey.currentContext;
+                  if (ctx == null) return;
+                  final v = await showMenu<String>(
+                    context: ctx,
+                    position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx, pos.dy),
+                    items: const [PopupMenuItem(value: 'hide', child: Row(children: [Icon(Icons.visibility_off_outlined, size: 18), SizedBox(width: 10), Text('버튼 숨기기')]))],
+                  );
+                  if (v == 'hide') ref.read(innobotFabsHiddenProvider.notifier).set(true);
+                },
               ),
             ]);
           },
@@ -275,6 +298,41 @@ class _RoundButton extends StatelessWidget {
             customBorder: const CircleBorder(),
             onTap: onTap,
             child: Padding(padding: const EdgeInsets.all(6), child: child),
+          ),
+        ),
+      );
+}
+
+/// 숨긴 버튼 묶음을 다시 보이게 하는 작은 아이콘(26px) — 옅게 숨 쉬듯 깜빡인다.
+class FabsRestoreButton extends StatefulWidget {
+  const FabsRestoreButton({super.key, required this.onTap});
+  final VoidCallback onTap;
+  @override
+  State<FabsRestoreButton> createState() => _FabsRestoreButtonState();
+}
+
+class _FabsRestoreButtonState extends State<FabsRestoreButton> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..repeat(reverse: true);
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+        message: '이노봇·바로가기 버튼 다시 보이기',
+        child: FadeTransition(
+          opacity: Tween(begin: 0.45, end: 1.0).animate(_c),
+          child: Material(
+            color: Brand.blue,
+            shape: const CircleBorder(),
+            elevation: 3,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: widget.onTap,
+              child: const SizedBox(width: 26, height: 26, child: Icon(Icons.smart_toy_outlined, size: 15, color: Colors.white)),
+            ),
           ),
         ),
       );
