@@ -465,11 +465,12 @@ class _AssistantSheetState extends ConsumerState<AssistantSheet> {
                   Expanded(
                     child: TextField(
                       controller: _input,
-                      enabled: !st.busy,
+                      // 답을 기다리는 동안에도 비활성화하지 않는다(비활성화하면 포커스를 잃는다) — 보내기는 _send가 busy로 막는다
                       minLines: 1,
                       maxLines: 4,
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _send(),
+                      onEditingComplete: () {}, // 보낸 뒤에도 입력창에 포커스 유지(이어서 입력) — 기본 동작은 포커스를 놓는다
                       decoration: InputDecoration(
                         hintText: _listening
                             ? '듣고 있어요…'

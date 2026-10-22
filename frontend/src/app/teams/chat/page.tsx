@@ -41,6 +41,7 @@ export default function TeamsChatPage() {
   const [loaded, setLoaded] = useState(false);
   const sinceRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const ready = Boolean(info?.connected && info.hasChatScope);
   const current = info?.chats?.find((c) => c.id === chatId) ?? null;
 
@@ -131,6 +132,7 @@ export default function TeamsChatPage() {
       setError(null);
     } finally {
       setSending(false);
+      inputRef.current?.focus(); // 보낸 뒤에도 입력창에 — 이어서 대화
     }
   };
 
@@ -240,6 +242,7 @@ export default function TeamsChatPage() {
             {error && <p className="border-t px-4 py-2 text-xs text-destructive">{error}</p>}
             <form className="flex items-end gap-2 border-t p-3" onSubmit={(e) => { e.preventDefault(); void send(); }}>
               <Textarea
+                ref={inputRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 {...enterKeys}

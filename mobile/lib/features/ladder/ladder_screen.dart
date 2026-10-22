@@ -231,6 +231,7 @@ class _LadderScreenState extends ConsumerState<LadderScreen>
                                 hintText: '예: 커피 사기',
                               ),
                               onSubmitted: (_) => _addResult(),
+                              onEditingComplete: () {}, // 보낸 뒤에도 입력창에 포커스 유지(이어서 입력) — 기본 동작은 포커스를 놓는다
                             ),
                           ),
                           const SizedBox(width: 8),

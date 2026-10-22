@@ -147,6 +147,7 @@ class _ParticipantPickerState extends State<ParticipantPicker> {
                     controller: _ctl,
                     decoration: const InputDecoration(hintText: '직접 입력'),
                     onSubmitted: (_) => _add(),
+                    onEditingComplete: () {}, // 보낸 뒤에도 입력창에 포커스 유지(이어서 입력) — 기본 동작은 포커스를 놓는다
                   ),
                 ),
                 const SizedBox(width: 8),
