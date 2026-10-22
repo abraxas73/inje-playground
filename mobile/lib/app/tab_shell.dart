@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../assistant/assistant_session.dart' show assistantAvailableProvider;
+import '../assistant/innobot_button.dart' show FabsRestoreButton;
 import '../assistant/innobot_prefs.dart';
 import '../auth/session.dart';
 import '../more/catalog.dart';
@@ -186,7 +188,8 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
             ),
           ],
         ),
-        bottomNavigationBar: NavigationBar(
+        // 떠 있는 버튼을 숨겼으면 '더보기' 오른쪽에 복귀 아이콘 칸(바와 겹치지 않게 옆에)
+        bottomNavigationBar: _withRestore(NavigationBar(
           selectedIndex: selected,
           onDestinationSelected: (i) {
             if (i == 0) return _goBranch(_homeBranch);
@@ -205,8 +208,20 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
               ),
             const NavigationDestination(icon: Icon(Icons.more_horiz), label: '더보기'),
           ],
-        ),
+        )),
       ),
+    );
+  }
+
+  Widget _withRestore(Widget bar) {
+    final show = ref.watch(innobotFabsHiddenProvider) && (ref.watch(innobotButtonPrefProvider).value ?? true) && ref.watch(assistantAvailableProvider);
+    if (!show) return bar;
+    return ColoredBox(
+      color: NavigationBarTheme.of(context).backgroundColor ?? Theme.of(context).colorScheme.surfaceContainer,
+      child: Row(children: [
+        Expanded(child: bar),
+        SafeArea(top: false, left: false, child: Padding(padding: const EdgeInsets.only(right: 10, left: 4), child: FabsRestoreButton(onTap: () => ref.read(innobotFabsHiddenProvider.notifier).set(false)))),
+      ]),
     );
   }
 }

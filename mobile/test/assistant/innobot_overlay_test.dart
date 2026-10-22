@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -195,5 +196,20 @@ void main() {
     expect(await c.read(appFavoritesProvider.future), isEmpty);
     expect(await c.read(appFavoritesProvider.notifier).toggle('/gw/mail', '메일'), isFalse);
     expect(c.read(appFavoritesProvider).value, isEmpty);
+  });
+
+  testWidgets('버튼 오른쪽 클릭 → 버튼 숨기기: 4개가 사라지고 기기에 기억(하단 바 화면의 복귀 아이콘은 탭 셸이 그린다)', (t) async {
+    final s = FakeSettings();
+    final router = testRouter();
+    await t.pumpWidget(app(router, s));
+    await t.pumpAndSettle();
+    expect(find.byType(InnobotButton), findsOneWidget);
+    await t.tapAt(t.getCenter(find.byTooltip('비서 이노봇')), buttons: kSecondaryMouseButton, kind: PointerDeviceKind.mouse);
+    await t.pumpAndSettle();
+    await t.tap(find.text('버튼 숨기기'));
+    await t.pumpAndSettle();
+    expect(find.byType(InnobotButton), findsNothing);
+    expect(find.byType(FabsRestoreButton), findsNothing); // 바 있는 화면 → 바 옆 칸(탭 셸)에서
+    expect((await SharedPreferences.getInstance()).getBool('innobot.fabs.hidden'), isTrue);
   });
 }

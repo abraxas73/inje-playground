@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../api/client.dart';
 import '../auth/session.dart';
 
@@ -73,3 +74,20 @@ bool showsClaudeAt(String path, {bool? desktop}) => (desktop ?? (Platform.isMacO
 
 /// 탭 첫 화면 경로인가(즐겨찾기를 열 때 push 대신 그 탭으로 간다).
 bool isBranchRoot(String path) => const {'/home', '/food', '/ladder', '/team', '/more'}.contains(path);
+
+/// 떠 있는 버튼 묶음(알림·즐겨찾기·Claude·이노봇)을 잠시 숨겼는지 — 버튼 오른쪽 클릭 '버튼 숨기기', 하단 바 오른쪽 작은 아이콘으로 복귀. 기기에 기억.
+final innobotFabsHiddenProvider = NotifierProvider<InnobotFabsHidden, bool>(InnobotFabsHidden.new);
+
+/// 시작 때 미리 읽은 저장값(main.dart가 override) — 켤 때 버튼이 잠깐 보였다 사라지지 않게.
+final innobotFabsHiddenInitialProvider = Provider<bool>((ref) => false);
+
+class InnobotFabsHidden extends Notifier<bool> {
+  static const key = 'innobot.fabs.hidden';
+  @override
+  bool build() => ref.read(innobotFabsHiddenInitialProvider);
+
+  void set(bool hidden) {
+    state = hidden;
+    SharedPreferences.getInstance().then((p) => p.setBool(key, hidden)).catchError((_) => false);
+  }
+}

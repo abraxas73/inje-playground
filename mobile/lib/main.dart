@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'release/desktop_update_host.dart';
 import 'assistant/innobot_button.dart';
+import 'assistant/innobot_prefs.dart';
 import 'assistant/assistant_window.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/router.dart';
 import 'briefing/live_background.dart';
@@ -28,7 +30,12 @@ Future<void> main() async {
     publishableKey: Config.supabaseAnonKey,
   );
   unawaited(registerLiveBackground());
-  runApp(const ProviderScope(child: App()));
+  // 떠 있는 버튼 숨김 여부는 첫 화면 전에 읽어 둔다(켤 때 깜빡임 방지)
+  var fabsHidden = false;
+  try {
+    fabsHidden = (await SharedPreferences.getInstance()).getBool(InnobotFabsHidden.key) ?? false;
+  } catch (_) {}
+  runApp(ProviderScope(overrides: [innobotFabsHiddenInitialProvider.overrideWithValue(fabsHidden)], child: const App()));
 }
 
 class App extends ConsumerStatefulWidget {
