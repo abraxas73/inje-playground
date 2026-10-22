@@ -197,7 +197,11 @@ class _DashboardViewState extends State<DashboardView> {
                       : Container(
                           decoration: BoxDecoration(color: widgetBgColor(widget.bgOf!(t.id)), borderRadius: BorderRadius.circular(18), border: Border.all(color: Brand.line)),
                           padding: const EdgeInsets.all(4),
-                          child: content,
+                          // 위젯 바깥 카드는 영역 바탕을 그대로 보이게(투명) — 아니면 고른 배경색이 가장자리에만 보인다
+                          child: Theme(
+                            data: Theme.of(context).copyWith(cardTheme: Theme.of(context).cardTheme.copyWith(color: Colors.transparent, surfaceTintColor: Colors.transparent, elevation: 0, shadowColor: Colors.transparent)),
+                            child: content,
+                          ),
                         ),
                 ),
     );

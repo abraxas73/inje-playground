@@ -105,6 +105,7 @@ void main() {
     await tester.pumpAndSettle();
     final box = tester.widget<Container>(find.ancestor(of: find.text('메일 내용'), matching: find.byType(Container)).first);
     expect((box.decoration as BoxDecoration).color, widgetBgChoices[1].$2); // 민트 바탕
+    expect(Theme.of(tester.element(find.text('메일 내용'))).cardTheme.color, Colors.transparent); // 안쪽 카드는 투명 → 바탕색이 보인다
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: tester.getCenter(find.text('메일 내용')));
     await tester.pumpAndSettle();
