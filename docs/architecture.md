@@ -1,6 +1,6 @@
 # INNOCREW 시스템 아키텍처
 
-> 기준: 2026-10-16, main `bca2858` 이후(앱 1.7.2+53). 코드에서 확인한 내용이다. 각 기능의 상세 운영 절차는 끝의 [참고 문서](#16-참고-문서)에 있는 런북에 있고, 이 문서는 **구성 요소가 어떻게 맞물리는지**를 한곳에 모은다.
+> 기준: 2026-10-23, main `a041761f` 이후(앱 1.7.58+109). 코드에서 확인한 내용이다. 각 기능의 상세 운영 절차는 끝의 [참고 문서](#16-참고-문서)에 있는 런북에 있고, 이 문서는 **구성 요소가 어떻게 맞물리는지**를 한곳에 모은다.
 >
 > 문서와 코드가 어긋나 있던 부분은 [§15 알려진 차이·점검 필요 사항](#15-알려진-차이점검-필요-사항)에 모았다.
 
@@ -55,11 +55,10 @@ flowchart LR
     DB[("Postgres<br/>RLS·RPC·pg_cron·Vault")]
     AUTH["Auth<br/>(Azure·Google OAuth,<br/>OAuth 2.1 서버)"]
     ST[("Storage 버킷")]
-    RT["Realtime<br/>(mcp_calls)"]
     EF["Edge Function<br/>yonhap-notices"]
   end
 
-  FLY["nlm-service<br/>FastAPI on Fly.io<br/>(NotebookLM)"]
+  FLY["nlm-service<br/>FastAPI on Fly.io<br/>(NotebookLM)<br/>2026-10-16 운영 중지"]
   GW["아마란스 그룹웨어"]
   EXT["Microsoft Graph · Atlassian · Dooray<br/>Kakao · PAYCO · Anthropic · Stripe"]
 
@@ -69,11 +68,11 @@ flowchart LR
   CLAUDE -->|"MCP + OAuth 2.1"| FE
   APP --> GW
   DESK --> GW
-  DESK <-->|"Realtime 구독·claim"| RT
+  DESK <-->|"mcp_calls 2초 폴링·claim"| DB
   FE --> DB
   FE --> ST
   FE --> PPT
-  FE --> FLY
+  FE -.->|"중지"| FLY
   FE --> EXT
   AUTH --- FE
   EF --> DB
@@ -86,10 +85,10 @@ flowchart LR
 |---|---|---|
 | frontend | `frontend/` | 웹 화면과 모든 서버 API(인증·권한·감사·기능·이노봇·MCP). Vercel `innogrid-playground` 프로젝트, 리전 `icn1` |
 | ppt-service | `ppt-service/` | PPT 생성 엔진(FastAPI + 디자인센터 패키지 `innogrid_ppt`). Vercel 별도 프로젝트 |
-| nlm-service | `nlm-service/` | 가이드 Q&A용 NotebookLM 프록시(FastAPI). Fly.io `inje-nlm-service` |
+| nlm-service | `nlm-service/` | 가이드 Q&A용 NotebookLM 프록시(FastAPI). Fly.io `inje-nlm-service`. **2026-10-16 운영 중지**(머신 0대) |
 | mobile | `mobile/` | Flutter 앱 하나로 iOS·Android·macOS·Windows를 빌드. 아마란스는 **앱이 직접** 호출하고, 데스크톱은 Claude 커넥터의 실행기 역할도 한다 |
-| Supabase | 프로젝트 `avooqcxehfeurjhqqgui` | DB·Auth·Storage·Realtime·Edge Function·pg_cron·Vault |
-| 운영자 Mac | launchd | 사내망·개인 로그인이 필요한 수집 작업(GitLab·조직도·Claude 사용량 CSV·시트 실행기) |
+| Supabase | 프로젝트 `avooqcxehfeurjhqqgui` | DB·Auth·Storage·Edge Function·pg_cron·Vault(Realtime은 2026-10-21부터 쓰지 않음) |
+| 운영자 Mac | launchd 4개 | 사내망·개인 로그인이 필요한 수집 작업(GitLab·Teams 격언·Claude 사용량 CSV·시트 실행기) + 조직도 수동 동기화 |
 
 ### 1.2 설계 원칙
 
@@ -110,8 +109,8 @@ flowchart LR
 | frontend | Vercel `innogrid-playground`, 리전 `icn1`. 정식 도메인 `innocrew.innogrid.com`(2026-10-10~), 예전 `inje-playground.vercel.app` | Git 자동 배포가 아니라 **수동** 배포다. `frontend/`에서 `vercel --prod --yes`를 실행한다(루트에서 실행하면 새 프로젝트가 생긴다). 배포 뒤 `vercel inspect https://innocrew.innogrid.com`으로 별칭이 새 배포를 가리키는지 확인한다 |
 | ppt-service | Vercel 별도 프로젝트 `innogrid-ppt-service.vercel.app`(framework fastapi, `icn1`) | `cd ppt-service && vercel deploy --prod --yes` |
 | nlm-service | Fly.io `inje-nlm-service`, 리전 `nrt`, 볼륨 `nlm_data`(NotebookLM 쿠키). **2026-10-16 운영 중지(머신 0대)** | `nlm-service/scripts/deploy.sh`, 재가동 `fly scale count 1` |
-| Supabase | DB·Auth·Storage·Realtime·Edge Functions·pg_cron·Vault | SQL은 `docs/sql/*.sql`을 수동 적용(Management API 또는 `supabase db query --linked`). Edge Function은 `supabase functions deploy yonhap-notices` |
-| 앱 | TestFlight(iOS 내부 테스트), Google Play 내부 테스트 + `/apps` APK, macOS DMG·Windows 설치 파일(웹 `/apps`) | 스크립트로 수동 배포([§11](#11-릴리스배포-파이프라인)) |
+| Supabase | DB·Auth·Storage·Edge Functions·pg_cron·Vault | SQL은 `docs/sql/*.sql`을 수동 적용(Management API 또는 `supabase db query --linked`). Edge Function은 `supabase functions deploy yonhap-notices` |
+| 앱 | TestFlight(iOS 내부 테스트), Google Play 내부 테스트(2026-10-22부터 Android는 이것만 — 웹 `/apps`는 참여 링크, 스토리지 APK는 백업용), macOS DMG·Windows 설치 파일(웹 `/apps`, 설치 뒤에는 앱 자동 업데이트) | 스크립트로 수동 배포([§11](#11-릴리스배포-파이프라인)) |
 
 **Vercel 크론**: `frontend/vercel.json`에 정의돼 있고 모두 `Authorization: Bearer CRON_SECRET`으로 인증한다.
 
@@ -237,7 +236,7 @@ sequenceDiagram
 |---|---|
 | 일상 | `food`·`ladder`·`team`·`survey`(guest), `apps`(user) |
 | AI | `assistant`(/chat), `usage_code`, `usage_chat`, `usage_perf` |
-| 업무 | `teams_chat`, `dooray`, `jira`, `confluence`, `sharepoint`, `rfp`, `ppt`, `people_news`, `marketing` |
+| 업무 | `teams_chat`, `dooray`, `jira`, `confluence`, `sharepoint`, `rfp`, `ppt`, `proposal`(/proposal/general), `people_news`, `marketing` |
 | 메뉴에 숨김(`hidden`) | `gw_mail`, `guide`, `mcp` |
 
 - **판정** `canUsePage(role, key, permissions)`:
@@ -246,7 +245,7 @@ sequenceDiagram
   - 최소 역할보다 낮은 역할은 거부한다.
   - 나머지는 `permissions[key] !== false`이면 허용한다. 명시적으로 끈 것만 막는다는 뜻이다.
 - **저장**: `user_page_access(user_id, permissions jsonb, version)`. RLS는 select만 열려 있고, 쓰기는 RPC `set_user_page_access`(버전 낙관적 잠금)로만 한다.
-- **DB 측 판정**: `valid_page_permissions`(키 화이트리스트)와 `has_page_access(p_page)`. **PAGES에 키를 추가하면 이 두 함수의 키 목록도 갱신해야 한다**(최신 `docs/sql/2026-10-11-page-keys-sync.sql`). 대조 테스트는 `src/lib/__tests__/gw-mail.test.tsx`다.
+- **DB 측 판정**: `valid_page_permissions`(키 화이트리스트)와 `has_page_access(p_page)`. **PAGES에 키를 추가하면 이 두 함수의 키 목록도 갱신해야 한다**(최신 `docs/sql/2026-10-20-proposal-general.sql`). 대조 테스트는 `src/lib/__tests__/gw-mail.test.tsx`다.
 - **사용처**:
   - `components/layout/Navigation.tsx`: 2단 메뉴. 볼 페이지가 없는 그룹은 숨긴다.
   - 홈 카드(`app/page.tsx`, `components/home/*Card.tsx`)
@@ -274,7 +273,7 @@ sequenceDiagram
 
 | 기능 | 페이지 / API / 주요 lib | 데이터 | 외부 |
 |---|---|---|---|
-| 가이드 Q&A | `/guide`, `/guide/admin`, `/admin/chat-history` · `/api/guide/*` · `nlm-service.ts` | `nlm_notebooks`, `nlm_sources`, `nlm_chat_messages`, 버킷 `nlm-files` | nlm-service(NotebookLM) |
+| 가이드 Q&A(**2026-10-16 중지**, 메뉴 숨김) | `/guide`, `/guide/admin`, `/admin/chat-history` · `/api/guide/*` · `nlm-service.ts` | `nlm_notebooks`, `nlm_sources`, `nlm_chat_messages`, 버킷 `nlm-files` | nlm-service(NotebookLM, 중지) |
 | 사다리 | `/ladder` · `/api/ladder-sessions` · `ladder.ts` | `ladder_sessions` | — |
 | 커피 타임(팀 나누기) | `/team` · `/api/team-{sessions,attendance,comments,notify}` · `team-divider.ts`, `my-team.ts` | `team_sessions` 등, `user_members`(내 팀) | 알림 Notifier |
 | 뭐 먹지 | `/food` · `/api/food/{search,categories,decide,favorites,geocode,reverse-geocode,payco}` | `food_*` | Kakao 로컬 API, PAYCO 가맹점(프록시) |
@@ -304,7 +303,7 @@ sequenceDiagram
 
 ### 3.9 테스트
 
-- **Vitest**(`vitest.config.ts`, jsdom): 대부분 `src/lib/__tests__/`에 평평하게 모여 있다(약 235개 파일, 기능 접두사로 구분). 컴포넌트 곁에도 일부 있다.
+- **Vitest**(`vitest.config.ts`, jsdom): 대부분 `src/lib/__tests__/`에 평평하게 모여 있다(245개 파일, 2026-10-23, 기능 접두사로 구분). 컴포넌트 곁에도 일부 있다.
   - 순수 함수(파서·집계·권한·마스킹·암호화)와, Supabase를 모킹한 라우트 테스트가 중심이다.
   - 실행은 `cd frontend && npm test`, 2026-10-16 기준 1541개 통과.
 - **Playwright**(`e2e/`, chromium 1개, `localhost:3003`): `npm run test:e2e`.
@@ -551,11 +550,11 @@ sequenceDiagram
   participant GW as 아마란스
   CL->>API: tools/call (Bearer, OAuth 2.1 토큰 또는 세션)
   API->>DB: insert pending(user_id, tool, args)
-  DB-->>D: Realtime insert 알림 (+ 5초 안전 폴링)
+  D->>DB: 2초 폴링으로 pending 조회 (Realtime 구독은 2026-10-21 제거)
   D->>DB: claim: update running where status='pending'
   D->>GW: 서명된 아마란스 호출
   D->>DB: done/error + result
-  API->>DB: 500ms 폴링으로 결과 확인 → 행 삭제
+  API->>DB: 500ms 폴링(POLL_MS)으로 결과 확인 → 행 삭제
   API-->>CL: 결과(실패는 isError 결과)
 ```
 
@@ -572,9 +571,9 @@ sequenceDiagram
   - 사용자당 분당 60건(근사치).
   - 10초 안에 claim이 없으면 `status='pending'` 조건부로 삭제하고 "데스크톱 앱 실행 중 아님"을 안내한다. 앱이 방금 claim했다면 삭제가 0행이므로 기다린다(중복 실행 방지).
   - 완료 상한은 110초. 결과를 읽으면 행을 바로 지우고, 남은 행은 크론이 10분 뒤 정리한다.
-- **`mcp_calls`**: RLS는 본인 select·update만 허용하고, Realtime publication에 등록돼 있다.
+- **`mcp_calls`**: RLS는 본인 select·update만 허용한다. Realtime publication에서는 2026-10-21에 뺐다(`postgres_changes` 구독 하나로 Realtime이 WAL 전체를 0.1초마다 디코딩해 슬로우 쿼리 1위가 됐다 — `docs/sql/2026-10-21-mcp-calls-drop-realtime.sql`).
 - **데스크톱 워커**(`mobile/lib/mcp/`):
-  - macOS·Windows에서 로그인 상태이고 "요청 받기"가 켜져 있을 때만 동작한다.
+  - macOS·Windows에서 로그인 상태이고 "요청 받기"가 켜져 있을 때만 동작한다. 새 요청은 2초 폴링으로 찾는다(`mcp_worker_provider.dart`, 실시간 구독 없음).
   - claim은 즉시 하고, 실행은 직렬 큐로 돌린다. 실행 상한은 90초, 결과는 512KB에서 자른다.
   - Claude 커넥터 경로에는 이노봇 같은 확인 카드가 없다. Claude의 승인 프롬프트가 관문이다.
 
@@ -620,7 +619,7 @@ flowchart LR
 | RFP 분석 | `lib/rfp/extract-llm.ts`, `mapping/llm.ts`, `catalog/extract-features.ts` | 비표준 문서의 요건 추출 폴백, 솔루션 매핑(구조화 출력), 카탈로그 기능 추출. `RFP_LLM_MODEL` |
 | Confluence 주간보고 초안 | `lib/confluence/weekly.ts` | Sonnet 5.5(`CONFLUENCE_WEEKLY_MODEL`) |
 | 마케팅 AI 추천 | `lib/marketing/ai.ts` | `MARKETING_AI_ENABLED`일 때만 동작. 운영에서는 미설정 |
-| 가이드 Q&A | `/api/guide/chat` → nlm-service | Google NotebookLM(`notebooklm` 파이썬 클라이언트), 인용 포함. 질문·답은 `nlm_chat_messages`에 저장 |
+| 가이드 Q&A(**2026-10-16 중지**) | `/api/guide/chat` → nlm-service | Google NotebookLM(`notebooklm` 파이썬 클라이언트), 인용 포함. 질문·답은 `nlm_chat_messages`에 저장 |
 
 LLM 의존 기능은 키가 없으면 **UI에서 숨긴다**(비활성 버튼으로 남겨 두지 않는다).
 
@@ -633,17 +632,18 @@ LLM 의존 기능은 키가 없으면 **UI에서 숨긴다**(비활성 버튼으
 ### 8.1 스택
 
 - Flutter(Dart `^3.12`), 패키지 `playground`, 번들 ID `com.innogrid.playground`, 딥링크 `innogrid://login-callback`.
-- 주요 의존성:
+- 의존성: pubspec의 24개(SDK 패키지 `flutter`·`flutter_localizations` 제외) + dev `flutter_launcher_icons`.
 
 | 영역 | 패키지 |
 |---|---|
 | 상태·라우팅 | `flutter_riverpod` 3, `go_router` |
 | 백엔드 | `supabase_flutter`, `http` |
-| WebView | `webview_flutter`(+WKWebView·Android), Windows는 `flutter_inappwebview_windows` |
+| WebView | `webview_flutter`·`webview_flutter_wkwebview`·`webview_flutter_android`, Windows는 `flutter_inappwebview_windows`·`flutter_inappwebview_platform_interface`(WebView2) |
 | 저장 | `shared_preferences`, `flutter_secure_storage`(아마란스 자동 로그인), `path_provider`(메일 색인) |
-| 보안 | `crypto`(아마란스 서명) |
-| 음성·알림 | `speech_to_text`, `flutter_tts`, `flutter_local_notifications`(데스크톱 메신저 멘션) |
-| 기타 | `url_launcher`, `geolocator`, `file_picker`(첨부), `html`, `flutter_markdown_plus`(이노봇 답) |
+| 보안·메신저 | `crypto`(아마란스 서명), `pointycastle`(메신저 로그인 AES-256-CBC), `mqtt_client`(메신저 실시간 대화·접속 상태) |
+| 음성·알림 | `speech_to_text`, `flutter_tts`, `flutter_local_notifications`(데스크톱 메신저 멘션·새 대화·통합 알림) |
+| 백그라운드 | `workmanager`(잠금 화면 브리핑 갱신) |
+| 기타 | `url_launcher`, `geolocator`, `file_picker`(첨부), `html`(메일 본문), `flutter_markdown_plus`(이노봇 답) |
 
 ### 8.2 상태 관리와 라우팅
 
@@ -672,11 +672,15 @@ LLM 의존 기능은 키가 없으면 **UI에서 숨긴다**(비활성 버튼으
 | `web/` | 하이브리드 WebView 화면, 정책·부트스트랩(`web_session.dart`), 플랫폼별 WebView 추상화 |
 | `briefing/` | 홈 브리핑(순수 모델, 소스별 수집, Claude 요약) |
 | `features/` | 네이티브 화면: 홈·뭐 먹지·사다리·커피 타임 |
-| `gw/` | 아마란스 전체(클라이언트·서명·자격 증명·화면·메일 색인·메신저 알림) |
+| `gw/` | 아마란스 전체(클라이언트·서명·자격 증명·화면·메일 색인) |
+| `messenger/` | 아마란스 메신저(로그인 암호화, MQTT 실시간, 대화·검색·쪽지·근태 화면) |
+| `notifications/` | 통합 알림 패널 |
+| `favorites/` | 앱 페이지 즐겨찾기(`/api/users/favorites`) |
+| `teams/` | Teams 채팅 패널 |
 | `assistant/` | 이노봇(세션·도구·시트·음성·대화 목록·오버레이·Claude 열기) |
 | `mcp/` | 데스크톱 Claude 커넥터 워커와 도구 57종 |
 | `calendar/`, `dooray/` | 공용 캘린더 모델·위젯, Dooray 캘린더 브리지 |
-| `more/`, `release/` | 카탈로그·더보기, 업데이트 확인·배너 |
+| `more/`, `release/` | 카탈로그·더보기, 업데이트 확인·배너, 데스크톱 자동 업데이트(`desktop_updater.dart`) |
 
 ### 8.4 인증과 API 클라이언트
 
@@ -734,7 +738,7 @@ LLM 의존 기능은 키가 없으면 **UI에서 숨긴다**(비활성 버튼으
 
 - **캘린더**(`lib/calendar/`): 일간·주간·월간 보기를 아마란스 일정과 Dooray 화면이 공유한다. 시각은 `DateTime.utc` 기반 KST 벽시계로 통일한다. 아마란스 일정 화면에서 "추가"를 누르면 이노봇이 그 날짜로 열린다.
 - **Dooray**: 화면 밖에 숨긴 WebView 엔진이 HttpOnly 쿠키로 같은 오리진 읽기를 한다(개인 캘린더만).
-- **업데이트 확인**: Android·iOS는 `GET /api/mobile/release`의 빌드 번호를 비교해 홈 배너를 띄운다. macOS·Windows는 `GET /api/desktop/release?platform=…`의 게시 버전을 `x.y.z`로 비교해 전역 셸 맨 위에 `특정 버전으로 업데이트가 필요합니다` 띠를 띄운다. APK·데스크톱 설치본 서명 URL은 만료되므로 업데이트 버튼을 누를 때마다 새로 받는다.
+- **업데이트 확인**: Android·iOS는 `GET /api/mobile/release`의 빌드 번호를 비교해 업데이트 띠를 띄운다. Android 버튼은 Google Play 내부 테스트 참여 링크로 간다(2026-10-22부터, APK로 연결하지 않음). macOS·Windows는 `GET /api/desktop/release?platform=…`의 게시 버전을 `x.y.z`로 비교한 뒤 앱 안에서 설치한다([§8.10](#810-데스크톱-전용)).
 
 ### 8.9 앱의 이노봇
 
@@ -768,11 +772,15 @@ LLM 의존 기능은 키가 없으면 **UI에서 숨긴다**(비활성 버튼으
 - **MCP 워커**([§5](#5-claude-커넥터와-데스크톱-중계)): 이 PC를 Claude 커넥터와 웹 아마란스 기능의 실행기로 만든다.
 - **메신저 멘션 OS 알림**, **Claude 데스크톱 앱 열기**(설치돼 있지 않으면 내려받기 페이지).
 - **웹의 설치 여부 판단**: 별도 신호가 없다. 웹은 `login_history`의 앱 User-Agent로 데스크톱 앱 로그인 여부를 판단한다(홈 설치 안내 카드). 그래서 `Config.userAgent` 형식을 바꾸면 `lib/desktop/presence.ts`도 함께 바꿔야 한다.
-- **업데이트 띠**: `settings.desktop_app_release`에 자기 플랫폼의 더 높은 버전이 게시되면 모든 탭의 맨 윗줄에 정확한 버전과 업데이트 버튼을 보여 준다. 버튼은 로그인된 API에서 5분짜리 설치 링크를 새로 발급받아 외부 브라우저로 연다. 개발 빌드와 같거나 낮은 게시 버전에는 띠가 없다.
+- **자동 업데이트**(`release/desktop_updater.dart`): `settings.desktop_app_release`에 자기 플랫폼의 더 높은 버전이 게시되면 업데이트 띠를 보이고, 네이티브 업데이터에 설치를 맡긴다. macOS는 Sparkle(`macos/Runner/DesktopUpdater.swift`), Windows는 WinSparkle(`windows/cmake/winsparkle.cmake`)이다.
+  - 피드 주소는 고정 오리진으로 앱이 만든다: `GET /api/desktop/update/appcast?platform&version`(로그인 Bearer, RSS appcast). 설치 파일은 `GET /api/desktop/update/artifact/[platform]/[version]`이 버킷 `desktop-releases`에서 서버가 받아 그대로 흘려준다(서명 URL·토큰을 클라이언트로 넘기지 않음). 서명은 EdDSA(`edSignature`)로 확인한다.
+  - 설치 단계 실패는 `POST /api/desktop/update-failure`(정해진 사유 값만)로 감사 로그(category `desktop`)에 남긴다.
+  - 개발 빌드와 같거나 낮은 게시 버전에는 띠가 없다.
+- **홈 위젯 대시보드**(`features/home/home_dashboard.dart`): 데스크톱 홈의 위젯 배치를 계정 단위로 저장한다(`GET·PUT /api/users/home-dashboard`, user_settings `home_dashboard`). 모바일은 쓰지 않는다.
 
 ### 8.11 테스트
 
-- `flutter test`: 약 72개 파일, 2026-10-16 기준 545개 통과. `flutter analyze`는 문제 0건. 둘 다 릴리스 스크립트의 관문이다.
+- `flutter test`: `test/**/*_test.dart` 92개 파일(2026-10-23), 통과 수는 2026-10-16 기준 545개. `flutter analyze`는 문제 0건. 둘 다 릴리스 스크립트의 관문이다.
 - **가짜 객체**:
   - `ChatBrain`(`test/assistant/chat_brain.dart`): 가짜 `/api/chat/turn` SSE 서버. 서버 읽기 실행, needs_action, 스트림 끊김, 업로드, 설정, 앱 기능 카드 흉내.
   - `FakeAuth`, `FakeGwStore`, `FakeTokens`, `FakeVoice`, `FakeSettings`
@@ -798,13 +806,13 @@ LLM 의존 기능은 키가 없으면 **UI에서 숨긴다**(비활성 버튼으
 
 ### 9.2 스키마 인벤토리
 
-SQL 원본은 `docs/sql/*.sql`(68개)과 `supabase/migrations/*.sql`(5개)이다.
+SQL 원본은 `docs/sql/*.sql`(75개, 2026-10-23)과 `supabase/migrations/*.sql`(5개)이다.
 
 | 도메인 | 주요 객체 | SQL |
 |---|---|---|
-| 권한·감사 | `user_page_access`, `valid_page_permissions`, `has_page_access`, `set_user_page_access`, 뷰 `audit_log` | `2026-09-11-page-access.sql`, `2026-10-11-page-keys-sync.sql`, `2026-09-07-audit-log.sql` |
+| 권한·감사 | `user_page_access`, `valid_page_permissions`, `has_page_access`, `set_user_page_access`, 뷰 `audit_log` | `2026-09-11-page-access.sql`, `2026-10-20-proposal-general.sql`(최신 키 목록), `2026-09-07-audit-log.sql` |
 | 이노봇 | `chat_conversations`, `chat_messages`, `chat_tool_calls`, `chat_attachments`, `assistant_usage`, `chat_usage_add`, 버킷 `chat` | `2026-10-15-chat-portal.sql`, `2026-10-15-chat-tool-calls-once.sql` |
-| MCP 중계 | `mcp_calls`(Realtime) | `2026-10-10-mcp-calls.sql` |
+| MCP 중계 | `mcp_calls`(폴링, Realtime 발행 제외) | `2026-10-10-mcp-calls.sql`, `2026-10-21-mcp-calls-drop-realtime.sql` |
 | PPT | `ppt_decks`, `ppt_deck_versions`(삭제 없음), `ppt_templates`(비활성화만), 버킷 `ppt` | `2026-09-30-ppt-maker.sql`, `2026-10-01-ppt-*.sql` |
 | RFP | `rfp_projects`, `rfp_files`, `rfp_requirements`, `rfp_solution*`, `rfp_requirement_mappings`, `rfp_share_links`, `rfp_sharepoint_uploads`, `ms_connections`, 버킷 `rfp` | `2026-09-03`~`09-09-rfp-*.sql` |
 | Claude 사용량·비용 | `claude_orgs`, `claude_code_*`(일·모델·시간·도구·환경·요청·프롬프트), `claude_member_activity`, `claude_org_members`, `claude_office_*`, `claude_invoices*`, `claude_api_*`, `claude_seat_actions`, 수집 RPC들, 버킷 `claude-invoices` | `2026-08-26`~`10-02-claude-*.sql` |
@@ -825,20 +833,20 @@ DDL이 저장소에 없는 초기 테이블도 있다: `user_profiles`, `setting
 |---|---|
 | `ppt` | `source/`(원고), `decks/`(생성 PPTX·YAML), `templates/`(업로드 템플릿), `images/`(URL 원고 이미지) |
 | `chat` | 이노봇 첨부(가린 추출 텍스트 또는 이미지·스캔 PDF 원본) |
-| `mobile` | Android APK(누를 때마다 600초 서명 URL을 새로 발급) |
+| `mobile` | Android APK(2026-10-22부터 릴리스 백업용, 설치는 Play 내부 테스트) |
 | `desktop-releases` | macOS DMG·Windows 설치 파일 |
 | `rfp` | RFP 원본 문서 |
 | `claude-invoices` | Anthropic 인보이스 PDF |
 | `nlm-files` | 가이드 Q&A 소스 원본 |
 
-### 9.4 Edge Function·Realtime·Vault
+### 9.4 Edge Function·Vault
 
 - **`yonhap-notices`**(Deno): JWT 검증은 끄고 핸들러가 직접 인증한다.
   - `collect`: RSS 수집, 잘린 요약은 기사 본문으로 보강, 부고·매체 매칭 알림
   - `send-digests`: 크론 비밀값으로만 호출, 예약 메일 발송
   - `send-now`·`preview`: 사용자 JWT로만 호출
   - Secrets(이름): `YONHAP_SYNC_SECRET`, `MEDIA_SMTP_HOST/PORT/USER/PASS`, `MEDIA_APP_URL`. SMTP가 비어 있으면 claim하지 않는다(예약이 소비되지 않음).
-- **Realtime**: `mcp_calls`를 데스크톱 앱이 사용자별 필터로 구독한다.
+- **Realtime**: 쓰지 않는다. `mcp_calls` 구독은 2026-10-21에 없앴고 데스크톱 앱이 2초 폴링한다([§5](#5-claude-커넥터와-데스크톱-중계)).
 - **Vault**: pg_cron이 Edge Function을 부를 때 쓰는 프로젝트 URL·동기화 비밀값.
 
 ---
@@ -855,7 +863,7 @@ DDL이 저장소에 없는 초기 테이블도 있다: `user_profiles`, `setting
 | GitLab(사내) | 로컬 `gitlab-metrics-sync.py`가 API로 푸시 | `GITLAB_TOKEN`(Vercel IP가 막혀 있어 로컬에서 실행) |
 | Kakao 로컬 | `/api/food/*`, 이노봇 `food_search` | `KakaoAK` 키(settings `kakao_rest_api_key`) |
 | PAYCO 가맹점 | `/api/food/payco`, 이노봇 `food_search` | 인증 없는 공개 ajax 프록시 |
-| NotebookLM | nlm-service | Google 쿠키 세션(`storage_state.json`, Fly 볼륨) |
+| NotebookLM | nlm-service(2026-10-16 중지) | Google 쿠키 세션(`storage_state.json`, Fly 볼륨) |
 | Anthropic Messages | 이노봇, PPT, RFP, 브리핑, 주간보고, 마케팅 | `ANTHROPIC_API_KEY` |
 | Anthropic Admin API | 크론 `claude-cost` | `CLAUDE_ADMIN_API_KEY`(없으면 그 탭을 숨긴다) |
 | Stripe 인보이스 | `lib/claude-cost/*` | 허용 호스트의 공개 링크만 PDF로 받고, 합계가 맞지 않으면 저장하지 않는다 |
@@ -891,7 +899,7 @@ DB 변경은 `docs/sql/<날짜>-<주제>.sql`로 남긴 뒤 운영에 수동 적
    - **관문**: `flutter test`·`flutter analyze`
    - **Android**:
      - AAB 빌드 → `play-upload.py`로 Play 내부 테스트 트랙에 출시
-     - Play가 만든 **Google 서명 universal APK**를 받아 버킷 `mobile`에 올림
+     - Play가 만든 **Google 서명 universal APK**를 받아 버킷 `mobile`에 올림(2026-10-22부터 백업용, 사용자 설치는 Play 내부 테스트만)
      - `settings.mobile_release` 갱신(다시 읽어 확인)
      - SharePoint 폴더에 `innogrid-app-<ver>.apk` 사본
    - **iOS**: `flutter build ipa` → `altool` 업로드 → `settings.mobile_release` 갱신. 내부 테스트 그룹 배포는 운영자가 App Store Connect에서 한다. 외부 심사에는 제출하지 않는다.
@@ -899,7 +907,7 @@ DB 변경은 `docs/sql/<날짜>-<주제>.sql`로 남긴 뒤 운영에 수동 적
    - 버킷 `desktop-releases`에 올린 뒤 다시 내려받아 sha256을 검증한다.
    - `settings.desktop_app_release`를 갱신한다.
 
-- **서명 키**: Android 앱 서명 키는 Google이 생성한 키다. `/apps`·SharePoint에도 Google 서명 APK만 배포해 서명을 통일한다.
+- **서명 키**: Android 앱 서명 키는 Google이 생성한 키다. 백업 APK(버킷·SharePoint)도 Google 서명본만 둔다. 웹 `/apps`·앱 업데이트 버튼은 Play 내부 테스트 참여 링크로 간다(2026-10-22).
 - **Windows 코드 서명**(Azure Trusted Signing)은 보류 중이다. 유료 리소스·회사 인증서 신청은 하지 않는다.
 - **배포 확인**: 웹 `/apps`가 새 버전으로 바뀌었는지(스크립트의 "웹 /apps 반영 확인" 줄)를 보고에 포함한다.
 
@@ -907,14 +915,14 @@ DB 변경은 `docs/sql/<날짜>-<주제>.sql`로 남긴 뒤 운영에 수동 적
 
 ## 12. 운영자 로컬 자동화
 
-Vercel이나 클라우드 루틴으로는 로컬 Chrome 세션·사내망·개인 로그인을 쓸 수 없다. 그래서 다음 작업을 운영자 Mac의 launchd로 돌린다(런북 `docs/launchd-jobs.md`, 상태 확인 `claude-jobs status`).
+Vercel이나 클라우드 루틴으로는 로컬 Chrome 세션·사내망·개인 로그인을 쓸 수 없다. 그래서 다음 4개 작업을 운영자 Mac의 launchd로 돌린다(런북 `docs/launchd-jobs.md`, 상태 확인 `claude-jobs status`).
 
 | 작업 | 일정(KST) | 하는 일 |
 |---|---|---|
 | `com.innogrid.gitlab-metrics-sync` | 매일 07:45 | GitLab 커밋·MR 집계를 API로 푸시 |
 | `com.claude.teams-daily-quote` | 매일 08:00 | `claude -p`로 격언을 만들어 Teams 웹훅으로 전송 |
 | `com.innogrid.claude-usage-csv` | 매일 09:05 | claude.ai Team 조직 7개의 멤버 활동 CSV 수집·업로드(`/claude-usage-csv` 스킬) |
-| `com.innogrid.claude-seat-executor` | 상시 | 시트 할당·해제 요청을 claim해 전용 Chrome 창에서 반영(헤드리스는 Cloudflare 차단) |
+| `com.innogrid.claude-seat-executor` | 상시(KeepAlive) | 시트 할당·해제 요청을 15초 폴링으로 claim해 ego 전용 워크스페이스 `claude-seat-executor`에서 반영(Chrome 실행 없음) |
 
 이 밖에 사내 조직도 동기화(`frontend/scripts/company-directory-sync.py`)가 있다. inno-creed MCP `find_person`으로 전사 명부를 받아 `/api/admin/directory/sync`로 푸시한다.
 

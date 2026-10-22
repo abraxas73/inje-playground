@@ -52,8 +52,6 @@ const adminPages = <PageEntry>[
   PageEntry('admin_users', '/admin/users', '사용자 관리', 'admin', 'admin'),
   PageEntry('admin_page_permissions', '/admin/page-permissions', '페이지 접근 권한', 'admin', 'admin'),
   PageEntry('admin_settings', '/admin/settings', '시스템 설정', 'admin', 'admin'),
-  PageEntry('admin_guide', '/admin/guide', '가이드 관리', 'admin', 'admin'),
-  PageEntry('admin_chat_history', '/admin/chat-history', '질의/응답 관리', 'admin', 'admin'),
   PageEntry('admin_surveys', '/admin/surveys', '설문 관리', 'admin', 'admin'),
   PageEntry('admin_claude_usage', '/admin/claude-usage', 'Claude Code 사용량', 'admin', 'admin'),
   PageEntry('admin_claude_chat', '/admin/claude-chat', 'Claude 사용량 (Chat/Cowork)', 'admin', 'admin'),
@@ -63,6 +61,8 @@ const adminPages = <PageEntry>[
   PageEntry('admin_rfp_catalog', '/admin/rfp-catalog', 'RFP 솔루션 카탈로그', 'admin', 'admin'),
   PageEntry('admin_ppt', '/admin/ppt', 'PPT 덱 관리', 'admin', 'admin'),
   PageEntry('admin_audit', '/admin/audit', 'Audit 로그', 'admin', 'admin'),
+  PageEntry('admin_app_requests', '/admin/app-requests', '앱 사용 신청', 'admin', 'admin'),
+  PageEntry('admin_assistant_usage', '/admin/assistant-usage', '이노봇 사용량', 'admin', 'admin'),
 ];
 
 const _rank = {'guest': 0, 'user': 1, 'admin': 2};

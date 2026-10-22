@@ -46,7 +46,7 @@ cd mobile && flutter build apk --debug                      # Android 디버그 
 ### 로컬 launchd 자동화 (운영자 Mac)
 
 ```bash
-claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사용량 CSV 09:05 — 일정·마지막 종료 코드·로그 (런북 docs/launchd-jobs.md)
+claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사용량 CSV 09:05 · Claude 시트 실행기 상시 — 일정·마지막 종료 코드·로그 (런북 docs/launchd-jobs.md)
 ```
 
 ## Architecture
@@ -54,7 +54,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 기능별 상세(페이지·API·테이블·패턴)는 `.claude/rules/` 아래 규칙 파일에 있고, 해당 경로의 파일을 다룰 때 자동으로 로드된다: `rfp.md`(RFP 분석·솔루션 카탈로그·SharePoint·Microsoft 연결), `claude-usage-cost.md`(Claude 사용량·비용·성과 지표), `marketing.md`(마케팅 Master DB), `media-news.md`(관리 매체·부고 알림·인사·부고 메일), `ppt-maker.md`(PPT 만들기), `mobile.md`(모바일 앱). 그 기능을 작업할 때는 먼저 해당 파일을 읽는다.
 
 ### App Router Pages (`frontend/src/app/`)
-- `/admin/page-permissions` — 사용자별 페이지 접근 권한. `lib/page-access.ts` 공용 카탈로그로 사용자 메뉴 2단계 그룹·홈 카드·페이지/API 검사를 통합. 기존 역할 기본값 유지, admin 전체 허용, RLS와 버전 검사 RPC. 런북 `docs/page-access.md`. **PAGES에 키를 추가하면 DB 함수 `valid_page_permissions`·`has_page_access`의 키 목록도 갱신**(최신 `docs/sql/2026-10-11-page-keys-sync.sql`, 빠지면 관리자 저장이 `Invalid permissions`로 실패 — `gw-mail.test.tsx`가 SQL과 대조).
+- `/admin/page-permissions` — 사용자별 페이지 접근 권한. `lib/page-access.ts` 공용 카탈로그로 사용자 메뉴 2단계 그룹·홈 카드·페이지/API 검사를 통합. 기존 역할 기본값 유지, admin 전체 허용, RLS와 버전 검사 RPC. 런북 `docs/page-access.md`. **PAGES에 키를 추가하면 DB 함수 `valid_page_permissions`·`has_page_access`의 키 목록도 갱신**(최신 `docs/sql/2026-10-20-proposal-general.sql`, 빠지면 관리자 저장이 `Invalid permissions`로 실패 — `gw-mail.test.tsx`가 SQL과 대조).
 - `/` — Home with feature cards linking to sub-pages. 데스크톱 브라우저(macOS·Windows)에서 이 계정으로 그 OS의 데스크톱 앱에 로그인한 기록(`login_history` User-Agent `InnogridApp/… (macOS|windows)`, 대소문자 무시)이 없으면 맨 위에 설치 안내 카드(`components/home/DesktopAppCard`, `GET /api/desktop/presence`; ‘다음에’는 localStorage 30일)
 - `/ladder` — Ladder game: participants + results matched via animated canvas ladder
 - `/team` — Team divider: random team assignment with card holder distribution and min/max constraints
@@ -94,6 +94,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `GET /api/members/directory` — 사내 조직도 명부(company_directory active, service role로 읽음) → `{id: email, name, email, team}` (멤버 소스 provider `directory`)
 - `/api/users/members` — 내 팀(user_members: name, email, external_id, dooray_member_id, is_card_holder) GET/POST(교체)/PATCH(법카)/DELETE
 - `GET·PUT /api/users/favorites` — 앱 페이지 즐겨찾기(계정 단위 user_settings `app_favorites`, `{path,title}` 최대 30, 앱 안 경로만 — `lib/app-favorites.ts`). 데스크톱·모바일 앱의 이노봇 위 ★ 목록과 화면 제목 옆 ☆
+- `GET·PUT /api/users/home-dashboard` — 데스크톱 앱 홈 위젯 배치(계정 단위 user_settings `home_dashboard`, `lib/home-dashboard.ts`, 없으면 빈 배열 → 앱 기본 배치). 모바일은 쓰지 않는다
 - `GET·PUT·DELETE /api/users/sharepoint-folder` — 개인 SharePoint 업로드 기본 폴더(링크를 본인 Graph 권한으로 해석해 저장, `lib/rfp/user-folder.ts`·`lib/ms/folder-route.ts` 공용)
 - `GET·PUT·DELETE·POST /api/users/notify-channel` — 개인 채널 알림 웹훅(POST는 테스트 1건 발송). https 공개 주소만(`lib/notify/url-guard.ts`), 감사 로그에는 호스트만 남긴다
 - `GET /api/users/[id]`, `DELETE /api/users/[id]` — 관리자용 사용자 상세(프로필·설정·로그인 이력·조직도 소속·활동 요약)/삭제(개인 데이터 → 프로필 → auth.users; 자기 자신·관리자 역할 거부). `/admin/users` 행 클릭 → `components/admin/users/UserDetailSheet`
@@ -104,6 +105,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `/api/mcp`(Streamable HTTP JSON-RPC, inno-creed 57개 중 56개 노출 — 본문 인라인 이미지 내려받기 1개는 실측 캡처 뒤 추가, `lib/mcp/protocol.ts` `WITHHELD_TOOLS`) · `/.well-known/oauth-protected-resource` · `/oauth/consent` · 크론 `/api/cron/mcp-purge` — claude.ai 조직 커넥터 "INNOGRID 아마란스"가 `mcp_calls` 중계로 데스크탑 앱의 아마란스를 부르는 Claude 커넥터(Supabase OAuth 2.1). 런북 `docs/mobile-app.md` §Claude 커넥터
 - `GET /api/gw/mail`, `GET /api/gw/mail/[muid]`, `POST /api/gw/mail/[muid]/unread`, `GET /api/gw/mail/search?q&sort` — 웹 메일(데스크톱 앱 중계, `lib/gw/mail.ts` parseInbox·parseDetail·parseSearch·callApp; 본문·인자·검색어는 기록하지 않음). 검색은 앱의 기기 안 색인 도구 `search_mail_index`(tools.json 밖, Claude 커넥터에는 안 보임; 앱 1.6.9+)
 - `GET /api/desktop/presence` — 내 계정의 macOS·Windows 앱 최근 로그인 시각(홈 설치 안내 카드용, `lib/desktop/presence.ts`). `GET /api/desktop/release`·`/api/desktop/download/[platform]` — 데스크톱 앱 배포 정보·설치 파일
+- `GET /api/desktop/update/appcast?platform&version`·`GET /api/desktop/update/artifact/[platform]/[version]`·`POST /api/desktop/update-failure` — 데스크톱 자동 업데이트(macOS Sparkle·Windows WinSparkle, 로그인 Bearer, 설치 파일은 서버가 버킷 `desktop-releases`에서 받아 흘려줌, 실패는 감사 category `desktop`; 앱 `mobile/lib/release/desktop_updater.dart`)
 - `GET /api/mobile/release` — 플랫폼별 최신 앱 버전·설치 링크(user 이상, 쿠키·Bearer; `lib/mobile/release.ts`). 웹 `/apps`와 앱 시작 시 업데이트 확인이 쓴다. `POST /api/mobile/release/sharepoint` — 최신 Android APK 사본을 SharePoint 폴더(settings `mobile_sharepoint_folder`)에 `innogrid-app-<X.Y.Z>.apk`로 올림(릴리스 스크립트가 `CRON_SECRET`+operator 관리자 이메일로, 또는 관리자 세션; 그 관리자의 Microsoft 연결 사용)
 - `/api/proposal/{uploads,profiles[/id],jobs[/id[/file]]}` — 제안도우미-일반현황(서명 업로드, 일반현황 버전 등록·숨기기, 생성 요청 `after()`·공유·삭제·내려받기). 감사 카테고리 `proposal`
 - `POST /api/chat/turn`(SSE), `GET /api/chat/{config,status,conversations}`, `GET·PATCH·DELETE /api/chat/conversations/[id]`, `POST /api/chat/attachments`, 크론 `/api/cron/chat-purge`, 관리자 `GET /api/admin/assistant-usage` — 이노봇 대화 플랫폼(`lib/chat/*`: 엔진·마스킹·도구 위치·저장소). 거버넌스는 턴 API 한 곳: 권한 → 허용 모델(settings `assistant_models`) → 하루 상한(`assistant_usage`) → 마스킹 → 도구 목록. 보존 settings `assistant_retention_days`(기본 90). 이노봇은 우리 앱 기능도 쓴다(서버 전용 `lib/assistant/feature-tools.ts`: Jira 내 업무·인사·부고·뭐 먹지·PPT 만들기/내 PPT, 페이지 권한 검사, 쓰기 확인 카드 줄은 서버가 `needs_action.card`로 — PPT 덱 생성은 `lib/ppt/start.ts` `startDeck`을 웹 API와 공유)

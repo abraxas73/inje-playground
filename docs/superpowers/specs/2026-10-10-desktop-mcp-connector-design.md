@@ -41,7 +41,7 @@ innocrew.innogrid.com (Vercel, Next.js)
    /oauth/consent                Supabase가 보내는 동의 화면(로그인 재사용)
    │  tools/call → mcp_calls INSERT(user_id, tool, args) → 결과 폴링(0.5초) → 행 삭제
    ▼
-Supabase: mcp_calls(RLS: 본인 행만) + Realtime(postgres_changes)
+Supabase: mcp_calls(RLS: 본인 행만) + Realtime(postgres_changes)  ※ 2026-10-21 Realtime 제거 → 2초 폴링
    ▲  구독·클레임·결과 UPDATE(앱 로그인 세션)
    │
 데스크탑 앱(macOS·Windows) `lib/mcp/`
@@ -98,6 +98,8 @@ Supabase 대시보드 Authentication > OAuth Server에서 켜고 Authorization p
 | created_at, claimed_at, done_at | timestamptz | |
 
 RLS: `user_id = auth.uid()`인 행만 SELECT·UPDATE(앱 세션). INSERT·DELETE는 service role(웹)만. `supabase_realtime` publication에 추가. 인덱스 `(user_id, status, created_at)`.
+
+> 2026-10-21 Realtime 제거 → 2초 폴링(`docs/sql/2026-10-21-mcp-calls-drop-realtime.sql`, `mobile/lib/mcp/mcp_worker_provider.dart`). 아래 Realtime 서술은 설계 당시 기록이다.
 
 ### 7.2 흐름
 1. 웹: INSERT(pending) → 0.5초마다 행 조회.

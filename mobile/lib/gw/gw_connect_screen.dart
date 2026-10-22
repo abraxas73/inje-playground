@@ -39,9 +39,6 @@ class GwConnectScreen extends ConsumerStatefulWidget {
 }
 
 class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
-  // 임시 진단(2026-10-20 iPhone 입력칸 포커스 때 "새로고침" 원인 확인용): 화면 생성·페이지 이벤트 횟수와 키보드 높이를 배너 아래에 보인다
-  static int _inits = 0;
-  int _started = 0, _finished = 0, _urlChanges = 0;
   AppWebController? _c;
   Timer? _poll, _hintTimer, _autoWatch;
   bool _busy = false, _hint = false, _idDone = false, _pwDone = false, _manual = false, _loginChecked = false, _ticking = false;
@@ -56,7 +53,6 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
   @override
   void initState() {
     super.initState();
-    _inits++;
     ref.read(gwLoginStoreProvider).load().then((l) {
       if (mounted) setState(() { _login = l; _loginChecked = true; });
       if (mounted && l != null) _armAutoWatch(); // 저장값이 잘못됐거나 로그인 페이지가 바뀌면 자동 입력이 멈출 수 있다 — 지나면 직접 로그인으로
@@ -67,9 +63,9 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
       _c = AppWebController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setNavigationDelegate(AppNavigationDelegate(
-          onPageStarted: (_) { _bump(() => _started++); _fixViewport(); },
-          onPageFinished: (_) { _bump(() => _finished++); _fixViewport(); _tick(); },
-          onUrlChange: (_) { _bump(() => _urlChanges++); _tick(); }, // SPA 라우팅은 onPageFinished가 안 온다
+          onPageStarted: (_) => _fixViewport(),
+          onPageFinished: (_) { _fixViewport(); _tick(); },
+          onUrlChange: (_) => _tick(), // SPA 라우팅은 onPageFinished가 안 온다
         ))
         ..loadRequest(Uri.parse('$gwOrigin/'));
       _poll = Timer.periodic(const Duration(seconds: 1), (_) { if (gwShouldPoll(auto: _auto, busy: _busy)) _tick(); });
@@ -77,10 +73,6 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
     _hintTimer = Timer(const Duration(seconds: 60), () {
       if (mounted) setState(() => _hint = true);
     });
-  }
-
-  void _bump(void Function() f) {
-    if (mounted) setState(f);
   }
 
   /// 자동 로그인 워치독 — 25초 안에 완료(쿠키 확보)나 수동 전환이 안 되면 직접 로그인으로 떨어뜨린다(무한 대기 방지).
@@ -228,10 +220,6 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
           color: Brand.blueTint,
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
           child: Text(banner, style: theme.textTheme.bodySmall?.copyWith(color: _error != null ? Brand.dangerText : Brand.navy)),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
-          child: Text('진단 · 화면 생성 $_inits · 페이지 시작 $_started · 완료 $_finished · 주소 변경 $_urlChanges · 키보드 ${kb.round()}', style: theme.textTheme.labelSmall?.copyWith(color: Brand.navy.withValues(alpha: 0.6))),
         ),
         Expanded(
           child: Stack(fit: StackFit.expand, children: [
