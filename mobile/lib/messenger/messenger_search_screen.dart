@@ -28,7 +28,7 @@ class _MessengerSearchScreenState extends ConsumerState<MessengerSearchScreen> {
   void _run() {
     final word = _q.text.trim();
     if (word.isEmpty) return;
-    setState(() => _future = _search(word));
+    setState(() { _future = _search(word); });
   }
 
   Future<(List<MsgRoom>, List<MsgChat>)> _search(String word) async {
@@ -82,7 +82,7 @@ class _MessengerSearchScreenState extends ConsumerState<MessengerSearchScreen> {
     return FutureBuilder<(List<MsgRoom>, List<MsgChat>)>(
       future: f,
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) return const Center(child: CircularProgressIndicator());
         if (snap.hasError) return MessengerError(error: snap.error!, onRetry: () async => _run());
         final (rooms, chats) = snap.data ?? (const <MsgRoom>[], const <MsgChat>[]);
         if (rooms.isEmpty && chats.isEmpty) return Center(child: Text('결과가 없습니다', style: TextStyle(color: Brand.muted)));

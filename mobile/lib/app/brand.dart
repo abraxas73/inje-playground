@@ -18,8 +18,11 @@ class BrandLogo extends StatelessWidget {
 /// 탭 화면 머리: 작은 워드마크 + 큰 제목 + 오른쪽 44px 아이콘 버튼. Scaffold.appBar 자리에 쓴다(상태 표시줄 여백은 SafeArea가 먹는다).
 /// 셸 밖 push 화면(하단 바 없음)은 [showBack]으로 왼쪽에 뒤로 버튼을 둔다.
 class BrandHeader extends StatelessWidget implements PreferredSizeWidget {
-  const BrandHeader({super.key, required this.title, this.actions = const [], this.showBack = false, this.favoritePath});
+  const BrandHeader({super.key, required this.title, this.actions = const [], this.showBack = false, this.favoritePath, this.onRefresh});
   final String title;
+
+  /// 주면 오른쪽에 새로고침 버튼(데스크톱은 당겨서 새로고침을 못 하므로).
+  final VoidCallback? onRefresh;
   final List<Widget> actions;
   final bool showBack;
 
@@ -44,6 +47,7 @@ class BrandHeader extends StatelessWidget implements PreferredSizeWidget {
                 ]),
               ]),
             ),
+            if (onRefresh != null) Padding(padding: const EdgeInsets.only(left: 8), child: SquareIconButton(icon: Icons.refresh, tooltip: '새로고침', onPressed: onRefresh)),
             for (final a in actions) Padding(padding: const EdgeInsets.only(left: 8), child: a),
           ]),
         ),

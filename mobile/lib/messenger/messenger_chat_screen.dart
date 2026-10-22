@@ -81,7 +81,7 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _load());
+    setState(() { _future = _load(); });
     await _future.catchError((_) => <MsgRoom>[]);
   }
 
@@ -91,6 +91,7 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
       appBar: BrandHeader(
         title: '메신저',
         showBack: !widget.embedded,
+        onRefresh: _refresh,
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
@@ -102,7 +103,7 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
       body: FutureBuilder<List<MsgRoom>>(
         future: _future,
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          if (snap.connectionState == ConnectionState.waiting && !snap.hasData) return const Center(child: CircularProgressIndicator());
           if (snap.hasError) return MessengerError(error: snap.error!, onRetry: _refresh);
           final rooms = snap.data ?? const [];
           if (rooms.isEmpty) {
@@ -183,6 +184,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
   StreamSubscription? _rtSub;
 
   late final MessengerMqtt _mqtt; // dispose에서 ref를 못 쓰므로 미리 잡아 둔다
+  String? _lastRead; // 마지막으로 읽음 처리한 chatId
 
   @override
   void initState() {
@@ -201,7 +203,11 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
     final chats = await _api.chats(widget.room.roomId);
     chats.sort((a, b) => a.timeStamp.compareTo(b.timeStamp)); // 오래된→최신(화면은 reverse로 최신이 아래)
     // 방을 열어 본 것 = 읽음 — 가장 최신 대화까지 읽음 처리(P342). 실패해도 화면은 그대로.
-    if (chats.isNotEmpty) unawaited(_api.readChat(roomId: widget.room.roomId, chatId: chats.last.chatId).catchError((_) {}));
+    // 새 대화가 있을 때만 — 읽음 처리가 다시 실시간 신호를 부르고 그 신호가 또 새로고침하는 반복을 막는다.
+    if (chats.isNotEmpty && chats.last.chatId != _lastRead) {
+      _lastRead = chats.last.chatId;
+      unawaited(_api.readChat(roomId: widget.room.roomId, chatId: _lastRead!).catchError((_) {}));
+    }
     if (widget.focusChatId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final ctx = _focusKey.currentContext;
@@ -220,7 +226,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _load());
+    setState(() { _future = _load(); });
     await _future.catchError((_) => <MsgChat>[]);
   }
 
@@ -254,6 +260,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
       appBar: BrandHeader(
         title: widget.room.title,
         showBack: true,
+        onRefresh: _refresh,
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
@@ -273,7 +280,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
           child: FutureBuilder<List<MsgChat>>(
             future: _future,
             builder: (context, snap) {
-              if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+              if (snap.connectionState == ConnectionState.waiting && !snap.hasData) return const Center(child: CircularProgressIndicator());
               if (snap.hasError) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('불러오지 못했습니다: ${snap.error}', textAlign: TextAlign.center)));
               final chats = snap.data ?? const [];
               if (chats.isEmpty) return Center(child: Text('대화가 없습니다', style: TextStyle(color: Brand.muted)));
@@ -319,7 +326,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
             child: FutureBuilder<List<T>>(
               future: loader(),
               builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                if (snap.connectionState == ConnectionState.waiting && !snap.hasData) return const Center(child: CircularProgressIndicator());
                 if (snap.hasError) return Padding(padding: const EdgeInsets.all(24), child: Text('불러오지 못했습니다: ${snap.error}'));
                 final items = snap.data ?? const [];
                 if (items.isEmpty) return Center(child: Text('$title가 없습니다', style: TextStyle(color: Brand.muted)));
@@ -508,7 +515,7 @@ class _MessengerDashboardCardState extends ConsumerState<MessengerDashboardCard>
                         Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Brand.botViolet, borderRadius: BorderRadius.circular(9)), child: Text('${r.unreadCount}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600))),
                       ],
                     ]),
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r))).then((_) { if (mounted) setState(() => _future = _load()); }),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r))).then((_) { if (mounted) setState(() { _future = _load(); }); }),
                   ),
               ]);
             },

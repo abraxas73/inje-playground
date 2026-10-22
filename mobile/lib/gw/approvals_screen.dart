@@ -27,7 +27,7 @@ class _Body extends StatefulWidget {
 class _BodyState extends State<_Body> {
   late Future<(int, List<PendingApproval>)> _future = widget.api.pendingApprovals();
   Future<void> _refresh() async {
-    setState(() => _future = widget.api.pendingApprovals());
+    setState(() { _future = widget.api.pendingApprovals(); });
     await _future.catchError((_) => (0, <PendingApproval>[]));
   }
 
@@ -73,7 +73,7 @@ class _BodyState extends State<_Body> {
   Widget build(BuildContext context) {
     final today = kstNow();
     return Scaffold(
-      appBar: const BrandHeader(title: '미결 결재', showBack: true, favoritePath: '/gw/approvals'),
+      appBar: BrandHeader(title: '미결 결재', showBack: true, favoritePath: '/gw/approvals', onRefresh: _refresh),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: FutureBuilder(
