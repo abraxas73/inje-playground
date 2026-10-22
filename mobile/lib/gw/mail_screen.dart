@@ -24,13 +24,25 @@ class _Body extends ConsumerStatefulWidget {
 }
 
 class _BodyState extends ConsumerState<_Body> {
+  static const _step = 20;
+  // 보여 줄 개수 — '이전 메일 더 보기'로 20통씩 늘린다. 첫 페이지를 그만큼 크게 읽어(서버 상한 500, 색인 동기화와 같음)
+  // 본문을 보고 돌아와 다시 읽어도 불러온 범위·위치가 유지된다.
+  int _count = _step;
+  bool _more = false;
   late Future<(MailSummary, List<MailItem>)> _future = _load();
   Future<(MailSummary, List<MailItem>)> _load() async {
     // 레코드 .wait는 실패를 ParallelWaitError로 감싸 영어 클래스 이름이 화면에 나온다 → 순서대로
     final s = await widget.api.mailSummary();
-    final (_, items) = await widget.api.inbox();
+    final (_, items) = await widget.api.inbox(pageSize: _count);
     unawaited(ref.read(mailIndexProvider.notifier).syncIfStale(widget.api)); // 검색 색인(10분마다, 결과를 기다리지 않음)
     return (s, items);
+  }
+
+  Future<void> _loadMore() async {
+    _more = true;
+    _count = (_count + _step).clamp(_step, 500);
+    await _refresh();
+    if (mounted) setState(() => _more = false);
   }
 
   Future<void> _refresh() async {
@@ -89,6 +101,11 @@ class _BodyState extends ConsumerState<_Body> {
                           ],
                         ]),
                 ),
+                if (items.length >= _count && _count < 500)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Center(child: OutlinedButton.icon(onPressed: _more ? null : _loadMore, icon: const Icon(Icons.expand_more), label: Text(_more ? '불러오는 중…' : '이전 메일 더 보기'))),
+                  ),
                 const SizedBox(height: 10),
                 Text('메일을 열면 아마란스에서도 읽음으로 바뀝니다. 본문 화면에서 안 읽음으로 되돌릴 수 있습니다.', style: TextStyle(fontSize: 12, color: Brand.muted), textAlign: TextAlign.center),
               ]);

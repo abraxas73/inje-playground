@@ -173,6 +173,22 @@ void main() {
     expect(find.text('본문'), findsNothing); // 목록으로 돌아옴
     expect(r.hits['/mail/mail003A01'], greaterThan(listLoads));
   });
+  testWidgets('메일: 20통이 꽉 차면 "이전 메일 더 보기" → 40통으로 다시 읽어 과거 메일까지 보여 준다', (tester) async {
+    List<Map<String, Object>> recs(int n) => [for (var i = 0; i < n; i++) {'muid': 100 + i, 'subject': '메일 $i', 'fromAddrName': '홍', 'rfc822date': '10-0${i % 9 + 1}', 'seen': 0}]; // 안 읽음 → 색인이 본문을 열지 않음
+    final r = Routes({'/mail/mail000A03': [[{'unreadCount': 0, 'toMeCount': 0, 'totalCount': 30}]], '/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]}],
+      // 화면 첫 로드(20) → 검색 색인 동기화(같은 목록, 500) → 더 보기(40)
+      '/mail/mail003A01': [{'Records': recs(20), 'TotalUnseenCount': 0}, {'Records': recs(20), 'TotalUnseenCount': 0}, {'Records': recs(30), 'TotalUnseenCount': 0}]});
+    await tester.binding.setSurfaceSize(const Size(800, 6000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, overrides: [mailIndexStoreProvider.overrideWithValue(MemoryMailIndexStore())], child: const MailScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('메일 25'), findsNothing);
+    await tester.tap(find.text('이전 메일 더 보기'));
+    await tester.pumpAndSettle();
+    expect(r.bodies['/mail/mail003A01']?['pageSize'], 40);
+    expect(find.text('메일 25'), findsOneWidget);
+    expect(find.text('이전 메일 더 보기'), findsNothing); // 30통 < 40 → 끝
+  });
   testWidgets('[리뷰6] 메일: 집계가 실패하면 영어 클래스 이름이 아니라 서버 메시지를 보여 준다', (tester) async {
     final r = Routes({'/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]}], '/mail/mail003A01': [{'Records': [], 'TotalUnseenCount': 0}]}); // mail000A03 없음 → 999 'unexpected …'
     await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const MailScreen()));
