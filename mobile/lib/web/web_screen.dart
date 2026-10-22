@@ -36,6 +36,10 @@ class _WebScreenState extends ConsumerState<WebScreen>
   // 오류는 바로 보여 주지 않는다 — 가로챈 내비게이션 뒤 곧바로 새 로드가 시작되면(seq 증가) 그 오류는 버린다.
   int _loadSeq = 0;
   Timer? _errTimer;
+  // 웹 페이지가 자기 제목 줄(h1 — 아이콘·제목·설명)을 보여 주는지. 보이면 앱 상단 제목은 빼서 두 번 나오지 않게.
+  // 페이지가 데이터를 읽은 뒤 제목을 그리거나(SPA) 창 폭에 따라 숨기므로(md 미만) 주기적으로 다시 본다.
+  bool _pageTitled = false;
+  Timer? _titleTimer;
   final _back = BackTracker();
   bool _openingOAuth = false;
   bool _openingBrowser = false;
@@ -90,6 +94,8 @@ class _WebScreenState extends ConsumerState<WebScreen>
               await _c.runJavaScript(blankLinkBridgeJs);
             } catch (_) {} // 새 창 링크를 같은 창 이동으로(외부는 _onNav가 브라우저로)
             final t = await _c.getTitle();
+            unawaited(_checkPageTitle());
+            _titleTimer ??= Timer.periodic(const Duration(seconds: 2), (_) => _checkPageTitle());
             final here = pagePathOf(await _c.currentUrl(), appOrigin: _origin);
             if (mounted) {
               setState(() {
@@ -139,6 +145,7 @@ class _WebScreenState extends ConsumerState<WebScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _errTimer?.cancel();
+    _titleTimer?.cancel();
     super.dispose();
   }
 
@@ -338,7 +345,17 @@ class _WebScreenState extends ConsumerState<WebScreen>
     }
   }
 
+  static const _pageTitleJs = "(() => { const h = document.querySelector('h1'); if (!h) return 'no'; const r = h.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(h).visibility !== 'hidden' ? 'yes' : 'no'; })()";
+
+  Future<void> _checkPageTitle() async {
+    try {
+      final v = '${await _c.runJavaScriptReturningResult(_pageTitleJs)}'.contains('yes');
+      if (mounted && v != _pageTitled) setState(() => _pageTitled = v);
+    } catch (_) {}
+  }
+
   String _headerTitle() {
+    if (!_loading && _pageTitled) return ''; // 페이지 제목 줄이 보이면 상단은 비운다(☆·새로고침만)
     final t = webTitleFor(title: _title, loading: _loading);
     return _loading || t != '이노그리드' ? t : (pageLabelFor(_pagePath) ?? t);
   }
