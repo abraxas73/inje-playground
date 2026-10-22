@@ -183,6 +183,15 @@ class MailIndexNotifier extends Notifier<MailIndexStatus> {
     await _save();
   }
 
+  /// 앱에서 지운 메일을 검색 색인에서도 뺀다(다음 동기화를 기다리지 않게).
+  Future<void> remove(String muid) async {
+    final idx = _index;
+    if (idx == null) return;
+    idx.remove(muid);
+    _publish();
+    await _save();
+  }
+
   static void _apply(MailIndex idx, String muid, MailDetail d) => idx.setDetail(muid, body: d.body, to: d.to, cc: d.cc, files: [for (final (name, _) in d.attachments) name], date: d.date);
 
   List<MailHit> search(String query, {bool byRelevance = false}) => _index?.search(query, byRelevance: byRelevance) ?? const [];

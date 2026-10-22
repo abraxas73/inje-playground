@@ -149,6 +149,12 @@ extension GwMailApi on GwApi {
 
   /// mail002A15 받은메일함에서 읽지 않음으로(서버는 최근 200건 안의 메일만 받아 준다).
   Future<void> markMailUnread(String muid) => client.call('/mail/mail002A15', {'mbox': 'INBOX', 'type': 'unseen', 'uids': muid});
+
+  /// 휴지통으로 이동(mail002A05 — Claude 커넥터 delete_mail과 같은 호출, 실측). 응답 code가 0이 아니면 실패.
+  Future<void> deleteMail(String muid) async {
+    final r = await client.call('/mail/mail002A05', {'boxName': '', 'mailKey': '', 'uids': muid});
+    if (r is Map && '${r['code'] ?? ''}'.isNotEmpty && '${r['code']}' != '0') throw Exception('메일을 삭제하지 못했습니다.');
+  }
 }
 
 extension GwBoardApi on GwApi {

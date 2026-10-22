@@ -45,9 +45,38 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
     }
   }
 
+  /// 휴지통으로 이동 — 되돌리기는 아마란스 휴지통에서. 확인을 받은 뒤에만.
+  Future<void> _delete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('이 메일을 삭제할까요?'),
+        content: const Text('아마란스 휴지통으로 옮깁니다. 되살리려면 아마란스 메일의 휴지통에서 복원하세요.'),
+        actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('취소')), FilledButton(style: FilledButton.styleFrom(backgroundColor: Brand.danger), onPressed: () => Navigator.pop(c, true), child: const Text('삭제'))],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await widget.api.deleteMail(widget.item.muid);
+      unawaited(ref.read(mailIndexProvider.notifier).remove(widget.item.muid).catchError((_) {}));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('휴지통으로 옮겼습니다.')));
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('삭제하지 못했습니다: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: BrandHeader(title: widget.item.subject.isEmpty ? '(제목 없음)' : widget.item.subject, showBack: true),
+        appBar: BrandHeader(
+          title: widget.item.subject.isEmpty ? '(제목 없음)' : widget.item.subject,
+          showBack: true,
+          actions: [SquareIconButton(icon: Icons.delete_outline, tooltip: '삭제(휴지통으로)', onPressed: _busy ? null : _delete)],
+        ),
         body: FutureBuilder(
           future: _future,
           builder: (context, snap) {

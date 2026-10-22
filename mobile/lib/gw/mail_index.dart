@@ -206,6 +206,8 @@ class MailIndex {
     docs[muid] = old.copyWith(seen: true, body: body.length > bodyLimit ? body.substring(0, bodyLimit) : body, files: files, to: to.isNotEmpty ? to : null, cc: cc.isNotEmpty ? cc : null, date: date.isNotEmpty && old.date.length < date.length ? date : null);
   }
 
+  void remove(String muid) => docs.remove(muid);
+
   /// 메일함 전체를 끝까지 읽은 뒤 — 목록에 더 없는 메일(삭제·이동)을 색인에서 뺀다.
   void retain(String box, Set<String> muids) => docs.removeWhere((k, d) => d.box == box && !muids.contains(k));
 
