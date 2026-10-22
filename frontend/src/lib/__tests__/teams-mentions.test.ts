@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nameCandidates, mentionsName, pickMentions, recentChats } from "@/lib/teams/mentions";
+import { isAcknowledgement, nameCandidates, mentionsName, pickMentions, recentChats } from "@/lib/teams/mentions";
 import type { ChatMessage, ChatSummary } from "@/lib/teams/chat";
 
 const now = new Date("2026-10-05T00:00:00Z");
@@ -46,5 +46,23 @@ describe("pickMentions", () => {
     expect(out[0].id).toBe("m11");
     expect(out.find((m) => m.id === "m11")?.text).toHaveLength(201);
     expect(out.some((m) => m.id === "x" || m.id === "old")).toBe(false);
+  });
+});
+
+describe("isAcknowledgement — 답할 필요 없는 맞장구", () => {
+  it.each(["네", "넵 !!", "네 감사합니다", "넵 괜찮아요.", "넵넵~", "감사합니다 :)", "네 알겠습니다", "확인했습니다 👍", "ㅇㅋ", "OK", "넵 ㅎㅎ"])("맞장구: %s", (t) => {
+    expect(isAcknowledgement(t)).toBe(true);
+  });
+  it.each(["네 내일 회의 몇 시죠?", "네 그런데 자료는 언제 주시나요", "확인 부탁드립니다", "감사합니다. 첨부 검토 후 회신 주세요", "?", "", "넵 근데 그건 좀 어렵겠네요"])("답 필요: %s", (t) => {
+    expect(isAcknowledgement(t)).toBe(false);
+  });
+});
+
+describe("pickMentions — 맞장구는 답장 대기에서 뺀다", () => {
+  it("1:1에서 상대가 \"네\"·\"넵!!\"만 보냈으면 대기 아님, 질문은 대기", () => {
+    const now = new Date("2026-10-05T00:00:00Z");
+    const chats = [chat("d1", "oneOnOne", "2026-10-04T10:00:00Z")];
+    const out = pickMentions(chats, { d1: [msg("1", "me", "자료 보냈습니다", "2026-10-04T09:00:00Z"), msg("2", "u2", "넵 !!", "2026-10-04T09:05:00Z"), msg("3", "u2", "네 감사합니다", "2026-10-04T09:06:00Z"), msg("4", "u2", "근데 회의는 몇 시예요?", "2026-10-04T09:07:00Z")] }, me, now, 2);
+    expect(out.map((m) => m.id)).toEqual(["4"]);
   });
 });

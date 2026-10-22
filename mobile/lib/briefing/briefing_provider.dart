@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/client.dart';
 import '../gw/gw_api.dart';
@@ -144,3 +145,27 @@ final companyAbsencesProvider = FutureProvider.autoDispose<GwOrgAbsences>((ref) 
   if (api == null) throw StateError('아마란스 연결이 필요합니다');
   return api.organizationAbsences(allCompany: true);
 });
+
+/// Teams 답장 대기만 2분마다 다시 읽는다(홈 브리핑 전체·Claude 요약은 다시 하지 않음) — Teams에서 답하거나 상대가 맞장구만 쳐도
+/// 홈 위젯에 곧 반영되게. 브리핑을 새로 수집하면 그 값을 쓰도록 비운다(null = 브리핑 값 사용).
+final teamsMentionsLiveProvider = NotifierProvider<TeamsMentionsLive, TeamsMentions?>(TeamsMentionsLive.new);
+
+class TeamsMentionsLive extends Notifier<TeamsMentions?> {
+  static const every = Duration(minutes: 2);
+  @override
+  TeamsMentions? build() {
+    ref.listen(briefingProvider, (_, _) => state = null);
+    final t = Timer.periodic(every, (_) => poll());
+    ref.onDispose(t.cancel);
+    return null;
+  }
+
+  Future<void> poll() async {
+    try {
+      final m = TeamsMentions.parse(await ref.read(apiClientProvider).getJson('/api/teams/mentions', query: {'days': '2'}));
+      if (ref.mounted) state = m;
+    } catch (_) {
+      // 잠깐의 실패는 무시 — 브리핑 값(또는 직전 값)을 그대로 보여 준다
+    }
+  }
+}
