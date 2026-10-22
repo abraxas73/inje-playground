@@ -29,6 +29,7 @@ import 'quotes.dart';
 import 'home_card_layout.dart';
 import 'home_dashboard.dart';
 import 'dashboard_view.dart';
+import 'pinned_widgets.dart';
 
 /// 홈 = 오늘의 브리핑. 인사말 → 오늘의 한 줄(격언) → 데일리 브리핑(Claude, 없으면 숨김) → 지금 필요한 것 → 일정 → 팀원 부재 → 결재 → 메일 → Teams → 공지 → 바로 가기·사내 서비스.
 /// 수집은 홈을 열 때·홈 탭을 다시 누를 때·당겨서 새로고침. 브리핑은 매일 한국 시간 07:00 및 수동 요청 때 다시 만든다.
@@ -169,7 +170,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     Future<void> openMail(MailItem m) async {
       final api = ref.read(gwApiProvider);
       if (api == null) return open('/gw/mail');
-      await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => MailDetailScreen(api: api, item: m)));
+      // 데스크톱은 Always On 창(다른 탭·화면 위)에서도 누를 수 있어 보이는 맨 위 내비게이터로 연다
+      await Navigator.of(context, rootNavigator: pinnedWidgetsSupported).push<bool>(MaterialPageRoute(builder: (_) => MailDetailScreen(api: api, item: m)));
       if (mounted) await _refresh();
     }
 
@@ -280,6 +282,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       if (session != null && webServices(session).isNotEmpty) add('services', '사내 서비스', ServiceGrid(session: session), w: 12, h: 3);
 
       final layout = ref.watch(homeDashboardProvider).value ?? defaultDashboard;
+      // Always On 떠 있는 창이 같은 위젯을 그리도록 정의를 올려 둔다(그리는 중엔 상태를 못 바꾸므로 그린 뒤)
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) ref.read(dashboardDefsProvider.notifier).publish(sections); });
+      final pins = ref.watch(pinnedWidgetsProvider);
       void addWidget(String id) {
         if (layout.any((t) => t.id == id)) return;
         final def = sections[id];
@@ -318,6 +323,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                   widgets: sections,
                   editing: _editing,
                   onChanged: (tiles) => ref.read(homeDashboardProvider.notifier).save(tiles),
+                  onPin: (id, size) => ref.read(pinnedWidgetsProvider.notifier).toggle(id, size),
+                  isPinned: (id) => pins.any((p) => p.id == id),
                 ),
               ]),
             ),

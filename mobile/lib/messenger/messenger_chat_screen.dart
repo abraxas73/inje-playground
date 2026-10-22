@@ -6,6 +6,7 @@ import 'dart:async';
 import 'messenger_api.dart';
 import 'messenger_client.dart' show MessengerAuthException;
 import 'messenger_models.dart';
+import 'messenger_favorites.dart';
 import 'messenger_mqtt.dart';
 import 'messenger_provider.dart';
 import 'messenger_search_screen.dart';
@@ -109,13 +110,18 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
           if (rooms.isEmpty) {
             return RefreshIndicator(onRefresh: _refresh, child: ListView(children: [SizedBox(height: 120), Center(child: Text('대화방이 없습니다', style: TextStyle(color: Brand.muted)))]));
           }
+          // 즐겨찾기한 방은 위 구역에 따로(구역 안 순서는 서버 순서 그대로)
+          final favIds = ref.watch(messengerFavoritesProvider);
+          final favs = [for (final r in rooms) if (favIds.contains(r.roomId)) r];
+          final rest = [for (final r in rooms) if (!favIds.contains(r.roomId)) r];
+          Widget section(String label) => Padding(padding: const EdgeInsets.fromLTRB(20, 14, 20, 6), child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Brand.muted)));
+          List<Widget> tiles(List<MsgRoom> list) => [for (final (i, r) in list.indexed) ...[if (i > 0) const Divider(height: 1, indent: 72), _roomTile(context, r)]];
           return RefreshIndicator(
             onRefresh: _refresh,
-            child: ListView.separated(
-              itemCount: rooms.length,
-              separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
-              itemBuilder: (_, i) => _roomTile(context, rooms[i]),
-            ),
+            child: ListView(children: [
+              if (favs.isNotEmpty) ...[section('즐겨찾기'), ...tiles(favs), section('대화방')],
+              ...tiles(rest),
+            ]),
           );
         },
       ),
@@ -262,6 +268,14 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
         showBack: true,
         onRefresh: _refresh,
         actions: [
+          Builder(builder: (context) {
+            final fav = ref.watch(messengerFavoritesProvider).contains(widget.room.roomId);
+            return IconButton(
+              tooltip: fav ? '즐겨찾기 해제' : '즐겨찾기',
+              icon: Icon(fav ? Icons.star_rounded : Icons.star_outline_rounded, color: fav ? const Color(0xFFF5B400) : null),
+              onPressed: () => ref.read(messengerFavoritesProvider.notifier).toggle(widget.room.roomId),
+            );
+          }),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (v) {
@@ -466,7 +480,10 @@ class _MessengerDashboardCardState extends ConsumerState<MessengerDashboardCard>
         if (mounted) setState(() => _names = {..._names, ...names});
       } catch (_) {}
     }
+    final favs = ref.read(messengerFavoritesProvider);
     rooms.sort((a, b) {
+      final fa = favs.contains(a.roomId) ? 1 : 0, fb = favs.contains(b.roomId) ? 1 : 0; // 즐겨찾기 먼저
+      if (fa != fb) return fb - fa;
       final ua = a.unreadCount > 0 ? 1 : 0, ub = b.unreadCount > 0 ? 1 : 0;
       if (ua != ub) return ub - ua;
       return (b.lastAt ?? DateTime(2000)).compareTo(a.lastAt ?? DateTime(2000));
