@@ -264,9 +264,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         addPh('talks', '메신저 멘션', gwNo ? '아마란스에 연결하면 표시됩니다' : '새 메신저 멘션이 없습니다', onConnect: gwNo ? gwConnect : null, w: 6, h: 2);
       }
       // Teams 답장 대기
-      final tmConnected = data?.mentions?.connected == true;
-      if (!gwNo && !data.errors.containsKey('teams') && tmConnected && (data.mentions?.items.isNotEmpty ?? false)) {
-        add('teams', 'Teams', TeamsSection(mentions: data.mentions, onOpen: () => open(teamsRoute), onOpenChat: (id) => open(id.isEmpty ? teamsRoute : '/web?path=${Uri.encodeComponent('/teams/chat?chat=$id')}')), w: 6, h: 3);
+      final mentions = ref.watch(teamsMentionsLiveProvider) ?? data?.mentions; // 2분마다 따로 갱신된 값 우선
+      final tmConnected = mentions?.connected == true;
+      if (!gwNo && !data.errors.containsKey('teams') && tmConnected && (mentions?.items.isNotEmpty ?? false)) {
+        add('teams', 'Teams', TeamsSection(mentions: mentions, onOpen: () => open(teamsRoute), onOpenChat: (id) => open(id.isEmpty ? teamsRoute : '/web?path=${Uri.encodeComponent('/teams/chat?chat=$id')}')), w: 6, h: 3);
       } else {
         addPh('teams', 'Teams', !tmConnected ? 'Teams 연결이 필요합니다' : '답장 대기가 없습니다', onConnect: !tmConnected ? settingsConnect : null, label: '연결 설정');
       }
@@ -436,7 +437,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               if (!data.errors.containsKey('talks')) TalkMentionSection(talks: data.talks, onOpen: openMessenger),
             ],
             if (data != null) ...[
-              if (data.errors.containsKey('teams')) RetryLine(label: 'Teams', onTap: _refresh) else TeamsSection(mentions: data.mentions, onOpen: () => open(teamsRoute), onOpenChat: (id) => open(id.isEmpty ? teamsRoute : '/web?path=${Uri.encodeComponent('/teams/chat?chat=$id')}')),
+              if (data.errors.containsKey('teams')) RetryLine(label: 'Teams', onTap: _refresh) else TeamsSection(mentions: ref.watch(teamsMentionsLiveProvider) ?? data.mentions, onOpen: () => open(teamsRoute), onOpenChat: (id) => open(id.isEmpty ? teamsRoute : '/web?path=${Uri.encodeComponent('/teams/chat?chat=$id')}')),
             ],
             const GwNoticesCard(),
             ]),

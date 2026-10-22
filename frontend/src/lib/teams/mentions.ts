@@ -1,6 +1,6 @@
 /**
  * Teams 답장 대기(멘션·DM) 선별 — 홈 브리핑용. 그룹 채팅은 내 이름이 들어간 남의 메시지, 1:1은 남의 메시지 전부,
- * 그 뒤에 내가 보낸 메시지가 있으면(이미 답함) 제외. 순수 함수만 두고 Graph 호출은 라우트가 한다. 본문은 저장·로그하지 않는다.
+ * 그 뒤에 내가 보낸 메시지가 있으면(이미 답함) 제외, 짧은 맞장구("네"·"넵 감사합니다")도 제외. 순수 함수만 두고 Graph 호출은 라우트가 한다. 본문은 저장·로그하지 않는다.
  */
 import type { ChatMessage, ChatSummary } from "./chat";
 
@@ -26,6 +26,28 @@ export function mentionsName(text: string, candidates: string[]): boolean {
   return candidates.some((n) => text.includes(n));
 }
 
+/**
+ * 답이 필요 없는 짧은 맞장구 — "네", "넵!!", "네 감사합니다", "넵 괜찮아요." 같은 글. 모든 낱말이 맞장구 낱말이고 물음표가 없을 때만.
+ * 질문·요청이 섞이면(예: "네 내일 몇 시죠?") 맞장구가 아니다.
+ */
+const ACK_WORDS = new Set([
+  "네", "넵", "넹", "네네", "넵넵", "예", "옙", "예예", "ㅇㅇ", "ㅇㅋ", "ㅇㅋㅇㅋ", "오케이", "ok", "okay", "okk", "굿", "good", "thanks", "thx", "감사", "땡큐",
+  "알겠습니다", "알겠어요", "알겠습니당", "알겠슴다", "알았어요", "알았습니다", "확인", "확인했습니다", "확인했어요", "확인했습니당", "확인완료",
+  "감사합니다", "감사해요", "감사합니당", "감사드립니다", "고맙습니다", "고마워요", "고마워",
+  "좋아요", "좋습니다", "좋네요", "괜찮아요", "괜찮습니다", "괜찮네요", "수고하셨습니다", "수고하세요", "수고하셨어요", "넵알겠습니다", "네알겠습니다",
+]);
+export function isAcknowledgement(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  if (!t || t.length > 30 || /[?？]/.test(t)) return false;
+  // 문장부호·이모지·웃음(ㅎㅎ·ㅋㅋ)·물결은 걷어 낸다
+  const words = t
+    .replace(/[ㅎㅋ]{2,}/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  return words.length > 0 && words.every((w) => ACK_WORDS.has(w));
+}
+
 export function pickMentions(chats: ChatSummary[], messagesByChat: Record<string, ChatMessage[]>, me: MeLike, now: Date, days: number): MentionItem[] {
   const since = now.getTime() - days * DAY;
   const names = nameCandidates(me);
@@ -36,6 +58,7 @@ export function pickMentions(chats: ChatSummary[], messagesByChat: Record<string
     for (const m of msgs) {
       if (!m.from || m.from.id === me.id || !m.text.trim()) continue;
       if (Date.parse(m.createdAt) <= myLast) continue; // 이미 답함
+      if (isAcknowledgement(m.text)) continue; // "네"·"넵 감사합니다" 같은 맞장구는 답할 필요 없음
       if (chat.type === "group" && !mentionsName(m.text, names)) continue;
       out.push({ id: m.id, chatId: chat.id, topic: chat.topic, type: chat.type, from: m.from.name, text: m.text.length > MENTION_TEXT_MAX ? `${m.text.slice(0, MENTION_TEXT_MAX)}…` : m.text, at: m.createdAt, webUrl: chat.webUrl });
     }
