@@ -39,7 +39,7 @@ void main() {
     expect(find.byTooltip('응답 중지'), findsOneWidget);
     await tester.tap(find.byTooltip('응답 중지'));
     await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(find.byType(TextField)).enabled, true);
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled ?? true, true); // 입력창은 늘 활성(답 기다리는 중에도 — 포커스 유지)
     expect(find.byTooltip('보내기'), findsOneWidget);
     expect(find.text('생각하는 중…'), findsNothing);
     wait.complete();

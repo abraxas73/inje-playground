@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../app/theme.dart';
+import 'dashboard_style.dart';
 import 'home_dashboard.dart';
 
 /// 대시보드에 올릴 위젯 한 종류 — 제목(추가 팔레트용)과 실제 화면.
@@ -59,6 +60,8 @@ class DashboardView extends StatefulWidget {
     required this.onChanged,
     this.onPin,
     this.isPinned,
+    this.bgOf,
+    this.onBg,
   });
 
   final List<DashboardTile> layout;
@@ -69,6 +72,10 @@ class DashboardView extends StatefulWidget {
   /// 주면 보기 모드 타일 오른쪽 위에 ⋮ 메뉴(마우스를 올리면) — "Always On"(모든 화면 위에 띄우기) 켜기/끄기. size는 지금 타일 크기.
   final void Function(String id, Size size)? onPin;
   final bool Function(String id)? isPinned;
+
+  /// 주면 보기 모드에서 위젯마다 영역(테두리·바탕)을 그리고, ⋮ 메뉴에 배경색 고르기를 둔다. 값은 widgetBgChoices 번호(null = 기본).
+  final int? Function(String id)? bgOf;
+  final void Function(String id, int? choice)? onBg;
 
   @override
   State<DashboardView> createState() => _DashboardViewState();
@@ -182,7 +189,20 @@ class _DashboardViewState extends State<DashboardView> {
               : _TileMenu(
                   pinned: widget.isPinned?.call(t.id) ?? false,
                   onPin: () => widget.onPin!(t.id, Size(width, height)),
-                  child: content,
+                  bg: widget.bgOf?.call(t.id),
+                  onBg: widget.onBg == null ? null : (i) => widget.onBg!(t.id, i),
+                  // 위젯마다 영역을 보이게(편집 화면만큼 강하지 않게) — 옅은 테두리 + 바탕
+                  child: widget.bgOf == null
+                      ? content
+                      : Container(
+                          decoration: BoxDecoration(color: widgetBgColor(widget.bgOf!(t.id)), borderRadius: BorderRadius.circular(18), border: Border.all(color: Brand.line)),
+                          padding: const EdgeInsets.all(4),
+                          // 위젯 바깥 카드는 영역 바탕을 그대로 보이게(투명) — 아니면 고른 배경색이 가장자리에만 보인다
+                          child: Theme(
+                            data: Theme.of(context).copyWith(cardTheme: Theme.of(context).cardTheme.copyWith(color: Colors.transparent, surfaceTintColor: Colors.transparent, elevation: 0, shadowColor: Colors.transparent)),
+                            child: content,
+                          ),
+                        ),
                 ),
     );
   }
@@ -365,9 +385,11 @@ class _DashedRectPainter extends CustomPainter {
 
 /// 보기 모드 타일 오른쪽 위 ⋮ — 마우스를 올렸을 때(또는 켜져 있을 때 핀 표시와 함께) 보인다. 내용 위 머리 링크를 가리지 않게 평소엔 숨김.
 class _TileMenu extends StatefulWidget {
-  const _TileMenu({required this.pinned, required this.onPin, required this.child});
+  const _TileMenu({required this.pinned, required this.onPin, required this.child, this.bg, this.onBg});
   final bool pinned;
   final VoidCallback onPin;
+  final int? bg;
+  final void Function(int? choice)? onBg;
   final Widget child;
   @override
   State<_TileMenu> createState() => _TileMenuState();
@@ -396,13 +418,34 @@ class _TileMenuState extends State<_TileMenu> {
                   icon: Icon(widget.pinned ? Icons.push_pin : Icons.more_vert, size: 18, color: widget.pinned ? Brand.blue : Brand.muted),
                   onOpened: () => setState(() => _open = true),
                   onCanceled: () => setState(() => _open = false),
-                  onSelected: (v) { setState(() => _open = false); if (v == 'pin') widget.onPin(); },
+                  onSelected: (v) {
+                    setState(() => _open = false);
+                    if (v == 'pin') widget.onPin();
+                    if (v.startsWith('bg:')) widget.onBg?.call(v == 'bg:' ? null : int.parse(v.substring(3)));
+                  },
                   itemBuilder: (_) => [
                     CheckedPopupMenuItem(value: 'pin', checked: widget.pinned, child: Text(widget.pinned ? 'Always On 끄기' : 'Always On — 모든 화면 위에 띄우기')),
+                    if (widget.onBg != null) ...[
+                      const PopupMenuDivider(),
+                      PopupMenuItem(enabled: false, height: 28, child: Text('배경색', style: TextStyle(fontSize: 12, color: Brand.muted))),
+                      _bgItem('bg:', '기본', Brand.surface, widget.bg == null),
+                      for (final (i, (name, color)) in widgetBgChoices.indexed) _bgItem('bg:$i', name, color, widget.bg == i),
+                    ],
                   ],
                 ),
               ),
             ),
+        ]),
+      );
+
+  PopupMenuItem<String> _bgItem(String value, String name, Color color, bool selected) => PopupMenuItem(
+        value: value,
+        height: 36,
+        child: Row(children: [
+          Container(width: 18, height: 18, decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: Brand.line))),
+          const SizedBox(width: 10),
+          Expanded(child: Text(name)),
+          if (selected) Icon(Icons.check, size: 16, color: Brand.blue),
         ]),
       );
 }

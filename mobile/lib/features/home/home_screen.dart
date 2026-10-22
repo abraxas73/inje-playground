@@ -30,6 +30,7 @@ import 'home_card_layout.dart';
 import 'home_dashboard.dart';
 import 'dashboard_view.dart';
 import 'pinned_widgets.dart';
+import 'dashboard_style.dart';
 
 /// 홈 = 오늘의 브리핑. 인사말 → 오늘의 한 줄(격언) → 데일리 브리핑(Claude, 없으면 숨김) → 지금 필요한 것 → 일정 → 팀원 부재 → 결재 → 메일 → Teams → 공지 → 바로 가기·사내 서비스.
 /// 수집은 홈을 열 때·홈 탭을 다시 누를 때·당겨서 새로고침. 브리핑은 매일 한국 시간 07:00 및 수동 요청 때 다시 만든다.
@@ -285,6 +286,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       // Always On 떠 있는 창이 같은 위젯을 그리도록 정의를 올려 둔다(그리는 중엔 상태를 못 바꾸므로 그린 뒤)
       WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) ref.read(dashboardDefsProvider.notifier).publish(sections); });
       final pins = ref.watch(pinnedWidgetsProvider);
+      final bgs = ref.watch(widgetBgProvider);
       void addWidget(String id) {
         if (layout.any((t) => t.id == id)) return;
         final def = sections[id];
@@ -325,6 +327,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                   onChanged: (tiles) => ref.read(homeDashboardProvider.notifier).save(tiles),
                   onPin: (id, size) => ref.read(pinnedWidgetsProvider.notifier).toggle(id, size),
                   isPinned: (id) => pins.any((p) => p.id == id),
+                  bgOf: (id) => bgs[id],
+                  onBg: (id, i) => ref.read(widgetBgProvider.notifier).set(id, i),
                 ),
               ]),
             ),

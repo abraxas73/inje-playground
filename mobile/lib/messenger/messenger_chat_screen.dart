@@ -433,6 +433,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
               maxLines: 4,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _send(),
+              onEditingComplete: () {}, // 보낸 뒤에도 입력창에 포커스 유지(이어서 입력) — 기본 동작은 포커스를 놓는다
               decoration: InputDecoration(hintText: '메시지', border: OutlineInputBorder(borderRadius: BorderRadius.circular(22)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
             ),
           ),

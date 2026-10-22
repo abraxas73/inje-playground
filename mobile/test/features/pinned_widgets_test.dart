@@ -7,6 +7,7 @@ import 'package:playground/assistant/innobot_prefs.dart';
 import 'package:playground/features/home/dashboard_view.dart';
 import 'package:playground/features/home/home_dashboard.dart';
 import 'package:playground/features/home/pinned_widgets.dart';
+import 'package:playground/features/home/dashboard_style.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -85,5 +86,44 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     await Future<void>.delayed(Duration.zero);
     expect(c.read(pinnedWidgetsProvider).map((t) => t.id), ['teams']);
+  });
+
+  testWidgets('⋮ 메뉴 배경색: 고르면 onBg(번호), 위젯 영역은 테두리·바탕으로 보인다', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    (String, int?)? got;
+    await tester.pumpWidget(MaterialApp(theme: appTheme(), home: Scaffold(body: SingleChildScrollView(child: DashboardView(
+      layout: const [DashboardTile('mails', 0, 0, 6, 3)],
+      widgets: {'mails': DashboardWidgetDef('메일', const Text('메일 내용'))},
+      editing: false,
+      onChanged: (_) {},
+      onPin: (_, _) {},
+      isPinned: (_) => false,
+      bgOf: (_) => 1,
+      onBg: (id, i) => got = (id, i),
+    )))));
+    await tester.pumpAndSettle();
+    final box = tester.widget<Container>(find.ancestor(of: find.text('메일 내용'), matching: find.byType(Container)).first);
+    expect((box.decoration as BoxDecoration).color, widgetBgChoices[1].$2); // 민트 바탕
+    expect(Theme.of(tester.element(find.text('메일 내용'))).cardTheme.color, Colors.transparent); // 안쪽 카드는 투명 → 바탕색이 보인다
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(find.text('메일 내용')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('위젯 옵션'));
+    await tester.pumpAndSettle();
+    expect(find.text('배경색'), findsOneWidget);
+    await tester.tap(find.text('레몬'));
+    await tester.pumpAndSettle();
+    expect(got, ('mails', 4));
+  });
+
+  test('배경색은 계정별로 저장되고 기본으로 되돌릴 수 있다', () async {
+    final c = ProviderContainer(overrides: [pinnedAccountProvider.overrideWithValue('a@innogrid.com')]);
+    addTearDown(c.dispose);
+    c.read(widgetBgProvider.notifier).set('mails', 2);
+    await Future<void>.delayed(Duration.zero);
+    expect((await SharedPreferences.getInstance()).getString('dashboard.bg.a@innogrid.com'), contains('"mails":2'));
+    c.read(widgetBgProvider.notifier).set('mails', null);
+    expect(c.read(widgetBgProvider), isEmpty);
   });
 }

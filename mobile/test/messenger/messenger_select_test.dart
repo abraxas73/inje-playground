@@ -76,5 +76,27 @@ void main() {
     expect(box.constraints?.maxWidth, greaterThan(1000));
     expect(one.height, lessThan(30)); // 한 줄
   });
+
+  testWidgets('메시지를 Enter로 보낸 뒤에도 입력창에 포커스가 남는다(이어서 대화)', (tester) async {
+    final api = _SendApi();
+    await tester.pumpWidget(ProviderScope(overrides: [
+      messengerApiProvider.overrideWithValue(api),
+      messengerMqttProvider.overrideWithValue(MessengerMqtt()),
+    ], child: MaterialApp(home: MessengerRoomScreen(room: MsgRoom.minimal('r1', title: '개발팀')))));
+    await tester.pumpAndSettle();
+    final field = find.byType(TextField);
+    await tester.tap(field);
+    await tester.enterText(field, '첫 메시지');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pumpAndSettle();
+    expect(api.sent, ['첫 메시지']);
+    expect(tester.widget<EditableText>(find.byType(EditableText)).focusNode.hasFocus, isTrue);
+  });
+}
+
+class _SendApi extends _Api {
+  final sent = <String>[];
+  @override
+  Future<void> sendChat({required String roomId, required String content, String? uuid}) async => sent.add(content);
 }
 
