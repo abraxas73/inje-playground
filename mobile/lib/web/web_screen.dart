@@ -364,7 +364,8 @@ class _WebScreenState extends ConsumerState<WebScreen>
             title: Row(children: [
               Flexible(
                 child: Text(
-                  webTitleFor(title: _title, loading: _loading),
+                  // 웹 페이지 <title>은 대부분 사이트 이름(이노그리드)이라, 메뉴에 있는 페이지면 메뉴 이름을 제목으로(즐겨찾기 이름과 같게)
+                  (_loading ? null : pageLabelFor(_pagePath)) ?? webTitleFor(title: _title, loading: _loading),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
