@@ -22,7 +22,7 @@ void main() {
   testWidgets('Always On 창: 모든 화면 위에 떠서 홈 위젯 내용을 그리고, X로 끈다(기기에 기억)', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    final container = ProviderContainer(overrides: [innobotSignedInProvider.overrideWithValue(true)]);
+    final container = ProviderContainer(overrides: [innobotSignedInProvider.overrideWithValue(true), pinnedAccountProvider.overrideWithValue('a@innogrid.com')]);
     addTearDown(container.dispose);
     container.read(dashboardDefsProvider.notifier).publish({'mails': DashboardWidgetDef('메일', const Text('메일 내용'))});
     await tester.pumpWidget(UncontrolledProviderScope(
@@ -35,7 +35,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('다른 화면'), findsOneWidget);
     expect(find.text('메일 내용'), findsOneWidget); // 다른 화면 위에 떠 있음
-    expect((await SharedPreferences.getInstance()).getString('dashboard.pinned'), contains('mails'));
+    expect((await SharedPreferences.getInstance()).getString('dashboard.pinned.a@innogrid.com'), contains('mails'));
     // 머리줄을 끌면 옮겨진다
     final before = tester.getTopLeft(find.text('메일 내용'));
     await tester.drag(find.text('메일'), const Offset(-200, 100));
@@ -44,7 +44,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.close));
     await tester.pumpAndSettle();
     expect(find.text('메일 내용'), findsNothing);
-    expect((await SharedPreferences.getInstance()).getString('dashboard.pinned'), '[]');
+    expect((await SharedPreferences.getInstance()).getString('dashboard.pinned.a@innogrid.com'), '[]');
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('대시보드 타일 ⋮ 메뉴: 마우스를 올리면 보이고 Always On을 고르면 onPin(타일 크기)', (tester) async {
@@ -71,5 +71,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(pinned, 'mails');
     expect(size!.width, greaterThan(500));
+  });
+
+  test('계정이 바뀌면 이전 계정의 위젯 정의를 버리고 고정 목록도 그 계정 것만', () async {
+    SharedPreferences.setMockInitialValues({'dashboard.pinned.b@innogrid.com': '[{"id":"teams","x":10,"y":10,"w":300,"h":200}]'});
+    final c = ProviderContainer(overrides: [pinnedAccountProvider.overrideWithValue('a@innogrid.com')]);
+    addTearDown(c.dispose);
+    c.read(dashboardDefsProvider.notifier).publish({'mails': DashboardWidgetDef('메일', const Text('x'))});
+    c.read(pinnedWidgetsProvider.notifier).pin('mails', const Size(300, 200));
+    expect(c.read(pinnedWidgetsProvider).map((t) => t.id), ['mails']);
+    c.updateOverrides([pinnedAccountProvider.overrideWithValue('b@innogrid.com')]);
+    expect(c.read(dashboardDefsProvider), isEmpty);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    expect(c.read(pinnedWidgetsProvider).map((t) => t.id), ['teams']);
   });
 }

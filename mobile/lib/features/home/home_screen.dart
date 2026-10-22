@@ -170,7 +170,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     Future<void> openMail(MailItem m) async {
       final api = ref.read(gwApiProvider);
       if (api == null) return open('/gw/mail');
-      await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => MailDetailScreen(api: api, item: m)));
+      // 데스크톱은 Always On 창(다른 탭·화면 위)에서도 누를 수 있어 보이는 맨 위 내비게이터로 연다
+      await Navigator.of(context, rootNavigator: pinnedWidgetsSupported).push<bool>(MaterialPageRoute(builder: (_) => MailDetailScreen(api: api, item: m)));
       if (mounted) await _refresh();
     }
 

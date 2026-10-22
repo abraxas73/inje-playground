@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../app/theme.dart';
 import '../../assistant/innobot_prefs.dart';
+import '../../auth/session.dart';
 import 'dashboard_view.dart';
 
 const _kPinned = 'dashboard.pinned';
@@ -30,12 +31,18 @@ class PinnedTile {
   }
 }
 
+/// 지금 로그인한 계정(이메일). 바뀌면 떠 있는 창 정의·고정 목록을 비우고 그 계정 것으로 다시 읽는다.
+final pinnedAccountProvider = Provider<String?>((ref) => ref.watch(sessionProvider).asData?.value?.email);
+
 /// 홈 화면이 그릴 때마다 올려 두는 위젯 정의(id → 정의). 떠 있는 창이 이걸 읽어 같은 내용을 그린다.
 final dashboardDefsProvider = NotifierProvider<DashboardDefs, Map<String, DashboardWidgetDef>>(DashboardDefs.new);
 
 class DashboardDefs extends Notifier<Map<String, DashboardWidgetDef>> {
   @override
-  Map<String, DashboardWidgetDef> build() => const {};
+  Map<String, DashboardWidgetDef> build() {
+    ref.watch(pinnedAccountProvider); // 계정이 바뀌면 이전 사용자의 위젯(데이터·사라진 화면을 잡은 동작)을 버린다
+    return const {};
+  }
   void publish(Map<String, DashboardWidgetDef> defs) => state = defs;
 }
 
@@ -43,15 +50,19 @@ class DashboardDefs extends Notifier<Map<String, DashboardWidgetDef>> {
 final pinnedWidgetsProvider = NotifierProvider<PinnedWidgets, List<PinnedTile>>(PinnedWidgets.new);
 
 class PinnedWidgets extends Notifier<List<PinnedTile>> {
+  String? _account;
+  String get _key => '$_kPinned.${_account ?? ''}'; // 계정별로 따로 기억
+
   @override
   List<PinnedTile> build() {
-    _load();
+    _account = ref.watch(pinnedAccountProvider);
+    if (_account != null) _load();
     return const [];
   }
 
   Future<void> _load() async {
     try {
-      final raw = (await SharedPreferences.getInstance()).getString(_kPinned);
+      final raw = (await SharedPreferences.getInstance()).getString(_key);
       final list = raw == null ? const [] : jsonDecode(raw);
       final tiles = [for (final j in list is List ? list : const []) ?PinnedTile.fromJson(j)];
       if (ref.mounted && state.isEmpty) state = tiles;
@@ -60,7 +71,8 @@ class PinnedWidgets extends Notifier<List<PinnedTile>> {
 
   Future<void> _save() async {
     try {
-      await (await SharedPreferences.getInstance()).setString(_kPinned, jsonEncode([for (final t in state) t.toJson()]));
+      if (_account == null) return;
+      await (await SharedPreferences.getInstance()).setString(_key, jsonEncode([for (final t in state) t.toJson()]));
     } catch (_) {}
   }
 
