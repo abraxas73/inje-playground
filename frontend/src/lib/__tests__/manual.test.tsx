@@ -49,5 +49,5 @@ it("앱 기능 절은 목차와 제목에 (모바일·데스크톱 앱) 표시�
   expect(screen.getAllByText("(데스크톱 앱)").length).toBeGreaterThanOrEqual(2);
   expect(screen.getAllByText("모바일·데스크톱 앱 · 데스크톱 앱").length).toBe(2); // 멘션 알림·Claude 커넥터
   expect(searchManual("데스크톱 앱").map((s) => s.id)).toContain("desktop-mentions");
-  expect(searchManual("안 읽음으로 되돌리기").map((s) => s.id)).toEqual(expect.arrayContaining(["app-mail", "gw-mail"]));
+  expect(searchManual("안 읽음으로 되돌리기").map((s) => s.id)).toEqual(expect.arrayContaining(["gw-mail"]));
 });

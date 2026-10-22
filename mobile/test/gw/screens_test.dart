@@ -121,7 +121,7 @@ void main() {
     await tester.tap(hit);
     await tester.pumpAndSettle();
     expect(r.hits['/mail/mail002A01'], 2); // 결과를 누르면 본문 화면(열람)
-    expect(find.textContaining('안 읽음으로 되돌리기'), findsOneWidget);
+    expect(find.byTooltip('삭제(휴지통으로)'), findsOneWidget);
   });
   testWidgets('메일: 미읽음 집계와 목록, 미읽음은 굵게, 누르면 본문 화면(mail002A01)을 열고 돌아오면 목록을 다시 읽는다', (tester) async {
     final r = Routes({'/mail/mail000A03': [[{'unreadCount': 2, 'toMeCount': 1, 'totalCount': 9}]], '/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]}], '/mail/mail003A01': [{'Records': [{'muid': 1, 'subject': '안 읽음', 'fromAddrName': '홍', 'rfc822date': '07:10', 'seen': 0}, {'muid': 2, 'subject': '읽음', 'fromAddrName': '김', 'rfc822date': '10-03', 'seen': 1}], 'TotalUnseenCount': 2}],
@@ -144,7 +144,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('접기'), findsOneWidget);
     expect(find.textContaining('마 <d@x.com>'), findsOneWidget);
-    expect(find.text('안 읽음으로 되돌리기'), findsOneWidget);
+    expect(find.text('안 읽음으로 되돌리기'), findsNothing); // 아래 고정 줄 없음(2026-10-22)
+    await tester.tap(find.textContaining('a.pdf'));
+    await tester.pump();
+    expect(find.text('첨부 파일은 아마란스 메일에서 내려받아 주세요.'), findsOneWidget);
+    await tester.pumpAndSettle(const Duration(seconds: 5));
     await tester.tap(find.byTooltip('뒤로'));
     await tester.pumpAndSettle();
     expect(r.hits['/mail/mail003A01'], greaterThan(listLoads)); // 돌아오면 목록·미읽음 수를 다시 읽는다
