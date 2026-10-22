@@ -414,6 +414,7 @@ class _TileMenuState extends State<_TileMenu> {
                 child: PopupMenuButton<String>(
                   tooltip: '위젯 옵션',
                   padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 300), // 'Always On — …'이 줄바꿈되지 않게
                   iconSize: 18,
                   icon: Icon(widget.pinned ? Icons.push_pin : Icons.more_vert, size: 18, color: widget.pinned ? Brand.blue : Brand.muted),
                   onOpened: () => setState(() => _open = true),
@@ -424,7 +425,7 @@ class _TileMenuState extends State<_TileMenu> {
                     if (v.startsWith('bg:')) widget.onBg?.call(v == 'bg:' ? null : int.parse(v.substring(3)));
                   },
                   itemBuilder: (_) => [
-                    CheckedPopupMenuItem(value: 'pin', checked: widget.pinned, child: Text(widget.pinned ? 'Always On 끄기' : 'Always On — 모든 화면 위에 띄우기')),
+                    CheckedPopupMenuItem(value: 'pin', checked: widget.pinned, child: Text(widget.pinned ? 'Always On 끄기' : 'Always On — 모든 화면 위에 띄우기', maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
                     if (widget.onBg != null) ...[
                       const PopupMenuDivider(),
                       PopupMenuItem(enabled: false, height: 28, child: Text('배경색', style: TextStyle(fontSize: 12, color: Brand.muted))),
