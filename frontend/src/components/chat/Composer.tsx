@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Loader2, Paperclip, Send, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useEnterToSend } from "@/hooks/useEnterToSend";
 
 type Upload = { key: string; name: string; id?: string; error?: string; warning?: string };
 const MAX_FILES = 5;
@@ -35,12 +36,13 @@ export default function Composer({ busy, models, model, onModel, onSend, onStop,
       setUploads((u) => u.map((x) => (x.key === key ? (res?.ok ? { ...x, id: j.id, warning: j.warning } : { ...x, error: j.error ?? "올리지 못했습니다." }) : x)));
     }
   }
-  function send() {
-    const t = text.trim();
+  function send(raw: string = text) {
+    const t = raw.trim();
     if (busy || uploading || (!t && !ready.length)) return;
     onSend(t, ready.map((u) => ({ id: u.id, name: u.name })));
     setText(""); setUploads([]); countRef.current = 0; setNotice("");
   }
+  const enterKeys = useEnterToSend(send);
   return (
     <div className="rounded-2xl border bg-background p-2 shadow-sm" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void add([...e.dataTransfer.files]); }}>
       {uploads.length > 0 && (
@@ -58,7 +60,7 @@ export default function Composer({ busy, models, model, onModel, onSend, onStop,
       <Textarea aria-label="메시지" value={text} placeholder={placeholder} rows={2} className="min-h-[3rem] resize-none border-0 shadow-none focus-visible:ring-0"
         onChange={(e) => setText(e.target.value)}
         onPaste={(e) => { const files = [...e.clipboardData.files]; if (files.length) { e.preventDefault(); void add(files); } }}
-        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
+        {...enterKeys} />
       <div className="flex items-center gap-2 px-1">
         <input ref={fileRef} type="file" multiple hidden onChange={(e) => { void add([...(e.target.files ?? [])]); e.target.value = ""; }} />
         <Button type="button" size="icon" variant="ghost" aria-label="파일 첨부" disabled={uploads.length >= MAX_FILES} onClick={() => fileRef.current?.click()}><Paperclip className="h-4 w-4" /></Button>
@@ -69,7 +71,7 @@ export default function Composer({ busy, models, model, onModel, onSend, onStop,
         )}
         <div className="flex-1" />
         {busy && onStop ? <Button type="button" size="sm" variant="outline" onClick={onStop}><Square className="mr-1 h-3.5 w-3.5" />중지</Button>
-          : <Button type="button" size="sm" onClick={send} disabled={uploading || (!text.trim() && !ready.length)}><Send className="mr-1 h-3.5 w-3.5" />보내기</Button>}
+          : <Button type="button" size="sm" onClick={() => send()} disabled={uploading || (!text.trim() && !ready.length)}><Send className="mr-1 h-3.5 w-3.5" />보내기</Button>}
       </div>
     </div>
   );
