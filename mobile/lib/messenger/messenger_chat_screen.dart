@@ -153,7 +153,8 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
           Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2), decoration: BoxDecoration(color: Brand.botViolet, borderRadius: BorderRadius.circular(10)), child: Text('${r.unreadCount}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600))),
         ],
       ]),
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r))),
+      // 방에서 돌아오면 목록을 다시 읽어 안 읽음 수를 갱신
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r))).then((_) { if (mounted) _refresh(); }),
     );
   }
 
@@ -181,10 +182,12 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
   final _focusKey = GlobalKey();
   StreamSubscription? _rtSub;
 
+  late final MessengerMqtt _mqtt; // dispose에서 ref를 못 쓰므로 미리 잡아 둔다
+
   @override
   void initState() {
     super.initState();
-    final mqtt = ref.read(messengerMqttProvider);
+    final mqtt = _mqtt = ref.read(messengerMqttProvider);
     mqtt.enterRoom(widget.room.roomId);
     _rtSub = mqtt.events.listen((e) {
       // 이 방 대화가 오면 새로고침(맨 아래로 이어진다)
@@ -197,6 +200,8 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
   Future<List<MsgChat>> _load() async {
     final chats = await _api.chats(widget.room.roomId);
     chats.sort((a, b) => a.timeStamp.compareTo(b.timeStamp)); // 오래된→최신(화면은 reverse로 최신이 아래)
+    // 방을 열어 본 것 = 읽음 — 가장 최신 대화까지 읽음 처리(P342). 실패해도 화면은 그대로.
+    if (chats.isNotEmpty) unawaited(_api.readChat(roomId: widget.room.roomId, chatId: chats.last.chatId).catchError((_) {}));
     if (widget.focusChatId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final ctx = _focusKey.currentContext;
@@ -222,7 +227,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
   @override
   void dispose() {
     _rtSub?.cancel();
-    ref.read(messengerMqttProvider).leaveRoom(widget.room.roomId);
+    _mqtt.leaveRoom(widget.room.roomId);
     _input.dispose();
     super.dispose();
   }
@@ -503,7 +508,7 @@ class _MessengerDashboardCardState extends ConsumerState<MessengerDashboardCard>
                         Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Brand.botViolet, borderRadius: BorderRadius.circular(9)), child: Text('${r.unreadCount}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600))),
                       ],
                     ]),
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r))),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r))).then((_) { if (mounted) setState(() => _future = _load()); }),
                   ),
               ]);
             },

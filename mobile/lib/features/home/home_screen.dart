@@ -328,7 +328,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 left: 16 + tb.dx, right: 16 - tb.dx, bottom: 16 - tb.dy,
                 child: Center(child: DashboardPalette(
                     widgets: sections, layout: layout, onAdd: addWidget,
-                    onArrange: () => ref.read(homeDashboardProvider.notifier).save(autoArrange(layout, visible: sections.keys.toSet())),
+                    onArrange: () {
+                      final next = autoArrange(layout, visible: sections.keys.toSet());
+                      final moved = next.where((t) => layout.any((o) => o.id == t.id && o.y != t.y)).length;
+                      // 바뀐 게 없으면 저장하지 않고 이유를 알려 준다(눌렀는데 아무 일도 없어 보이지 않게)
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(moved == 0
+                          ? '이미 빈 줄 없이 정리돼 있어요 — 위로 올릴 위젯이 없습니다.'
+                          : '위젯 $moved개를 위쪽 빈자리로 올렸어요.')));
+                      if (moved > 0) ref.read(homeDashboardProvider.notifier).save(next);
+                    },
                     onDone: () => setState(() { _editing = false; _toolbarOffset = Offset.zero; }),
                     onDrag: (d) => setState(() => _toolbarOffset = tb + d),
                 )),
