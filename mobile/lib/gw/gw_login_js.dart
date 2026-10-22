@@ -30,12 +30,13 @@ var otp=Array.prototype.some.call(document.querySelectorAll('input.number'),func
 var err=Array.prototype.filter.call(document.querySelectorAll('p'),function(p){var r=p.getBoundingClientRect();return r.height>0&&r.width>0&&/비밀번호|아이디|오류|잘못|실패|일치/.test(p.innerText);}).map(function(p){return p.innerText.trim();}).join(' ').slice(0,80);
 return JSON.stringify({hasId:vis(id),hasPw:vis(pw),hasOtp:otp,error:err});})();''';
 
-/// React 입력칸에 값을 넣고(네이티브 setter + input 이벤트) 보이는 submit 버튼을 누른다.
+/// React 입력칸에 값을 넣고(네이티브 setter + input 이벤트) 글자가 맞는 보이는 버튼을 누른다.
+/// 버튼은 type 속성으로 고르지 않는다 — 아마란스가 2026-10 버튼에서 type="submit"을 빼 자동 로그인이 멈췄다(전 플랫폼).
 String fillJs({required String selector, required String value, required String submitText}) => '''
 (function(){var el=document.querySelector(${jsonEncode(selector)});if(!el)return 'no-field';
 var set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(el,${jsonEncode(value)});
 el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));
-var btn=Array.prototype.find.call(document.querySelectorAll('button[type=submit]'),function(b){var r=b.getBoundingClientRect();return r.width>0&&b.innerText.trim()===${jsonEncode(submitText)};});
+var btn=Array.prototype.find.call(document.querySelectorAll('button'),function(b){var r=b.getBoundingClientRect();return r.width>0&&b.innerText.trim()===${jsonEncode(submitText)};});
 if(!btn)return 'no-button';setTimeout(function(){btn.click();},80);return 'ok';})();''';
 
 class GwProbe {

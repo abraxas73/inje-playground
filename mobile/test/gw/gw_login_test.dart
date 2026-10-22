@@ -60,6 +60,8 @@ void main() {
       expect(js, contains(jsonEncode('a"b\'c</script>')));
       expect(js, contains(jsonEncode('로그인')));
       expect(js, contains('HTMLInputElement.prototype'));
+      // 아마란스 버튼엔 type="submit" 속성이 없다(2026-10 실측) — 속성 선택자면 버튼을 못 찾아 자동 로그인이 멈춘다
+      expect(js, isNot(contains('type=submit')));
     });
     test('probe 결과는 따옴표로 감싼 JSON 문자열(iOS)도 읽는다', () {
       const j = '{"hasId":true,"hasPw":false,"hasOtp":false,"error":""}';
