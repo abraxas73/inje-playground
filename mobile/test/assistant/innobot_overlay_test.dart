@@ -198,25 +198,18 @@ void main() {
     expect(c.read(appFavoritesProvider).value, isEmpty);
   });
 
-  testWidgets('버튼 오른쪽 클릭 → 버튼 숨기기 → 하단 작은 아이콘만, 누르면 복귀(기기 기억)', (t) async {
+  testWidgets('버튼 오른쪽 클릭 → 버튼 숨기기: 4개가 사라지고 기기에 기억(하단 바 화면의 복귀 아이콘은 탭 셸이 그린다)', (t) async {
     final s = FakeSettings();
     final router = testRouter();
     await t.pumpWidget(app(router, s));
     await t.pumpAndSettle();
-    final bot = find.byType(InnobotButton);
-    expect(bot, findsOneWidget);
+    expect(find.byType(InnobotButton), findsOneWidget);
     await t.tapAt(t.getCenter(find.byTooltip('비서 이노봇')), buttons: kSecondaryMouseButton, kind: PointerDeviceKind.mouse);
     await t.pumpAndSettle();
     await t.tap(find.text('버튼 숨기기'));
-    await t.pump(const Duration(milliseconds: 400)); // 복귀 아이콘이 계속 깜빡여 pumpAndSettle은 끝나지 않는다
+    await t.pumpAndSettle();
     expect(find.byType(InnobotButton), findsNothing);
-    expect(find.byType(FabsRestoreButton), findsOneWidget);
+    expect(find.byType(FabsRestoreButton), findsNothing); // 바 있는 화면 → 바 옆 칸(탭 셸)에서
     expect((await SharedPreferences.getInstance()).getBool('innobot.fabs.hidden'), isTrue);
-    await t.tap(find.byType(FabsRestoreButton));
-    await t.pump(const Duration(milliseconds: 100));
-    expect(find.byType(InnobotButton), findsOneWidget);
-    expect(find.byType(FabsRestoreButton), findsNothing);
-    expect((await SharedPreferences.getInstance()).getBool('innobot.fabs.hidden'), isFalse);
   });
 }
-

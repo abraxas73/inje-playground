@@ -78,16 +78,16 @@ bool isBranchRoot(String path) => const {'/home', '/food', '/ladder', '/team', '
 /// 떠 있는 버튼 묶음(알림·즐겨찾기·Claude·이노봇)을 잠시 숨겼는지 — 버튼 오른쪽 클릭 '버튼 숨기기', 하단 바 오른쪽 작은 아이콘으로 복귀. 기기에 기억.
 final innobotFabsHiddenProvider = NotifierProvider<InnobotFabsHidden, bool>(InnobotFabsHidden.new);
 
+/// 시작 때 미리 읽은 저장값(main.dart가 override) — 켤 때 버튼이 잠깐 보였다 사라지지 않게.
+final innobotFabsHiddenInitialProvider = Provider<bool>((ref) => false);
+
 class InnobotFabsHidden extends Notifier<bool> {
-  static const _key = 'innobot.fabs.hidden';
+  static const key = 'innobot.fabs.hidden';
   @override
-  bool build() {
-    SharedPreferences.getInstance().then((p) { if (ref.mounted && (p.getBool(_key) ?? false)) state = true; }).catchError((_) {});
-    return false;
-  }
+  bool build() => ref.read(innobotFabsHiddenInitialProvider);
 
   void set(bool hidden) {
     state = hidden;
-    SharedPreferences.getInstance().then((p) => p.setBool(_key, hidden)).catchError((_) => false);
+    SharedPreferences.getInstance().then((p) => p.setBool(key, hidden)).catchError((_) => false);
   }
 }

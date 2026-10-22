@@ -208,9 +208,11 @@ class InnobotOverlay extends ConsumerWidget {
             if (ref.watch(innobotFabsHiddenProvider)) {
               if (favoritesOpen.value) WidgetsBinding.instance.addPostFrameCallback((_) => favoritesOpen.value = false);
               if (notifOpen.value) WidgetsBinding.instance.addPostFrameCallback((_) => notifOpen.value = false);
-              // 숨김 상태 — 하단 바 오른쪽(더보기 옆)에 작은 아이콘이 숨 쉬듯 깜빡이며 기다린다. 누르면 복귀.
+              // 숨김 상태 — 하단 바가 있으면 탭 셸이 '더보기' 오른쪽 칸에 작은 아이콘을 둔다(바 위에 겹치면 '더보기'를 가린다).
+              // 바가 없는 화면만 여기서 오른쪽 아래에.
+              if (bar) return const SizedBox.shrink();
               return Stack(children: [
-                Positioned(right: 10, bottom: bar ? pad + 26 : pad + 10, child: FabsRestoreButton(onTap: () => ref.read(innobotFabsHiddenProvider.notifier).set(false))),
+                Positioned(right: 10, bottom: pad + 10, child: FabsRestoreButton(onTap: () => ref.read(innobotFabsHiddenProvider.notifier).set(false))),
               ]);
             }
             return Stack(children: [

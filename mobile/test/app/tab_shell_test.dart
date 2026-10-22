@@ -1,3 +1,4 @@
+import 'package:playground/assistant/innobot_button.dart' show FabsRestoreButton;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,7 +25,7 @@ class _Tokens implements TokenSource {
   Future<void> onUnauthorized() async {}
 }
 
-Future<void> pumpShell(WidgetTester tester, AppSession user, {Map<String, int>? calls}) async {
+Future<void> pumpShell(WidgetTester tester, AppSession user, {Map<String, int>? calls, bool fabsHidden = false}) async {
   final auth = FakeAuth()..current = session(expired: false);
   addTearDown(auth.ctrl.close);
   final api = ApiClient(httpClient: MockClient((r) async {
@@ -37,8 +38,13 @@ Future<void> pumpShell(WidgetTester tester, AppSession user, {Map<String, int>? 
     sessionFetcherProvider.overrideWithValue((_, {required record}) async => user),
     apiClientProvider.overrideWithValue(api),
     gwStoreProvider.overrideWithValue(FakeGwStore()),
+    innobotFabsHiddenInitialProvider.overrideWithValue(fabsHidden),
   ], child: MaterialApp.router(routerConfig: router)));
-  await tester.pumpAndSettle();
+  if (fabsHidden) {
+    await tester.pump(const Duration(seconds: 1)); // 복귀 아이콘이 계속 깜빡여 pumpAndSettle은 끝나지 않는다
+  } else {
+    await tester.pumpAndSettle();
+  }
 }
 
 Finder fanItem(String label) => find.descendant(of: find.byType(FanItem), matching: find.text(label));
@@ -174,4 +180,15 @@ void main() {
     expect(tab('일상'), findsOneWidget);
     expect(tab('업무'), findsOneWidget);
   });
+
+  testWidgets('떠 있는 버튼을 숨기면 하단 바 "더보기" 오른쪽 칸에 복귀 아이콘(바와 겹치지 않음), 누르면 사라진다', (tester) async {
+    await pumpShell(tester, user, fabsHidden: true);
+    final restore = find.byType(FabsRestoreButton);
+    expect(restore, findsOneWidget);
+    expect(tester.getRect(find.byType(NavigationBar)).right, lessThanOrEqualTo(tester.getRect(restore).left)); // '더보기'를 가리지 않는다
+    await tester.tap(restore);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(restore, findsNothing);
+  });
 }
+
