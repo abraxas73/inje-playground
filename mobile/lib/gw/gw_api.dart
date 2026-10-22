@@ -153,7 +153,7 @@ extension GwMailApi on GwApi {
   /// 휴지통으로 이동(mail002A05 — Claude 커넥터 delete_mail과 같은 호출, 실측). 응답 code가 0이 아니면 실패.
   Future<void> deleteMail(String muid) async {
     final r = await client.call('/mail/mail002A05', {'boxName': '', 'mailKey': '', 'uids': muid});
-    if (r is Map && '${r['code'] ?? ''}'.isNotEmpty && '${r['code']}' != '0') throw Exception('메일을 삭제하지 못했습니다.');
+    if (r is Map && '${r['code'] ?? ''}'.isNotEmpty && '${r['code']}' != '0') throw GwException(200, -1, '서버가 삭제를 거절했습니다.');
   }
 }
 

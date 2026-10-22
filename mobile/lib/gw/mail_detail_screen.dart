@@ -23,11 +23,15 @@ class MailDetailScreen extends ConsumerStatefulWidget {
 class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
   late Future<MailDetail> _future = _load();
   bool _busy = false;
+  bool _loaded = false; // 본문을 다 읽은 뒤에만 삭제(늦게 끝난 색인 저장이 지운 메일을 되살리지 않게)
 
   /// 읽은 본문은 검색 색인에도 넣는다(서버가 이미 읽음 처리한 메일이라 부작용 없음). 색인 실패는 화면에 영향 없음.
   Future<MailDetail> _load() async {
     final d = await widget.api.readMail(widget.item.muid);
-    unawaited(ref.read(mailIndexProvider.notifier).putDetail(widget.api, widget.item, d).catchError((_) {}));
+    // 색인 저장이 끝난 뒤에야 삭제를 켠다 — 삭제 후 늦게 끝난 저장이 지운 메일을 되살리지 않게(본문 표시는 기다리지 않음)
+    unawaited(ref.read(mailIndexProvider.notifier).putDetail(widget.api, widget.item, d).catchError((_) {}).whenComplete(() {
+      if (mounted) setState(() => _loaded = true);
+    }));
     return d;
   }
 
@@ -75,7 +79,7 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
         appBar: BrandHeader(
           title: widget.item.subject.isEmpty ? '(제목 없음)' : widget.item.subject,
           showBack: true,
-          actions: [SquareIconButton(icon: Icons.delete_outline, tooltip: '삭제(휴지통으로)', onPressed: _busy ? null : _delete)],
+          actions: [SquareIconButton(icon: Icons.delete_outline, tooltip: '삭제(휴지통으로)', onPressed: _busy || !_loaded ? null : _delete)],
         ),
         body: FutureBuilder(
           future: _future,
