@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { useEnterToSend } from "@/hooks/useEnterToSend";
 import { initialChatId } from "@/lib/home";
 import { cn } from "@/lib/utils";
 
@@ -117,8 +118,8 @@ export default function TeamsChatPage() {
   const count = messages.length;
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: "end" }); }, [count, chatId]);
 
-  const send = async () => {
-    const body = text.trim();
+  const send = async (raw: string = text) => {
+    const body = raw.trim();
     if (!body || sending || !chatId) return;
     setSending(true);
     try {
@@ -132,6 +133,8 @@ export default function TeamsChatPage() {
       setSending(false);
     }
   };
+
+  const enterKeys = useEnterToSend((v) => { void send(v); });
 
   if (infoError && !info) return <Alert variant="destructive" className="mx-auto max-w-xl"><AlertDescription>{infoError}</AlertDescription></Alert>;
   if (!info) return <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />준비 상태를 확인하고 있습니다…</div>;
@@ -239,7 +242,7 @@ export default function TeamsChatPage() {
               <Textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }}
+                {...enterKeys}
                 placeholder="메시지 입력"
                 rows={1}
                 className="min-h-10 max-h-40 resize-none"

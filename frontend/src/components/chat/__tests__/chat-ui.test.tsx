@@ -44,10 +44,35 @@ describe("채팅 UI", () => {
     const box = screen.getByRole("textbox", { name: "메시지" });
     fireEvent.change(box, { target: { value: "안녕" } });
     fireEvent.keyDown(box, { key: "Enter", shiftKey: true });
+    fireEvent.compositionStart(box); // 실제 브라우저는 조합 중 Enter 전에 compositionstart가 온다
     fireEvent.keyDown(box, { key: "Enter", isComposing: true });
     expect(onSend).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(box); // 조합 확정 → 그 Enter로 보냄
+    expect(onSend).toHaveBeenCalledWith("안녕", []);
+    onSend.mockClear();
+    fireEvent.change(box, { target: { value: "안녕" } });
     fireEvent.keyDown(box, { key: "Enter" });
     expect(onSend).toHaveBeenCalledWith("안녕", []);
+  });
+  it("입력 — 한글로 끝나는 메시지: 조합 중 Enter는 조합이 끝나면 보낸다(Chrome·WebView2)", () => {
+    const onSend = vi.fn();
+    render(<Composer busy={false} models={["claude-sonnet-5-5"]} model="claude-sonnet-5-5" onModel={() => {}} onSend={onSend} />);
+    const box = screen.getByRole("textbox", { name: "메시지" });
+    fireEvent.compositionStart(box);
+    fireEvent.change(box, { target: { value: "안녕하세요" } });
+    fireEvent.keyDown(box, { key: "Enter", isComposing: true });
+    expect(onSend).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(box);
+    expect(onSend).toHaveBeenCalledWith("안녕하세요", []);
+    // 조합 끝(Enter 없이)만으로는 보내지 않는다
+    onSend.mockClear();
+    fireEvent.compositionStart(box);
+    fireEvent.change(box, { target: { value: "다음" } });
+    fireEvent.compositionEnd(box);
+    expect(onSend).not.toHaveBeenCalled();
+    // Safari 순서: 조합이 먼저 끝나고 isComposing 표시가 남은 Enter가 와도 바로 보낸다
+    fireEvent.keyDown(box, { key: "Enter", isComposing: true });
+    expect(onSend).toHaveBeenCalledWith("다음", []);
   });
 });
 
