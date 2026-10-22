@@ -8,7 +8,7 @@ export const DASHBOARD_COLS = 12;
 /** 배치할 수 있는 위젯 id(앱 홈 섹션과 1:1). 서버는 값만 검증하고 의미는 앱이 안다. */
 export const DASHBOARD_WIDGET_IDS = [
   // greeting = 인사+오늘의 한 줄 결합 위젯. quote는 예전 분리 위젯(앱이 greeting으로 옮김) — 호환 위해 유지.
-  "greeting", "quote", "messenger", "messenger_full", "briefing", "confluence", "sharepoint", "focus", "meetings",
+  "greeting", "quote", "messenger", "messenger_full", "teams_chat", "briefing", "confluence", "sharepoint", "focus", "meetings",
   "absence", "approvals", "mails", "talks", "teams", "notices", "quick", "services",
 ] as const;
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGET_IDS)[number];

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../api/client.dart';
 import '../config.dart';
+import '../app/theme.dart';
 import 'web_session.dart';
 import '../favorites/favorites.dart';
 import '../more/catalog.dart';
@@ -36,6 +38,10 @@ class _WebScreenState extends ConsumerState<WebScreen>
   // 오류는 바로 보여 주지 않는다 — 가로챈 내비게이션 뒤 곧바로 새 로드가 시작되면(seq 증가) 그 오류는 버린다.
   int _loadSeq = 0;
   Timer? _errTimer;
+  // 웹 페이지 자체 제목 줄(h1 + 설명 p + 아이콘)을 읽어 앱 상단 한 줄(제목·설명)로 옮기고 페이지 쪽은 숨긴다 — 제목이 두 번 나오지 않게.
+  // 페이지가 데이터를 읽은 뒤 제목을 그리거나(SPA) 창 폭에 따라 숨기므로(md 미만) 주기적으로 다시 본다. null = 페이지 제목 줄 없음/안 보임.
+  ({String title, String desc})? _pageHead;
+  Timer? _titleTimer;
   final _back = BackTracker();
   bool _openingOAuth = false;
   bool _openingBrowser = false;
@@ -90,6 +96,8 @@ class _WebScreenState extends ConsumerState<WebScreen>
               await _c.runJavaScript(blankLinkBridgeJs);
             } catch (_) {} // 새 창 링크를 같은 창 이동으로(외부는 _onNav가 브라우저로)
             final t = await _c.getTitle();
+            unawaited(_checkPageTitle());
+            _titleTimer ??= Timer.periodic(const Duration(seconds: 2), (_) => _checkPageTitle());
             final here = pagePathOf(await _c.currentUrl(), appOrigin: _origin);
             if (mounted) {
               setState(() {
@@ -139,6 +147,7 @@ class _WebScreenState extends ConsumerState<WebScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _errTimer?.cancel();
+    _titleTimer?.cancel();
     super.dispose();
   }
 
@@ -338,7 +347,39 @@ class _WebScreenState extends ConsumerState<WebScreen>
     }
   }
 
+  // 보이는 h1을 찾아 제목·설명을 돌려주고, 그 h1·바로 옆 설명 p·아이콘(그림만 있는 형제)을 숨긴다. 버튼 등 나머지는 그대로.
+  // 한 번 옮긴 h1은 data-app-title에 값을 남겨 숨긴 뒤에도 같은 값을 돌려준다(페이지가 바뀌면 새 h1).
+  static const _pageHeadJs = r"""(() => {
+  const h = document.querySelector('h1'); if (!h) return '';
+  if (h.dataset.appTitle) return h.dataset.appTitle;
+  const r = h.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) return '';
+  const box = h.parentElement; const p = box ? box.querySelector(':scope > p') : null;
+  const v = JSON.stringify({t: (h.textContent || '').trim(), d: p ? (p.textContent || '').trim() : ''});
+  h.dataset.appTitle = v;
+  if (!document.getElementById('app-title-style')) { const s = document.createElement('style'); s.id = 'app-title-style'; s.textContent = '[data-app-hidden]{display:none!important}'; document.head.appendChild(s); }
+  const hide = (e) => e && e.setAttribute('data-app-hidden', '');
+  const iconOnly = (e) => e && !(e.textContent || '').trim() && (e.tagName.toLowerCase() === 'svg' || e.querySelector('svg'));
+  hide(h); hide(p);
+  if (box) for (const c of Array.from(box.children)) if (c !== h && c !== p && iconOnly(c)) hide(c);
+  const prev = box && box.previousElementSibling; if (iconOnly(prev)) hide(prev);
+  return v;
+})()""";
+
+  Future<void> _checkPageTitle() async {
+    try {
+      var raw = '${await _c.runJavaScriptReturningResult(_pageHeadJs)}';
+      if (raw.startsWith('"')) raw = jsonDecode(raw) as String; // Android 등은 문자열을 JSON으로 한 번 감싸 돌려준다
+      ({String title, String desc})? head;
+      if (raw.isNotEmpty) {
+        final j = jsonDecode(raw);
+        if (j is Map && '${j['t'] ?? ''}'.isNotEmpty) head = (title: '${j['t']}', desc: '${j['d'] ?? ''}');
+      }
+      if (mounted && head != _pageHead) setState(() => _pageHead = head);
+    } catch (_) {}
+  }
+
   String _headerTitle() {
+    if (!_loading && _pageHead != null) return _pageHead!.title; // 페이지 제목 줄을 옮겨 온 경우
     final t = webTitleFor(title: _title, loading: _loading);
     return _loading || t != '이노그리드' ? t : (pageLabelFor(_pagePath) ?? t);
   }
@@ -368,11 +409,17 @@ class _WebScreenState extends ConsumerState<WebScreen>
             leading: BackButton(onPressed: _goBack),
             title: Row(children: [
               Flexible(
-                child: Text(
-                  // 웹 페이지 <title>이 사이트 이름(이노그리드)뿐이면 메뉴 이름으로(즐겨찾기 이름과 같게). 페이지가 구체적인 제목을 주면 그대로.
-                  _headerTitle(),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text(
+                    // 웹 페이지 <title>이 사이트 이름(이노그리드)뿐이면 메뉴 이름으로(즐겨찾기 이름과 같게). 페이지가 구체적인 제목을 주면 그대로.
+                    _headerTitle(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  // 페이지 제목 줄의 가벼운 설명(있으면) — 제목 아래 작게 한 줄
+                  if (!_loading && (_pageHead?.desc.isNotEmpty ?? false))
+                    Text(_pageHead!.desc, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: Brand.muted)),
+                ]),
               ),
               if (!_loading && _error == null)
                 FavoriteStar(
