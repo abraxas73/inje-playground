@@ -57,12 +57,18 @@ class DashboardView extends StatefulWidget {
     required this.widgets,
     required this.editing,
     required this.onChanged,
+    this.onPin,
+    this.isPinned,
   });
 
   final List<DashboardTile> layout;
   final Map<String, DashboardWidgetDef> widgets; // id -> 정의(현재 데이터·권한이 있는 것만)
   final bool editing;
   final void Function(List<DashboardTile>) onChanged;
+
+  /// 주면 보기 모드 타일 오른쪽 위에 ⋮ 메뉴(마우스를 올리면) — "Always On"(모든 화면 위에 띄우기) 켜기/끄기. size는 지금 타일 크기.
+  final void Function(String id, Size size)? onPin;
+  final bool Function(String id)? isPinned;
 
   @override
   State<DashboardView> createState() => _DashboardViewState();
@@ -171,7 +177,13 @@ class _DashboardViewState extends State<DashboardView> {
       height: height.clamp(40, double.infinity),
       child: widget.editing
           ? _editable(context, t, def, content)
-          : content,
+          : widget.onPin == null
+              ? content
+              : _TileMenu(
+                  pinned: widget.isPinned?.call(t.id) ?? false,
+                  onPin: () => widget.onPin!(t.id, Size(width, height)),
+                  child: content,
+                ),
     );
   }
 
@@ -349,4 +361,48 @@ class _DashedRectPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DashedRectPainter old) => old.color != color;
+}
+
+/// 보기 모드 타일 오른쪽 위 ⋮ — 마우스를 올렸을 때(또는 켜져 있을 때 핀 표시와 함께) 보인다. 내용 위 머리 링크를 가리지 않게 평소엔 숨김.
+class _TileMenu extends StatefulWidget {
+  const _TileMenu({required this.pinned, required this.onPin, required this.child});
+  final bool pinned;
+  final VoidCallback onPin;
+  final Widget child;
+  @override
+  State<_TileMenu> createState() => _TileMenuState();
+}
+
+class _TileMenuState extends State<_TileMenu> {
+  bool _hover = false, _open = false; // 메뉴가 열리면 마우스가 타일을 벗어난 것으로 처리돼도 버튼(=선택 결과 받을 곳)을 유지
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: Stack(children: [
+          Positioned.fill(child: widget.child),
+          if (_hover || _open || widget.pinned)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Material(
+                color: Brand.surface.withValues(alpha: 0.95),
+                shape: const CircleBorder(),
+                elevation: 2,
+                child: PopupMenuButton<String>(
+                  tooltip: '위젯 옵션',
+                  padding: EdgeInsets.zero,
+                  iconSize: 18,
+                  icon: Icon(widget.pinned ? Icons.push_pin : Icons.more_vert, size: 18, color: widget.pinned ? Brand.blue : Brand.muted),
+                  onOpened: () => setState(() => _open = true),
+                  onCanceled: () => setState(() => _open = false),
+                  onSelected: (v) { setState(() => _open = false); if (v == 'pin') widget.onPin(); },
+                  itemBuilder: (_) => [
+                    CheckedPopupMenuItem(value: 'pin', checked: widget.pinned, child: Text(widget.pinned ? 'Always On 끄기' : 'Always On — 모든 화면 위에 띄우기')),
+                  ],
+                ),
+              ),
+            ),
+        ]),
+      );
 }
