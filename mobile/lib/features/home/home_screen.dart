@@ -14,6 +14,7 @@ import '../../briefing/briefing_provider.dart';
 import '../../briefing/briefing_sections.dart';
 import '../../briefing/live_activity.dart';
 import '../../briefing/summary_provider.dart';
+import '../../teams/teams_chat_panel.dart';
 import '../../gw/gw_creds.dart';
 import '../../gw/gw_api.dart' show gwApiProvider;
 import '../../gw/gw_models.dart' show MailItem, myEvents;
@@ -267,13 +268,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       final mentions = ref.watch(teamsMentionsLiveProvider) ?? data?.mentions; // 2분마다 따로 갱신된 값 우선
       final tmConnected = mentions?.connected == true;
       if (!gwNo && !data.errors.containsKey('teams') && tmConnected && (mentions?.items.isNotEmpty ?? false)) {
-        add('teams', 'Teams', TeamsSection(mentions: mentions, onOpen: () => open(teamsRoute), onOpenChat: (id) => open(id.isEmpty ? teamsRoute : '/web?path=${Uri.encodeComponent('/teams/chat?chat=$id')}')), w: 6, h: 3);
+        add('teams', 'Teams 답장 대기', TeamsSection(mentions: mentions, onOpen: () => open(teamsRoute), onOpenChat: (id) => open(id.isEmpty ? teamsRoute : '/web?path=${Uri.encodeComponent('/teams/chat?chat=$id')}')), w: 6, h: 3);
       } else {
-        addPh('teams', 'Teams', !tmConnected ? 'Teams 연결이 필요합니다' : '답장 대기가 없습니다', onConnect: !tmConnected ? settingsConnect : null, label: '연결 설정');
+        addPh('teams', 'Teams 답장 대기', !tmConnected ? 'Teams 연결이 필요합니다' : '답장 대기가 없습니다', onConnect: !tmConnected ? settingsConnect : null, label: '연결 설정');
       }
       // 아마란스 메신저 — 간략(대화방 목록 카드)·상세(목록→대화방까지 위젯 안에서) 2종. 카드가 스스로 세션·로딩·빈 상태를 처리.
       add('messenger', '아마란스 메신저(간략)', MessengerDashboardCard(onMore: () => open('/gw/messenger')), w: 6, h: 4);
       add('messenger_full', '아마란스 메신저(대화)', const MessengerPanel(), w: 6, h: 7, fill: true);
+      // Teams 채팅(상세) — 목록→대화방까지 위젯 안에서(아마란스 메신저(대화)와 같은 방식)
+      if (session != null && canUsePage(session, teamsChatEntry)) {
+        add('teams_chat', 'Teams 채팅', const TeamsChatPanel(), w: 6, h: 7, fill: true);
+      } else {
+        addPh('teams_chat', 'Teams 채팅', '접근 권한이 없습니다', w: 6, h: 7);
+      }
       add('notices', '공지', const GwNoticesCard(), w: 6, h: 3);
       add('quick', '바로 가기', ServiceCardGrid(children: [
         if (session != null && canUsePage(session, teamsChatEntry)) _quick(context, Icons.forum_outlined, 'Teams 채팅', '내가 속한 채팅 읽기·보내기', () => context.push(teamsRoute), Brand.tints[3]),
