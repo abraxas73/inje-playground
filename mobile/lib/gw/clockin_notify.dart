@@ -47,6 +47,9 @@ class ClockInNotifyPrefs {
 /// 내 Teams 채팅 목록에서 하나 고르기. Microsoft 미연결·권한 없음이면 안내만.
 Future<({String id, String topic})?> pickTeamsChat(BuildContext context, ApiClient api) => showModalBottomSheet<({String id, String topic})>(
       context: context,
+      // 출근 확인창(showDialog = 루트 내비게이터) 위에서 열리므로 시트도 루트에 — 아니면 탭 셸 내비게이터에 깔려
+      // 확인창 배경에 가려 채팅방을 누를 수 없다(아이폰 제보 2026-10-22).
+      useRootNavigator: true,
       isScrollControlled: true,
       builder: (c) => SafeArea(
         child: SizedBox(
