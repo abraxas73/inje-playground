@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { ArrowLeft, Mail, Paperclip, RefreshCw, Search, Undo2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { MailDetail, MailItem, MailSearch } from "@/lib/gw/mail";
 import { splitRecipients } from "@/lib/gw/mail";
+import { GwTabs, NoAppNotice } from "@/components/gw/GwCommon";
 
 type SearchState = { kind: "idle" } | { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready"; data: MailSearch };
 type ListState = { kind: "loading" } | { kind: "no_app"; message: string } | { kind: "error"; message: string } | { kind: "ready"; unread: number; items: MailItem[] };
@@ -83,6 +83,7 @@ export default function MailPage() {
   const showDetail = detail.kind !== "idle";
   return (
     <div className="mx-auto max-w-6xl space-y-4">
+      <GwTabs />
       <div className="flex flex-wrap items-center gap-2">
         <Mail className="h-5 w-5 text-rose-600" aria-hidden="true" />
         <h1 className="text-lg font-semibold">메일</h1>
@@ -100,15 +101,7 @@ export default function MailPage() {
         <Button variant={sort === "relevance" ? "secondary" : "ghost"} size="sm" onClick={() => setSort("relevance")} aria-pressed={sort === "relevance"}>관련도순</Button>
       </div>}
 
-      {list.kind === "no_app" && <div className="rounded-xl border bg-card p-5 text-sm">
-        <p role="status" className="font-medium">데스크톱 앱이 실행 중이 아닙니다.</p>
-        <p className="mt-1 text-muted-foreground">{list.message}</p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Button asChild><Link href="/apps">데스크톱 앱 받기</Link></Button>
-          <Button variant="outline" onClick={() => void load()}>다시 확인</Button>
-          <Link href="/manual#gw-mail" className="self-center text-sm font-medium text-primary hover:underline">사용 안내</Link>
-        </div>
-      </div>}
+      {list.kind === "no_app" && <NoAppNotice message={list.message} onRetry={() => void load()} />}
       {list.kind === "error" && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">{list.message}<Button variant="outline" size="sm" onClick={() => void load()}>다시 시도</Button></AlertDescription></Alert>}
       {list.kind === "loading" && <p role="status" className="text-sm text-muted-foreground">데스크톱 앱에서 메일을 가져오고 있습니다…</p>}
 

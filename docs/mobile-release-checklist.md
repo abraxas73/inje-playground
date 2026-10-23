@@ -2,6 +2,13 @@
 
 2026-10-04 기준. 코드·서버 쪽은 끝났고, 아래는 **사람이 콘솔에서 해야 하는 일**만 모았다. 배경과 명령 설명은 런북 `docs/mobile-app.md` §배포(사내), 설계는 `docs/superpowers/specs/2026-10-04-mobile-release-design.md`.
 
+## 릴리스 묶기 규칙(2026-10-23 아키텍처 점검)
+10-22 하루에 22번 릴리스했고 그 사이 회귀가 1건 났다(33362c6d). 이후에는:
+- **고칠 것을 모아 한 번에** — 같은 날의 수정은 묶어 하루 2~3회 이내로 낸다. 사용자를 막는 장애(로그인·전 플랫폼 중단)만 즉시 단독 릴리스.
+- **CI가 초록일 때만** — main의 `CI` 워크플로(`.github/workflows/ci.yml`: 웹 tsc·vitest·lint, 앱 analyze·test)가 통과한 커밋에서 버전을 올린다. 릴리스 스크립트의 로컬 테스트 관문은 그대로 둔다.
+- **iOS·데스크톱은 확인 뒤 게시** — 기능 변경이 큰 릴리스는 TestFlight 내부 빌드나 운영자 Mac에서 먼저 확인한 다음 `publish-desktop.mjs` 게시 SQL을 실행한다(데스크톱 자동 업데이트는 게시 즉시 전 사용자에게 퍼진다).
+- 프런트가 먼저 필요한 변경(새 API·서버 허용 id)은 **웹 배포 → 앱 릴리스** 순서.
+
 ## 이미 끝난 것(다시 할 필요 없음)
 - [x] 웹 `/apps` 페이지·`GET /api/mobile/release` 운영 배포(`https://inje-playground.vercel.app/apps`)
 - [x] Supabase 버킷 `mobile`(비공개 200MB) + 프로젝트 전역 파일 상한 200MB

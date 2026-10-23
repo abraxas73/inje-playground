@@ -3,17 +3,17 @@
 // 창 안의 대화 기록 등 팝업은 창 안 Navigator에서 열린다.
 import 'dart:async';
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../app/theme.dart';
 import 'assistant_sheet.dart';
 import 'innobot_prefs.dart';
+import '../app/platform.dart';
 
 /// main.dart builder의 Stack에 둔 빈 Overlay(이노봇 버튼 레이어 아래).
 final assistantWindowOverlay = GlobalKey<OverlayState>();
 
-bool get assistantUsesWindow => !kIsWeb && (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows);
+bool get assistantUsesWindow => isDesktopPlatform;
 
 const _kPos = 'innobot.window.pos', _kSize = 'innobot.window.size';
 const assistantWindowSize = Size(440, 680), assistantWindowMinSize = Size(340, 420);

@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:playground/assistant/claude_open.dart';
@@ -22,6 +22,9 @@ void main() {
     expect(find.byTooltip('Claude 열기'), findsOneWidget);
     await tester.tap(find.byTooltip('Claude 열기'));
     expect(opened, 1);
-    expect(InnobotButton.showsClaude, Platform.isMacOS || Platform.isWindows);
+    expect(InnobotButton.showsClaude, isFalse); // 테스트 기본 android
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    expect(InnobotButton.showsClaude, isTrue);
+    debugDefaultTargetPlatformOverride = null;
   });
 }

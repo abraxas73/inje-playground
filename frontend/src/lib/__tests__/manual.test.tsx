@@ -13,8 +13,8 @@ it("explains one-click desktop updates and the first manual-install migration", 
 });
 it("covers every service in the navigation catalog (except the retired guide key)", () => {
   const links = manualSections.flatMap((s) => s.links?.map((l) => l.href) ?? []);
-  // 앱 전용 아마란스 키(gw_*, 웹 주소 없음)는 앱 절이 다룬다 — 웹 링크 대상은 gw_mail만
-  for (const p of PAGES.filter((x) => x.key !== "guide" && (x.group !== "gw" || x.key === "gw_mail"))) expect(links, p.label).toContain(p.href);
+  // 앱 전용 아마란스 키(gw_*, 웹 주소 없음)는 앱 절이 다룬다 — 웹 링크 대상은 메일·결재·일정만
+  for (const p of PAGES.filter((x) => x.key !== "guide" && (x.group !== "gw" || ["gw_mail", "gw_approvals", "gw_today"].includes(x.key)))) expect(links, p.label).toContain(p.href);
   expect(new Set(manualSections.map((s) => s.id)).size).toBe(manualSections.length);
 });
 it("finds instructions by step text and case-insensitive search", () => {

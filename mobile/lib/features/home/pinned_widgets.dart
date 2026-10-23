@@ -3,7 +3,6 @@
 // 데이터 갱신·눌러서 이동이 홈에서와 같게 동작한다. 켠 위젯·위치·크기는 기기에 기억(SharedPreferences).
 import 'dart:convert';
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,11 +10,12 @@ import '../../app/theme.dart';
 import '../../assistant/innobot_prefs.dart';
 import '../../auth/session.dart';
 import 'dashboard_view.dart';
+import '../../app/platform.dart';
 
 const _kPinned = 'dashboard.pinned';
 const pinnedMinSize = Size(220, 140);
 
-bool get pinnedWidgetsSupported => !kIsWeb && (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows);
+bool get pinnedWidgetsSupported => isDesktopPlatform;
 
 class PinnedTile {
   const PinnedTile(this.id, this.pos, this.size);

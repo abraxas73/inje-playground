@@ -1,10 +1,10 @@
-import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/client.dart';
 import '../auth/session.dart';
+import '../app/platform.dart';
 
 /// 로그인했는지(떠 있는 이노봇 버튼 표시 조건). 테스트에서 override.
 final innobotSignedInProvider = Provider<bool>((ref) => ref.watch(sessionProvider).asData?.value != null);
@@ -70,7 +70,7 @@ bool innobotOverlayVisible({required bool signedIn, required String path, requir
     signedIn && available && enabled && popups == 0 && !fanOpen && !_hiddenPaths.contains(path);
 
 /// Claude 열기 버튼은 데스크톱 홈에서만.
-bool showsClaudeAt(String path, {bool? desktop}) => (desktop ?? (Platform.isMacOS || Platform.isWindows)) && path == '/home';
+bool showsClaudeAt(String path, {bool? desktop}) => (desktop ?? isDesktopPlatform) && path == '/home';
 
 /// 탭 첫 화면 경로인가(즐겨찾기를 열 때 push 대신 그 탭으로 간다).
 bool isBranchRoot(String path) => const {'/home', '/food', '/ladder', '/team', '/more'}.contains(path);

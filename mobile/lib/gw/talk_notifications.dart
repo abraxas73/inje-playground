@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'gw_api.dart';
 import 'talk_alert_watcher.dart';
 import 'talk_alerts.dart';
+import '../app/platform.dart';
 
 const _seenKey = 'talk_alert_seen';
 
@@ -15,7 +15,7 @@ final messengerNotifyTap = ValueNotifier<String?>(null);
 /// macOS·Windows에서만: 아마란스가 연결돼 있으면 60초마다 멘션 알림을 확인해 새 것을 OS 알림으로(누르면 메신저 열기).
 /// 모바일은 아마란스10 앱이 이미 푸시를 보내므로 만들지 않는다. 연결이 끊기면(gwApi null) 감시도 멈춘다.
 final talkAlertWatcherProvider = Provider<TalkAlertWatcher?>((ref) {
-  if (!(Platform.isMacOS || Platform.isWindows)) return null;
+  if (!isDesktopPlatform) return null;
   final api = ref.watch(gwApiProvider);
   if (api == null) return null;
   final w = TalkAlertWatcher(

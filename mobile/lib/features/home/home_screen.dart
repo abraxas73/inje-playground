@@ -1,6 +1,5 @@
 import '../../app/service_card_grid.dart';
 import 'dart:async';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -32,6 +31,7 @@ import 'home_dashboard.dart';
 import 'dashboard_view.dart';
 import 'pinned_widgets.dart';
 import 'dashboard_style.dart';
+import '../../app/platform.dart';
 
 /// 홈 = 오늘의 브리핑. 인사말 → 오늘의 한 줄(격언) → 데일리 브리핑(Claude, 없으면 숨김) → 지금 필요한 것 → 일정 → 팀원 부재 → 결재 → 메일 → Teams → 공지 → 바로 가기·사내 서비스.
 /// 수집은 홈을 열 때·홈 탭을 다시 누를 때·당겨서 새로고침. 브리핑은 매일 한국 시간 07:00 및 수동 요청 때 다시 만든다.
@@ -179,7 +179,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
 
     // 데스크톱(macOS·Windows): 홈을 위젯 대시보드로. 모바일은 아래 기존 세로 브리핑 그대로.
     // 앱 타깃 기준(테스트는 기본 android라 모바일 경로)으로 가른다 — Platform.isMacOS는 테스트 호스트라 부정확.
-    if (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows) {
+    if (isDesktopPlatform) {
       final sections = <String, DashboardWidgetDef>{};
       void add(String id, String title, Widget child, {int w = 6, int h = 3, bool fill = false}) => sections[id] = DashboardWidgetDef(title, child, defaultW: w, defaultH: h, fill: fill);
       final canConfluence = session?.isAdmin == true || session?.permissions['confluence'] != false;

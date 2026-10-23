@@ -10,6 +10,7 @@ import '../gw/mail_indexer.dart';
 import 'approval_schemas.dart';
 import 'mcp_tools.dart';
 import 'mcp_worker.dart';
+import '../app/platform.dart';
 
 const _enabledKey = 'mcp_enabled', _installKey = 'mcp_install_id';
 
@@ -53,7 +54,7 @@ Future<String> _workerId() async {
 
 /// macOS·Windows에서만: 앱 로그인 + 스위치 켬일 때 `mcp_calls`를 폴링해 Claude 커넥터 요청을 대신 실행한다.
 final mcpWorkerProvider = Provider<McpWorker?>((ref) {
-  if (!(Platform.isMacOS || Platform.isWindows)) return null;
+  if (!isDesktopPlatform) return null;
   if (!ref.watch(sessionProvider.select((s) => s.asData?.value != null)) || !ref.watch(mcpEnabledProvider)) return null; // 로그인 여부만 — reload()로 채널을 다시 만들지 않게
   final client = Supabase.instance.client;
   final uid = client.auth.currentUser?.id;

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math' as math;
 // mobile/lib/assistant/innobot_button.dart
 import 'package:flutter/material.dart';
@@ -14,6 +13,7 @@ import 'assistant_session.dart';
 import 'assistant_sheet.dart';
 import 'claude_open.dart';
 import 'innobot_prefs.dart';
+import '../app/platform.dart';
 
 /// 떠 있는 이노봇(56px). 기본 오른쪽 아래, 길게 눌러 끌면 세로 위치를 옮기고 기기에 저장.
 /// 서버가 비서를 꺼 두었다고 답한 뒤에는(assistantAvailableProvider) 이번 실행 동안 숨긴다.
@@ -21,7 +21,7 @@ import 'innobot_prefs.dart';
 /// bottomInset은 하단 바·안전 영역만큼 올리는 값, sheetContext는 시트를 띄울 내비게이터 아래 context(앱 전체 레이어에서 쓸 때).
 class InnobotButton extends ConsumerStatefulWidget {
   const InnobotButton({super.key, this.showClaude, this.bottomInset = 0, this.sheetContext, this.onOpenPath, this.onContextMenu});
-  static bool get showsClaude => Platform.isMacOS || Platform.isWindows;
+  static bool get showsClaude => isDesktopPlatform;
   final bool? showClaude;
   final double bottomInset;
   final BuildContext? Function()? sheetContext;

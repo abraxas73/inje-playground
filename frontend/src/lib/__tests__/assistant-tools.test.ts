@@ -1,14 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { ASSISTANT_TOOLS, TOOL_TIERS, SERVER_TOOLS, assistantSystemPrompt, assistantEnabled, dailyTurnLimit, kstDayStartIso } from "@/lib/assistant/tools";
+import contract from "@/lib/assistant/tool-contract.json";
 
-// 앱 assistant_tools.dart의 assistantToolTiers와 같은 목록 — 한쪽만 바꾸면 양쪽 테스트가 깨진다.
+// 계약 파일(tool-contract.json)이 원본 — 앱 테스트도 같은 파일과 대조한다. 아래 고정 목록은 계약 파일이 실수로 비거나 줄지 않았는지 보는 안전망.
 const NAMES = ["approval_counts","approval_read","approvals_pending","attendance_today","cancel_reservation","clock_in","clock_out","confluence_create_page","confluence_feed","confluence_read","confluence_search","confluence_spaces","create_event","delete_event","find_free_rooms","find_person","list_calendars","list_events","list_rooms","mail_list","mail_read","mail_save_draft","mail_search","mail_send","my_reservations","my_team","notice_read","notices_list","offer_choices","reserve_room","search","sharepoint_read","sharepoint_recent","sharepoint_search","teams_chats","teams_mentions","teams_send","undo_last"];
 
 // 앱 기능 도구(lib/assistant/feature-tools.ts)는 서버 전용 — 앱 목록에 없고, 쓰기 확인 카드 문구도 서버가 보낸다.
 const FEATURE_NAMES = ["food_search", "jira_issue", "jira_issues", "people_news", "ppt_create", "ppt_decks"];
 
 describe("도구 표", () => {
-  it("스키마 이름 = 등급 표 키 = 앱과 약속한 목록 + 서버 전용 앱 기능 도구", () => {
+  it("스키마 이름 = 등급 표 키 = 계약 파일의 앱 도구 + 서버 전용 앱 기능 도구", () => {
+    expect(Object.keys(contract.appTools).sort()).toEqual(NAMES);
+    for (const [n, tier] of Object.entries(contract.appTools)) expect(TOOL_TIERS[n]).toBe(tier);
+    for (const n of contract.appServerTools) expect(NAMES).toContain(n);
+    expect([...SERVER_TOOLS].sort()).toEqual([...contract.appServerTools, ...FEATURE_NAMES].sort());
     const all = [...NAMES, ...FEATURE_NAMES].sort();
     expect(ASSISTANT_TOOLS.map((t) => t.name).sort()).toEqual(all);
     expect(Object.keys(TOOL_TIERS).sort()).toEqual(all);

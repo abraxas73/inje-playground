@@ -1,16 +1,18 @@
 /**
  * 모바일 비서(이노봇) — Claude에 주는 도구 스키마·등급·지침. 실행은 앱(아마란스, GwClient)과 서버(Teams, /api/assistant/execute)가 한다.
- * 등급 표는 앱 mobile/lib/assistant/assistant_tools.dart의 assistantToolTiers와 같은 이름·값이어야 한다(양쪽 테스트가 같은 목록을 고정).
+ * 앱이 실행하는 도구의 이름·등급과 서버 위임 목록은 계약 파일 tool-contract.json이 원본이다(앱 테스트도 이 파일과 대조).
  */
 import type Anthropic from "@anthropic-ai/sdk";
 import { FEATURE_TIERS, FEATURE_TOOLS } from "./feature-tools";
+import contract from "./tool-contract.json";
 
 export type ToolTier = "read" | "write" | "irreversible" | "meta" | "choice";
 export const ASSISTANT_ENABLED_KEY = "assistant_enabled";
 export const ASSISTANT_DAILY_TURNS_KEY = "assistant_daily_turns";
 export const DEFAULT_DAILY_TURNS = 200;
 export const DEFAULT_ASSISTANT_MODEL = "claude-sonnet-5-5";
-export const SERVER_TOOLS = ["teams_chats", "teams_mentions", "teams_send", "confluence_search", "confluence_read", "confluence_feed", "confluence_spaces", "confluence_create_page", "sharepoint_search", "sharepoint_recent", "sharepoint_read", "jira_issues", "jira_issue", "people_news", "food_search", "ppt_decks", "ppt_create"] as const;
+/** 서버(/api/assistant/execute·웹 채팅)가 실행하는 도구 — 앱이 맡기는 것(계약) + 서버 전용 앱 기능 도구. */
+export const SERVER_TOOLS: readonly string[] = [...contract.appServerTools, ...Object.keys(FEATURE_TIERS)];
 
 const S = (description: string) => ({ type: "string", description });
 const I = (description: string) => ({ type: "integer", description });
@@ -67,19 +69,7 @@ export const ASSISTANT_TOOLS: Anthropic.Tool[] = [
   ...FEATURE_TOOLS,
 ];
 
-export const TOOL_TIERS: Record<string, ToolTier> = {
-  find_person: "read", my_team: "read", list_rooms: "read", find_free_rooms: "read", my_reservations: "read", reserve_room: "write", cancel_reservation: "write",
-  list_calendars: "read", list_events: "read", create_event: "write", delete_event: "write",
-  attendance_today: "read", clock_in: "write", clock_out: "write",
-  mail_list: "read", mail_read: "read", mail_search: "read", mail_save_draft: "write", mail_send: "irreversible",
-  approvals_pending: "read", approval_read: "read", approval_counts: "read",
-  notices_list: "read", notice_read: "read", search: "read",
-  teams_chats: "read", teams_mentions: "read", teams_send: "write",
-  confluence_search: "read", confluence_read: "read", confluence_feed: "read", confluence_spaces: "read", confluence_create_page: "write",
-  sharepoint_search: "read", sharepoint_recent: "read", sharepoint_read: "read",
-  undo_last: "meta", offer_choices: "choice",
-  ...FEATURE_TIERS,
-};
+export const TOOL_TIERS: Record<string, ToolTier> = { ...(contract.appTools as Record<string, ToolTier>), ...FEATURE_TIERS };
 
 /** 'YYYY-MM-DDTHH:mm…' → '2026-10-05(월) 14:03 KST'(요일을 모델이 계산하지 않게). 형식이 다르면 그대로 + KST. */
 function nowWithWeekday(now: string): string {

@@ -24,14 +24,16 @@ ApiClient app(Map<String, Object> routes, [List<Map<String, dynamic>>? sent]) =>
       return http.Response.bytes(utf8.encode(jsonEncode(routes[r.url.path] ?? {'error': 'no'})), routes.containsKey(r.url.path) ? 200 : 404, headers: {'content-type': 'application/json; charset=utf-8'});
     }), tokens: _Tokens(), baseUrl: 'http://x', userAgent: 't');
 
-// 서버 assistant-tools.test.ts의 NAMES와 같은 목록.
-const names = ['approval_counts', 'approval_read', 'approvals_pending', 'attendance_today', 'cancel_reservation', 'clock_in', 'clock_out', 'confluence_create_page', 'confluence_feed', 'confluence_read', 'confluence_search', 'confluence_spaces', 'create_event', 'delete_event', 'find_free_rooms', 'find_person', 'list_calendars', 'list_events', 'list_rooms', 'mail_list', 'mail_read', 'mail_save_draft', 'mail_search', 'mail_send', 'my_reservations', 'my_team', 'notice_read', 'notices_list', 'offer_choices', 'reserve_room', 'search', 'sharepoint_read', 'sharepoint_recent', 'sharepoint_search', 'teams_chats', 'teams_mentions', 'teams_send', 'undo_last'];
+// 계약 파일 — 서버 tools.ts도 이 파일에서 등급을 가져온다(도구를 추가하면 이 파일부터). flutter test는 mobile/에서 돈다.
+final _contract = jsonDecode(File('../frontend/src/lib/assistant/tool-contract.json').readAsStringSync()) as Map<String, dynamic>;
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   test('등급 표 — 서버와 같은 이름, 모르는 도구는 null(실행하지 않음)', () {
-    expect((assistantToolTiers.keys.toList()..sort()), names);
+    final tiers = Map<String, String>.from(_contract['appTools'] as Map);
+    expect(assistantToolTiers.map((k, v) => MapEntry(k, v.name)), tiers);
+    expect(assistantToolTiers.length, greaterThanOrEqualTo(38)); // 계약 파일이 실수로 줄지 않았는지
     expect(tierOf('reserve_room'), ToolTier.write);
     expect(tierOf('mail_send'), ToolTier.irreversible);
     expect(tierOf('find_person'), ToolTier.read);
@@ -39,7 +41,7 @@ void main() {
     expect(tierOf('offer_choices'), ToolTier.choice);
     expect(tierOf('rm_rf'), isNull);
     expect(tierOf('confluence_create_page'), ToolTier.write);
-    expect(serverToolNames, {'teams_chats', 'teams_mentions', 'teams_send', 'confluence_search', 'confluence_read', 'confluence_feed', 'confluence_spaces', 'confluence_create_page', 'sharepoint_search', 'sharepoint_recent', 'sharepoint_read'});
+    expect(serverToolNames, Set<String>.from(_contract['appServerTools'] as List));
     expect(tierOf('sharepoint_read'), ToolTier.read);
   });
 

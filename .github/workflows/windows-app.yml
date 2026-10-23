@@ -6,9 +6,9 @@ on:
         description: Run updater transport probe without packaging
         type: boolean
         default: false
-  push:
-    branches: [abraxas73/mobile]
-    paths: ['mobile/**', '.github/workflows/windows-app.yml']
+  # push 트리거 제거(2026-10-23): 가리키던 abraxas73/mobile 브랜치는 2026-10-11 이후 쓰지 않고,
+  # 윈도 러너 자동 빌드는 비용이 커서 릴리스 절차대로 수동 실행(workflow_dispatch)만 남긴다.
+  # 정적 분석·테스트는 ci.yml이 리눅스 러너에서 맡는다.
 permissions:
   contents: read
 jobs:

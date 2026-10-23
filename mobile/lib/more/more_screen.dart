@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +14,7 @@ import '../mcp/mcp_settings_sheet.dart';
 import '../assistant/innobot_prefs.dart';
 import 'catalog.dart';
 import 'profile.dart';
+import '../app/platform.dart';
 
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
@@ -91,7 +91,7 @@ class MoreScreen extends ConsumerWidget {
             Card(
               child: Column(children: [
                 _GwRow(gw: gw, onTap: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (_) => const GwSettingsSheet())),
-                if (Platform.isMacOS || Platform.isWindows) ...[
+                if (isDesktopPlatform) ...[
                   const Divider(),
                   ListTile(
                     leading: const Icon(Icons.hub_outlined),

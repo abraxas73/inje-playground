@@ -1,0 +1,72 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+    paths: ['frontend/**', 'mobile/**', '.github/workflows/ci.yml']
+  push:
+    branches: [main]
+    paths: ['frontend/**', 'mobile/**', '.github/workflows/ci.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.diff.outputs.frontend }}
+      mobile: ${{ steps.diff.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        run: |
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+          # 첫 푸시(before=0…)나 비교 실패면 둘 다 돈다
+          if ! files=$(git diff --name-only "$base" "${{ github.sha }}" 2>/dev/null); then
+            echo "frontend=true" >> "$GITHUB_OUTPUT"; echo "mobile=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          ci=$(grep -q '^\.github/workflows/ci\.yml$' <<<"$files" && echo true || echo false)
+          { grep -q '^frontend/' <<<"$files" && echo frontend=true || echo frontend=$ci; } >> "$GITHUB_OUTPUT"
+          { grep -q '^mobile/' <<<"$files" && echo mobile=true || echo mobile=$ci; } >> "$GITHUB_OUTPUT"
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit -p .
+      - run: npx vitest run
+      - run: npm run lint
+  mobile:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test

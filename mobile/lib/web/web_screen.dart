@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -386,7 +387,7 @@ class _WebScreenState extends ConsumerState<WebScreen>
 
   @override
   Widget build(BuildContext context) => CallbackShortcuts(
-    bindings: Platform.isMacOS
+    bindings: defaultTargetPlatform == TargetPlatform.macOS
         ? {
             const SingleActivator(LogicalKeyboardKey.keyR, meta: true): () =>
                 unawaited(_reload()),
@@ -398,7 +399,7 @@ class _WebScreenState extends ConsumerState<WebScreen>
           }
         : {},
     child: Focus(
-      autofocus: Platform.isMacOS,
+      autofocus: defaultTargetPlatform == TargetPlatform.macOS,
       child: PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, _) {

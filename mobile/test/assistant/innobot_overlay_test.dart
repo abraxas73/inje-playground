@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -93,13 +92,13 @@ void main() {
     await t.pumpWidget(app(router, s));
     await t.pumpAndSettle();
     expect(find.byTooltip('비서 이노봇'), findsOneWidget);
-    expect(find.byTooltip('Claude 열기'), Platform.isMacOS || Platform.isWindows ? findsOneWidget : findsNothing);
+    expect(find.byTooltip('Claude 열기'), findsOneWidget);
     await t.tap(find.text('웹 열기'));
     await t.pumpAndSettle();
     expect(find.text('웹 화면'), findsOneWidget);
     expect(find.byTooltip('비서 이노봇'), findsOneWidget);
     expect(find.byTooltip('Claude 열기'), findsNothing);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('대화상자가 열려 있으면 숨기고 닫히면 다시 보인다', (t) async {
     final s = FakeSettings();

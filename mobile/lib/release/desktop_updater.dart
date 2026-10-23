@@ -6,6 +6,7 @@ import '../api/client.dart';
 import '../auth/session.dart';
 import '../config.dart';
 import 'release_check.dart';
+import '../app/platform.dart';
 
 enum DesktopUpdatePhase {
   idle,
@@ -332,9 +333,7 @@ Map<String, Object>? nativeFailure(Map args) {
 }
 
 final desktopUpdaterProvider = Provider<DesktopUpdater?>((ref) {
-  if (kIsWeb ||
-      (defaultTargetPlatform != TargetPlatform.macOS &&
-          defaultTargetPlatform != TargetPlatform.windows)) {
+  if (!isDesktopPlatform) {
     return null;
   }
   final platform = defaultTargetPlatform == TargetPlatform.macOS
