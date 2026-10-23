@@ -164,7 +164,8 @@ export default function TeamsChatPage() {
       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50"><MessageCircle className="h-5 w-5 text-indigo-600" /></div>
       <div><h1 className="text-2xl font-bold tracking-tight">Teams 채팅</h1><p className="text-sm text-muted-foreground">내가 속한 그룹·1:1 채팅 읽기·보내기</p></div>
     </div>
-    <div className="flex h-[calc(100dvh-8.5rem)] min-h-[24rem] gap-3 md:h-[calc(100dvh-12.5rem)]">
+    {/* 앱 WebView(data-app)는 웹 상단 바가 없고 제목 줄은 앱 상단으로 옮겨지므로 main 위아래 여백(1rem+2rem)만 뺀다 */}
+    <div className="flex h-[calc(100dvh-8.5rem)] min-h-[24rem] gap-3 md:h-[calc(100dvh-12.5rem)] [body[data-app]_&]:h-[calc(100dvh-3rem)]">
       <Card className={cn("flex w-full flex-col overflow-hidden md:w-80 md:shrink-0", chatId && "hidden md:flex")}>
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h2 className="flex items-center gap-2 font-semibold"><MessageCircle className="h-5 w-5 text-primary md:hidden" />내 채팅</h2>
