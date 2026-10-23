@@ -21,9 +21,16 @@ class ApprovalDetailScreen extends StatefulWidget {
 class _ApprovalDetailScreenState extends State<ApprovalDetailScreen> {
   late Future<ApprovalDetail> _future = widget.api.approvalDetail(widget.docId, widget.formId);
   bool _busy = false;
+  /// 승인 요청을 보냈는데 결과를 모름 — 다시 읽어 확인되기 전에는 '바로 승인'을 다시 내밀지 않는다(이중 승인 방지).
+  bool _uncertain = false;
 
   Future<void> _refresh() async {
-    setState(() { _future = widget.api.approvalDetail(widget.docId, widget.formId); });
+    final f = widget.api.approvalDetail(widget.docId, widget.formId);
+    setState(() { _future = f; });
+    try {
+      await f;
+      if (mounted) setState(() => _uncertain = false); // 다시 읽기 성공 — 이제 보이는 상태가 사실
+    } catch (_) {}
     await _future.catchError((_) => const ApprovalDetail(title: '', form: '', status: '', drafter: '', dept: '', repDt: '', attachCount: 0, currentApprover: '', content: ''));
   }
 
@@ -51,6 +58,11 @@ class _ApprovalDetailScreenState extends State<ApprovalDetailScreen> {
     try {
       final after = await widget.api.approve(d);
       if (!mounted) return;
+      if (after == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('승인했습니다. (상태 다시 읽기는 실패 — 목록에서 확인해 주세요)')));
+        Navigator.of(context).pop(true);
+        return;
+      }
       if (after.canApprove) {
         // 다시 읽었는데 아직 내 차례로 남아 있으면 성공이라 하지 않는다(read-back)
         setState(() { _future = Future.value(after); });
@@ -59,6 +71,12 @@ class _ApprovalDetailScreenState extends State<ApprovalDetailScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('승인했습니다.')));
       Navigator.of(context).pop(true);
+    } on ApprovalUncertain {
+      if (!mounted) return;
+      setState(() => _uncertain = true);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('승인 요청의 결과를 확인하지 못했습니다. 상태를 다시 읽는 중입니다.')));
+      _busy = false;
+      await _refresh();
     } on GwException catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
@@ -71,7 +89,9 @@ class _ApprovalDetailScreenState extends State<ApprovalDetailScreen> {
   void _openInGw() => launchUrl(Uri.parse(approvalWebUrl(widget.docId, widget.formId)), mode: LaunchMode.externalApplication);
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => PopScope(
+        canPop: !_busy, // 승인 요청 중에는 닫지 않는다(결과를 보고 목록을 갱신해야 함)
+        child: Scaffold(
         appBar: BrandHeader(title: '결재 문서', showBack: true, onRefresh: _refresh),
         body: FutureBuilder<ApprovalDetail>(
           future: _future,
@@ -110,7 +130,9 @@ class _ApprovalDetailScreenState extends State<ApprovalDetailScreen> {
                   decoration: BoxDecoration(color: Brand.surface, border: Border(top: BorderSide(color: Brand.line))),
                   child: Row(children: [
                     Expanded(child: OutlinedButton.icon(onPressed: _openInGw, icon: const Icon(Icons.open_in_new, size: 18), label: const Text('아마란스에서 열기'))),
-                    if (d.canApprove) ...[
+                    if (_uncertain)
+                      const Padding(padding: EdgeInsets.only(left: 10), child: Text('승인 결과 확인 필요 — 새로고침', style: TextStyle(fontSize: 12, color: Brand.dangerText)))
+                    else if (d.canApprove) ...[
                       const SizedBox(width: 10),
                       Expanded(
                         child: FilledButton.icon(
@@ -127,6 +149,7 @@ class _ApprovalDetailScreenState extends State<ApprovalDetailScreen> {
             ]);
           },
         ),
+      ),
       );
 
   Widget _step(ApprovalLineStep l) => Container(

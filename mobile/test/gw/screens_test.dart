@@ -101,12 +101,41 @@ void main() {
     expect(find.text('결재 문서'), findsOneWidget); // 화면은 그대로
   });
 
+  testWidgets('바로 승인: 승인 요청 결과를 모르면(연결 끊김) 버튼을 다시 내밀지 않고 상태를 다시 읽는다', (tester) async {
+    var n = 0;
+    final docs = [pendingDoc(), pendingDoc(mine: false)];
+    final client = MockClient((r) async {
+      switch (r.url.path) {
+        case '/gw/gw050A02': return ok(session);
+        case '/eap/eap105A04': return ok(list);
+        case '/eap/eap111A04': return ok(docs[(n++).clamp(0, 1)]);
+        case '/eap/eap110A08': return ok({'result': {'ea100': '0', 'func': []}});
+        case '/eap/eap110A21': throw http.ClientException('끊김');
+      }
+      return http.Response('{"resultCode":999}', 200);
+    });
+    await tester.pumpWidget(gwScope(creds: testCreds, http: client, child: const ApprovalsScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('휴가 신청'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('바로 승인'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '승인'));
+    await tester.pumpAndSettle();
+    expect(n, 2); // 결과를 모르니 상세를 다시 읽었다
+    expect(find.text('바로 승인'), findsNothing); // 다시 읽은 상태(승인됨)에는 버튼 없음
+    expect(find.text('결재 문서'), findsOneWidget);
+  });
+
   test('approvalNeedsAmaranth — 의견 필수(ea100)·내 actId가 1인 func 항목이면 앱에서 승인하지 않는다', () {
-    expect(approvalNeedsAmaranth({'result': {'ea100': '1'}}, '3000'), isTrue);
-    expect(approvalNeedsAmaranth({'result': {'func': [{'FUNC_PARAM': 'p', 'p': '4000|0▤3000|1'}]}}, '3000'), isTrue);
-    expect(approvalNeedsAmaranth({'result': {'func': [{'FUNC_PARAM': 'p', 'p': '4000|1▤3000|0'}]}}, '3000'), isFalse);
-    expect(approvalNeedsAmaranth({'result': {}}, '3000'), isFalse);
-    expect(approvalNeedsAmaranth(null, '3000'), isFalse);
+    expect(approvalNeedsAmaranth({'result': {'ea100': '1', 'func': []}}, '3000'), isTrue);
+    expect(approvalNeedsAmaranth({'result': {'ea100': '0', 'func': [{'FUNC_PARAM': 'p', 'p': '4000|0▤3000|1'}]}}, '3000'), isTrue);
+    expect(approvalNeedsAmaranth({'result': {'ea100': '0', 'func': [], 'meetInfo': {'meetCommentYn': '1'}}}, '3000'), isTrue);
+    expect(approvalNeedsAmaranth({'result': {'ea100': '0', 'func': [{'FUNC_PARAM': 'p', 'p': '4000|1▤3000|0'}]}}, '3000'), isFalse);
+    // 모르는 모양이면 승인하지 않는다
+    expect(approvalNeedsAmaranth({'result': {}}, '3000'), isTrue);
+    expect(approvalNeedsAmaranth({'ea100': '0', 'func': []}, '3000'), isTrue);
+    expect(approvalNeedsAmaranth(null, '3000'), isTrue);
   });
   testWidgets('출퇴근: 출근 버튼 → 확인 다이얼로그에서 취소하면 기록 호출 없음, 확인하면 기록 후 시각 표시', (tester) async {
     const base = '/human/common/judgeTimeManagement';

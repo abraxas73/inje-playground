@@ -44,21 +44,34 @@ class GwApi {
   }
 
   /// 바로 승인 — 아마란스 문서 보기의 승인 창(UBAP005)과 같은 순서: 사전 확인(eap110A08) → 승인(eap110A21, docLineSts 30).
-  /// 결재 비밀번호·의견 필수 문서는 앱에서 처리하지 않고 멈춘다(아마란스에서). 끝나면 상세를 다시 읽어 승인됐는지 확인한다.
-  /// 반환: 다시 읽은 상세. 실패는 GwException(사용자에게 보일 문구).
-  Future<ApprovalDetail> approve(ApprovalDetail d) async {
+  /// 결재 비밀번호·의견 필수 문서는 앱에서 처리하지 않고 멈춘다(아마란스에서). 끝나면 상세를 다시 읽어 확인한다.
+  /// 반환: 다시 읽은 상세(다시 읽기만 실패하면 null — 승인 자체는 서버가 성공이라 답함).
+  /// 서버가 분명히 거절하면 GwException, 승인 요청의 결과를 알 수 없으면(연결 끊김·시간 초과) [ApprovalUncertain].
+  Future<ApprovalDetail?> approve(ApprovalDetail d) async {
     if (!d.canApprove || d.docId.isEmpty || d.actId.isEmpty) throw GwException(200, -1, '지금 승인할 수 있는 문서가 아닙니다.');
     final pre = await client.call('/eap/eap110A08', {'docID': d.docId, 'formID': d.formId, 'actID': d.actId});
     if (approvalNeedsAmaranth(pre, d.actId)) throw GwException(200, -1, '이 문서는 결재 비밀번호나 결재 의견이 필요합니다. 아마란스에서 승인해 주세요.');
-    final r = await client.call('/eap/eap110A21', {
-      'docID': d.docId, 'actID': d.actId, 'docLineMSeq': d.docLineMSeq, 'docLineSSeq': d.docLineSSeq, 'docLineSts': '30', 'docComment': '', 'iframeHtml': '',
-    });
+    Object? r;
+    try {
+      r = await client.call('/eap/eap110A21', {
+        'docID': d.docId, 'actID': d.actId, 'docLineMSeq': d.docLineMSeq, 'docLineSSeq': d.docLineSSeq, 'docLineSts': '30', 'docComment': '', 'iframeHtml': '',
+      });
+    } on GwException catch (e) {
+      if (e.status == 0) throw ApprovalUncertain(); // 응답을 못 받음 — 서버에서는 승인됐을 수 있다
+      rethrow;
+    } catch (_) {
+      throw ApprovalUncertain();
+    }
     final value = r is Map ? r['resultValue'] : null;
     if (asInt(value, -1) != 0) {
       final msg = r is Map ? asStr(r['resultMsg']).trim() : '';
       throw GwException(200, -1, msg.isEmpty ? '승인되지 않았습니다.' : msg);
     }
-    return approvalDetail(d.docId, d.formId);
+    try {
+      return await approvalDetail(d.docId, d.formId);
+    } catch (_) {
+      return null;
+    }
   }
 
   // ── 근태 ──
@@ -225,12 +238,19 @@ extension GwTalkApi on GwApi {
   }
 }
 
-/// 승인 사전 확인(eap110A08 result) — 의견 필수(ea100)·결재 비밀번호·승인 의견 필수(func 목록의 "actId|1")면 앱에서 승인하지 않는다.
-/// func 항목은 아마란스가 [FUNC_PARAM]에 이름 붙인 값("3000|1▤4000|0" 꼴)을 넘긴다 — 내 actId가 1이면 무엇이든 사람 손이 필요하다고 본다(보수적으로).
+/// 승인 요청을 보냈지만 결과를 모름(연결 끊김·시간 초과) — 다시 승인을 내밀지 말고 상태부터 다시 읽는다.
+class ApprovalUncertain implements Exception {}
+
+/// 승인 사전 확인(eap110A08 result) — 앱에서 승인하지 않을 문서인지. 모르는 응답 모양이면 승인하지 않는다(안전 쪽).
+/// - 의견 필수(ea100 "1"), 회의 결재 의견 필수(meetInfo.meetCommentYn "1")
+/// - func 항목: 아마란스가 [FUNC_PARAM]에 이름 붙인 값("3000|1▤4000|0" 꼴 — 결재 비밀번호·승인 의견 필수 표)에서 내 actId가 1이면
 bool approvalNeedsAmaranth(Object? pre, String actId) {
-  final res = pre is Map ? (pre['result'] is Map ? pre['result'] as Map : pre) : const {};
+  final res = pre is Map ? pre['result'] : null;
+  if (res is! Map || !res.containsKey('ea100') || res['func'] is! List) return true;
   if (asStr(res['ea100']) == '1') return true;
-  for (final f in res['func'] is List ? res['func'] as List : const []) {
+  final mi = res['meetInfo'];
+  if (mi is Map && asStr(mi['meetCommentYn']) == '1') return true;
+  for (final f in res['func'] as List) {
     if (f is! Map) continue;
     final v = asStr(f[asStr(f['FUNC_PARAM'])]);
     for (final part in v.split('▤')) {

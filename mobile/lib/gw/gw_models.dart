@@ -187,13 +187,13 @@ class ApprovalDetail {
   factory ApprovalDetail.fromData(Map d) {
     final word = asStr(d['contentsWord']).trim();
     final btn = d['btnList'] is Map ? d['btnList'] as Map : const {};
-    final act = asStr(d['actId']);
     return ApprovalDetail(
         title: asStr(d['docTitle']), form: asStr(d['formName']), status: asStr(d['docStsName']), drafter: asStr(d['empName']), dept: asStr(d['deptName']), repDt: asStr(d['repDt']),
         attachCount: asInt(d['attachCnt']), currentApprover: asStr(d['lineName']), content: word.isEmpty ? htmlToText(asStr(d['docContents'])) : word,
         html: asStr(d['docContents']), docNo: asStr(d['docNo']),
         lines: [for (final r in d['line'] is List ? d['line'] as List : const []) if (r is Map) ApprovalLineStep.fromRow(r)],
-        docId: asStr(d['docId']), formId: asStr(d['formId']), actId: act.isEmpty ? asStr(d['actIdC']) : act, docLineMSeq: asStr(d['docLineMSeq']), docLineSSeq: asStr(d['docLineSSeq']),
+        // 승인 창은 actId만 쓴다(actIdC는 수신·참조 경로) — 비면 승인하지 않는다
+        docId: asStr(d['docId']), formId: asStr(d['formId']), actId: asStr(d['actId']), docLineMSeq: asStr(d['docLineMSeq']), docLineSSeq: asStr(d['docLineSSeq']),
         canApprove: asStr(btn['btnApproval']) == '1');
   }
 }
