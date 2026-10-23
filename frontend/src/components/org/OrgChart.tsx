@@ -270,9 +270,37 @@ export default function OrgChart() {
 
       {/* 왼쪽 부서 트리 · 오른쪽 소속 직원(좁은 화면은 위아래) */}
       <div className="grid gap-3 lg:h-[calc(100dvh-13rem)] lg:grid-cols-[minmax(0,4fr)_minmax(280px,1fr)] [body[data-app]_&]:lg:h-[calc(100dvh-9rem)]">
-        {/* 전체 조직도(위→아래 펼침) — 가로·세로 스크롤은 이 안에서만 */}
-        <Card className="h-[55dvh] gap-0 overflow-auto p-4 lg:h-auto">
-          <div className="mx-auto flex w-max min-w-full flex-col items-center">
+        {/* 넓은 화면: 위→아래로 펼친 전체 조직도 / 좁은 화면(모바일): 세로 들여쓰기 트리. 스크롤은 이 안에서만 */}
+        <Card className="h-[55dvh] gap-0 overflow-auto p-3 lg:h-auto lg:p-4">
+          <div className="w-max min-w-full lg:hidden">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setSelected(idx.root.id)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(idx.root.id); } }}
+              className={cn("flex w-52 cursor-pointer items-center gap-3 rounded-xl bg-slate-900 px-3 py-2 text-left text-white shadow-md dark:bg-slate-800", selected === idx.root.id && "ring-2 ring-primary ring-offset-2")}
+            >
+              <Building2 className="h-5 w-5 shrink-0" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold">{idx.root.name}</span>
+                <span className="flex items-center gap-1 text-[11px] text-slate-300"><Users className="h-3 w-3" />전체 {idx.total.get(idx.root.id) ?? 0}명</span>
+              </span>
+              {(idx.children.get(idx.root.id)?.length ?? 0) > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); ctx.toggle(idx.root.id); }}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  className="rounded p-0.5 text-slate-300 hover:bg-white/10"
+                  aria-label={expanded.has(idx.root.id) ? `${idx.root.name} 접기` : `${idx.root.name} 펼치기`}
+                  aria-expanded={expanded.has(idx.root.id)}
+                >
+                  {expanded.has(idx.root.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </button>
+              )}
+            </div>
+            <Kids kids={level1} ctx={ctx} />
+          </div>
+          <div className="mx-auto hidden w-max min-w-full flex-col items-center lg:flex">
             <div
               role="button"
               tabIndex={0}
