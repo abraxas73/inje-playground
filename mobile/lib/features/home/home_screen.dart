@@ -166,8 +166,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     });
     Future<void> open(String route) async {
       await context.push(route);
-      if (mounted && route.contains('/web?path=')) await _refresh();
-      if (mounted && route.startsWith('/gw/approvals')) await ref.read(approvalsLiveProvider.notifier).poll(); // 결재 화면에서 처리한 건 바로 빼기
+      // 어느 화면에서 돌아오든 홈 데이터(위젯·'지금 필요한 것')를 다시 모은다 — 메일을 읽고·결재를 처리하고 오면 바로 빠지게.
+      // Claude 요약은 다시 만들지 않는다(같은 오전·오후 구간이면 ensure가 기존 문장을 쓴다).
+      if (mounted) await _refresh();
     }
     // 메일 한 통은 바로 상세로 — 본문을 열면 아마란스가 읽음 처리하므로 돌아오면 다시 불러온다
     Future<void> openMail(MailItem m) async {
