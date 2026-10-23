@@ -14,11 +14,11 @@ describe("buildAuthorizeUrl", () => {
     expect(u.searchParams.get("response_type")).toBe("code");
     expect(u.searchParams.get("response_mode")).toBe("query");
     expect(u.searchParams.get("redirect_uri")).toBe("http://localhost:3003/api/ms/callback");
-    expect(u.searchParams.get("scope")).toBe("offline_access User.Read Files.ReadWrite.All Sites.Read.All Chat.ReadWrite");
+    expect(u.searchParams.get("scope")).toBe("offline_access User.Read Files.ReadWrite.All Sites.Read.All Chat.ReadWrite ChannelMessage.Read.All");
     expect(u.searchParams.get("state")).toBe("abc.def");
     expect(u.searchParams.get("login_hint")).toBe("user@innogrid.com");
     expect(u.searchParams.has("prompt")).toBe(false);
-    expect([...MS_SCOPES]).toEqual(["offline_access", "User.Read", "Files.ReadWrite.All", "Sites.Read.All", "Chat.ReadWrite"]);
+    expect([...MS_SCOPES]).toEqual(["offline_access", "User.Read", "Files.ReadWrite.All", "Sites.Read.All", "Chat.ReadWrite", "ChannelMessage.Read.All"]);
   });
 });
 
@@ -37,7 +37,7 @@ describe("exchangeCode", () => {
     expect(p.get("redirect_uri")).toBe("http://localhost:3003/api/ms/callback");
     expect(p.get("client_id")).toBe("client-1");
     expect(p.get("client_secret")).toBe("s3cret");
-    expect(p.get("scope")).toBe("offline_access User.Read Files.ReadWrite.All Sites.Read.All Chat.ReadWrite");
+    expect(p.get("scope")).toBe("offline_access User.Read Files.ReadWrite.All Sites.Read.All Chat.ReadWrite ChannelMessage.Read.All");
   });
   it("오류 응답은 OAuthError(code, description, status)", async () => {
     const fetchImpl = vi.fn(async () => json(400, { error: "invalid_grant", error_description: "AADSTS70000: The provided value for the 'code' parameter is not valid." }));
@@ -64,7 +64,7 @@ describe("refreshAccessToken", () => {
     const p = new URLSearchParams((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
     expect(p.get("grant_type")).toBe("refresh_token");
     expect(p.get("refresh_token")).toBe("RT-old");
-    expect(p.get("scope")).toBe("offline_access User.Read Files.ReadWrite.All Sites.Read.All Chat.ReadWrite");
+    expect(p.get("scope")).toBe("offline_access User.Read Files.ReadWrite.All Sites.Read.All Chat.ReadWrite ChannelMessage.Read.All");
   });
 });
 
