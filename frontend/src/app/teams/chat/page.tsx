@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useEnterToSend } from "@/hooks/useEnterToSend";
+import { useMsCallbackQuery } from "@/hooks/useMsCallbackQuery";
 import { initialChatId } from "@/lib/home";
 import { byNewest } from "@/lib/teams/sort";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,10 @@ const LAST_KEY = "teams-chat:last";
 const connectHref = `/api/ms/connect?returnTo=${encodeURIComponent("/teams/chat")}`;
 const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+/** 응답 본문 → JSON. 504(시간 초과)·HTML 500처럼 JSON이 아니면 빈 객체 — 상태 코드로 안내한다. */
+const readJson = async (r: Response): Promise<Record<string, unknown>> => {
+  try { return (await r.json()) as Record<string, unknown>; } catch { return {}; }
+};
 const fmtAgo = (iso: string | null) => {
   if (!iso) return "";
   const d = new Date(iso); const now = new Date();
@@ -50,11 +55,13 @@ export default function TeamsChatPage() {
     setRefreshing(true);
     try {
       const r = await fetch("/api/teams/chat");
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? `준비 상태를 확인하지 못했습니다 (${r.status})`);
-      setInfo(j as Info);
+      const j = await readJson(r);
+      if (!r.ok) throw new Error(typeof j.error === "string" ? j.error : `준비 상태를 확인하지 못했습니다 (${r.status})`);
+      if (typeof j.connected !== "boolean") throw new Error("준비 상태를 확인하지 못했습니다. 잠시 뒤 다시 시도하세요.");
+      const next = j as unknown as Info;
+      setInfo(next);
       setInfoError(null);
-      const chats = (j as Info).chats ?? [];
+      const chats = next.chats ?? [];
       let last: string | null = null;
       try { last = localStorage.getItem(LAST_KEY); } catch { /* 저장소 없음 */ }
       const requested = new URLSearchParams(window.location.search).get("chat");
@@ -67,6 +74,8 @@ export default function TeamsChatPage() {
     }
   }, []);
   useEffect(() => { void loadInfo(); }, [loadInfo]);
+  // Microsoft 연결에서 돌아온 결과(?ms_error=…)를 보여 준다 — 연결 성공은 위 loadInfo가 새 상태를 읽는다
+  useMsCallbackQuery({ onError: setError });
 
   const select = (id: string | null) => {
     setChatId(id);
@@ -98,15 +107,17 @@ export default function TeamsChatPage() {
     if (!chatId) return;
     const q = new URLSearchParams({ chat: chatId });
     if (sinceRef.current) q.set("since", sinceRef.current);
-    const r = await fetch(`/api/teams/chat/messages?${q.toString()}`);
-    const j = await r.json();
+    let r: Response;
+    try { r = await fetch(`/api/teams/chat/messages?${q.toString()}`); }
+    catch { setError("네트워크 연결을 확인해 주세요. 잠시 뒤 다시 불러옵니다."); return; }
+    const j = await readJson(r);
     if (!r.ok) {
-      setError(j.error ?? `메시지를 불러오지 못했습니다 (${r.status})`);
+      setError(typeof j.error === "string" ? j.error : `메시지를 불러오지 못했습니다 (${r.status})`);
       if (j.code === "reconnect") setInfo((i) => (i ? { ...i, hasChatScope: false } : i));
       return;
     }
     setError(null);
-    merge(j.messages as Msg[]);
+    merge(Array.isArray(j.messages) ? (j.messages as Msg[]) : []);
     setLoaded(true);
   }, [chatId, merge]);
 
@@ -126,11 +137,13 @@ export default function TeamsChatPage() {
     setSending(true);
     try {
       const r = await fetch("/api/teams/chat/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat: chatId, text: body }) });
-      const j = await r.json();
-      if (!r.ok) { setError(j.error ?? `보내지 못했습니다 (${r.status})`); return; }
+      const j = await readJson(r);
+      if (!r.ok || !j.message) { setError(typeof j.error === "string" ? j.error : `보내지 못했습니다 (${r.status})`); return; }
       merge([j.message as Msg]);
       setText("");
       setError(null);
+    } catch {
+      setError("보내지 못했습니다. 네트워크 연결을 확인해 주세요.");
     } finally {
       setSending(false);
       inputRef.current?.focus(); // 보낸 뒤에도 입력창에 — 이어서 대화

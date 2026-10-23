@@ -21,6 +21,17 @@ vi.mock("@/lib/ms/connections", () => ({ saveConnection: m.save }));
 vi.mock("@/lib/ms/oauth", async (orig) => ({ ...(await orig<typeof import("@/lib/ms/oauth")>()), exchangeCode: m.exchange, fetchMe: async () => m.me }));
 import { GET } from "@/app/api/ms/callback/route";
 const req = (user = "u1", expiry = Date.now() / 1000 + 600, appReturn = false) => new NextRequest(`https://inje-playground.vercel.app/api/ms/callback?code=secret-code&state=${signState({ u: user, n: "nonce", r: "/settings", e: expiry, ...(appReturn ? { a: true as const } : {}) }, key)}`);
+/** 앱 흐름 실패: 웹으로 리디렉션하지 않고 이유 + 앱 복귀 링크(자동 이동 없음) */
+async function expectAppFailure(res: Response, reason: string) {
+  expect(res.headers.get("location")).toBeNull();
+  expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+  const html = await res.text();
+  expect(html).toContain(reason);
+  expect(html).toContain('href="innogrid://login-callback"');
+  expect(html).not.toContain("window.location.replace");
+  expect(html).not.toContain("/settings");
+  return html;
+}
 beforeEach(() => {
   m.status = 200;
   m.exchange.mockReset().mockResolvedValue({ accessToken: "at", refreshToken: "rt", scope: "User.Read" });
@@ -77,7 +88,7 @@ it("앱 state의 사용자 이메일과 동의한 Microsoft 계정이 다르면 
   m.getUserById.mockResolvedValueOnce({ data: { user: { email: "owner@innogrid.com" } }, error: null });
   m.me = { mail: "colleague@innogrid.com", userPrincipalName: "colleague@innogrid.com", displayName: "Colleague" };
   const res = await GET(req("u1", Date.now() / 1000 + 600, true));
-  expect(res.headers.get("location")).toContain("ms_error=");
+  await expectAppFailure(res, "일치하지 않습니다");
   expect(m.save).not.toHaveBeenCalled();
 });
 it("앱 계정 비교는 대소문자를 무시하고 Microsoft mail이 없으면 UPN을 쓴다", async () => {
@@ -94,7 +105,7 @@ it.each([
   m.getUserById.mockResolvedValueOnce(lookup);
   m.me = me;
   const res = await GET(req("u1", Date.now() / 1000 + 600, true));
-  expect(res.headers.get("location")).toContain("ms_error=");
+  await expectAppFailure(res, "일치하지 않습니다");
   expect(m.save).not.toHaveBeenCalled();
 });
 it("웹 사용자 불일치·앱 저장 실패는 성공으로 보내지 않는다", async () => {
@@ -103,7 +114,22 @@ it("웹 사용자 불일치·앱 저장 실패는 성공으로 보내지 않는�
   expect(m.save).not.toHaveBeenCalled();
   m.save.mockRejectedValueOnce(new Error("save failed"));
   const failed = await GET(req("u1", Date.now() / 1000 + 600, true));
-  expect(failed.headers.get("location")).toContain("ms_error=");
+  await expectAppFailure(failed, "저장하지 못했습니다");
+});
+it("앱 흐름의 Azure 거부는 웹 /settings로 보내지 않고, 문구에 섞인 error 값은 이스케이프한다", async () => {
+  const state = signState({ u: "u1", n: "nonce", r: "/settings", e: Date.now() / 1000 + 600, a: true }, key);
+  const res = await GET(new NextRequest(`https://inje-playground.vercel.app/api/ms/callback?error=${encodeURIComponent("<script>x</script>")}&state=${state}`));
+  const html = await expectAppFailure(res, "Microsoft 로그인 오류");
+  expect(html).not.toContain("<script>x</script>");
+  expect(html).toContain("&#60;script&#62;");
+  expect(m.exchange).not.toHaveBeenCalled();
+});
+it("웹 흐름의 Azure 거부는 returnTo?ms_error로 돌려보낸다(관리자 승인 필요 안내)", async () => {
+  const state = signState({ u: "u1", n: "nonce", r: "/teams/chat", e: Date.now() / 1000 + 600 }, key);
+  const res = await GET(new NextRequest(`https://inje-playground.vercel.app/api/ms/callback?error=consent_required&state=${state}`));
+  const loc = new URL(res.headers.get("location")!);
+  expect(loc.pathname).toBe("/teams/chat");
+  expect(loc.searchParams.get("ms_error")).toContain("관리자 승인");
 });
 it("connect는 앱 복귀 플래그를 서명하며 일반 웹 요청은 표시하지 않는다", async () => {
   const { GET: connect } = await import("@/app/api/ms/connect/route");
