@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildOrg } from "@/lib/directory/org";
-import { ancestorIds, defaultExpanded, deptPath, indexOrg, searchOrg } from "@/components/org/org-tree";
+import { ancestorIds, appActionUrl, defaultExpanded, deptPath, indexOrg, mailtoUrl, searchOrg } from "@/components/org/org-tree";
 
 const data = buildOrg(
   [
@@ -46,4 +46,18 @@ describe("org-tree", () => {
     expect(r.people.map((p) => p.email)).toEqual(["park@x.com"]);
     expect(searchOrg(idx, data.people, "  ").people).toEqual([]);
   });
+});
+
+describe("메신저·메일 열기 주소", () => {
+  const ppl = [
+    { email: "a@x.com", empSeq: "11", name: "가" },
+    { email: "b@x.com", empSeq: null, name: "나" },
+  ];
+  it("앱: 메신저는 사번 있는 사람만, 메일은 주소 전부", () => {
+    const m = new URL(appActionUrl("messenger", ppl), "https://h");
+    expect(m.pathname).toBe("/app-action");
+    expect(Object.fromEntries(m.searchParams)).toEqual({ kind: "messenger", emp: "11", names: "가" });
+    expect(new URL(appActionUrl("mail", ppl), "https://h").searchParams.get("to")).toBe("a@x.com,b@x.com");
+  });
+  it("브라우저: mailto", () => expect(mailtoUrl(ppl)).toBe("mailto:a@x.com,b@x.com"));
 });

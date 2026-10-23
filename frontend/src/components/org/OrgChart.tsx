@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Building2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Loader2, Network, RefreshCw, Search, Users } from "lucide-react";
+import { Building2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Loader2, Mail, MessageCircle, Network, RefreshCw, Search, Users, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { descendants, type OrgData, type OrgDept, type OrgPerson } from "@/lib/directory/org";
 import { cn } from "@/lib/utils";
-import { byName, defaultExpanded, deptPath, indexOrg, searchOrg, type OrgIndex } from "./org-tree";
+import { appActionUrl, byName, defaultExpanded, deptPath, indexOrg, mailtoUrl, searchOrg, type OrgIndex } from "./org-tree";
 
 const fmtKst = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "없음";
@@ -60,65 +60,135 @@ function DeptCard({ d, ctx }: { d: OrgDept; ctx: TreeCtx }) {
   );
 }
 
-/** 2단계 아래: 왼쪽 연결선과 들여쓰기로 세로로 쌓는다. */
-function SubTree({ d, ctx }: { d: OrgDept; ctx: TreeCtx }) {
-  const kids = ctx.expanded.has(d.id) ? ctx.idx.children.get(d.id) ?? [] : [];
+/** 하위 부서 — 왼쪽 연결선과 들여쓰기로 세로로 쌓는다. 세로선은 부서마다 제 몫만(마지막은 가지 높이에서 끝). */
+function Kids({ kids, ctx }: { kids: OrgDept[]; ctx: TreeCtx }) {
+  if (!kids.length) return null;
   return (
-    <div>
-      <DeptCard d={d} ctx={ctx} />
-      {kids.length > 0 && (
-        <div className="ml-4 pl-4">
-          {/* 세로선은 하위 부서마다 제 몫만 — 마지막 부서는 가지(└) 높이에서 끝나 아래로 남지 않게 */}
-          {kids.map((k, i) => (
-            <div
-              key={k.id}
-              className={cn(
-                "relative pt-2 before:absolute before:top-[1.6rem] before:-left-4 before:h-px before:w-4 before:bg-border after:absolute after:top-0 after:-left-4 after:w-px after:bg-border",
-                i === kids.length - 1 ? "after:h-[1.6rem]" : "after:bottom-0",
-              )}
-            >
-              <SubTree d={k} ctx={ctx} />
-            </div>
-          ))}
+    <div className="ml-4 pl-4">
+      {kids.map((k, i) => (
+        <div
+          key={k.id}
+          className={cn(
+            "relative pt-2 before:absolute before:top-[1.6rem] before:-left-4 before:h-px before:w-4 before:bg-border after:absolute after:top-0 after:-left-4 after:w-px after:bg-border",
+            i === kids.length - 1 ? "after:h-[1.6rem]" : "after:bottom-0",
+          )}
+        >
+          <SubTree d={k} ctx={ctx} />
         </div>
-      )}
+      ))}
     </div>
   );
 }
 
-function PeopleTable({ people }: { people: OrgPerson[] }) {
+function SubTree({ d, ctx }: { d: OrgDept; ctx: TreeCtx }) {
+  return (
+    <div>
+      <DeptCard d={d} ctx={ctx} />
+      <Kids kids={ctx.expanded.has(d.id) ? ctx.idx.children.get(d.id) ?? [] : []} ctx={ctx} />
+    </div>
+  );
+}
+
+interface PeopleActions {
+  picked: Map<string, OrgPerson>;
+  toggle: (p: OrgPerson) => void;
+  setAll: (people: OrgPerson[], on: boolean) => void;
+  /** 앱 안(WebView)에서만 메신저를 연다 — 브라우저에는 메신저 버튼을 두지 않는다 */
+  inApp: boolean;
+  messenger: (people: OrgPerson[]) => void;
+  mail: (people: OrgPerson[]) => void;
+}
+
+function RowActions({ p, a }: { p: OrgPerson; a: PeopleActions }) {
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {a.inApp && p.empSeq && (
+        <button type="button" onClick={() => a.messenger([p])} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-primary" title={`${p.name}에게 메신저`} aria-label={`${p.name}에게 메신저`}>
+          <MessageCircle className="h-4 w-4" />
+        </button>
+      )}
+      <button type="button" onClick={() => a.mail([p])} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-primary" title={`${p.name}에게 메일`} aria-label={`${p.name}에게 메일`}>
+        <Mail className="h-4 w-4" />
+      </button>
+    </span>
+  );
+}
+
+function PeopleTable({ people, a }: { people: OrgPerson[]; a: PeopleActions }) {
   if (!people.length) return <p className="p-6 text-center text-sm text-muted-foreground">표시할 직원이 없습니다.</p>;
+  const all = people.every((p) => a.picked.has(p.email));
+  const some = !all && people.some((p) => a.picked.has(p.email));
   return (
     <>
       <table className="hidden w-full text-sm md:table">
-        <thead className="sticky top-0 bg-muted/80 text-xs text-muted-foreground backdrop-blur">
-          <tr>{["이름", "부서", "직책", "직급", "회사 이메일"].map((h) => <th key={h} className="px-4 py-2 text-left font-medium">{h}</th>)}</tr>
+        <thead className="sticky top-0 z-10 bg-muted/80 text-xs text-muted-foreground backdrop-blur">
+          <tr>
+            <th className="w-10 px-3 py-2 text-left">
+              <Checkbox checked={all ? true : some ? "indeterminate" : false} onCheckedChange={(v) => a.setAll(people, v === true)} aria-label="목록 전체 선택" />
+            </th>
+            {["이름", "부서", "직책", "직급", "회사 이메일"].map((h) => <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>)}
+          </tr>
         </thead>
         <tbody>
           {people.map((p) => (
-            <tr key={p.email} className="border-t hover:bg-muted/40">
-              <td className="px-4 py-2 font-medium">{p.name}</td>
-              <td className="px-4 py-2">{p.deptName ?? "-"}</td>
-              <td className="px-4 py-2">{p.duty ?? "-"}</td>
-              <td className="px-4 py-2">{p.position ?? "-"}</td>
-              <td className="px-4 py-2"><a href={`mailto:${p.email}`} className="text-primary hover:underline">{p.email}</a></td>
+            <tr key={p.email} className={cn("border-t hover:bg-muted/40", a.picked.has(p.email) && "bg-primary/5")}>
+              <td className="px-3 py-2"><Checkbox checked={a.picked.has(p.email)} onCheckedChange={() => a.toggle(p)} aria-label={`${p.name} 선택`} /></td>
+              <td className="px-3 py-2 font-medium whitespace-nowrap">
+                <span className="inline-flex items-center gap-1">{p.name}<RowActions p={p} a={a} /></span>
+              </td>
+              <td className="px-3 py-2">{p.deptName ?? "-"}</td>
+              <td className="px-3 py-2">{p.duty ?? "-"}</td>
+              <td className="px-3 py-2">{p.position ?? "-"}</td>
+              <td className="px-3 py-2"><a href={`mailto:${p.email}`} className="text-primary hover:underline">{p.email}</a></td>
             </tr>
           ))}
         </tbody>
       </table>
       <ul className="divide-y md:hidden">
         {people.map((p) => (
-          <li key={p.email} className="px-4 py-2.5 text-sm">
-            <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-medium">{p.name}</span>
-              <span className="text-xs text-muted-foreground">{[p.duty, p.position].filter(Boolean).join(" · ")}</span>
+          <li key={p.email} className={cn("flex items-start gap-3 px-4 py-2.5 text-sm", a.picked.has(p.email) && "bg-primary/5")}>
+            <Checkbox className="mt-0.5" checked={a.picked.has(p.email)} onCheckedChange={() => a.toggle(p)} aria-label={`${p.name} 선택`} />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <span className="font-medium">{p.name}</span>
+                <span className="text-xs text-muted-foreground">{[p.duty, p.position].filter(Boolean).join(" · ")}</span>
+              </div>
+              <div className="truncate text-xs text-muted-foreground">{p.deptName ?? "-"}</div>
+              <a href={`mailto:${p.email}`} className="block truncate text-xs text-primary">{p.email}</a>
             </div>
-            <div className="truncate text-xs text-muted-foreground">{p.deptName ?? "-"}</div>
-            <a href={`mailto:${p.email}`} className="block truncate text-xs text-primary">{p.email}</a>
+            <RowActions p={p} a={a} />
           </li>
         ))}
       </ul>
     </>
+  );
+}
+
+/** 선택 인원 띠 — 이름 칩(✕로 빼기) + 메신저 대화 / 메일 보내기. */
+function PickedBar({ a }: { a: PeopleActions }) {
+  const list = [...a.picked.values()];
+  if (!list.length) return null;
+  const shown = list.slice(0, 30);
+  return (
+    <div className="sticky bottom-2 z-20 rounded-xl border bg-card/95 p-3 shadow-lg backdrop-blur">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold">선택 인원 {list.length}명</span>
+        <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+          {shown.map((p) => (
+            <span key={p.email} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
+              {p.name}
+              <button type="button" onClick={() => a.toggle(p)} className="text-muted-foreground hover:text-foreground" aria-label={`${p.name} 빼기`}><X className="h-3 w-3" /></button>
+            </span>
+          ))}
+          {list.length > shown.length && <span className="text-xs text-muted-foreground">외 {list.length - shown.length}명</span>}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {a.inApp && <Button size="sm" onClick={() => a.messenger(list)} disabled={!list.some((p) => p.empSeq)}><MessageCircle className="h-4 w-4" />메신저 대화</Button>}
+          <Button size="sm" variant={a.inApp ? "outline" : "default"} onClick={() => a.mail(list)}><Mail className="h-4 w-4" />메일 보내기</Button>
+          <Button size="sm" variant="ghost" onClick={() => a.setAll(list, false)}>선택 해제</Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -130,6 +200,9 @@ export default function OrgChart() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState("");
   const [withSub, setWithSub] = useState(true);
+  const [picked, setPicked] = useState<Map<string, OrgPerson>>(new Map());
+  const [inApp, setInApp] = useState(false);
+  useEffect(() => setInApp(document.body.dataset.app === "1"), []);
 
   const idx = useMemo(() => (data?.departments.length ? indexOrg(data) : null), [data]);
 
@@ -180,6 +253,16 @@ export default function OrgChart() {
   const scope = withSub ? descendants(data.departments, sel.id) : new Set([sel.id]);
   const people = (searching ? search!.people : data.people.filter((p) => p.deptId !== null && scope.has(p.deptId))).slice().sort(byName);
   const level1 = expanded.has(idx.root.id) ? idx.children.get(idx.root.id) ?? [] : [];
+  // 메신저·메일 — 앱 안이면 같은 사이트 /app-action으로 보내 앱이 네이티브 화면(대화방·메일 쓰기)을 연다
+  const go = (url: string) => { window.location.href = url; };
+  const actions: PeopleActions = {
+    picked,
+    inApp,
+    toggle: (p) => setPicked((cur) => { const n = new Map(cur); if (n.has(p.email)) n.delete(p.email); else n.set(p.email, p); return n; }),
+    setAll: (list, on) => setPicked((cur) => { const n = new Map(cur); for (const p of list) { if (on) n.set(p.email, p); else n.delete(p.email); } return n; }),
+    messenger: (list) => go(appActionUrl("messenger", list)),
+    mail: (list) => go(inApp ? appActionUrl("mail", list) : mailtoUrl(list)),
+  };
 
   return (
     <div className="animate-fade-up space-y-3">
@@ -208,73 +291,63 @@ export default function OrgChart() {
       </div>
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
-      {/* 트리 캔버스: 아래 모서리를 끌어 높이를 바꾼다(CSS resize). 가로 스크롤은 이 안에서만. */}
-      <Card className="h-[45dvh] min-h-48 resize-y overflow-auto p-4 [body[data-app]_&]:h-[40dvh]">
-        <div className="mx-auto flex w-max min-w-full flex-col items-center">
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => setSelected(idx.root.id)}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(idx.root.id); } }}
-            className={cn("flex cursor-pointer items-center gap-3 rounded-xl bg-slate-900 px-5 py-3 text-left text-white shadow-md dark:bg-slate-800", selected === idx.root.id && "ring-2 ring-primary ring-offset-2")}
-          >
-            <Building2 className="h-6 w-6 shrink-0" />
-            <span>
-              <span className="block font-bold">{idx.root.name}</span>
-              <span className="flex items-center gap-1 text-xs text-slate-300"><Users className="h-3 w-3" />전체 {idx.total.get(idx.root.id) ?? 0}명</span>
-            </span>
-            {(idx.children.get(idx.root.id)?.length ?? 0) > 0 && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); ctx.toggle(idx.root.id); }}
-                onKeyDown={(e) => e.stopPropagation()}
-                className="rounded p-0.5 text-slate-300 hover:bg-white/10"
-                aria-label={expanded.has(idx.root.id) ? `${idx.root.name} 접기` : `${idx.root.name} 펼치기`}
-                aria-expanded={expanded.has(idx.root.id)}
-              >
-                {expanded.has(idx.root.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              </button>
+      {/* 왼쪽 부서 트리 · 오른쪽 소속 직원(좁은 화면은 위아래) */}
+      <div className="grid gap-3 lg:h-[calc(100dvh-13rem)] lg:grid-cols-[minmax(300px,400px)_1fr] [body[data-app]_&]:lg:h-[calc(100dvh-9rem)]">
+        <Card className="max-h-[50dvh] gap-0 overflow-auto p-3 lg:max-h-none">
+          <div className="w-max min-w-full">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setSelected(idx.root.id)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(idx.root.id); } }}
+              className={cn("flex w-52 cursor-pointer items-center gap-3 rounded-xl bg-slate-900 px-3 py-2 text-left text-white shadow-md dark:bg-slate-800", selected === idx.root.id && "ring-2 ring-primary ring-offset-2")}
+            >
+              <Building2 className="h-5 w-5 shrink-0" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold">{idx.root.name}</span>
+                <span className="flex items-center gap-1 text-[11px] text-slate-300"><Users className="h-3 w-3" />전체 {idx.total.get(idx.root.id) ?? 0}명</span>
+              </span>
+              {(idx.children.get(idx.root.id)?.length ?? 0) > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); ctx.toggle(idx.root.id); }}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  className="rounded p-0.5 text-slate-300 hover:bg-white/10"
+                  aria-label={expanded.has(idx.root.id) ? `${idx.root.name} 접기` : `${idx.root.name} 펼치기`}
+                  aria-expanded={expanded.has(idx.root.id)}
+                >
+                  {expanded.has(idx.root.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </button>
+              )}
+            </div>
+            <Kids kids={level1} ctx={ctx} />
+          </div>
+        </Card>
+
+        <Card className="flex min-h-0 flex-col gap-0 overflow-hidden py-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+            <div className="min-w-0">
+              <h2 className="font-semibold">{searching ? `‘${query.trim()}’ 검색 결과` : `${sel.name} · 소속 직원`}</h2>
+              <p className="text-xs break-keep text-muted-foreground">
+                {searching
+                  ? `전사에서 ${people.length}명`
+                  : `${deptPath(idx, sel.id)} · 직속 ${idx.direct.get(sel.id) ?? 0}명 / 하위 포함 ${idx.total.get(sel.id) ?? 0}명`}
+              </p>
+            </div>
+            {!searching && (
+              <div className="flex items-center gap-2">
+                <Checkbox id="org-with-sub" checked={withSub} onCheckedChange={(v) => setWithSub(v === true)} />
+                <Label htmlFor="org-with-sub" className="text-sm">하위 부서 포함</Label>
+              </div>
             )}
           </div>
-          {level1.length > 0 && (
-            <>
-              <div className="h-4 w-px bg-border" />
-              <div className="flex items-start">
-                {level1.map((d, i) => (
-                  <div key={d.id} className="relative px-2 pt-4">
-                    {/* 가로 연결선(첫·끝 칸은 반쪽) + 세로 짧은 선 */}
-                    <span className={cn("absolute top-0 h-px bg-border", i === 0 ? "left-1/2" : "left-0", i === level1.length - 1 ? "right-1/2" : "right-0", level1.length === 1 && "hidden")} />
-                    <span className="absolute top-0 left-1/2 h-4 w-px bg-border" />
-                    <SubTree d={d} ctx={ctx} />
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </Card>
-
-      <Card className="gap-0 overflow-hidden py-0">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
-          <div className="min-w-0">
-            <h2 className="font-semibold">{searching ? `‘${query.trim()}’ 검색 결과` : `${sel.name} · 소속 직원`}</h2>
-            <p className="text-xs break-keep text-muted-foreground">
-              {searching
-                ? `전사에서 ${people.length}명`
-                : `${deptPath(idx, sel.id)} · 직속 ${idx.direct.get(sel.id) ?? 0}명 / 하위 포함 ${idx.total.get(sel.id) ?? 0}명`}
-            </p>
+          <div className="max-h-[60dvh] min-h-0 flex-1 overflow-y-auto lg:max-h-none">
+            <PeopleTable people={people} a={actions} />
           </div>
-          {!searching && (
-            <div className="flex items-center gap-2">
-              <Checkbox id="org-with-sub" checked={withSub} onCheckedChange={(v) => setWithSub(v === true)} />
-              <Label htmlFor="org-with-sub" className="text-sm">하위 부서 포함</Label>
-            </div>
-          )}
-        </div>
-        <div className="max-h-[60dvh] overflow-y-auto">
-          <PeopleTable people={people} />
-        </div>
-      </Card>
+        </Card>
+      </div>
+
+      <PickedBar a={actions} />
 
       <p className="text-xs text-muted-foreground">그룹웨어(아마란스) 조직도를 매일 자동 동기화합니다.</p>
     </div>
