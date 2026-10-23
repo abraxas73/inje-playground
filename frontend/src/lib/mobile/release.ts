@@ -8,6 +8,8 @@ export const MOBILE_SHAREPOINT_FOLDER_KEY = "mobile_sharepoint_folder";
 export const APK_MIME = "application/vnd.android.package-archive";
 /** SharePoint 사본 파일명 — 사용자 요청대로 major.minor.patch만(빌드 번호 없음). 같은 버전을 다시 올리면 덮어쓴다(SharePoint 버전 이력 보존). */
 export const apkFileName = (version: string) => `innogrid-app-${version}.apk`;
+/** 릴리스 스크립트가 SharePoint에 올린 APK 사본 이름인지(정리할 때 다른 파일은 건드리지 않게) */
+export const isApkCopyName = (name: string) => /^innogrid-app-\d+\.\d+\.\d+\.apk$/.test(name);
 
 export type PlatformRelease = { version: string; build: number; releasedAt: string | null };
 export type AndroidRelease = PlatformRelease & { apkPath: string };
