@@ -18,7 +18,11 @@ export function graphErrorResponse(e: unknown): NextResponse {
     return NextResponse.json({ error: `Teams 요청이 실패했습니다 (${e.status})` }, { status: 502 });
   }
   if (e instanceof GraphError) {
-    if (e.status === 401 || e.status === 403) return NextResponse.json({ error: TEAMS_CHAT_RECONNECT_MESSAGE, code: "reconnect" }, { status: 409 });
+    if (e.status === 401 || e.status === 403) {
+      // 권한 거절 이유(필요 권한 이름 등)는 Graph 메시지에만 있다 — 진단용으로 남긴다(토큰·채팅 내용 없음)
+      console.warn(`[teams-chat] Graph ${e.status} ${e.code} request-id=${e.requestId ?? "-"} — ${e.message.slice(0, 300)}`);
+      return NextResponse.json({ error: TEAMS_CHAT_RECONNECT_MESSAGE, code: "reconnect" }, { status: 409 });
+    }
     console.error(`[teams-chat] Graph ${e.status} ${e.code} request-id=${e.requestId ?? "-"} — ${e.message.slice(0, 200)}`);
     return NextResponse.json({ error: `Teams 요청이 실패했습니다 (${e.status})` }, { status: 502 });
   }
