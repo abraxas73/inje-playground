@@ -36,7 +36,9 @@ import '../../app/platform.dart';
 /// 홈 = 오늘의 브리핑. 인사말 → 오늘의 한 줄(격언) → 데일리 브리핑(Claude, 없으면 숨김) → 지금 필요한 것 → 일정 → 팀원 부재 → 결재 → 메일 → Teams → 공지 → 바로 가기·사내 서비스.
 /// 수집은 홈을 열 때·홈 탭을 다시 누를 때·당겨서 새로고침. 브리핑은 매일 한국 시간 07:00 및 수동 요청 때 다시 만든다.
 class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({super.key, this.now});
+  const HomeScreen({super.key, this.now, this.autoRefreshEvery = const Duration(minutes: 5)});
+  /// 위젯·'지금 필요한 것' 데이터를 조용히 다시 모으는 주기(Claude 요약은 부르지 않음). null이면 끔(테스트).
+  final Duration? autoRefreshEvery;
   final DateTime? now; // 테스트에서 고정
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -50,6 +52,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   bool _editing = false; // 데스크톱 대시보드 편집 모드
   Offset _toolbarOffset = Offset.zero; // 떠 있는 위젯 툴바를 끌어 옮긴 만큼(기본 위치=하단 가운데 기준)
   Timer? _dailyTimer;
+  Timer? _autoTimer;
   late String _period;
 
   DateTime get _now => ref.read(briefingClockProvider)();
@@ -57,6 +60,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   void _scheduleDaily() {
     _dailyTimer?.cancel();
     _dailyTimer = Timer(untilNextBriefing(_now), _checkDay);
+  }
+
+  /// 5분마다 홈 데이터만 다시 모은다 — 아마란스·Teams에서 처리한 것이 위젯에 남지 않게. 같은 오전·오후 구간이면 Claude 요약은 기존 문장 그대로.
+  void _scheduleAuto() {
+    _autoTimer?.cancel();
+    final every = widget.autoRefreshEvery;
+    if (every == null) return;
+    _autoTimer = Timer.periodic(every, (_) {
+      if (mounted && !_manualBusy) _refresh();
+    });
   }
 
   void _checkDay() {
@@ -73,15 +86,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _checkDay();
+      if (_autoTimer == null) {
+        _scheduleAuto();
+        _refresh(); // 백그라운드에 있던 동안 바뀐 것 반영
+      }
       ref.invalidate(releaseProvider); // 며칠 떠 있는 앱도 돌아올 때 새 버전을 다시 확인한다
     } else if (state == AppLifecycleState.paused) {
       _dailyTimer?.cancel();
+      _autoTimer?.cancel();
+      _autoTimer = null;
     }
   }
 
   @override
   void dispose() {
     _dailyTimer?.cancel();
+    _autoTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -106,6 +126,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     WidgetsBinding.instance.addObserver(this);
     _period = briefingPeriod(_now);
     _scheduleDaily();
+    _scheduleAuto();
     // 첫 수집에 인사말 이름을 실어 보낸다 — 진행 중인 build()와 합쳐져 추가 수집은 없다(BriefingNotifier.refresh).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _refresh();
@@ -325,6 +346,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                     icon: Icon(_editing ? Icons.check : Icons.dashboard_customize_outlined, size: 18),
                     label: Text(_editing ? '편집 완료' : '홈 편집'),
                   ),
+                  const SizedBox(width: 4),
+                  SquareIconButton(icon: Icons.refresh, tooltip: '위젯 새로고침', onPressed: briefing.isLoading ? null : _refresh), // Claude 요약 없이 데이터만
                   const SizedBox(width: 4),
                   SquareIconButton(icon: Icons.menu_book_outlined, tooltip: '사용자 매뉴얼', onPressed: () => open('/web?path=${Uri.encodeComponent('/manual')}')),
                 ]),

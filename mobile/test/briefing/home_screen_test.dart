@@ -19,7 +19,7 @@ import '../gw/fakes.dart';
 import 'briefing_provider_test.dart' show AppApi, gwAll, gwRoutes;
 
 /// 홈 화면 통합 — 수집·요약 배선. GW 연결 여부에 따라 Claude 호출(POST /api/mobile/briefing)이 달라진다.
-Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime Function()? clock, Future<GwOrgAbsences> Function()? loadCompany, Map<String, (int, Object)> routes = const {}}) async {
+Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime Function()? clock, Future<GwOrgAbsences> Function()? loadCompany, Map<String, (int, Object)> routes = const {}, Duration? autoRefresh}) async {
   SharedPreferences.setMockInitialValues({});
   final auth = FakeAuth()..current = session(expired: false);
   addTearDown(auth.ctrl.close);
@@ -40,12 +40,23 @@ Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime 
     gwHttpClientProvider.overrideWithValue(gwRoutes(gwAll)),
     // 메신저 카드가 실기기 보안저장소를 건드리지 않게: 자격증명 없음으로 빠르게 안내 상태
     messengerClientProvider.overrideWithValue(MessengerClient(httpClient: gwRoutes(gwAll), loadCreds: () async => null)),
-  ], child: MaterialApp(home: HomeScreen(now: DateTime(2026, 10, 5, 8, 40)))));
+  ], child: MaterialApp(home: HomeScreen(now: DateTime(2026, 10, 5, 8, 40), autoRefreshEvery: autoRefresh))));
   await tester.pumpAndSettle();
   return app;
 }
 
 void main() {
+  testWidgets('5분마다 홈 데이터만 다시 모으고 Claude 요약은 다시 부르지 않는다', (tester) async {
+    final app = await pumpHome(tester, creds: testCreds, autoRefresh: const Duration(minutes: 5));
+    expect(app.calls['/api/confluence/feed'], 1);
+    expect(app.calls['/api/mobile/briefing'], 1);
+    await tester.pump(const Duration(minutes: 5));
+    await tester.pumpAndSettle();
+    expect(app.calls['/api/confluence/feed'], 2); // 홈 데이터를 다시 모음(Teams 답장 대기는 따로 2분마다라 기준으로 안 씀)
+    expect(app.calls['/api/mobile/briefing'], 1); // Claude는 그대로
+    await tester.pumpWidget(const SizedBox()); // 타이머 정리
+  });
+
   testWidgets('데스크톱 홈은 위젯 대시보드(홈 편집 토글 → 편집 모드)', (tester) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.binding.setSurfaceSize(const Size(1400, 2400));
@@ -263,3 +274,4 @@ void main() {
     expect(find.text('데일리 브리핑'), findsNothing);
   });
 }
+
