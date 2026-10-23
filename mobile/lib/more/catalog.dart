@@ -44,6 +44,7 @@ const pages = <PageEntry>[
   PageEntry('ppt', '/ppt', 'PPT 만들기', 'work', 'user'),
   PageEntry('proposal', '/proposal/general', '제안도우미-일반현황', 'work', 'user'),
   PageEntry('people_news', '/people-news', '인사·부고', 'work', 'user'),
+  PageEntry('org_chart', '/org', '조직도', 'work', 'user'),
   PageEntry('marketing', '/marketing', '마케팅 Master DB', 'work', 'user'),
 ];
 const defaultDenied = {'marketing'};

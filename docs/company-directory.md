@@ -8,7 +8,15 @@
    - **커넥터 경로(선택)**: inno-creed 대신 앱의 MCP 끝점을 쓰려면 `INNO_MCP_URL=https://innocrew.innogrid.com/api/mcp`와 `INNO_MCP_TOKEN=<운영자 Supabase 세션 토큰>`을 함께 지정한다. 스크립트가 HTTP JSON-RPC로 `tools/call find_person {no_limit:true}`를 보내고, 실제 실행은 **운영자 PC에서 실행 중인 INNOGRID 데스크탑 앱**(더보기 > 아마란스 연결)이 맡으므로 앱이 켜져 있어야 한다. 세션 토큰은 만료되므로 무인 cron에는 기본 stdio 경로가 맞다. `INNO_MCP_URL`이 없으면 기존 stdio 경로 그대로.
 3. 토큰: `CLAUDE_OTEL_INGEST_TOKEN`(환경변수 또는 `frontend/.env.local`, Vercel과 동일 값) — 동기화 API가 관리자 세션 대신 이 토큰도 받는다.
 
-## 2. 동기화 (수동, 1분)
+## 1.5 자동 동기화 — GitHub Actions (2026-10-23, 기본 경로)
+- 워크플로 `.github/workflows/gw-directory-sync.yml`, 매일 KST 07:40(로그인 페이지 점검 07:30 뒤). 수동 실행은 Actions → gw-directory-sync → Run workflow(`dry_run` 체크 시 반영 없이 인원·부서 수만).
+- 스크립트 `scripts/gw-directory-sync.mjs`: 연동 전용 아마란스 계정(2차 인증 없음)으로 로그인(앱 자동 로그인과 같은 입력 규칙) → 쿠키(oAuthToken·signKey)로 서명한 gw102A01(부서 트리)·gw102A02(부서원) → `POST /api/admin/directory/sync {people, departments}`. 부서원 조회가 하나라도 실패하면 반영하지 않는다(부분 명부로 비활성 처리 방지).
+- 저장소 시크릿: `GW_SYNC_ID`·`GW_SYNC_PW`(운영자 `~/Repos/inje-playground/.env.secrets`의 `AMARANTH_RELAY_ACCOUNT`·`AMARANTH_RELAY_PASSWORD`), `DIRECTORY_SYNC_TOKEN`(= Vercel `CLAUDE_OTEL_INGEST_TOKEN`).
+- 부서 트리는 `company_departments`(SQL `docs/sql/2026-10-23-org-chart.sql`, service role만) — 이번 동기화에 없던 부서는 active=false. 10개 미만이면 force 없이 거부.
+- 로컬 확인: `npm i --no-save playwright` 된 폴더에서 `GW_SYNC_ID=… GW_SYNC_PW=… PW_CHANNEL=chrome node scripts/gw-directory-sync.mjs --dry-run` (2026-10-23 실측: 부서 71개·309명, 전원 이메일).
+- 조직도 화면 `/org`(페이지 키 `org_chart`, user 이상) — `GET /api/directory/org`(부서 트리 + 재직자, 휴대폰 번호 없음). 부서 테이블이 비면 사람들의 부서 경로로 트리를 만든다(`derived:true`). 앱의 메일 받는 사람·메신저 새 대화도 이 API를 쓰고, 실패할 때만 아마란스 조직도를 직접 훑는다(`mobile/lib/directory/org_directory.dart`).
+
+## 2. 동기화 (수동, 1분) — 예비 경로
 
 > 2026-09-29: inno-creed 9월 16일 빌드부터 `find_person`이 기본 `limit=20`으로 잘라 보낸다(`truncated:true`). 스크립트는 `no_limit:true`로 호출한다. "명부가 N명으로 너무 적습니다(최소 50)" 400이 나오면 이 상한이 먼저 의심 대상. 화면의 "표 새로고침" 버튼은 DB 재조회일 뿐 동기화를 트리거하지 않는다(서버는 inno-creed에 닿지 않는 푸시형).
 ```bash

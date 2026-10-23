@@ -1,0 +1,40 @@
+# 아마란스 조직도 → 조직도 명부 매일 동기화(scripts/gw-directory-sync.mjs). 실패하면 워크플로가 실패해 GitHub 알림이 간다.
+# 필요한 저장소 시크릿: GW_SYNC_ID·GW_SYNC_PW(연동 전용 아마란스 계정, 2차 인증 없음), DIRECTORY_SYNC_TOKEN(= Vercel CLAUDE_OTEL_INGEST_TOKEN)
+name: gw-directory-sync
+
+on:
+  schedule:
+    - cron: "40 22 * * *" # 매일 KST 07:40 (UTC 22:40) — 로그인 페이지 점검(07:30) 뒤
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "반영하지 않고 인원·부서 수만 확인"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gw-directory-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Playwright 설치
+        run: |
+          npm install --no-save --no-package-lock playwright@1.61.1
+          npx playwright install --with-deps chromium
+      - name: 조직도 동기화
+        env:
+          GW_SYNC_ID: ${{ secrets.GW_SYNC_ID }}
+          GW_SYNC_PW: ${{ secrets.GW_SYNC_PW }}
+          SYNC_TOKEN: ${{ secrets.DIRECTORY_SYNC_TOKEN }}
+        run: node scripts/gw-directory-sync.mjs ${{ inputs.dry_run && '--dry-run' || '' }}

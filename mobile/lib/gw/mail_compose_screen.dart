@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
+import '../directory/org_directory.dart';
 import 'gw_api.dart';
-import 'gw_client.dart' show asStr;
-import 'gw_mcp_api.dart';
 import 'mail_compose.dart';
 
 /// 메일 쓰기·답장·전체답장·전달 화면. 보내기는 확인을 받은 뒤에만(되돌릴 수 없음).
@@ -13,21 +12,11 @@ import 'mail_compose.dart';
 
 typedef MailContact = ({String name, String email, String dept});
 
-/// 사내 명부 → 메일 주소록(emailAddr은 아이디만 오므로 emailDomain을 붙인다). 테스트에서 override.
-final mailContactsProvider = FutureProvider.autoDispose<List<MailContact>>((ref) async {
-  final api = ref.watch(gwApiProvider);
-  if (api == null) return const [];
-  final rows = await api.rosterRows();
-  return [
-    for (final r in rows)
-      if (asStr(r['emailAddr']).isNotEmpty && asStr(r['empName']).trim().isNotEmpty)
-        (
-          name: asStr(r['empName']).trim(),
-          email: asStr(r['emailAddr']).contains('@') ? asStr(r['emailAddr']) : '${asStr(r['emailAddr'])}@${asStr(r['emailDomain']).isEmpty ? 'innogrid.com' : asStr(r['emailDomain'])}',
-          dept: asStr(r['deptName']),
-        ),
-  ];
-});
+/// 메일 주소록 = 사내 명부(주소 있는 사람). 테스트에서 override.
+final mailContactsProvider = FutureProvider.autoDispose<List<MailContact>>((ref) async => [
+      for (final p in await ref.watch(orgPeopleProvider.future))
+        if (p.email.contains('@')) (name: p.name, email: p.email, dept: p.dept),
+    ]);
 
 /// 새로 붙일 파일 고르기. 테스트에서 override.
 final mailFilePickerProvider = Provider<Future<List<({String name, List<int> bytes})>> Function()>((_) => () async {
