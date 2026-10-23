@@ -48,6 +48,21 @@ export function isAcknowledgement(text: string): boolean {
   return words.length > 0 && words.every((w) => ACK_WORDS.has(w));
 }
 
+/**
+ * 답장이 필요한 글 — 질문(물음표·"~까요/~나요/~죠" 같은 물음 끝말)이거나 요청("~주세요", "부탁", "회신", "알려" 등)일 때만.
+ * 알림·소감·맞장구("네 좋은 생각입니다!", "공유드립니다")는 답장 대기로 보지 않는다(2026-10-23 사용자 결정 — 놓치는 건이 조금 생길 수 있음).
+ */
+const QUESTION_END = /(인가요|신가요|는가요|던가요|한가요|있나요|없나요|나요|까요|세요|죠|지요|니까|는지|을까|할까|건가|인가|냐)$/;
+const REQUEST = /(주세요|주시겠|주실|주시면|주시기|주십|부탁|해줘|해 줘|줄래|줄 수|바랍니다|바래요|요청드|회신|답변|알려|가능할까|가능하신|가능한지|가능하실|어떠세요|어떠신|어때요|어떨까|어떻게 생각)/;
+export function needsReply(text: string): boolean {
+  const t = text.trim();
+  if (!t || isAcknowledgement(t)) return false;
+  if (/[?？]/.test(t)) return true;
+  if (REQUEST.test(t)) return true;
+  // 문장 끝마다(마침표·느낌표·줄바꿈으로 나눈 조각) 물음 끝말인지 — 웃음·이모지·물결은 걷어 낸다
+  return t.split(/[.!\n。]+/).some((p) => QUESTION_END.test(p.replace(/[ㅎㅋ]{2,}/g, "").replace(/[^\p{L}\p{N}\s]/gu, "").trim()));
+}
+
 export function pickMentions(chats: ChatSummary[], messagesByChat: Record<string, ChatMessage[]>, me: MeLike, now: Date, days: number): MentionItem[] {
   const since = now.getTime() - days * DAY;
   const names = nameCandidates(me);
@@ -58,7 +73,7 @@ export function pickMentions(chats: ChatSummary[], messagesByChat: Record<string
     for (const m of msgs) {
       if (!m.from || m.from.id === me.id || !m.text.trim()) continue;
       if (Date.parse(m.createdAt) <= myLast) continue; // 이미 답함
-      if (isAcknowledgement(m.text)) continue; // "네"·"넵 감사합니다" 같은 맞장구는 답할 필요 없음
+      if (!needsReply(m.text)) continue; // 질문·요청만 — 맞장구·알림·소감은 답할 필요 없음
       if (chat.type === "group" && !mentionsName(m.text, names)) continue;
       out.push({ id: m.id, chatId: chat.id, topic: chat.topic, type: chat.type, from: m.from.name, text: m.text.length > MENTION_TEXT_MAX ? `${m.text.slice(0, MENTION_TEXT_MAX)}…` : m.text, at: m.createdAt, webUrl: chat.webUrl });
     }
