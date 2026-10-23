@@ -68,6 +68,7 @@ void main() {
     expect(find.byType(FocusSection), findsOneWidget);
     // 편집 토글
     expect(find.text('홈 편집'), findsOneWidget);
+    expect(find.byTooltip('조직도'), findsOneWidget); // 홈 편집 왼쪽 조직도 바로 가기(권한 기본 허용)
     await tester.tap(find.text('홈 편집'));
     await tester.pumpAndSettle();
     expect(find.text('편집 완료'), findsWidgets); // 상단 토글 + 떠 있는 팔레트

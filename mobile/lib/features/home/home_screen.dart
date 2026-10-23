@@ -341,6 +341,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 Row(children: [
                   const BrandLogo(width: 86, opacity: 0.8),
                   const Spacer(),
+                  // 조직도 바로 가기(업무 메뉴의 조직도와 같은 웹 화면) — 권한이 있을 때만
+                  if (session != null && canUsePage(session, orgChartEntry)) ...[
+                    SquareIconButton(icon: Icons.account_tree_outlined, tooltip: '조직도', onPressed: () => open('/web?path=${Uri.encodeComponent(orgChartEntry.href)}')),
+                    const SizedBox(width: 4),
+                  ],
                   TextButton.icon(
                     onPressed: () => setState(() { _editing = !_editing; _toolbarOffset = Offset.zero; }),
                     icon: Icon(_editing ? Icons.check : Icons.dashboard_customize_outlined, size: 18),
