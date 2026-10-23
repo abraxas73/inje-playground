@@ -41,7 +41,6 @@ describe("auditCategoryFor", () => {
     expect(auditCategoryFor("/api/admin/surveys/1")).toBe("survey");
     expect(auditCategoryFor("/api/admin/claude-usage/imports")).toBe("admin");
     expect(auditCategoryFor("/api/rfp/projects")).toBe("rfp");
-    expect(auditCategoryFor("/api/guide/notebooks")).toBe("guide");
     expect(auditCategoryFor("/api/users/abc")).toBe("users");
     expect(auditCategoryFor("/api/settings")).toBe("settings");
     expect(auditCategoryFor("/api/ms/connection")).toBe("auth");

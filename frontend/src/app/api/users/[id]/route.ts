@@ -31,11 +31,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const email = String(prof.data.email ?? "").toLowerCase();
   const since = kstDayOffset(29);
 
-  const [settings, logins, directory, guideCount, usage, members] = await Promise.all([
+  const [settings, logins, directory, usage, members] = await Promise.all([
     admin.from("user_settings").select("key, value").eq("user_id", id),
     admin.from("login_history").select("*").eq("user_id", id).order("created_at", { ascending: false }).limit(10),
     email ? admin.from("company_directory").select("division, headquarters, team, duty, position, active, dept_path").eq("email", email).maybeSingle() : Promise.resolve({ data: null, error: null }),
-    email ? admin.from("nlm_chat_messages").select("*", { count: "exact", head: true }).eq("user_email", email) : Promise.resolve({ count: 0, error: null }),
     email ? admin.from("claude_code_daily").select("day, sessions, cost_usd, prompts").eq("user_email", email).gte("day", since) : Promise.resolve({ data: [], error: null }),
     admin.from("user_members").select("*", { count: "exact", head: true }).eq("user_id", id),
   ]);
@@ -72,7 +71,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
     logins: loginRows,
     directory: directory.error ? null : directory.data,
     activity: {
-      guide_questions: guideCount.error ? null : guideCount.count ?? 0,
       team_members: members.error ? null : members.count ?? 0,
       claude_code_30d: usage.error ? null : claude,
     },

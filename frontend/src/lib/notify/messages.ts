@@ -1,6 +1,6 @@
 /**
  * 사람이 읽는 알림 본문 조립. provider(Dooray/Teams)와 무관한 순수 함수.
- * 출력 포맷은 기존 라우트(team-notify, food/decide, guide/chat)와 동일해야 한다.
+ * 출력 포맷은 기존 라우트(team-notify, food/decide)와 동일해야 한다.
  */
 
 export interface TeamResultInput {
@@ -38,17 +38,4 @@ export function buildFoodDecisionMessage(d: FoodDecisionInput): string {
   ]
     .filter(Boolean)
     .join("\n");
-}
-
-export const GUIDE_DM_ANSWER_MAX = 500;
-
-export function buildGuideDmText(question: string, answer: string): string {
-  return [
-    `📋 **가이드 Q&A 답변 알림**`,
-    ``,
-    `❓ **질문**: ${question}`,
-    ``,
-    `💡 **답변**:`,
-    answer.length > GUIDE_DM_ANSWER_MAX ? answer.slice(0, GUIDE_DM_ANSWER_MAX) + "…" : answer,
-  ].join("\n");
 }

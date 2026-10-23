@@ -61,7 +61,6 @@ const FEATURES = [
     iconColor: "text-amber-600",
     delay: "delay-100",
   },
-  // 가이드 카드(/guide)는 2026-08-29 사용자 요청으로 홈에서 숨김 — 경로는 유지
   {
     href: "/ladder",
     title: "사다리 게임",

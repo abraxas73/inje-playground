@@ -37,12 +37,11 @@ export function shouldAuditRequest(method: string, pathname: string): boolean {
   return !SKIP_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
-/** 자동 기록의 카테고리 — 화면 필터에서 어드민/RFP/가이드 등으로 나눠 보기 위해 경로에서 뽑는다 */
+/** 자동 기록의 카테고리 — 화면 필터에서 어드민/RFP 등으로 나눠 보기 위해 경로에서 뽑는다 */
 export function auditCategoryFor(pathname: string): string {
   const seg = pathname.replace(/^\/api\//, "").split("/");
   if (seg[0] === "admin") return seg[1]?.startsWith("rfp") ? "rfp" : seg[1] === "surveys" ? "survey" : "admin";
   if (seg[0] === "rfp") return "rfp";
-  if (seg[0] === "guide") return "guide";
   if (seg[0] === "users" || seg[0] === "members") return "users";
   if (seg[0] === "settings") return "settings";
   if (seg[0] === "auth" || seg[0] === "ms") return "auth";

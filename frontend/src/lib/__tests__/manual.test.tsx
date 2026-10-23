@@ -11,9 +11,9 @@ it("explains one-click desktop updates and the first manual-install migration", 
   expect(guide.steps.join(' ')).toContain('한 번 수동 설치');
   expect(guide.steps.join(' ')).toContain('About 이노크루');
 });
-it("covers every service in the navigation catalog, including the hidden guide", () => {
+it("covers every service in the navigation catalog (except the retired guide key)", () => {
   const links = manualSections.flatMap((s) => s.links?.map((l) => l.href) ?? []);
-  for (const p of PAGES) expect(links, p.label).toContain(p.href);
+  for (const p of PAGES.filter((x) => x.key !== "guide")) expect(links, p.label).toContain(p.href);
   expect(new Set(manualSections.map((s) => s.id)).size).toBe(manualSections.length);
 });
 it("finds instructions by step text and case-insensitive search", () => {

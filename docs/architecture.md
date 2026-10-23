@@ -58,7 +58,6 @@ flowchart LR
     EF["Edge Function<br/>yonhap-notices"]
   end
 
-  FLY["nlm-service<br/>FastAPI on Fly.io<br/>(NotebookLM)<br/>2026-10-16 운영 중지"]
   GW["아마란스 그룹웨어"]
   EXT["Microsoft Graph · Atlassian · Dooray<br/>Kakao · PAYCO · Anthropic · Stripe"]
 
@@ -72,7 +71,6 @@ flowchart LR
   FE --> DB
   FE --> ST
   FE --> PPT
-  FE -.->|"중지"| FLY
   FE --> EXT
   AUTH --- FE
   EF --> DB
@@ -85,7 +83,6 @@ flowchart LR
 |---|---|---|
 | frontend | `frontend/` | 웹 화면과 모든 서버 API(인증·권한·감사·기능·이노봇·MCP). Vercel `innogrid-playground` 프로젝트, 리전 `icn1` |
 | ppt-service | `ppt-service/` | PPT 생성 엔진(FastAPI + 디자인센터 패키지 `innogrid_ppt`). Vercel 별도 프로젝트 |
-| nlm-service | `nlm-service/` | 가이드 Q&A용 NotebookLM 프록시(FastAPI). Fly.io `inje-nlm-service`. **2026-10-16 운영 중지**(머신 0대) |
 | mobile | `mobile/` | Flutter 앱 하나로 iOS·Android·macOS·Windows를 빌드. 아마란스는 **앱이 직접** 호출하고, 데스크톱은 Claude 커넥터의 실행기 역할도 한다 |
 | Supabase | 프로젝트 `avooqcxehfeurjhqqgui` | DB·Auth·Storage·Edge Function·pg_cron·Vault(Realtime은 2026-10-21부터 쓰지 않음) |
 | 운영자 Mac | launchd 4개 | 사내망·개인 로그인이 필요한 수집 작업(GitLab·Teams 격언·Claude 사용량 CSV·시트 실행기) + 조직도 수동 동기화 |
@@ -108,7 +105,6 @@ flowchart LR
 |---|---|---|
 | frontend | Vercel `innogrid-playground`, 리전 `icn1`. 정식 도메인 `innocrew.innogrid.com`(2026-10-10~), 예전 `inje-playground.vercel.app` | Git 자동 배포가 아니라 **수동** 배포다. `frontend/`에서 `vercel --prod --yes`를 실행한다(루트에서 실행하면 새 프로젝트가 생긴다). 배포 뒤 `vercel inspect https://innocrew.innogrid.com`으로 별칭이 새 배포를 가리키는지 확인한다 |
 | ppt-service | Vercel 별도 프로젝트 `innogrid-ppt-service.vercel.app`(framework fastapi, `icn1`) | `cd ppt-service && vercel deploy --prod --yes` |
-| nlm-service | Fly.io `inje-nlm-service`, 리전 `nrt`, 볼륨 `nlm_data`(NotebookLM 쿠키). **2026-10-16 운영 중지(머신 0대)** | `nlm-service/scripts/deploy.sh`, 재가동 `fly scale count 1` |
 | Supabase | DB·Auth·Storage·Edge Functions·pg_cron·Vault | SQL은 `docs/sql/*.sql`을 수동 적용(Management API 또는 `supabase db query --linked`). Edge Function은 `supabase functions deploy yonhap-notices` |
 | 앱 | TestFlight(iOS 내부 테스트), Google Play 내부 테스트(2026-10-22부터 Android는 이것만 — 웹 `/apps`는 참여 링크, 스토리지 APK는 백업용), macOS DMG·Windows 설치 파일(웹 `/apps`, 설치 뒤에는 앱 자동 업데이트) | 스크립트로 수동 배포([§11](#11-릴리스배포-파이프라인)) |
 
@@ -175,7 +171,7 @@ frontend/src/
 | 위치 | 내용 |
 |---|---|
 | 최상위 파일 | `supabase.ts`(브라우저 클라이언트), `supabase-server.ts`(쿠키 또는 Bearer), `supabase-admin.ts`(service role), `supabase-middleware.ts`(proxy 본체) |
-| | `page-access.ts`(권한 카탈로그), `roles.ts`, `settings-server.ts`, `providers.ts`, `audit*.ts`, `nlm-service.ts`, `teams-graph.ts` |
+| | `page-access.ts`(권한 카탈로그), `roles.ts`, `settings-server.ts`, `providers.ts`, `audit*.ts`, `teams-graph.ts` |
 | `assistant/` | 이노봇 도구 정의·등급·지침(`tools.ts`), 서버 도구(`server-tools.ts`), 앱 기능 도구(`feature-tools.ts`), Claude 호출(`llm.ts`), 설정(`settings.ts`) |
 | `chat/` | 대화 엔진(`engine.ts`), 저장소, 마스킹, 도구 위치, SSE 이벤트·클라이언트, 요약, 사용량, 첨부 |
 | `mcp/` | Claude 커넥터 프로토콜, 중계(`relay.ts`), 동의, 도구 스키마(`tools.json`) |
@@ -209,7 +205,7 @@ sequenceDiagram
   P-)S: after(): 변경 요청 감사 기록(action_history, source=api)
 ```
 
-- **로그인**: `/login`이 Supabase OAuth(`azure`, `google`)를 시작한다. `/auth/callback`이 세션을 교환하고 `login_history`·감사 기록을 남긴다. 실패는 service role로 `logAuthEvent(failure)`에 기록한다. `next` 파라미터는 같은 사이트 경로만 받는다(오픈 리다이렉트 방지). GW 로그인(`/api/auth/gw`)은 `GW_LOGIN_ENABLED=true`일 때만 열리고 지금은 꺼져 있다.
+- **로그인**: `/login`이 Supabase OAuth(`azure`, `google`)를 시작한다. `/auth/callback`이 세션을 교환하고 `login_history`·감사 기록을 남긴다. 실패는 service role로 `logAuthEvent(failure)`에 기록한다. `next` 파라미터는 같은 사이트 경로만 받는다(오픈 리다이렉트 방지).
 - **proxy**(`src/proxy.ts` → `lib/supabase-middleware.ts`):
   - 공개 경로: `/login`, `/auth`, `/api`, `/privacy`, `/account-deletion`, `/survey`, `/rfp/shared`, `/ppt/s`, `/.well-known`
   - `/api`는 리다이렉트하지 않는다. 대신 페이지 키가 있는 API면 401 JSON을 주고, 나머지 API는 라우트가 스스로 인증한다.
@@ -273,7 +269,6 @@ sequenceDiagram
 
 | 기능 | 페이지 / API / 주요 lib | 데이터 | 외부 |
 |---|---|---|---|
-| 가이드 Q&A(**2026-10-16 중지**, 메뉴 숨김) | `/guide`, `/guide/admin`, `/admin/chat-history` · `/api/guide/*` · `nlm-service.ts` | `nlm_notebooks`, `nlm_sources`, `nlm_chat_messages`, 버킷 `nlm-files` | nlm-service(NotebookLM, 중지) |
 | 사다리 | `/ladder` · `/api/ladder-sessions` · `ladder.ts` | `ladder_sessions` | — |
 | 커피 타임(팀 나누기) | `/team` · `/api/team-{sessions,attendance,comments,notify}` · `team-divider.ts`, `my-team.ts` | `team_sessions` 등, `user_members`(내 팀) | 알림 Notifier |
 | 뭐 먹지 | `/food` · `/api/food/{search,categories,decide,favorites,geocode,reverse-geocode,payco}` | `food_*` | Kakao 로컬 API, PAYCO 가맹점(프록시) |
@@ -619,7 +614,6 @@ flowchart LR
 | RFP 분석 | `lib/rfp/extract-llm.ts`, `mapping/llm.ts`, `catalog/extract-features.ts` | 비표준 문서의 요건 추출 폴백, 솔루션 매핑(구조화 출력), 카탈로그 기능 추출. `RFP_LLM_MODEL` |
 | Confluence 주간보고 초안 | `lib/confluence/weekly.ts` | Sonnet 5.5(`CONFLUENCE_WEEKLY_MODEL`) |
 | 마케팅 AI 추천 | `lib/marketing/ai.ts` | `MARKETING_AI_ENABLED`일 때만 동작. 운영에서는 미설정 |
-| 가이드 Q&A(**2026-10-16 중지**) | `/api/guide/chat` → nlm-service | Google NotebookLM(`notebooklm` 파이썬 클라이언트), 인용 포함. 질문·답은 `nlm_chat_messages`에 저장 |
 
 LLM 의존 기능은 키가 없으면 **UI에서 숨긴다**(비활성 버튼으로 남겨 두지 않는다).
 
@@ -837,7 +831,7 @@ DDL이 저장소에 없는 초기 테이블도 있다: `user_profiles`, `setting
 | `desktop-releases` | macOS DMG·Windows 설치 파일 |
 | `rfp` | RFP 원본 문서 |
 | `claude-invoices` | Anthropic 인보이스 PDF |
-| `nlm-files` | 가이드 Q&A 소스 원본 |
+| `nlm-files` | 가이드 Q&A 소스 원본(2026-10-23 코드 삭제, 데이터만 남김) |
 
 ### 9.4 Edge Function·Vault
 
@@ -859,11 +853,10 @@ DDL이 저장소에 없는 초기 테이블도 있다: `user_profiles`, `setting
 | Microsoft Graph(앱 전용) | `lib/teams-graph.ts`(멤버 조회) | client_credentials |
 | Teams 웹훅(Power Automate) | `lib/notify/teams.ts`, 개인 알림 채널 | URL 자체가 비밀. SSRF 가드, 리다이렉트 안 따름 |
 | Atlassian(Jira·Confluence) | `lib/jira`, `lib/confluence`, 이노봇 `confluence_*`·`jira_*` | 3LO OAuth. 토큰은 암호화해 `jira_connections`에 둔다. 성과 수집은 `ATLASSIAN_*` Basic |
-| Dooray | `lib/dooray`, `lib/notify/dooray.ts`, nlm-service `/dooray/*` | 개인 API 토큰(암호화 저장) |
+| Dooray | `lib/dooray`, `lib/notify/dooray.ts` | 개인 API 토큰(암호화 저장) |
 | GitLab(사내) | 로컬 `gitlab-metrics-sync.py`가 API로 푸시 | `GITLAB_TOKEN`(Vercel IP가 막혀 있어 로컬에서 실행) |
 | Kakao 로컬 | `/api/food/*`, 이노봇 `food_search` | `KakaoAK` 키(settings `kakao_rest_api_key`) |
 | PAYCO 가맹점 | `/api/food/payco`, 이노봇 `food_search` | 인증 없는 공개 ajax 프록시 |
-| NotebookLM | nlm-service(2026-10-16 중지) | Google 쿠키 세션(`storage_state.json`, Fly 볼륨) |
 | Anthropic Messages | 이노봇, PPT, RFP, 브리핑, 주간보고, 마케팅 | `ANTHROPIC_API_KEY` |
 | Anthropic Admin API | 크론 `claude-cost` | `CLAUDE_ADMIN_API_KEY`(없으면 그 탭을 숨긴다) |
 | Stripe 인보이스 | `lib/claude-cost/*` | 허용 호스트의 공개 링크만 PDF로 받고, 합계가 맞지 않으면 저장하지 않는다 |
@@ -960,7 +953,7 @@ Vercel이나 클라우드 루틴으로는 로컬 Chrome 세션·사내망·개�
 2026-10-16 정리 결과(처리한 것은 함께 적는다).
 
 **처리함**
-1. **nlm-service 인증 공백** → 서비스를 **운영 중지**했다(Fly `inje-nlm-service` 머신 0대, 외부 접속 불가). 앱·볼륨은 남아 있어 `fly scale count 1 -a inje-nlm-service` 뒤 NotebookLM 재로그인으로 되살릴 수 있다. 가이드 Q&A(`/guide`, 메뉴 숨김)는 그동안 동작하지 않는다. 다시 켤 때는 앱 수준 인증(공유 토큰)을 먼저 붙인다.
+1. **nlm-service 인증 공백** → 서비스를 **운영 중지**했다(Fly `inje-nlm-service` 머신 0대, 외부 접속 불가). 앱·볼륨은 남아 있어 `fly scale count 1 -a inje-nlm-service` 뒤 NotebookLM 재로그인으로 되살릴 수 있다. 가이드 Q&A(`/guide`, 메뉴 숨김)는 그동안 동작하지 않는다. 다시 켤 때는 앱 수준 인증(공유 토큰)을 먼저 붙인다. **2026-10-23 코드 삭제**: `nlm-service/`·웹 `/guide`·`/api/guide/*`·`/admin/chat-history`를 지웠다. 데이터 테이블 `nlm_*`·버킷 `nlm-files`와 Fly 앱(0대)은 남긴다. 페이지 키 `guide`는 저장된 권한 JSON·DB 함수 키 목록과 맞추려고 카탈로그에 숨김으로 남긴다. 같은 날 크롬 확장 `extension/`과 GW 로그인 백엔드(`/api/auth/gw`, `GW_LOGIN_ENABLED`·`GW_API_BASE`)도 지웠다.
 2. **감사 보존 없음** → 100일 보존 적용([§13](#13-관측성감사)).
 3. **문서 차이** → CLAUDE.md(서두·proxy 표현·환경 변수), `.claude/rules/mobile.md`(의존성 21개·Flutter 3.47.7), `release-mobile.sh` 머리 주석, 런북 하단 바 절(`menu_layout.dart`), page-keys SQL 주석(테스트 파일 이름), LLM 포털 설계서(상한·모델 순서, SSE 이벤트 이름, 주민번호 규칙)를 코드에 맞췄다.
 

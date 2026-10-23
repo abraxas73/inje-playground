@@ -25,7 +25,7 @@ Top MCP Servers:
 ## Your Setup Checklist
 
 ### Codebases
-- [ ] inje-playground — https://github.com/abraxas73/inje-playground (Next.js 16 프론트 + FastAPI nlm-service 모노레포. 시작 전 `CLAUDE.md`와 `docs/teams-integration.md`를 읽을 것)
+- [ ] inje-playground — https://github.com/abraxas73/inje-playground (Next.js 16 프론트 + Flutter 앱 + FastAPI ppt-service 모노레포. 시작 전 `CLAUDE.md`와 `docs/teams-integration.md`를 읽을 것)
 
 ### MCP Servers to Activate
 - [ ] claude-in-chrome — 로그인된 실제 Chrome을 그대로 조작해 배포 결과·관리자 화면을 확인할 때 사용. Chrome에 "Claude in Chrome" 확장을 설치하고, **Claude Code와 같은 claude.ai 계정**으로 확장에 로그인해야 연결된다(계정이 다르면 "not connected").

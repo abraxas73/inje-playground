@@ -20,7 +20,6 @@ function isPublicPath(pathname: string): boolean {
 /** Routes that require specific minimum roles */
 const PROTECTED_ROUTES: { prefix: string; minRole: string }[] = [
   { prefix: "/admin", minRole: "admin" },
-  { prefix: "/guide", minRole: "user" },
   { prefix: "/usage", minRole: "user" },
   { prefix: "/rfp", minRole: "user" },
   { prefix: "/people-news", minRole: "user" },
@@ -34,7 +33,7 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const pageKeys = pagesForPath(pathname);
   const api = matchesPath(pathname, "/api");
-  const adminPath = matchesPath(pathname, "/admin") || matchesPath(pathname, "/guide/admin");
+  const adminPath = matchesPath(pathname, "/admin");
   const publicSurvey = matchesPath(pathname, "/survey") || matchesPath(pathname, "/api/surveys");
   function deny(status: number, message: string) {
     const response = isOAuthNavigation(pathname, request.method) ? oauthNotice(message, status) : api ? NextResponse.json({ error: message }, { status }) : NextResponse.redirect(new URL(status === 401 ? "/login" : "/access-denied", request.url));

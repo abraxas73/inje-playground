@@ -19,7 +19,6 @@ interface Detail {
   logins: Record<string, unknown>[];
   directory: { division: string | null; headquarters: string | null; team: string | null; duty: string | null; position: string | null; active: boolean; dept_path: string | null } | null;
   activity: {
-    guide_questions: number | null;
     team_members: number | null;
     claude_code_30d: { sessions: number; cost_usd: number; prompts: number; active_days: number; last_day: string | null; since: string } | null;
   };
@@ -235,8 +234,7 @@ export default function UserDetailSheet({ userId, onClose, onChanged }: { userId
             </Section>
 
             <Section icon={Activity} title="활동">
-              <div className="grid grid-cols-3 gap-2">
-                <Stat label="가이드 질의" value={detail.activity.guide_questions ?? "—"} sub="누적" />
+              <div className="grid grid-cols-2 gap-2">
                 <Stat label="내 팀 인원" value={detail.activity.team_members ?? "—"} sub="user_members" />
                 <Stat
                   label="Claude Code 30일"

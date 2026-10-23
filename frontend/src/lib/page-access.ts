@@ -29,7 +29,8 @@ export const PAGES = [
   { key: "marketing", href: "/marketing", label: "마케팅 Master DB", group: "work", minRole: "user" },
   // 아마란스 메일(웹은 데스크톱 앱 중계). 키는 앱 catalog.dart appPages와 같아 한 스위치로 웹·앱을 함께 제어한다. 웹 메뉴에는 안 보이고 매뉴얼 링크로 연다. DB 함수 키 목록은 docs/sql/2026-10-11-page-keys-sync.sql
   { key: "gw_mail", href: "/gw/mail", label: "메일 (메뉴 숨김)", group: "work", minRole: "user", hidden: true },
-  { key: "guide", href: "/guide", label: "가이드 (메뉴 숨김)", group: "work", minRole: "user", hidden: true },
+  // 가이드 Q&A는 2026-10-23 코드 삭제. 키는 저장된 권한 JSON(isPagePermissions)과 DB 함수 키 목록 때문에 남긴다 — 빼면 'guide'가 저장된 사용자가 503
+  { key: "guide", href: "/guide", label: "가이드 (운영 중지)", group: "work", minRole: "user", hidden: true },
   { key: "mcp", href: "/apps#mcp", label: "Claude 커넥터 (메뉴 숨김)", group: "work", minRole: "user", hidden: true },
 ] as const;
 export type PageKey = typeof PAGES[number]["key"];
@@ -52,7 +53,7 @@ export function canUsePage(role: UserRole, key: PageKey, permissions: PagePermis
 export function pagesForPath(path: string): PageKey[] {
   if (matchesPath(path, "/rfp/shared") || matchesPath(path, "/api/rfp/shared")) return [];
   if (matchesPath(path, "/ppt/s") || matchesPath(path, "/api/ppt/shared")) return [];
-  if (matchesPath(path, "/guide/admin") || matchesPath(path, "/admin") || matchesPath(path, "/api/admin")) return [];
+  if (matchesPath(path, "/admin") || matchesPath(path, "/api/admin")) return [];
   if (path === "/usage") return ["usage_code", "usage_chat", "usage_perf"];
   const page = PAGES.find((p) => matchesPath(path, p.href));
   if (page) return [page.key];
@@ -60,7 +61,7 @@ export function pagesForPath(path: string): PageKey[] {
     ["/api/food", ["food"]], ["/api/ladder-sessions", ["ladder"]],
     ["/api/team-sessions", ["team"]], ["/api/team-attendance", ["team"]],
     ["/api/team-comments", ["team"]], ["/api/team-notify", ["team"]],
-    ["/api/surveys", ["survey"]], ["/api/guide", ["guide"]], ["/api/teams/chat", ["teams_chat"]], ["/api/teams/mentions", ["teams_chat"]],
+    ["/api/surveys", ["survey"]], ["/api/teams/chat", ["teams_chat"]], ["/api/teams/mentions", ["teams_chat"]],
     ["/api/rfp", ["rfp"]], ["/api/ppt", ["ppt"]], ["/api/proposal", ["proposal"]], ["/api/people-news", ["people_news"]],
     ["/api/marketing", ["marketing"]], ["/api/dooray/overview", ["dooray"]], ["/api/dooray/messenger", ["dooray"]], ["/api/jira", ["jira"]], ["/api/confluence", ["confluence"]], ["/api/sharepoint", ["sharepoint"]], ["/api/mcp", ["mcp"]], ["/api/gw/mail", ["gw_mail"]], ["/api/chat", ["assistant"]],
     ["/media-directory", ["people_news"]], ["/api/media-directory", ["people_news"]],
@@ -72,7 +73,7 @@ export function pagesForPath(path: string): PageKey[] {
   return routes.find(([prefix]) => matchesPath(path, prefix))?.[1] ?? [];
 }
 export function canOpenPage(role: UserRole, path: string, permissions: PagePermissions = {}) {
-  if (matchesPath(path, "/admin") || matchesPath(path, "/guide/admin")) return role === "admin";
+  if (matchesPath(path, "/admin")) return role === "admin";
   const keys = pagesForPath(path);
   return keys.length ? keys.some((key) => canUsePage(role, key, permissions)) : ["/", "/profile", "/settings", "/manual"].includes(path);
 }

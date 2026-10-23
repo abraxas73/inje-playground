@@ -23,7 +23,7 @@ export const TEAMS_SETTING_KEYS = [
 
 /**
  * 비admin 인증 사용자에게 GET /api/settings 응답에서 제외할 키.
- * dooray_token은 브라우저(크롬 확장 브리지)에서 직접 쓰므로 제외 대상이 아니다.
+ * dooray_token은 브라우저에서 직접 쓰므로 제외 대상이 아니다.
  */
 export const ADMIN_ONLY_SETTING_KEYS: ReadonlySet<string> = new Set([
   "dooray_hook_url",

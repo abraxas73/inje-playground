@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   buildTeamResultMessage,
   buildFoodDecisionMessage,
-  buildGuideDmText,
 } from "@/lib/notify/messages";
 
 describe("buildTeamResultMessage", () => {
@@ -45,18 +44,5 @@ describe("buildFoodDecisionMessage", () => {
     expect(
       buildFoodDecisionMessage({ place_name: "우래옥", address: null, category_name: "", place_url: undefined, members: ["홍길동"] })
     ).toBe(["🍽️ 밥 먹으러 갑시다!", "📍 **우래옥**", "👥 홍길동"].join("\n"));
-  });
-});
-
-describe("buildGuideDmText", () => {
-  it("500자 초과 답변은 잘라내고 … 붙임", () => {
-    const long = "가".repeat(600);
-    const text = buildGuideDmText("질문?", long);
-    expect(text.startsWith("📋 **가이드 Q&A 답변 알림**\n\n❓ **질문**: 질문?\n\n💡 **답변**:\n")).toBe(true);
-    expect(text.endsWith("가".repeat(500) + "…")).toBe(true);
-  });
-
-  it("500자 이하는 그대로", () => {
-    expect(buildGuideDmText("q", "a")).toBe("📋 **가이드 Q&A 답변 알림**\n\n❓ **질문**: q\n\n💡 **답변**:\na");
   });
 });
