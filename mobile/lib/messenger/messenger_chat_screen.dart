@@ -59,6 +59,7 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
   Future<List<MsgRoom>> _load() async {
     final api = ref.read(messengerApiProvider);
     final rooms = await api.rooms();
+    sortRoomsNewest(rooms); // 서버 순서는 시각만 보고 날짜가 섞였다 — 마지막 대화 날짜·시각으로 최신이 위
     final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
     // 방 응답에 이름이 안 온 참여자만 한 번에 해석(실패해도 목록은 그대로 보여 준다)
     final needing = {for (final r in rooms) if (r.roomType != '7' && r.rawTitle.isEmpty) ...r.unresolvedSeqs(myEmpSeq)};
@@ -154,7 +155,7 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(r.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Brand.muted)),
       trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-        if (r.lastAt != null) Text(_hhmm(r.lastAt!), style: TextStyle(fontSize: 12, color: Brand.faint)),
+        if (r.lastAt != null) Text(roomWhen(r.lastAt!), style: TextStyle(fontSize: 12, color: Brand.faint)),
         if (r.unreadCount > 0) ...[
           const SizedBox(height: 4),
           Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2), decoration: BoxDecoration(color: Brand.botViolet, borderRadius: BorderRadius.circular(10)), child: Text('${r.unreadCount}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600))),
@@ -445,6 +446,20 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
   }
 }
 
+/// 대화방 목록 최신 순(마지막 대화 시각, 날짜 포함).
+void sortRoomsNewest(List<MsgRoom> rooms) => rooms.sort((a, b) => b.lastChatTimeStamp.compareTo(a.lastChatTimeStamp));
+
+/// 목록의 시각 — 오늘은 HH:mm, 어제는 '어제', 그 전은 M/D(KST). 시각만 보이면 어제 것이 오늘 것보다 늦어 보여 순서가 틀려 보였다.
+String roomWhen(DateTime t, {DateTime? now}) {
+  final k = t.toUtc().add(const Duration(hours: 9));
+  final n = (now ?? DateTime.now()).toUtc().add(const Duration(hours: 9));
+  final day = DateTime.utc(k.year, k.month, k.day), today = DateTime.utc(n.year, n.month, n.day);
+  final diff = today.difference(day).inDays;
+  if (diff <= 0) return _hhmm(t);
+  if (diff == 1) return '어제';
+  return '${k.month}/${k.day}';
+}
+
 String _hhmm(DateTime t) {
   final k = t.toUtc().add(const Duration(hours: 9));
   return '${k.hour.toString().padLeft(2, '0')}:${k.minute.toString().padLeft(2, '0')}';
@@ -485,9 +500,7 @@ class _MessengerDashboardCardState extends ConsumerState<MessengerDashboardCard>
     rooms.sort((a, b) {
       final fa = favs.contains(a.roomId) ? 1 : 0, fb = favs.contains(b.roomId) ? 1 : 0; // 즐겨찾기 먼저
       if (fa != fb) return fb - fa;
-      final ua = a.unreadCount > 0 ? 1 : 0, ub = b.unreadCount > 0 ? 1 : 0;
-      if (ua != ub) return ub - ua;
-      return (b.lastAt ?? DateTime(2000)).compareTo(a.lastAt ?? DateTime(2000));
+      return b.lastChatTimeStamp.compareTo(a.lastChatTimeStamp); // 그다음 최신 대화(날짜까지) — 안 읽은 방도 시간 순서 안에서(빨간 숫자로 구분)
     });
     return rooms;
   }
@@ -530,7 +543,7 @@ class _MessengerDashboardCardState extends ConsumerState<MessengerDashboardCard>
                     title: Text(r.titleWith(_names, my), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                     subtitle: Text(r.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Brand.muted)),
                     trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      if (r.lastAt != null) Text(_hhmm(r.lastAt!), style: TextStyle(fontSize: 11, color: Brand.faint)),
+                      if (r.lastAt != null) Text(roomWhen(r.lastAt!), style: TextStyle(fontSize: 11, color: Brand.faint)),
                       if (r.unreadCount > 0) ...[
                         const SizedBox(height: 3),
                         Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Brand.botViolet, borderRadius: BorderRadius.circular(9)), child: Text('${r.unreadCount}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600))),
