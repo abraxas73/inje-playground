@@ -6,7 +6,7 @@
 #   mobile/scripts/release-mobile.sh aab                             # Google Play용 AAB만 빌드(업로드·설정 변경 없음)
 #   mobile/scripts/release-mobile.sh play                            # AAB 빌드 + Google Play 내부 테스트 트랙 업로드(android/all 뒤 자동, 실패 시 재시도용)
 #   Play 업로드는 mobile/.env.release의 PLAY_SERVICE_ACCOUNT_JSON(서비스 계정 키 경로, git 밖)이 있을 때만 — docs/play-console-guide.md §자동 업로드
-#   mobile/scripts/release-mobile.sh sharepoint                      # 현재 Android 릴리스 APK 사본을 SharePoint에 innogrid-app-<X.Y.Z>.apk로 올림(android/all 뒤 자동, 실패 시 재시도용)
+#   mobile/scripts/release-mobile.sh sharepoint                      # 현재 Android 릴리스 APK 사본을 SharePoint에 innogrid-app-<X.Y.Z>.apk로 올림(수동 전용 — 2026-10-23부터 android/all 뒤 자동 업로드 안 함)
 # 1) 작업 트리 확인 2) flutter test·analyze 3) pubspec version → APP_VERSION/APP_BUILD
 # 4) android: AAB 빌드 → Google Play 내부 테스트 트랙(play-upload.py) → Play가 만든 Google 서명 universal APK 받기
 #    → Supabase 스토리지 mobile/android/innogrid-<v>+<b>.apk 업로드 → settings.mobile_release.android 갱신 → SharePoint 사본
@@ -229,7 +229,7 @@ print(((d.get("android") or {}) if isinstance(d, dict) else {}).get("apkPath", "
   fi
   fi
   write_release android "$APK_PATH"
-  sharepoint_upload soft
+  # SharePoint 사본 자동 업로드는 2026-10-23 중단(사용자 결정 — 배포는 Play 내부 테스트, 백업은 스토리지). 필요하면 수동: $0 sharepoint
 fi
 
 # 6. iOS

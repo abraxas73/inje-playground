@@ -10,7 +10,7 @@ export function parseChatId(raw: unknown): string | null {
   return typeof raw === "string" && CHAT_ID_RE.test(raw.trim()) ? raw.trim() : null;
 }
 
-/** Graph 오류(GraphError, fetchMe의 OAuthError) → 응답. 401/403은 스코프 미동의 또는 채팅 미참여로 보고 재연결 안내(409 reconnect). 그 외 502. 다른 예외는 다시 던진다. */
+/** Graph 오류(GraphError, fetchMe의 OAuthError) → 응답. 401/403은 스코프 미동의 또는 채팅 미참여로 보고 재연결 안내(409 reconnect). 그 외 502. 다른 예외(네트워크·DB)도 HTML 500 대신 JSON 502로. */
 export function graphErrorResponse(e: unknown): NextResponse {
   if (e instanceof OAuthError) {
     if (e.status === 401 || e.status === 403) return NextResponse.json({ error: TEAMS_CHAT_RECONNECT_MESSAGE, code: "reconnect" }, { status: 409 });
@@ -18,9 +18,14 @@ export function graphErrorResponse(e: unknown): NextResponse {
     return NextResponse.json({ error: `Teams 요청이 실패했습니다 (${e.status})` }, { status: 502 });
   }
   if (e instanceof GraphError) {
-    if (e.status === 401 || e.status === 403) return NextResponse.json({ error: TEAMS_CHAT_RECONNECT_MESSAGE, code: "reconnect" }, { status: 409 });
+    if (e.status === 401 || e.status === 403) {
+      // 권한 거절 이유(필요 권한 이름 등)는 Graph 메시지에만 있다 — 진단용으로 남긴다(토큰·채팅 내용 없음)
+      console.warn(`[teams-chat] Graph ${e.status} ${e.code} request-id=${e.requestId ?? "-"} — ${e.message.slice(0, 300)}`);
+      return NextResponse.json({ error: TEAMS_CHAT_RECONNECT_MESSAGE, code: "reconnect" }, { status: 409 });
+    }
     console.error(`[teams-chat] Graph ${e.status} ${e.code} request-id=${e.requestId ?? "-"} — ${e.message.slice(0, 200)}`);
     return NextResponse.json({ error: `Teams 요청이 실패했습니다 (${e.status})` }, { status: 502 });
   }
-  throw e;
+  console.error("[teams-chat] 예외:", e instanceof Error ? e.message : e);
+  return NextResponse.json({ error: "Teams에 연결하지 못했습니다. 잠시 뒤 다시 시도하세요." }, { status: 502 });
 }

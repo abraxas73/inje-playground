@@ -11,6 +11,7 @@ vi.mock("@/lib/audit", () => ({ logAudit: m.audit }));
 vi.stubGlobal("fetch", m.fetch);
 import { GET as chatGET } from "@/app/api/teams/chat/route";
 import { GET as msgGET, POST as msgPOST } from "@/app/api/teams/chat/messages/route";
+import { GET as searchGET } from "@/app/api/teams/chat/search/route";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const rawMsg = (id: string) => ({ id, messageType: "message", createdDateTime: `2026-10-03T12:0${id}:00Z`, lastModifiedDateTime: `2026-10-03T12:0${id}:00Z`, deletedDateTime: null, from: { user: { id: "aad-1", displayName: "강승욱" } }, body: { contentType: "text", content: `m${id}` }, attachments: [] });
@@ -38,6 +39,14 @@ it("GET /api/teams/chat — Graph 403은 409 reconnect", async () => {
   const res = await chatGET();
   expect(res.status).toBe(409);
   expect(await res.json()).toMatchObject({ code: "reconnect" });
+});
+it("Graph가 아닌 예외(네트워크 끊김)도 HTML 500 대신 JSON 502 — 화면이 안내를 띄울 수 있게", async () => {
+  m.fetch.mockRejectedValue(new TypeError("fetch failed"));
+  const res = await msgGET(req(`/api/teams/chat/messages?chat=${encodeURIComponent(CHAT)}`));
+  expect(res.status).toBe(502);
+  expect(res.headers.get("content-type")).toContain("application/json");
+  expect((await res.json()).error).toContain("Teams에 연결하지 못했습니다");
+  expect((await chatGET()).status).toBe(502);
 });
 it("GET /api/teams/chat/messages — chat 필수(400), since는 Graph 필터로, 정규화 목록", async () => {
   expect((await msgGET(req("/api/teams/chat/messages"))).status).toBe(400);
@@ -73,4 +82,24 @@ it("POST /api/teams/chat/messages — chat·text 검증(400), 정상이면 Graph
   expect(m.audit).toHaveBeenCalledTimes(1);
   expect(m.audit.mock.calls[0][2]).toMatchObject({ userId: "u1", category: "teams" });
   expect(JSON.stringify(m.audit.mock.calls[0][2])).not.toContain("안녕하세요");
+});
+
+it("GET /api/teams/chat/search — 검색어 2~100자, Microsoft Search로 채팅 메시지만(채널 제외)·요약 강조 태그 제거, 403은 409", async () => {
+  expect((await searchGET(req("/api/teams/chat/search?q=a"))).status).toBe(400);
+  const before = await searchGET(req("/api/teams/chat/search?q=견적"));
+  expect(before.status).toBe(409);
+  expect((await before.json()).code).toBe("reconnect_search");
+  expect(m.fetch).not.toHaveBeenCalled();
+  m.status = { connected: true, scopes: ["User.Read", "Chat.ReadWrite", "ChannelMessage.Read.All"] };
+  m.fetch.mockResolvedValue(json(200, { value: [{ hitsContainers: [{ hits: [
+    { summary: "...<c0>견적</c0>서 보냈습니다 &amp; 확인", resource: { id: "1", chatId: CHAT, createdDateTime: "2026-10-23T01:00:00Z", from: { emailAddress: { name: "김민준" } } } },
+    { summary: "채널 글", resource: { id: "2", channelIdentity: { channelId: "c" } } },
+  ] }] }] }));
+  const res = await searchGET(req(`/api/teams/chat/search?q=${encodeURIComponent(" 견적  서 ")}`));
+  expect(await res.json()).toEqual({ hits: [{ id: "1", chatId: CHAT, createdAt: "2026-10-23T01:00:00Z", from: "김민준", snippet: "...견적서 보냈습니다 & 확인" }] });
+  const [url, init] = m.fetch.mock.calls[0];
+  expect(url).toContain("/search/query");
+  expect(JSON.parse(init.body).requests[0]).toMatchObject({ entityTypes: ["chatMessage"], query: { queryString: "견적 서" } });
+  m.fetch.mockResolvedValue(json(403, { error: { code: "Forbidden", message: "x" } }));
+  expect((await searchGET(req("/api/teams/chat/search?q=견적"))).status).toBe(409);
 });

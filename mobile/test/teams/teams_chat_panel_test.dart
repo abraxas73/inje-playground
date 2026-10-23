@@ -7,6 +7,7 @@ import 'package:playground/teams/teams_chat_panel.dart';
 class FakeApi extends Fake implements ApiClient {
   final sent = <Object?>[];
   final gets = <Map<String, String>?>[];
+  final searches = <String?>[];
   var msgs = <Map<String, Object?>>[
     {'id': '1', 'createdAt': '2026-10-22T01:00:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '회의 몇 시죠?', 'attachments': []},
     {'id': '2', 'createdAt': '2026-10-22T01:01:00Z', 'from': {'id': 'me', 'name': '나'}, 'text': '3시요', 'attachments': [{'id': 'a', 'name': '안건.docx', 'url': 'https://x/a'}]},
@@ -14,7 +15,11 @@ class FakeApi extends Fake implements ApiClient {
   @override
   Future<dynamic> getJson(String path, {Map<String, String>? query}) async {
     if (path == '/api/teams/chat') {
-      return {'connected': true, 'hasChatScope': true, 'meId': 'me', 'chats': [{'id': 'c1', 'type': 'group', 'topic': '플랫폼팀', 'lastUpdated': '2026-10-22T01:01:00Z'}]};
+      return {'connected': true, 'hasChatScope': true, 'meId': 'me', 'chats': [{'id': 'c1', 'type': 'group', 'topic': '플랫폼팀', 'members': ['김동료', '나'], 'lastUpdated': '2026-10-22T01:01:00Z'}]};
+    }
+    if (path == '/api/teams/chat/search') {
+      searches.add(query?['q']);
+      return {'hits': [{'id': '1', 'chatId': 'c1', 'from': '김동료', 'snippet': '회의 몇 시죠?', 'createdAt': '2026-10-22T01:00:00Z'}, {'id': '7', 'chatId': 'old', 'from': '박옛날', 'snippet': '오래된 회의', 'createdAt': '2026-01-01T00:00:00Z'}]};
     }
     gets.add(query);
     return {'messages': query?['since'] == null ? msgs : msgs.where((m) => (m['createdAt'] as String).compareTo(query!['since']!) > 0).toList()};
@@ -71,6 +76,37 @@ void main() {
     expect(find.text('첫 메시지'), findsOneWidget);
 
     // 화면을 떠나면 폴링 타이머도 끝난다
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('검색 — 메신저 검색과 같은 구성(대화방·대화 내용 두 묶음), 대화 내용을 누르면 그 메시지를 강조, 1자는 대화방만', (tester) async {
+    final api = FakeApi();
+    await tester.pumpWidget(ProviderScope(
+      overrides: [apiClientProvider.overrideWithValue(api)],
+      child: const MaterialApp(home: Scaffold(body: TeamsChatPanel())),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('검색'));
+    await tester.pumpAndSettle();
+    expect(find.text('검색어를 입력하세요'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), '김');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(api.searches, isEmpty); // 대화 내용은 2자부터
+    expect(find.text('대화방 1'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), '회의');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(api.searches, ['회의']);
+    expect(find.text('대화 내용 2'), findsOneWidget);
+    expect(find.text('최근 50개 밖의 대화'), findsOneWidget);
+
+    await tester.tap(find.text('회의 몇 시죠?'));
+    await tester.pumpAndSettle();
+    final focused = find.ancestor(of: find.text('회의 몇 시죠?'), matching: find.byWidgetPredicate((w) => w is DecoratedBox && w.decoration is BoxDecoration && (w.decoration as BoxDecoration).color == const Color(0xFFFFE58F)));
+    expect(focused, findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 }

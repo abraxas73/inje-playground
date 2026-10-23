@@ -1,11 +1,13 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ExternalLink, Loader2, MessageCircle, Paperclip, RefreshCw, SendHorizontal, User as UserIcon, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, ExternalLink, Loader2, MessageCircle, Paperclip, RefreshCw, Search, SendHorizontal, User as UserIcon, Users } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useEnterToSend } from "@/hooks/useEnterToSend";
+import { useMsCallbackQuery } from "@/hooks/useMsCallbackQuery";
 import { initialChatId } from "@/lib/home";
 import { byNewest } from "@/lib/teams/sort";
 import { cn } from "@/lib/utils";
@@ -17,6 +19,7 @@ import { cn } from "@/lib/utils";
  */
 interface ChatSummary { id: string; type: "group" | "oneOnOne"; topic: string; members: string[]; webUrl: string | null; lastUpdated: string | null }
 interface Info { connected: boolean; hasChatScope: boolean; meId?: string; chats?: ChatSummary[] }
+interface Hit { id: string; chatId: string; createdAt: string; from: string; snippet: string }
 interface Msg { id: string; createdAt: string; modifiedAt: string; from: { id: string; name: string } | null; text: string; attachments: Array<{ id: string; name: string; url: string | null }> }
 
 const POLL_MS = 5000;
@@ -24,6 +27,23 @@ const LAST_KEY = "teams-chat:last";
 const connectHref = `/api/ms/connect?returnTo=${encodeURIComponent("/teams/chat")}`;
 const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+/** 응답 본문 → JSON. 504(시간 초과)·HTML 500처럼 JSON이 아니면 빈 객체 — 상태 코드로 안내한다. */
+const readJson = async (r: Response): Promise<Record<string, unknown>> => {
+  try { return (await r.json()) as Record<string, unknown>; } catch { return {}; }
+};
+const fmtStamp = (iso: string) => new Date(iso).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+/** 검색 결과 묶음 제목·한 줄 — 앱 메신저 검색과 같은 모양(왼쪽 칸 방 제목 고정 폭, 오른쪽 칸 내용) */
+function SearchHeader({ children }: { children: React.ReactNode }) {
+  return <p className="px-4 pt-4 pb-1 text-xs font-bold text-muted-foreground">{children}</p>;
+}
+function SearchRow({ title, active, onClick, children }: { title: string; active?: boolean; onClick?: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} disabled={!onClick} className={cn("flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-muted/60 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent", active && "bg-primary/5")}>
+      <span className="line-clamp-2 w-28 shrink-0 break-words text-[13px] font-bold">{title}</span>
+      <span className="min-w-0 flex-1">{children}</span>
+    </button>
+  );
+}
 const fmtAgo = (iso: string | null) => {
   if (!iso) return "";
   const d = new Date(iso); const now = new Date();
@@ -40,6 +60,15 @@ export default function TeamsChatPage() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // 검색(앱 메신저 검색과 같은 구성): 돋보기로 검색 화면 → 대화방(이름·구성원) + 대화 내용(Microsoft 검색) 두 묶음
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [submitted, setSubmitted] = useState<string | null>(null);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [hits, setHits] = useState<Hit[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchReconnect, setSearchReconnect] = useState(false);
   const sinceRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -50,11 +79,13 @@ export default function TeamsChatPage() {
     setRefreshing(true);
     try {
       const r = await fetch("/api/teams/chat");
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? `준비 상태를 확인하지 못했습니다 (${r.status})`);
-      setInfo(j as Info);
+      const j = await readJson(r);
+      if (!r.ok) throw new Error(typeof j.error === "string" ? j.error : `준비 상태를 확인하지 못했습니다 (${r.status})`);
+      if (typeof j.connected !== "boolean") throw new Error("준비 상태를 확인하지 못했습니다. 잠시 뒤 다시 시도하세요.");
+      const next = j as unknown as Info;
+      setInfo(next);
       setInfoError(null);
-      const chats = (j as Info).chats ?? [];
+      const chats = next.chats ?? [];
       let last: string | null = null;
       try { last = localStorage.getItem(LAST_KEY); } catch { /* 저장소 없음 */ }
       const requested = new URLSearchParams(window.location.search).get("chat");
@@ -67,9 +98,12 @@ export default function TeamsChatPage() {
     }
   }, []);
   useEffect(() => { void loadInfo(); }, [loadInfo]);
+  // Microsoft 연결에서 돌아온 결과(?ms_error=…)를 보여 준다 — 연결 성공은 위 loadInfo가 새 상태를 읽는다
+  useMsCallbackQuery({ onError: setError });
 
   const select = (id: string | null) => {
     setChatId(id);
+    setFocusId(null);
     setMessages([]);
     setLoaded(false);
     setError(null);
@@ -98,15 +132,17 @@ export default function TeamsChatPage() {
     if (!chatId) return;
     const q = new URLSearchParams({ chat: chatId });
     if (sinceRef.current) q.set("since", sinceRef.current);
-    const r = await fetch(`/api/teams/chat/messages?${q.toString()}`);
-    const j = await r.json();
+    let r: Response;
+    try { r = await fetch(`/api/teams/chat/messages?${q.toString()}`); }
+    catch { setError("네트워크 연결을 확인해 주세요. 잠시 뒤 다시 불러옵니다."); return; }
+    const j = await readJson(r);
     if (!r.ok) {
-      setError(j.error ?? `메시지를 불러오지 못했습니다 (${r.status})`);
+      setError(typeof j.error === "string" ? j.error : `메시지를 불러오지 못했습니다 (${r.status})`);
       if (j.code === "reconnect") setInfo((i) => (i ? { ...i, hasChatScope: false } : i));
       return;
     }
     setError(null);
-    merge(j.messages as Msg[]);
+    merge(Array.isArray(j.messages) ? (j.messages as Msg[]) : []);
     setLoaded(true);
   }, [chatId, merge]);
 
@@ -118,7 +154,11 @@ export default function TeamsChatPage() {
   }, [ready, chatId, load]);
 
   const count = messages.length;
-  useEffect(() => { bottomRef.current?.scrollIntoView({ block: "end" }); }, [count, chatId]);
+  useEffect(() => {
+    const target = focusId ? document.querySelector(`[data-msg-id="${CSS.escape(focusId)}"]`) : null;
+    if (target) target.scrollIntoView({ block: "center" });
+    else if (!focusId) bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [count, chatId, focusId]);
 
   const send = async (raw: string = text) => {
     const body = raw.trim();
@@ -126,16 +166,43 @@ export default function TeamsChatPage() {
     setSending(true);
     try {
       const r = await fetch("/api/teams/chat/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat: chatId, text: body }) });
-      const j = await r.json();
-      if (!r.ok) { setError(j.error ?? `보내지 못했습니다 (${r.status})`); return; }
+      const j = await readJson(r);
+      if (!r.ok || !j.message) { setError(typeof j.error === "string" ? j.error : `보내지 못했습니다 (${r.status})`); return; }
       merge([j.message as Msg]);
       setText("");
       setError(null);
+    } catch {
+      setError("보내지 못했습니다. 네트워크 연결을 확인해 주세요.");
     } finally {
       setSending(false);
       inputRef.current?.focus(); // 보낸 뒤에도 입력창에 — 이어서 대화
     }
   };
+
+  const runSearch = async () => {
+    const q = query.trim();
+    if (!q || searching) return;
+    setSubmitted(q); setHits(null); setSearchError(null); setSearchReconnect(false);
+    if (q.length < 2) return; // 대화 내용은 2자부터(대화방 이름은 1자도)
+    setSearching(true);
+    try {
+      const r = await fetch(`/api/teams/chat/search?${new URLSearchParams({ q })}`);
+      const j = await readJson(r);
+      if (!r.ok || !Array.isArray(j.hits)) {
+        setHits(null);
+        setSearchError(typeof j.error === "string" ? j.error : `검색하지 못했습니다 (${r.status})`);
+        setSearchReconnect(j.code === "reconnect_search" || j.code === "reconnect");
+        return;
+      }
+      setHits(j.hits as Hit[]);
+    } catch {
+      setSearchError("검색하지 못했습니다. 네트워크 연결을 확인해 주세요.");
+    } finally {
+      setSearching(false);
+    }
+  };
+  const closeSearch = () => { setSearchOpen(false); setQuery(""); setSubmitted(null); setHits(null); setSearchError(null); setSearchReconnect(false); };
+  const openHit = (h: Hit) => { select(h.chatId); setFocusId(h.id); };
 
   const enterKeys = useEnterToSend((v) => { void send(v); });
 
@@ -157,6 +224,11 @@ export default function TeamsChatPage() {
   }
 
   const chats = info.chats ?? [];
+  const needle = submitted?.toLowerCase() ?? "";
+  const roomHits = needle ? chats.filter((c) => c.topic.toLowerCase().includes(needle) || c.members.some((n) => n.toLowerCase().includes(needle))) : [];
+  const memberLine = (c: ChatSummary) => (c.type === "group" ? `${c.members.length}명 · ${c.members.join(", ")}` : "1:1");
+  // 목록은 최근 50개 채팅뿐 — 그 밖의 채팅에서 찾은 메시지는 열 수 없어 안내만
+  const chatName = (id: string) => chats.find((c) => c.id === id)?.topic ?? null;
   let lastDay = "";
   return (
     <div className="animate-fade-up">
@@ -167,12 +239,59 @@ export default function TeamsChatPage() {
     </div>
     {/* 앱 WebView(data-app)는 웹 상단 바가 없고 제목 줄은 앱 상단으로 옮겨지므로 main 위아래 여백(1rem+2rem)만 뺀다 */}
     <div className="flex h-[calc(100dvh-8.5rem)] min-h-[24rem] gap-3 md:h-[calc(100dvh-12.5rem)] [body[data-app]_&]:h-[calc(100dvh-3rem)]">
-      <Card className={cn("flex w-full flex-col overflow-hidden md:w-80 md:shrink-0", chatId && "hidden md:flex")}>
+      <Card className={cn("flex w-full flex-col overflow-hidden md:shrink-0", searchOpen ? "md:w-[26rem]" : "md:w-80", chatId && "hidden md:flex")}>
+        {searchOpen ? (
+          <>
+            <div className="flex items-center gap-2 border-b px-2 py-2">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={closeSearch} aria-label="검색 닫기"><ArrowLeft className="h-4 w-4" /></Button>
+              <h2 className="font-semibold">Teams 검색</h2>
+            </div>
+            <form className="px-3 py-3" role="search" onSubmit={(e) => { e.preventDefault(); void runSearch(); }}>
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                <Input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="대화방 이름 · 대화 내용" aria-label="검색어" maxLength={100} className="h-10 rounded-full pr-10 pl-9" />
+                <Button type="submit" variant="ghost" size="icon" className="absolute top-1/2 right-1 h-8 w-8 -translate-y-1/2 rounded-full" disabled={searching || !query.trim()} aria-label="검색">
+                  {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                </Button>
+              </div>
+            </form>
+            <div className="flex-1 overflow-y-auto pb-2">
+              {submitted === null ? (
+                <p className="p-6 text-center text-sm text-muted-foreground">검색어를 입력하세요</p>
+              ) : (
+                <>
+                  {roomHits.length > 0 && <>
+                    <SearchHeader>대화방 {roomHits.length}</SearchHeader>
+                    {roomHits.map((c) => <SearchRow key={c.id} title={c.topic} active={c.id === chatId} onClick={() => select(c.id)}><span className="block truncate text-xs text-muted-foreground">{memberLine(c)}</span></SearchRow>)}
+                  </>}
+                  {searching && <p className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />대화 내용을 찾고 있습니다…</p>}
+                  {searchError && <p className="px-4 py-2 text-xs text-destructive">{searchError}{searchReconnect && <> <a href={connectHref} className="font-medium underline">다시 연결</a></>}</p>}
+                  {hits && hits.length > 0 && <>
+                    <SearchHeader>대화 내용 {hits.length}{hits.length >= 25 ? " (관련도 높은 순)" : ""}</SearchHeader>
+                    {hits.map((h) => (
+                      <SearchRow key={`${h.chatId}:${h.id}`} title={chatName(h.chatId) ?? "최근 50개 밖의 대화"} active={h.chatId === chatId && h.id === focusId} onClick={chatName(h.chatId) ? () => openHit(h) : undefined}>
+                        <span className="line-clamp-2 break-words text-[13px]">{h.snippet || "(요약 없음)"}</span>
+                        <span className="block text-[11px] text-muted-foreground">{[h.from, h.createdAt && fmtStamp(h.createdAt)].filter(Boolean).join(" · ")}{chatName(h.chatId) ? "" : " · Teams에서 확인"}</span>
+                      </SearchRow>
+                    ))}
+                  </>}
+                  {!searching && !searchError && !roomHits.length && !hits?.length && (submitted.length < 2 || hits !== null) && (
+                    <p className="p-6 text-center text-sm text-muted-foreground">결과가 없습니다{submitted.length < 2 ? " (대화 내용은 2자 이상으로 찾습니다)" : ""}</p>
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h2 className="flex items-center gap-2 font-semibold"><MessageCircle className="h-5 w-5 text-primary md:hidden" />내 채팅</h2>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void loadInfo()} disabled={refreshing} aria-label="목록 새로고침">
-            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-          </Button>
+          <div className="flex items-center">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSearchOpen(true)} aria-label="검색"><Search className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void loadInfo()} disabled={refreshing} aria-label="목록 새로고침">
+              <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+            </Button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto">
           {!chats.length && <p className="p-4 text-sm text-muted-foreground">참여 중인 그룹·1:1 채팅이 없습니다. Teams에서 대화를 시작하면 여기에 나타납니다.</p>}
@@ -186,11 +305,13 @@ export default function TeamsChatPage() {
                   <span className="truncate text-sm font-medium">{c.topic}</span>
                   <span className="shrink-0 text-[11px] text-muted-foreground">{fmtAgo(c.lastUpdated)}</span>
                 </span>
-                <span className="block truncate text-xs text-muted-foreground">{c.type === "group" ? `${c.members.length}명 · ${c.members.join(", ")}` : "1:1"}</span>
+                <span className="block truncate text-xs text-muted-foreground">{memberLine(c)}</span>
               </span>
             </button>
           ))}
         </div>
+          </>
+        )}
       </Card>
 
       <Card className={cn("flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden py-0", !chatId && "hidden md:flex")}>
@@ -217,7 +338,7 @@ export default function TeamsChatPage() {
                 lastDay = day;
                 const mine = !!m.from && m.from.id === info.meId;
                 return (
-                  <div key={m.id}>
+                  <div key={m.id} data-msg-id={m.id} className={cn(m.id === focusId && "rounded-2xl ring-2 ring-amber-400 ring-offset-2")}>
                     {showDay && <div className="my-2 text-center text-xs text-muted-foreground">{day}</div>}
                     <div className="flex min-w-0 flex-col gap-1">
                       <div className="flex min-w-0 items-baseline gap-2 px-1 text-xs text-muted-foreground">

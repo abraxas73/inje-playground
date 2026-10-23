@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apkFileName, parseMobileRelease, releaseResponse } from "@/lib/mobile/release";
+import { apkFileName, isApkCopyName, parseMobileRelease, releaseResponse } from "@/lib/mobile/release";
 
 const full = JSON.stringify({ notes: "게시판", testflightUrl: "https://testflight.apple.com/join/abc", android: { version: "1.1.0", build: 3, apkPath: "android/innogrid-1.1.0+3.apk", releasedAt: "2026-10-04T06:00:00Z" }, ios: { version: "1.1.0", build: "3", releasedAt: "2026-10-04T06:30:00Z" } });
 
@@ -37,5 +37,12 @@ describe("releaseResponse", () => {
 describe("apkFileName", () => {
   it("SharePoint 사본 이름은 major.minor.patch만(빌드 번호 없음)", () => {
     expect(apkFileName("1.0.0")).toBe("innogrid-app-1.0.0.apk");
+  });
+});
+
+describe("isApkCopyName", () => {
+  it("릴리스 스크립트가 올린 사본 이름만 — 폴더의 다른 파일은 지우지 않게", () => {
+    expect(isApkCopyName(apkFileName("1.7.63"))).toBe(true);
+    for (const n of ["innogrid-app-1.7.apk", "innogrid-app-1.7.63.apk.bak", "my-innogrid-app-1.0.0.apk", "innogrid-app-1.0.0 (1).apk", "회의록.docx"]) expect(isApkCopyName(n)).toBe(false);
   });
 });

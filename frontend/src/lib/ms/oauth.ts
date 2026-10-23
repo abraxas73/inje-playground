@@ -11,7 +11,9 @@ import { GRAPH_BASE } from "@/lib/teams-graph";
  * 기존 연결은 이 스코프가 없으므로 채팅을 쓰려면 한 번 재연결한다.
  */
 export const TEAMS_CHAT_SCOPE = "Chat.ReadWrite";
-export const MS_SCOPES = ["offline_access", "User.Read", "Files.ReadWrite.All", "Sites.Read.All", TEAMS_CHAT_SCOPE] as const;
+/** Teams 메시지 검색(Microsoft Search chatMessage)은 Chat.ReadWrite와 함께 이 권한도 요구한다(2026-10-23 운영 403 실측 — 문서와 다름). 관리자 동의 필요 */
+export const TEAMS_SEARCH_SCOPE = "ChannelMessage.Read.All";
+export const MS_SCOPES = ["offline_access", "User.Read", "Files.ReadWrite.All", "Sites.Read.All", TEAMS_CHAT_SCOPE, TEAMS_SEARCH_SCOPE] as const;
 const SCOPE = MS_SCOPES.join(" ");
 const LOGIN_BASE = "https://login.microsoftonline.com";
 
@@ -41,8 +43,9 @@ export function oauthErrorMessage(code: string): string {
       return "연결이 취소되었습니다.";
     case "invalid_grant":
     case "interaction_required":
-    case "consent_required":
       return "연결이 만료되었습니다. 다시 연결하세요.";
+    case "consent_required":
+      return "회사 설정상 관리자 승인이 필요한 권한입니다. IT 담당자에게 승인을 요청한 뒤 다시 연결하세요.";
     case "invalid_client":
     case "unauthorized_client":
       return "앱 등록 설정이 잘못되었습니다(클라이언트 ID·시크릿). 관리자에게 문의하세요.";

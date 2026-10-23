@@ -6,7 +6,7 @@ import { verifyState } from "@/lib/ms/crypto";
 import { exchangeCode, fetchMe, MS_SCOPES, OAuthError, oauthErrorMessage } from "@/lib/ms/oauth";
 import { appendQuery, requestOrigin, resolveRedirectOrigin, sanitizeReturnTo } from "@/lib/ms/origin";
 import { saveConnection } from "@/lib/ms/connections";
-import { mobileConnectionComplete } from "@/lib/ms/mobile-return";
+import { mobileConnectionComplete, mobileConnectionFailed } from "@/lib/ms/mobile-return";
 
 export const runtime = "nodejs";
 
@@ -51,18 +51,20 @@ export async function GET(request: NextRequest) {
     if (state.u !== auth.userId) return back(sanitizeReturnTo(null), "ms_error", EXPIRED);
   }
   const returnTo = sanitizeReturnTo(state.r);
+  // 앱 흐름은 외부 브라우저라 웹으로 보내지 않고 이유를 보여 준 뒤 앱으로(mobileConnectionFailed)
+  const fail = (message: string) => (state.a ? mobileConnectionFailed(message) : back(returnTo, "ms_error", message));
 
   const azureError = q.get("error");
   if (azureError) {
     console.warn(`[ms] authorize 거부 ${azureError}: ${q.get("error_description") ?? ""}`);
-    return back(returnTo, "ms_error", oauthErrorMessage(azureError));
+    return fail(oauthErrorMessage(azureError));
   }
   const code = q.get("code");
-  if (!code) return back(returnTo, "ms_error", "인증 코드가 없습니다. 다시 시도하세요.");
+  if (!code) return fail("인증 코드가 없습니다. 다시 시도하세요.");
 
   try {
     const tok = await exchangeCode(app, { code, redirectUri: `${origin}/api/ms/callback` });
-    if (!tok.refreshToken) return back(returnTo, "ms_error", "오프라인 접근 권한이 필요합니다. 동의 화면에서 모든 권한을 허용하세요.");
+    if (!tok.refreshToken) return fail("오프라인 접근 권한이 필요합니다. 동의 화면에서 모든 권한을 허용하세요.");
     const me = await fetchMe(tok.accessToken);
     if (state.a) {
       const { data, error } = await service.admin.auth.admin.getUserById(state.u);
@@ -72,7 +74,7 @@ export async function GET(request: NextRequest) {
       );
       if (error || !appEmail || !microsoftEmails.includes(appEmail)) {
         console.warn("[ms] 앱 사용자와 Microsoft 계정이 일치하지 않아 연결을 거부했습니다.");
-        return back(returnTo, "ms_error", ACCOUNT_MISMATCH);
+        return fail(ACCOUNT_MISMATCH);
       }
     }
     await saveConnection(service.admin, encKey, {
@@ -87,9 +89,9 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     if (e instanceof OAuthError) {
       console.error(`[ms] 토큰 교환 실패 ${e.code} (${e.status}): ${e.description}`);
-      return back(returnTo, "ms_error", oauthErrorMessage(e.code));
+      return fail(oauthErrorMessage(e.code));
     }
     console.error("[ms] 연결 저장 실패:", e instanceof Error ? e.message : e);
-    return back(returnTo, "ms_error", "연결 정보를 저장하지 못했습니다. 다시 시도하세요.");
+    return fail("연결 정보를 저장하지 못했습니다. 다시 시도하세요.");
   }
 }
