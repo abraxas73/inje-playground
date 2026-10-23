@@ -50,7 +50,8 @@ it('이메일 변경은 소유권과 revision을 조건으로 재신청한다',a
   expect(m.calls.find(x=>x[0]==='update')?.[1]).toMatchObject({status:'pending',revision:3,admin_note:'',reviewed_by:null});
 });
 it('중복 생성 및 변경 충돌은 409로 처리한다',async()=>{
-  m.results=[{data:null,error:null},{data:null,error:{code:'23505'}}];expect((await post({platform:'android',storeEmail:'a@b.com'})).status).toBe(409);
+  m.results=[{data:null,error:null},{data:null,error:{code:'23505'}}];expect((await post({platform:'ios',storeEmail:'a@b.com'})).status).toBe(409);
+  expect((await post({platform:'android',storeEmail:'a@b.com'})).status).toBe(400);
   m.results=[{data:{id,status:'pending',revision:3},error:null}];expect((await post({platform:'ios',storeEmail:'a@b.com',revision:2})).status).toBe(409);
 });
 it('반려 사유는 필수이고 관리자만 처리자 정보 및 상태를 저장한다',async()=>{

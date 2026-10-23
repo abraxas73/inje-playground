@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
   const r = await requireUser(); if (!r.ok) return r.response;
   const body = await req.json().catch(() => null);
   const email = normalizeStoreEmail(body?.storeEmail);
+  if (body?.platform === 'android') return fail('Android는 신청 없이 Google Play에서 설치하세요.');
   if (!isPlatform(body?.platform) || !email) return fail('플랫폼과 올바른 스토어 계정 이메일을 입력하세요.');
   const { data: existing, error: readError } = await r.admin.from('mobile_app_requests').select('id,status,store_email,revision').eq('user_id', r.userId).eq('platform', body.platform).maybeSingle();
   if (readError) return fail('신청 상태를 확인하지 못했습니다.', 500);

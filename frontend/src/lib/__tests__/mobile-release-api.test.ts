@@ -16,7 +16,7 @@ it("플랫폼별 버전과 링크 — Android는 Google Play 내부 테스트, i
   const res = await GET();
   expect(res.status).toBe(200);
   expect(res.headers.get("Cache-Control")).toBe("no-store");
-  expect(await res.json()).toEqual({ notes: "n", ios: { version: "1.1.0", build: 3, releasedAt: null, url: "https://tf" }, android: { version: "1.1.0", build: 3, releasedAt: null, url: "https://play.google.com/apps/internaltest/4701070333674267983" } });
+  expect(await res.json()).toEqual({ notes: "n", ios: { version: "1.1.0", build: 3, releasedAt: null, url: "https://tf" }, android: { version: "1.1.0", build: 3, releasedAt: null, url: "https://play.google.com/store/apps/details?id=com.innogrid.playground" } });
   expect(m.signed).not.toHaveBeenCalled();
 });
 it("설정이 없으면 빈 응답 200, 서명 호출 없음", async () => {
@@ -28,7 +28,7 @@ it("설정이 없으면 빈 응답 200, 서명 호출 없음", async () => {
 it("APK 스토리지 오류와 무관하게 Google Play 링크 제공", async () => {
   m.signed.mockResolvedValue({ data: null, error: { message: "boom" } });
   const j = await (await GET()).json();
-  expect(j.android.url).toBe("https://play.google.com/apps/internaltest/4701070333674267983");
+  expect(j.android.url).toBe("https://play.google.com/store/apps/details?id=com.innogrid.playground");
   expect(m.signed).not.toHaveBeenCalled();
   expect(j.android.version).toBe("1.1.0");
 });

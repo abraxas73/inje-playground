@@ -1,6 +1,6 @@
 ---
 name: innocrew-app-testers
-description: 이노크루 앱 사용 신청(웹 /admin/app-requests)의 신청 대기·처리 중 건을 처리한다 — iOS는 App Store Connect 초대(Customer Support·INNOGRID만) → 수락 확인 → TestFlight AX-Dev, Android는 Google Play 내부 테스트 AX-TF 목록 추가, 끝나면 관리자 상태·안내 저장. "앱 신청 처리해", "모바일 앱 신청 들어온 것 처리", "테스터 등록" 요청 시 사용. 앱 빌드·릴리스·외부 테스트 심사에는 쓰지 않는다.
+description: 이노크루 앱 사용 신청(웹 /admin/app-requests)의 신청 대기·처리 중 건을 처리한다 — iOS는 App Store Connect 초대(Customer Support·INNOGRID만) → 수락 확인 → TestFlight AX-Dev (Android는 2026-10-24 정식 출시로 신청을 받지 않는다), 끝나면 관리자 상태·안내 저장. "앱 신청 처리해", "모바일 앱 신청 들어온 것 처리", "테스터 등록" 요청 시 사용. 앱 빌드·릴리스·외부 테스트 심사에는 쓰지 않는다.
 ---
 
 # 이노크루 앱 사용 신청 처리
@@ -36,7 +36,10 @@ for (const s of ["pending", "processing"]) {
 
 외부 TestFlight 그룹 추가·외부 심사 제출·빌드는 하지 않는다. 기존 사용자 계정은 삭제하지 않는다.
 
-## 3. Android
+## 3. Android (2026-10-24부터 사용 안 함)
+
+Android는 Google Play 정식 출시라 새 신청을 받지 않는다(API가 400으로 거부). 예전에 남은 android 대기·처리 중 건은 `approved` + "Google Play에서 이노크루 앱을 바로 설치해 주세요: https://play.google.com/store/apps/details?id=com.innogrid.playground" 안내로 닫는다. 아래는 기록용.
+
 
 1. ego 브라우저로 위 테스터 탭을 연다. `이메일 목록 AX-TF 수정` 버튼이 숨은 것까지 **두 개 렌더될 수 있어** 셀렉터 클릭이 실패한다 — 보이는 것을 `evaluate`로 누른다.
    ```js

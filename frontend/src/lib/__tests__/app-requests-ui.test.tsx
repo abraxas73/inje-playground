@@ -11,7 +11,6 @@ it('플랫폼마다 이메일을 따로 입력하고 본인 상태를 표시한�
  fireEvent.change(apple,{target:{value:'apple@example.com'}});
  fireEvent.submit(apple.closest('form')!);
  expect(await screen.findByText('신청 대기')).toBeInTheDocument();
- expect(screen.getByLabelText('Google Play 계정 이메일')).toHaveValue('');
  expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({platform:'ios',storeEmail:'apple@example.com'});
 });
 it('처리 결과·안내를 표시하고 처리 중인 플랫폼은 수정 불가',async()=>{
@@ -19,7 +18,8 @@ it('처리 결과·안내를 표시하고 처리 중인 플랫폼은 수정 불�
  render(<AppRequestCard/>);
  expect(await screen.findByText('등록 확인 중')).toBeInTheDocument();
  expect(screen.getByLabelText('Apple 계정 이메일')).toBeDisabled();
- expect(screen.getByRole('link',{name:'Google Play에서 열기'})).toHaveAttribute('href','https://play.google.com/apps/internaltest/4701070333674267983');
+ expect(screen.queryByLabelText('Google Play 계정 이메일')).toBeNull();
+ expect(screen.getByRole('link',{name:'Google Play에서 설치'})).toHaveAttribute('href','https://play.google.com/store/apps/details?id=com.innogrid.playground');
 });
 it('신청 조회 실패시 빈 신청폼으로 오인하지 않으며 재시도 가능',async()=>{
  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({error:'조회 실패'},{status:500})));
