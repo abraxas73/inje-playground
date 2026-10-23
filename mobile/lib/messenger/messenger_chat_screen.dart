@@ -7,7 +7,10 @@ import 'messenger_api.dart';
 import 'messenger_client.dart' show MessengerAuthException;
 import 'messenger_models.dart';
 import 'messenger_favorites.dart';
+import 'messenger_files.dart';
+import 'messenger_links.dart';
 import 'messenger_mqtt.dart';
+import 'messenger_new_chat_screen.dart';
 import 'messenger_provider.dart';
 import 'messenger_search_screen.dart';
 import 'messenger_ui.dart';
@@ -90,11 +93,18 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: BrandHeader(
+      appBar: BrandHeader(compact: WidgetChrome.of(context), 
         title: '메신저',
         showBack: !widget.embedded,
         onRefresh: _refresh,
         actions: [
+          // 새 대화는 메신저 페이지에서만(위젯은 좁아 명부 고르기가 불편 — 사용자 요청)
+          if (!widget.embedded)
+            IconButton(
+              icon: const Icon(Icons.add_comment_outlined),
+              tooltip: '새 대화',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MessengerNewChatScreen())).then((_) { if (mounted) _refresh(); }),
+            ),
           IconButton(
             icon: const Icon(Icons.search),
             tooltip: '검색',
@@ -152,8 +162,10 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
             ),
           ),
       ]),
-      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(r.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Brand.muted)),
+      // 위젯 안에서는 다른 위젯과 같은 글꼴(제목 14·보조 12)
+      dense: WidgetChrome.of(context),
+      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: WidgetChrome.of(context) ? const TextStyle(fontSize: 14, fontWeight: FontWeight.w600) : null),
+      subtitle: Text(r.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Brand.muted, fontSize: WidgetChrome.of(context) ? 12 : null)),
       trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
         if (r.lastAt != null) Text(roomWhen(r.lastAt!), style: TextStyle(fontSize: 12, color: Brand.faint)),
         if (r.unreadCount > 0) ...[
@@ -162,7 +174,7 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
         ],
       ]),
       // 방에서 돌아오면 목록을 다시 읽어 안 읽음 수를 갱신
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r))).then((_) { if (mounted) _refresh(); }),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r.withTitle(title)))).then((_) { if (mounted) _refresh(); }),
     );
   }
 
@@ -188,6 +200,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
   MessengerApi get _api => ref.read(messengerApiProvider);
 
   final _focusKey = GlobalKey();
+  bool _focused = false; // 검색에서 온 메시지로는 처음 한 번만 옮긴다(실시간 새로고침마다 끌어가지 않게)
   StreamSubscription? _rtSub;
 
   late final MessengerMqtt _mqtt; // dispose에서 ref를 못 쓰므로 미리 잡아 둔다
@@ -208,6 +221,16 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
 
   Future<List<MsgChat>> _load() async {
     final chats = await _api.chats(widget.room.roomId);
+    // 검색에서 온 메시지가 최근 대화에 없으면 더 오래된 대화를 이어 읽는다(최대 10번 — 그 이전이면 방만 연다)
+    final focus = widget.focusChatId;
+    for (var i = 0; focus != null && !_focused && i < 10 && chats.isNotEmpty && !chats.any((c) => c.chatId == focus); i++) {
+      final oldest = chats.map((c) => c.timeStamp).reduce((a, b) => a < b ? a : b);
+      final more = await _api.chats(widget.room.roomId, timeStamp: '$oldest');
+      final seen = {for (final c in chats) c.chatId};
+      final fresh = [for (final c in more) if (!seen.contains(c.chatId)) c];
+      if (fresh.isEmpty) break;
+      chats.addAll(fresh);
+    }
     chats.sort((a, b) => a.timeStamp.compareTo(b.timeStamp)); // 오래된→최신(화면은 reverse로 최신이 아래)
     // 방을 열어 본 것 = 읽음 — 가장 최신 대화까지 읽음 처리(P342). 실패해도 화면은 그대로.
     // 새 대화가 있을 때만 — 읽음 처리가 다시 실시간 신호를 부르고 그 신호가 또 새로고침하는 반복을 막는다.
@@ -215,10 +238,13 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
       _lastRead = chats.last.chatId;
       unawaited(_api.readChat(roomId: widget.room.roomId, chatId: _lastRead!).catchError((_) {}));
     }
-    if (widget.focusChatId != null) {
+    if (focus != null && !_focused) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final ctx = _focusKey.currentContext;
-        if (ctx != null) Scrollable.ensureVisible(ctx, alignment: 0.5, duration: const Duration(milliseconds: 300));
+        if (ctx != null) {
+          _focused = true;
+          Scrollable.ensureVisible(ctx, alignment: 0.5, duration: const Duration(milliseconds: 300));
+        }
       });
     }
     final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
@@ -260,11 +286,41 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
     }
   }
 
+  /// 파일·그림 보내기(첨부 버튼·붙여넣기 공용). 확인을 받은 뒤 보낸다.
+  Future<void> _sendFiles(List<MsgUpload> files) async {
+    if (files.isEmpty || _sending || !await confirmMsgUploads(context, files)) return;
+    setState(() => _sending = true);
+    try {
+      await _api.sendFiles(roomId: widget.room.roomId, files: files);
+      await _refresh();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('보내지 못했습니다: $e')));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _attach() async {
+    try {
+      await _sendFiles(await ref.read(msgFilePickerProvider)());
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('파일을 열지 못했습니다: $e')));
+    }
+  }
+
+  /// ⌘V·Ctrl+V — 클립보드에 복사한 파일이나 그림이 있으면 보내기 확인, 글자면 평소대로 붙여넣기.
+  Future<bool> _paste() async {
+    final files = await ref.read(msgClipboardProvider)();
+    if (files == null || files.isEmpty) return false;
+    await _sendFiles(files);
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
     return Scaffold(
-      appBar: BrandHeader(
+      appBar: BrandHeader(compact: WidgetChrome.of(context), 
         title: widget.room.title,
         showBack: true,
         onRefresh: _refresh,
@@ -291,8 +347,9 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
         ],
       ),
       body: Column(children: [
+        // 대화 글자 끌어 선택·복사 — 홈 위젯 안에서 앱 전체 선택(SelectAllText)으로는 끌어 선택이 안 됐다(데스크톱 실측), Teams 채팅처럼 직접 둔다
         Expanded(
-          child: FutureBuilder<List<MsgChat>>(
+          child: SelectionArea(child: FutureBuilder<List<MsgChat>>(
             future: _future,
             builder: (context, snap) {
               if (snap.connectionState == ConnectionState.waiting && !snap.hasData) return const Center(child: CircularProgressIndicator());
@@ -300,11 +357,8 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
               final chats = snap.data ?? const [];
               if (chats.isEmpty) return Center(child: Text('대화가 없습니다', style: TextStyle(color: Brand.muted)));
               // reverse:true → 맨 아래(최신)부터 보인다. i=0=최신, 올라갈수록 과거. chats는 오름차순이라 j로 뒤집어 읽는다.
-              return ListView.builder(
-                reverse: true,
-                padding: const EdgeInsets.all(12),
-                itemCount: chats.length,
-                itemBuilder: (_, i) {
+              // 찾아갈 메시지가 있으면 모든 줄을 미리 그린다 — 화면 밖 줄은 그려지지 않아 그 자리로 옮길 수 없다
+              Widget item(int i) {
                   final j = chats.length - 1 - i;
                   final c = chats[j];
                   final older = j == 0 ? null : chats[j - 1];
@@ -313,14 +367,16 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
                   return Column(key: focus ? _focusKey : null, children: [
                     if (showDate) _dateDivider(c.at),
                     DecoratedBox(
-                      decoration: BoxDecoration(color: focus ? Brand.blueTint.withValues(alpha: 0.6) : null, borderRadius: BorderRadius.circular(8)),
+                      decoration: BoxDecoration(color: focus ? const Color(0xFFFFE58F) : null, borderRadius: BorderRadius.circular(8)), // 찾은 메시지는 형광 노랑
                       child: _bubble(c, c.sendEmpSeq == myEmpSeq),
                     ),
                   ]);
-                },
-              );
+              }
+              return widget.focusChatId != null
+                  ? SingleChildScrollView(reverse: true, padding: const EdgeInsets.all(12), child: Column(children: [for (var i = chats.length - 1; i >= 0; i--) item(i)]))
+                  : ListView.builder(reverse: true, padding: const EdgeInsets.all(12), itemCount: chats.length, itemBuilder: (_, i) => item(i));
             },
-          ),
+          )),
         ),
         _composer(),
       ]),
@@ -374,14 +430,22 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
     final text = c.deleted ? '삭제된 메시지입니다.' : c.displayContent;
     final name = _names[c.sendEmpSeq];
     final time = c.at == null ? '' : _hhmm(c.at!);
-    final bubble = Container(
+    final attach = !c.deleted && (c.files.isNotEmpty || c.fileExpired);
+    final files = attach ? MsgAttachments(chat: c, mine: mine, maxWidth: maxW) : null;
+    final bubble = files != null && text.isEmpty ? files : Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       // 대화 영역 실제 폭의 80%까지(고정 상한 없음) — 강제 줄바꿈이 아니면 한 줄로. 좌우 정렬로 내 것/상대 것 구분은 유지.
       constraints: BoxConstraints(maxWidth: maxW),
       decoration: BoxDecoration(color: mine ? Brand.botViolet : Brand.blueTint, borderRadius: BorderRadius.circular(14)),
-      child: Text(text, style: TextStyle(color: mine ? Colors.white : Brand.navy, height: 1.4, fontStyle: c.deleted ? FontStyle.italic : FontStyle.normal)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        ?files,
+        if (text.isNotEmpty || files == null)
+          LinkifiedText(text, style: TextStyle(color: mine ? Colors.white : Brand.navy, height: 1.4, fontStyle: c.deleted ? FontStyle.italic : FontStyle.normal), linkColor: mine ? Colors.white : Brand.blue),
+      ]),
     );
+    // 첫 주소 하나는 말풍선 아래 미리보기(텍스트 대화만, 비밀대화 제외 — 메신저 앱과 같음)
+    final preview = c.contentType == '0' && !c.secret ? firstPreviewUrl(text) : null;
     final stamp = Padding(padding: const EdgeInsets.only(bottom: 2), child: Text(time, style: TextStyle(fontSize: 10, color: Brand.faint)));
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
@@ -396,6 +460,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: mine ? [stamp, const SizedBox(width: 4), Flexible(child: bubble)] : [Flexible(child: bubble), const SizedBox(width: 4), stamp],
           ),
+          if (preview != null) LinkPreviewCard(url: preview, maxWidth: maxW),
         ],
       ),
     );
@@ -427,16 +492,19 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
         child: Row(children: [
+          IconButton(tooltip: '파일 보내기', onPressed: _sending ? null : _attach, icon: const Icon(Icons.attach_file)),
           Expanded(
-            child: TextField(
+            child: Actions(
+              actions: {PasteTextIntent: MsgPasteAction(_paste)},
+              child: TextField(
               controller: _input,
               minLines: 1,
               maxLines: 4,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _send(),
               onEditingComplete: () {}, // 보낸 뒤에도 입력창에 포커스 유지(이어서 입력) — 기본 동작은 포커스를 놓는다
-              decoration: InputDecoration(hintText: '메시지', border: OutlineInputBorder(borderRadius: BorderRadius.circular(22)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
-            ),
+              decoration: InputDecoration(hintText: '메시지 · 그림은 붙여넣기로', border: OutlineInputBorder(borderRadius: BorderRadius.circular(22)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+            )),
           ),
           const SizedBox(width: 8),
           IconButton.filled(onPressed: _sending ? null : _send, icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send, size: 20)),
@@ -513,7 +581,7 @@ class _MessengerDashboardCardState extends ConsumerState<MessengerDashboardCard>
         padding: const EdgeInsets.fromLTRB(16, 12, 6, 8),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
-            Text('아마란스 메신저', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.muted)),
+            const WidgetTitle('아마란스 메신저'),
             const Spacer(),
             TextButton(onPressed: widget.onMore, child: const Text('메신저 열기', style: TextStyle(fontSize: 12))),
           ]),
@@ -549,7 +617,7 @@ class _MessengerDashboardCardState extends ConsumerState<MessengerDashboardCard>
                         Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Brand.botViolet, borderRadius: BorderRadius.circular(9)), child: Text('${r.unreadCount}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600))),
                       ],
                     ]),
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r))).then((_) { if (mounted) setState(() { _future = _load(); }); }),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r.withTitle(r.titleWith(_names, my))))).then((_) { if (mounted) setState(() { _future = _load(); }); }),
                   ),
               ]);
             },
@@ -569,8 +637,10 @@ class MessengerPanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Material(
           color: Brand.surface,
-          child: Navigator(
-            onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => const MessengerChatScreen(embedded: true)),
+          child: WidgetChrome(
+            child: Navigator(
+              onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => const MessengerChatScreen(embedded: true)),
+            ),
           ),
         ),
       );

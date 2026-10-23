@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../app/brand.dart' show TileMenuSlot, WidgetTitle;
 import '../../app/theme.dart';
 import 'dashboard_style.dart';
 import 'home_dashboard.dart';
@@ -27,7 +28,7 @@ class DashboardPlaceholder extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.muted)),
+            WidgetTitle(title),
             Expanded(
               child: Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -397,45 +398,56 @@ class _TileMenu extends StatefulWidget {
 
 class _TileMenuState extends State<_TileMenu> {
   bool _hover = false, _open = false; // 메뉴가 열리면 마우스가 타일을 벗어난 것으로 처리돼도 버튼(=선택 결과 받을 곳)을 유지
+  bool _claimed = false; // 위젯 제목(WidgetTitle)이 버튼을 제목 옆에 그리는 중 — 그러면 구석에는 안 그린다
+  bool get _visible => _hover || _open || widget.pinned;
+
+  Widget _button() => SizedBox(
+        width: 28,
+        height: 28,
+        child: Material(
+          color: Brand.surface.withValues(alpha: 0.95),
+          shape: const CircleBorder(),
+          elevation: 1,
+          child: PopupMenuButton<String>(
+            tooltip: '위젯 옵션',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 300), // 'Always On — …'이 줄바꿈되지 않게
+            iconSize: 16,
+            icon: Icon(widget.pinned ? Icons.push_pin : Icons.more_vert, size: 16, color: widget.pinned ? Brand.blue : Brand.muted),
+            onOpened: () => setState(() => _open = true),
+            onCanceled: () => setState(() => _open = false),
+            onSelected: (v) {
+              setState(() => _open = false);
+              if (v == 'pin') widget.onPin();
+              if (v.startsWith('bg:')) widget.onBg?.call(v == 'bg:' ? null : int.parse(v.substring(3)));
+            },
+            itemBuilder: (_) => [
+              CheckedPopupMenuItem(value: 'pin', checked: widget.pinned, child: Text(widget.pinned ? 'Always On 끄기' : 'Always On — 모든 화면 위에 띄우기', maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
+              if (widget.onBg != null) ...[
+                const PopupMenuDivider(),
+                PopupMenuItem(enabled: false, height: 28, child: Text('배경색', style: TextStyle(fontSize: 12, color: Brand.muted))),
+                _bgItem('bg:', '기본', Brand.surface, widget.bg == null),
+                for (final (i, (name, color)) in widgetBgChoices.indexed) _bgItem('bg:$i', name, color, widget.bg == i),
+              ],
+            ],
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) => MouseRegion(
         onEnter: (_) => setState(() => _hover = true),
         onExit: (_) => setState(() => _hover = false),
         child: Stack(children: [
-          Positioned.fill(child: widget.child),
-          if (_hover || _open || widget.pinned)
-            Positioned(
-              top: 4,
-              right: 4,
-              child: Material(
-                color: Brand.surface.withValues(alpha: 0.95),
-                shape: const CircleBorder(),
-                elevation: 2,
-                child: PopupMenuButton<String>(
-                  tooltip: '위젯 옵션',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 300), // 'Always On — …'이 줄바꿈되지 않게
-                  iconSize: 18,
-                  icon: Icon(widget.pinned ? Icons.push_pin : Icons.more_vert, size: 18, color: widget.pinned ? Brand.blue : Brand.muted),
-                  onOpened: () => setState(() => _open = true),
-                  onCanceled: () => setState(() => _open = false),
-                  onSelected: (v) {
-                    setState(() => _open = false);
-                    if (v == 'pin') widget.onPin();
-                    if (v.startsWith('bg:')) widget.onBg?.call(v == 'bg:' ? null : int.parse(v.substring(3)));
-                  },
-                  itemBuilder: (_) => [
-                    CheckedPopupMenuItem(value: 'pin', checked: widget.pinned, child: Text(widget.pinned ? 'Always On 끄기' : 'Always On — 모든 화면 위에 띄우기', maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
-                    if (widget.onBg != null) ...[
-                      const PopupMenuDivider(),
-                      PopupMenuItem(enabled: false, height: 28, child: Text('배경색', style: TextStyle(fontSize: 12, color: Brand.muted))),
-                      _bgItem('bg:', '기본', Brand.surface, widget.bg == null),
-                      for (final (i, (name, color)) in widgetBgChoices.indexed) _bgItem('bg:$i', name, color, widget.bg == i),
-                    ],
-                  ],
-                ),
-              ),
+          Positioned.fill(
+            child: TileMenuSlot(
+              button: _visible ? _button() : null,
+              claim: () { if (mounted && !_claimed) setState(() => _claimed = true); },
+              child: widget.child,
             ),
+          ),
+          // 제목이 없는 위젯(바로 가기 격자 등)만 예전처럼 오른쪽 위 구석에
+          if (_visible && !_claimed) Positioned(top: 4, right: 4, child: _button()),
         ]),
       );
 

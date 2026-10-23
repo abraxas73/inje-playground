@@ -25,7 +25,7 @@ class _MessengerAttendScreenState extends ConsumerState<MessengerAttendScreen> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     return Scaffold(
-      appBar: BrandHeader(title: '오늘 근태', showBack: true, onRefresh: _refresh),
+      appBar: BrandHeader(compact: WidgetChrome.of(context), title: '오늘 근태', showBack: true, onRefresh: _refresh),
       body: FutureBuilder<List<MsgAttend>>(
         future: _future,
         builder: (context, snap) {

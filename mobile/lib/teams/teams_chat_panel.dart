@@ -15,7 +15,7 @@ class TeamsChatPanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Material(
           color: Brand.surface,
-          child: HeroControllerScope.none(child: Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => const TeamsChatList()))),
+          child: WidgetChrome(child: HeroControllerScope.none(child: Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => const TeamsChatList())))),
         ),
       );
 }
@@ -82,7 +82,7 @@ class _TeamsChatListState extends ConsumerState<TeamsChatList> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: BrandHeader(title: 'Teams 채팅', onRefresh: _refresh),
+        appBar: BrandHeader(compact: WidgetChrome.of(context), title: 'Teams 채팅', onRefresh: _refresh),
         body: FutureBuilder(
           future: _future,
           builder: (context, snap) {
@@ -97,8 +97,9 @@ class _TeamsChatListState extends ConsumerState<TeamsChatList> {
               itemBuilder: (_, i) {
                 final c = d.chats[i];
                 return ListTile(
+                  dense: true, // 다른 위젯과 같은 글꼴
                   leading: Icon(c.group ? Icons.groups_outlined : Icons.person_outline, color: Brand.faint),
-                  title: Text(c.topic.isEmpty ? '(제목 없음)' : c.topic, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  title: Text(c.topic.isEmpty ? '(제목 없음)' : c.topic, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                   trailing: c.at == null ? null : Text(_kst(c.at!, dateIfOld: true), style: TextStyle(fontSize: 12, color: Brand.muted)),
                   onTap: () async {
                     await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => TeamsChatRoom(chat: c, meId: d.meId ?? '')));
@@ -183,7 +184,7 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
   Widget build(BuildContext context) {
     final msgs = _msgs;
     return Scaffold(
-      appBar: BrandHeader(title: widget.chat.topic.isEmpty ? '(제목 없음)' : widget.chat.topic, showBack: true, onRefresh: _load),
+      appBar: BrandHeader(compact: WidgetChrome.of(context), title: widget.chat.topic.isEmpty ? '(제목 없음)' : widget.chat.topic, showBack: true, onRefresh: _load),
       body: Column(children: [
         Expanded(
           child: _error != null && msgs == null

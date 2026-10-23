@@ -53,7 +53,7 @@ class _MessengerNotesScreenState extends ConsumerState<MessengerNotesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: BrandHeader(title: '쪽지', showBack: true, onRefresh: _refresh),
+      appBar: BrandHeader(compact: WidgetChrome.of(context), title: '쪽지', showBack: true, onRefresh: _refresh),
       body: FutureBuilder<List<MsgNote>>(
         future: _future,
         builder: (context, snap) {
