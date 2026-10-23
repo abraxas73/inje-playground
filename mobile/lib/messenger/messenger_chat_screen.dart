@@ -8,6 +8,7 @@ import 'messenger_client.dart' show MessengerAuthException;
 import 'messenger_models.dart';
 import 'messenger_favorites.dart';
 import 'messenger_files.dart';
+import 'messenger_links.dart';
 import 'messenger_mqtt.dart';
 import 'messenger_provider.dart';
 import 'messenger_search_screen.dart';
@@ -431,9 +432,12 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
       decoration: BoxDecoration(color: mine ? Brand.botViolet : Brand.blueTint, borderRadius: BorderRadius.circular(14)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         ?files,
-        if (text.isNotEmpty || files == null) Text(text, style: TextStyle(color: mine ? Colors.white : Brand.navy, height: 1.4, fontStyle: c.deleted ? FontStyle.italic : FontStyle.normal)),
+        if (text.isNotEmpty || files == null)
+          LinkifiedText(text, style: TextStyle(color: mine ? Colors.white : Brand.navy, height: 1.4, fontStyle: c.deleted ? FontStyle.italic : FontStyle.normal), linkColor: mine ? Colors.white : Brand.blue),
       ]),
     );
+    // 첫 주소 하나는 말풍선 아래 미리보기(텍스트 대화만, 비밀대화 제외 — 메신저 앱과 같음)
+    final preview = c.contentType == '0' && !c.secret ? firstPreviewUrl(text) : null;
     final stamp = Padding(padding: const EdgeInsets.only(bottom: 2), child: Text(time, style: TextStyle(fontSize: 10, color: Brand.faint)));
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
@@ -448,6 +452,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: mine ? [stamp, const SizedBox(width: 4), Flexible(child: bubble)] : [Flexible(child: bubble), const SizedBox(width: 4), stamp],
           ),
+          if (preview != null) LinkPreviewCard(url: preview, maxWidth: maxW),
         ],
       ),
     );

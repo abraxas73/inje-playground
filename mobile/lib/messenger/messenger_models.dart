@@ -147,6 +147,7 @@ class MsgChat {
     required this.unReadUserCount,
     this.files = const [],
     this.fileExpired = false,
+    this.secret = false,
   });
 
   final String chatId, roomId, sendEmpSeq, content, contentType;
@@ -155,6 +156,7 @@ class MsgChat {
   /// 첨부(contentType 1=파일·2=음성·5=동영상 — 이미지도 1, 확장자로 가른다). 파일은 chatId+fileSn으로 받는다.
   final List<MsgFile> files;
   final bool fileExpired; // fileDelYn=Y — 보관 기간이 지나 서버에서 지워진 파일
+  final bool secret; // talkSecuYn=Y 비밀대화 — 링크 미리보기를 받지 않는다(열람 사실이 밖으로 나감)
 
   DateTime? get at => timeStamp > 0 ? DateTime.fromMillisecondsSinceEpoch(timeStamp) : null;
   bool get deleted => contentType == '7';
@@ -172,6 +174,7 @@ class MsgChat {
         unReadUserCount: _asInt(r['unReadUserCount']),
         files: [for (final f in (r['fileList'] is List ? r['fileList'] as List : const [])) if (f is Map) MsgFile.fromRow(f)],
         fileExpired: _asStr(r['fileDelYn']) == 'Y',
+        secret: _asStr(r['talkSecuYn']) == 'Y',
       );
 
   /// resultData.chatList → 목록(서버 순서 유지).

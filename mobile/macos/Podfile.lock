@@ -20,6 +20,8 @@ PODS:
     - FlutterMacOS
   - package_info_plus (0.0.1):
     - FlutterMacOS
+  - pasteboard (0.0.1):
+    - FlutterMacOS
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -44,6 +46,7 @@ DEPENDENCIES:
   - FlutterMacOS (from `Flutter/ephemeral`)
   - geolocator_apple (from `Flutter/ephemeral/.symlinks/plugins/geolocator_apple/darwin`)
   - package_info_plus (from `Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos`)
+  - pasteboard (from `Flutter/ephemeral/.symlinks/plugins/pasteboard/macos`)
   - shared_preferences_foundation (from `Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin`)
   - speech_to_text (from `Flutter/ephemeral/.symlinks/plugins/speech_to_text/darwin`)
   - url_launcher_macos (from `Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos`)
@@ -72,6 +75,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/geolocator_apple/darwin
   package_info_plus:
     :path: Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos
+  pasteboard:
+    :path: Flutter/ephemeral/.symlinks/plugins/pasteboard/macos
   shared_preferences_foundation:
     :path: Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin
   speech_to_text:
@@ -94,6 +99,7 @@ SPEC CHECKSUMS:
   FlutterMacOS: c232990155153907050900a2e175c7773903ba4e
   geolocator_apple: ab36aa0e8b7d7a2d7639b3b4e48308394e8cef5e
   package_info_plus: f0052d280d17aa382b932f399edf32507174e870
+  pasteboard: b594eaf838d930b276d7a35a44a32b4f489170cb
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
   speech_to_text: 3b313d98516d3d0406cea424782ec25470c59d19
   url_launcher_macos: f87a979182d112f911de6820aefddaf56ee9fbfd
