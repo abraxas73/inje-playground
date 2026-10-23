@@ -8,6 +8,7 @@ import 'gw_gate.dart';
 import 'gw_models.dart';
 import 'mail_detail_screen.dart';
 import 'mail_indexer.dart';
+import 'mail_compose_screen.dart';
 import 'mail_search_screen.dart';
 
 class MailScreen extends StatelessWidget {
@@ -52,7 +53,9 @@ class _BodyState extends ConsumerState<_Body> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: BrandHeader(title: '메일', showBack: true, favoritePath: '/gw/mail', onRefresh: _refresh),
+        appBar: BrandHeader(title: '메일', showBack: true, favoritePath: '/gw/mail', onRefresh: _refresh, actions: [
+          SquareIconButton(icon: Icons.edit_outlined, tooltip: '메일 쓰기', onPressed: () => Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => MailComposeScreen(api: widget.api)))),
+        ]),
         body: RefreshIndicator(
           onRefresh: _refresh,
           child: FutureBuilder(
