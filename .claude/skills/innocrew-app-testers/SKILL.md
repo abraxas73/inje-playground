@@ -15,7 +15,7 @@ description: 이노크루 앱 사용 신청(웹 /admin/app-requests)의 신청 �
 
 ## 1. 신청 목록 읽기
 
-ego 브라우저로 `https://inje-playground.vercel.app/admin/app-requests`를 연 뒤, 같은 페이지 세션으로 API를 부른다(폼보다 빠르고 정확하다).
+ego 브라우저로 `https://innocrew.innogrid.com/admin/app-requests`(정식 주소 — 로그인 쿠키가 여기에 있다. 예전 `inje-playground.vercel.app`은 로그아웃으로 보여 401)를 연 뒤, 같은 페이지 세션으로 API를 부른다(폼보다 빠르고 정확하다).
 
 ```js
 for (const s of ["pending", "processing"]) {
