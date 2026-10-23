@@ -36,7 +36,7 @@ Future<FlutterLocalNotificationsPlugin> _notifications() async {
   final plugin = FlutterLocalNotificationsPlugin();
   await plugin.initialize(
     settings: const InitializationSettings(
-      macOS: DarwinInitializationSettings(requestBadgePermission: false),
+      macOS: DarwinInitializationSettings(), // 배지 권한도 함께 — Dock 아이콘 알림 숫자(app_badge.dart)
       windows: WindowsInitializationSettings(appName: 'INNOCREW', appUserModelId: 'Innogrid.INNOGRID', guid: 'c3b2a1f0-5d4e-4a6b-9c8d-7e6f5a4b3c2d'),
     ),
     onDidReceiveNotificationResponse: (r) => messengerNotifyTap.value = (r.payload == null || r.payload!.isEmpty) ? '/gw/messenger' : r.payload,

@@ -2,6 +2,7 @@ import Cocoa
 import FlutterMacOS
 import WebKit
 import ObjectiveC
+import UserNotifications
 import webview_flutter_wkwebview
 
 class MainFlutterWindow: NSWindow {
@@ -69,7 +70,14 @@ class MainFlutterWindow: NSWindow {
         return
       }
       let n = (call.arguments as? NSNumber)?.intValue ?? 0
-      NSApp.dockTile.badgeLabel = n > 0 ? (n > 99 ? "99+" : String(n)) : nil
+      let label = n > 0 ? (n > 99 ? "99+" : String(n)) : nil
+      let apply = { DispatchQueue.main.async { NSApp.dockTile.badgeLabel = label } }
+      if n > 0 {
+        // Dock 배지는 알림 권한(배지)이 있어야 보인다 — 처음 숫자가 생길 때 한 번 묻는다(이미 정했으면 묻지 않음)
+        UNUserNotificationCenter.current().requestAuthorization(options: [.badge]) { _, _ in apply() }
+      } else {
+        apply()
+      }
       result(nil)
     }
 
