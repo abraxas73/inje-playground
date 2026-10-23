@@ -25,10 +25,13 @@ final mailFilePickerProvider = Provider<Future<List<({String name, List<int> byt
 });
 
 class MailComposeScreen extends ConsumerStatefulWidget {
-  const MailComposeScreen({super.key, required this.api, this.kind = MailKind.plain, this.muid = '', this.mailTo = '', this.mbox = 'INBOX'});
+  const MailComposeScreen({super.key, required this.api, this.kind = MailKind.plain, this.muid = '', this.mailTo = '', this.mbox = 'INBOX', this.initialTo = ''});
   final GwApi api;
   final MailKind kind;
   final String muid, mailTo, mbox;
+
+  /// 새 메일의 받는 사람 미리 채우기(조직도에서 고른 사람 등).
+  final String initialTo;
   @override
   ConsumerState<MailComposeScreen> createState() => _MailComposeScreenState();
 }
@@ -49,7 +52,7 @@ class _MailComposeScreenState extends ConsumerState<MailComposeScreen> {
     final me = (await widget.api.client.session()).email;
     final p = mailPrefill(widget.kind, init, myEmail: me);
     _form = init;
-    _to.text = p.to;
+    _to.text = p.to.isEmpty ? widget.initialTo : p.to;
     _cc.text = p.cc;
     _subject.text = p.subject;
     _quote = p.quote;

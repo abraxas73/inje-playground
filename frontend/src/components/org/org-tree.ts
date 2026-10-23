@@ -66,3 +66,20 @@ export function searchOrg(idx: OrgIndex, people: OrgPerson[], query: string) {
 }
 
 export const byName = (a: OrgPerson, b: OrgPerson) => a.name.localeCompare(b.name, "ko");
+
+/** 앱(WebView) 네이티브 화면 열기 — 같은 사이트 /app-action 이동을 앱이 가로챈다(mobile/lib/web/app_actions.dart).
+ * messenger: 사번(emp)·이름(names), mail: 주소(to). 사번 없는 사람은 메신저에서 뺀다. */
+export function appActionUrl(kind: "messenger" | "mail", people: { email: string; empSeq: string | null; name: string }[]): string {
+  const q = new URLSearchParams({ kind });
+  if (kind === "messenger") {
+    const withSeq = people.filter((p) => p.empSeq);
+    q.set("emp", withSeq.map((p) => p.empSeq).join(","));
+    q.set("names", withSeq.map((p) => p.name).join(","));
+  } else {
+    q.set("to", people.map((p) => p.email).join(","));
+  }
+  return `/app-action?${q.toString()}`;
+}
+
+/** 브라우저 메일 — mailto(여러 명은 쉼표). */
+export const mailtoUrl = (people: { email: string }[]) => `mailto:${people.map((p) => p.email).join(",")}`;

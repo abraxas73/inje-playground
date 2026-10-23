@@ -14,6 +14,7 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../api/client.dart';
 import '../config.dart';
 import '../app/theme.dart';
+import 'app_actions.dart';
 import 'web_session.dart';
 import '../favorites/favorites.dart';
 import '../more/catalog.dart';
@@ -190,6 +191,11 @@ class _WebScreenState extends ConsumerState<WebScreen>
 
   Future<NavigationDecision> _onNav(NavigationRequest req) async {
     final uri = Uri.parse(req.url);
+    // 웹 화면이 여는 앱 네이티브 화면(조직도의 메신저 대화·메일 보내기)
+    if (isAppAction(uri, _origin)) {
+      if (req.isMainFrame && mounted) unawaited(handleAppAction(context, ref, uri));
+      return NavigationDecision.prevent;
+    }
     switch (WebNavPolicy.decide(uri, appOrigin: _origin)) {
       case NavAction.oauthConnect:
         if (req.isMainFrame) unawaited(_connectOAuth(uri));
