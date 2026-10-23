@@ -255,7 +255,7 @@ export default function OrgChart() {
           </div>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <div className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
+          <div className="relative min-w-0 flex-1 basis-full sm:w-64 sm:flex-none sm:basis-auto">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={query} onChange={(e) => onQuery(e.target.value)} placeholder="부서, 이름, 이메일 검색" className="pl-8" aria-label="조직도 검색" />
           </div>
