@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/client.dart';
 import '../gw/gw_api.dart';
+import '../gw/gw_models.dart';
 import '../gw/gw_org_absences.dart';
 import '../gw/gw_creds.dart';
 import 'summary_provider.dart' show briefingClockProvider;
@@ -164,6 +165,32 @@ class TeamsMentionsLive extends Notifier<TeamsMentions?> {
     try {
       final m = TeamsMentions.parse(await ref.read(apiClientProvider).getJson('/api/teams/mentions', query: {'days': '2'}));
       if (ref.mounted) state = m;
+    } catch (_) {
+      // 잠깐의 실패는 무시 — 브리핑 값(또는 직전 값)을 그대로 보여 준다
+    }
+  }
+}
+
+/// 미결 결재만 2분마다 다시 읽는다 — 아마란스·결재 화면에서 처리한 건이 홈 위젯에 남지 않게(Teams 답장 대기와 같은 방식).
+/// 브리핑을 새로 수집하면 그 값을 쓰도록 비운다(null = 브리핑 값 사용).
+final approvalsLiveProvider = NotifierProvider<ApprovalsLive, (int, List<PendingApproval>)?>(ApprovalsLive.new);
+
+class ApprovalsLive extends Notifier<(int, List<PendingApproval>)?> {
+  static const every = Duration(minutes: 2);
+  @override
+  (int, List<PendingApproval>)? build() {
+    ref.listen(briefingProvider, (_, _) => state = null);
+    final t = Timer.periodic(every, (_) => poll());
+    ref.onDispose(t.cancel);
+    return null;
+  }
+
+  Future<void> poll() async {
+    final api = ref.read(gwApiProvider);
+    if (api == null) return;
+    try {
+      final a = await api.pendingApprovals();
+      if (ref.mounted) state = a;
     } catch (_) {
       // 잠깐의 실패는 무시 — 브리핑 값(또는 직전 값)을 그대로 보여 준다
     }

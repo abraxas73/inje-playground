@@ -167,6 +167,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     Future<void> open(String route) async {
       await context.push(route);
       if (mounted && route.contains('/web?path=')) await _refresh();
+      if (mounted && route.startsWith('/gw/approvals')) await ref.read(approvalsLiveProvider.notifier).poll(); // 결재 화면에서 처리한 건 바로 빼기
     }
     // 메일 한 통은 바로 상세로 — 본문을 열면 아마란스가 읽음 처리하므로 돌아오면 다시 불러온다
     Future<void> openMail(MailItem m) async {
@@ -246,8 +247,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         addPh('absence', '팀원 부재', '아마란스에 연결하면 표시됩니다', onConnect: gwConnect);
       }
       // 미결 결재
-      if (!gwNo && !data.errors.containsKey('approvals') && (data.approvals?.$2 ?? const []).isNotEmpty) {
-        add('approvals', '미결 결재', ApprovalsSection(total: data.approvals?.$1 ?? 0, items: data.approvals?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals')), w: 6, h: 3);
+      final approvals = ref.watch(approvalsLiveProvider) ?? data?.approvals; // 2분마다 따로 갱신된 값 우선
+      if (!gwNo && !data.errors.containsKey('approvals') && (approvals?.$2 ?? const []).isNotEmpty) {
+        add('approvals', '미결 결재', ApprovalsSection(total: approvals?.$1 ?? 0, items: approvals?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals')), w: 6, h: 3);
       } else {
         addPh('approvals', '미결 결재', gwNo ? '아마란스에 연결하면 표시됩니다' : '미결 결재가 없습니다', onConnect: gwNo ? gwConnect : null);
       }
@@ -439,7 +441,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 onToggle: (value) => setState(() => _allAbsences = value),
                 onRetry: _allAbsences ? () => ref.invalidate(companyAbsencesProvider) : _refresh,
               ),
-              if (data.errors.containsKey('approvals')) RetryLine(label: '미결 결재', onTap: _refresh) else ApprovalsSection(total: data.approvals?.$1 ?? 0, items: data.approvals?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals')),
+              if (data.errors.containsKey('approvals')) RetryLine(label: '미결 결재', onTap: _refresh) else ApprovalsSection(total: (ref.watch(approvalsLiveProvider) ?? data.approvals)?.$1 ?? 0, items: (ref.watch(approvalsLiveProvider) ?? data.approvals)?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals')),
               if (data.errors.containsKey('inbox')) RetryLine(label: '메일', onTap: _refresh) else MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail'), onOpen: openMail),
               if (!data.errors.containsKey('talks')) TalkMentionSection(talks: data.talks, onOpen: openMessenger),
             ],
