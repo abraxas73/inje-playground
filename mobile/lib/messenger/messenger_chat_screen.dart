@@ -10,6 +10,7 @@ import 'messenger_favorites.dart';
 import 'messenger_files.dart';
 import 'messenger_links.dart';
 import 'messenger_mqtt.dart';
+import 'messenger_new_chat_screen.dart';
 import 'messenger_provider.dart';
 import 'messenger_search_screen.dart';
 import 'messenger_ui.dart';
@@ -97,6 +98,13 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
         showBack: !widget.embedded,
         onRefresh: _refresh,
         actions: [
+          // 새 대화는 메신저 페이지에서만(위젯은 좁아 명부 고르기가 불편 — 사용자 요청)
+          if (!widget.embedded)
+            IconButton(
+              icon: const Icon(Icons.add_comment_outlined),
+              tooltip: '새 대화',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MessengerNewChatScreen())).then((_) { if (mounted) _refresh(); }),
+            ),
           IconButton(
             icon: const Icon(Icons.search),
             tooltip: '검색',

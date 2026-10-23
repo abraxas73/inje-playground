@@ -66,6 +66,31 @@ class MessengerApi {
         'authKeyMap': {'ShareType': 'N', 'chatId': chatId}, 'pathSeq': _chatFilePathSeq, 'fileSn': [fileSn], 'moduleGbn': 'TALK',
       });
 
+  /// 대화 상대(나 제외 사번들)와의 방을 연다 — 1:1은 기존 방이 있으면 그 방(P190), 없으면 새로 만든다(P078).
+  /// 그룹은 메신저 앱처럼 늘 새로 만들고 내가 방장. 돌려주는 값은 roomId.
+  Future<String> openRoomWith(List<String> others) async {
+    final me = (await client.ensureSession()).empSeq;
+    final peers = [for (final e in others.toSet()) if (e.isNotEmpty && e != me) e];
+    if (peers.isEmpty) throw MessengerException(-1, '대화 상대를 고르세요.');
+    final single = peers.length == 1;
+    final roomType = single ? '1' : '2';
+    if (single) {
+      final d = await client.callCo('P190', {'receiver': [{'empSeq': peers.first}, {'empSeq': me}], 'roomType': roomType});
+      final id = d is Map ? _s(d['roomId']) : '';
+      if (id.isNotEmpty) return id;
+    }
+    final d = await client.callCo('P078', {
+      'roomType': roomType,
+      'receiver': single
+          ? [{'empSeq': peers.first}, {'empSeq': me}]
+          : [for (final e in [...peers, me]) {'roomOwnerYn': e == me ? 'Y' : 'N', 'empSeq': e}],
+      'projectId': '', 'roomTitle': '', 'roomLeaderEmpSeq': single ? '' : me, 'roomOption': '',
+    });
+    final id = d is Map ? _s(d['roomId']) : '';
+    if (id.isEmpty) throw MessengerException(-1, '대화방을 만들지 못했습니다.');
+    return id;
+  }
+
   /// 읽음 처리(P342).
   Future<void> readChat({required String roomId, required String chatId}) =>
       client.callCo('P342', {'roomId': roomId, 'chatId': chatId});
