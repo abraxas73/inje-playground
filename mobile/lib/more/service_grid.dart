@@ -36,6 +36,7 @@ const nativeTabKeys = {'food', 'ladder', 'team'};
 /// 홈 "바로 가기"에 따로 나오는 것(네이티브 탭 3개 + Teams 채팅) — 사내 서비스 그리드에서는 뺀다.
 const quickKeys = {...nativeTabKeys, 'teams_chat'};
 const teamsChatEntry = PageEntry('teams_chat', '/teams/chat', 'Teams 채팅', 'work', 'user');
+const orgChartEntry = PageEntry('org_chart', '/org', '조직도', 'work', 'user');
 
 List<PageEntry> webServices(AppSession s) => visiblePages(s).where((p) => !quickKeys.contains(p.key)).toList();
 
