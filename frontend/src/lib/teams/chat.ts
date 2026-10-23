@@ -171,3 +171,35 @@ export async function getChatInfo(token: string, chatId: string, fetchImpl: Fetc
   const j = (await graph(token, `${GRAPH_BASE}/chats/${encodeURIComponent(chatId)}?$select=id,topic,webUrl,chatType`, {}, fetchImpl)) as Record<string, unknown>;
   return { id: String(j.id ?? chatId), topic: typeof j.topic === "string" && j.topic ? j.topic : null, webUrl: typeof j.webUrl === "string" ? j.webUrl : null };
 }
+
+/** 메시지 검색 결과 한 건 — 본문 대신 Microsoft Search 요약(검색어 주변)만 */
+export interface ChatSearchHit { id: string; chatId: string; createdAt: string; from: string; snippet: string }
+export const CHAT_SEARCH_MIN = 2;
+export const CHAT_SEARCH_MAX = 100;
+
+/** 검색 응답 → 그룹·1:1 채팅 메시지만(채널 메시지는 chatId가 없어 뺀다). 요약의 강조 태그(<c0>)·엔티티는 글자로 */
+export function normalizeSearchHits(json: unknown): ChatSearchHit[] {
+  const containers = ((json as { value?: Array<{ hitsContainers?: unknown[] }> } | null)?.value ?? []).flatMap((v) => (Array.isArray(v.hitsContainers) ? v.hitsContainers : []));
+  const hits = containers.flatMap((c) => { const h = (c as { hits?: unknown }).hits; return Array.isArray(h) ? h : []; }) as Array<{ summary?: unknown; resource?: Record<string, unknown> }>;
+  const out: ChatSearchHit[] = [];
+  for (const h of hits) {
+    const r = h.resource ?? {};
+    const chatId = typeof r.chatId === "string" ? r.chatId : "";
+    if (!CHAT_ID_RE.test(chatId)) continue;
+    const from = (r.from as { emailAddress?: { name?: unknown }; user?: { displayName?: unknown } } | undefined);
+    out.push({
+      id: String(r.id ?? ""),
+      chatId,
+      createdAt: String(r.createdDateTime ?? ""),
+      from: String(from?.emailAddress?.name ?? from?.user?.displayName ?? ""),
+      snippet: teamsHtmlToText(typeof h.summary === "string" ? h.summary : "").replace(/\s+/g, " ").trim(),
+    });
+  }
+  return out;
+}
+
+/** 내 Teams 메시지 검색(Microsoft Search, Chat.ReadWrite로 충분) — 관련도 순 최대 25건. 결과 정렬은 API가 지원하지 않는다. */
+export async function searchChatMessages(token: string, query: string, fetchImpl: FetchLike = fetch): Promise<ChatSearchHit[]> {
+  const body = { requests: [{ entityTypes: ["chatMessage"], query: { queryString: query }, from: 0, size: 25 }] };
+  return normalizeSearchHits(await graph(token, `${GRAPH_BASE}/search/query`, { method: "POST", body: JSON.stringify(body) }, fetchImpl));
+}
