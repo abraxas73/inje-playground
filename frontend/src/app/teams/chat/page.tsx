@@ -1,9 +1,10 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ExternalLink, Loader2, MessageCircle, Paperclip, RefreshCw, SendHorizontal, User as UserIcon, Users } from "lucide-react";
+import { ArrowLeft, ExternalLink, Loader2, MessageCircle, Paperclip, RefreshCw, Search, SendHorizontal, User as UserIcon, Users, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useEnterToSend } from "@/hooks/useEnterToSend";
 import { useMsCallbackQuery } from "@/hooks/useMsCallbackQuery";
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
  */
 interface ChatSummary { id: string; type: "group" | "oneOnOne"; topic: string; members: string[]; webUrl: string | null; lastUpdated: string | null }
 interface Info { connected: boolean; hasChatScope: boolean; meId?: string; chats?: ChatSummary[] }
+interface Hit { id: string; chatId: string; createdAt: string; from: string; snippet: string }
 interface Msg { id: string; createdAt: string; modifiedAt: string; from: { id: string; name: string } | null; text: string; attachments: Array<{ id: string; name: string; url: string | null }> }
 
 const POLL_MS = 5000;
@@ -45,6 +47,11 @@ export default function TeamsChatPage() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // 검색: 입력하면 채팅 이름·구성원으로 바로 거르고, Enter(돋보기)면 메시지 내용을 Microsoft 검색으로
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<Hit[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const sinceRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -150,6 +157,23 @@ export default function TeamsChatPage() {
     }
   };
 
+  const searchMessages = async () => {
+    const q = query.trim();
+    if (q.length < 2 || searching) return;
+    setSearching(true); setSearchError(null);
+    try {
+      const r = await fetch(`/api/teams/chat/search?${new URLSearchParams({ q })}`);
+      const j = await readJson(r);
+      if (!r.ok || !Array.isArray(j.hits)) { setHits(null); setSearchError(typeof j.error === "string" ? j.error : `검색하지 못했습니다 (${r.status})`); return; }
+      setHits(j.hits as Hit[]);
+    } catch {
+      setSearchError("검색하지 못했습니다. 네트워크 연결을 확인해 주세요.");
+    } finally {
+      setSearching(false);
+    }
+  };
+  const clearSearch = () => { setQuery(""); setHits(null); setSearchError(null); };
+
   const enterKeys = useEnterToSend((v) => { void send(v); });
 
   if (infoError && !info) return <Alert variant="destructive" className="mx-auto max-w-xl"><AlertDescription>{infoError}</AlertDescription></Alert>;
@@ -169,7 +193,11 @@ export default function TeamsChatPage() {
     );
   }
 
-  const chats = info.chats ?? [];
+  const allChats = info.chats ?? [];
+  const needle = query.trim().toLowerCase();
+  const chats = needle ? allChats.filter((c) => c.topic.toLowerCase().includes(needle) || c.members.some((n) => n.toLowerCase().includes(needle))) : allChats;
+  // 목록은 최근 50개 채팅뿐 — 그 밖의 채팅에서 찾은 메시지는 열 수 없어 안내만
+  const chatName = (id: string) => allChats.find((c) => c.id === id)?.topic ?? null;
   let lastDay = "";
   return (
     <div className="animate-fade-up">
@@ -187,8 +215,32 @@ export default function TeamsChatPage() {
             <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
           </Button>
         </div>
+        <form className="flex items-center gap-1 border-b px-3 py-2" role="search" onSubmit={(e) => { e.preventDefault(); void searchMessages(); }}>
+          <Input value={query} onChange={(e) => { setQuery(e.target.value); setHits(null); setSearchError(null); }} placeholder="채팅 이름·사람 거르기, Enter로 메시지 검색" aria-label="채팅 검색" maxLength={100} className="h-8 text-sm" />
+          {query && <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={clearSearch} aria-label="검색 지우기"><X className="h-4 w-4" /></Button>}
+          <Button type="submit" variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={searching || query.trim().length < 2} aria-label="메시지 내용 검색">
+            {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          </Button>
+        </form>
         <div className="flex-1 overflow-y-auto">
-          {!chats.length && <p className="p-4 text-sm text-muted-foreground">참여 중인 그룹·1:1 채팅이 없습니다. Teams에서 대화를 시작하면 여기에 나타납니다.</p>}
+          {searchError && <p className="px-4 py-2 text-xs text-destructive">{searchError}</p>}
+          {hits && (
+            <div className="border-b">
+              <p className="bg-muted/50 px-4 py-1.5 text-xs font-medium text-muted-foreground">메시지 검색 결과 {hits.length}건{hits.length >= 25 ? "(관련도 높은 25건)" : ""}</p>
+              {!hits.length && <p className="px-4 py-3 text-sm text-muted-foreground">&lsquo;{query.trim()}&rsquo;가 들어간 메시지를 찾지 못했습니다.</p>}
+              {hits.map((h) => (
+                <button key={`${h.chatId}:${h.id}`} type="button" disabled={!chatName(h.chatId)} onClick={() => select(h.chatId)} className={cn("block w-full border-t px-4 py-2 text-left hover:bg-muted/60 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent", h.chatId === chatId && "bg-primary/5")}>
+                  <span className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+                    <span className="truncate"><span className="font-medium text-foreground">{h.from || "알 수 없음"}</span> · {chatName(h.chatId) ?? "최근 50개 밖의 채팅 — Teams에서 확인"}</span>
+                    {h.createdAt && <span className="shrink-0 text-[11px]">{fmtAgo(h.createdAt)}</span>}
+                  </span>
+                  <span className="mt-0.5 line-clamp-2 break-words text-sm">{h.snippet || "(요약 없음)"}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {needle && !chats.length && <p className="p-4 text-sm text-muted-foreground">이름·구성원이 맞는 채팅이 없습니다. Enter를 누르면 메시지 내용에서 찾습니다.</p>}
+          {!needle && !chats.length && <p className="p-4 text-sm text-muted-foreground">참여 중인 그룹·1:1 채팅이 없습니다. Teams에서 대화를 시작하면 여기에 나타납니다.</p>}
           {chats.map((c) => (
             <button key={c.id} type="button" onClick={() => select(c.id)} className={cn("flex w-full items-center gap-3 border-b px-4 py-3 text-left hover:bg-muted/60", c.id === chatId && "bg-primary/5")}>
               <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", c.type === "group" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
