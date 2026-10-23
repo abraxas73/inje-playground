@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import '../gw/gw_client.dart' show asStr, asInt;
 import '../gw/gw_sign.dart';
@@ -49,12 +50,14 @@ class MessengerSession {
     required this.loginId,
     required this.groupSeq,
     required this.empSeq,
+    this.empName = '',
     required this.companyInfo,
     required this.mqtt,
     required this.currentTime,
   });
 
   final String token, hashKey, loginId, groupSeq, empSeq;
+  final String empName;
 
   /// 서버 기준 시각(connId 구성에 쓴다). 없으면 0.
   final int currentTime;
@@ -82,6 +85,7 @@ class MessengerSession {
       loginId: loginId,
       groupSeq: asStr(data['groupSeq']),
       empSeq: asStr(data['empSeq']),
+      empName: asStr(data['empName']),
       companyInfo: {
         'compSeq': asStr(data['compSeq']).isNotEmpty ? asStr(data['compSeq']) : asStr(comp['compSeq']),
         'bizSeq': asStr(data['bizSeq']).isNotEmpty ? asStr(data['bizSeq']) : asStr(comp['bizSeq']),
@@ -206,21 +210,82 @@ class MessengerClient {
   // ── 인증 요청: wehago-sign(메신저 hashKey) ──────────────────────────────
 
   Future<dynamic> _signedCall(String pid, Map<String, Object?> body, MessengerSession sess) async {
-    final url = _protocols![pid];
-    if (url == null) throw MessengerException(-1, '알 수 없는 메신저 기능($pid)');
-    final path = Uri.parse(url).path;
-    final tid = _txId();
-    final ts = _now().millisecondsSinceEpoch.toString();
+    final url = _url(pid);
     final req = http.Request('POST', Uri.parse(url))
-      ..headers.addAll({
-        'Authorization': 'Bearer ${sess.token}',
-        'transaction-id': tid,
-        'timestamp': ts,
-        'wehago-sign': wehagoSign(authToken: sess.token, transactionId: tid, timestamp: ts, path: path, signKey: sess.hashKey),
-        'Content-Type': 'application/json; charset=utf-8',
-      })
+      ..headers.addAll({..._signedHeaders(url, sess), 'Content-Type': 'application/json; charset=utf-8'})
       ..body = jsonEncode({'header': _reqHeader(pid, sess.token), 'body': body});
     return _decodeAuth(await _send(req));
+  }
+
+  String _url(String pid) => _protocols?[pid] ?? (throw MessengerException(-1, '알 수 없는 메신저 기능($pid)'));
+
+  Map<String, String> _signedHeaders(String url, MessengerSession sess) {
+    final tid = _txId();
+    final ts = _now().millisecondsSinceEpoch.toString();
+    return {
+      'Authorization': 'Bearer ${sess.token}',
+      'transaction-id': tid,
+      'timestamp': ts,
+      'wehago-sign': wehagoSign(authToken: sess.token, transactionId: tid, timestamp: ts, path: Uri.parse(url).path, signKey: sess.hashKey),
+    };
+  }
+
+  /// 파일을 실은 호출(multipart) — 메신저 앱 `reqNewFileUpload`와 같은 모양: 봉투 JSON은 `body` 칸, 파일은 `file` 칸마다 하나.
+  /// 서버가 파일을 붙여 대화를 만든다(본문 `file`은 빈 배열 그대로). 만료면 재로그인 1회.
+  Future<dynamic> upload(String pid, Map<String, Object?> body, List<({String name, Uint8List bytes})> files, {Map<String, String> fields = const {}}) async {
+    Future<dynamic> once(MessengerSession sess) async {
+      final url = _url(pid);
+      final req = http.MultipartRequest('POST', Uri.parse(url))
+        ..headers.addAll(_signedHeaders(url, sess))
+        ..fields['body'] = jsonEncode({'header': _reqHeader(pid, sess.token), 'body': {'companyInfo': sess.companyInfo, ...body}})
+        ..fields.addAll(fields)
+        ..files.addAll([for (final f in files) http.MultipartFile.fromBytes('file', f.bytes, filename: f.name)]);
+      return _decodeAuth(await _send(req, timeout: const Duration(minutes: 3)));
+    }
+    final sess = _session ?? await _login();
+    try {
+      return await once(sess);
+    } on MessengerAuthException {
+      return once(await _login());
+    }
+  }
+
+  /// 파일 내용 받기 — 응답이 JSON 봉투가 아니라 파일 바이트 그대로다(P084 등). 422 = 보안 정책으로 막힌 파일.
+  Future<Uint8List> download(String pid, Map<String, Object?> body) async {
+    Future<Uint8List> once(MessengerSession sess) async {
+      final url = _url(pid);
+      final req = http.Request('POST', Uri.parse(url))
+        ..headers.addAll({..._signedHeaders(url, sess), 'Content-Type': 'application/json; charset=utf-8'})
+        ..body = jsonEncode({'header': _reqHeader(pid, sess.token), 'body': body});
+      return _bytes(await _send(req, timeout: const Duration(minutes: 3)));
+    }
+    final sess = _session ?? await _login();
+    try {
+      return await once(sess);
+    } on MessengerAuthException {
+      return once(await _login());
+    }
+  }
+
+  /// 썸네일 등 GET 파일(메신저 앱은 `<img src>` + 메인 프로세스가 붙이는 BIZCUBE 쿠키). 서명 헤더도 함께 보낸다.
+  Future<Uint8List> getFile(String pid, Map<String, String> query) async {
+    final sess = _session ?? await _login();
+    final url = Uri.parse(_url(pid));
+    final req = http.Request('GET', url.replace(queryParameters: {...url.queryParameters, 'mobileId': _mobileId, ...query}))
+      ..headers.addAll({..._signedHeaders(url.toString(), sess), 'Cookie': 'BIZCUBE_AT=${sess.token}; BIZCUBE_HK=${sess.hashKey}; BIZCUBE_TYPE=PC;'});
+    return _bytes(await _send(req));
+  }
+
+  Uint8List _bytes(http.Response res) {
+    if (res.statusCode == 401) throw MessengerAuthException(401, '메신저 세션이 만료되었습니다. (401)');
+    if (res.statusCode == 422) throw MessengerException(422, '보안 정책으로 받을 수 없는 파일입니다.');
+    if (res.statusCode < 200 || res.statusCode >= 300) throw MessengerException(res.statusCode, '파일을 받지 못했습니다 (HTTP ${res.statusCode})');
+    // 실패도 200 + JSON 봉투로 올 수 있다
+    if ((res.headers['content-type'] ?? '').contains('json')) {
+      _decodeAuth(res);
+      throw MessengerException(-1, '파일을 받지 못했습니다.');
+    }
+    return res.bodyBytes;
   }
 
   Map<String, Object?> _reqHeader(String pid, String token) => {
@@ -233,9 +298,9 @@ class MessengerClient {
         'token': token,
       };
 
-  Future<http.Response> _send(http.Request req) async {
+  Future<http.Response> _send(http.BaseRequest req, {Duration timeout = const Duration(seconds: 15)}) async {
     try {
-      return await http.Response.fromStream(await httpClient.send(req)).timeout(const Duration(seconds: 15));
+      return await http.Response.fromStream(await httpClient.send(req)).timeout(timeout);
     } catch (e) {
       throw MessengerException(0, '메신저에 연결할 수 없습니다 (${e.runtimeType})');
     }

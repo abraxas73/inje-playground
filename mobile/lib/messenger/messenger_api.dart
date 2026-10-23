@@ -1,8 +1,19 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import '../gw/gw_client.dart' show asStr;
 import 'messenger_client.dart';
 import 'messenger_models.dart';
 
 String _s(Object? v) => asStr(v);
+
+/// 대화 파일 경로(메신저 앱 CHAT_FILE_PATH_SEQ).
+const _chatFilePathSeq = '800';
+
+/// 파일 이름의 확장자(소문자, 점 없이).
+String fileExt(String name) {
+  final i = name.lastIndexOf('.');
+  return i < 0 ? '' : name.substring(i + 1).toLowerCase();
+}
 
 /// 아마란스 메신저 기능 API — 모든 호출은 `MessengerClient`(P076 세션)로 서명·중계된다.
 /// PID·요청 파라미터 출처: 메신저 번들 `src/dz/dzhttp.js`. companyInfo는 클라이언트가 붙인다(callCo).
@@ -26,6 +37,34 @@ class MessengerApi {
   /// 대화 보내기(P079). 텍스트만(contentType 0). uuid는 중복 전송 방지용.
   Future<void> sendChat({required String roomId, required String content, String? uuid}) =>
       client.callCo('P079', {'roomId': roomId, 'content': content, 'contentType': '0', 'emoticonId': '', 'link': null, 'recvMentionEmpList': [], 'talkSecuYn': 'N', 'file': [], 'uuid': uuid, 'parentChatId': ''});
+
+  /// 파일·그림 보내기(P079 multipart, contentType 1). 메신저 앱처럼 그림은 30장까지 한 대화로, 그 밖의 파일은 한 개씩 따로 보낸다.
+  Future<void> sendFiles({required String roomId, required List<({String name, Uint8List bytes})> files}) async {
+    final images = [for (final f in files) if (msgImageExts.contains(fileExt(f.name))) f];
+    final others = [for (final f in files) if (!msgImageExts.contains(fileExt(f.name))) f];
+    final batches = [for (var i = 0; i < images.length; i += 30) images.sublist(i, i + 30 > images.length ? images.length : i + 30), for (final f in others) [f]];
+    final me = (await client.ensureSession()).empName;
+    for (final b in batches) {
+      await client.upload('P079', {
+        'roomId': roomId, 'empName': me, 'content': '', 'contentType': '1', 'emoticonId': '', 'link': null,
+        'recvMentionEmpList': [], 'talkSecuYn': 'N', 'file': [], 'parentChatId': '',
+      }, b, fields: const {'pathSeq': _chatFilePathSeq, 'forwardFileList': ''});
+    }
+  }
+
+  /// 대화 첨부 미리보기 그림(P084 thum=Y). 실패하면 원본으로(그림만).
+  Future<Uint8List> thumbnail(String chatId, String fileSn) async {
+    try {
+      return await client.getFile('P084', {'thum': 'Y', 'pathSeq': _chatFilePathSeq, 'moduleGbn': 'TALK', 'authKeyMap': jsonEncode({'chatId': chatId}), 'fileSn': fileSn});
+    } catch (_) {
+      return file(chatId, fileSn);
+    }
+  }
+
+  /// 대화 첨부 원본(P084). 받은 바이트 그대로.
+  Future<Uint8List> file(String chatId, String fileSn) => client.download('P084', {
+        'authKeyMap': {'ShareType': 'N', 'chatId': chatId}, 'pathSeq': _chatFilePathSeq, 'fileSn': [fileSn], 'moduleGbn': 'TALK',
+      });
 
   /// 읽음 처리(P342).
   Future<void> readChat({required String roomId, required String chatId}) =>

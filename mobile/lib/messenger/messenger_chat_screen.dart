@@ -7,6 +7,7 @@ import 'messenger_api.dart';
 import 'messenger_client.dart' show MessengerAuthException;
 import 'messenger_models.dart';
 import 'messenger_favorites.dart';
+import 'messenger_files.dart';
 import 'messenger_mqtt.dart';
 import 'messenger_provider.dart';
 import 'messenger_search_screen.dart';
@@ -276,6 +277,36 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
     }
   }
 
+  /// 파일·그림 보내기(첨부 버튼·붙여넣기 공용). 확인을 받은 뒤 보낸다.
+  Future<void> _sendFiles(List<MsgUpload> files) async {
+    if (files.isEmpty || _sending || !await confirmMsgUploads(context, files)) return;
+    setState(() => _sending = true);
+    try {
+      await _api.sendFiles(roomId: widget.room.roomId, files: files);
+      await _refresh();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('보내지 못했습니다: $e')));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _attach() async {
+    try {
+      await _sendFiles(await ref.read(msgFilePickerProvider)());
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('파일을 열지 못했습니다: $e')));
+    }
+  }
+
+  /// ⌘V·Ctrl+V — 클립보드에 복사한 파일이나 그림이 있으면 보내기 확인, 글자면 평소대로 붙여넣기.
+  Future<bool> _paste() async {
+    final files = await ref.read(msgClipboardProvider)();
+    if (files == null || files.isEmpty) return false;
+    await _sendFiles(files);
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
@@ -307,8 +338,9 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
         ],
       ),
       body: Column(children: [
+        // 대화 글자 끌어 선택·복사 — 홈 위젯 안에서 앱 전체 선택(SelectAllText)으로는 끌어 선택이 안 됐다(데스크톱 실측), Teams 채팅처럼 직접 둔다
         Expanded(
-          child: FutureBuilder<List<MsgChat>>(
+          child: SelectionArea(child: FutureBuilder<List<MsgChat>>(
             future: _future,
             builder: (context, snap) {
               if (snap.connectionState == ConnectionState.waiting && !snap.hasData) return const Center(child: CircularProgressIndicator());
@@ -335,7 +367,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
                   ? SingleChildScrollView(reverse: true, padding: const EdgeInsets.all(12), child: Column(children: [for (var i = chats.length - 1; i >= 0; i--) item(i)]))
                   : ListView.builder(reverse: true, padding: const EdgeInsets.all(12), itemCount: chats.length, itemBuilder: (_, i) => item(i));
             },
-          ),
+          )),
         ),
         _composer(),
       ]),
@@ -389,13 +421,18 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
     final text = c.deleted ? '삭제된 메시지입니다.' : c.displayContent;
     final name = _names[c.sendEmpSeq];
     final time = c.at == null ? '' : _hhmm(c.at!);
-    final bubble = Container(
+    final attach = !c.deleted && (c.files.isNotEmpty || c.fileExpired);
+    final files = attach ? MsgAttachments(chat: c, mine: mine, maxWidth: maxW) : null;
+    final bubble = files != null && text.isEmpty ? files : Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       // 대화 영역 실제 폭의 80%까지(고정 상한 없음) — 강제 줄바꿈이 아니면 한 줄로. 좌우 정렬로 내 것/상대 것 구분은 유지.
       constraints: BoxConstraints(maxWidth: maxW),
       decoration: BoxDecoration(color: mine ? Brand.botViolet : Brand.blueTint, borderRadius: BorderRadius.circular(14)),
-      child: Text(text, style: TextStyle(color: mine ? Colors.white : Brand.navy, height: 1.4, fontStyle: c.deleted ? FontStyle.italic : FontStyle.normal)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        ?files,
+        if (text.isNotEmpty || files == null) Text(text, style: TextStyle(color: mine ? Colors.white : Brand.navy, height: 1.4, fontStyle: c.deleted ? FontStyle.italic : FontStyle.normal)),
+      ]),
     );
     final stamp = Padding(padding: const EdgeInsets.only(bottom: 2), child: Text(time, style: TextStyle(fontSize: 10, color: Brand.faint)));
     return Align(
@@ -442,16 +479,19 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
         child: Row(children: [
+          IconButton(tooltip: '파일 보내기', onPressed: _sending ? null : _attach, icon: const Icon(Icons.attach_file)),
           Expanded(
-            child: TextField(
+            child: Actions(
+              actions: {PasteTextIntent: MsgPasteAction(_paste)},
+              child: TextField(
               controller: _input,
               minLines: 1,
               maxLines: 4,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _send(),
               onEditingComplete: () {}, // 보낸 뒤에도 입력창에 포커스 유지(이어서 입력) — 기본 동작은 포커스를 놓는다
-              decoration: InputDecoration(hintText: '메시지', border: OutlineInputBorder(borderRadius: BorderRadius.circular(22)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
-            ),
+              decoration: InputDecoration(hintText: '메시지 · 그림은 붙여넣기로', border: OutlineInputBorder(borderRadius: BorderRadius.circular(22)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+            )),
           ),
           const SizedBox(width: 8),
           IconButton.filled(onPressed: _sending ? null : _send, icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send, size: 20)),

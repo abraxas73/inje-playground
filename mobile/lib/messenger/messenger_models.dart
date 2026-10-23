@@ -60,6 +60,7 @@ class MsgRoom {
   String get preview => switch (contentType) {
         '6' => '사다리게임: 결과를 확인하세요.',
         '7' => '삭제된 메시지입니다.',
+        '1' || '2' || '5' when lastChat.trim().isEmpty => '파일',
         '8' || '11' => '화상회의',
         _ => stripTalkMentions(lastChat), // 멘션 표식 |>@empseq=…,name="X"@<| → @X
       };
@@ -112,6 +113,28 @@ class MsgRoom {
   }
 }
 
+/// 대화에 붙은 파일 한 개(P082 fileList, P079 업로드 응답 file). 원본 이름은 확장자 없이 온다.
+class MsgFile {
+  const MsgFile({required this.fileSn, required this.baseName, required this.ext, required this.size, this.width = 0, this.height = 0});
+  final String fileSn, baseName, ext;
+  final int size, width, height;
+
+  String get name => ext.isEmpty ? baseName : '$baseName.$ext';
+  bool get isImage => msgImageExts.contains(ext.toLowerCase());
+
+  static MsgFile fromRow(Map r) => MsgFile(
+        fileSn: _asStr(r['fileSn']).isEmpty ? '0' : _asStr(r['fileSn']),
+        baseName: _asStr(r['originalFileName']),
+        ext: _asStr(r['fileExtsn']),
+        size: _asInt(r['fileSize']),
+        width: _asInt(r['fileWidth']),
+        height: _asInt(r['fileHeight']),
+      );
+}
+
+/// 메신저가 그림으로 보여 주는 확장자(DZChatItem.vue와 같음).
+const msgImageExts = {'png', 'webp', 'jpeg', 'jpg', 'bmp', 'gif'};
+
 /// 대화 한 건(P082). contentType: 0=텍스트, 7=삭제 등. sendEmpSeq로 내 메시지 여부 판단.
 class MsgChat {
   const MsgChat({
@@ -122,10 +145,16 @@ class MsgChat {
     required this.contentType,
     required this.timeStamp,
     required this.unReadUserCount,
+    this.files = const [],
+    this.fileExpired = false,
   });
 
   final String chatId, roomId, sendEmpSeq, content, contentType;
   final int timeStamp, unReadUserCount;
+
+  /// 첨부(contentType 1=파일·2=음성·5=동영상 — 이미지도 1, 확장자로 가른다). 파일은 chatId+fileSn으로 받는다.
+  final List<MsgFile> files;
+  final bool fileExpired; // fileDelYn=Y — 보관 기간이 지나 서버에서 지워진 파일
 
   DateTime? get at => timeStamp > 0 ? DateTime.fromMillisecondsSinceEpoch(timeStamp) : null;
   bool get deleted => contentType == '7';
@@ -141,6 +170,8 @@ class MsgChat {
         contentType: _asStr(r['contentType']),
         timeStamp: _asInt(r['timeStamp']),
         unReadUserCount: _asInt(r['unReadUserCount']),
+        files: [for (final f in (r['fileList'] is List ? r['fileList'] as List : const [])) if (f is Map) MsgFile.fromRow(f)],
+        fileExpired: _asStr(r['fileDelYn']) == 'Y',
       );
 
   /// resultData.chatList → 목록(서버 순서 유지).
