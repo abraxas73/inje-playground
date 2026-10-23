@@ -190,6 +190,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
   MessengerApi get _api => ref.read(messengerApiProvider);
 
   final _focusKey = GlobalKey();
+  bool _focused = false; // 검색에서 온 메시지로는 처음 한 번만 옮긴다(실시간 새로고침마다 끌어가지 않게)
   StreamSubscription? _rtSub;
 
   late final MessengerMqtt _mqtt; // dispose에서 ref를 못 쓰므로 미리 잡아 둔다
@@ -210,6 +211,16 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
 
   Future<List<MsgChat>> _load() async {
     final chats = await _api.chats(widget.room.roomId);
+    // 검색에서 온 메시지가 최근 대화에 없으면 더 오래된 대화를 이어 읽는다(최대 10번 — 그 이전이면 방만 연다)
+    final focus = widget.focusChatId;
+    for (var i = 0; focus != null && !_focused && i < 10 && chats.isNotEmpty && !chats.any((c) => c.chatId == focus); i++) {
+      final oldest = chats.map((c) => c.timeStamp).reduce((a, b) => a < b ? a : b);
+      final more = await _api.chats(widget.room.roomId, timeStamp: '$oldest');
+      final seen = {for (final c in chats) c.chatId};
+      final fresh = [for (final c in more) if (!seen.contains(c.chatId)) c];
+      if (fresh.isEmpty) break;
+      chats.addAll(fresh);
+    }
     chats.sort((a, b) => a.timeStamp.compareTo(b.timeStamp)); // 오래된→최신(화면은 reverse로 최신이 아래)
     // 방을 열어 본 것 = 읽음 — 가장 최신 대화까지 읽음 처리(P342). 실패해도 화면은 그대로.
     // 새 대화가 있을 때만 — 읽음 처리가 다시 실시간 신호를 부르고 그 신호가 또 새로고침하는 반복을 막는다.
@@ -217,10 +228,13 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
       _lastRead = chats.last.chatId;
       unawaited(_api.readChat(roomId: widget.room.roomId, chatId: _lastRead!).catchError((_) {}));
     }
-    if (widget.focusChatId != null) {
+    if (focus != null && !_focused) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final ctx = _focusKey.currentContext;
-        if (ctx != null) Scrollable.ensureVisible(ctx, alignment: 0.5, duration: const Duration(milliseconds: 300));
+        if (ctx != null) {
+          _focused = true;
+          Scrollable.ensureVisible(ctx, alignment: 0.5, duration: const Duration(milliseconds: 300));
+        }
       });
     }
     final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
@@ -302,11 +316,8 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
               final chats = snap.data ?? const [];
               if (chats.isEmpty) return Center(child: Text('대화가 없습니다', style: TextStyle(color: Brand.muted)));
               // reverse:true → 맨 아래(최신)부터 보인다. i=0=최신, 올라갈수록 과거. chats는 오름차순이라 j로 뒤집어 읽는다.
-              return ListView.builder(
-                reverse: true,
-                padding: const EdgeInsets.all(12),
-                itemCount: chats.length,
-                itemBuilder: (_, i) {
+              // 찾아갈 메시지가 있으면 모든 줄을 미리 그린다 — 화면 밖 줄은 그려지지 않아 그 자리로 옮길 수 없다
+              Widget item(int i) {
                   final j = chats.length - 1 - i;
                   final c = chats[j];
                   final older = j == 0 ? null : chats[j - 1];
@@ -315,12 +326,14 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
                   return Column(key: focus ? _focusKey : null, children: [
                     if (showDate) _dateDivider(c.at),
                     DecoratedBox(
-                      decoration: BoxDecoration(color: focus ? Brand.blueTint.withValues(alpha: 0.6) : null, borderRadius: BorderRadius.circular(8)),
+                      decoration: BoxDecoration(color: focus ? const Color(0xFFFFE58F) : null, borderRadius: BorderRadius.circular(8)), // 찾은 메시지는 형광 노랑
                       child: _bubble(c, c.sendEmpSeq == myEmpSeq),
                     ),
                   ]);
-                },
-              );
+              }
+              return widget.focusChatId != null
+                  ? SingleChildScrollView(reverse: true, padding: const EdgeInsets.all(12), child: Column(children: [for (var i = chats.length - 1; i >= 0; i--) item(i)]))
+                  : ListView.builder(reverse: true, padding: const EdgeInsets.all(12), itemCount: chats.length, itemBuilder: (_, i) => item(i));
             },
           ),
         ),
@@ -515,7 +528,7 @@ class _MessengerDashboardCardState extends ConsumerState<MessengerDashboardCard>
         padding: const EdgeInsets.fromLTRB(16, 12, 6, 8),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
-            Text('아마란스 메신저', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.muted)),
+            const WidgetTitle('아마란스 메신저'),
             const Spacer(),
             TextButton(onPressed: widget.onMore, child: const Text('메신저 열기', style: TextStyle(fontSize: 12))),
           ]),

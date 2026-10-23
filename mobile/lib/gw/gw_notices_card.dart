@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../app/router.dart' show homeBranch, tabTapProvider;
-import '../app/brand.dart' show widgetTitleStyle;
+import '../app/brand.dart' show WidgetTitle;
 import '../app/theme.dart';
 import 'gw_api.dart';
 import 'gw_creds.dart';
@@ -44,7 +44,7 @@ class _GwNoticesCardState extends ConsumerState<GwNoticesCard> {
       padding: const EdgeInsets.only(top: 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Padding(padding: const EdgeInsets.only(left: 4), child: Text('공지사항', style: widgetTitleStyle.copyWith(color: Brand.navy))),
+          Padding(padding: const EdgeInsets.only(left: 4), child: const WidgetTitle('공지사항')),
           const Spacer(),
           TextButton(onPressed: () => context.push('/gw/board'), child: const Text('더 보기')),
         ]),

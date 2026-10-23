@@ -60,7 +60,7 @@ class BrandHeader extends StatelessWidget implements PreferredSizeWidget {
         padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
         child: Row(children: [
           if (showBack) IconButton(icon: const Icon(Icons.arrow_back, size: 20), tooltip: '뒤로', onPressed: () => Navigator.of(context).maybePop()) else const SizedBox(width: 8),
-          Expanded(child: Text(title, style: widgetTitleStyle.copyWith(color: Brand.navy), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          Expanded(child: Align(alignment: Alignment.centerLeft, child: WidgetTitle(title))),
           if (favoritePath != null) FavoriteStar(path: favoritePath!, title: title),
           if (onRefresh != null) IconButton(icon: const Icon(Icons.refresh, size: 20), tooltip: '새로고침', onPressed: onRefresh),
           ...actions,
@@ -70,6 +70,35 @@ class BrandHeader extends StatelessWidget implements PreferredSizeWidget {
 
 /// 홈 위젯의 제목 글꼴(모든 위젯 공통) — 위젯 머리줄·메신저/Teams 위젯 머리.
 const widgetTitleStyle = TextStyle(fontSize: 15, fontWeight: FontWeight.w800);
+
+/// 홈 위젯 타일의 ⋮ 메뉴 자리 — 타일이 내려 주고, 위젯 제목([WidgetTitle])이 제목 바로 옆에 그린다
+/// (오른쪽 위 구석에 띄우면 위젯 자체 버튼(새로고침·검색·더 보기)을 가렸다). 제목이 맡지 않으면 타일이 구석에 그린다.
+class TileMenuSlot extends InheritedWidget {
+  const TileMenuSlot({super.key, required this.button, required this.claim, required super.child});
+  /// 지금 보일 버튼(마우스가 올라왔거나 메뉴가 열렸거나 Always On일 때), 아니면 null.
+  final Widget? button;
+  /// 제목이 버튼을 맡았다고 알린다(한 번).
+  final VoidCallback claim;
+  static TileMenuSlot? of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<TileMenuSlot>();
+  @override
+  bool updateShouldNotify(TileMenuSlot oldWidget) => oldWidget.button != button;
+}
+
+/// 위젯 제목 — 공통 글꼴, 타일 안이면 바로 옆에 ⋮ 메뉴.
+class WidgetTitle extends StatelessWidget {
+  const WidgetTitle(this.text, {super.key, this.style});
+  final String text;
+  final TextStyle? style;
+  @override
+  Widget build(BuildContext context) {
+    final slot = TileMenuSlot.of(context);
+    if (slot != null) WidgetsBinding.instance.addPostFrameCallback((_) => slot.claim());
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Flexible(child: Text(text, style: style ?? widgetTitleStyle.copyWith(color: Brand.navy), maxLines: 1, overflow: TextOverflow.ellipsis)),
+      if (slot?.button != null) Padding(padding: const EdgeInsets.only(left: 4), child: slot!.button),
+    ]);
+  }
+}
 
 /// 이 아래 화면은 홈 위젯 안에 있다(대시보드 타일·Always On 창) — 머리를 작게, 목록 글꼴을 다른 위젯과 같게.
 class WidgetChrome extends InheritedWidget {

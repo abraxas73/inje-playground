@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:playground/app/brand.dart' show WidgetTitle;
 import 'package:playground/app/theme.dart';
 import 'package:playground/assistant/innobot_prefs.dart';
 import 'package:playground/features/home/dashboard_view.dart';
@@ -47,6 +48,34 @@ void main() {
     expect(find.text('메일 내용'), findsNothing);
     expect((await SharedPreferences.getInstance()).getString('dashboard.pinned.a@innogrid.com'), '[]');
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('대시보드 타일 ⋮ 메뉴는 위젯 제목 바로 옆에(구석에 띄우면 위젯 자체 버튼을 가렸다), 제목 없는 위젯은 구석에', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(MaterialApp(theme: appTheme(), home: Scaffold(body: SingleChildScrollView(child: DashboardView(
+      layout: const [DashboardTile('mails', 0, 0, 6, 3), DashboardTile('quick', 6, 0, 6, 3)],
+      widgets: {
+        'mails': DashboardWidgetDef('메일', Column(children: [Row(children: [const WidgetTitle('메일'), const Spacer(), TextButton(onPressed: () {}, child: const Text('더 보기'))]), const Text('메일 내용')])),
+        'quick': DashboardWidgetDef('바로 가기', const Text('격자')),
+      },
+      editing: false,
+      onChanged: (_) {},
+      onPin: (_, _) {},
+      isPinned: (_) => false,
+    )))));
+    await tester.pumpAndSettle();
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(find.text('메일 내용')));
+    await tester.pumpAndSettle();
+    final btn = find.byTooltip('위젯 옵션');
+    expect(btn, findsOneWidget);
+    expect(find.descendant(of: find.byType(WidgetTitle), matching: btn), findsOneWidget); // 제목 줄 안
+    expect(tester.getCenter(btn).dx, lessThan(tester.getCenter(find.text('더 보기')).dx)); // '더 보기'를 가리지 않음
+    await mouse.moveTo(tester.getCenter(find.text('격자')));
+    await tester.pumpAndSettle();
+    expect(find.descendant(of: find.byType(WidgetTitle), matching: find.byTooltip('위젯 옵션')), findsNothing); // 제목 없는 위젯은 구석
+    expect(find.byTooltip('위젯 옵션'), findsOneWidget);
+  });
 
   testWidgets('대시보드 타일 ⋮ 메뉴: 마우스를 올리면 보이고 Always On을 고르면 onPin(타일 크기)', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1200, 900));

@@ -112,7 +112,7 @@ class _Section extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(top: 14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(padding: const EdgeInsets.only(left: 4, bottom: 6), child: Row(children: [Text(title, style: widgetTitleStyle.copyWith(color: Brand.navy)), const Spacer(), ?trailing])),
+          Padding(padding: const EdgeInsets.only(left: 4, bottom: 6), child: Row(children: [Expanded(child: Align(alignment: Alignment.centerLeft, child: WidgetTitle(title))), ?trailing])),
           Card(child: child),
         ]),
       );
