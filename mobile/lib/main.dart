@@ -21,6 +21,7 @@ import 'config.dart';
 import 'web/app_webview.dart';
 import 'dooray/calendar_webview.dart';
 import 'features/home/pinned_widgets.dart';
+import 'notifications/app_badge.dart';
 import 'telemetry/app_events.dart';
 
 Future<void> main() async {
@@ -142,7 +143,7 @@ class _AppState extends ConsumerState<App> {
       // 모든 네이티브 화면의 글자를 끌어서(데스크톱)·길게 눌러(모바일) 골라 복사 — 이노봇 버튼 레이어는 밖(길게 눌러 옮기기와 겹치지 않게)
       builder: (context, child) {
         Brand.brightness = Theme.of(context).brightness; // 네이티브 화면이 읽는 Brand 토큰을 활성 밝기로 맞춘다
-        return DesktopUpdateHost(child: Stack(children: [DoorayCalendarHost(child: SelectAllText(child: child ?? const SizedBox.shrink())), const Positioned.fill(child: PinnedWidgetsHost()), Overlay(key: assistantWindowOverlay), InnobotOverlay(router: _router)]));
+        return AppBadgeSync(child: DesktopUpdateHost(child: Stack(children: [DoorayCalendarHost(child: SelectAllText(child: child ?? const SizedBox.shrink())), const Positioned.fill(child: PinnedWidgetsHost()), Overlay(key: assistantWindowOverlay), InnobotOverlay(router: _router)])));
       },
     );
   }

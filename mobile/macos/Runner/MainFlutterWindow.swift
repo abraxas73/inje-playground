@@ -60,6 +60,19 @@ class MainFlutterWindow: NSWindow {
       result(nil)
     }
 
+    // 앱 아이콘 배지(lib/notifications/app_badge.dart) — 알림 센터 안 읽은 수를 Dock 아이콘에
+    let badge = FlutterMethodChannel(name: "com.innogrid.playground/badge",
+                                     binaryMessenger: flutterViewController.engine.binaryMessenger)
+    badge.setMethodCallHandler { call, result in
+      guard call.method == "set" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      let n = (call.arguments as? NSNumber)?.intValue ?? 0
+      NSApp.dockTile.badgeLabel = n > 0 ? (n > 99 ? "99+" : String(n)) : nil
+      result(nil)
+    }
+
     super.awakeFromNib()
   }
 }

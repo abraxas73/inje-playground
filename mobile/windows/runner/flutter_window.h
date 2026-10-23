@@ -3,6 +3,8 @@
 
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
+#include <flutter/method_channel.h>
+#include <flutter/encodable_value.h>
 
 #include <memory>
 
@@ -30,6 +32,11 @@ class FlutterWindow : public Win32Window {
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
   std::unique_ptr<DesktopUpdater> desktop_updater_;
+
+  // 앱 아이콘 배지(lib/notifications/app_badge.dart) — 작업 표시줄 단추에 빨간 숫자 겹침 아이콘.
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> badge_channel_;
+  int badge_count_ = 0;
+  void ApplyBadge();
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_
