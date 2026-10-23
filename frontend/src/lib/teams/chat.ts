@@ -5,6 +5,7 @@
 import type { FetchLike } from "@/lib/notify/types";
 import { GRAPH_BASE } from "@/lib/teams-graph";
 import { GraphError, fetchWithRetry } from "@/lib/ms/graph-drive";
+import { byNewest } from "@/lib/teams/sort";
 
 export const CHAT_MESSAGE_MAX = 4000;
 /** Teams 채팅 ID(`19:…@thread.v2`, 1:1은 `19:…@unq.gbl.spaces`). 경로 조각으로 쓰므로 허용 문자만. */
@@ -162,8 +163,9 @@ export async function listMyChats(token: string, meId: string, fetchImpl: FetchL
         lastUpdated: [(c.lastMessagePreview as { createdDateTime?: unknown } | null)?.createdDateTime, c.lastUpdatedDateTime].find((v): v is string => typeof v === "string") ?? null,
       };
     })
-    .sort((a, b) => (b.lastUpdated ?? "").localeCompare(a.lastUpdated ?? ""));
+    .sort(byNewest);
 }
+
 
 export async function getChatInfo(token: string, chatId: string, fetchImpl: FetchLike = fetch): Promise<{ id: string; topic: string | null; webUrl: string | null }> {
   const j = (await graph(token, `${GRAPH_BASE}/chats/${encodeURIComponent(chatId)}?$select=id,topic,webUrl,chatType`, {}, fetchImpl)) as Record<string, unknown>;

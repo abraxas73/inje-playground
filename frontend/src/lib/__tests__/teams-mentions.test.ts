@@ -80,3 +80,17 @@ describe("needsReply — 질문·요청만 답장 대기", () => {
     expect(out).toEqual([]);
   });
 });
+
+describe("byNewest — 채팅 목록 최신 순", () => {
+  it("날짜까지 비교하고, 소수점 자릿수가 달라도·시각 없으면 맨 아래", async () => {
+    const { byNewest } = await import("@/lib/teams/sort");
+    const list = [
+      { id: "어제 23:59", lastUpdated: "2026-10-22T14:59:00.1234567Z" },
+      { id: "없음", lastUpdated: null },
+      { id: "오늘 09:15", lastUpdated: "2026-10-23T00:15:00Z" },
+      { id: "오늘 09:41", lastUpdated: "2026-10-23T00:41:00.5Z" },
+      { id: "그제 10:00", lastUpdated: "2026-10-21T01:00:00Z" },
+    ];
+    expect([...list].sort(byNewest).map((c) => c.id)).toEqual(["오늘 09:41", "오늘 09:15", "어제 23:59", "그제 10:00", "없음"]);
+  });
+});

@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useEnterToSend } from "@/hooks/useEnterToSend";
 import { initialChatId } from "@/lib/home";
+import { byNewest } from "@/lib/teams/sort";
 import { cn } from "@/lib/utils";
 
 /**
@@ -88,7 +89,7 @@ export default function TeamsChatPage() {
     setInfo((i) => {
       const cur = i?.chats?.find((c) => c.id === chatId);
       if (!i?.chats || !cur || (cur.lastUpdated ?? "") >= newest) return i;
-      const chats = i.chats.map((c) => (c.id === chatId ? { ...c, lastUpdated: newest } : c)).sort((a, b) => (b.lastUpdated ?? "").localeCompare(a.lastUpdated ?? ""));
+      const chats = i.chats.map((c) => (c.id === chatId ? { ...c, lastUpdated: newest } : c)).sort(byNewest);
       return { ...i, chats };
     });
   }, [chatId]);
