@@ -86,7 +86,11 @@ it("POST /api/teams/chat/messages — chat·text 검증(400), 정상이면 Graph
 
 it("GET /api/teams/chat/search — 검색어 2~100자, Microsoft Search로 채팅 메시지만(채널 제외)·요약 강조 태그 제거, 403은 409", async () => {
   expect((await searchGET(req("/api/teams/chat/search?q=a"))).status).toBe(400);
+  const before = await searchGET(req("/api/teams/chat/search?q=견적"));
+  expect(before.status).toBe(409);
+  expect((await before.json()).code).toBe("reconnect_search");
   expect(m.fetch).not.toHaveBeenCalled();
+  m.status = { connected: true, scopes: ["User.Read", "Chat.ReadWrite", "ChannelMessage.Read.All"] };
   m.fetch.mockResolvedValue(json(200, { value: [{ hitsContainers: [{ hits: [
     { summary: "...<c0>견적</c0>서 보냈습니다 &amp; 확인", resource: { id: "1", chatId: CHAT, createdDateTime: "2026-10-23T01:00:00Z", from: { emailAddress: { name: "김민준" } } } },
     { summary: "채널 글", resource: { id: "2", channelIdentity: { channelId: "c" } } },

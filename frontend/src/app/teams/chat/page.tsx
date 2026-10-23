@@ -52,6 +52,7 @@ export default function TeamsChatPage() {
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchReconnect, setSearchReconnect] = useState(false);
   const sinceRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -160,11 +161,16 @@ export default function TeamsChatPage() {
   const searchMessages = async () => {
     const q = query.trim();
     if (q.length < 2 || searching) return;
-    setSearching(true); setSearchError(null);
+    setSearching(true); setSearchError(null); setSearchReconnect(false);
     try {
       const r = await fetch(`/api/teams/chat/search?${new URLSearchParams({ q })}`);
       const j = await readJson(r);
-      if (!r.ok || !Array.isArray(j.hits)) { setHits(null); setSearchError(typeof j.error === "string" ? j.error : `검색하지 못했습니다 (${r.status})`); return; }
+      if (!r.ok || !Array.isArray(j.hits)) {
+        setHits(null);
+        setSearchError(typeof j.error === "string" ? j.error : `검색하지 못했습니다 (${r.status})`);
+        setSearchReconnect(j.code === "reconnect_search" || j.code === "reconnect");
+        return;
+      }
       setHits(j.hits as Hit[]);
     } catch {
       setSearchError("검색하지 못했습니다. 네트워크 연결을 확인해 주세요.");
@@ -172,7 +178,7 @@ export default function TeamsChatPage() {
       setSearching(false);
     }
   };
-  const clearSearch = () => { setQuery(""); setHits(null); setSearchError(null); };
+  const clearSearch = () => { setQuery(""); setHits(null); setSearchError(null); setSearchReconnect(false); };
 
   const enterKeys = useEnterToSend((v) => { void send(v); });
 
@@ -223,7 +229,7 @@ export default function TeamsChatPage() {
           </Button>
         </form>
         <div className="flex-1 overflow-y-auto">
-          {searchError && <p className="px-4 py-2 text-xs text-destructive">{searchError}</p>}
+          {searchError && <p className="px-4 py-2 text-xs text-destructive">{searchError}{searchReconnect && <> <a href={connectHref} className="font-medium underline">다시 연결</a></>}</p>}
           {hits && (
             <div className="border-b">
               <p className="bg-muted/50 px-4 py-1.5 text-xs font-medium text-muted-foreground">메시지 검색 결과 {hits.length}건{hits.length >= 25 ? "(관련도 높은 25건)" : ""}</p>

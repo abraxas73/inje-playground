@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
+import { getConnectionStatus } from "@/lib/ms/connections";
+import { TEAMS_SEARCH_SCOPE } from "@/lib/ms/oauth";
 import { graphTokenForRoute } from "@/lib/ms/route-token";
 import { CHAT_SEARCH_MAX, CHAT_SEARCH_MIN, searchChatMessages } from "@/lib/teams/chat";
 import { graphErrorResponse } from "@/lib/teams/chat-route";
@@ -12,6 +14,11 @@ export async function GET(request: NextRequest) {
   if (q.length < CHAT_SEARCH_MIN || q.length > CHAT_SEARCH_MAX) return NextResponse.json({ error: `검색어는 ${CHAT_SEARCH_MIN}~${CHAT_SEARCH_MAX}자로 입력하세요.` }, { status: 400 });
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
+  // 검색 권한은 2026-10-23에 추가 — 그 전에 연결한 사람은 다시 연결해야 토큰에 들어온다
+  const status = await getConnectionStatus(auth.admin, auth.userId);
+  if (status.connected && !status.scopes.includes(TEAMS_SEARCH_SCOPE)) {
+    return NextResponse.json({ error: "메시지 검색 권한이 아직 없습니다. Microsoft 계정을 다시 연결하면 권한이 추가됩니다.", code: "reconnect_search" }, { status: 409 });
+  }
   const tok = await graphTokenForRoute(auth.admin, auth.userId);
   if (!tok.ok) return tok.response;
   try {
