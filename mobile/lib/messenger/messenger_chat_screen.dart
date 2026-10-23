@@ -90,7 +90,7 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: BrandHeader(
+      appBar: BrandHeader(compact: WidgetChrome.of(context), 
         title: '메신저',
         showBack: !widget.embedded,
         onRefresh: _refresh,
@@ -152,8 +152,10 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
             ),
           ),
       ]),
-      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(r.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Brand.muted)),
+      // 위젯 안에서는 다른 위젯과 같은 글꼴(제목 14·보조 12)
+      dense: WidgetChrome.of(context),
+      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: WidgetChrome.of(context) ? const TextStyle(fontSize: 14, fontWeight: FontWeight.w600) : null),
+      subtitle: Text(r.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Brand.muted, fontSize: WidgetChrome.of(context) ? 12 : null)),
       trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
         if (r.lastAt != null) Text(roomWhen(r.lastAt!), style: TextStyle(fontSize: 12, color: Brand.faint)),
         if (r.unreadCount > 0) ...[
@@ -162,7 +164,7 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
         ],
       ]),
       // 방에서 돌아오면 목록을 다시 읽어 안 읽음 수를 갱신
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r))).then((_) { if (mounted) _refresh(); }),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r.withTitle(title)))).then((_) { if (mounted) _refresh(); }),
     );
   }
 
@@ -264,7 +266,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
   Widget build(BuildContext context) {
     final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
     return Scaffold(
-      appBar: BrandHeader(
+      appBar: BrandHeader(compact: WidgetChrome.of(context), 
         title: widget.room.title,
         showBack: true,
         onRefresh: _refresh,
@@ -549,7 +551,7 @@ class _MessengerDashboardCardState extends ConsumerState<MessengerDashboardCard>
                         Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Brand.botViolet, borderRadius: BorderRadius.circular(9)), child: Text('${r.unreadCount}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600))),
                       ],
                     ]),
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r))).then((_) { if (mounted) setState(() { _future = _load(); }); }),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r.withTitle(r.titleWith(_names, my))))).then((_) { if (mounted) setState(() { _future = _load(); }); }),
                   ),
               ]);
             },
@@ -569,8 +571,10 @@ class MessengerPanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Material(
           color: Brand.surface,
-          child: Navigator(
-            onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => const MessengerChatScreen(embedded: true)),
+          child: WidgetChrome(
+            child: Navigator(
+              onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => const MessengerChatScreen(embedded: true)),
+            ),
           ),
         ),
       );

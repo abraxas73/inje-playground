@@ -25,4 +25,10 @@ void main() {
     expect(roomWhen(DateTime.utc(2026, 10, 22, 15, 10), now: now), '00:10'); // 23일 00:10 KST = 오늘
     expect(roomWhen(DateTime.utc(2026, 10, 21, 2), now: now), '10/21');
   });
+  test('방 화면에는 목록에서 풀어 낸 이름이 제목으로(2명 대화 대신)', () {
+    final r = room('r1', DateTime.utc(2026, 10, 23));
+    expect(r.withTitle('유민성').title, '유민성');
+    expect(r.withTitle('유민성').roomId, 'r1');
+    expect(r.withTitle('').title, r.title);
+  });
 }

@@ -50,6 +50,10 @@ class MsgRoom {
   List<String> unresolvedSeqs(String myEmpSeq) =>
       [for (final s in receiverSeqs) if (s != myEmpSeq && (receiverNames[s] ?? '').isEmpty) s];
 
+  /// 목록에서 이름을 풀어 만든 제목으로 바꾼 사본 — 방 화면 머리에 '2명 대화' 대신 사람 이름이 보이게.
+  MsgRoom withTitle(String t) => t.isEmpty ? this : MsgRoom(
+      roomId: roomId, roomType: roomType, title: t, rawTitle: rawTitle, lastChat: lastChat, lastChatTimeStamp: lastChatTimeStamp, unreadCount: unreadCount,
+      contentType: contentType, alarmOn: alarmOn, receiverSeqs: receiverSeqs, receiverNames: receiverNames);
   DateTime? get lastAt => lastChatTimeStamp > 0 ? DateTime.fromMillisecondsSinceEpoch(lastChatTimeStamp) : null;
 
   /// contentType별 마지막 대화 미리보기(사다리·삭제·화상·파일 등은 치환).

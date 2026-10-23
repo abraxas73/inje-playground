@@ -112,7 +112,7 @@ class _Section extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(top: 14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(padding: const EdgeInsets.only(left: 4, bottom: 6), child: Row(children: [Text(title, style: Theme.of(context).textTheme.titleSmall), const Spacer(), ?trailing])),
+          Padding(padding: const EdgeInsets.only(left: 4, bottom: 6), child: Row(children: [Text(title, style: widgetTitleStyle.copyWith(color: Brand.navy)), const Spacer(), ?trailing])),
           Card(child: child),
         ]),
       );
@@ -297,7 +297,7 @@ class JiraSection extends StatelessWidget {
     if (!data.connected || data.items.isEmpty) return const SizedBox.shrink();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Expanded(child: Text('Jira 미완료·진행 중 ${data.items.length}${data.hasMore ? '+' : ''}', style: Theme.of(context).textTheme.titleSmall)),
+        Expanded(child: Text('Jira 미완료·진행 중 ${data.items.length}${data.hasMore ? '+' : ''}', style: widgetTitleStyle.copyWith(color: Brand.navy))),
         _more('전체 목록', onMore),
       ]),
       Table(
@@ -428,7 +428,7 @@ class DooraySection extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!data.visible) return const SizedBox.shrink();
     Widget rows(String title, List<DoorayBriefingItem> items, String? error) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(title, style: Theme.of(context).textTheme.titleSmall)),
+      Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(title, style: widgetTitleStyle.copyWith(color: Brand.navy))),
       if (error != null)
         Row(children: [const Expanded(child: Text('불러오지 못했습니다.', style: TextStyle(color: Brand.dangerText))), if (onRetry != null) TextButton(onPressed: onRetry, child: const Text('다시 시도'))])
       else Table(columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth()}, children: [

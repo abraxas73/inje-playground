@@ -477,7 +477,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             ]);
             }),
             const SizedBox(height: 20),
-            Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('바로 가기', style: theme.textTheme.titleSmall)),
+            Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('바로 가기', style: widgetTitleStyle.copyWith(color: Brand.navy))),
             ServiceCardGrid(
               children: [
                 // Teams 채팅이 맨 앞(사용자 요청) — 권한이 있을 때만. WebView로 연다.
@@ -490,7 +490,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             ),
             if (session != null && webServices(session).isNotEmpty) ...[
               const SizedBox(height: 20),
-              Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('사내 서비스', style: theme.textTheme.titleSmall)),
+              Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text('사내 서비스', style: widgetTitleStyle.copyWith(color: Brand.navy))),
               ServiceGrid(session: session),
             ],
           ]),

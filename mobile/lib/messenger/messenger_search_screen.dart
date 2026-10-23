@@ -54,7 +54,7 @@ class _MessengerSearchScreenState extends ConsumerState<MessengerSearchScreen> {
   Widget build(BuildContext context) {
     final myEmpSeq = ref.read(messengerClientProvider).session?.empSeq ?? '';
     return Scaffold(
-      appBar: BrandHeader(title: '메신저 검색', showBack: true),
+      appBar: BrandHeader(compact: WidgetChrome.of(context), title: '메신저 검색', showBack: true),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -94,7 +94,7 @@ class _MessengerSearchScreenState extends ConsumerState<MessengerSearchScreen> {
                 leading: InitialBadge(r.titleWith(_names, myEmpSeq)),
                 title: Text(r.titleWith(_names, myEmpSeq), maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text(r.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Brand.muted)),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r))),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: r.withTitle(r.titleWith(_names, myEmpSeq))))),
               ),
           ],
           if (chats.isNotEmpty) ...[

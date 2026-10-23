@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../app/brand.dart' show widgetTitleStyle;
 import '../../app/theme.dart';
 import 'dashboard_style.dart';
 import 'home_dashboard.dart';
@@ -27,7 +28,7 @@ class DashboardPlaceholder extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.muted)),
+            Text(title, style: widgetTitleStyle.copyWith(color: Brand.navy)),
             Expanded(
               child: Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
