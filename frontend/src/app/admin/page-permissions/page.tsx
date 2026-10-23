@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Loader2, Search, ShieldCheck, Save, RotateCcw } from "lucide-react";
-import { DEFAULT_DENIED_PAGES, PAGE_GROUPS, PAGES, canUsePage, type PagePermissions, type PageKey } from "@/lib/page-access";
+import { ADMIN_PAGE_GROUPS, DEFAULT_DENIED_PAGES, PAGES, canUsePage, type PagePermissions, type PageKey } from "@/lib/page-access";
 import type { UserRole } from "@/lib/roles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -101,7 +101,7 @@ export default function PagePermissionsPage() {
             <p className="text-xs text-muted-foreground">{selected.role === "admin" ? "관리자는 일반 페이지의 개별 제한을 받지 않습니다. 마케팅 Master DB만 기본 차단이라 여기서 허용할 수 있습니다." : "차단하면 메뉴·홈 카드와 직접 주소·관련 API 접근이 제한됩니다. 기존 역할보다 높은 권한은 부여할 수 없습니다. 마케팅 Master DB 허용은 조회·Contact 제출 권한이며 승인은 마케팅 화면의 검수자 지정이 필요합니다."}</p>
           </CardHeader>
           <CardContent className="space-y-6 pt-5">
-            {PAGE_GROUPS.map((group) => {
+            {ADMIN_PAGE_GROUPS.map((group) => {
               const pages = PAGES.filter((p) => p.group === group.id);
               const editable = pages.filter((p) => canUsePage(selected.role, p.key) && editableForRole(selected.role, p.key));
               const allAllowed = editable.every((p) => canUsePage(selected.role, p.key, draft));

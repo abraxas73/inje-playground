@@ -8,6 +8,7 @@ import 'package:playground/gw/gw_api.dart';
 import 'package:playground/gw/gw_client.dart';
 import 'package:playground/gw/gw_connect_screen.dart';
 import 'package:playground/gw/gw_gate.dart';
+import 'package:playground/telemetry/app_events.dart';
 import 'fakes.dart';
 
 http.Response ok(Object data) => http.Response.bytes(utf8.encode(jsonEncode({'resultCode': 0, 'resultData': data})), 200, headers: {'content-type': 'application/json; charset=utf-8'}) /* 한글 본문은 latin1 기본 인코딩에서 ArgumentError */;
@@ -57,6 +58,19 @@ void main() {
     await tester.tap(find.text('직접 로그인'));
     await tester.pumpAndSettle();
     expect(find.textContaining('자동 로그인 중'), findsNothing);
+  });
+  testWidgets('연결 화면: 자동 로그인이 워치독(12초)으로 끝나면 gw_login_failed watchdog을 보고한다', (tester) async {
+    final sent = <Map<String, String>>[];
+    appEvents.sender = (b) async => sent.addAll(b);
+    addTearDown(() => appEvents.sender = null);
+    FlutterSecureStorage.setMockInitialValues({'gw.loginId': 'me', 'gw.loginPw': 'pw'});
+    await tester.pumpWidget(gwScope(http: MockClient((_) async => ok(session)), child: GwConnectScreen(webView: () => const Text('WEBVIEW'))));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 13));
+    expect(find.textContaining('자동 로그인이 지연됩니다'), findsOneWidget);
+    await appEvents.flush();
+    expect(sent.map((e) => '${e['kind']}:${e['code']}'), ['gw_login_failed:watchdog']);
+    expect(sent.toString(), isNot(contains('me')) /* 아이디·비밀번호는 보내지 않는다 */);
   });
   test('1초 감시는 앱이 가리고 자동 입력할 때만(사람이 입력하는 동안은 페이지 이동 신호로만 — iOS 27 키보드 닫힘)', () {
     expect(gwShouldPoll(auto: true, busy: false), isTrue);

@@ -21,9 +21,11 @@ import 'config.dart';
 import 'web/app_webview.dart';
 import 'dooray/calendar_webview.dart';
 import 'features/home/pinned_widgets.dart';
+import 'telemetry/app_events.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  _hookErrorReports();
   await AppWebController.initializeWindows();
   await Supabase.initialize(
     url: Config.supabaseUrl,
@@ -36,6 +38,21 @@ Future<void> main() async {
     fabsHidden = (await SharedPreferences.getInstance()).getBool(InnobotFabsHidden.key) ?? false;
   } catch (_) {}
   runApp(ProviderScope(overrides: [innobotFabsHiddenInitialProvider.overrideWithValue(fabsHidden)], child: const App()));
+}
+
+/// 미처리 예외의 **타입 이름만** 앱 이벤트로 보고하고 기존 처리(콘솔 출력 등)는 그대로 잇는다. 메시지·스택은 보내지 않는다.
+void _hookErrorReports() {
+  final prevFlutter = FlutterError.onError;
+  FlutterError.onError = (d) {
+    appEvents.report('app_error', errorTypeName(d.exception));
+    prevFlutter?.call(d);
+  };
+  final dispatcher = WidgetsBinding.instance.platformDispatcher;
+  final prevPlatform = dispatcher.onError;
+  dispatcher.onError = (e, s) {
+    appEvents.report('app_error', errorTypeName(e));
+    return prevPlatform?.call(e, s) ?? false;
+  };
 }
 
 class App extends ConsumerStatefulWidget {
@@ -58,6 +75,13 @@ class _AppState extends ConsumerState<App> {
     _router.routerDelegate.addListener(_auditPage);
     WidgetsBinding.instance.addPostFrameCallback((_) => _auditPage());
     messengerNotifyTap.addListener(_onNotifyTap); // OS 알림 탭 → 우리 앱 화면으로
+    // 장애 신호 보고(/api/app/events) — 개발 빌드는 보내지 않고, 로그인 전이면 버린다
+    if (Config.appVersion != 'dev') {
+      appEvents.sender = (events) async {
+        if (Supabase.instance.client.auth.currentUser == null) return;
+        await ref.read(apiClientProvider).postJson('/api/app/events', {'events': events});
+      };
+    }
   }
 
   /// 메신저 OS 알림을 누르면 그 경로로 이동(push는 내비게이터 틀 안에 쌓는다). 한 번 처리하고 비운다.

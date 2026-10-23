@@ -13,7 +13,8 @@ it("explains one-click desktop updates and the first manual-install migration", 
 });
 it("covers every service in the navigation catalog (except the retired guide key)", () => {
   const links = manualSections.flatMap((s) => s.links?.map((l) => l.href) ?? []);
-  for (const p of PAGES.filter((x) => x.key !== "guide")) expect(links, p.label).toContain(p.href);
+  // 앱 전용 아마란스 키(gw_*, 웹 주소 없음)는 앱 절이 다룬다 — 웹 링크 대상은 gw_mail만
+  for (const p of PAGES.filter((x) => x.key !== "guide" && (x.group !== "gw" || x.key === "gw_mail"))) expect(links, p.label).toContain(p.href);
   expect(new Set(manualSections.map((s) => s.id)).size).toBe(manualSections.length);
 });
 it("finds instructions by step text and case-insensitive search", () => {
@@ -47,7 +48,19 @@ it("앱 기능 절은 목차와 제목에 (모바일·데스크톱 앱) 표시�
   render(<ManualPage />);
   expect(screen.getAllByText("(모바일·데스크톱 앱)").length).toBeGreaterThanOrEqual(5);
   expect(screen.getAllByText("(데스크톱 앱)").length).toBeGreaterThanOrEqual(2);
-  expect(screen.getAllByText("모바일·데스크톱 앱 · 데스크톱 앱").length).toBe(2); // 멘션 알림·Claude 커넥터
+  expect(screen.getAllByText("모바일·데스크톱 앱 · 데스크톱 앱").length).toBe(5); // 멘션 알림·Claude 커넥터·버튼 숨기기·위젯 대시보드·Always On
   expect(searchManual("데스크톱 앱").map((s) => s.id)).toContain("desktop-mentions");
   expect(searchManual("안 읽음으로 되돌리기").map((s) => s.id)).toEqual(expect.arrayContaining(["gw-mail"]));
+});
+it("앱 전용 기능 절(대시보드·Always On·알림 센터·메신저·테마·잠금 화면·즐겨찾기·버튼 숨기기)이 검색된다", () => {
+  const ids = (q: string) => searchManual(q).map((s) => s.id);
+  expect(ids("자동 배열")).toContain("desktop-dashboard");
+  expect(ids("Always On")).toContain("desktop-pinned");
+  expect(ids("모두 읽음")).toContain("app-notifications");
+  expect(ids("쪽지")).toContain("app-messenger");
+  expect(ids("다크")).toContain("app-theme");
+  expect(ids("라이브 액티비티")).toContain("app-lock-briefing");
+  expect(ids("☆")).toContain("app-favorites");
+  expect(ids("버튼 숨기기")).toContain("app-fabs-hide");
+  expect(manualSections.find((s) => s.id === "mobile-home")!.steps.join(" ")).toContain("위젯 대시보드");
 });

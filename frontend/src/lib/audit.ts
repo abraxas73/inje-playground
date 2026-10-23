@@ -10,7 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** 액션 분류. 화면 필터의 선택지가 되므로 새 값을 넣을 땐 라벨도 함께 추가한다. */
-export const AUDIT_CATEGORIES = ["auth", "admin", "users", "settings", "guide", "rfp", "ppt", "usage", "ladder", "team", "food", "survey", "api", "mcp", "dooray", "desktop"] as const;
+export const AUDIT_CATEGORIES = ["auth", "admin", "users", "settings", "guide", "rfp", "ppt", "usage", "ladder", "team", "food", "survey", "api", "mcp", "dooray", "desktop", "page", "assistant", "gw", "proposal", "teams", "sharepoint", "confluence", "jira", "marketing", "personnel", "mobile"] as const;
 export type AuditCategory = (typeof AUDIT_CATEGORIES)[number] | string;
 
 export const AUDIT_KIND_LABEL: Record<string, string> = {
@@ -39,6 +39,16 @@ export const AUDIT_CATEGORY_LABEL: Record<string, string> = {
   survey: "설문",
   api: "API",
   mcp: "Claude 커넥터",
+  assistant: "이노봇",
+  gw: "아마란스",
+  proposal: "제안도우미",
+  teams: "Teams",
+  sharepoint: "SharePoint",
+  confluence: "Confluence",
+  jira: "Jira",
+  marketing: "마케팅",
+  personnel: "인사·부고",
+  mobile: "모바일 앱",
 };
 
 export interface AuditActor {

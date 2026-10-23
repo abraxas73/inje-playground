@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:playground/telemetry/app_events.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:playground/gw/gw_client.dart';
@@ -41,6 +42,16 @@ void main() {
     await expectLater(c.call('/p', {}), throwsA(isA<GwUnauthorized>().having((e) => e.message.contains('g|7|s'), 'leak', false)));
     await Future<void>.delayed(const Duration(milliseconds: 10)); // 세션 조회로 한 번 더 확인한 뒤에 알린다
     expect(called, 1);
+  });
+  test('재확인도 401이면 앱 이벤트 gw_unauthorized를 보고한다', () async {
+    final sent = <Map<String, String>>[];
+    appEvents.sender = (b) async => sent.addAll(b);
+    addTearDown(() => appEvents.sender = null);
+    final c = client(MockClient((_) async => http.Response('{"resultCode":140}', 401)), onUnauthorized: () {});
+    await expectLater(c.call('/p', {}), throwsA(isA<GwUnauthorized>()));
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await appEvents.flush();
+    expect(sent.map((e) => '${e['kind']}:${e['code']}'), ['gw_unauthorized:session_expired']);
   });
   test('401이어도 세션 조회가 통하면 만료로 알리지 않는다(앱을 다시 켜면 되던 거짓 만료), 동시 401은 확인 한 번', () async {
     var called = 0, checks = 0;

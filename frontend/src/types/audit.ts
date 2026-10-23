@@ -26,3 +26,14 @@ export interface AuditResponse {
   /** 필터 선택지(현재 데이터에 있는 카테고리) */
   categories: string[];
 }
+
+/** GET /api/admin/audit/usage — 기능별 사용 요약(건수·고유 사용자 수만, 개인 식별 정보 없음) */
+export interface FeatureUsageResponse {
+  from: string;
+  to: string;
+  categories: Array<{ category: string; label: string; count: number; users: number }>;
+  pages: Array<{ key: string; label: string; count: number; users: number }>;
+  platforms: Array<{ platform: string; users: number }>;
+  /** 기간 안에 로그인 기록이 있는 고유 사용자 수(플랫폼 합계는 여러 플랫폼 사용자를 중복으로 센다) */
+  loginUsers: number;
+}

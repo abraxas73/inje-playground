@@ -9,6 +9,7 @@ import 'gw_client.dart';
 import 'gw_creds.dart';
 import 'gw_login_js.dart';
 import 'gw_login_store.dart';
+import '../telemetry/app_events.dart';
 
 const gwOrigin = 'https://gw.innogrid.com';
 
@@ -81,6 +82,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
     _autoWatch = Timer(const Duration(seconds: 12), () async {
       await _tick(); // 그사이 로그인이 끝났을 수 있다(아마란스 응답이 느린 날) — 쿠키부터 한 번 더 본다
       if (mounted && _auto && !_busy) {
+        appEvents.report('gw_login_failed', 'watchdog');
         setState(() {
           // 오류 경로와 같게: 아이디를 채운 네이티브 입력 폼으로 떨어뜨린다(플랫폼 무관하게 안전).
           if (_login != null && _idCtl.text.isEmpty) _idCtl.text = _login!.id;
@@ -132,13 +134,14 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
         case FillAction.fillId:
           _idDone = true;
           setState(() => _status = '아이디 입력 중…');
-          await c.runJavaScript(fillJs(selector: '#reqLoginId', value: _login!.id, submitText: '다음'));
+          _reportFill(await c.runJavaScriptReturningResult(fillJs(selector: '#reqLoginId', value: _login!.id, submitText: '다음')));
         case FillAction.fillPw:
           _pwDone = true;
           setState(() => _status = '비밀번호 입력 중…');
-          await c.runJavaScript(fillJs(selector: '#reqLoginPw', value: _login!.pw, submitText: '로그인'));
+          _reportFill(await c.runJavaScriptReturningResult(fillJs(selector: '#reqLoginPw', value: _login!.pw, submitText: '로그인')));
         case FillAction.reveal:
           _autoWatch?.cancel(); // 수동/재시도로 전환 — 워치독 불필요
+          appEvents.report('gw_login_failed', probe.hasOtp ? 'otp' : 'reveal_error');
           setState(() {
             if (probe.hasOtp) {
               _manual = true;
@@ -159,6 +162,12 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
     }
   }
 
+  /// 입력칸·버튼을 못 찾았으면(로그인 페이지 DOM 변경 의심) 보고만 한다 — 화면 처리는 워치독이 맡는다.
+  void _reportFill(Object? result) {
+    final code = fillFailureCode(result);
+    if (code != null) appEvents.report('gw_login_failed', code);
+  }
+
   Future<void> _finish(String raw) async {
     _autoWatch?.cancel();
     setState(() { _busy = true; _error = null; _status = '로그인을 확인하는 중…'; });
@@ -168,6 +177,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
       await ref.read(gwProvider.notifier).connect(creds);
       if (mounted) Navigator.of(context).pop(true); // 성공 즉시 닫는다 — 아마란스 메인은 볼 필요 없다
     } on GwException catch (e) {
+      appEvents.report('gw_login_failed', 'verify_failed');
       if (mounted) setState(() { _error = '로그인을 확인하지 못했습니다: ${e.message}'; _manual = true; });
     } finally {
       if (mounted) setState(() => _busy = false);

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { PAGES, PAGE_GROUPS, pagesForPath, canOpenPage } from "@/lib/page-access";
+import { ADMIN_PAGE_GROUPS, PAGES, PAGE_GROUPS, pagesForPath, canOpenPage } from "@/lib/page-access";
 import { callApp, parseDetail, parseInbox, parseSearch, splitRecipients } from "@/lib/gw/mail";
 import MailPage from "@/app/gw/mail/page";
 
@@ -13,14 +13,18 @@ afterEach(() => { vi.unstubAllGlobals(); relay.relayToolCall.mockReset(); });
 describe("메뉴 카탈로그 — 앱 하단 바와 같은 상위·하위 구조", () => {
   it("상위 메뉴 3개(일상·AI·업무)와 메일 키(메뉴 숨김)·API 매핑", () => {
     expect(PAGE_GROUPS.map((g) => [g.id, g.label])).toEqual([["daily", "일상"], ["ai", "AI"], ["work", "업무"]]); // 앱 전용 '아마란스' 그룹은 웹 메뉴에 없다
-    expect(PAGES.find((p) => p.key === "gw_mail")).toMatchObject({ href: "/gw/mail", group: "work", minRole: "user", hidden: true });
+    expect(PAGES.find((p) => p.key === "gw_mail")).toMatchObject({ href: "/gw/mail", group: "gw", minRole: "user", hidden: true });
+    // 앱 catalog.dart appPages의 아마란스 8개 키가 모두 관리자 권한 화면의 '아마란스(앱)' 묶음에 있다(웹 메뉴에는 숨김)
+    expect(PAGES.filter((p) => p.group === "gw").map((p) => p.key)).toEqual(["gw_mail", "gw_approvals", "gw_attendance", "gw_today", "gw_board", "gw_messenger", "gw_notes", "gw_attend"]);
+    expect(PAGES.filter((p) => p.group === "gw").every((p) => "hidden" in p && p.hidden && p.minRole === "user")).toBe(true);
+    expect(ADMIN_PAGE_GROUPS.at(-1)).toEqual({ id: "gw", label: "아마란스(앱)" });
     expect(pagesForPath("/gw/mail")).toEqual(["gw_mail"]);
     expect(pagesForPath("/api/gw/mail/123/unread")).toEqual(["gw_mail"]);
     expect(canOpenPage("user", "/gw/mail", { gw_mail: false })).toBe(false);
     expect(canOpenPage("guest", "/gw/mail")).toBe(false);
   });
-  it("DB 권한 함수의 키 목록(docs/sql/2026-10-20-proposal-general.sql)이 웹 카탈로그와 같다", () => {
-    const sql = readFileSync(resolve(process.cwd(), "..", "docs", "sql", "2026-10-20-proposal-general.sql"), "utf8");
+  it("DB 권한 함수의 키 목록(docs/sql/2026-10-23-gw-app-page-keys.sql)이 웹 카탈로그와 같다", () => {
+    const sql = readFileSync(resolve(process.cwd(), "..", "docs", "sql", "2026-10-23-gw-app-page-keys.sql"), "utf8");
     const lists = [...sql.matchAll(/\(('[a-z_]+'(?:,'[a-z_]+')+)\)/g)].map((m) => m[1].replace(/'/g, "").split(",")).filter((l) => l.length > 10);
     expect(lists.length).toBeGreaterThanOrEqual(2); // valid_page_permissions · has_page_access
     expect(lists[0]).toContain("marketing"); // has_page_access는 marketing을 별도 분기로 다뤄 목록에 없다

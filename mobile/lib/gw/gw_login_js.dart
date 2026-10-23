@@ -39,6 +39,12 @@ el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('
 var btn=Array.prototype.find.call(document.querySelectorAll('button'),function(b){var r=b.getBoundingClientRect();return r.width>0&&b.innerText.trim()===${jsonEncode(submitText)};});
 if(!btn)return 'no-button';setTimeout(function(){btn.click();},80);return 'ok';})();''';
 
+/// fillJs 결과 → 실패 사유 코드(no_field·no_button), 성공·알 수 없음은 null. iOS는 문자열을 따옴표로 한 번 더 감싸 돌려줄 수 있다.
+String? fillFailureCode(Object? raw) {
+  final v = raw?.toString().replaceAll('"', '').trim();
+  return v == 'no-field' ? 'no_field' : v == 'no-button' ? 'no_button' : null;
+}
+
 class GwProbe {
   const GwProbe({required this.hasId, required this.hasPw, required this.hasOtp, required this.error});
   final bool hasId, hasPw, hasOtp;

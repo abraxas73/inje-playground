@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { AUTH_EVENT_ACTION, isAuthEvent, requestContext, toAuthProvider } from "@/lib/audit";
+import { AUDIT_CATEGORY_LABEL, AUTH_EVENT_ACTION, isAuthEvent, requestContext, toAuthProvider } from "@/lib/audit";
 import { auditCategoryFor, shouldAuditRequest } from "@/lib/audit-proxy";
+import { summarizeFeatureUsage, USAGE_PLATFORMS } from "@/lib/audit-usage";
 import { kstRange, pageRange, parseAuditQuery, sanitizeSearch, searchOrFilter, AUDIT_PAGE_SIZE_MAX } from "@/lib/audit-query";
 
 const req = (headers: Record<string, string>) => ({ headers: new Headers(headers) });
@@ -39,7 +40,9 @@ describe("auditCategoryFor", () => {
   it("경로에서 카테고리를 뽑는다", () => {
     expect(auditCategoryFor("/api/admin/rfp-catalog/solutions/secloudit/import")).toBe("rfp");
     expect(auditCategoryFor("/api/admin/surveys/1")).toBe("survey");
-    expect(auditCategoryFor("/api/admin/claude-usage/imports")).toBe("admin");
+    expect(auditCategoryFor("/api/admin/claude-usage/imports")).toBe("usage");
+    expect(auditCategoryFor("/api/admin/claude-cost/invoices")).toBe("usage");
+    expect(auditCategoryFor("/api/admin/page-permissions")).toBe("admin");
     expect(auditCategoryFor("/api/rfp/projects")).toBe("rfp");
     expect(auditCategoryFor("/api/users/abc")).toBe("users");
     expect(auditCategoryFor("/api/settings")).toBe("settings");
@@ -48,6 +51,18 @@ describe("auditCategoryFor", () => {
     expect(auditCategoryFor("/api/team-sessions")).toBe("team");
     expect(auditCategoryFor("/api/food/favorites")).toBe("food");
     expect(auditCategoryFor("/api/something-else")).toBe("api");
+    expect(auditCategoryFor("/api/constructor")).toBe("api"); // 객체 기본 속성 이름은 표에 걸리지 않는다
+  });
+  it("기능 API 경로를 기능 카테고리로 묶는다", () => {
+    const cases: Array<[string, string]> = [
+      ["/api/chat/turn", "assistant"], ["/api/assistant/execute", "assistant"], ["/api/gw/mail/1/unread", "gw"], ["/api/ppt/decks", "ppt"],
+      ["/api/proposal/jobs", "proposal"], ["/api/teams/chat/messages", "teams"], ["/api/sharepoint/feed", "sharepoint"], ["/api/confluence/pages", "confluence"],
+      ["/api/jira/issues/A-1", "jira"], ["/api/marketing/review", "marketing"], ["/api/people-news", "personnel"], ["/api/media-directory/x", "personnel"],
+      ["/api/dooray/overview", "dooray"], ["/api/usage/code", "usage"], ["/api/mobile/briefing", "mobile"], ["/api/desktop/release", "desktop"],
+      ["/api/surveys", "survey"], ["/api/mcp", "mcp"],
+    ];
+    for (const [path, cat] of cases) expect(auditCategoryFor(path), path).toBe(cat);
+    for (const [, cat] of cases) expect(AUDIT_CATEGORY_LABEL[cat], cat).toBeTruthy();
   });
 });
 
@@ -128,5 +143,31 @@ describe("로그인 이벤트(익명)", () => {
   it("실패·시도 kind로 조회할 수 있다", () => {
     expect(parseAuditQuery(new URLSearchParams({ kind: "login_failed" })).kind).toBe("login_failed");
     expect(parseAuditQuery(new URLSearchParams({ kind: "login_attempt" })).kind).toBe("login_attempt");
+  });
+});
+
+describe("summarizeFeatureUsage", () => {
+  it("페이지 경로를 페이지 키로 묶어 고유 사용자를 합치고, 라벨·플랫폼 순서를 붙인다", () => {
+    const r = summarizeFeatureUsage({
+      categories: [{ category: "ppt", count: 12, users: 3 }, { category: "weird", count: 1, users: 1 }],
+      pages: [
+        { path: "/ppt", count: 5, userIds: ["a", "b"] }, { path: "/ppt/123", count: 4, userIds: ["b", "c"] },
+        { path: "/chat", count: 2, userIds: ["a"] }, { path: "/", count: 9, userIds: ["a", "d"] }, { path: "/admin/users", count: 1, userIds: null },
+      ],
+      platforms: [{ platform: "Android", users: 4 }, { platform: "웹", users: 7 }],
+      loginUsers: 9,
+    });
+    expect(r.categories).toEqual([{ category: "ppt", label: "PPT 만들기", count: 12, users: 3 }, { category: "weird", label: "weird", count: 1, users: 1 }]);
+    expect(r.pages).toEqual([
+      { key: "other", label: "기타(홈·설정·관리 등)", count: 10, users: 2 },
+      { key: "ppt", label: "PPT 만들기", count: 9, users: 3 },
+      { key: "assistant", label: "이노봇", count: 2, users: 1 },
+    ]);
+    expect(r.platforms).toEqual([{ platform: "iOS", users: 0 }, { platform: "Android", users: 4 }, { platform: "macOS", users: 0 }, { platform: "Windows", users: 0 }, { platform: "웹", users: 7 }]);
+    expect(r.loginUsers).toBe(9);
+    expect(JSON.stringify(r)).not.toMatch(/"a"|"b"/); // 사용자 id는 내보내지 않는다
+  });
+  it("빈 결과도 안전하게", () => {
+    expect(summarizeFeatureUsage(null)).toEqual({ categories: [], pages: [], platforms: USAGE_PLATFORMS.map((platform) => ({ platform, users: 0 })), loginUsers: 0 });
   });
 });

@@ -1,0 +1,28 @@
+# 아마란스 로그인 페이지 상시 점검 — 로그인 1단계 DOM(#reqLoginId 입력칸 + "다음" 버튼)이 앱 자동 로그인 규칙
+# (mobile/lib/gw/gw_login_js.dart)과 맞는지 매일 확인한다. 실패하면 워크플로가 실패해 GitHub 알림이 간다.
+# 자격 증명은 쓰지 않는다 — 2단계(#reqLoginPw + "로그인")는 아이디를 넣어야 나와 점검하지 않는다.
+name: gw-login-probe
+
+on:
+  schedule:
+    - cron: "30 22 * * *" # 매일 KST 07:30 (UTC 22:30)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Playwright 설치
+        run: |
+          npm install --no-save --no-package-lock playwright@1.61.1
+          npx playwright install --with-deps chromium
+      - name: 로그인 페이지 점검
+        run: node scripts/gw-login-probe.mjs

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'gw_creds.dart';
 import 'gw_sign.dart';
+import '../telemetry/app_events.dart';
 
 class GwException implements Exception {
   GwException(this.status, this.resultCode, this.message);
@@ -113,7 +114,10 @@ class GwClient {
         final res = await httpClient
             .post(Uri.parse('$baseUrl/gw/gw050A02'), headers: _signed('/gw/gw050A02', 'application/x-www-form-urlencoded'), body: 'a10Domain=${Uri.encodeQueryComponent(baseUrl)}')
             .timeout(const Duration(seconds: 15));
-        if (res.statusCode == 401) onUnauthorized!();
+        if (res.statusCode == 401) {
+          appEvents.report('gw_unauthorized', 'session_expired');
+          onUnauthorized!();
+        }
       } catch (_) {
         // 네트워크 오류는 만료 근거가 아니다
       } finally {

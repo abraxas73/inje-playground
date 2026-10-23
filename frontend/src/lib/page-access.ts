@@ -7,6 +7,8 @@ export const PAGE_GROUPS = [
   { id: "ai", label: "AI" },
   { id: "work", label: "업무" },
 ] as const;
+/** 관리자 권한 화면 전용 묶음 — 웹 메뉴 3그룹 + 앱 전용 '아마란스(앱)'(gw_* 키, 웹 메뉴에는 없음) */
+export const ADMIN_PAGE_GROUPS = [...PAGE_GROUPS, { id: "gw", label: "아마란스(앱)" }] as const;
 export const PAGES = [
   { key: "food", href: "/food", label: "뭐 먹지", group: "daily", minRole: "guest" },
   { key: "ladder", href: "/ladder", label: "사다리", group: "daily", minRole: "guest" },
@@ -27,8 +29,15 @@ export const PAGES = [
   { key: "proposal", href: "/proposal/general", label: "제안도우미-일반현황", group: "work", minRole: "user" },
   { key: "people_news", href: "/people-news", label: "인사·부고", group: "work", minRole: "user" },
   { key: "marketing", href: "/marketing", label: "마케팅 Master DB", group: "work", minRole: "user" },
-  // 아마란스 메일(웹은 데스크톱 앱 중계). 키는 앱 catalog.dart appPages와 같아 한 스위치로 웹·앱을 함께 제어한다. 웹 메뉴에는 안 보이고 매뉴얼 링크로 연다. DB 함수 키 목록은 docs/sql/2026-10-11-page-keys-sync.sql
-  { key: "gw_mail", href: "/gw/mail", label: "메일 (메뉴 숨김)", group: "work", minRole: "user", hidden: true },
+  // 아마란스 앱 기능(앱 catalog.dart appPages와 같은 키). 메일만 웹 화면이 있고 나머지는 앱 전용 — 관리자 스위치로 앱 기능을 끄고 켜려고 둔다. DB 함수 키 목록은 docs/sql/2026-10-23-gw-app-page-keys.sql
+  { key: "gw_mail", href: "/gw/mail", label: "메일 (웹은 메뉴 숨김)", group: "gw", minRole: "user", hidden: true },
+  { key: "gw_approvals", href: "/gw/approvals", label: "미결 결재 (앱)", group: "gw", minRole: "user", hidden: true },
+  { key: "gw_attendance", href: "/gw/attendance", label: "출퇴근 (앱)", group: "gw", minRole: "user", hidden: true },
+  { key: "gw_today", href: "/gw/today", label: "일정 (앱)", group: "gw", minRole: "user", hidden: true },
+  { key: "gw_board", href: "/gw/board", label: "게시판 (앱)", group: "gw", minRole: "user", hidden: true },
+  { key: "gw_messenger", href: "/gw/messenger", label: "메신저 (앱)", group: "gw", minRole: "user", hidden: true },
+  { key: "gw_notes", href: "/gw/notes", label: "쪽지 (앱)", group: "gw", minRole: "user", hidden: true },
+  { key: "gw_attend", href: "/gw/attend", label: "오늘 근태 (앱)", group: "gw", minRole: "user", hidden: true },
   // 가이드 Q&A는 2026-10-23 코드 삭제. 키는 저장된 권한 JSON(isPagePermissions)과 DB 함수 키 목록 때문에 남긴다 — 빼면 'guide'가 저장된 사용자가 503
   { key: "guide", href: "/guide", label: "가이드 (운영 중지)", group: "work", minRole: "user", hidden: true },
   { key: "mcp", href: "/apps#mcp", label: "Claude 커넥터 (메뉴 숨김)", group: "work", minRole: "user", hidden: true },

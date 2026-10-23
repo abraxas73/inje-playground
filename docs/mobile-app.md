@@ -39,6 +39,19 @@
 
 앱 WebView 안의 웹 페이지(2026-10-03): 루트 레이아웃(`frontend/src/app/layout.tsx`)이 요청 UA로 앱을 판별해(`isInnogridAppUA`) 웹 헤더·하단 탭을 그리지 않고(`Navigation chromeless` — 접근 권한 검사는 그대로) `<body data-app="1">`을 단다. 앱 전용 스타일이 필요하면 `[data-app]` 선택자. 표는 좁은 화면에서 열을 짜부라뜨리지 말고 `min-w` + 가로 스크롤(내 덱 표가 글자 단위로 깨진 사례).
 
+## 장애 신호 수집·아마란스 로그인 페이지 점검 (2026-10-23)
+
+아마란스 로그인 페이지 DOM이 바뀌면 전 플랫폼 자동 로그인이 멈춘다(viewport·저작권 문구·10-23 버튼 type=submit 제거). 사용자 신고 전에 알기 위해:
+
+- **앱 보고기** `lib/telemetry/app_events.dart`(`appEvents`): 메모리 큐 → 10초 뒤 묶어서 `POST /api/app/events`(최대 20개). 로그인 전·개발 빌드(`dev`)는 보내지 않고, 실패는 조용히 버린다.
+  - 보내는 것: `kind`·`code`·`version`(`Config.appVersion`)·`platform`(`defaultTargetPlatform.name`)·`at`(UTC) **뿐**.
+  - `gw_login_failed` — `gw_connect_screen.dart` 자동 로그인 실패: `no_field`·`no_button`(fillJs 결과), `watchdog`(12초), `reveal_error`(아마란스 오류 문구), `otp`, `verify_failed`(쿠키 검증 실패).
+  - `gw_unauthorized`/`session_expired` — `GwClient._confirmExpired` 재확인(gw050A02)도 401.
+  - `app_error` — `FlutterError.onError`·`PlatformDispatcher.onError`(기존 훅에 체이닝)의 예외 **타입 이름**만.
+  - 안 보내는 것: 오류 메시지·스택, 아마란스 아이디·비밀번호·토큰·쿠키, 오류 문구 원문, 메일 제목·본문, 대화.
+- **서버** `frontend/src/app/api/app/events/route.ts`(검증 `lib/app-events.ts`): 정해진 kind·code·버전·플랫폼만(그 외 400), 감사 로그 category `app`, 사용자당 10분 30건. `gw_login_failed`의 페이지 변경 의심 사유(`no_field`·`no_button`·`watchdog`·`verify_failed` — 비밀번호 오류·OTP는 제외)가 1시간 안 **서로 다른 사용자 2명 이상**이면 관리자 채널 알림(settings `notify_provider`의 채널 — Teams 워크플로 웹훅/Dooray 훅)을 6시간에 한 번(마지막 시각은 settings `app_event_alerts`).
+- **상시 점검** `.github/workflows/gw-login-probe.yml`(매일 KST 07:30·수동 실행) → `scripts/gw-login-probe.mjs`: 헤드리스 Chromium으로 `https://gw.innogrid.com/`의 `#reqLoginId`(보임)·글자 "다음" 버튼(폭>0) 확인 — `gw_login_js.dart`와 같은 규칙, 자격 증명 없음(2단계는 점검 안 함). 실패하면 워크플로 실패 알림. 셀렉터·버튼 글자를 바꾸면 두 곳을 같이. 로컬: 저장소 루트에서 `PW_CHANNEL=chrome node scripts/gw-login-probe.mjs`(playwright 모듈 필요).
+
 ## 사내망이 필요한 기능 안내
 - 사내망(VPN)이 필요한 사용자 기능은 **Dooray에서 가져오기**(멤버 소스 `dooray` 모드일 때 사다리·팀 페이지 버튼)뿐이다 — 브라우저가 Dooray API를 직접 호출하며 Innogrid Chrome 확장(CORS)도 필요하다.
 - 앱 WebView(User-Agent `InnogridApp/…`)에서는 `DoorayImportButton`이 직접 호출을 건너뛰고 저장된 명단(`dooray_members` 캐시)만 쓰며 "사내 VPN이 연결된 PC 웹에서 가져오세요"를 안내한다(`lib/mobile/app-ua.ts`). 설정의 내 팀 카드도 같은 안내를 보인다.

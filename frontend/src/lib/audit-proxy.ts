@@ -37,18 +37,19 @@ export function shouldAuditRequest(method: string, pathname: string): boolean {
   return !SKIP_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
-/** 자동 기록의 카테고리 — 화면 필터에서 어드민/RFP 등으로 나눠 보기 위해 경로에서 뽑는다 */
+/** API 경로 첫 마디 → 기능 카테고리(기능별 사용 통계용). 표에 없으면 "api" */
+const CATEGORY_BY_SEGMENT: Record<string, string> = {
+  rfp: "rfp", users: "users", members: "users", settings: "settings", auth: "auth", ms: "auth",
+  "ladder-sessions": "ladder", ladder: "ladder", food: "food", team: "team", "team-sessions": "team", "team-attendance": "team", "team-comments": "team", "team-notify": "team",
+  chat: "assistant", assistant: "assistant", gw: "gw", ppt: "ppt", proposal: "proposal", teams: "teams", sharepoint: "sharepoint", confluence: "confluence", jira: "jira",
+  marketing: "marketing", "people-news": "personnel", "media-directory": "personnel", dooray: "dooray", usage: "usage", mobile: "mobile", desktop: "desktop", surveys: "survey", mcp: "mcp",
+};
+
+/** 자동 기록의 카테고리 — 화면 필터·기능별 사용 통계에서 기능 단위로 나눠 보기 위해 경로에서 뽑는다 */
 export function auditCategoryFor(pathname: string): string {
   const seg = pathname.replace(/^\/api\//, "").split("/");
-  if (seg[0] === "admin") return seg[1]?.startsWith("rfp") ? "rfp" : seg[1] === "surveys" ? "survey" : "admin";
-  if (seg[0] === "rfp") return "rfp";
-  if (seg[0] === "users" || seg[0] === "members") return "users";
-  if (seg[0] === "settings") return "settings";
-  if (seg[0] === "auth" || seg[0] === "ms") return "auth";
-  if (["ladder-sessions", "team-sessions", "team-attendance", "team-comments", "team-notify", "food", "ladder", "team"].includes(seg[0])) {
-    return seg[0].startsWith("ladder") ? "ladder" : seg[0] === "food" ? "food" : "team";
-  }
-  return "api";
+  if (seg[0] === "admin") return seg[1]?.startsWith("rfp") ? "rfp" : seg[1] === "surveys" ? "survey" : seg[1]?.startsWith("claude-") ? "usage" : "admin";
+  return Object.hasOwn(CATEGORY_BY_SEGMENT, seg[0]) ? CATEGORY_BY_SEGMENT[seg[0]] : "api";
 }
 
 /** 자동 기록 한 건. 실패는 삼킨다(logAudit 안에서 처리). */

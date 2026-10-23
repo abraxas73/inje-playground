@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { AUDIT_CATEGORY_LABEL, AUDIT_KIND_LABEL } from "@/lib/audit";
 import { AUDIT_PLATFORMS } from "@/lib/audit-client";
 import { AUDIT_PAGE_SIZE_DEFAULT } from "@/lib/audit-query";
-import type { AuditResponse, AuditRow } from "@/types/audit";
+import type { AuditResponse, AuditRow, FeatureUsageResponse } from "@/types/audit";
 
 const KIND_CLASS: Record<AuditRow["kind"], string> = {
   login: "bg-emerald-100 text-emerald-900",
@@ -39,7 +39,51 @@ function kstDay(offsetDays = 0): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
+/** 기능별 사용 — 기간 필터만 공유. 건수·고유 사용자 수만 보여 준다 */
+function FeatureUsage({ from, to }: { from: string; to: string }) {
+  const [data, setData] = useState<FeatureUsageResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setData(null);
+    setError(null);
+    const p = new URLSearchParams();
+    if (from) p.set("from", from);
+    if (to) p.set("to", to);
+    fetch(`/api/admin/audit/usage?${p}`).then(async (res) => {
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "조회에 실패했습니다.");
+      if (!cancelled) setData(json as FeatureUsageResponse);
+    }).catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "오류가 발생했습니다."); });
+    return () => { cancelled = true; };
+  }, [from, to]);
+
+  if (error) return <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>;
+  if (!data) return <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />불러오는 중…</div>;
+  const table = (title: string, note: string, head: string[], rows: Array<[string, ...number[]]>) => (
+    <section className="space-y-2">
+      <div><h3 className="text-sm font-semibold">{title}</h3><p className="text-xs text-muted-foreground">{note}</p></div>
+      {!rows.length ? <p className="py-4 text-center text-xs text-muted-foreground">기록이 없습니다.</p> : (
+        <table className="w-full text-sm">
+          <thead><tr className="border-b text-left text-xs text-muted-foreground">{head.map((h, i) => <th key={h} className={cn("px-2 py-2 font-medium", i > 0 && "text-right")}>{h}</th>)}</tr></thead>
+          <tbody>{rows.map(([label, ...nums]) => (
+            <tr key={label} className="border-b last:border-0"><td className="px-2 py-1.5 text-xs">{label}</td>{nums.map((n, i) => <td key={i} className="px-2 py-1.5 text-right text-xs tabular-nums">{n.toLocaleString()}</td>)}</tr>
+          ))}</tbody>
+        </table>
+      )}
+    </section>
+  );
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      {table("카테고리별", "로그인 외 액션·API 호출 기록 건수(페이지 접근 포함)", ["카테고리", "건수", "사용자"], data.categories.map((c) => [c.label, c.count, c.users]))}
+      {table("페이지별 열람", "웹 페이지 열람 기록을 페이지 키로 묶은 것", ["페이지", "열람", "사용자"], data.pages.map((p) => [p.label, p.count, p.users]))}
+      {table("플랫폼별 로그인 사용자", `앱 User-Agent로 구분, 그 밖은 웹 · 기간 내 로그인 사용자 ${data.loginUsers.toLocaleString()}명(여러 플랫폼 사용자는 각각 셈) · 웹은 세션이 유지되면 다시 로그인하지 않아 적게 잡힌다`, ["플랫폼", "사용자"], data.platforms.map((p) => [p.platform, p.users]))}
+    </div>
+  );
+}
+
 export default function AdminAuditPage() {
+  const [view, setView] = useState<"log" | "usage">("log");
   const [data, setData] = useState<AuditResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,13 +168,18 @@ export default function AdminAuditPage() {
           <CardTitle className="flex items-center gap-2 text-base">
             <ScrollText className="h-4 w-4 text-muted-foreground" />
             Audit 로그
-            {data && <span className="text-xs font-normal text-muted-foreground">{data.total.toLocaleString()}건</span>}
+            <span className="ml-1 inline-flex rounded-md border p-0.5">
+              {([["log", "기록"], ["usage", "기능별 사용"]] as const).map(([v, label]) => (
+                <Button key={v} variant={view === v ? "secondary" : "ghost"} size="sm" className="h-6 px-2 text-xs" onClick={() => setView(v)}>{label}</Button>
+              ))}
+            </span>
+            {view === "log" && data && <span className="text-xs font-normal text-muted-foreground">{data.total.toLocaleString()}건</span>}
           </CardTitle>
           <div className="flex items-center gap-1">
             <Button variant="outline" size="sm" className="h-8 text-xs" onClick={reset}>
               <RotateCcw className="mr-1 h-3.5 w-3.5" />초기화
             </Button>
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={downloadCsv} disabled={!data?.rows.length}>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={downloadCsv} disabled={view !== "log" || !data?.rows.length}>
               <Download className="mr-1 h-3.5 w-3.5" />이 페이지 CSV
             </Button>
           </div>
@@ -144,6 +193,7 @@ export default function AdminAuditPage() {
       <CardContent>
         {/* 필터 */}
         <div className="mb-4 flex flex-wrap items-end gap-2">
+          {view === "log" && <>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">구분</label>
             <Select value={kind} onValueChange={(v) => { setKind(v); setPage(1); }}>
@@ -180,6 +230,7 @@ export default function AdminAuditPage() {
               </SelectContent>
             </Select>
           </div>
+          </>}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">기간(KST)</label>
             <div className="flex items-center gap-1">
@@ -188,7 +239,7 @@ export default function AdminAuditPage() {
               <Input type="date" value={to} min={from} onChange={(e) => { setTo(e.target.value); setPage(1); }} className="h-8 w-36 text-xs" />
             </div>
           </div>
-          <div className="min-w-0 flex-1 space-y-1">
+          {view === "log" && <div className="min-w-0 flex-1 space-y-1">
             <label className="text-xs text-muted-foreground">검색(사용자·액션·IP·플랫폼·상세)</label>
             <div className="flex items-center gap-1">
               <Input
@@ -199,8 +250,10 @@ export default function AdminAuditPage() {
                 <Search className="mr-1 h-3.5 w-3.5" />검색
               </Button>
             </div>
-          </div>
+          </div>}
         </div>
+
+        {view === "usage" ? <FeatureUsage from={from} to={to} /> : <>
 
         {error && <div className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
 
@@ -275,6 +328,7 @@ export default function AdminAuditPage() {
             </div>
           </div>
         )}
+        </>}
       </CardContent>
     </Card>
   );
