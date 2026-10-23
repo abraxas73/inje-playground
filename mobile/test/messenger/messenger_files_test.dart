@@ -59,7 +59,12 @@ void main() {
     expect([for (final f in c.files) f.name], ['a.JPG', 'b.tar.gz']);
     expect([for (final f in c.files) f.isImage], [true, false]);
     expect(c.files.first.width, 300);
-    expect(MsgChat.fromRow({'fileDelYn': 'Y'}).fileExpired, isTrue);
+    expect(MsgChat.fromRow({'contentType': '1', 'fileDelYn': 'Y'}).fileExpired, isTrue);
+    // 글 대화에 붙어 오는 빈 fileList·fileDelYn은 첨부가 아니다
+    final text = MsgChat.fromRow({'contentType': '0', 'content': '안녕', 'fileDelYn': 'Y', 'fileList': [{'fileSn': '0'}]});
+    expect(text.files, isEmpty);
+    expect(text.fileExpired, isFalse);
+    expect(MsgChat.fromRow({'contentType': '1', 'fileList': [{'fileSn': '0'}]}).files, isEmpty);
   });
 
   test('붙여넣은 그림 이름·형식(macOS PNG, Windows BMP)', () {

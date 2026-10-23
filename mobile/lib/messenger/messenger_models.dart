@@ -172,8 +172,13 @@ class MsgChat {
         contentType: _asStr(r['contentType']),
         timeStamp: _asInt(r['timeStamp']),
         unReadUserCount: _asInt(r['unReadUserCount']),
-        files: [for (final f in (r['fileList'] is List ? r['fileList'] as List : const [])) if (f is Map) MsgFile.fromRow(f)],
-        fileExpired: _asStr(r['fileDelYn']) == 'Y',
+        // 글 대화에도 빈 fileList 항목이 붙어 온다(실측) — 파일 대화(1·2·5)의 이름 있는 항목만
+        files: [
+          if (const {'1', '2', '5'}.contains(_asStr(r['contentType'])))
+            for (final f in (r['fileList'] is List ? r['fileList'] as List : const []))
+              if (f is Map && (_asStr(f['originalFileName']).isNotEmpty || _asStr(f['fileExtsn']).isNotEmpty)) MsgFile.fromRow(f),
+        ],
+        fileExpired: const {'1', '2', '5'}.contains(_asStr(r['contentType'])) && _asStr(r['fileDelYn']) == 'Y',
         secret: _asStr(r['talkSecuYn']) == 'Y',
       );
 
