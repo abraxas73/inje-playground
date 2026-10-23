@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:playground/gw/approvals_screen.dart';
+import 'package:playground/gw/gw_api.dart' show approvalNeedsAmaranth;
 import 'package:playground/gw/attendance_screen.dart';
 import 'package:playground/gw/board_screen.dart';
 import 'package:playground/gw/mail_indexer.dart';
@@ -38,21 +39,103 @@ class Routes {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({})); // 출퇴근 확인창이 Teams 알림 설정을 읽는다
-  testWidgets('미결 결재: 목록을 그리고 항목을 누르면 상세 시트(열람 처리 없음)', (tester) async {
-    final r = Routes({'/gw/gw050A02': [session], '/eap/eap105A04': [{'map': {'totalCount': 1, 'list': [{'DOC_ID': 'D1', 'FORM_ID': '7', 'DOC_TITLE': '휴가 신청', 'FORM_NM': '휴가', 'USER_NM': '김민준', 'DEPT_NM': '팀', 'ARRIVED_DT': '20261001', 'READYN': 'N'}]}}], '/eap/eap111A04': [{'docTitle': '휴가 신청', 'contentsWord': '10월 10일 연차', 'empName': '김민준', 'lineName': '홍길동'}]});
+  testWidgets('미결 결재: 목록 → 상세 화면(열람 처리 없음·결재선), 승인 차례가 아니면 바로 승인 없음', (tester) async {
+    final r = Routes({'/gw/gw050A02': [session], '/eap/eap105A04': [{'map': {'totalCount': 1, 'list': [{'DOC_ID': 'D1', 'FORM_ID': '7', 'DOC_TITLE': '휴가 신청', 'FORM_NM': '휴가', 'USER_NM': '김민준', 'DEPT_NM': '팀', 'ARRIVED_DT': '20261001', 'READYN': 'N'}]}}], '/eap/eap111A04': [{'docTitle': '휴가 신청', 'contentsWord': '10월 10일 연차', 'empName': '김민준', 'lineName': '홍길동', 'line': [{'user_nm': '김팀장', 'act_nm': '결재', 'duty_nm': '팀장', 'action_time': '20261001093000'}, {'user_nm': '홍길동', 'act_nm': '결재', 'action_time': ''}]}]});
     await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const ApprovalsScreen()));
     await tester.pumpAndSettle();
     expect(find.text('휴가 신청'), findsOneWidget);
     expect(find.textContaining('김민준'), findsWidgets);
     await tester.tap(find.text('휴가 신청'));
     await tester.pumpAndSettle();
+    expect(find.text('결재 문서'), findsOneWidget); // 전체 화면
     expect(find.text('10월 10일 연차'), findsOneWidget);
-    expect(find.textContaining('승인·반려는 아마란스에서'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, '아마란스에서 열기'), findsOneWidget); // 상세 시트의 바로가기
-    expect(find.byTooltip('아마란스에서 열기'), findsOneWidget); // 목록 행의 바로가기 아이콘
+    expect(find.text('결재 · 김팀장 팀장'), findsOneWidget);
+    expect(find.text('10-01 09:30'), findsOneWidget);
+    expect(find.text('대기'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, '아마란스에서 열기'), findsOneWidget);
+    expect(find.text('바로 승인'), findsNothing); // btnApproval 없음
+    expect(r.bodies['/eap/eap111A04']?['setReadYn'], 'N');
     expect(approvalWebUrl('D1', '7'), 'https://gw.innogrid.com/#/popup?docID=D1&formId=7&docAuth=0&MicroModuleCode=eap&callComp=UBAP002');
     expect(approvalWebUrl('a b', 'x&y'), contains('docID=a%20b&formId=x%26y'));
-    expect(r.hits['/eap/eap111A04'], 1);
+  });
+
+  Map<String, Object?> pendingDoc({bool mine = true}) => {'docId': 'D1', 'formId': '7', 'docTitle': '휴가 신청', 'contentsWord': '연차', 'empName': '김민준', 'actId': '3000', 'docLineMSeq': '2', 'docLineSSeq': '0', 'btnList': {'btnApproval': mine ? '1' : '0'}};
+  final list = {'map': {'totalCount': 1, 'list': [{'DOC_ID': 'D1', 'FORM_ID': '7', 'DOC_TITLE': '휴가 신청', 'FORM_NM': '휴가', 'USER_NM': '김민준', 'ARRIVED_DT': '20261001'}]}};
+
+  testWidgets('바로 승인: 강한 경고 확인 → 사전 확인(eap110A08) → 승인(eap110A21 docLineSts 30) → 다시 읽어 확인 후 닫고 목록 갱신', (tester) async {
+    final r = Routes({'/gw/gw050A02': [session], '/eap/eap105A04': [list, {'map': {'totalCount': 0, 'list': []}}], '/eap/eap111A04': [pendingDoc(), pendingDoc(mine: false)], '/eap/eap110A08': [{'result': {'ea100': '0', 'func': [{'FUNC_NM': 'fnSetPasswd', 'FUNC_PARAM': 'v', 'v': '3000|0▤4000|1'}]}}], '/eap/eap110A21': [{'resultValue': 0}]});
+    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const ApprovalsScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('휴가 신청'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('바로 승인'));
+    await tester.pumpAndSettle();
+    expect(find.text('바로 승인 처리가 됩니다. 진행하시겠습니까?'), findsOneWidget);
+    await tester.tap(find.text('취소'));
+    await tester.pumpAndSettle();
+    expect(r.hits['/eap/eap110A21'], isNull); // 취소하면 아무것도 보내지 않는다
+
+    await tester.tap(find.text('바로 승인'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '승인'));
+    await tester.pumpAndSettle();
+    expect(r.bodies['/eap/eap110A08'], {'docID': 'D1', 'formID': '7', 'actID': '3000'});
+    expect(r.bodies['/eap/eap110A21'], {'docID': 'D1', 'actID': '3000', 'docLineMSeq': '2', 'docLineSSeq': '0', 'docLineSts': '30', 'docComment': '', 'iframeHtml': ''});
+    expect(r.hits['/eap/eap111A04'], 2); // 승인 뒤 다시 읽기
+    expect(find.text('승인했습니다.'), findsOneWidget);
+    expect(find.text('미결 문서가 없습니다'), findsOneWidget); // 닫히고 목록 갱신
+  });
+
+  testWidgets('바로 승인: 결재 비밀번호·의견이 필요한 문서는 승인 요청을 보내지 않고 아마란스로 안내', (tester) async {
+    final r = Routes({'/gw/gw050A02': [session], '/eap/eap105A04': [list], '/eap/eap111A04': [pendingDoc()], '/eap/eap110A08': [{'result': {'ea100': '0', 'func': [{'FUNC_NM': 'fnSetPasswd', 'FUNC_PARAM': 'v', 'v': '3000|1'}]}}]});
+    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const ApprovalsScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('휴가 신청'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('바로 승인'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '승인'));
+    await tester.pumpAndSettle();
+    expect(r.hits['/eap/eap110A21'], isNull);
+    expect(find.textContaining('아마란스에서 승인해 주세요'), findsOneWidget);
+    expect(find.text('결재 문서'), findsOneWidget); // 화면은 그대로
+  });
+
+  testWidgets('바로 승인: 승인 요청 결과를 모르면(연결 끊김) 버튼을 다시 내밀지 않고 상태를 다시 읽는다', (tester) async {
+    var n = 0;
+    final docs = [pendingDoc(), pendingDoc(mine: false)];
+    final client = MockClient((r) async {
+      switch (r.url.path) {
+        case '/gw/gw050A02': return ok(session);
+        case '/eap/eap105A04': return ok(list);
+        case '/eap/eap111A04': return ok(docs[(n++).clamp(0, 1)]);
+        case '/eap/eap110A08': return ok({'result': {'ea100': '0', 'func': []}});
+        case '/eap/eap110A21': throw http.ClientException('끊김');
+      }
+      return http.Response('{"resultCode":999}', 200);
+    });
+    await tester.pumpWidget(gwScope(creds: testCreds, http: client, child: const ApprovalsScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('휴가 신청'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('바로 승인'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '승인'));
+    await tester.pumpAndSettle();
+    expect(n, 2); // 결과를 모르니 상세를 다시 읽었다
+    expect(find.text('바로 승인'), findsNothing); // 다시 읽은 상태(승인됨)에는 버튼 없음
+    expect(find.text('결재 문서'), findsOneWidget);
+  });
+
+  test('approvalNeedsAmaranth — 의견 필수(ea100)·내 actId가 1인 func 항목이면 앱에서 승인하지 않는다', () {
+    expect(approvalNeedsAmaranth({'result': {'ea100': '1', 'func': []}}, '3000'), isTrue);
+    expect(approvalNeedsAmaranth({'result': {'ea100': '0', 'func': [{'FUNC_PARAM': 'p', 'p': '4000|0▤3000|1'}]}}, '3000'), isTrue);
+    expect(approvalNeedsAmaranth({'result': {'ea100': '0', 'func': [], 'meetInfo': {'meetCommentYn': '1'}}}, '3000'), isTrue);
+    expect(approvalNeedsAmaranth({'result': {'ea100': '0', 'func': [{'FUNC_PARAM': 'p', 'p': '4000|1▤3000|0'}]}}, '3000'), isFalse);
+    // 모르는 모양이면 승인하지 않는다
+    expect(approvalNeedsAmaranth({'result': {}}, '3000'), isTrue);
+    expect(approvalNeedsAmaranth({'ea100': '0', 'func': []}, '3000'), isTrue);
+    expect(approvalNeedsAmaranth(null, '3000'), isTrue);
   });
   testWidgets('출퇴근: 출근 버튼 → 확인 다이얼로그에서 취소하면 기록 호출 없음, 확인하면 기록 후 시각 표시', (tester) async {
     const base = '/human/common/judgeTimeManagement';

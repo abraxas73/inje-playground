@@ -161,15 +161,40 @@ class PendingApproval {
 }
 
 /// 문서 상세(eap111A04). 본문은 평문 contentsWord 우선, 비면 docContents(HTML) 태그 제거.
+/// 결재선 한 칸(eap111A04 line[]) — 누가(act_nm 결재·합의…) 언제 처리했는지.
+class ApprovalLineStep {
+  const ApprovalLineStep({required this.name, required this.role, required this.dept, required this.duty, required this.actionTime, required this.done});
+  final String name, role, dept, duty, actionTime;
+  final bool done;
+  factory ApprovalLineStep.fromRow(Map r) {
+    final at = asStr(r['action_time']);
+    return ApprovalLineStep(name: asStr(r['user_nm']), role: asStr(r['act_nm']), dept: asStr(r['dept_nm']), duty: asStr(r['duty_nm']).isEmpty ? asStr(r['grade_nm']) : asStr(r['duty_nm']), actionTime: at, done: at.isNotEmpty && at != 'None');
+  }
+}
+
 class ApprovalDetail {
-  const ApprovalDetail({required this.title, required this.form, required this.status, required this.drafter, required this.dept, required this.repDt, required this.attachCount, required this.currentApprover, required this.content});
+  const ApprovalDetail({required this.title, required this.form, required this.status, required this.drafter, required this.dept, required this.repDt, required this.attachCount, required this.currentApprover, required this.content,
+      this.html = '', this.docNo = '', this.lines = const [], this.docId = '', this.formId = '', this.actId = '', this.docLineMSeq = '', this.docLineSSeq = '', this.canApprove = false});
   final String title, form, status, drafter, dept, repDt, currentApprover, content;
   final int attachCount;
+  /// 문서 본문 HTML(docContents, 표 서식 그대로) — 화면은 안전한 웹뷰로만 그린다.
+  final String html, docNo;
+  final List<ApprovalLineStep> lines;
+  /// 바로 승인(eap110A21)에 쓰는 값 — 아마란스 문서 보기 화면과 같은 출처(eap111A04).
+  final String docId, formId, actId, docLineMSeq, docLineSSeq;
+  /// 지금 내가 이 문서를 승인할 차례인지(btnList.btnApproval).
+  final bool canApprove;
   factory ApprovalDetail.fromData(Map d) {
     final word = asStr(d['contentsWord']).trim();
+    final btn = d['btnList'] is Map ? d['btnList'] as Map : const {};
     return ApprovalDetail(
         title: asStr(d['docTitle']), form: asStr(d['formName']), status: asStr(d['docStsName']), drafter: asStr(d['empName']), dept: asStr(d['deptName']), repDt: asStr(d['repDt']),
-        attachCount: asInt(d['attachCnt']), currentApprover: asStr(d['lineName']), content: word.isEmpty ? htmlToText(asStr(d['docContents'])) : word);
+        attachCount: asInt(d['attachCnt']), currentApprover: asStr(d['lineName']), content: word.isEmpty ? htmlToText(asStr(d['docContents'])) : word,
+        html: asStr(d['docContents']), docNo: asStr(d['docNo']),
+        lines: [for (final r in d['line'] is List ? d['line'] as List : const []) if (r is Map) ApprovalLineStep.fromRow(r)],
+        // 승인 창은 actId만 쓴다(actIdC는 수신·참조 경로) — 비면 승인하지 않는다
+        docId: asStr(d['docId']), formId: asStr(d['formId']), actId: asStr(d['actId']), docLineMSeq: asStr(d['docLineMSeq']), docLineSSeq: asStr(d['docLineSSeq']),
+        canApprove: asStr(btn['btnApproval']) == '1');
   }
 }
 

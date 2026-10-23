@@ -89,7 +89,7 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
                     ),
                   ),
                 _HeaderToggle(open: open, summary: _summary(m), onTap: () => setState(() => _headerOpen = !open)),
-                Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: _MailHtmlView(html: m.html))),
+                Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: MailHtmlView(html: m.html))),
               ]);
             }
             return ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 32), children: [
@@ -194,14 +194,14 @@ class _RecipientsState extends State<_Recipients> {
 }
 
 /// 메일 본문 HTML 웹뷰 — JavaScript 끔, 처음 그리는 빈 문서 밖으로는 이동하지 않고 링크는 시스템 브라우저로.
-class _MailHtmlView extends StatefulWidget {
-  const _MailHtmlView({required this.html});
+class MailHtmlView extends StatefulWidget {
+  const MailHtmlView({super.key, required this.html});
   final String html;
   @override
-  State<_MailHtmlView> createState() => _MailHtmlViewState();
+  State<MailHtmlView> createState() => _MailHtmlViewState();
 }
 
-class _MailHtmlViewState extends State<_MailHtmlView> {
+class _MailHtmlViewState extends State<MailHtmlView> {
   final _c = AppWebController(javaScript: false);
 
   @override
