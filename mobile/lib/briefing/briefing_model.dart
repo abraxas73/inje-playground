@@ -137,7 +137,8 @@ class FocusItem {
 final teamsRoute = '/web?path=${Uri.encodeComponent('/teams/chat')}';
 
 /// "지금 필요한 것" — 우선순위: 곧 시작하는 회의 → 결재(안 읽음·2일 이상) → Teams 답장 대기 → 오늘 안 읽은 메일 → 출근 미기록 → 새 공지. 최대 4.
-List<FocusItem> focusItems(BriefingData d) {
+/// [approvals]·[mentions]는 따로 자주 갱신된 값(홈 위젯과 같은 값) — 없으면 브리핑 값.
+List<FocusItem> focusItems(BriefingData d, {(int, List<PendingApproval>)? approvals, TeamsMentions? mentions}) {
   final out = <FocusItem>[];
   for (final e in myMeetings(d)) {
     if (e.allDay || absenceKind(e.title, e.calendar) != null) continue;
@@ -146,12 +147,12 @@ List<FocusItem> focusItems(BriefingData d) {
     out.add(FocusItem(icon: Icons.event, text: '${hm(e.start)} ${e.title}${e.place.isNotEmpty ? ' · ${e.place}' : ''}', route: '/gw/today'));
     break;
   }
-  final ap = d.approvals?.$2 ?? const <PendingApproval>[];
+  final ap = (approvals ?? d.approvals)?.$2 ?? const <PendingApproval>[];
   if (ap.any((a) => a.unread || (a.waitingDays(d.now) ?? 0) >= 2)) {
     final oldest = ap.fold(0, (m, a) => (a.waitingDays(d.now) ?? 0) > m ? (a.waitingDays(d.now) ?? 0) : m);
     out.add(FocusItem(icon: Icons.fact_check_outlined, text: '미결 결재 ${ap.length}건${oldest >= 2 ? ' · 가장 오래 $oldest일' : ''}', route: '/gw/approvals'));
   }
-  final men = d.mentions;
+  final men = mentions ?? d.mentions;
   if (men != null && men.connected && men.items.isNotEmpty) out.add(FocusItem(icon: Icons.forum_outlined, text: 'Teams 답장 대기 ${men.items.length}건', route: teamsRoute));
   final um = unreadMailsToday(d);
   if (um > 0) out.add(FocusItem(icon: Icons.mail_outline, text: '오늘 받은 안 읽은 메일 $um통', route: '/gw/mail'));

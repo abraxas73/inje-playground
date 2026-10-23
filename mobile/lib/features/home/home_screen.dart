@@ -222,7 +222,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       }
       // 지금 필요한 것(FocusSection은 빈 상태를 스스로 보여 준다)
       if (!gwNo) {
-        add('focus', '지금 필요한 것', FocusSection(items: focusItems(data), onOpen: open), w: 4, h: 2);
+        add('focus', '지금 필요한 것', FocusSection(items: focusItems(data, approvals: ref.watch(approvalsLiveProvider), mentions: ref.watch(teamsMentionsLiveProvider)), onOpen: open), w: 4, h: 2);
       } else {
         addPh('focus', '지금 필요한 것', '아마란스에 연결하면 표시됩니다', onConnect: gwConnect, w: 4, h: 2);
       }
@@ -430,7 +430,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             if (gw != null && gw.status != GwStatus.connected)
               GwConnectCard(relogin: gw.status == GwStatus.needsRelogin, onConnect: () => context.push('/gw/connect'))
             else if (data != null) ...[
-              FocusSection(items: focusItems(data), onOpen: open),
+              FocusSection(items: focusItems(data, approvals: ref.watch(approvalsLiveProvider), mentions: ref.watch(teamsMentionsLiveProvider)), onOpen: open),
               if (data.errors.containsKey('today')) RetryLine(label: '일정', onTap: _refresh) else MeetingsSection(meetings: myMeetings(data), tomorrowCount: myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).length, onMore: () => open('/gw/today')),
               AbsenceSection(
                 absences: _allAbsences ? orgAbsencesList(company?.asData?.value) : teamAbsences(data),

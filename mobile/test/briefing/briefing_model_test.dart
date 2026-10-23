@@ -79,6 +79,8 @@ void main() {
     final onlyUnread = focusItems(data(approvals: [ap('지출', arrived: '', unread: true)]));
     expect(onlyUnread.single.text, '미결 결재 1건');
     expect(focusItems(data(approvals: [ap('어제 것', arrived: '20261004')])), isEmpty, reason: '1일·읽음은 급하지 않음');
+    // 따로 갱신된 결재 값이 있으면 그걸 쓴다(아마란스에서 처리해 비었으면 줄도 사라짐)
+    expect(focusItems(data(approvals: [ap('지출', arrived: '', unread: true)]), approvals: (0, const [])), isEmpty);
   });
   test('summaryPayload — 제목 수준만, 목록 상한, 120자 절단, 본문 없음', () {
     final d = data(
