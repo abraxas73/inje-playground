@@ -41,8 +41,9 @@ export function oauthErrorMessage(code: string): string {
       return "연결이 취소되었습니다.";
     case "invalid_grant":
     case "interaction_required":
-    case "consent_required":
       return "연결이 만료되었습니다. 다시 연결하세요.";
+    case "consent_required":
+      return "회사 설정상 관리자 승인이 필요한 권한입니다. IT 담당자에게 승인을 요청한 뒤 다시 연결하세요.";
     case "invalid_client":
     case "unauthorized_client":
       return "앱 등록 설정이 잘못되었습니다(클라이언트 ID·시크릿). 관리자에게 문의하세요.";

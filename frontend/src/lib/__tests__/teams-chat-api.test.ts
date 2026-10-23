@@ -39,6 +39,14 @@ it("GET /api/teams/chat — Graph 403은 409 reconnect", async () => {
   expect(res.status).toBe(409);
   expect(await res.json()).toMatchObject({ code: "reconnect" });
 });
+it("Graph가 아닌 예외(네트워크 끊김)도 HTML 500 대신 JSON 502 — 화면이 안내를 띄울 수 있게", async () => {
+  m.fetch.mockRejectedValue(new TypeError("fetch failed"));
+  const res = await msgGET(req(`/api/teams/chat/messages?chat=${encodeURIComponent(CHAT)}`));
+  expect(res.status).toBe(502);
+  expect(res.headers.get("content-type")).toContain("application/json");
+  expect((await res.json()).error).toContain("Teams에 연결하지 못했습니다");
+  expect((await chatGET()).status).toBe(502);
+});
 it("GET /api/teams/chat/messages — chat 필수(400), since는 Graph 필터로, 정규화 목록", async () => {
   expect((await msgGET(req("/api/teams/chat/messages"))).status).toBe(400);
   expect((await msgGET(req("/api/teams/chat/messages?chat=bad/id"))).status).toBe(400);
