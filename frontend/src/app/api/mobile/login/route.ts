@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { logLogin } from "@/lib/audit";
+import { EMAIL_LOGIN_DENIED, emailLoginAllowed } from "@/lib/auth/test-account";
 import { isPagePermissions, type PagePermissions } from "@/lib/page-access";
 import { createServerSupabase } from "@/lib/supabase-server";
 import type { UserRole } from "@/lib/roles";
@@ -27,6 +28,7 @@ async function handle(request: NextRequest, record: boolean) {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+  if (!emailLoginAllowed(user)) return NextResponse.json(EMAIL_LOGIN_DENIED, { status: 403 });
   const info = await sessionInfo(supabase, user);
   if (record) await logLogin(supabase, request, { userId: user.id, userEmail: user.email ?? null });
   return NextResponse.json(info, { headers: { "Cache-Control": "no-store" } });

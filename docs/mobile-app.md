@@ -3,6 +3,7 @@
 ## 구성
 - `mobile/` Flutter 앱(Android·iOS). 운영 서버 `https://inje-playground.vercel.app`를 그대로 쓴다(`--dart-define=API_BASE=` 로 교체).
 - 로그인: Supabase Microsoft OAuth → `innogrid://login-callback`(Supabase uri_allow_list에 등록, 2026-10-03). Azure 앱 등록은 변경 없음.
+- 테스트 계정 로그인(2026-10-23, 애플 심사·공개 테스트용): 로그인 화면 Microsoft 버튼 아래 작은 "테스트 계정으로 로그인" → 이메일·비밀번호(`SessionNotifier.signInWithPassword` → Supabase `signInWithPassword` → OAuth와 같은 `POST /api/mobile/login` 기록). 가입은 없고 계정은 관리자가 웹에서 만든다(`app_metadata.test_account=true`만 통과). 그 밖의 이메일 로그인은 서버가 403 `email_login_not_allowed` → 앱이 Supabase 로그아웃 후 서버 문구 표시. 로그아웃은 기존 정리 경로 그대로.
 - 네이티브 화면은 `/api/*`를 Bearer로 호출. WebView는 `POST /api/mobile/web-token` → `/auth/mobile?next=…#token=…`으로 자기 세션을 만든다. Microsoft 권한 연결은 `POST /api/mobile/ms-connect`로 승인 URL만 받아 외부 브라우저에 열며 별도 웹 로그인을 만들지 않는다.
 
 ## 디자인

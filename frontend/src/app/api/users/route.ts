@@ -4,6 +4,7 @@ import { logAudit } from "@/lib/audit";
 import { adminClientOr500 } from "@/lib/claude-usage/require-admin";
 import { selectAll } from "@/lib/work-metrics/common";
 import { installsFromRows } from "@/lib/desktop/presence";
+import { listTestAccounts } from "@/lib/auth/test-account-admin";
 
 /** GET /api/users — 사용자 목록 + 개인 설정 (admin only) */
 export async function GET() {
@@ -67,6 +68,8 @@ export async function GET() {
           .like("user_agent", "InnogridApp/%").order("logged_in_at", { ascending: false }).order("id"))
     : { data: null };
   const installs = installsFromRows(logins.data ?? []);
+  // 테스트 계정(이메일 로그인) 배지용 — auth.users app_metadata라 service role로. 실패해도 목록은 내려준다
+  const testIds = new Set(svc.ok ? (await listTestAccounts(svc.admin).catch(() => [])).map((a) => a.id) : []);
 
   // Merge
   const users = (profiles || []).map((p) => ({
@@ -74,6 +77,7 @@ export async function GET() {
     settings: settingsMap[p.user_id] || {},
     directory: dirMap.get(String(p.email ?? "").toLowerCase()) ?? null,
     installs: installs[p.user_id] ?? {},
+    test_account: testIds.has(p.user_id),
   }));
 
   return NextResponse.json({ users });

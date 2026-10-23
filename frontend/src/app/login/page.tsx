@@ -4,6 +4,8 @@ import Image from "next/image";
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
+import { emailLoginAllowed } from "@/lib/auth/test-account";
+import { Input } from "@/components/ui/input";
 import { logAuthEvent } from "@/lib/action-log";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -11,11 +13,48 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 export default function LoginPage() {
   // 구글 로그인은 기본 숨김(2026-08-31 요청) — 필요 시 /login?google=1 로 표시
   const [showGoogle] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("google") === "1");
-  // ?next= 는 같은 오리진 경로만 OAuth 콜백에 전달
-  const callbackUrl = () => {
+  // 프록시가 테스트 계정이 아닌 이메일 세션을 로그아웃시키며 보낸 경우
+  const [notice] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("error") === "email_not_allowed"
+    ? "테스트 계정이 아닌 이메일 로그인은 허용되지 않습니다. 회사 Microsoft 계정으로 로그인하세요." : null);
+  const [showEmail, setShowEmail] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailBusy, setEmailBusy] = useState(false);
+  // ?next= 는 같은 오리진 경로만
+  const safeNext = () => {
     const next = new URLSearchParams(window.location.search).get("next");
-    const safeNext = next && /^\/(?!\/)/.test(next) ? next : null;
-    return `${window.location.origin}/auth/callback${safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""}`;
+    return next && /^\/(?!\/)/.test(next) ? next : null;
+  };
+  const callbackUrl = () => {
+    const next = safeNext();
+    return `${window.location.origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ""}`;
+  };
+
+  /** 테스트 계정(애플 심사·공개 테스트용) 이메일·비밀번호 로그인 — 가입 기능은 없고 관리자가 계정을 만든다 */
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmailBusy(true);
+    setEmailError(null);
+    await logAuthEvent("attempt", "email");
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (error || !data.user) {
+      await logAuthEvent("failure", "email", error?.message ?? "사용자 없음");
+      setEmailError("이메일 또는 비밀번호가 올바르지 않거나 사용할 수 없는 계정입니다.");
+      setEmailBusy(false);
+      return;
+    }
+    if (!emailLoginAllowed(data.user)) {
+      await supabase.auth.signOut();
+      await logAuthEvent("failure", "email", "테스트 계정 아님");
+      setEmailError("테스트 계정이 아닌 이메일 로그인은 허용되지 않습니다.");
+      setEmailBusy(false);
+      return;
+    }
+    // OAuth 콜백과 같은 로그인 기록(login_history·감사) — 실패해도 로그인은 계속
+    await fetch("/api/auth/password-login", { method: "POST" }).catch(() => undefined);
+    window.location.href = safeNext() ?? "/";
   };
   const handleGoogleLogin = async () => {
     // 리다이렉트 전에 시도를 남긴다(실패해도 로그인은 계속 진행)
@@ -96,6 +135,19 @@ export default function LoginPage() {
             </svg>
             Microsoft 계정으로 로그인
           </Button>
+          {notice && <p role="alert" className="mt-3 text-xs text-destructive">{notice}</p>}
+          {showEmail ? (
+            <form onSubmit={handleEmailLogin} className="mt-4 space-y-2 border-t pt-4">
+              <Input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="이메일" aria-label="테스트 계정 이메일" />
+              <Input type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="비밀번호" aria-label="테스트 계정 비밀번호" />
+              {emailError && <p role="alert" className="text-xs text-destructive">{emailError}</p>}
+              <Button type="submit" className="w-full" disabled={emailBusy}>{emailBusy ? "로그인 중..." : "테스트 계정으로 로그인"}</Button>
+            </form>
+          ) : (
+            <button type="button" onClick={() => setShowEmail(true)} className="mt-4 block w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline">
+              테스트 계정으로 로그인
+            </button>
+          )}
         </CardContent>
       </Card>
       <p className="mt-6 text-xs text-muted-foreground">

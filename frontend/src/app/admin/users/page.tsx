@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import type { UserRole, UserRoleInfo } from "@/lib/roles";
 import type { AppInstalls, AppPlatform } from "@/lib/desktop/presence";
 import UserDetailSheet from "@/components/admin/users/UserDetailSheet";
+import TestAccountsCard from "@/components/admin/users/TestAccountsCard";
 
 interface Row extends UserRoleInfo {
   settings: Record<string, string>;
@@ -17,6 +18,8 @@ interface Row extends UserRoleInfo {
   directory: { division: string | null; headquarters: string | null; team: string | null; duty: string | null; position: string | null } | null;
   /** 플랫폼별 마지막 앱 로그인(= 설치 현황), 출처 login_history 앱 User-Agent */
   installs: AppInstalls;
+  /** 테스트 전용 이메일 계정(auth app_metadata.test_account) */
+  test_account?: boolean;
 }
 
 const ROLE_CONFIG: Record<UserRole, { label: string; icon: typeof Shield; color: string }> = {
@@ -218,7 +221,10 @@ export default function AdminUsersPage() {
                               <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full", config.color)}><User className="h-3.5 w-3.5" /></div>
                             )}
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-medium">{u.display_name || u.email}</p>
+                              <p className="truncate text-sm font-medium">
+                                {u.display_name || u.email}
+                                {u.test_account && <Badge variant="outline" className="ml-1.5 border-amber-300 bg-amber-50 px-1.5 py-0 text-[10px] text-amber-800">테스트</Badge>}
+                              </p>
                               <p className="truncate text-[11px] text-muted-foreground">{u.email}</p>
                             </div>
                           </div>
@@ -269,6 +275,7 @@ export default function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+      <TestAccountsCard onChanged={fetchUsers} />
       <UserDetailSheet userId={selectedId} onClose={() => setSelectedId(null)} onChanged={fetchUsers} />
     </>
   );

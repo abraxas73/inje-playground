@@ -129,7 +129,7 @@ export const AUTH_EVENT_ACTION: Record<AuthEvent, string> = {
 };
 
 /** 로그인 공급자(화면 버튼·GW). 목록 밖 값은 기록하지 않는다 — 공개 엔드포인트라 임의 문자열을 막는다 */
-export const AUTH_PROVIDERS = ["google", "azure", "gw", "unknown"] as const;
+export const AUTH_PROVIDERS = ["google", "azure", "gw", "email", "unknown"] as const;
 export type AuthProvider = (typeof AUTH_PROVIDERS)[number];
 
 export function isAuthEvent(v: unknown): v is AuthEvent {

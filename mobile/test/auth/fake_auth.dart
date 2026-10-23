@@ -25,6 +25,16 @@ class FakeAuth implements GoTrueClient {
     current = session(expired: false);
     return AuthResponse(session: current);
   }
+  final passwordLogins = <String>[]; // 이메일만 기록
+  Object? passwordError;
+  @override
+  Future<AuthResponse> signInWithPassword({String? email, String? phone, required String password, String? captchaToken}) async {
+    passwordLogins.add(email!);
+    if (passwordError != null) throw passwordError!;
+    current = session(expired: false);
+    ctrl.add(AuthState(AuthChangeEvent.signedIn, current));
+    return AuthResponse(session: current);
+  }
   @override
   Future<void> signOut({SignOutScope scope = SignOutScope.local}) async {
     signOuts++;

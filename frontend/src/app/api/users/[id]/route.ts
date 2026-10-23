@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, adminClientOr500 } from "@/lib/claude-usage/require-admin";
 import { logAudit } from "@/lib/audit";
+import { deleteUserCompletely } from "@/lib/users/delete-user";
 
 /**
  * 관리자용 사용자 상세/삭제.
@@ -94,30 +95,15 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   }
   const email = String(prof.data.email ?? "").toLowerCase();
 
-  // 개인 데이터 먼저(각 테이블은 독립적으로 시도하고 결과를 보고한다)
-  const deleted: Record<string, number | string> = {};
-  const del = async (table: string, col: string, val: string) => {
-    const r = await admin.from(table).delete().eq(col, val).select(col);
-    deleted[table] = r.error ? `error: ${r.error.message}` : (r.data?.length ?? 0);
-  };
-  await del("user_settings", "user_id", id);
-  await del("user_members", "user_id", id);
-  await del("login_history", "user_id", id);
-  if (email) await del("nlm_chat_messages", "user_email", email);
-
-  const p = await admin.from("user_profiles").delete().eq("user_id", id).select("user_id");
-  if (p.error) return NextResponse.json({ error: `user_profiles 삭제 실패: ${p.error.message}`, deleted }, { status: 500 });
-  deleted.user_profiles = p.data?.length ?? 0;
-
-  // 로그인 계정 제거 — 이후 같은 계정으로 다시 로그인하면 새 프로필(게스트)이 생성된다
-  const a = await admin.auth.admin.deleteUser(id);
-  const warning = a.error ? `프로필은 삭제됐지만 로그인 계정 삭제에 실패했습니다: ${a.error.message}` : null;
+  const r = await deleteUserCompletely(admin, id, email);
+  if (!r.ok) return NextResponse.json({ error: r.error, deleted: r.deleted }, { status: 500 });
+  const { deleted, authDeleted, warning } = r;
 
   // 감사: 되돌릴 수 없는 삭제라 무엇이 몇 건 지워졌는지까지 남긴다
   await logAudit(admin, request, {
     userId: auth.userId, action: "사용자 삭제", category: "users",
-    detail: { targetEmail: email || id, targetUserId: id, deleted, authDeleted: !a.error },
+    detail: { targetEmail: email || id, targetUserId: id, deleted, authDeleted },
   });
 
-  return NextResponse.json({ ok: true, email, deleted, authDeleted: !a.error, warning });
+  return NextResponse.json({ ok: true, email, deleted, authDeleted, warning });
 }

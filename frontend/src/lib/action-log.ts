@@ -16,7 +16,7 @@ export function logAction(
  */
 export async function logAuthEvent(
   event: "attempt" | "failure",
-  provider: "google" | "azure" | "gw",
+  provider: "google" | "azure" | "gw" | "email",
   reason?: string
 ): Promise<void> {
   try {

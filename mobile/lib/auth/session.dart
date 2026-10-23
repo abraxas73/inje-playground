@@ -75,6 +75,12 @@ final sessionFetcherProvider = Provider<SessionFetcher>(
     final res = record
         ? await http.post(uri, headers: headers)
         : await http.get(uri, headers: headers);
+    if (res.statusCode == 403) {
+      final body = _jsonOrNull(utf8.decode(res.bodyBytes));
+      if (body?['code'] == 'email_login_not_allowed') {
+        throw LoginFailure((body?['error'] as String?) ?? notAllowedMessage);
+      }
+    }
     if (res.statusCode != 200) throw Exception('로그인 확인 실패(${res.statusCode})');
     return AppSession.fromJson(
       jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>,
@@ -82,14 +88,44 @@ final sessionFetcherProvider = Provider<SessionFetcher>(
   },
 );
 
+Map<String, dynamic>? _jsonOrNull(String s) {
+  try {
+    final v = jsonDecode(s);
+    return v is Map<String, dynamic> ? v : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+const notAllowedMessage = '테스트 계정이 아닌 이메일 로그인은 허용되지 않습니다.';
+
+/// 테스트 계정 로그인 실패 — message는 화면에 그대로 보이는 한국어 문구(비밀번호·토큰 미포함).
+class LoginFailure implements Exception {
+  const LoginFailure(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+/// Supabase 비밀번호 로그인 오류 → 사용자용 문구.
+String passwordErrorMessage(Object e) {
+  if (e is AuthRetryableFetchException) return '네트워크에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.';
+  if (e is AuthException) {
+    if (e.code == 'invalid_credentials' || e.statusCode == '400') return '이메일 또는 비밀번호가 올바르지 않습니다.';
+    return '로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+  }
+  return '네트워크에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.';
+}
+
 class SessionNotifier extends AsyncNotifier<AppSession?> {
   GoTrueClient get _auth => ref.read(authClientProvider);
+  bool _passwordFlow = false; // 비밀번호 로그인은 signInWithPassword가 직접 후처리 — signedIn 이벤트로 중복 기록하지 않게
 
   @override
   Future<AppSession?> build() async {
     // Riverpod 3는 노티파이어 인스턴스를 재빌드(실패 재시도·invalidate) 사이에 재사용한다 — 구독은 빌드마다 새로 걸고 그 빌드의 dispose에 끊는다.
     final sub = _auth.onAuthStateChange.listen((e) {
-      if (e.event == AuthChangeEvent.signedIn) {
+      if (e.event == AuthChangeEvent.signedIn && !_passwordFlow) {
         ref
             .read(closeAuthBrowserProvider)()
             .catchError((_) {}); // Android 커스텀 탭 등 닫을 게 없으면 무시
@@ -136,6 +172,32 @@ class SessionNotifier extends AsyncNotifier<AppSession?> {
       scopes: 'email openid profile',
     );
     // 돌아오면 onAuthStateChange(signedIn) → _afterSignIn()
+  }
+
+  /// 테스트 계정(관리자가 웹에서 만든 `app_metadata.test_account`) 이메일 로그인 — 애플 심사·공개 테스트용.
+  /// 로그인 기록·역할 조회는 OAuth와 같은 `_fetch(record: true)`. 실패하면 Supabase 세션을 남기지 않고 [LoginFailure]를 던진다.
+  /// state를 loading으로 바꾸지 않는다(redirect가 /splash로 보내 로그인 화면의 오류 문구가 사라짐).
+  Future<void> signInWithPassword(String email, String password) async {
+    _passwordFlow = true;
+    try {
+      try {
+        await _auth.signInWithPassword(email: email.trim(), password: password);
+      } catch (e) {
+        throw LoginFailure(passwordErrorMessage(e));
+      }
+      try {
+        state = AsyncValue.data(await _fetch(record: true));
+      } catch (e) {
+        try {
+          await _auth.signOut();
+        } catch (_) {}
+        state = const AsyncValue.data(null);
+        if (e is LoginFailure) rethrow;
+        throw const LoginFailure('로그인 확인에 실패했습니다. 네트워크를 확인하고 다시 시도해 주세요.');
+      }
+    } finally {
+      _passwordFlow = false;
+    }
   }
 
   /// 앱 세션 종료 + WebView 쿠키·localStorage 정리(같은 기기에서 다른 계정이 이전 사용자의 웹 세션·설정을 보지 않게).

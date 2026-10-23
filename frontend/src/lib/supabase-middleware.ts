@@ -5,6 +5,7 @@ import { auditProxyRequest } from "./audit-proxy";
 import { canUsePage, isPagePermissions, matchesPath, pagesForPath } from "./page-access";
 import { bearerToken, createBearerSupabase } from "./supabase-server";
 import type { UserRole } from "./roles";
+import { EMAIL_LOGIN_DENIED, emailLoginAllowed } from "./auth/test-account";
 
 /**
  * 로그인 없이 열리는 경로. RFP 공유 링크(`/rfp/shared/…`)는 사외 공유용이라
@@ -70,6 +71,15 @@ export async function updateSession(request: NextRequest) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
+    // 테스트 계정이 아닌 이메일 로그인은 막는다(자가 가입 구멍 — DB 훅과 이중 방어). 런북 docs/test-accounts.md
+    if (user && !emailLoginAllowed(user)) {
+      if (api) return NextResponse.json(EMAIL_LOGIN_DENIED, { status: 403 });
+      await supabase.auth.signOut().catch(() => undefined); // 쿠키 지움 → supabaseResponse에 실린다
+      const response = NextResponse.redirect(new URL("/login?error=email_not_allowed", request.url));
+      supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
+      return response;
+    }
 
     // 조회·변경 요청(GET·POST·PUT·PATCH·DELETE)은 응답을 보낸 뒤 감사 기록한다 — 응답을 늦추지 않는다.
     // 이 블록은 자체 try/catch로 격리한다: 감사 기록이 실패해도 아래 로그인·권한 검사를 건너뛰면 안 된다.
