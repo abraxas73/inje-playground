@@ -67,9 +67,16 @@ function SubTree({ d, ctx }: { d: OrgDept; ctx: TreeCtx }) {
     <div>
       <DeptCard d={d} ctx={ctx} />
       {kids.length > 0 && (
-        <div className="ml-4 border-l pl-4">
-          {kids.map((k) => (
-            <div key={k.id} className="relative pt-2 before:absolute before:top-[1.6rem] before:-left-4 before:h-px before:w-4 before:bg-border">
+        <div className="ml-4 pl-4">
+          {/* 세로선은 하위 부서마다 제 몫만 — 마지막 부서는 가지(└) 높이에서 끝나 아래로 남지 않게 */}
+          {kids.map((k, i) => (
+            <div
+              key={k.id}
+              className={cn(
+                "relative pt-2 before:absolute before:top-[1.6rem] before:-left-4 before:h-px before:w-4 before:bg-border after:absolute after:top-0 after:-left-4 after:w-px after:bg-border",
+                i === kids.length - 1 ? "after:h-[1.6rem]" : "after:bottom-0",
+              )}
+            >
               <SubTree d={k} ctx={ctx} />
             </div>
           ))}
