@@ -119,48 +119,25 @@ function PeopleTable({ people, a }: { people: OrgPerson[]; a: PeopleActions }) {
   const all = people.every((p) => a.picked.has(p.email));
   const some = !all && people.some((p) => a.picked.has(p.email));
   return (
-    <>
-      <table className="hidden w-full text-sm md:table">
-        <thead className="sticky top-0 z-10 bg-muted/80 text-xs text-muted-foreground backdrop-blur">
-          <tr>
-            <th className="w-10 px-3 py-2 text-left">
-              <Checkbox checked={all ? true : some ? "indeterminate" : false} onCheckedChange={(v) => a.setAll(people, v === true)} aria-label="목록 전체 선택" />
-            </th>
-            {["이름", "부서", "직책", "직급", "회사 이메일"].map((h) => <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {people.map((p) => (
-            <tr key={p.email} className={cn("border-t hover:bg-muted/40", a.picked.has(p.email) && "bg-primary/5")}>
-              <td className="px-3 py-2"><Checkbox checked={a.picked.has(p.email)} onCheckedChange={() => a.toggle(p)} aria-label={`${p.name} 선택`} /></td>
-              <td className="px-3 py-2 font-medium whitespace-nowrap">
-                <span className="inline-flex items-center gap-1">{p.name}<RowActions p={p} a={a} /></span>
-              </td>
-              <td className="px-3 py-2">{p.deptName ?? "-"}</td>
-              <td className="px-3 py-2">{p.duty ?? "-"}</td>
-              <td className="px-3 py-2">{p.position ?? "-"}</td>
-              <td className="px-3 py-2"><a href={`mailto:${p.email}`} className="text-primary hover:underline">{p.email}</a></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <ul className="divide-y md:hidden">
-        {people.map((p) => (
-          <li key={p.email} className={cn("flex items-start gap-3 px-4 py-2.5 text-sm", a.picked.has(p.email) && "bg-primary/5")}>
-            <Checkbox className="mt-0.5" checked={a.picked.has(p.email)} onCheckedChange={() => a.toggle(p)} aria-label={`${p.name} 선택`} />
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-baseline gap-x-2">
-                <span className="font-medium">{p.name}</span>
-                <span className="text-xs text-muted-foreground">{[p.duty, p.position].filter(Boolean).join(" · ")}</span>
-              </div>
-              <div className="truncate text-xs text-muted-foreground">{p.deptName ?? "-"}</div>
-              <a href={`mailto:${p.email}`} className="block truncate text-xs text-primary">{p.email}</a>
+    <ul className="divide-y">
+      <li className="sticky top-0 z-10 flex items-center gap-3 bg-muted/80 px-4 py-2 text-xs text-muted-foreground backdrop-blur">
+        <Checkbox checked={all ? true : some ? "indeterminate" : false} onCheckedChange={(v) => a.setAll(people, v === true)} aria-label="목록 전체 선택" />
+        <span>전체 선택 · {people.length}명</span>
+      </li>
+      {people.map((p) => (
+        <li key={p.email} className={cn("flex items-start gap-3 px-4 py-2 text-sm hover:bg-muted/40", a.picked.has(p.email) && "bg-primary/5")}>
+          <Checkbox className="mt-0.5" checked={a.picked.has(p.email)} onCheckedChange={() => a.toggle(p)} aria-label={`${p.name} 선택`} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <span className="font-medium">{p.name}</span>
+              <span className="text-xs text-muted-foreground">{[p.duty, p.position].filter(Boolean).join(" · ")}</span>
             </div>
-            <RowActions p={p} a={a} />
-          </li>
-        ))}
-      </ul>
-    </>
+            <div className="truncate text-xs text-muted-foreground" title={p.email}>{p.deptName ?? "-"} · {p.email}</div>
+          </div>
+          <RowActions p={p} a={a} />
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -292,20 +269,21 @@ export default function OrgChart() {
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
       {/* 왼쪽 부서 트리 · 오른쪽 소속 직원(좁은 화면은 위아래) */}
-      <div className="grid gap-3 lg:h-[calc(100dvh-13rem)] lg:grid-cols-[minmax(300px,400px)_1fr] [body[data-app]_&]:lg:h-[calc(100dvh-9rem)]">
-        <Card className="max-h-[50dvh] gap-0 overflow-auto p-3 lg:max-h-none">
-          <div className="w-max min-w-full">
+      <div className="grid gap-3 lg:h-[calc(100dvh-13rem)] lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)] [body[data-app]_&]:lg:h-[calc(100dvh-9rem)]">
+        {/* 전체 조직도(위→아래 펼침) — 가로·세로 스크롤은 이 안에서만 */}
+        <Card className="h-[55dvh] gap-0 overflow-auto p-4 lg:h-auto">
+          <div className="mx-auto flex w-max min-w-full flex-col items-center">
             <div
               role="button"
               tabIndex={0}
               onClick={() => setSelected(idx.root.id)}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(idx.root.id); } }}
-              className={cn("flex w-52 cursor-pointer items-center gap-3 rounded-xl bg-slate-900 px-3 py-2 text-left text-white shadow-md dark:bg-slate-800", selected === idx.root.id && "ring-2 ring-primary ring-offset-2")}
+              className={cn("flex cursor-pointer items-center gap-3 rounded-xl bg-slate-900 px-5 py-3 text-left text-white shadow-md dark:bg-slate-800", selected === idx.root.id && "ring-2 ring-primary ring-offset-2")}
             >
-              <Building2 className="h-5 w-5 shrink-0" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-bold">{idx.root.name}</span>
-                <span className="flex items-center gap-1 text-[11px] text-slate-300"><Users className="h-3 w-3" />전체 {idx.total.get(idx.root.id) ?? 0}명</span>
+              <Building2 className="h-6 w-6 shrink-0" />
+              <span>
+                <span className="block font-bold">{idx.root.name}</span>
+                <span className="flex items-center gap-1 text-xs text-slate-300"><Users className="h-3 w-3" />전체 {idx.total.get(idx.root.id) ?? 0}명</span>
               </span>
               {(idx.children.get(idx.root.id)?.length ?? 0) > 0 && (
                 <button
@@ -320,7 +298,21 @@ export default function OrgChart() {
                 </button>
               )}
             </div>
-            <Kids kids={level1} ctx={ctx} />
+            {level1.length > 0 && (
+              <>
+                <div className="h-4 w-px bg-border" />
+                <div className="flex items-start">
+                  {level1.map((d, i) => (
+                    <div key={d.id} className="relative px-2 pt-4">
+                      {/* 가로 연결선(첫·끝 칸은 반쪽) + 세로 짧은 선 */}
+                      <span className={cn("absolute top-0 h-px bg-border", i === 0 ? "left-1/2" : "left-0", i === level1.length - 1 ? "right-1/2" : "right-0", level1.length === 1 && "hidden")} />
+                      <span className="absolute top-0 left-1/2 h-4 w-px bg-border" />
+                      <SubTree d={d} ctx={ctx} />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </Card>
 
