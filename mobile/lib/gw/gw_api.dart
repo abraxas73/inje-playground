@@ -43,6 +43,24 @@ class GwApi {
     return ApprovalDetail.fromData(d is Map ? d : const {});
   }
 
+  /// 바로 승인 — 아마란스 문서 보기의 승인 창(UBAP005)과 같은 순서: 사전 확인(eap110A08) → 승인(eap110A21, docLineSts 30).
+  /// 결재 비밀번호·의견 필수 문서는 앱에서 처리하지 않고 멈춘다(아마란스에서). 끝나면 상세를 다시 읽어 승인됐는지 확인한다.
+  /// 반환: 다시 읽은 상세. 실패는 GwException(사용자에게 보일 문구).
+  Future<ApprovalDetail> approve(ApprovalDetail d) async {
+    if (!d.canApprove || d.docId.isEmpty || d.actId.isEmpty) throw GwException(200, -1, '지금 승인할 수 있는 문서가 아닙니다.');
+    final pre = await client.call('/eap/eap110A08', {'docID': d.docId, 'formID': d.formId, 'actID': d.actId});
+    if (approvalNeedsAmaranth(pre, d.actId)) throw GwException(200, -1, '이 문서는 결재 비밀번호나 결재 의견이 필요합니다. 아마란스에서 승인해 주세요.');
+    final r = await client.call('/eap/eap110A21', {
+      'docID': d.docId, 'actID': d.actId, 'docLineMSeq': d.docLineMSeq, 'docLineSSeq': d.docLineSSeq, 'docLineSts': '30', 'docComment': '', 'iframeHtml': '',
+    });
+    final value = r is Map ? r['resultValue'] : null;
+    if (asInt(value, -1) != 0) {
+      final msg = r is Map ? asStr(r['resultMsg']).trim() : '';
+      throw GwException(200, -1, msg.isEmpty ? '승인되지 않았습니다.' : msg);
+    }
+    return approvalDetail(d.docId, d.formId);
+  }
+
   // ── 근태 ──
   static const _att = '/human/common/judgeTimeManagement';
   Future<Attendance> attendanceToday() async {
@@ -205,4 +223,20 @@ extension GwTalkApi on GwApi {
     });
     return GwTalkAlert.parseList(d);
   }
+}
+
+/// 승인 사전 확인(eap110A08 result) — 의견 필수(ea100)·결재 비밀번호·승인 의견 필수(func 목록의 "actId|1")면 앱에서 승인하지 않는다.
+/// func 항목은 아마란스가 [FUNC_PARAM]에 이름 붙인 값("3000|1▤4000|0" 꼴)을 넘긴다 — 내 actId가 1이면 무엇이든 사람 손이 필요하다고 본다(보수적으로).
+bool approvalNeedsAmaranth(Object? pre, String actId) {
+  final res = pre is Map ? (pre['result'] is Map ? pre['result'] as Map : pre) : const {};
+  if (asStr(res['ea100']) == '1') return true;
+  for (final f in res['func'] is List ? res['func'] as List : const []) {
+    if (f is! Map) continue;
+    final v = asStr(f[asStr(f['FUNC_PARAM'])]);
+    for (final part in v.split('▤')) {
+      final kv = part.split('|');
+      if (kv.length >= 2 && kv[0] == actId && kv[1] == '1') return true;
+    }
+  }
+  return false;
 }

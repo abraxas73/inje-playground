@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
+import 'approval_detail_screen.dart';
 import 'gw_api.dart';
 import 'gw_connect_screen.dart';
 import 'gw_gate.dart';
@@ -34,39 +35,8 @@ class _BodyState extends State<_Body> {
   void _openInGw(PendingApproval p) => launchUrl(Uri.parse(approvalWebUrl(p.docId, p.formId)), mode: LaunchMode.externalApplication);
 
   Future<void> _open(PendingApproval p) async {
-    final detail = widget.api.approvalDetail(p.docId, p.formId);
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.7,
-        builder: (_, ctl) => FutureBuilder(
-          future: detail,
-          builder: (context, snap) {
-            if (snap.hasError) return Padding(padding: const EdgeInsets.all(24), child: Text('불러오지 못했습니다: ${snap.error}'));
-            final d = snap.data;
-            if (d == null) return const Center(child: CircularProgressIndicator());
-            final theme = Theme.of(context);
-            return ListView(controller: ctl, padding: const EdgeInsets.fromLTRB(20, 8, 20, 32), children: [
-              Text(d.title, style: theme.textTheme.headlineSmall),
-              const SizedBox(height: 6),
-              Text([d.form, d.status, if (d.repDt.isNotEmpty) d.repDt].where((s) => s.isNotEmpty).join(' · '), style: theme.textTheme.bodySmall),
-              const SizedBox(height: 4),
-              Text('기안 ${d.drafter}${d.dept.isEmpty ? '' : ' (${d.dept})'}${d.currentApprover.isEmpty ? '' : ' · 현재 결재자 ${d.currentApprover}'}${d.attachCount > 0 ? ' · 첨부 ${d.attachCount}' : ''}', style: theme.textTheme.bodySmall),
-              const Divider(height: 24),
-              Text(d.content.isEmpty ? '(본문 없음)' : d.content, style: TextStyle(fontSize: 15, height: 1.6, color: Brand.navy)),
-              const SizedBox(height: 20),
-              Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Brand.blueTint, borderRadius: BorderRadius.circular(12)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('승인·반려는 아마란스에서 처리하세요. 여기서는 열람 처리도 하지 않습니다.', style: theme.textTheme.bodySmall?.copyWith(color: Brand.navy)),
-                const SizedBox(height: 10),
-                FilledButton.icon(onPressed: () => _openInGw(p), icon: const Icon(Icons.open_in_new, size: 18), label: const Text('아마란스에서 열기')),
-              ])),
-            ]);
-          },
-        ),
-      ),
-    );
+    final approved = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => ApprovalDetailScreen(api: widget.api, docId: p.docId, formId: p.formId, title: p.title)));
+    if (approved == true && mounted) await _refresh();
   }
 
   @override
