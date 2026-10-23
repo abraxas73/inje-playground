@@ -269,7 +269,7 @@ export default function OrgChart() {
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
       {/* 왼쪽 부서 트리 · 오른쪽 소속 직원(좁은 화면은 위아래) */}
-      <div className="grid gap-3 lg:h-[calc(100dvh-13rem)] lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)] [body[data-app]_&]:lg:h-[calc(100dvh-9rem)]">
+      <div className="grid gap-3 lg:h-[calc(100dvh-13rem)] lg:grid-cols-[minmax(0,4fr)_minmax(280px,1fr)] [body[data-app]_&]:lg:h-[calc(100dvh-9rem)]">
         {/* 전체 조직도(위→아래 펼침) — 가로·세로 스크롤은 이 안에서만 */}
         <Card className="h-[55dvh] gap-0 overflow-auto p-4 lg:h-auto">
           <div className="mx-auto flex w-max min-w-full flex-col items-center">
