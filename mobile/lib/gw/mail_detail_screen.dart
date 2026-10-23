@@ -8,6 +8,8 @@ import '../app/brand.dart';
 import '../app/theme.dart';
 import 'gw_api.dart';
 import 'gw_models.dart';
+import 'mail_compose.dart' show MailKind;
+import 'mail_compose_screen.dart';
 import 'mail_html.dart';
 import 'mail_indexer.dart';
 
@@ -35,6 +37,9 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
     }));
     return d;
   }
+
+  /// 답장·전체 답장·전달 — 작성 화면이 원본(mail014A01 mailInfo)을 다시 받아 채운다.
+  void _write(MailKind kind) => Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => MailComposeScreen(api: widget.api, kind: kind, muid: widget.item.muid)));
 
   /// 휴지통으로 이동 — 되돌리기는 아마란스 휴지통에서. 확인을 받은 뒤에만.
   Future<void> _delete() async {
@@ -66,7 +71,12 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
         appBar: BrandHeader(
           title: widget.item.subject.isEmpty ? '(제목 없음)' : widget.item.subject,
           showBack: true,
-          actions: [SquareIconButton(icon: Icons.delete_outline, tooltip: '삭제(휴지통으로)', onPressed: _busy || !_loaded ? null : _delete)],
+          actions: [
+            SquareIconButton(icon: Icons.reply, tooltip: '답장', onPressed: _busy ? null : () => _write(MailKind.reply)),
+            SquareIconButton(icon: Icons.reply_all, tooltip: '전체 답장', onPressed: _busy ? null : () => _write(MailKind.replyAll)),
+            SquareIconButton(icon: Icons.forward, tooltip: '전달', onPressed: _busy ? null : () => _write(MailKind.forward)),
+            SquareIconButton(icon: Icons.delete_outline, tooltip: '삭제(휴지통으로)', onPressed: _busy || !_loaded ? null : _delete),
+          ],
         ),
         body: FutureBuilder(
           future: _future,

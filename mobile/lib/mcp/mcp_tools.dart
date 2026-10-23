@@ -9,6 +9,7 @@ import '../gw/gw_api.dart';
 import '../gw/gw_client.dart';
 import '../gw/gw_mcp_api.dart';
 import '../gw/gw_models.dart' as m;
+import '../gw/mail_compose.dart' show mailSignatureHtml, mailSizeLabel;
 import '../gw/mail_indexer.dart';
 import 'approval_schemas.dart';
 import 'mcp_args.dart' as a;
@@ -86,7 +87,6 @@ String _digits(String s) => s.replaceAll(RegExp(r'\D'), '');
 String _base(String p) => p.split(RegExp(r'[/\\]')).last;
 
 /// 첨부 크기 표기(uidAuthList fileSize). 1KB 미만은 캡처 형식 "28 Bytes", 그 위는 웹 작성기 표기를 실측하지 못해 KB/MB 소수 둘째 자리.
-String _sizeLabel(int n) => n < 1024 ? '$n Bytes' : n < 1 << 20 ? '${(n / 1024).toStringAsFixed(2)} KB' : '${(n / (1 << 20)).toStringAsFixed(2)} MB';
 
 /// 대용량 첨부 흔적(bigFile* 키에 값). 실측 초안에는 없어 이름으로만 판단한다.
 bool _hasBigFile(Map mp) => mp.entries.any((e) =>
@@ -177,7 +177,6 @@ Map<String, dynamic> _reservation(Map r) {
 }
 
 /// 서명(mail014A01 signature)은 `<div dze_signature><html><head></head><body>…</body></html>…</div>` — 본문에 끼울 때 문서 태그를 벗긴다(웹 작성기와 같은 형상).
-String _signature(Map init) => asStr(init['signature']).replaceAll(RegExp(r'<head\b[^>]*>.*?</head>', caseSensitive: false, dotAll: true), '').replaceAll(RegExp(r'</?(html|body)\b[^>]*>', caseSensitive: false), '');
 
 /// 맵 어디에 있든 ids의 키는 그 값으로(신원 덮어쓰기).
 Object? _overwrite(Object? v, Map<String, String> ids) => switch (v) {
@@ -792,7 +791,7 @@ class McpTools {
     final g = _gw, s = await g.client.session();
     final subject = a.str(x, 'subject'), to = a.str(x, 'to').isEmpty ? s.email : a.str(x, 'to'), cc = a.str(x, 'cc'), bcc = a.str(x, 'bcc');
     final init = await g.composeInit();
-    final sig = a.boolOf(x, 'signature', true) ? _signature(init) : '';
+    final sig = a.boolOf(x, 'signature', true) ? mailSignatureHtml(init) : '';
     final fields = composeFields(init, fromName: s.empName, bodyAuth: '${s.emailAddr}|${g.client.creds().authToken}', to: to, cc: cc, subject: subject.trim().isEmpty ? '(제목없음)' : subject, html: '${a.str(x, 'html')}$sig')
       ..['bcc'] = bcc;
     if (files.isNotEmpty) {
@@ -802,8 +801,8 @@ class McpTools {
         for (final (i, f) in up.indexed)
           {
             'fileClass': 'icon_${asStr(f['fileExtsn'])}', 'fileDeleteYN': 'Y', 'fileExtsn': asStr(f['fileExtsn']), 'fileId': asStr(f['fileId']), 'fileName': asStr(f['originalFileName']),
-            'filePath': asStr(f['filePath']), 'filePublicYn': 'N', 'fileSize': _sizeLabel(asInt(f['fileSize'])), 'fileThumUrl': '', 'fileUrl': '', 'id': i, 'link': 'N', 'modifyLocalAttach': 'N',
-            'moduleGbn': 'MAIL', 'noConvertFileSize': asInt(f['fileSize']), 'title': '${asStr(f['originalFileName'])}${_sizeLabel(asInt(f['fileSize']))}',
+            'filePath': asStr(f['filePath']), 'filePublicYn': 'N', 'fileSize': mailSizeLabel(asInt(f['fileSize'])), 'fileThumUrl': '', 'fileUrl': '', 'id': i, 'link': 'N', 'modifyLocalAttach': 'N',
+            'moduleGbn': 'MAIL', 'noConvertFileSize': asInt(f['fileSize']), 'title': '${asStr(f['originalFileName'])}${mailSizeLabel(asInt(f['fileSize']))}',
           },
       ]);
       fields['bigFileCnt'] = '${up.length}';
@@ -901,7 +900,7 @@ class McpTools {
       final n = asInt(r['fileSize']);
       uid.add({
         'authKeyMap': auth, 'createdAt': r['createdAt'], 'email': r['email'], 'encoding': r['encoding'], 'fileClass': 'icon_${asStr(r['fileExtsn'])}', 'fileDeleteYN': 'Y', 'fileExtsn': r['fileExtsn'],
-        'fileId': r['fileId'], 'fileKey': r['fileKey'], 'fileName': r['fileName'], 'filePath': r['filePath'], 'fileSize': _sizeLabel(n), 'fileSn': asStr(f['fileSn']), 'id': i, 'link': 'N',
+        'fileId': r['fileId'], 'fileKey': r['fileKey'], 'fileName': r['fileName'], 'filePath': r['filePath'], 'fileSize': mailSizeLabel(n), 'fileSn': asStr(f['fileSn']), 'id': i, 'link': 'N',
         'moduleGbn': r['moduleGbn'], 'muid': r['muid'], 'noConvertFileSize': n, 'offset': r['offset'], 'originalFileName': r['originalFileName'], 'serverFile': 'Y', 'useDownView': 'N',
       });
     }

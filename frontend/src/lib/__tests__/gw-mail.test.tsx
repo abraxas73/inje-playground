@@ -23,8 +23,8 @@ describe("메뉴 카탈로그 — 앱 하단 바와 같은 상위·하위 구조
     expect(canOpenPage("user", "/gw/mail", { gw_mail: false })).toBe(false);
     expect(canOpenPage("guest", "/gw/mail")).toBe(false);
   });
-  it("DB 권한 함수의 키 목록(docs/sql/2026-10-23-gw-app-page-keys.sql)이 웹 카탈로그와 같다", () => {
-    const sql = readFileSync(resolve(process.cwd(), "..", "docs", "sql", "2026-10-23-gw-app-page-keys.sql"), "utf8");
+  it("DB 권한 함수의 키 목록(docs/sql/2026-10-23-org-chart.sql)이 웹 카탈로그와 같다", () => {
+    const sql = readFileSync(resolve(process.cwd(), "..", "docs", "sql", "2026-10-23-org-chart.sql"), "utf8");
     const lists = [...sql.matchAll(/\(('[a-z_]+'(?:,'[a-z_]+')+)\)/g)].map((m) => m[1].replace(/'/g, "").split(",")).filter((l) => l.length > 10);
     expect(lists.length).toBeGreaterThanOrEqual(2); // valid_page_permissions · has_page_access
     expect(lists[0]).toContain("marketing"); // has_page_access는 marketing을 별도 분기로 다뤄 목록에 없다

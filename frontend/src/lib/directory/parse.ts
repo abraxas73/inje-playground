@@ -1,4 +1,4 @@
-import type { AmaranthPerson, DirectoryUpsertRow } from "@/types/directory";
+import type { AmaranthDept, AmaranthPerson, DepartmentUpsertRow, DirectoryUpsertRow } from "@/types/directory";
 
 /**
  * 아마란스 deptPath "(주)이노그리드>(주)이노그리드>기술·운영부문>R&D본부>클라우드 네이티브 센터>XPU플랫폼팀"
@@ -62,4 +62,21 @@ export function normalizeRoster(list: unknown): { rows: DirectoryUpsertRow[]; sk
     rows.push(row);
   }
   return { rows, skipped };
+}
+
+/** 부서 트리 원본(gw102A01 treeList를 동기화 스크립트가 정리한 것) → company_departments 행. id·이름 없으면 버리고 id 중복은 첫 항목. */
+export function normalizeDepartments(list: unknown): DepartmentUpsertRow[] {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set<string>();
+  const out: DepartmentUpsertRow[] = [];
+  for (const raw of list as AmaranthDept[]) {
+    if (!raw || typeof raw !== "object") continue;
+    const id = str(raw.id);
+    const name = str(raw.name);
+    if (!id || !name || seen.has(id)) continue;
+    seen.add(id);
+    const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : Number.parseInt(String(v ?? ""), 10) || 0);
+    out.push({ id, parent_id: str(raw.parentId), name, path: str(raw.path), sort: n(raw.sort), depth: n(raw.depth) });
+  }
+  return out;
 }

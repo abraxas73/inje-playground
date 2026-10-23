@@ -2,29 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
-import '../gw/gw_api.dart';
-import '../gw/gw_client.dart' show asStr;
-import '../gw/gw_mcp_api.dart';
+import '../directory/org_directory.dart';
 import 'messenger_chat_screen.dart';
 import 'messenger_models.dart';
 import 'messenger_provider.dart';
 
 /// 새 대화 — 사내 명부에서 사람을 골라 대화방을 연다(1:1은 기존 방 재사용, 여럿이면 그룹방 새로).
-/// 명부는 아마란스 조직도(gw102A01·A02, 30분 캐시) — 사번(empSeq)은 메신저와 같다.
+/// 명부는 서버가 매일 동기화한 사내 명부(orgPeopleProvider) — 사번(empSeq)은 메신저와 같다.
 
 typedef MsgPerson = ({String empSeq, String name, String dept, String duty});
 
-/// 사내 명부(이름 순). 테스트에서 override.
-final msgRosterProvider = FutureProvider.autoDispose<List<MsgPerson>>((ref) async {
-  final api = ref.watch(gwApiProvider);
-  if (api == null) throw StateError('아마란스를 먼저 연결해 주세요.');
-  final rows = await api.rosterRows();
-  return [
-    for (final r in rows)
-      if (asStr(r['empSeq']).isNotEmpty && asStr(r['empName']).trim().isNotEmpty)
-        (empSeq: asStr(r['empSeq']), name: asStr(r['empName']).trim(), dept: asStr(r['deptName']), duty: asStr(r['dutyName'])),
-  ]..sort((a, b) => a.name.compareTo(b.name));
-});
+/// 사내 명부(이름 순, 사번 있는 사람). 테스트에서 override.
+final msgRosterProvider = FutureProvider.autoDispose<List<MsgPerson>>((ref) async => [
+      for (final p in await ref.watch(orgPeopleProvider.future))
+        if (p.empSeq.isNotEmpty) (empSeq: p.empSeq, name: p.name, dept: p.dept, duty: p.duty),
+    ]..sort((a, b) => a.name.compareTo(b.name)));
 
 class MessengerNewChatScreen extends ConsumerStatefulWidget {
   const MessengerNewChatScreen({super.key});

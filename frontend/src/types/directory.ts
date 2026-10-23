@@ -16,6 +16,26 @@ export interface AmaranthPerson {
   mobile?: string;
 }
 
+/** 부서 트리 한 항목(동기화 스크립트가 아마란스 gw102A01에서 정리) */
+export interface AmaranthDept {
+  id?: string;
+  parentId?: string | null;
+  name?: string;
+  path?: string;
+  sort?: number;
+  depth?: number;
+}
+
+/** company_departments upsert 행 */
+export interface DepartmentUpsertRow {
+  id: string;
+  parent_id: string | null;
+  name: string;
+  path: string | null;
+  sort: number;
+  depth: number;
+}
+
 /** company_directory 한 행 */
 export interface DirectoryPerson {
   email: string;
