@@ -178,7 +178,7 @@ class MailIndexNotifier extends Notifier<MailIndexStatus> {
     if (!await ensureLoaded(api)) return;
     final idx = _index!;
     idx.upsertMeta(MailDoc(muid: item.muid, box: 'INBOX', subject: item.subject, fromName: item.fromName, fromEmail: item.fromEmail, to: '', cc: '', date: item.tooltip.isNotEmpty ? item.tooltip : item.date, seen: true, attach: item.attach, size: 0));
-    idx.setDetail(item.muid, body: d.body, to: d.to, cc: d.cc, files: [for (final (name, _) in d.attachments) name], date: d.date);
+    idx.setDetail(item.muid, body: d.body, to: d.to, cc: d.cc, files: [for (final f in d.attachments) f.name], date: d.date);
     _publish();
     await _save();
   }
@@ -192,7 +192,7 @@ class MailIndexNotifier extends Notifier<MailIndexStatus> {
     await _save();
   }
 
-  static void _apply(MailIndex idx, String muid, MailDetail d) => idx.setDetail(muid, body: d.body, to: d.to, cc: d.cc, files: [for (final (name, _) in d.attachments) name], date: d.date);
+  static void _apply(MailIndex idx, String muid, MailDetail d) => idx.setDetail(muid, body: d.body, to: d.to, cc: d.cc, files: [for (final f in d.attachments) f.name], date: d.date);
 
   List<MailHit> search(String query, {bool byRelevance = false}) => _index?.search(query, byRelevance: byRelevance) ?? const [];
 

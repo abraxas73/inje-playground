@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -7,13 +9,18 @@ import '../web/app_webview.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
 import 'gw_api.dart';
+import 'gw_client.dart' show asStr;
+import 'gw_mcp_api.dart';
 import 'gw_models.dart';
 import 'mail_compose.dart' show MailKind;
 import 'mail_compose_screen.dart';
 import 'mail_html.dart';
 import 'mail_indexer.dart';
 
-/// 메일 본문. 아래 고정 줄은 두지 않는다(2026-10-22 사용자 결정 — 본문 공간 우선, 안 읽음 되돌리기 없음). 첨부는 이름만, 누르면 아마란스에서 받으라고 안내.
+/// 받은 첨부 저장 — 저장 위치를 고르게 하고 고른 위치(취소면 null). 테스트에서 override.
+final mailFileSaverProvider = Provider<Future<Object?> Function(String name, Uint8List bytes)>((_) => (name, bytes) => FilePicker.saveFile(fileName: name, bytes: bytes));
+
+/// 메일 본문. 아래 고정 줄은 두지 않는다(2026-10-22 사용자 결정 — 본문 공간 우선, 안 읽음 되돌리기 없음). 첨부는 누르면 받아 저장 위치를 고르게 한다(이노봇 download_mail_attachment와 같은 mail014A08 → ecm001A03).
 class MailDetailScreen extends ConsumerStatefulWidget {
   const MailDetailScreen({super.key, required this.api, required this.item});
   final GwApi api;
@@ -129,15 +136,36 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 10),
             child: Wrap(spacing: 6, runSpacing: 6, children: [
-              for (final (name, size) in m.attachments) ActionChip(
-                  avatar: const Icon(Icons.attach_file, size: 16),
-                  label: Text(size > 0 ? '$name · ${_size(size)}' : name),
+              for (final f in m.attachments) ActionChip(
+                  avatar: _downloading.contains(f.sn) ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.download, size: 16),
+                  label: Text(f.size > 0 ? '${f.name} · ${_size(f.size)}' : f.name),
+                  tooltip: '내려받기',
                   visualDensity: VisualDensity.compact,
-                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('첨부 파일은 아마란스 메일에서 내려받아 주세요.'))),
+                  onPressed: f.sn.isEmpty || _downloading.contains(f.sn) ? null : () => _download(m.muid, f.name, f.sn),
                 ),
             ]),
           ),
       ];
+
+  final _downloading = <String>{};
+
+  /// 첨부 받기 → 저장 위치 고르기(취소면 아무것도 안 함).
+  Future<void> _download(String muid, String name, String sn) async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _downloading.add(sn));
+    try {
+      final api = widget.api;
+      final auth = await api.mailAuthKey(muid);
+      final info = await api.mailAttachInfo(auth, sn);
+      final bytes = Uint8List.fromList(await api.mailAttachBytes(auth, asStr(info['fileId'])));
+      final saved = await ref.read(mailFileSaverProvider)(name, bytes);
+      if (saved != null) messenger.showSnackBar(SnackBar(content: Text('저장했습니다: $name')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('받지 못했습니다: $e')));
+    } finally {
+      if (mounted) setState(() => _downloading.remove(sn));
+    }
+  }
 
   Widget _row(String k, String v) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
