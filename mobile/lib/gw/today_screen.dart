@@ -94,7 +94,8 @@ class _BodyState extends ConsumerState<_Body> {
     final rooms = _rooms == null ? null : (_allRooms ? _rooms! : _rooms!.where((r) => r.ownerEmpSeq == me).toList());
     return Scaffold(
       appBar: BrandHeader(title: '일정', showBack: true, favoritePath: '/gw/today', onRefresh: _load),
-      body: RefreshIndicator(
+      // 화면 자체 SelectionArea — 앱 전체 SelectAllText만으로는 데스크톱 실기기에서 끌어 선택이 바로 풀린다(메신저·메일·게시판과 같은 처리, 2026-10-26)
+      body: SelectionArea(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 24), children: [
           CalendarView(
@@ -122,7 +123,7 @@ class _BodyState extends ConsumerState<_Body> {
             ),
           ],
         ]),
-      ),
+      )),
     );
   }
 }
