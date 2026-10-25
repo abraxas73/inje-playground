@@ -140,9 +140,13 @@ function closeWithRecords(uses: Anthropic.ToolUseBlockParam[], recs: Awaited<Ret
 }
 
 /** 이번 요청에서 실행한 도구 결과는 요약 대신 가린 원문으로 Claude에 넘긴다. */
-function withLive(messages: Anthropic.MessageParam[], live: Map<string, string>): Anthropic.MessageParam[] {
-  if (!live.size) return messages;
-  return messages.map((m) => (Array.isArray(m.content) ? { ...m, content: m.content.map((b) => (b.type === "tool_result" && live.has(b.tool_use_id) ? { ...b, content: live.get(b.tool_use_id)! } : b)) } : m));
+export function withLive(messages: Anthropic.MessageParam[], live: Map<string, string>): Anthropic.MessageParam[] {
+  const filled = !live.size ? messages : messages.map((m) => (Array.isArray(m.content) ? { ...m, content: m.content.map((b) => (b.type === "tool_result" && live.has(b.tool_use_id) ? { ...b, content: live.get(b.tool_use_id)! } : b)) } : m));
+  // thinking 블록의 서명은 앞 대화 원문에 묶인다. 저장된 도구 결과는 요약뿐이라(원문 미저장) 요약 결과 뒤의 thinking을 다시 보내면
+  // 400 "bound to a different conversation"으로 그 대화가 계속 실패한다(2026-10-26 앱 메일 찾기) — 요약이 처음 나온 뒤의 thinking은 뺀다.
+  const first = filled.findIndex((m) => Array.isArray(m.content) && m.content.some((b) => b.type === "tool_result" && !live.has(b.tool_use_id)));
+  if (first < 0) return filled;
+  return filled.map((m, i) => (i > first && m.role === "assistant" && Array.isArray(m.content) ? { ...m, content: m.content.filter((b) => b.type !== "thinking" && b.type !== "redacted_thinking") } : m));
 }
 
 /** 확인 카드에 보일 실제 대상(채팅방·공간 이름)을 서버가 조회해 c.target에 넣는다. 못 찾은 호출 id를 돌려준다. 조회는 사용량·감사에 세지 않는다. */

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
-import { MAX_SERVER_ROUNDS, parseTurnBody, runTurn, type TurnDeps, type TurnInput } from "@/lib/chat/engine";
+import { MAX_SERVER_ROUNDS, parseTurnBody, runTurn, withLive, type TurnDeps, type TurnInput } from "@/lib/chat/engine";
 import type { ChatStore, ConvRow, MsgRow, StoredBlock } from "@/lib/chat/store";
 import type { ChatEvent } from "@/lib/chat/events";
 
@@ -257,6 +257,30 @@ describe("runTurn", () => {
     await runTurn(d, { ...base, text: "결재 올려" }, emit);
     expect(events.some((e) => e.type === "needs_action")).toBe(false);
     expect(mem.calls[0]).toMatchObject({ tool: "submit_approval", status: "error" });
+  });
+});
+
+describe("withLive", () => {
+  const think = { type: "thinking", thinking: "…", signature: "sig" } as Anthropic.ThinkingBlockParam;
+  const res = (id: string, content: string) => ({ type: "tool_result", tool_use_id: id, content }) as Anthropic.ToolResultBlockParam;
+  const msgs: Anthropic.MessageParam[] = [
+    { role: "user", content: "답 안 한 메일 찾아 줘" },
+    { role: "assistant", content: [think, { type: "tool_use", id: "t1", name: "mail_list", input: {} }] },
+    { role: "user", content: [res("t1", "받은메일 목록 20건")] },
+    { role: "assistant", content: [think, { type: "tool_use", id: "t2", name: "mail_read", input: {} }] },
+    { role: "user", content: [res("t2", "메일 읽기: 요약")] },
+  ];
+  const kinds = (ms: Anthropic.MessageParam[]) => ms.map((m) => (Array.isArray(m.content) ? m.content.map((b) => b.type).join(",") : "text"));
+  it("요약된(원문 아닌) 도구 결과 뒤의 thinking은 뺀다 — 서명이 원문에 묶여 400", () => {
+    expect(kinds(withLive(msgs, new Map([["t2", "본문 원문"]])))).toEqual(["text", "thinking,tool_use", "tool_result", "tool_use", "tool_result"]);
+  });
+  it("모두 이번 요청의 원문 결과면 thinking을 그대로 둔다", () => {
+    const out = withLive(msgs, new Map([["t1", "목록 원문"], ["t2", "본문 원문"]]));
+    expect(kinds(out)).toEqual(["text", "thinking,tool_use", "tool_result", "thinking,tool_use", "tool_result"]);
+    expect((out[4].content as Anthropic.ToolResultBlockParam[])[0].content).toBe("본문 원문");
+  });
+  it("원문이 하나도 없으면(다음 질문) 첫 요약 뒤 thinking을 모두 뺀다", () => {
+    expect(kinds(withLive(msgs, new Map()))).toEqual(["text", "thinking,tool_use", "tool_result", "tool_use", "tool_result"]);
   });
 });
 
