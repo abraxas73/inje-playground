@@ -190,4 +190,12 @@ void main() {
     expect(by['a']!.y, 0);
     expect((by['hidden']!.y, by['hidden']!.h), (0, 4));
   });
+  testWidgets('빈 위젯 자리에도 제목 줄 오른쪽 링크(메일 → 메일 목록), 링크가 없으면 제목만', (tester) async {
+    var opened = 0;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SizedBox(width: 500, height: 260, child: DashboardPlaceholder(title: '메일', message: '안 읽은 메일이 없습니다', onMore: () => opened++, moreLabel: '메일')))));
+    await tester.tap(find.widgetWithText(TextButton, '메일'));
+    expect(opened, 1);
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: SizedBox(width: 500, height: 260, child: DashboardPlaceholder(title: '메일', message: '아마란스에 연결하면 표시됩니다')))));
+    expect(find.byType(TextButton), findsNothing);
+  });
 }

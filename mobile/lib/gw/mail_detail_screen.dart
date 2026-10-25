@@ -76,7 +76,7 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: BrandHeader(
-          title: widget.item.subject.isEmpty ? '(제목 없음)' : widget.item.subject,
+          title: '메일', // 제목은 본문 머리 정보에 한 번만(끌어 선택 가능한 자리)
           showBack: true,
           actions: [
             SquareIconButton(icon: Icons.reply, tooltip: '답장', onPressed: _busy ? null : () => _write(MailKind.reply)),
@@ -105,6 +105,8 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
                       child: SelectionArea(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: _header(m))),
                     ),
                   ),
+                // 접혀 있어도 제목은 보인다(상단 바에는 제목을 두지 않는다 — 2026-10-26)
+                if (!open) SelectionArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 4), child: Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)))),
                 _HeaderToggle(open: open, summary: _summary(m), onTap: () => setState(() => _headerOpen = !open)),
                 Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: MailHtmlView(html: m.html))),
               ]);
