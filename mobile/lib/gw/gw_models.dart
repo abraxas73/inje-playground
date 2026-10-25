@@ -357,7 +357,8 @@ class MailDetail {
   /// 원본 본문 HTML — 상세 화면이 웹뷰로 서식째 그린다(mail_html.dart). 비면 [body] 글자로.
   final String html;
   /// (파일 이름, 대략 크기 바이트 — 서버 값은 base64 길이라 3/4)
-  final List<(String, int)> attachments;
+  /// 첨부 — 이름·크기(대략)·fileSn(내려받기 토큰).
+  final List<({String name, int size, String sn})> attachments;
   /// 외부 호스트 이미지 수(표시하지 않음을 안내)
   final int remoteImages;
   factory MailDetail.fromRaw(String muid, Map d) {
@@ -375,7 +376,7 @@ class MailDetail {
       muid: muid, subject: htmlToText(asStr(dm['subject'])), from: htmlToText(asStr(dm['from'])), to: htmlToText(asStr(dm['to'])), cc: htmlToText(asStr(dm['cc'])), date: asStr(dm['date']),
       body: mailBodyText(b),
       html: html,
-      attachments: [for (final f in files) if (asStr(f['originalFileName']).isNotEmpty) (asStr(f['originalFileName']), asInt(f['fileSize']) * 3 ~/ 4)],
+      attachments: [for (final f in files) if (asStr(f['originalFileName']).isNotEmpty) (name: asStr(f['originalFileName']), size: asInt(f['fileSize']) * 3 ~/ 4, sn: asStr(f['fileSn']))],
       remoteImages: remote,
     );
   }

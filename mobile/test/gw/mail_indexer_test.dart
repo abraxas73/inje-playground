@@ -80,7 +80,7 @@ void main() {
     await n.sync(gw.api);
     expect(gw.hits['/mail/mail002A01'], 1);
     final item = MailItem(muid: '1', subject: '안 읽음', fromName: '홍', fromEmail: 'h@x.com', date: '10-09 02:33', tooltip: '2026-10-09 02:33:09', seen: false, attach: false);
-    await n.putDetail(gw.api, item, const MailDetail(muid: '1', subject: '안 읽음', from: '홍', to: '나', cc: '', date: '2026-10-09 02:33:09', body: '열어 본 본문', attachments: [('x.pdf', 1)], remoteImages: 0));
+    await n.putDetail(gw.api, item, const MailDetail(muid: '1', subject: '안 읽음', from: '홍', to: '나', cc: '', date: '2026-10-09 02:33:09', body: '열어 본 본문', attachments: [(name: 'x.pdf', size: 1, sn: '')], remoteImages: 0));
     expect(n.search('열어 본').single.doc.muid, '1');
     expect(c.read(mailIndexProvider).bodies, 2);
     gw.inbox = [_row(2, '둘')];

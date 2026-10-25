@@ -16,12 +16,12 @@ void main() {
       'decodeMime': {'subject': '회의 &amp; 안내', 'from': '김 &lt;k@x.com&gt;', 'to': '나', 'cc': '', 'date': '2026-10-11 09:00:00'},
       'mime': {
         'body': {'plain': '  10시 회의실 A\r\n\r\n\r\n\r\n참석 바랍니다 ', 'html': '<p>10시</p><img src="https://cdn.example.com/a.png"><img src="cid:inline1"><img src="https://gw.innogrid.com/x.png">'},
-        'fileList': [{'originalFileName': 'agenda.pdf', 'fileSize': 4000}, {'originalFileName': '', 'fileSize': 1}],
+        'fileList': [{'originalFileName': 'agenda.pdf', 'fileSize': 4000, 'fileSn': 'sn1'}, {'originalFileName': '', 'fileSize': 1}],
       },
     });
     expect((m.subject, m.from, m.to, m.date), ('회의 & 안내', '김 <k@x.com>', '나', '2026-10-11 09:00:00'));
     expect(m.body, '10시 회의실 A\n\n참석 바랍니다');
-    expect(m.attachments, [('agenda.pdf', 3000)]);
+    expect(m.attachments, [(name: 'agenda.pdf', size: 3000, sn: 'sn1')]);
     expect(m.remoteImages, 1);
     expect(MailDetail.fromRaw('1', {'mime': {'body': {'html': '<b>본문</b><br>둘째 줄'}}}).body, contains('본문'));
     expect(MailDetail.fromRaw('1', const {}).body, '');
