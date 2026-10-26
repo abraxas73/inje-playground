@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Database, Dice5, LogOut, UtensilsCrossed, Coffee, Shield, User as UserIcon, Settings, BookOpen, ClipboardList, SquareTerminal, MessagesSquare, TrendingUp, FileSearch, Presentation, Newspaper, ChevronDown, Users, BriefcaseBusiness, ChartNoAxesCombined, MessageCircle, Smartphone, BookText, FolderOpen, Mail, Bot, FileStack, Network } from "lucide-react";
+import { Database, Dice5, LogOut, UtensilsCrossed, Coffee, Shield, User as UserIcon, Settings, BookOpen, ClipboardList, SquareTerminal, MessagesSquare, TrendingUp, FileSearch, Presentation, Newspaper, ChevronDown, Users, BriefcaseBusiness, ChartNoAxesCombined, MessageCircle, Smartphone, BookText, FolderOpen, Mail, Bot, FileStack, Network, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 import {
@@ -100,6 +100,7 @@ export default function Navigation({ chromeless = false }: { chromeless?: boolea
               {isAdmin && <Link href="/admin" className={cn("flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium", matchesPath(pathname, "/admin") ? "bg-background shadow-sm" : "text-muted-foreground")}><Shield className="h-4 w-4" />어드민</Link>}
               {/* 사용자 매뉴얼은 메뉴 맨 끝(2026-10-11 사용자 요청) */}
               <Link href="/manual" className={cn("flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium", matchesPath(pathname, "/manual") ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}><BookOpen className="h-4 w-4" />사용자 매뉴얼</Link>
+              {canAccessPage("/apps") && <Link href="/apps" className={cn("flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium", matchesPath(pathname, "/apps") ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}><Download className="h-4 w-4" />설치/다운로드</Link>}
             </div>
             {error && <button className="text-xs text-destructive" onClick={() => void invalidate()}>권한 확인 재시도</button>}
 
@@ -153,6 +154,7 @@ export default function Navigation({ chromeless = false }: { chromeless?: boolea
           {canAccessPage("/chat") && <Link href="/chat" aria-current={matchesPath(pathname, "/chat") ? "page" : undefined} className={cn("flex flex-1 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium", matchesPath(pathname, "/chat") ? "text-primary" : "text-muted-foreground")}><Bot className="h-5 w-5" /><span>이노봇</span></Link>}
           {groups.map((group) => groupMenu(group, true))}
           <Link href="/manual" aria-current={matchesPath(pathname, "/manual") ? "page" : undefined} className={cn("flex flex-1 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium", matchesPath(pathname, "/manual") ? "text-primary" : "text-muted-foreground")}><BookOpen className="h-5 w-5" /><span>매뉴얼</span></Link>
+          {canAccessPage("/apps") && <Link href="/apps" aria-current={matchesPath(pathname, "/apps") ? "page" : undefined} className={cn("flex flex-1 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium", matchesPath(pathname, "/apps") ? "text-primary" : "text-muted-foreground")}><Download className="h-5 w-5" /><span>설치</span></Link>}
         </div>
       </nav>
     </>
