@@ -9,6 +9,8 @@ class FakeApi extends Fake implements ApiClient {
   final gets = <Map<String, String>?>[];
   final searches = <String?>[];
   final reactions = <Object?>[];
+  var listLoads = 0;
+  var topic = '플랫폼팀';
   var msgs = <Map<String, Object?>>[
     {'id': '1', 'createdAt': '2026-10-22T01:00:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '회의 몇 시죠?', 'attachments': []},
     {'id': '2', 'createdAt': '2026-10-22T01:01:00Z', 'from': {'id': 'me', 'name': '나'}, 'text': '3시요', 'attachments': [{'id': 'a', 'name': '안건.docx', 'url': 'https://x/a'}]},
@@ -16,7 +18,8 @@ class FakeApi extends Fake implements ApiClient {
   @override
   Future<dynamic> getJson(String path, {Map<String, String>? query}) async {
     if (path == '/api/teams/chat') {
-      return {'connected': true, 'hasChatScope': true, 'meId': 'me', 'chats': [{'id': 'c1', 'type': 'group', 'topic': '플랫폼팀', 'members': ['김동료', '나'], 'lastUpdated': '2026-10-22T01:01:00Z'}]};
+      listLoads++;
+      return {'connected': true, 'hasChatScope': true, 'meId': 'me', 'chats': [{'id': 'c1', 'type': 'group', 'topic': topic, 'members': ['김동료', '나'], 'lastUpdated': '2026-10-22T01:01:00Z'}]};
     }
     if (path == '/api/teams/chat/search') {
       searches.add(query?['q']);
@@ -145,6 +148,38 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('❤️ 1'), findsOneWidget);
     expect(api.reactions.last, {'chat': 'c1', 'message': '1', 'reaction': '❤️', 'on': true});
+  });
+
+  testWidgets('대화방: 입력칸을 누르면 5초를 기다리지 않고 바로 새 메시지를 가져온다(방금 받은 직후라도)', (tester) async {
+    final api = FakeApi();
+    await tester.pumpWidget(ProviderScope(overrides: [apiClientProvider.overrideWithValue(api)], child: const MaterialApp(home: Scaffold(body: TeamsChatPanel()))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('플랫폼팀'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 5)); // 방금 폴링으로 받음
+    await tester.pumpAndSettle();
+    final before = api.gets.length;
+    api.msgs = [...api.msgs, {'id': '5', 'createdAt': '2026-10-22T01:05:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '방금 온 답', 'attachments': []}];
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(api.gets.length, before + 1);
+    expect(api.gets.last?['since'], isNotNull);
+    expect(find.text('방금 온 답'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('목록: 30초마다 조용히 다시 읽는다(스피너 없이 바뀐 내용 반영)', (tester) async {
+    final api = FakeApi();
+    await tester.pumpWidget(ProviderScope(overrides: [apiClientProvider.overrideWithValue(api)], child: const MaterialApp(home: Scaffold(body: TeamsChatPanel()))));
+    await tester.pumpAndSettle();
+    expect(api.listLoads, 1);
+    api.topic = '플랫폼팀(이름 바뀜)';
+    await tester.pump(const Duration(seconds: 30));
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    await tester.pumpAndSettle();
+    expect(api.listLoads, 2);
+    expect(find.text('플랫폼팀(이름 바뀜)'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 }
