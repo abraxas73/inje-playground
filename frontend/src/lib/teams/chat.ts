@@ -25,8 +25,8 @@ export interface ChatMessage {
 }
 
 export interface ChatReaction { type: string; emoji: string; users: Array<{ id: string; name: string }> }
-/** 우리 화면에서 붙일 수 있는 반응(Teams 기본 반응과 같은 6개) */
-export const REACTION_CHOICES = ["👍", "❤️", "😆", "😮", "😢", "😡"] as const;
+/** 우리 화면에서 고르는 반응 — Teams 기본 6개 + 자주 쓰는 6개(조직 사용자 정의 스티커는 Graph가 붙이기를 받지 않아 뺀다) */
+export const REACTION_CHOICES = ["👍", "❤️", "😆", "😮", "😢", "😡", "👀", "👏", "🙌", "🔥", "🎉", "🙏"] as const;
 /** 옛 이름 반응 → 그림 문자(Graph는 like 등 옛 값과 유니코드를 섞어 준다) */
 const LEGACY_REACTION: Record<string, string> = { like: "👍", heart: "❤️", laugh: "😆", surprised: "😮", sad: "😢", angry: "😡" };
 export const REACTION_MAX = 16;

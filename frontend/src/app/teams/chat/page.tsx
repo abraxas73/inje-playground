@@ -22,7 +22,7 @@ interface Info { connected: boolean; hasChatScope: boolean; meId?: string; chats
 interface Hit { id: string; chatId: string; createdAt: string; from: string; snippet: string }
 interface Reaction { type: string; emoji: string; users: Array<{ id: string; name: string }> }
 interface Msg { id: string; createdAt: string; modifiedAt: string; from: { id: string; name: string } | null; text: string; attachments: Array<{ id: string; name: string; url: string | null }>; reactions?: Reaction[] }
-const REACTIONS = ["👍", "❤️", "😆", "😮", "😢", "😡"]; // Teams 기본 반응(서버 REACTION_CHOICES와 같다)
+const REACTIONS = ["👍", "❤️", "😆", "😮", "😢", "😡", "👀", "👏", "🙌", "🔥", "🎉", "🙏"]; // 서버 REACTION_CHOICES와 같다
 
 /** 내 반응 하나를 붙이거나 뗀 결과(서버 응답 전에 먼저 보여 주고, 다음 폴링이 실제 상태로 맞춘다) */
 function toggleReaction(list: Reaction[], type: string, emoji: string, me: string, on: boolean): Reaction[] {
@@ -378,13 +378,13 @@ export default function TeamsChatPage() {
                         </button>
                       </div>
                       {pickerFor === m.id && (
-                        <div className="flex gap-1 self-start rounded-full border bg-card px-2 py-1 shadow-sm" role="group" aria-label="반응 고르기">
+                        <div className="grid w-max grid-cols-6 self-start rounded-lg border bg-card p-0.5 shadow-sm" role="group" aria-label="반응 고르기">
                           {REACTIONS.map((e) => {
                             // 같은 그림이 옛 이름(like)·유니코드 두 묶음일 수 있다 — 떼기는 내가 붙인 묶음의 값으로, 붙이기는 있는 묶음(없으면 그림 그대로)
                             const same = (m.reactions ?? []).filter((r) => r.emoji === e && r.type !== "custom");
                             const minePick = same.find((r) => r.users.some((u) => u.id === info.meId));
                             const on = !!minePick;
-                            return <button key={e} type="button" onClick={() => void react(m, (minePick ?? same[0])?.type ?? e, e, !on)} className={cn("rounded-full px-1 text-lg leading-none hover:scale-125", on && "bg-primary/10")} aria-label={`${e} ${on ? "떼기" : "붙이기"}`}>{e}</button>;
+                            return <button key={e} type="button" onClick={() => void react(m, (minePick ?? same[0])?.type ?? e, e, !on)} className={cn("flex h-7 w-7 items-center justify-center rounded text-base leading-none hover:bg-muted", on && "bg-primary/10")} aria-label={`${e} ${on ? "떼기" : "붙이기"}`}>{e}</button>;
                           })}
                         </div>
                       )}
