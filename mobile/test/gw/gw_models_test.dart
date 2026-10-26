@@ -85,6 +85,21 @@ void main() {
     final d = GwNoticeDetail.fromData({'art': {'art_seq_no': '1', 'art_title': 't', 'mbr_nick': '홍', 'write_date': '2026-10-04 09:00:00', 'read_cnt': 3, 'file_cnt': 0, 'art_content': '<div>안녕&nbsp;하세요<br>둘째 줄</div>', 'cat_title': null}, 'board': {'cat_title': '공지사항'}, 'remarkList': [{'mbr_nick': '김', 'write_date': '2026-10-04 10:00:00', 'remark_desc': '<p>확인했습니다</p>'}]});
     expect((d.board, d.content, d.readCnt, d.comments.single.content, d.comments.single.writer), ('공지사항', '안녕 하세요\n둘째 줄', 3, '확인했습니다', '김'));
   });
+  test('htmlToMarkdown — 게시글 원문 서식: 줄·빈 줄·굵게(b·font-weight)·목록(p 든 li)·표 줄·링크, 글은 이스케이프', () {
+    const h = '<p>안녕하십니까</p><p>인사총무팀입니다.</p><p>&nbsp;</p><p><b>1. 동의서 징구 결과</b></p><p>동의 결과</p>'
+        '<ul><li><p>찬성 175명 (51.9%)</p></li><li>운용 <span style="font-weight:700">추가</span></li><li>*별*</li></ul>'
+        '<p><strong>(ex.)</strong>안내<br>둘째</p><table><tr><td>a</td><td>b</td></tr></table>'
+        '<p>링크 : <a href="https://gw.x/b?id=1">[공지] 안내</a> <a href="javascript:alert(1)">위험</a> <img src="/a.png"></p>';
+    expect(htmlToMarkdown(h), [
+      '안녕하십니까  ', '인사총무팀입니다.', '', '**1\\. 동의서 징구 결과**  ', '동의 결과', '',
+      '- 찬성 175명 (51.9%)', '- 운용 **추가**', '- \\*별\\*', '',
+      '**(ex.)** 안내  ', '둘째', '', 'a \\| b', '', '링크 : [\\[공지\\] 안내](https://gw.x/b?id=1) 위험 \\[이미지\\]',
+    ].join('\n'));
+    expect(htmlToMarkdown(''), '');
+    expect(htmlToMarkdown('<ul><li>가<br><br>나</li><li>다</li></ul>'), '- 가\n\n    나\n- 다', reason: 'li 안 빈 줄은 들여써서 목록 유지');
+    expect(htmlToMarkdown('<ul><li></li></ul>뒤'), '-\n\n뒤', reason: '빈 항목 뒤 글은 따로');
+  });
+
   test('htmlToText — 블록 경계(<br>·</p>·</div>·</li>·</tr>)는 줄바꿈으로 남기고, 태그·엔티티는 지우며, HTML 소스의 줄바꿈·들여쓰기는 공백으로 본다', () {
     expect(htmlToText('<p>첫 줄</p>\n  <p>둘째&nbsp;줄<br>셋째</p><div>넷째</div>'), '첫 줄\n둘째 줄\n셋째\n넷째');
     expect(htmlToText('<p>a</p><p></p><p></p><p>b</p>'), 'a\n\nb', reason: '빈 문단은 한 줄 공백까지만');

@@ -105,6 +105,183 @@ void _walk(dom.Node n, _Out out) {
   if (block) out.sep();
 }
 
+/// HTML → 마크다운(게시글 본문 표시용 — 평문 htmlToText는 미리보기·이노봇 도구용으로 그대로).
+/// 살리는 것: 줄(블록 끝 = 줄바꿈, 빈 블록·br 두 번 = 빈 줄), 굵게(b·strong·제목·font-weight)·기울임·취소선, 번호·글머리 목록(중첩·start),
+/// 링크(http(s)만), 표는 htmlToText와 같은 "칸 | 칸" 줄, 그림은 [이미지](불러오지 않음). 글자색·크기는 버린다.
+/// 원문 HTML은 그리지 않는다 — 글은 모두 이스케이프해 마크다운 문법으로만 해석된다(웹 Teams 채팅 teamsHtmlToMarkdown과 같은 규칙).
+String htmlToMarkdown(String html) {
+  if (html.isEmpty) return '';
+  final md = _Md();
+  final doc = html_parser.parse(html);
+  _mdWalk(doc.body ?? doc, md, '');
+  md.flush();
+  return md.out.trim();
+}
+
+final _mdEscape = RegExp(r'[\\`*_\[\]<>~|#&]');
+final _mdLineStart = RegExp(r'^(\d+)([.)])|^([-+=])');
+final _punctStart = RegExp(r'^[!-/:-@\[-`{-~\u2000-\u206f\u3000-\u303f\uff01-\uff0f\u203b]');
+final _punctEnd = RegExp(r'[!-/:-@\[-`{-~\u2000-\u206f\u3000-\u303f\uff01-\uff0f\u203b]$');
+
+class _MdList {
+  _MdList(this.ordered, this.n);
+  final bool ordered;
+  int n;
+}
+
+class _Md {
+  String out = '';
+  int brk = 0; // 다음 글 앞 끊김: 1 줄바꿈, 2 빈 줄
+  bool lineStart = true;
+  final lists = <_MdList>[];
+  String run = '', runKey = '';
+
+  String _esc(String t, bool atStart) {
+    final e = t.replaceAllMapped(_mdEscape, (m) => '\\${m[0]}');
+    return atStart ? e.replaceFirstMapped(_mdLineStart, (m) => m[1] != null ? '${m[1]}\\${m[2]}' : '\\${m[3]}') : e;
+  }
+
+  void write(String t) {
+    if (t.isEmpty) return;
+    if (out.isNotEmpty && brk > 0 && !lineStart) out = out.replaceFirst(RegExp(r'[ \t]+$'), '') + (brk == 2 ? '\n\n' : '  \n') + '    ' * lists.length;
+    brk = 0;
+    out += t;
+    lineStart = false;
+  }
+
+  void text(String t, String key) {
+    if (key != runKey) flush();
+    runKey = key;
+    run += t;
+  }
+
+  void flush() {
+    final t = run, key = runKey;
+    run = '';
+    runKey = '';
+    final core = t.trim();
+    if (core.isEmpty) {
+      if (t.isNotEmpty && !lineStart && brk == 0 && !out.endsWith(' ')) out += ' ';
+      return;
+    }
+    final lead = t.startsWith(RegExp(r'\s')) && !lineStart && brk == 0 && !out.endsWith(' ');
+    final atStart = !lead && (lineStart || brk > 0 || out.isEmpty);
+    var body = _esc(core, atStart);
+    final mark = (key.contains('b') ? '**' : '') + (key.contains('i') ? '*' : '');
+    if (key.contains('s')) body = '~~$body~~';
+    if (mark.isNotEmpty || key.contains('s')) {
+      // 구두점으로 시작·끝나면 한글과 붙은 **가 닫히지 않는다(CommonMark flanking) — 마커 바깥에 머리카락 공백(U+200A)
+      final hairL = _punctStart.hasMatch(core) && !atStart && !lead && !RegExp(r'\s$').hasMatch(out) ? '\u200A' : '';
+      body = '$hairL$mark$body${mark.split('').reversed.join()}${_punctEnd.hasMatch(core) ? '\u200A' : ''}';
+    }
+    if (lead) out += ' ';
+    write(body);
+    if (RegExp(r'\s$').hasMatch(t)) out += ' ';
+  }
+
+  void lineBreak(int level) {
+    flush();
+    if (out.isNotEmpty && level > brk) brk = level;
+  }
+
+  void newLine() {
+    flush();
+    out = out.replaceFirst(RegExp(r'[ \t]+$'), '');
+    if (out.isNotEmpty && !out.endsWith('\n')) out += '\n';
+    brk = 0;
+    lineStart = true;
+  }
+}
+
+void _mdWalk(dom.Node n, _Md md, String key) {
+  if (n is dom.Text) {
+    md.text(n.text.replaceAll(RegExp(r'\s+'), ' '), key);
+    return;
+  }
+  if (n is! dom.Element) {
+    for (final c in n.nodes) {
+      _mdWalk(c, md, key);
+    }
+    return;
+  }
+  final tag = n.localName ?? '';
+  if (_skipTags.contains(tag)) return;
+  final style = (n.attributes['style'] ?? '').toLowerCase();
+  var k = key;
+  void add(String f, bool on) {
+    if (on && !k.contains(f)) k += f;
+  }
+  add('b', const {'b', 'strong', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'}.contains(tag) || RegExp(r'font-weight\s*:\s*(bold|[6-9]00)').hasMatch(style));
+  add('i', tag == 'em' || tag == 'i' || style.contains('italic'));
+  add('s', const {'s', 'strike', 'del'}.contains(tag) || style.contains('line-through'));
+  switch (tag) {
+    case 'br':
+      md.flush();
+      md.lineBreak(md.brk >= 1 ? 2 : 1);
+      return;
+    case 'img':
+      md.text('[이미지]', key);
+      return;
+    case 'hr':
+      md.lineBreak(2);
+      return;
+    case 'a':
+      final href = n.attributes['href'] ?? '';
+      if (!RegExp(r'^https?://', caseSensitive: false).hasMatch(href)) break;
+      final label = n.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+      md.flush();
+      if (!md.lineStart && md.brk == 0 && md.out.isNotEmpty && !md.out.endsWith(' ')) md.out += ' ';
+      md.write('[${md._esc(label.isEmpty ? href : label, false)}](${href.replaceAllMapped(RegExp(r'[\s()<>]'), (m) => Uri.encodeComponent(m[0]!))})');
+      return;
+    case 'table':
+      // 표는 htmlToText의 행 규칙("칸 | 칸")을 그대로 — 마크다운 표는 좁은 화면에서 넘친다
+      md.lineBreak(2);
+      for (final line in htmlToText(n.outerHtml).split('\n')) {
+        if (line.isEmpty) {
+          md.lineBreak(2);
+        } else {
+          md.text(line, '');
+          md.lineBreak(1);
+        }
+      }
+      md.lineBreak(2);
+      return;
+    case 'ul':
+    case 'ol':
+      md.flush();
+      if (md.lists.isEmpty && md.out.isNotEmpty) {
+        md.newLine();
+        md.out += '\n';
+      }
+      md.lists.add(_MdList(tag == 'ol', int.tryParse(n.attributes['start'] ?? '') ?? 1));
+      for (final c in n.nodes) {
+        _mdWalk(c, md, k);
+      }
+      md.flush();
+      md.lists.removeLast();
+      md.brk = md.lists.isEmpty ? 2 : 1;
+      return;
+    case 'li':
+      final l = md.lists.isEmpty ? null : md.lists.last;
+      md.newLine();
+      md.out += '${'    ' * (md.lists.isEmpty ? 0 : md.lists.length - 1)}${l != null && l.ordered ? '${l.n++}. ' : '- '}';
+      md.lineStart = true;
+      for (final c in n.nodes) {
+        _mdWalk(c, md, k);
+      }
+      md.flush();
+      md.brk = 0;
+      md.lineStart = false; // 빈 항목 뒤 글이 그 항목에 붙지 않게
+      return;
+  }
+  final block = _blockTags.contains(tag);
+  if (block) md.lineBreak(1);
+  for (final c in n.nodes) {
+    _mdWalk(c, md, k);
+  }
+  if (block) md.lineBreak(n.text.trim().isEmpty && n.querySelector('img') == null && md.lists.isEmpty ? 2 : 1); // 빈 문단 = 빈 줄
+}
+
 /// HTML 엔티티 → 글자. 파서가 이름·숫자 참조를 모두 푼다(&middot;·&hellip;·&#39;…). 날 `<`는 태그로 읽히지 않게 먼저 가리고,
 /// `&amp;lt;`는 한 번만 풀려 `&lt;`가 된다. `&nbsp;`(U+00A0)는 보통 공백으로.
 String decodeEntities(String s) => s.contains('&') ? (html_parser.parseFragment(s.replaceAll('<', '&lt;')).text ?? s).replaceAll('\u00a0', ' ') : s;
@@ -333,8 +510,10 @@ class GwComment {
 
 /// 게시글 상세(ViewPost). ⚠️ 호출하면 조회수가 오른다(실제 열람). 게시판명은 art가 아니라 board.cat_title.
 class GwNoticeDetail {
-  const GwNoticeDetail({required this.artSeqNo, required this.title, required this.board, required this.writer, required this.dept, required this.writeDate, required this.readCnt, required this.fileCnt, required this.content, required this.comments});
+  const GwNoticeDetail({required this.artSeqNo, required this.title, required this.board, required this.writer, required this.dept, required this.writeDate, required this.readCnt, required this.fileCnt, required this.content, required this.comments, this.contentMd = ''});
   final String artSeqNo, title, board, writer, dept, writeDate, content;
+  /// 화면 표시용 원문 서식(htmlToMarkdown). content 평문은 이노봇 도구·검색용
+  final String contentMd;
   final int readCnt, fileCnt;
   final List<GwComment> comments;
   factory GwNoticeDetail.fromData(Map d) {
@@ -344,7 +523,7 @@ class GwNoticeDetail {
     String firstOf(Map r, List<String> keys) => keys.map((k) => asStr(r[k])).firstWhere((v) => v.isNotEmpty, orElse: () => '');
     return GwNoticeDetail(
       artSeqNo: asStr(art['art_seq_no']), title: asStr(art['art_title']), board: asStr(board['cat_title']), writer: asStr(art['mbr_nick']), dept: asStr(art['dept_name']),
-      writeDate: niceDate(asStr(art['write_date'])), readCnt: asInt(art['read_cnt']), fileCnt: asInt(art['file_cnt']), content: htmlToText(asStr(art['art_content'])),
+      writeDate: niceDate(asStr(art['write_date'])), readCnt: asInt(art['read_cnt']), fileCnt: asInt(art['file_cnt']), content: htmlToText(asStr(art['art_content'])), contentMd: htmlToMarkdown(asStr(art['art_content'])),
       comments: [for (final r in remarks) if (r is Map) GwComment(writer: asStr(r['mbr_nick']), writeDate: niceDate(asStr(r['write_date'])), content: htmlToText(firstOf(r, ['remark_desc', 'remark_content', 'content', 'art_content'])))],
     );
   }

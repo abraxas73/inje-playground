@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
 import 'gw_api.dart';
@@ -108,6 +110,26 @@ class _DetailPage extends StatelessWidget {
   const _DetailPage(this.api, {required this.artSeqNo, required this.fallbackTitle});
   final GwApi api;
   final String artSeqNo, fallbackTitle;
+  /// 원문 서식(htmlToMarkdown — 이스케이프된 마크다운만). 그림은 불러오지 않고, 링크는 http(s)만 바깥 브라우저로
+  Widget _body(String data) {
+    final base = TextStyle(fontSize: 15, height: 1.65, color: Brand.navy);
+    return MarkdownBody(
+      data: data, // 글자 선택은 앱 전체 SelectionArea(main.dart)가 맡는다 — selectable을 켜면 링크 누르기와 겹친다
+      styleSheet: MarkdownStyleSheet(
+        p: base,
+        listBullet: base,
+        strong: const TextStyle(fontWeight: FontWeight.w700),
+        a: base.copyWith(color: Brand.blue, decoration: TextDecoration.underline),
+        blockSpacing: 8,
+      ),
+      imageBuilder: (_, _, alt) => Text('[이미지${alt == null || alt.isEmpty ? '' : ': $alt'}]', style: base.copyWith(color: Brand.muted)),
+      onTapLink: (_, href, _) {
+        final u = href == null ? null : Uri.tryParse(href);
+        if (u != null && (u.scheme == 'https' || u.scheme == 'http')) launchUrl(u, mode: LaunchMode.externalApplication);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -126,7 +148,7 @@ class _DetailPage extends StatelessWidget {
             const SizedBox(height: 6),
             Text([d.writer, if (d.dept.isNotEmpty) d.dept, d.writeDate, '조회 ${d.readCnt}', if (d.fileCnt > 0) '첨부 ${d.fileCnt}'].where((s) => s.isNotEmpty).join(' · '), style: theme.textTheme.bodySmall),
             const Divider(height: 24),
-            SelectableText(d.content.isEmpty ? '(본문 없음)' : d.content, style: TextStyle(fontSize: 15, height: 1.65, color: Brand.navy)),
+            if (d.contentMd.isNotEmpty) _body(d.contentMd) else SelectableText(d.content.isEmpty ? '(본문 없음)' : d.content, style: TextStyle(fontSize: 15, height: 1.65, color: Brand.navy)),
             if (d.fileCnt > 0) Padding(padding: const EdgeInsets.only(top: 16), child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Brand.blueTint, borderRadius: BorderRadius.circular(12)), child: Text('첨부 ${d.fileCnt}건은 아마란스에서 내려받으세요.', style: theme.textTheme.bodySmall?.copyWith(color: Brand.navy)))),
             if (d.comments.isNotEmpty) ...[
               const SizedBox(height: 20),
