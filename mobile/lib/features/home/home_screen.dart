@@ -23,6 +23,7 @@ import '../../gw/messenger_open.dart';
 import '../../messenger/messenger_chat_screen.dart' show MessengerDashboardCard, MessengerPanel;
 import '../../more/catalog.dart';
 import '../../more/service_grid.dart';
+import '../../release/desktop_updater.dart' show desktopUpdaterProvider;
 import '../../release/release_provider.dart';
 import 'greeting.dart';
 import 'quotes.dart';
@@ -341,6 +342,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 Row(children: [
                   const BrandLogo(width: 86, opacity: 0.8),
                   const Spacer(),
+                  // 데스크톱 업데이트 확인(더보기 '앱 버전' 줄과 같은 동작 — 결과·설치는 상단 업데이트 띠). 모바일은 스토어가 맡아 없음
+                  if (ref.watch(desktopUpdaterProvider) case final updater?) ...[
+                    TextButton.icon(onPressed: () => updater.check(manual: true), icon: const Icon(Icons.system_update_alt, size: 18), label: const Text('업데이트 확인')),
+                    const SizedBox(width: 4),
+                  ],
                   // 조직도 바로 가기(업무 메뉴의 조직도와 같은 웹 화면) — 권한이 있을 때만
                   if (session != null && canUsePage(session, orgChartEntry)) ...[
                     SquareIconButton(icon: Icons.account_tree_outlined, tooltip: '조직도', onPressed: () => open('/web?path=${Uri.encodeComponent(orgChartEntry.href)}')),
