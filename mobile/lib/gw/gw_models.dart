@@ -351,6 +351,12 @@ class GwNoticeDetail {
 }
 
 /// mail002A01 원본(⚠️ 아마란스에서 읽음 처리됨) → 본문 화면. 본문은 서식 없는 텍스트(plain 우선, 없으면 html→text) — mcp_tools._readMail과 같은 규칙.
+/// 첨부 이름 — originalFileName에 확장자가 빠져 오고 fileExtsn에 따로 오는 메일이 있다(2026-10-26 xlsx가 확장자 없이 저장됨). 이미 붙어 있으면 그대로.
+String mailAttachName(Map f) {
+  final name = asStr(f['originalFileName']), ext = asStr(f['fileExtsn']).trim();
+  return ext.isEmpty || name.toLowerCase().endsWith('.${ext.toLowerCase()}') ? name : '$name.$ext';
+}
+
 class MailDetail {
   const MailDetail({required this.muid, required this.subject, required this.from, required this.to, required this.cc, required this.date, required this.body, required this.attachments, required this.remoteImages, this.html = ''});
   final String muid, subject, from, to, cc, date, body;
@@ -376,7 +382,7 @@ class MailDetail {
       muid: muid, subject: htmlToText(asStr(dm['subject'])), from: htmlToText(asStr(dm['from'])), to: htmlToText(asStr(dm['to'])), cc: htmlToText(asStr(dm['cc'])), date: asStr(dm['date']),
       body: mailBodyText(b),
       html: html,
-      attachments: [for (final f in files) if (asStr(f['originalFileName']).isNotEmpty) (name: asStr(f['originalFileName']), size: asInt(f['fileSize']) * 3 ~/ 4, sn: asStr(f['fileSn']))],
+      attachments: [for (final f in files) if (asStr(f['originalFileName']).isNotEmpty) (name: mailAttachName(f), size: asInt(f['fileSize']) * 3 ~/ 4, sn: asStr(f['fileSn']))],
       remoteImages: remote,
     );
   }

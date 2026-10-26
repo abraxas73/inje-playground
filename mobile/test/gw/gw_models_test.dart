@@ -98,4 +98,9 @@ void main() {
     final n = GwNotice.fromRow({'art_seq_no': '1', 'art_title': 't', 'art_content': '<p>첫 줄</p><p>둘째 줄</p>'});
     expect(n.preview, '첫 줄 둘째 줄');
   });
+  test('mailAttachName — 확장자가 fileExtsn에만 오면 붙이고, 이미 있으면 그대로', () {
+    expect(mailAttachName({'originalFileName': 'ipipeline기능요청사항_v1.0_261023_이광수', 'fileExtsn': 'xlsx'}), 'ipipeline기능요청사항_v1.0_261023_이광수.xlsx');
+    expect(mailAttachName({'originalFileName': 'a.PDF', 'fileExtsn': 'pdf'}), 'a.PDF');
+    expect(mailAttachName({'originalFileName': 'memo'}), 'memo');
+  });
 }
