@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../api/client.dart';
@@ -63,12 +64,14 @@ List<TeamsReaction> toggleTeamsReaction(List<TeamsReaction> list, String type, S
 }
 
 class TeamsMsg {
-  const TeamsMsg(this.id, this.fromId, this.fromName, this.text, this.at, this.files, [this.reactions = const []]);
+  const TeamsMsg(this.id, this.fromId, this.fromName, this.text, this.at, this.files, [this.reactions = const [], this.markdown = '']);
   final String id, fromId, fromName, text;
+  /// 원문 서식(문단·굵게·목록·링크·멘션) — 서버가 Teams HTML을 이스케이프한 마크다운으로 바꿔 준다. 비면 text
+  final String markdown;
   final DateTime? at;
   final List<(String, String?)> files; // (이름, 주소)
   final List<TeamsReaction> reactions;
-  TeamsMsg withReactions(List<TeamsReaction> r) => TeamsMsg(id, fromId, fromName, text, at, files, r);
+  TeamsMsg withReactions(List<TeamsReaction> r) => TeamsMsg(id, fromId, fromName, text, at, files, r, markdown);
   static TeamsMsg? fromJson(Object? j) {
     if (j is! Map || j['id'] == null) return null;
     final from = j['from'];
@@ -84,6 +87,7 @@ class TeamsMsg {
           if (r is Map && r['type'] is String)
             TeamsReaction('${r['type']}', '${r['emoji'] ?? r['type']}', [for (final u in r['users'] is List ? r['users'] as List : const []) if (u is Map) '${u['id'] ?? ''}'], [for (final u in r['users'] is List ? r['users'] as List : const []) if (u is Map) '${u['name'] ?? ''}']),
       ],
+      j['markdown'] is String ? (j['markdown'] as String).trim() : '',
     );
   }
 }
@@ -343,6 +347,28 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
         : ListView.builder(reverse: true, padding: const EdgeInsets.all(12), itemCount: msgs.length, itemBuilder: (_, i) => item(i));
   }
 
+  /// 원문 서식 — 글 선택은 바깥 SelectionArea가 맡는다. 이미지는 불러오지 않고, 링크는 http(s)·mailto만 바깥 앱으로
+  Widget _markdown(String data, Color fg) {
+    final base = TextStyle(color: fg, height: 1.4, fontSize: 14);
+    return MarkdownBody(
+      data: data,
+      styleSheet: MarkdownStyleSheet(
+        p: base,
+        listBullet: base,
+        strong: const TextStyle(fontWeight: FontWeight.w700),
+        code: base.copyWith(fontFamily: 'monospace', fontSize: 13, backgroundColor: fg.withValues(alpha: 0.12)),
+        codeblockDecoration: BoxDecoration(color: fg.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)),
+        a: base.copyWith(decoration: TextDecoration.underline),
+        blockSpacing: 6,
+      ),
+      imageBuilder: (_, _, alt) => Text('[이미지${alt == null || alt.isEmpty ? '' : ': $alt'}]', style: base),
+      onTapLink: (_, href, _) {
+        final u = href == null ? null : Uri.tryParse(href);
+        if (u != null && (u.scheme == 'https' || u.scheme == 'http' || u.scheme == 'mailto')) launchUrl(u, mode: LaunchMode.externalApplication);
+      },
+    );
+  }
+
   Widget _bubble(TeamsMsg m, bool mine, bool showName, double maxW) {
     final fg = mine ? Colors.white : Brand.navy;
     final bubble = Container(
@@ -351,7 +377,7 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
       constraints: BoxConstraints(maxWidth: maxW),
       decoration: BoxDecoration(color: mine ? Brand.botViolet : Brand.blueTint, borderRadius: BorderRadius.circular(14)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        if (m.text.isNotEmpty) Text(m.text, style: TextStyle(color: fg, height: 1.4)),
+        if (m.markdown.isNotEmpty) _markdown(m.markdown, fg) else if (m.text.isNotEmpty) Text(m.text, style: TextStyle(color: fg, height: 1.4)),
         for (final (name, url) in m.files)
           InkWell(
             onTap: url == null ? null : () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),

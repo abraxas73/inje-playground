@@ -19,6 +19,8 @@ export interface ChatMessage {
   modifiedAt: string;
   from: { id: string; name: string } | null;
   text: string;
+  /** 화면 표시용 마크다운(문단·굵게·목록·링크·멘션 — teamsHtmlToMarkdown). text는 이노봇·브리핑·검색용 평문 */
+  markdown: string;
   attachments: ChatAttachment[];
   /** 반응(종류별로 묶음). type은 Graph 원래 값(떼기에 그대로 쓴다), emoji는 표시용 */
   reactions: ChatReaction[];
@@ -87,6 +89,174 @@ export function teamsHtmlToText(html: string): string {
   return s.split("\n").map((l) => l.replace(/\s+/g, " ").trim()).filter((l) => l !== "").join("\n");
 }
 
+const MD_ESCAPE = /[\\`*_[\]<>~|#&]/g;
+const LINE_START_ESCAPE = /^(\d+)([.)])|^([-+=])/;
+const attr = (tag: string, name: string) => decodeEntities(new RegExp(`\\b${name}="([^"]*)"`, "i").exec(tag)?.[1] ?? "");
+
+/**
+ * Teams 메시지 HTML → 마크다운(화면 표시 전용 — text는 이노봇·브리핑용 평문 그대로).
+ * 살리는 것: 줄(</p>·<br> = 줄바꿈, 빈 <p> = 빈 줄), 굵게·기울임·취소선·코드, 번호·글머리 목록(중첩·start), 링크(http·mailto만), 멘션(굵은 @이름), 그림 문자.
+ * 글자색·크기는 마크다운에 없어 버린다. 원문 HTML은 그리지 않는다 — 글은 모두 이스케이프해 마크다운 문법으로만 해석된다.
+ */
+export function teamsHtmlToMarkdown(html: string): string {
+  const src = html.replace(/<attachment\b[^>]*>[\s\S]*?<\/attachment>/gi, "").replace(/<attachment\b[^>]*\/?>/gi, "");
+  let out = "";
+  let brk = 0; // 다음 글 앞에 넣을 끊김: 1 줄바꿈, 2 빈 줄
+  let lineStart = true;
+  let blockHasText = false;
+  let b = 0, i = 0, s = 0, code = 0, pre = 0;
+  let preText = "";
+  const spans: boolean[] = []; // <span style="font-weight:bold"> 여부
+  const lists: Array<{ ordered: boolean; n: number }> = [];
+  let mention: string | null = null;
+  let link: { href: string; text: string } | null = null;
+  let run = { text: "", key: "" };
+
+  const write = (t: string) => {
+    if (!t) return;
+    if (out && brk && !lineStart) {
+      out = out.replace(/[ \t]+$/, "") + (brk === 2 ? "\n\n" : `  \n${"    ".repeat(lists.length)}`);
+      lineStart = true;
+    }
+    brk = 0;
+    out += t;
+    lineStart = false;
+    blockHasText = true;
+  };
+  const escape = (t: string, atStart: boolean) => {
+    const e = t.replace(MD_ESCAPE, "\\$&");
+    return atStart ? e.replace(LINE_START_ESCAPE, (_m, d?: string, p?: string, c?: string) => (d ? `${d}\\${p}` : `\\${c}`)) : e;
+  };
+  const flush = () => {
+    const { text, key } = run;
+    run = { text: "", key: "" };
+    if (!text.trim()) {
+      if (text && !lineStart && !brk) out += " ";
+      return;
+    }
+    const lead = /^\s/.test(text) && !lineStart && !brk && !out.endsWith(" ") ? " " : "";
+    const core = text.trim();
+    const atStart = lineStart || brk > 0 || !out;
+    let body: string;
+    if (key.includes("c")) body = core.includes("`") ? `\`\` ${core} \`\`` : `\`${core}\``;
+    else {
+      body = escape(core, atStart && !lead);
+      const mark = (key.includes("b") ? "**" : "") + (key.includes("i") ? "*" : "");
+      body = key.includes("s") ? `~~${body}~~` : body;
+      // 구두점으로 시작·끝나면 한글과 붙은 **가 닫히지 않는다(CommonMark flanking) — 마커 바깥에 머리카락 공백(U+200A)
+      const hair = (mark || key.includes("s")) && /^\p{P}/u.test(core) && !atStart && !lead && !/\s$/.test(out) ? "\u200A" : "";
+      body = mark ? `${mark}${body}${[...mark].reverse().join("")}` : body;
+      body = hair + body + ((mark || key.includes("s")) && /\p{P}$/u.test(core) ? "\u200A" : "");
+    }
+    if (lead) out += lead;
+    write(body);
+    if (/\s$/.test(text)) out += " ";
+  };
+  const text = (t: string, key = `${b || spans.includes(true) ? "b" : ""}${i ? "i" : ""}${s ? "s" : ""}${code ? "c" : ""}`) => {
+    if (key !== run.key) flush();
+    run.key = key;
+    run.text += t;
+  };
+  const lineBreak = (level: 1 | 2) => {
+    flush();
+    if (out) brk = Math.max(brk, level);
+  };
+  const newLine = () => {
+    out = out.replace(/[ \t]+$/, "");
+    if (out && !out.endsWith("\n")) out += "\n";
+    brk = 0;
+    lineStart = true;
+  };
+
+  for (const [tok] of src.matchAll(/<[^>]*>|[^<]+/g)) {
+    if (tok[0] !== "<") {
+      const t = decodeEntities(tok);
+      if (link) link.text += t;
+      else if (mention !== null) mention += t;
+      else if (pre) preText += t;
+      else text(t.replace(/\s+/g, " "));
+      continue;
+    }
+    const m = /^<\s*(\/)?\s*([a-z0-9]+)/i.exec(tok);
+    if (!m) continue;
+    const close = !!m[1];
+    const name = m[2].toLowerCase();
+    switch (name) {
+      case "br": if (pre) preText += "\n"; else { flush(); lineBreak(brk >= 1 ? 2 : 1); } break;
+      case "p": case "div": case "h1": case "h2": case "h3": case "h4": case "h5": case "h6": case "blockquote": case "tr":
+        if (pre) break;
+        if (!close) { lineBreak(1); blockHasText = false; }
+        else { flush(); if (out) brk = Math.max(brk, blockHasText || lists.length ? 1 : 2); blockHasText = false; }
+        break;
+      case "td": case "th": if (close) text(" "); break;
+      case "strong": case "b": b += close ? -1 : 1; b = Math.max(0, b); break;
+      case "em": case "i": i = Math.max(0, i + (close ? -1 : 1)); break;
+      case "s": case "strike": case "del": s = Math.max(0, s + (close ? -1 : 1)); break;
+      case "code": if (!pre) code = Math.max(0, code + (close ? -1 : 1)); break;
+      case "span":
+        if (close) spans.pop();
+        else spans.push(/font-weight\s*:\s*(bold|[6-9]00)/i.test(attr(tok, "style")));
+        break;
+      case "pre": case "codeblock":
+        flush();
+        if (!close && !pre) { if (out) { newLine(); out += "\n"; } preText = ""; }
+        pre = Math.max(0, pre + (close ? -1 : 1));
+        if (close && !pre) {
+          // 내용의 ``` 줄이 펜스를 일찍 닫지 않게 가장 긴 백틱보다 하나 더
+          const fence = "`".repeat(Math.max(3, ...[...preText.matchAll(/`+/g)].map(([f]) => f.length + 1)));
+          out += `${fence}\n${preText.replace(/^\n+|\n+$/g, "")}\n${fence}`;
+          brk = 2;
+          lineStart = false;
+        }
+        break;
+      case "ol": case "ul":
+        flush();
+        if (!close) {
+          if (!lists.length && out) { newLine(); out += "\n"; }
+          const start = parseInt(attr(tok, "start"), 10);
+          lists.push({ ordered: name === "ol", n: Number.isFinite(start) && start > 0 ? start : 1 });
+        } else if (lists.pop() && !lists.length) brk = 2;
+        break;
+      case "li": {
+        flush();
+        if (close) break;
+        const l = lists[lists.length - 1] ?? { ordered: false, n: 1 };
+        newLine();
+        out += `${"    ".repeat(Math.max(0, lists.length - 1))}${l.ordered ? `${l.n++}. ` : "- "}`;
+        lineStart = true;
+        break;
+      }
+      case "at":
+        if (!close) { flush(); mention = ""; break; }
+        if (mention !== null) {
+          const n = mention.replace(/\s+/g, " ").trim();
+          mention = null;
+          if (n) { if (!lineStart && !brk && out && !out.endsWith(" ")) out += " "; text(`@${n}`, "b"); flush(); out += " "; }
+        }
+        break;
+      case "a":
+        if (!close) { flush(); link = { href: attr(tok, "href"), text: "" }; break; }
+        if (link) {
+          const { href, text: t } = link;
+          link = null;
+          const label = t.replace(/\s+/g, " ").trim() || href;
+          if (/^(https?:|mailto:)/i.test(href)) { flush(); if (!lineStart && !brk && out && !out.endsWith(" ")) out += " "; write(`[${escape(label, false)}](${href.replace(/[\s()<>]/g, encodeURIComponent)})`); }
+          else text(label);
+        }
+        break;
+      case "img": case "emoji": {
+        if (close) break;
+        const alt = attr(tok, "alt");
+        if (name === "emoji" || /emoji/i.test(attr(tok, "itemtype"))) { if (alt) text(alt); }
+        else text("[이미지]");
+        break;
+      }
+    }
+  }
+  flush();
+  return out.trim();
+}
+
 /** 답글 인용(messageReference)은 본문이 이미 대화에 있으니 첨부로 세지 않는다. contentUrl은 http(s)만(파일 첨부는 data: 가능). */
 function normalizeAttachments(list: unknown): ChatAttachment[] {
   if (!Array.isArray(list)) return [];
@@ -113,6 +283,7 @@ export function normalizeChatMessage(r: unknown): ChatMessage | null {
     modifiedAt: String(o.lastModifiedDateTime ?? o.createdDateTime ?? ""),
     from: who ? { id: String(who.id ?? ""), name: String(who.displayName ?? "") } : null,
     text: body?.contentType === "html" ? teamsHtmlToText(content) : content.trim(),
+    markdown: body?.contentType === "html" ? teamsHtmlToMarkdown(content) : content.trim().replace(MD_ESCAPE, "\\$&").replace(/\n/g, "  \n"),
     attachments: normalizeAttachments(o.attachments),
     reactions: normalizeReactions(o.reactions),
   };
@@ -156,7 +327,7 @@ export async function listChatMessages(token: string, chatId: string, since?: st
 export async function sendChatMessage(token: string, chatId: string, text: string, fetchImpl: FetchLike = fetch): Promise<ChatMessage> {
   const j = await graph(token, `${GRAPH_BASE}/chats/${encodeURIComponent(chatId)}/messages`, { method: "POST", body: JSON.stringify({ body: { contentType: "text", content: text } }) }, fetchImpl);
   const now = new Date().toISOString();
-  return normalizeChatMessage(j) ?? { id: String((j as { id?: unknown } | null)?.id ?? ""), createdAt: now, modifiedAt: now, from: null, text, attachments: [], reactions: [] };
+  return normalizeChatMessage(j) ?? { id: String((j as { id?: unknown } | null)?.id ?? ""), createdAt: now, modifiedAt: now, from: null, text, markdown: "", attachments: [], reactions: [] };
 }
 
 /**

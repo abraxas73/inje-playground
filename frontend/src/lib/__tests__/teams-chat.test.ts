@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
-import { chatMessagesUrl, getChatInfo, listChatMessages, listMyChats, normalizeChatMessages, sendChatMessage, teamsHtmlToText } from "@/lib/teams/chat";
+import { chatMessagesUrl, getChatInfo, listChatMessages, listMyChats, normalizeChatMessages, sendChatMessage, teamsHtmlToMarkdown, teamsHtmlToText } from "@/lib/teams/chat";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "request-id": "rid-1" } });
 
@@ -11,6 +11,30 @@ describe("teamsHtmlToText", () => {
     expect(teamsHtmlToText('<div>파일 보냅니다<attachment id="1"></attachment></div><div><img src="https://graph.microsoft.com/x" alt=""></div>')).toBe("파일 보냅니다\n[이미지]");
     expect(teamsHtmlToText('<a href="https://ex.com/a">문서</a> / <a href="https://ex.com/b">https://ex.com/b</a>')).toBe("문서 (https://ex.com/a) / https://ex.com/b");
     expect(teamsHtmlToText("<p>a</p><p></p><p></p><p>b</p>")).toBe("a\nb");
+  });
+});
+
+describe("teamsHtmlToMarkdown", () => {
+  it("줄·빈 줄·굵게·중첩 목록(start)·멘션·링크·그림 문자를 살리고 글자색은 버린다", () => {
+    const html = '<p><at id="0">강승억</at><at id="1">정선미</at> 메일입니다.</p><p>&nbsp;</p><p>안녕하세요</p><p>황윤재입니다.<br>둘째 줄</p><p>&nbsp;</p>'
+      + '<p><strong>※ 방향</strong></p><ol><li><strong>유지</strong></li><li>구축<ul><li>harbor</li><li><span style="color:red">gitlab</span></li></ul></li></ol>'
+      + '<ol start="7"><li>안내</li></ol><p>참고 <a href="https://ex.com/a b">문서</a> <img itemtype="http://schema.skype.com/Emoji" alt="😊"> <img src="x"></p>';
+    expect(teamsHtmlToMarkdown(html)).toBe([
+      "**@강승억** **@정선미** 메일입니다.", "", "안녕하세요  ", "황윤재입니다.  ", "둘째 줄", "", "**※ 방향**", "",
+      "1. **유지**", "2. 구축", "    - harbor", "    - gitlab", "", "7. 안내", "", "참고 [문서](https://ex.com/a%20b) 😊 \\[이미지\\]",
+    ].join("\n"));
+  });
+
+  it("글은 이스케이프한다 — 원문의 마크다운·HTML 문법, 줄 처음 번호, 위험한 링크는 글로만", () => {
+    expect(teamsHtmlToMarkdown("<p>1. 번호 아님 *별* &lt;b&gt;x&lt;/b&gt; [a](b)</p>")).toBe("1\\. 번호 아님 \\*별\\* \\<b\\>x\\</b\\> \\[a\\](b)");
+    expect(teamsHtmlToMarkdown('<p><a href="javascript:alert(1)">눌러</a></p>')).toBe("눌러");
+    expect(teamsHtmlToMarkdown("<pre>a *b*\n  c</pre><p>끝</p>")).toBe("```\na *b*\n  c\n```\n\n끝");
+    expect(teamsHtmlToMarkdown("<pre>x\n```\n[a](https://b)</pre>")).toBe("````\nx\n```\n[a](https://b)\n````");
+  });
+
+  it("목록 안 <p>는 빈 항목을 만들지 않고, 구두점으로 끝나는 굵게는 한글과 붙어도 닫힌다", () => {
+    expect(teamsHtmlToMarkdown("<ul><li><p>첫째</p></li><li><p>둘째</p></li></ul>")).toBe("- 첫째\n- 둘째");
+    expect(teamsHtmlToMarkdown("<p>다음<b>(ex.)</b>예시</p>")).toBe("다음 **(ex.)** 예시");
   });
 });
 
@@ -35,7 +59,7 @@ describe("normalizeChatMessages", () => {
     ] });
     expect(out.map((m) => m.id)).toEqual(["1", "3", "5"]);
     // 첨부: 파일은 contentUrl 링크, 카드는 url 없음(이름 없으면 "첨부"), 답글 인용(messageReference)은 제외, data: 주소는 링크로 안 씀
-    expect(out[0]).toEqual({ id: "1", createdAt: "2026-10-03T12:00:00Z", modifiedAt: "2026-10-03T12:00:00Z", from: { id: "aad-1", name: "강승욱" }, text: "plain & text", attachments: [
+    expect(out[0]).toEqual({ id: "1", createdAt: "2026-10-03T12:00:00Z", modifiedAt: "2026-10-03T12:00:00Z", from: { id: "aad-1", name: "강승욱" }, text: "plain & text", markdown: "plain \\& text", attachments: [
       { id: "a", name: "발표.pptx", url: "https://innogrid-my.sharepoint.com/x/발표.pptx" },
       { id: "b", name: "첨부", url: null },
       { id: "d", name: "x.png", url: null },
