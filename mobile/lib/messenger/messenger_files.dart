@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pasteboard/pasteboard.dart';
+import '../app/save_file.dart';
 import '../app/theme.dart';
 import 'messenger_api.dart';
 import 'messenger_models.dart';
@@ -100,7 +101,7 @@ Future<void> saveMsgFile(BuildContext context, MessengerApi api, String chatId, 
   final messenger = ScaffoldMessenger.of(context);
   try {
     final data = bytes ?? await api.file(chatId, f.fileSn);
-    final saved = await FilePicker.saveFile(fileName: f.name, bytes: data);
+    final saved = await saveFileRememberingDir(f.name, data);
     if (saved != null) messenger.showSnackBar(SnackBar(content: Text('저장했습니다: ${f.name}')));
   } catch (e) {
     messenger.showSnackBar(SnackBar(content: Text('받지 못했습니다: $e')));

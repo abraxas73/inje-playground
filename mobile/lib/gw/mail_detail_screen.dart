@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:typed_data';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart' show JavaScriptMode, NavigationDecision;
 import '../web/app_webview.dart';
 import '../app/brand.dart';
+import '../app/save_file.dart';
 import '../app/theme.dart';
 import 'gw_api.dart';
 import 'gw_client.dart' show asStr;
@@ -18,7 +18,7 @@ import 'mail_html.dart';
 import 'mail_indexer.dart';
 
 /// 받은 첨부 저장 — 저장 위치를 고르게 하고 고른 위치(취소면 null). 테스트에서 override.
-final mailFileSaverProvider = Provider<Future<Object?> Function(String name, Uint8List bytes)>((_) => (name, bytes) => FilePicker.saveFile(fileName: name, bytes: bytes));
+final mailFileSaverProvider = Provider<Future<Object?> Function(String name, Uint8List bytes)>((_) => saveFileRememberingDir);
 
 /// 메일 본문. 머리 정보(제목 포함)는 화면 자체 SelectionArea로 끌어 선택(앱 전체 SelectAllText만으론 데스크톱에서 선택이 풀린다). 아래 고정 줄은 두지 않는다(2026-10-22 사용자 결정 — 본문 공간 우선, 안 읽음 되돌리기 없음). 첨부는 누르면 받아 저장 위치를 고르게 한다(이노봇 download_mail_attachment와 같은 mail014A08 → ecm001A03).
 class MailDetailScreen extends ConsumerStatefulWidget {
