@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../api/client.dart';
@@ -42,8 +43,8 @@ class TeamsReaction {
   final List<String> userIds, names;
 }
 
-/// 붙일 수 있는 반응(웹·서버와 같은 Teams 기본 6개)
-const teamsReactionChoices = ['👍', '❤️', '😆', '😮', '😢', '😡'];
+/// 고르는 반응 — 웹·서버와 같은 12개(Teams 기본 6 + 자주 쓰는 6, 조직 스티커는 Graph가 붙이기를 받지 않음)
+const teamsReactionChoices = ['👍', '❤️', '😆', '😮', '😢', '😡', '👀', '👏', '🙌', '🔥', '🎉', '🙏'];
 
 /// 내 반응 하나를 붙이거나 뗀 결과(응답 전에 먼저 보여 주고 5초 폴링이 실제 상태로 맞춘다)
 List<TeamsReaction> toggleTeamsReaction(List<TeamsReaction> list, String type, String emoji, String me, bool on) {
@@ -63,12 +64,14 @@ List<TeamsReaction> toggleTeamsReaction(List<TeamsReaction> list, String type, S
 }
 
 class TeamsMsg {
-  const TeamsMsg(this.id, this.fromId, this.fromName, this.text, this.at, this.files, [this.reactions = const []]);
+  const TeamsMsg(this.id, this.fromId, this.fromName, this.text, this.at, this.files, [this.reactions = const [], this.markdown = '']);
   final String id, fromId, fromName, text;
+  /// 원문 서식(문단·굵게·목록·링크·멘션) — 서버가 Teams HTML을 이스케이프한 마크다운으로 바꿔 준다. 비면 text
+  final String markdown;
   final DateTime? at;
   final List<(String, String?)> files; // (이름, 주소)
   final List<TeamsReaction> reactions;
-  TeamsMsg withReactions(List<TeamsReaction> r) => TeamsMsg(id, fromId, fromName, text, at, files, r);
+  TeamsMsg withReactions(List<TeamsReaction> r) => TeamsMsg(id, fromId, fromName, text, at, files, r, markdown);
   static TeamsMsg? fromJson(Object? j) {
     if (j is! Map || j['id'] == null) return null;
     final from = j['from'];
@@ -84,6 +87,7 @@ class TeamsMsg {
           if (r is Map && r['type'] is String)
             TeamsReaction('${r['type']}', '${r['emoji'] ?? r['type']}', [for (final u in r['users'] is List ? r['users'] as List : const []) if (u is Map) '${u['id'] ?? ''}'], [for (final u in r['users'] is List ? r['users'] as List : const []) if (u is Map) '${u['name'] ?? ''}']),
       ],
+      j['markdown'] is String ? (j['markdown'] as String).trim() : '',
     );
   }
 }
@@ -286,22 +290,42 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
     }
   }
 
-  Future<void> _pickReaction(TeamsMsg m) async {
-    final picked = await showModalBottomSheet<String>(
+  /// 😊+ 단추 바로 옆에 붙는 작은 고르기 창(6칸 × 2줄, 칸 28px) — 아래 시트는 위젯에서 너무 컸다
+  Future<void> _pickReaction(TeamsMsg m, BuildContext anchor) async {
+    final box = anchor.findRenderObject() as RenderBox?;
+    final screen = MediaQuery.sizeOf(context);
+    final at = box == null ? Offset.zero : box.localToGlobal(Offset.zero);
+    const cell = 28.0, w = cell * 6 + 8, h = cell * 2 + 8;
+    final left = (at.dx + (box?.size.width ?? 0) / 2 - w / 2).clamp(4.0, screen.width - w - 4);
+    final top = at.dy - h - 2 < 4 ? at.dy + (box?.size.height ?? 0) + 2 : at.dy - h - 2; // 위에 붙이고, 자리가 없으면 아래
+    final picked = await showDialog<String>(
       context: context,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-            for (final e in teamsReactionChoices)
-              InkWell(
-                borderRadius: BorderRadius.circular(24),
-                onTap: () => Navigator.of(ctx).pop(e),
-                child: Padding(padding: const EdgeInsets.all(8), child: Text(e, style: const TextStyle(fontSize: 28))),
+      barrierColor: Colors.transparent,
+      builder: (ctx) => Stack(children: [
+        Positioned(
+          left: left,
+          top: top,
+          child: Material(
+            elevation: 4,
+            color: Brand.surface,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: SizedBox(
+                width: cell * 6,
+                child: Wrap(children: [
+                  for (final e in teamsReactionChoices)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: () => Navigator.of(ctx).pop(e),
+                      child: SizedBox(width: cell, height: cell, child: Center(child: Text(e, style: const TextStyle(fontSize: 17)))),
+                    ),
+                ]),
               ),
-          ]),
+            ),
+          ),
         ),
-      ),
+      ]),
     );
     if (picked == null || !mounted) return;
     // 같은 그림이 옛 이름(like)·유니코드 두 묶음일 수 있다 — 떼기는 내가 붙인 묶음의 값으로
@@ -361,6 +385,28 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
         : ListView.builder(reverse: true, padding: const EdgeInsets.all(12), itemCount: msgs.length, itemBuilder: (_, i) => item(i));
   }
 
+  /// 원문 서식 — 글 선택은 바깥 SelectionArea가 맡는다. 이미지는 불러오지 않고, 링크는 http(s)·mailto만 바깥 앱으로
+  Widget _markdown(String data, Color fg) {
+    final base = TextStyle(color: fg, height: 1.4, fontSize: 14);
+    return MarkdownBody(
+      data: data,
+      styleSheet: MarkdownStyleSheet(
+        p: base,
+        listBullet: base,
+        strong: const TextStyle(fontWeight: FontWeight.w700),
+        code: base.copyWith(fontFamily: 'monospace', fontSize: 13, backgroundColor: fg.withValues(alpha: 0.12)),
+        codeblockDecoration: BoxDecoration(color: fg.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)),
+        a: base.copyWith(decoration: TextDecoration.underline),
+        blockSpacing: 6,
+      ),
+      imageBuilder: (_, _, alt) => Text('[이미지${alt == null || alt.isEmpty ? '' : ': $alt'}]', style: base),
+      onTapLink: (_, href, _) {
+        final u = href == null ? null : Uri.tryParse(href);
+        if (u != null && (u.scheme == 'https' || u.scheme == 'http' || u.scheme == 'mailto')) launchUrl(u, mode: LaunchMode.externalApplication);
+      },
+    );
+  }
+
   Widget _bubble(TeamsMsg m, bool mine, bool showName, double maxW) {
     final fg = mine ? Colors.white : Brand.navy;
     final bubble = Container(
@@ -369,7 +415,7 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
       constraints: BoxConstraints(maxWidth: maxW),
       decoration: BoxDecoration(color: mine ? Brand.botViolet : Brand.blueTint, borderRadius: BorderRadius.circular(14)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        if (m.text.isNotEmpty) Text(m.text, style: TextStyle(color: fg, height: 1.4)),
+        if (m.markdown.isNotEmpty) _markdown(m.markdown, fg) else if (m.text.isNotEmpty) Text(m.text, style: TextStyle(color: fg, height: 1.4)),
         for (final (name, url) in m.files)
           InkWell(
             onTap: url == null ? null : () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
@@ -386,14 +432,14 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
     );
     final stamp = Column(mainAxisSize: MainAxisSize.min, children: [
       // 반응 붙이기 — 글자 선택(SelectionArea)과 겹치지 않게 길게 누르기 대신 작은 단추
-      IconButton(
-        onPressed: () => _pickReaction(m),
+      Builder(builder: (anchor) => IconButton(
+        onPressed: () => _pickReaction(m, anchor),
         tooltip: '반응 붙이기',
         iconSize: 16,
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
         icon: Icon(Icons.add_reaction_outlined, color: Brand.faint),
-      ),
+      )),
       Padding(padding: const EdgeInsets.only(bottom: 2), child: Text(m.at == null ? '' : _kst(m.at!, dateIfOld: true), style: TextStyle(fontSize: 10, color: Brand.faint))),
     ]);
     return Align(

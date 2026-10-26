@@ -1,5 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ArrowLeft, ArrowRight, ExternalLink, Loader2, MessageCircle, Paperclip, RefreshCw, Search, SendHorizontal, SmilePlus, User as UserIcon, Users } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -21,8 +23,13 @@ interface ChatSummary { id: string; type: "group" | "oneOnOne"; topic: string; m
 interface Info { connected: boolean; hasChatScope: boolean; meId?: string; chats?: ChatSummary[] }
 interface Hit { id: string; chatId: string; createdAt: string; from: string; snippet: string }
 interface Reaction { type: string; emoji: string; users: Array<{ id: string; name: string }> }
-interface Msg { id: string; createdAt: string; modifiedAt: string; from: { id: string; name: string } | null; text: string; attachments: Array<{ id: string; name: string; url: string | null }>; reactions?: Reaction[] }
-const REACTIONS = ["👍", "❤️", "😆", "😮", "😢", "😡"]; // Teams 기본 반응(서버 REACTION_CHOICES와 같다)
+// 원문 서식(문단·굵게·목록·링크) — 서버가 이스케이프한 마크다운만 그린다(HTML 그대로 그리지 않음). 링크는 새 탭, 이미지는 불러오지 않는다
+const MD: Components = {
+  a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{children}</a>,
+  img: ({ alt }) => <span>[이미지{alt ? `: ${alt}` : ""}]</span>,
+};
+interface Msg { id: string; createdAt: string; modifiedAt: string; from: { id: string; name: string } | null; text: string; markdown?: string; attachments: Array<{ id: string; name: string; url: string | null }>; reactions?: Reaction[] }
+const REACTIONS = ["👍", "❤️", "😆", "😮", "😢", "😡", "👀", "👏", "🙌", "🔥", "🎉", "🙏"]; // 서버 REACTION_CHOICES와 같다
 
 /** 내 반응 하나를 붙이거나 뗀 결과(서버 응답 전에 먼저 보여 주고, 다음 폴링이 실제 상태로 맞춘다) */
 function toggleReaction(list: Reaction[], type: string, emoji: string, me: string, on: boolean): Reaction[] {
@@ -378,18 +385,20 @@ export default function TeamsChatPage() {
                         </button>
                       </div>
                       {pickerFor === m.id && (
-                        <div className="flex gap-1 self-start rounded-full border bg-card px-2 py-1 shadow-sm" role="group" aria-label="반응 고르기">
+                        <div className="grid w-max grid-cols-6 self-start rounded-lg border bg-card p-0.5 shadow-sm" role="group" aria-label="반응 고르기">
                           {REACTIONS.map((e) => {
                             // 같은 그림이 옛 이름(like)·유니코드 두 묶음일 수 있다 — 떼기는 내가 붙인 묶음의 값으로, 붙이기는 있는 묶음(없으면 그림 그대로)
                             const same = (m.reactions ?? []).filter((r) => r.emoji === e && r.type !== "custom");
                             const minePick = same.find((r) => r.users.some((u) => u.id === info.meId));
                             const on = !!minePick;
-                            return <button key={e} type="button" onClick={() => void react(m, (minePick ?? same[0])?.type ?? e, e, !on)} className={cn("rounded-full px-1 text-lg leading-none hover:scale-125", on && "bg-primary/10")} aria-label={`${e} ${on ? "떼기" : "붙이기"}`}>{e}</button>;
+                            return <button key={e} type="button" onClick={() => void react(m, (minePick ?? same[0])?.type ?? e, e, !on)} className={cn("flex h-7 w-7 items-center justify-center rounded text-base leading-none hover:bg-muted", on && "bg-primary/10")} aria-label={`${e} ${on ? "떼기" : "붙이기"}`}>{e}</button>;
                           })}
                         </div>
                       )}
-                      <div className={cn("w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-2xl px-3 py-2 text-sm", mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted")}>
-                        {m.text || (m.attachments.length ? "" : "(내용 없음)")}
+                      <div className={cn("w-full break-words [overflow-wrap:anywhere] rounded-2xl px-3 py-2 text-sm", mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted")}>
+                        {m.markdown
+                          ? <div className={cn("prose prose-sm max-w-none text-inherit prose-p:my-0 prose-ol:my-1 prose-ul:my-1 prose-li:my-0 prose-code:before:content-none prose-code:after:content-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", mine ? "[--tw-prose-bold:currentColor] [--tw-prose-links:currentColor] [--tw-prose-code:currentColor] [--tw-prose-bullets:currentColor] [--tw-prose-counters:currentColor]" : "dark:prose-invert")}><ReactMarkdown remarkPlugins={[remarkGfm]} components={MD}>{m.markdown}</ReactMarkdown></div>
+                          : <span className="whitespace-pre-wrap">{m.text || (m.attachments.length ? "" : "(내용 없음)")}</span>}
                         {m.attachments.length > 0 && (
                           <span className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs", mine ? "text-primary-foreground/80" : "text-muted-foreground")}>
                             <Paperclip className="h-3 w-3 shrink-0" />

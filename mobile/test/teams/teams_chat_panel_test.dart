@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:playground/api/client.dart';
@@ -180,6 +181,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.listLoads, 2);
     expect(find.text('플랫폼팀(이름 바뀜)'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('원문 서식 — markdown이 있으면 굵게·목록으로 그리고, 없으면 text 평문', (tester) async {
+    final api = FakeApi();
+    api.msgs = [
+      {'id': '1', 'createdAt': '2026-10-22T01:00:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '방향 유지', 'markdown': '**방향**\n\n1. 유지\n2. 구축', 'attachments': []},
+      {'id': '2', 'createdAt': '2026-10-22T01:01:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '옛 서버 *그대로*', 'attachments': []},
+    ];
+    await tester.pumpWidget(ProviderScope(
+      overrides: [apiClientProvider.overrideWithValue(api)],
+      child: const MaterialApp(home: Scaffold(body: TeamsChatPanel())),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('플랫폼팀'));
+    await tester.pumpAndSettle();
+    expect(find.byType(MarkdownBody), findsOneWidget);
+    final bold = tester.widgetList<RichText>(find.descendant(of: find.byType(MarkdownBody), matching: find.byType(RichText))).map((r) => r.text).whereType<TextSpan>().expand((t) => [t, ...?t.children?.whereType<TextSpan>()]);
+    expect(bold.any((t) => t.toPlainText() == '방향' && t.style?.fontWeight == FontWeight.w700), isTrue);
+    expect(find.text('유지', findRichText: true), findsOneWidget);
+    expect(find.text('옛 서버 *그대로*'), findsOneWidget); // markdown 없으면 평문 그대로
     await tester.pumpWidget(const SizedBox());
   });
 }
