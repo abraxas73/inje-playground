@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { descendants, type OrgData, type OrgDept, type OrgPerson } from "@/lib/directory/org";
 import { cn } from "@/lib/utils";
-import { appActionUrl, byName, defaultExpanded, deptPath, indexOrg, mailtoUrl, searchOrg, type OrgIndex } from "./org-tree";
+import { ancestorIds, appActionUrl, byName, defaultExpanded, deptPath, indexOrg, mailtoUrl, searchOrg, type OrgIndex } from "./org-tree";
 
 const fmtKst = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "없음";
@@ -30,6 +30,7 @@ function DeptCard({ d, ctx }: { d: OrgDept; ctx: TreeCtx }) {
     <div
       role="button"
       tabIndex={0}
+      data-dept-id={d.id}
       onClick={() => ctx.select(d.id)}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); ctx.select(d.id); } }}
       className={cn(
@@ -97,6 +98,9 @@ interface PeopleActions {
   inApp: boolean;
   messenger: (people: OrgPerson[]) => void;
   mail: (people: OrgPerson[]) => void;
+  /** 검색 결과에서 사람을 누르면 조직도에서 그 소속 부서를 찾아 보여 준다 */
+  locate?: (p: OrgPerson) => void;
+  located?: string;
 }
 
 function RowActions({ p, a }: { p: OrgPerson; a: PeopleActions }) {
@@ -125,9 +129,12 @@ function PeopleTable({ people, a }: { people: OrgPerson[]; a: PeopleActions }) {
         <span>전체 선택 · {people.length}명</span>
       </li>
       {people.map((p) => (
-        <li key={p.email} className={cn("flex items-start gap-3 px-4 py-2 text-sm hover:bg-muted/40", a.picked.has(p.email) && "bg-primary/5")}>
+        <li key={p.email} className={cn("flex items-start gap-3 px-4 py-2 text-sm hover:bg-muted/40", a.picked.has(p.email) && "bg-primary/5", a.located === p.email && "bg-amber-50 dark:bg-amber-950/40")}>
           <Checkbox className="mt-0.5" checked={a.picked.has(p.email)} onCheckedChange={() => a.toggle(p)} aria-label={`${p.name} 선택`} />
-          <div className="min-w-0 flex-1">
+          <div
+            className={cn("min-w-0 flex-1", a.locate && p.deptId && "cursor-pointer")}
+            {...(a.locate && p.deptId ? { role: "button", tabIndex: 0, title: "조직도에서 소속 보기", onClick: () => a.locate!(p), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); a.locate!(p); } } } : {})}
+          >
             <div className="flex flex-wrap items-baseline gap-x-2">
               <span className="font-medium">{p.name}</span>
               <span className="text-xs text-muted-foreground">{[p.duty, p.position].filter(Boolean).join(" · ")}</span>
@@ -179,6 +186,7 @@ export default function OrgChart() {
   const [withSub, setWithSub] = useState(true);
   const [picked, setPicked] = useState<Map<string, OrgPerson>>(new Map());
   const [inApp, setInApp] = useState(false);
+  const [located, setLocated] = useState("");
   useEffect(() => setInApp(document.body.dataset.app === "1"), []);
 
   const idx = useMemo(() => (data?.departments.length ? indexOrg(data) : null), [data]);
@@ -239,6 +247,20 @@ export default function OrgChart() {
     setAll: (list, on) => setPicked((cur) => { const n = new Map(cur); for (const p of list) { if (on) n.set(p.email, p); else n.delete(p.email); } return n; }),
     messenger: (list) => go(appActionUrl("messenger", list)),
     mail: (list) => go(inApp ? appActionUrl("mail", list) : mailtoUrl(list)),
+    located,
+    // 조상을 펼치고 소속 부서를 선택한 뒤, 보이는 트리(넓은/좁은 화면 중 하나)에서 그 카드로 스크롤
+    locate: searching
+      ? (p) => {
+          const id = p.deptId!;
+          setExpanded((cur) => new Set([...cur, ...ancestorIds(idx, id)]));
+          setSelected(id);
+          setLocated(p.email);
+          setTimeout(() => {
+            const el = [...document.querySelectorAll<HTMLElement>(`[data-dept-id="${CSS.escape(id)}"]`)].find((e) => e.getClientRects().length);
+            el?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+          }, 50);
+        }
+      : undefined,
   };
 
   return (
@@ -276,6 +298,7 @@ export default function OrgChart() {
             <div
               role="button"
               tabIndex={0}
+              data-dept-id={idx.root.id}
               onClick={() => setSelected(idx.root.id)}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(idx.root.id); } }}
               className={cn("flex w-52 cursor-pointer items-center gap-3 rounded-xl bg-slate-900 px-3 py-2 text-left text-white shadow-md dark:bg-slate-800", selected === idx.root.id && "ring-2 ring-primary ring-offset-2")}
@@ -304,6 +327,7 @@ export default function OrgChart() {
             <div
               role="button"
               tabIndex={0}
+              data-dept-id={idx.root.id}
               onClick={() => setSelected(idx.root.id)}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(idx.root.id); } }}
               className={cn("flex cursor-pointer items-center gap-3 rounded-xl bg-slate-900 px-5 py-3 text-left text-white shadow-md dark:bg-slate-800", selected === idx.root.id && "ring-2 ring-primary ring-offset-2")}
