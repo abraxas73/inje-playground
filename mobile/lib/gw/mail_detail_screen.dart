@@ -20,7 +20,7 @@ import 'mail_indexer.dart';
 /// 받은 첨부 저장 — 저장 위치를 고르게 하고 고른 위치(취소면 null). 테스트에서 override.
 final mailFileSaverProvider = Provider<Future<Object?> Function(String name, Uint8List bytes)>((_) => (name, bytes) => FilePicker.saveFile(fileName: name, bytes: bytes));
 
-/// 메일 본문. 아래 고정 줄은 두지 않는다(2026-10-22 사용자 결정 — 본문 공간 우선, 안 읽음 되돌리기 없음). 첨부는 누르면 받아 저장 위치를 고르게 한다(이노봇 download_mail_attachment와 같은 mail014A08 → ecm001A03).
+/// 메일 본문. 머리 정보(제목 포함)는 화면 자체 SelectionArea로 끌어 선택(앱 전체 SelectAllText만으론 데스크톱에서 선택이 풀린다). 아래 고정 줄은 두지 않는다(2026-10-22 사용자 결정 — 본문 공간 우선, 안 읽음 되돌리기 없음). 첨부는 누르면 받아 저장 위치를 고르게 한다(이노봇 download_mail_attachment와 같은 mail014A08 → ecm001A03).
 class MailDetailScreen extends ConsumerStatefulWidget {
   const MailDetailScreen({super.key, required this.api, required this.item});
   final GwApi api;
@@ -76,7 +76,7 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: BrandHeader(
-          title: widget.item.subject.isEmpty ? '(제목 없음)' : widget.item.subject,
+          title: '메일', // 제목은 본문 머리 정보에 한 번만(끌어 선택 가능한 자리)
           showBack: true,
           actions: [
             SquareIconButton(icon: Icons.reply, tooltip: '답장', onPressed: _busy ? null : () => _write(MailKind.reply)),
@@ -102,18 +102,20 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
                     constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.4),
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: _header(m)),
+                      child: SelectionArea(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: _header(m))),
                     ),
                   ),
+                // 접혀 있어도 제목은 보인다(상단 바에는 제목을 두지 않는다 — 2026-10-26)
+                if (!open) SelectionArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 4), child: Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)))),
                 _HeaderToggle(open: open, summary: _summary(m), onTap: () => setState(() => _headerOpen = !open)),
                 Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: MailHtmlView(html: m.html))),
               ]);
             }
-            return ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 32), children: [
+            return SelectionArea(child: ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 32), children: [
               ..._header(m),
               const Divider(height: 28),
               SelectableText(m.body.isEmpty ? '(본문 없음)' : m.body, style: const TextStyle(fontSize: 15, height: 1.5)),
-            ]);
+            ]));
           },
         ),
       );

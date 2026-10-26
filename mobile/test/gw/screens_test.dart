@@ -168,6 +168,7 @@ void main() {
     await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const TodayScreen()));
     await tester.pumpAndSettle();
     expect(find.text('일간'), findsOneWidget);
+    expect(find.descendant(of: find.byType(TodayScreen), matching: find.byType(SelectionArea)), findsOneWidget); // 화면 자체 글자 선택(데스크톱)
     expect(find.text('내 회의'), findsOneWidget);
     expect(find.text('10:00–11:00'), findsOneWidget);
     expect(find.text('남의 회의'), findsNothing);

@@ -259,7 +259,7 @@ class MailsSection extends StatelessWidget {
     if (unread.isEmpty) return const SizedBox.shrink();
     return _Section(
       title: '안 읽은 메일 $unreadTotal',
-      trailing: _more('더 보기', onMore),
+      trailing: _more('메일', onMore),
       child: Column(children: [
         for (final m in unread) ListTile(dense: true, onTap: () => (onOpen ?? (_) => onMore())(m), leading: InitialBadge(m.fromName, size: 32, circle: true), title: Text(m.subject, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text('${m.fromName} · ${niceDate(m.tooltip.isNotEmpty ? m.tooltip : m.date)}', style: const TextStyle(fontSize: 12))),
       ]),

@@ -79,7 +79,7 @@ class _DoorayCalendarScreenState extends ConsumerState<DoorayCalendarScreen> {
           ),
         ],
       ),
-      body: ListView(
+      body: SelectionArea(child: ListView( // 화면 자체 선택 영역(일정 화면과 같은 이유)
         padding: const EdgeInsets.all(16),
         children: [
           const Text(
@@ -137,7 +137,7 @@ class _DoorayCalendarScreenState extends ConsumerState<DoorayCalendarScreen> {
             label: const Text('메일·메신저 열기'),
           ),
         ],
-      ),
+      )),
     );
   }
 }

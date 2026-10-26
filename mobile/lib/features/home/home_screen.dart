@@ -226,8 +226,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       // (건너뛰면 빈 공간이 생기고, 삭제한 위젯을 팔레트에서 다시 추가할 수 없다). 배치는 자동으로 바꾸지 않는다.
       final gwConnect = gw != null && gw.status != GwStatus.connected ? () => context.push('/gw/connect') : null;
       final gwNo = data == null; // 아마란스 미연결/로딩 실패
-      void addPh(String id, String title, String msg, {VoidCallback? onConnect, String label = '연결하기', int w = 6, int h = 3}) =>
-          sections[id] = DashboardWidgetDef(title, DashboardPlaceholder(title: title, message: msg, onConnect: onConnect, connectLabel: label), defaultW: w, defaultH: h);
+      void addPh(String id, String title, String msg, {VoidCallback? onConnect, String label = '연결하기', int w = 6, int h = 3, VoidCallback? onMore, String moreLabel = ''}) =>
+          sections[id] = DashboardWidgetDef(title, DashboardPlaceholder(title: title, message: msg, onConnect: onConnect, connectLabel: label, onMore: onMore, moreLabel: moreLabel), defaultW: w, defaultH: h);
       void settingsConnect() => open('/settings');
 
       // Confluence
@@ -280,7 +280,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       if (!gwNo && !data.errors.containsKey('inbox') && unreadMail.isNotEmpty) {
         add('mails', '메일', MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail'), onOpen: openMail), w: 6, h: 3);
       } else {
-        addPh('mails', '메일', gwNo ? '아마란스에 연결하면 표시됩니다' : '안 읽은 메일이 없습니다', onConnect: gwNo ? gwConnect : null);
+        addPh('mails', '메일', gwNo ? '아마란스에 연결하면 표시됩니다' : '안 읽은 메일이 없습니다', onConnect: gwNo ? gwConnect : null, onMore: gwNo ? null : () => open('/gw/mail'), moreLabel: '메일');
       }
       // 메신저 멘션
       if (!gwNo && !data.errors.containsKey('talks') && (data.talks ?? const []).isNotEmpty) {

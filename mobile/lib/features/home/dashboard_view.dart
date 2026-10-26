@@ -18,17 +18,21 @@ class DashboardWidgetDef {
 /// 데이터·연결이 없어 내용을 못 그리는 위젯 자리 — 영역은 그대로 두고 "연결 필요"·안내를 보여 준다.
 /// (위젯을 건너뛰어 빈 공간이 생기거나 배치가 밀리지 않게 한다.)
 class DashboardPlaceholder extends StatelessWidget {
-  const DashboardPlaceholder({super.key, required this.title, required this.message, this.icon = Icons.link_off_rounded, this.onConnect, this.connectLabel = '연결하기'});
+  const DashboardPlaceholder({super.key, required this.title, required this.message, this.icon = Icons.link_off_rounded, this.onConnect, this.connectLabel = '연결하기', this.onMore, this.moreLabel = ''});
   final String title, message, connectLabel;
   final IconData icon;
   final VoidCallback? onConnect;
+
+  /// 제목 줄 오른쪽 끝 링크(예: '메일' → 메일 목록) — 내용이 있을 때 섹션의 링크와 같은 자리.
+  final VoidCallback? onMore;
+  final String moreLabel;
 
   @override
   Widget build(BuildContext context) => Card(
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            WidgetTitle(title),
+            if (onMore == null) WidgetTitle(title) else Row(children: [Flexible(child: WidgetTitle(title)), const Spacer(), TextButton(onPressed: onMore, child: Text(moreLabel))]),
             Expanded(
               child: Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
