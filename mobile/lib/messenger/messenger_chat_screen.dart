@@ -545,12 +545,32 @@ class MessengerDashboardCard extends ConsumerStatefulWidget {
 class _MessengerDashboardCardState extends ConsumerState<MessengerDashboardCard> {
   late Future<List<MsgRoom>> _future;
   Map<String, String> _names = const {};
+  StreamSubscription? _rtSub;
+  Timer? _rtDebounce;
 
   @override
   void initState() {
     super.initState();
     ensureMessengerRealtime(ref);
     _future = _load();
+    // 새 대화 신호(MQTT)가 오면 목록을 다시 읽는다 — 상세 위젯과 같은 0.5초 묶음. 다 읽을 때까지 기존 목록 유지(스피너·선택 풀림 없음).
+    _rtSub = ref.read(messengerMqttProvider).events.listen((e) {
+      if (!e.isChat) return;
+      _rtDebounce?.cancel();
+      _rtDebounce = Timer(const Duration(milliseconds: 500), () async {
+        try {
+          final rooms = await _load();
+          if (mounted) setState(() { _future = Future.value(rooms); });
+        } catch (_) {} // 실패는 조용히 — 다음 신호에 다시
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _rtSub?.cancel();
+    _rtDebounce?.cancel();
+    super.dispose();
   }
 
   Future<List<MsgRoom>> _load() async {
@@ -588,7 +608,7 @@ class _MessengerDashboardCardState extends ConsumerState<MessengerDashboardCard>
           FutureBuilder<List<MsgRoom>>(
             future: _future,
             builder: (context, snap) {
-              if (snap.connectionState != ConnectionState.done) {
+              if (snap.connectionState != ConnectionState.done && !snap.hasData) { // 다시 읽는 동안엔 기존 목록 유지
                 return const Padding(padding: EdgeInsets.all(16), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))));
               }
               if (snap.hasError) {

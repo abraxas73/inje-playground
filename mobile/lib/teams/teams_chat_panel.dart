@@ -72,6 +72,27 @@ class TeamsChatList extends ConsumerStatefulWidget {
 
 class _TeamsChatListState extends ConsumerState<TeamsChatList> {
   late Future<({String? meId, List<TeamsChat> chats, bool ready})> _future = _load();
+  Timer? _poll;
+
+  /// 목록 주기 갱신 — Teams는 실시간 신호가 없다. 대화방 안(5초)보다 느슨하게, 다 읽은 뒤에만 바꿔 끼운다(실패는 조용히).
+  static const listEvery = Duration(seconds: 30);
+
+  @override
+  void initState() {
+    super.initState();
+    _poll = Timer.periodic(listEvery, (_) async {
+      try {
+        final d = await _load();
+        if (mounted) setState(() { _future = Future.value(d); });
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
 
   Future<({String? meId, List<TeamsChat> chats, bool ready})> _load() async {
     final j = await ref.read(apiClientProvider).getJson('/api/teams/chat');
@@ -150,6 +171,8 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
   Timer? _poll;
   final _focusKey = GlobalKey();
   bool _focused = false;
+  final _inputFocus = FocusNode();
+  bool _pulling = false; // 새 메시지 가져오기가 이미 진행 중이면 겹쳐 부르지 않는다
 
   ApiClient get _api => ref.read(apiClientProvider);
 
@@ -157,12 +180,27 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
   void initState() {
     super.initState();
     _load();
-    _poll = Timer.periodic(const Duration(seconds: 5), (_) => _load(since: true)); // 웹 /teams/chat과 같은 5초 폴링
+    _poll = Timer.periodic(const Duration(seconds: 5), (_) => _pull()); // 웹 /teams/chat과 같은 5초 폴링
+    // 답하려고 입력칸을 누르면 5초를 기다리지 않고 바로 새 메시지를 가져온다(방금 받은 직후라도)
+    _inputFocus.addListener(() {
+      if (_inputFocus.hasFocus) _pull();
+    });
+  }
+
+  Future<void> _pull() async {
+    if (_pulling) return;
+    _pulling = true;
+    try {
+      await _load(since: true);
+    } finally {
+      _pulling = false;
+    }
   }
 
   @override
   void dispose() {
     _poll?.cancel();
+    _inputFocus.dispose();
     _input.dispose();
     super.dispose();
   }
@@ -293,6 +331,7 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
             Expanded(
               child: TextField(
                 controller: _input,
+                focusNode: _inputFocus,
                 minLines: 1,
                 maxLines: 4,
                 textInputAction: TextInputAction.send,
