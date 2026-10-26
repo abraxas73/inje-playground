@@ -242,21 +242,18 @@ extension GwTalkApi on GwApi {
 class ApprovalUncertain implements Exception {}
 
 /// 승인 사전 확인(eap110A08 result) — 앱에서 승인하지 않을 문서인지. 모르는 응답 모양이면 승인하지 않는다(안전 쪽).
-/// - 의견 필수(ea100 "1"), 회의 결재 의견 필수(meetInfo.meetCommentYn "1")
-/// - func 항목: 아마란스가 [FUNC_PARAM]에 이름 붙인 값("3000|1▤4000|0" 꼴 — 결재 비밀번호·승인 의견 필수 표)에서 내 actId가 1이면
+/// - 회의 결재 의견 필수(meetInfo.meetCommentYn "1")
+/// - func 항목 중 내 act_id의 결재 비밀번호(fnFuncPasswd…)·승인 의견(fnFuncApprovalComment…)이 "…NotChk"(체크않음)가 아니면
+/// ea100은 의견 필수 표시가 아니다 — 2026-10-26 실측: 승인 의견·비밀번호 모두 NotChk인 휴가 문서도 ea100 "1"(그걸 보고 막아 버렸다).
 bool approvalNeedsAmaranth(Object? pre, String actId) {
   final res = pre is Map ? pre['result'] : null;
-  if (res is! Map || !res.containsKey('ea100') || res['func'] is! List) return true;
-  if (asStr(res['ea100']) == '1') return true;
+  if (res is! Map || res['func'] is! List) return true;
   final mi = res['meetInfo'];
   if (mi is Map && asStr(mi['meetCommentYn']) == '1') return true;
   for (final f in res['func'] as List) {
-    if (f is! Map) continue;
-    final v = asStr(f[asStr(f['FUNC_PARAM'])]);
-    for (final part in v.split('▤')) {
-      final kv = part.split('|');
-      if (kv.length >= 2 && kv[0] == actId && kv[1] == '1') return true;
-    }
+    if (f is! Map || asStr(f['act_id']) != actId) continue;
+    final nm = asStr(f['FUNC_NM']);
+    if ((nm.startsWith('fnFuncPasswd') || nm.startsWith('fnFuncApprovalComment')) && !nm.endsWith('NotChk')) return true;
   }
   return false;
 }

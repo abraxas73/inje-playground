@@ -62,9 +62,13 @@ void main() {
 
   Map<String, Object?> pendingDoc({bool mine = true}) => {'docId': 'D1', 'formId': '7', 'docTitle': '휴가 신청', 'contentsWord': '연차', 'empName': '김민준', 'actId': '3000', 'docLineMSeq': '2', 'docLineSSeq': '0', 'btnList': {'btnApproval': mine ? '1' : '0'}};
   final list = {'map': {'totalCount': 1, 'list': [{'DOC_ID': 'D1', 'FORM_ID': '7', 'DOC_TITLE': '휴가 신청', 'FORM_NM': '휴가', 'USER_NM': '김민준', 'ARRIVED_DT': '20261001'}]}};
+  // eap110A08 실측 모양(2026-10-26 연차휴가신청서, 필요한 항목만) — ea100은 "1"이지만 의견 필수 표시가 아니다
+  Map precheck({String passwd = 'fnFuncPasswdNotChk', String comment = 'fnFuncApprovalCommentNotChk', int act = 3000}) => {'result': {'ea100': '1', 'func': [
+        for (final nm in ['fnFuncReturnUse', comment, 'fnFuncReturnCommentChk', passwd, 'fnFuncHoldUse']) {'FUNC_NM': nm, 'FUNC_PARAM': 'act_id', 'act_id': act},
+      ]}};
 
   testWidgets('바로 승인: 강한 경고 확인 → 사전 확인(eap110A08) → 승인(eap110A21 docLineSts 30) → 다시 읽어 확인 후 닫고 목록 갱신', (tester) async {
-    final r = Routes({'/gw/gw050A02': [session], '/eap/eap105A04': [list, {'map': {'totalCount': 0, 'list': []}}], '/eap/eap111A04': [pendingDoc(), pendingDoc(mine: false)], '/eap/eap110A08': [{'result': {'ea100': '0', 'func': [{'FUNC_NM': 'fnSetPasswd', 'FUNC_PARAM': 'v', 'v': '3000|0▤4000|1'}]}}], '/eap/eap110A21': [{'resultValue': 0}]});
+    final r = Routes({'/gw/gw050A02': [session], '/eap/eap105A04': [list, {'map': {'totalCount': 0, 'list': []}}], '/eap/eap111A04': [pendingDoc(), pendingDoc(mine: false)], '/eap/eap110A08': [precheck()], '/eap/eap110A21': [{'resultValue': 0}]});
     await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const ApprovalsScreen()));
     await tester.pumpAndSettle();
     await tester.tap(find.text('휴가 신청'));
@@ -88,7 +92,7 @@ void main() {
   });
 
   testWidgets('바로 승인: 결재 비밀번호·의견이 필요한 문서는 승인 요청을 보내지 않고 아마란스로 안내', (tester) async {
-    final r = Routes({'/gw/gw050A02': [session], '/eap/eap105A04': [list], '/eap/eap111A04': [pendingDoc()], '/eap/eap110A08': [{'result': {'ea100': '0', 'func': [{'FUNC_NM': 'fnSetPasswd', 'FUNC_PARAM': 'v', 'v': '3000|1'}]}}]});
+    final r = Routes({'/gw/gw050A02': [session], '/eap/eap105A04': [list], '/eap/eap111A04': [pendingDoc()], '/eap/eap110A08': [precheck(passwd: 'fnFuncPasswdChk')]});
     await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const ApprovalsScreen()));
     await tester.pumpAndSettle();
     await tester.tap(find.text('휴가 신청'));
@@ -110,7 +114,7 @@ void main() {
         case '/gw/gw050A02': return ok(session);
         case '/eap/eap105A04': return ok(list);
         case '/eap/eap111A04': return ok(docs[(n++).clamp(0, 1)]);
-        case '/eap/eap110A08': return ok({'result': {'ea100': '0', 'func': []}});
+        case '/eap/eap110A08': return ok(precheck());
         case '/eap/eap110A21': throw http.ClientException('끊김');
       }
       return http.Response('{"resultCode":999}', 200);
@@ -128,14 +132,15 @@ void main() {
     expect(find.text('결재 문서'), findsOneWidget);
   });
 
-  test('approvalNeedsAmaranth — 의견 필수(ea100)·내 actId가 1인 func 항목이면 앱에서 승인하지 않는다', () {
-    expect(approvalNeedsAmaranth({'result': {'ea100': '1', 'func': []}}, '3000'), isTrue);
-    expect(approvalNeedsAmaranth({'result': {'ea100': '0', 'func': [{'FUNC_PARAM': 'p', 'p': '4000|0▤3000|1'}]}}, '3000'), isTrue);
-    expect(approvalNeedsAmaranth({'result': {'ea100': '0', 'func': [], 'meetInfo': {'meetCommentYn': '1'}}}, '3000'), isTrue);
-    expect(approvalNeedsAmaranth({'result': {'ea100': '0', 'func': [{'FUNC_PARAM': 'p', 'p': '4000|1▤3000|0'}]}}, '3000'), isFalse);
+  test('approvalNeedsAmaranth — 내 act_id의 비밀번호·승인 의견 항목이 NotChk가 아니면 앱에서 승인하지 않는다', () {
+    expect(approvalNeedsAmaranth(precheck(), '3000'), isFalse); // 실측: ea100 "1"이어도 둘 다 NotChk면 승인 가능
+    expect(approvalNeedsAmaranth(precheck(passwd: 'fnFuncPasswdChk'), '3000'), isTrue);
+    expect(approvalNeedsAmaranth(precheck(comment: 'fnFuncApprovalCommentChk'), '3000'), isTrue);
+    expect(approvalNeedsAmaranth(precheck(passwd: 'fnFuncPasswdChk', act: 4000), '3000'), isFalse); // 다른 결재 순서 항목은 무시
+    expect(approvalNeedsAmaranth({'result': {'func': [], 'meetInfo': {'meetCommentYn': '1'}}}, '3000'), isTrue);
     // 모르는 모양이면 승인하지 않는다
     expect(approvalNeedsAmaranth({'result': {}}, '3000'), isTrue);
-    expect(approvalNeedsAmaranth({'ea100': '0', 'func': []}, '3000'), isTrue);
+    expect(approvalNeedsAmaranth({'func': []}, '3000'), isTrue);
     expect(approvalNeedsAmaranth(null, '3000'), isTrue);
   });
   testWidgets('출퇴근: 출근 버튼 → 확인 다이얼로그에서 취소하면 기록 호출 없음, 확인하면 기록 후 시각 표시', (tester) async {
