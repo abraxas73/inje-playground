@@ -12,6 +12,8 @@ vi.stubGlobal("fetch", m.fetch);
 import { GET as chatGET } from "@/app/api/teams/chat/route";
 import { GET as msgGET, POST as msgPOST } from "@/app/api/teams/chat/messages/route";
 import { GET as searchGET } from "@/app/api/teams/chat/search/route";
+import { POST as reactPOST } from "@/app/api/teams/chat/reaction/route";
+import { normalizeReactions } from "@/lib/teams/chat";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const rawMsg = (id: string) => ({ id, messageType: "message", createdDateTime: `2026-10-03T12:0${id}:00Z`, lastModifiedDateTime: `2026-10-03T12:0${id}:00Z`, deletedDateTime: null, from: { user: { id: "aad-1", displayName: "강승욱" } }, body: { contentType: "text", content: `m${id}` }, attachments: [] });
@@ -102,4 +104,36 @@ it("GET /api/teams/chat/search — 검색어 2~100자, Microsoft Search로 채�
   expect(JSON.parse(init.body).requests[0]).toMatchObject({ entityTypes: ["chatMessage"], query: { queryString: "견적 서" } });
   m.fetch.mockResolvedValue(json(403, { error: { code: "Forbidden", message: "x" } }));
   expect((await searchGET(req("/api/teams/chat/search?q=견적"))).status).toBe(409);
+});
+
+it("반응 — 옛 이름(like)은 그림 문자로, 종류별로 묶고 누가 붙였는지 남긴다", () => {
+  expect(normalizeReactions([
+    { reactionType: "like", user: { user: { id: "u2", displayName: "김민준" } } },
+    { reactionType: "👍", user: { user: { id: "u3", displayName: null } } },
+    { reactionType: "like", user: { user: { id: "aad-1" } } },
+    { reactionType: "custom", displayName: "축하", user: { user: { id: "u4" } } },
+    { reactionType: "custom", displayName: "감사", user: { user: { id: "u5" } } },
+    { reactionType: "" },
+  ])).toEqual([
+    { type: "like", emoji: "👍", users: [{ id: "u2", name: "김민준" }, { id: "aad-1", name: "" }] },
+    { type: "👍", emoji: "👍", users: [{ id: "u3", name: "" }] },
+    { type: "custom", emoji: ":축하:", users: [{ id: "u4", name: "" }] },
+    { type: "custom", emoji: ":감사:", users: [{ id: "u5", name: "" }] },
+  ]);
+});
+it("POST /api/teams/chat/reaction — 입력 검증, 붙이기는 setReaction·떼기는 unsetReaction(원래 값 그대로), 감사엔 종류 없이", async () => {
+  const post = (body: unknown) => reactPOST(req("/api/teams/chat/reaction", { method: "POST", body: JSON.stringify(body) }));
+  expect((await post({ chat: CHAT, message: "1", reaction: "👍" })).status).toBe(400);
+  expect((await post({ chat: CHAT, message: "../x", reaction: "👍", on: true })).status).toBe(400);
+  expect((await post({ chat: CHAT, message: "1", reaction: "custom", on: true })).status).toBe(400);
+  m.fetch.mockResolvedValue(new Response(null, { status: 204 }));
+  expect((await post({ chat: CHAT, message: "1700000000000", reaction: "👍", on: true })).status).toBe(200);
+  expect(m.fetch.mock.calls[0][0]).toContain(`/chats/${encodeURIComponent(CHAT)}/messages/1700000000000/setReaction`);
+  expect(JSON.parse(m.fetch.mock.calls[0][1].body)).toEqual({ reactionType: "👍" });
+  expect((await post({ chat: CHAT, message: "1700000000000", reaction: "like", on: false })).status).toBe(200);
+  expect(m.fetch.mock.calls[1][0]).toMatch(/unsetReaction$/);
+  expect(JSON.parse(m.fetch.mock.calls[1][1].body)).toEqual({ reactionType: "like" });
+  expect(m.audit.mock.calls.map((c) => [c[2].action, c[2].detail])).toEqual([["Teams 반응 붙임", {}], ["Teams 반응 뗌", {}]]);
+  m.fetch.mockResolvedValue(json(403, { error: { code: "Forbidden", message: "x" } }));
+  expect((await post({ chat: CHAT, message: "1", reaction: "👍", on: true })).status).toBe(409);
 });

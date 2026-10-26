@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, ExternalLink, Loader2, MessageCircle, Paperclip, RefreshCw, Search, SendHorizontal, User as UserIcon, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, ExternalLink, Loader2, MessageCircle, Paperclip, RefreshCw, Search, SendHorizontal, SmilePlus, User as UserIcon, Users } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -20,7 +20,20 @@ import { cn } from "@/lib/utils";
 interface ChatSummary { id: string; type: "group" | "oneOnOne"; topic: string; members: string[]; webUrl: string | null; lastUpdated: string | null }
 interface Info { connected: boolean; hasChatScope: boolean; meId?: string; chats?: ChatSummary[] }
 interface Hit { id: string; chatId: string; createdAt: string; from: string; snippet: string }
-interface Msg { id: string; createdAt: string; modifiedAt: string; from: { id: string; name: string } | null; text: string; attachments: Array<{ id: string; name: string; url: string | null }> }
+interface Reaction { type: string; emoji: string; users: Array<{ id: string; name: string }> }
+interface Msg { id: string; createdAt: string; modifiedAt: string; from: { id: string; name: string } | null; text: string; attachments: Array<{ id: string; name: string; url: string | null }>; reactions?: Reaction[] }
+const REACTIONS = ["👍", "❤️", "😆", "😮", "😢", "😡"]; // Teams 기본 반응(서버 REACTION_CHOICES와 같다)
+
+/** 내 반응 하나를 붙이거나 뗀 결과(서버 응답 전에 먼저 보여 주고, 다음 폴링이 실제 상태로 맞춘다) */
+function toggleReaction(list: Reaction[], type: string, emoji: string, me: string, on: boolean): Reaction[] {
+  const rest = list.map((r) => (r.type === type ? { ...r, users: r.users.filter((u) => u.id !== me) } : r));
+  if (on) {
+    const hit = rest.find((r) => r.type === type);
+    if (hit) hit.users = [...hit.users, { id: me, name: "나" }];
+    else rest.push({ type, emoji, users: [{ id: me, name: "나" }] });
+  }
+  return rest.filter((r) => r.users.length > 0);
+}
 
 const POLL_MS = 5000;
 const LAST_KEY = "teams-chat:last";
@@ -65,6 +78,7 @@ export default function TeamsChatPage() {
   const [query, setQuery] = useState("");
   const [submitted, setSubmitted] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [pickerFor, setPickerFor] = useState<string | null>(null); // 반응 고르기를 연 메시지
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -176,6 +190,21 @@ export default function TeamsChatPage() {
     } finally {
       setSending(false);
       inputRef.current?.focus(); // 보낸 뒤에도 입력창에 — 이어서 대화
+    }
+  };
+
+  const react = async (m: Msg, type: string, emoji: string, on: boolean) => {
+    const me = info?.meId;
+    if (!chatId || !me) return;
+    setPickerFor(null);
+    const before = messages.find((x) => x.id === m.id)?.reactions ?? []; // 실패하면 요청 전 상태로(뒤집기 대신 — 그사이 바뀐 상태를 틀지 않게)
+    const restore = () => setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, reactions: before } : x)));
+    setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, reactions: toggleReaction(x.reactions ?? [], type, emoji, me, on) } : x)));
+    try {
+      const r = await fetch("/api/teams/chat/reaction", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat: chatId, message: m.id, reaction: type, on }) });
+      if (!r.ok) { const j = await readJson(r); restore(); setError(typeof j.error === "string" ? j.error : `반응을 ${on ? "붙이지" : "떼지"} 못했습니다 (${r.status})`); }
+    } catch {
+      restore(); setError("반응을 보내지 못했습니다. 네트워크 연결을 확인해 주세요.");
     }
   };
 
@@ -340,11 +369,25 @@ export default function TeamsChatPage() {
                 return (
                   <div key={m.id} data-msg-id={m.id} className={cn(m.id === focusId && "rounded-2xl ring-2 ring-amber-400 ring-offset-2")}>
                     {showDay && <div className="my-2 text-center text-xs text-muted-foreground">{day}</div>}
-                    <div className="flex min-w-0 flex-col gap-1">
+                    <div className="group flex min-w-0 flex-col gap-1">
                       <div className="flex min-w-0 items-baseline gap-2 px-1 text-xs text-muted-foreground">
                         <span className="truncate font-medium">{m.from?.name ?? "알 수 없음"}</span>
                         <time dateTime={m.createdAt} className="shrink-0 text-[11px]">{fmtTime(m.createdAt)}</time>
+                        <button type="button" onClick={() => setPickerFor((p) => (p === m.id ? null : m.id))} className="ml-auto shrink-0 rounded p-0.5 opacity-60 hover:bg-muted hover:opacity-100 md:opacity-0 md:group-hover:opacity-100" aria-label="반응 붙이기" title="반응 붙이기">
+                          <SmilePlus className="h-3.5 w-3.5" />
+                        </button>
                       </div>
+                      {pickerFor === m.id && (
+                        <div className="flex gap-1 self-start rounded-full border bg-card px-2 py-1 shadow-sm" role="group" aria-label="반응 고르기">
+                          {REACTIONS.map((e) => {
+                            // 같은 그림이 옛 이름(like)·유니코드 두 묶음일 수 있다 — 떼기는 내가 붙인 묶음의 값으로, 붙이기는 있는 묶음(없으면 그림 그대로)
+                            const same = (m.reactions ?? []).filter((r) => r.emoji === e && r.type !== "custom");
+                            const minePick = same.find((r) => r.users.some((u) => u.id === info.meId));
+                            const on = !!minePick;
+                            return <button key={e} type="button" onClick={() => void react(m, (minePick ?? same[0])?.type ?? e, e, !on)} className={cn("rounded-full px-1 text-lg leading-none hover:scale-125", on && "bg-primary/10")} aria-label={`${e} ${on ? "떼기" : "붙이기"}`}>{e}</button>;
+                          })}
+                        </div>
+                      )}
                       <div className={cn("w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-2xl px-3 py-2 text-sm", mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted")}>
                         {m.text || (m.attachments.length ? "" : "(내용 없음)")}
                         {m.attachments.length > 0 && (
@@ -356,6 +399,20 @@ export default function TeamsChatPage() {
                           </span>
                         )}
                       </div>
+                      {(m.reactions?.length ?? 0) > 0 && (
+                        <div className="flex flex-wrap gap-1 px-1">
+                          {m.reactions!.map((r) => {
+                            const minePick = r.users.some((u) => u.id === info.meId);
+                            const names = r.users.map((u) => (u.id === info.meId ? "나" : u.name)).filter(Boolean).join(", ");
+                            return (
+                              <button key={`${r.type}|${r.emoji}`} type="button" disabled={r.type === "custom"} onClick={() => void react(m, r.type, r.emoji, !minePick)} title={names || undefined} aria-label={`${r.emoji} ${r.users.length}명${minePick ? ", 내 반응 떼기" : ", 같이 붙이기"}`}
+                                className={cn("flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs hover:bg-muted disabled:cursor-default disabled:hover:bg-transparent", minePick && "border-primary/50 bg-primary/10")}>
+                                <span className="text-sm leading-none">{r.emoji}</span>{r.users.length}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

@@ -35,11 +35,40 @@ class TeamsHit {
   final DateTime? at;
 }
 
+/// 메시지 반응(종류별 묶음) — type은 Graph 원래 값(떼기에 그대로), emoji는 표시용. 서버 lib/teams/chat.ts normalizeReactions와 같은 모양
+class TeamsReaction {
+  const TeamsReaction(this.type, this.emoji, this.userIds, this.names);
+  final String type, emoji;
+  final List<String> userIds, names;
+}
+
+/// 붙일 수 있는 반응(웹·서버와 같은 Teams 기본 6개)
+const teamsReactionChoices = ['👍', '❤️', '😆', '😮', '😢', '😡'];
+
+/// 내 반응 하나를 붙이거나 뗀 결과(응답 전에 먼저 보여 주고 5초 폴링이 실제 상태로 맞춘다)
+List<TeamsReaction> toggleTeamsReaction(List<TeamsReaction> list, String type, String emoji, String me, bool on) {
+  final out = [
+    for (final r in list)
+      if (r.type == type) TeamsReaction(r.type, r.emoji, [for (final u in r.userIds) if (u != me) u], [for (var i = 0; i < r.userIds.length; i++) if (r.userIds[i] != me) r.names[i]]) else r,
+  ];
+  if (on) {
+    final i = out.indexWhere((r) => r.type == type);
+    if (i >= 0) {
+      out[i] = TeamsReaction(type, out[i].emoji, [...out[i].userIds, me], [...out[i].names, '나']);
+    } else {
+      out.add(TeamsReaction(type, emoji, [me], const ['나']));
+    }
+  }
+  return [for (final r in out) if (r.userIds.isNotEmpty) r];
+}
+
 class TeamsMsg {
-  const TeamsMsg(this.id, this.fromId, this.fromName, this.text, this.at, this.files);
+  const TeamsMsg(this.id, this.fromId, this.fromName, this.text, this.at, this.files, [this.reactions = const []]);
   final String id, fromId, fromName, text;
   final DateTime? at;
   final List<(String, String?)> files; // (이름, 주소)
+  final List<TeamsReaction> reactions;
+  TeamsMsg withReactions(List<TeamsReaction> r) => TeamsMsg(id, fromId, fromName, text, at, files, r);
   static TeamsMsg? fromJson(Object? j) {
     if (j is! Map || j['id'] == null) return null;
     final from = j['from'];
@@ -50,6 +79,11 @@ class TeamsMsg {
       '${j['text'] ?? ''}'.trim(),
       DateTime.tryParse('${j['createdAt'] ?? ''}'),
       [for (final a in j['attachments'] is List ? j['attachments'] as List : const []) if (a is Map) ('${a['name'] ?? '첨부'}', a['url'] is String ? a['url'] as String : null)],
+      [
+        for (final r in j['reactions'] is List ? j['reactions'] as List : const [])
+          if (r is Map && r['type'] is String)
+            TeamsReaction('${r['type']}', '${r['emoji'] ?? r['type']}', [for (final u in r['users'] is List ? r['users'] as List : const []) if (u is Map) '${u['id'] ?? ''}'], [for (final u in r['users'] is List ? r['users'] as List : const []) if (u is Map) '${u['name'] ?? ''}']),
+      ],
     );
   }
 }
@@ -197,6 +231,47 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
     }
   }
 
+  /// 반응 붙이기·떼기 — 먼저 화면에 반영하고, 실패하면 되돌린다
+  Future<void> _react(TeamsMsg m, String type, String emoji, bool on) async {
+    // 실패하면 요청 전 상태로(뒤집기 대신 — 그사이 폴링으로 바뀐 상태를 틀지 않게)
+    final before = (_msgs ?? const <TeamsMsg>[]).where((x) => x.id == m.id).firstOrNull?.reactions ?? const <TeamsReaction>[];
+    void set(List<TeamsReaction> Function(TeamsMsg x) f) => setState(() {
+          _msgs = [for (final x in _msgs ?? const <TeamsMsg>[]) x.id == m.id ? x.withReactions(f(x)) : x];
+        });
+    set((x) => toggleTeamsReaction(x.reactions, type, emoji, widget.meId, on));
+    try {
+      await _api.postJson('/api/teams/chat/reaction', {'chat': widget.chat.id, 'message': m.id, 'reaction': type, 'on': on});
+    } catch (e) {
+      if (!mounted) return;
+      set((_) => before);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('반응을 ${on ? '붙이지' : '떼지'} 못했습니다: ${_err(e)}')));
+    }
+  }
+
+  Future<void> _pickReaction(TeamsMsg m) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+            for (final e in teamsReactionChoices)
+              InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: () => Navigator.of(ctx).pop(e),
+                child: Padding(padding: const EdgeInsets.all(8), child: Text(e, style: const TextStyle(fontSize: 28))),
+              ),
+          ]),
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    // 같은 그림이 옛 이름(like)·유니코드 두 묶음일 수 있다 — 떼기는 내가 붙인 묶음의 값으로
+    final same = [for (final r in m.reactions) if (r.emoji == picked && r.type != 'custom') r];
+    final mine = same.where((r) => r.userIds.contains(widget.meId)).firstOrNull;
+    await _react(m, (mine ?? same.firstOrNull)?.type ?? picked, picked, mine == null);
+  }
+
   Future<void> _send() async {
     final text = _input.text.trim();
     if (text.isEmpty || _sending) return;
@@ -271,7 +346,18 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
         if (m.text.isEmpty && m.files.isEmpty) Text('(내용 없음)', style: TextStyle(color: fg, fontStyle: FontStyle.italic)),
       ]),
     );
-    final stamp = Padding(padding: const EdgeInsets.only(bottom: 2), child: Text(m.at == null ? '' : _kst(m.at!, dateIfOld: true), style: TextStyle(fontSize: 10, color: Brand.faint)));
+    final stamp = Column(mainAxisSize: MainAxisSize.min, children: [
+      // 반응 붙이기 — 글자 선택(SelectionArea)과 겹치지 않게 길게 누르기 대신 작은 단추
+      IconButton(
+        onPressed: () => _pickReaction(m),
+        tooltip: '반응 붙이기',
+        iconSize: 16,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        icon: Icon(Icons.add_reaction_outlined, color: Brand.faint),
+      ),
+      Padding(padding: const EdgeInsets.only(bottom: 2), child: Text(m.at == null ? '' : _kst(m.at!, dateIfOld: true), style: TextStyle(fontSize: 10, color: Brand.faint))),
+    ]);
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
@@ -281,8 +367,34 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: mine ? [stamp, const SizedBox(width: 4), Flexible(child: bubble)] : [Flexible(child: bubble), const SizedBox(width: 4), stamp],
         ),
+        if (m.reactions.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2, bottom: 4),
+            child: Wrap(spacing: 4, runSpacing: 4, children: [
+              for (final r in m.reactions) _reactionChip(m, r),
+            ]),
+          ),
       ]),
     );
+  }
+
+  Widget _reactionChip(TeamsMsg m, TeamsReaction r) {
+    final minePick = r.userIds.contains(widget.meId);
+    final names = [for (var i = 0; i < r.userIds.length; i++) r.userIds[i] == widget.meId ? '나' : r.names[i]].where((n) => n.isNotEmpty).join(', ');
+    final chip = InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: r.type == 'custom' ? null : () => _react(m, r.type, r.emoji, !minePick), // 남의 반응을 누르면 같이 붙이고, 내 것이면 뗀다(Teams와 같다). 조직 사용자 정의 반응은 보기만
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: minePick ? Brand.blueTint : Brand.surface,
+          border: Border.all(color: minePick ? Brand.blue : Brand.line),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text('${r.emoji} ${r.userIds.length}', style: TextStyle(fontSize: 12, color: Brand.navy)),
+      ),
+    );
+    return Semantics(button: r.type != 'custom', label: '${r.emoji} ${r.userIds.length}명', child: names.isEmpty ? chip : Tooltip(message: names, child: chip));
   }
 
   Widget _composer() => SafeArea(
