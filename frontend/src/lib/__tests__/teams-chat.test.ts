@@ -39,7 +39,7 @@ describe("normalizeChatMessages", () => {
       { id: "a", name: "발표.pptx", url: "https://innogrid-my.sharepoint.com/x/발표.pptx" },
       { id: "b", name: "첨부", url: null },
       { id: "d", name: "x.png", url: null },
-    ] });
+    ], reactions: [] });
     expect(out[1].text).toBe("hi");
     expect(out[2].from).toEqual({ id: "app-1", name: "알림봇" });
     expect(normalizeChatMessages({})).toEqual([]);
