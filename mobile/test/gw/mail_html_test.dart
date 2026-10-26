@@ -34,4 +34,9 @@ void main() {
     expect(m.html, '<b>본문</b>');
     expect(m.body, '본문');
   });
+
+  test('mailHtmlDocument — 배율 1이면 zoom 없음, 아니면 html{zoom}', () {
+    expect(mailHtmlDocument('<p>a</p>'), isNot(contains('zoom:')));
+    expect(mailHtmlDocument('<p>a</p>', zoom: 1.3), contains('html{zoom:1.30}'));
+  });
 }

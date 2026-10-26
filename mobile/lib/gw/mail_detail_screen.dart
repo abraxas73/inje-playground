@@ -234,6 +234,7 @@ class _RecipientsState extends State<_Recipients> {
 }
 
 /// 메일 본문 HTML 웹뷰 — JavaScript 끔, 처음 그리는 빈 문서 밖으로는 이동하지 않고 링크는 시스템 브라우저로.
+/// 우상단 −/+로 글자 크기(CSS zoom, 문서를 다시 그림 — 스크립트가 꺼져 있어서). 배율은 앱을 끌 때까지 다음 메일에도 이어진다. 터치 기기는 핀치도 된다.
 class MailHtmlView extends StatefulWidget {
   const MailHtmlView({super.key, required this.html});
   final String html;
@@ -242,6 +243,7 @@ class MailHtmlView extends StatefulWidget {
 }
 
 class _MailHtmlViewState extends State<MailHtmlView> {
+  static double zoom = 1;
   final _c = AppWebController(javaScript: false);
 
   @override
@@ -255,10 +257,36 @@ class _MailHtmlViewState extends State<MailHtmlView> {
         if (u != null) unawaited(launchUrl(u, mode: LaunchMode.externalApplication));
         return NavigationDecision.prevent;
       }));
-      await _c.loadHtmlString(mailHtmlDocument(widget.html));
+      await _c.loadHtmlString(mailHtmlDocument(widget.html, zoom: zoom));
     }());
   }
 
+  void _zoom(double to) {
+    to = (to.clamp(0.5, 2.0) * 10).roundToDouble() / 10;
+    if (to == zoom) return;
+    setState(() => zoom = to);
+    unawaited(_c.loadHtmlString(mailHtmlDocument(widget.html, zoom: zoom)));
+  }
+
   @override
-  Widget build(BuildContext context) => _c.build(context);
+  Widget build(BuildContext context) => Stack(children: [
+        Positioned.fill(child: _c.build(context)),
+        Positioned(
+          top: 4,
+          right: 4,
+          child: Material(
+            color: Colors.white.withValues(alpha: 0.92),
+            elevation: 2,
+            shape: const StadiumBorder(),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(tooltip: '축소', visualDensity: VisualDensity.compact, iconSize: 18, onPressed: zoom > 0.5 ? () => _zoom(zoom - 0.1) : null, icon: const Icon(Icons.remove)),
+              InkWell(
+                onTap: () => _zoom(1),
+                child: Tooltip(message: '원래 크기', child: Text('${(zoom * 100).round()}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+              ),
+              IconButton(tooltip: '확대', visualDensity: VisualDensity.compact, iconSize: 18, onPressed: zoom < 2 ? () => _zoom(zoom + 0.1) : null, icon: const Icon(Icons.add)),
+            ]),
+          ),
+        ),
+      ]);
 }
