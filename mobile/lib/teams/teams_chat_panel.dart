@@ -50,6 +50,24 @@ class TeamsReaction {
 /// 고르는 반응 — 웹·서버와 같은 12개(Teams 기본 6 + 자주 쓰는 6). 조직 사용자 정의 반응은 대화에 보인 것을 덧붙인다(type이 reactionId — `이름;…`)
 const teamsReactionChoices = ['👍', '❤️', '😆', '😮', '😢', '😡', '👀', '👏', '🙌', '🔥', '🎉', '🙏'];
 
+/// 서버 등록부의 조직 사용자 정의 반응(`GET /api/teams/chat/custom-reactions`) — 앱이 떠 있는 동안 한 번만 읽는다(실패는 담지 않아 다음에 다시)
+Future<List<TeamsReaction>>? _registeredReactions;
+Future<List<TeamsReaction>> registeredTeamsReactions(ApiClient api) => _registeredReactions ??= () async {
+      try {
+        final j = await api.getJson('/api/teams/chat/custom-reactions');
+        return [
+          for (final r in j is Map && j['reactions'] is List ? j['reactions'] as List : const [])
+            if (r is Map && r['type'] is String && r['emoji'] is String && r['image'] is String && (r['image'] as String).startsWith('/api/teams/chat/custom-reactions?')) TeamsReaction(r['type'] as String, r['emoji'] as String, const [], const [], image: r['image'] as String),
+        ];
+      } catch (_) {
+        _registeredReactions = null;
+        return <TeamsReaction>[];
+      }
+    }();
+
+@visibleForTesting
+void resetRegisteredTeamsReactions() => _registeredReactions = null;
+
 /// 내 반응 하나를 붙이거나 뗀 결과(응답 전에 먼저 보여 주고 5초 폴링이 실제 상태로 맞춘다)
 List<TeamsReaction> toggleTeamsReaction(List<TeamsReaction> list, String type, String emoji, String me, bool on, {String? image}) {
   final out = [
@@ -300,10 +318,17 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
     final box = anchor.findRenderObject() as RenderBox?;
     final screen = MediaQuery.sizeOf(context);
     final at = box == null ? Offset.zero : box.localToGlobal(Offset.zero);
-    // 이 대화에 보인 사용자 정의 반응(ID·그림 있는 것, 최대 12) — 조직 목록을 주는 Graph API가 없다
-    final custom = {for (final x in _msgs ?? const <TeamsMsg>[]) for (final r in x.reactions) if (r.type.contains(';') && r.image != null) r.type: r}.values.take(12).toList();
+    // 구분선 아래 사용자 정의 반응 — 서버 등록부(조직에서 본 것 전부) + 이 대화에 방금 보인 것(등록 전일 수 있다), 이름이 같으면 하나
+    final registered = await registeredTeamsReactions(_api);
+    if (!mounted) return;
+    final byName = <String, TeamsReaction>{};
+    for (final r in [...registered, for (final x in _msgs ?? const <TeamsMsg>[]) ...x.reactions.where((r) => r.type.contains(';') && r.image != null)]) {
+      byName.putIfAbsent(r.emoji, () => r); // 등록부 먼저
+    }
+    final customList = byName.values.toList();
+    final customRows = (customList.length / 6).ceil().clamp(0, 5); // 5줄을 넘으면 그 안에서 스크롤
     const cell = 28.0, w = cell * 6 + 8;
-    final h = cell * (2 + (custom.length / 6).ceil()) + 8;
+    final h = cell * 2 + (customList.isEmpty ? 0 : 9 + cell * customRows) + 8;
     final left = (at.dx + (box?.size.width ?? 0) / 2 - w / 2).clamp(4.0, screen.width - w - 4);
     final top = at.dy - h - 2 < 4 ? at.dy + (box?.size.height ?? 0) + 2 : at.dy - h - 2; // 위에 붙이고, 자리가 없으면 아래
     final picked = await showDialog<String>(
@@ -321,19 +346,30 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
               padding: const EdgeInsets.all(4),
               child: SizedBox(
                 width: cell * 6,
-                child: Wrap(children: [
+                child: Column(mainAxisSize: MainAxisSize.min, children: [Wrap(children: [
                   for (final e in teamsReactionChoices)
                     InkWell(
                       borderRadius: BorderRadius.circular(6),
                       onTap: () => Navigator.of(ctx).pop(e),
                       child: SizedBox(width: cell, height: cell, child: Center(child: Text(e, style: const TextStyle(fontSize: 17)))),
                     ),
-                  for (final r in custom)
-                    InkWell(
-                      borderRadius: BorderRadius.circular(6),
-                      onTap: () => Navigator.of(ctx).pop(r.type),
-                      child: Tooltip(message: r.emoji, child: SizedBox(width: cell, height: cell, child: Center(child: TeamsImage(path: r.image!, fallback: TextStyle(fontSize: 11, color: Brand.navy), square: 20, label: r.emoji)))),
+                ]),
+                if (customList.isNotEmpty) ...[
+                  Divider(height: 9, thickness: 1, color: Brand.line),
+                  SizedBox(
+                    height: cell * customRows,
+                    child: SingleChildScrollView(
+                      child: Wrap(children: [
+                        for (final r in customList)
+                          InkWell(
+                            borderRadius: BorderRadius.circular(6),
+                            onTap: () => Navigator.of(ctx).pop(r.type),
+                            child: Tooltip(message: r.emoji, child: SizedBox(width: cell, height: cell, child: Center(child: TeamsImage(path: r.image!, fallback: TextStyle(fontSize: 11, color: Brand.navy), square: 20, label: r.emoji)))),
+                          ),
+                      ]),
                     ),
+                  ),
+                ],
                 ]),
               ),
             ),
@@ -342,7 +378,7 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
       ]),
     );
     if (picked == null || !mounted) return;
-    final c = custom.where((r) => r.type == picked).firstOrNull;
+    final c = customList.where((r) => r.type == picked).firstOrNull;
     if (c != null) return _react(m, c.type, c.emoji, !m.reactions.any((r) => r.type == c.type && r.userIds.contains(widget.meId)), image: c.image);
     // 같은 그림이 옛 이름(like)·유니코드 두 묶음일 수 있다 — 떼기는 내가 붙인 묶음의 값으로
     final same = [for (final r in m.reactions) if (r.emoji == picked && r.type != 'custom') r];

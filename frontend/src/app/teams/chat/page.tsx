@@ -84,8 +84,12 @@ export default function TeamsChatPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
-  // 고르기 창에 덧붙일 사용자 정의 반응 — 이 대화에 보인 것 중 ID·그림이 있는 것(조직 목록을 주는 Graph API가 없다)
-  const customSeen = [...new Map(messages.flatMap((m) => m.reactions ?? []).filter((r) => r.type.includes(";") && r.image?.startsWith("/api/teams/chat/image?")).map((r) => [r.type, r] as const)).values()].slice(0, 12);
+  // 고르기 창 구분선 아래 사용자 정의 반응 — 서버 등록부(조직에서 본 것 전부) + 이 대화에 방금 보인 것(등록 전일 수 있다)
+  const [registered, setRegistered] = useState<Reaction[]>([]);
+  useEffect(() => {
+    fetch("/api/teams/chat/custom-reactions").then((r) => (r.ok ? r.json() : null)).then((j: { reactions?: Reaction[] } | null) => setRegistered(j?.reactions ?? [])).catch(() => {});
+  }, []);
+  const customSeen = [...registered, ...messages.flatMap((m) => m.reactions ?? []).filter((r) => r.type.includes(";") && r.image?.startsWith("/api/teams/chat/image?"))].filter((r, i, all) => all.findIndex((x) => x.emoji === r.emoji) === i);
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -395,7 +399,7 @@ export default function TeamsChatPage() {
                         </button>
                       </div>
                       {pickerFor === m.id && (
-                        <div className="grid w-max grid-cols-6 self-start rounded-lg border bg-card p-0.5 shadow-sm" role="group" aria-label="반응 고르기">
+                        <div className="grid max-h-72 w-max grid-cols-6 self-start overflow-y-auto rounded-lg border bg-card p-0.5 shadow-sm" role="group" aria-label="반응 고르기">
                           {REACTIONS.map((e) => {
                             // 같은 그림이 옛 이름(like)·유니코드 두 묶음일 수 있다 — 떼기는 내가 붙인 묶음의 값으로, 붙이기는 있는 묶음(없으면 그림 그대로)
                             const same = (m.reactions ?? []).filter((r) => r.emoji === e && r.type !== "custom");
@@ -403,6 +407,7 @@ export default function TeamsChatPage() {
                             const on = !!minePick;
                             return <button key={e} type="button" onClick={() => void react(m, (minePick ?? same[0])?.type ?? e, e, !on)} className={cn("flex h-7 w-7 items-center justify-center rounded text-base leading-none hover:bg-muted", on && "bg-primary/10")} aria-label={`${e} ${on ? "떼기" : "붙이기"}`}>{e}</button>;
                           })}
+                          {customSeen.length > 0 && <div className="col-span-6 mx-1 my-0.5 border-t" role="separator" />}
                           {customSeen.map((c) => {
                             const on = (m.reactions ?? []).some((r) => r.type === c.type && r.users.some((u) => u.id === info.meId));
                             return (

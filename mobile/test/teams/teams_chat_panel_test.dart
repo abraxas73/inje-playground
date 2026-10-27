@@ -13,6 +13,7 @@ class FakeApi extends Fake implements ApiClient {
   final searches = <String?>[];
   final reactions = <Object?>[];
   var listLoads = 0;
+  var registered = <Map<String, Object?>>[];
   var topic = '플랫폼팀';
   var msgs = <Map<String, Object?>>[
     {'id': '1', 'createdAt': '2026-10-22T01:00:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '회의 몇 시죠?', 'attachments': []},
@@ -24,6 +25,7 @@ class FakeApi extends Fake implements ApiClient {
       listLoads++;
       return {'connected': true, 'hasChatScope': true, 'meId': 'me', 'chats': [{'id': 'c1', 'type': 'group', 'topic': topic, 'members': ['김동료', '나'], 'lastUpdated': '2026-10-22T01:01:00Z'}]};
     }
+    if (path == '/api/teams/chat/custom-reactions') return {'reactions': registered};
     if (path == '/api/teams/chat/search') {
       searches.add(query?['q']);
       return {'hits': [{'id': '1', 'chatId': 'c1', 'from': '김동료', 'snippet': '회의 몇 시죠?', 'createdAt': '2026-10-22T01:00:00Z'}, {'id': '7', 'chatId': 'old', 'from': '박옛날', 'snippet': '오래된 회의', 'createdAt': '2026-01-01T00:00:00Z'}]};
@@ -256,9 +258,11 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('사용자 정의 반응(ID 있는 것) — 칩을 누르면 같이 붙이고(그림 유지), 고르기 창에도 이 대화에 보인 것이 붙는다', (tester) async {
+  testWidgets('사용자 정의 반응(ID 있는 것) — 칩을 누르면 같이 붙이고(그림 유지), 고르기 창 구분선 아래에 등록부 + 이 대화에 보인 것', (tester) async {
     final api = FakeApi();
     const id = 'daebak;0-skr-d3-216f', img = '/api/teams/chat/image?chat=c1&message=1&content=ZGI%3D';
+    resetRegisteredTeamsReactions();
+    api.registered = [{'type': 'nepp;0-skr-d1-aa', 'emoji': ':nepp:', 'image': '/api/teams/chat/custom-reactions?name=nepp'}];
     api.msgs = [
       {'id': '1', 'createdAt': '2026-10-22T01:00:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '좋네요', 'attachments': [], 'reactions': [{'type': id, 'emoji': ':daebak:', 'image': img, 'users': [{'id': 'u3', 'name': '박팀장'}]}]},
       {'id': '2', 'createdAt': '2026-10-22T01:01:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '하나 더', 'attachments': []},
@@ -278,9 +282,13 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.add_reaction_outlined).first); // 두 번째 메시지(최신이 아래 — reverse 목록이라 먼저 만들어진다)
     await tester.pumpAndSettle();
-    final cell = find.byWidgetPredicate((w) => w is TeamsImage && w.square == 20);
-    expect(cell, findsOneWidget);
-    await tester.tap(cell);
+    // 구분선 아래: 등록부(넵 — 이 방엔 없음) 먼저, 이 방에 보인 대박(등록 전)
+    expect(find.byType(Divider), findsOneWidget);
+    final cells = find.byWidgetPredicate((w) => w is TeamsImage && w.square == 20);
+    expect(cells, findsNWidgets(2));
+    expect(tester.widget<TeamsImage>(cells.first).label, ':nepp:');
+    final cell = find.byWidgetPredicate((w) => w is TeamsImage && w.square == 20 && w.label == ':daebak:');
+    await tester.tap(find.ancestor(of: cell, matching: find.byType(InkWell)).first);
     await tester.pumpAndSettle();
     expect(api.reactions.last, {'chat': 'c1', 'message': '2', 'reaction': id, 'on': true});
     expect(find.byTooltip(':daebak: · 나'), findsOneWidget);
