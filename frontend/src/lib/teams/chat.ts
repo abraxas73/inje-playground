@@ -26,14 +26,15 @@ export interface ChatMessage {
   reactions: ChatReaction[];
 }
 
-export interface ChatReaction { type: string; emoji: string; users: Array<{ id: string; name: string }> }
+/** image — 조직 사용자 정의(custom) 반응 그림의 중계 주소(`hostedImagePath`), 그 밖은 없음 */
+export interface ChatReaction { type: string; emoji: string; image?: string; users: Array<{ id: string; name: string }> }
 /** 우리 화면에서 고르는 반응 — Teams 기본 6개 + 자주 쓰는 6개(조직 사용자 정의 스티커는 Graph가 붙이기를 받지 않아 뺀다) */
 export const REACTION_CHOICES = ["👍", "❤️", "😆", "😮", "😢", "😡", "👀", "👏", "🙌", "🔥", "🎉", "🙏"] as const;
 /** 옛 이름 반응 → 그림 문자(Graph는 like 등 옛 값과 유니코드를 섞어 준다) */
 const LEGACY_REACTION: Record<string, string> = { like: "👍", heart: "❤️", laugh: "😆", surprised: "😮", sad: "😢", angry: "😡" };
 export const REACTION_MAX = 16;
 
-/** 메시지의 reactions → 종류별 묶음(처음 붙은 순). custom(조직 사용자 정의)은 그림이 URL이라 이름으로 대신, 이름별로 따로 묶고 우리 화면에서는 붙이거나 떼지 않는다(Graph가 "custom" 값을 받지 않음) */
+/** 메시지의 reactions → 종류별 묶음(처음 붙은 순). custom(조직 사용자 정의, 예: 넵)은 이름별로 따로 묶고, 그림(reactionContentUrl)은 본문 그림과 같은 중계 주소로 — 모르는 주소 형식이면 이름(:nepp:)으로 대신하고 형식만 남긴다. 우리 화면에서는 붙이거나 떼지 않는다(Graph setReaction은 유니코드만 받음) */
 export function normalizeReactions(list: unknown): ChatReaction[] {
   if (!Array.isArray(list)) return [];
   const byType = new Map<string, ChatReaction>();
@@ -43,11 +44,18 @@ export function normalizeReactions(list: unknown): ChatReaction[] {
     const emoji = LEGACY_REACTION[type.toLowerCase()] ?? (type === "custom" ? `:${typeof r.displayName === "string" && r.displayName ? r.displayName : "반응"}:` : type);
     const u = ((r.user as { user?: { id?: unknown; displayName?: unknown } } | undefined)?.user) ?? {};
     const key = type === "custom" ? `custom|${emoji}` : type;
-    const g = byType.get(key) ?? { type, emoji, users: [] };
+    const g = byType.get(key) ?? { type, emoji, users: [], ...(type === "custom" ? customImage(r.reactionContentUrl) : {}) };
     g.users.push({ id: String(u.id ?? ""), name: String(u.displayName ?? "") });
     byType.set(key, g);
   }
   return [...byType.values()];
+}
+
+function customImage(url: unknown): { image?: string } {
+  if (typeof url !== "string" || !url) return {};
+  const image = hostedImagePath(url);
+  if (!image) console.warn(`[teams-chat] 사용자 정의 반응 그림 주소 형식 모름: ${url.slice(0, 200).replace(/[A-Za-z0-9+=_%-]{12,}/g, "…")}`);
+  return image ? { image } : {};
 }
 
 export type ChatType = "group" | "oneOnOne";

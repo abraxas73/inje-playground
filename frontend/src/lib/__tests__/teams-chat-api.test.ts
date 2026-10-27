@@ -122,6 +122,20 @@ it("반응 — 옛 이름(like)은 그림 문자로, 종류별로 묶고 누가 
     { type: "custom", emoji: ":감사:", users: [{ id: "u5", name: "" }] },
   ]);
 });
+it("반응 — 사용자 정의(넵 등)는 그림을 본문 그림과 같은 중계 주소로, 모르는 주소면 이름만(형식만 경고)", () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const url = `https://graph.microsoft.com/beta/chats/${CHAT}/messages/1729758683767/hostedContents/aWQ9MC1jdXMtZDE0LWQ3OGYwYTE5/$value`;
+  expect(normalizeReactions([
+    { reactionType: "custom", displayName: "nepp", reactionContentUrl: url, user: { user: { id: "u4", displayName: "김민준" } } },
+    { reactionType: "custom", displayName: "nepp", reactionContentUrl: url, user: { user: { id: "u5", displayName: "박서연" } } },
+    { reactionType: "custom", displayName: "thankyou", reactionContentUrl: "https://example.com/emoji/thankyou-1234567890abcdef.png", user: { user: { id: "u6" } } },
+  ])).toEqual([
+    { type: "custom", emoji: ":nepp:", image: `/api/teams/chat/image?chat=${encodeURIComponent(CHAT)}&message=1729758683767&content=aWQ9MC1jdXMtZDE0LWQ3OGYwYTE5`, users: [{ id: "u4", name: "김민준" }, { id: "u5", name: "박서연" }] },
+    { type: "custom", emoji: ":thankyou:", users: [{ id: "u6", name: "" }] },
+  ]);
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining("https://example.com/emoji/…"));
+  warn.mockRestore();
+});
 it("POST /api/teams/chat/reaction — 입력 검증, 붙이기는 setReaction·떼기는 unsetReaction(원래 값 그대로), 감사엔 종류 없이", async () => {
   const post = (body: unknown) => reactPOST(req("/api/teams/chat/reaction", { method: "POST", body: JSON.stringify(body) }));
   expect((await post({ chat: CHAT, message: "1", reaction: "👍" })).status).toBe(400);

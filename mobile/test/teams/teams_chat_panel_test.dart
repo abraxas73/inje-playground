@@ -218,7 +218,10 @@ void main() {
     final api = FakeApi();
     const path = '/api/teams/chat/image?chat=c1&message=1&content=aGM%3D';
     api.msgs = [
-      {'id': '1', 'createdAt': '2026-10-22T01:00:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '흐름 [이미지]', 'markdown': '흐름이 맞을까요?  \n![이미지]($path)', 'attachments': []},
+      {'id': '1', 'createdAt': '2026-10-22T01:00:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '흐름 [이미지]', 'markdown': '흐름이 맞을까요?  \n![이미지]($path)', 'attachments': [], 'reactions': [
+        {'type': 'custom', 'emoji': ':nepp:', 'image': '/api/teams/chat/image?chat=c1&message=1&content=bmVw', 'users': [{'id': 'u3', 'name': '박팀장'}, {'id': 'u4', 'name': '이대리'}]},
+        {'type': 'custom', 'emoji': ':thankyou:', 'users': [{'id': 'u3', 'name': '박팀장'}]},
+      ]},
       {'id': '2', 'createdAt': '2026-10-22T01:01:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '[이미지]', 'markdown': '![이미지](https://evil.example/a.png)', 'attachments': []},
     ];
     await tester.pumpWidget(ProviderScope(overrides: [apiClientProvider.overrideWithValue(api)], child: const MaterialApp(home: Scaffold(body: TeamsChatPanel()))));
@@ -228,15 +231,23 @@ void main() {
     await tester.pump();
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200))); // 그림 크기 읽기(실제 비동기)
     await tester.pumpAndSettle();
-    expect(find.byType(TeamsImage), findsOneWidget);
-    expect(find.descendant(of: find.byType(TeamsImage), matching: find.byType(Image)), findsOneWidget);
-    expect(tester.getSize(find.byType(TeamsImage)), const Size(40, 44)); // 원래 크기(위아래 여백 2)
+    final body = find.byWidgetPredicate((w) => w is TeamsImage && w.square == null);
+    expect(body, findsOneWidget);
+    expect(find.descendant(of: body, matching: find.byType(Image)), findsOneWidget);
+    expect(tester.getSize(body), const Size(40, 44)); // 원래 크기(위아래 여백 2)
+    // 사용자 정의 반응(넵) — 칩 안에 작은 그림 + 수, 누르기 없음·이름은 풀이에. 그림 주소가 없으면 이름(:thankyou:)
+    final nepp = find.byWidgetPredicate((w) => w is TeamsImage && w.square == 16);
+    expect(nepp, findsOneWidget);
+    expect(tester.getSize(nepp), const Size(16, 16));
+    expect(find.byTooltip(':nepp: · 박팀장, 이대리'), findsOneWidget);
+    expect(find.text(':thankyou: 1'), findsOneWidget);
     expect(find.text('[이미지]', findRichText: true), findsOneWidget); // 외부 주소는 불러오지 않는다
     await tester.pump(const Duration(seconds: 5)); // 폴링으로 다시 그려도
     await tester.pumpAndSettle();
-    expect(api.images, [path]);
+    expect(api.images.toSet(), {path, '/api/teams/chat/image?chat=c1&message=1&content=bmVw'});
+    expect(api.images, hasLength(2));
 
-    await tester.tap(find.byType(TeamsImage));
+    await tester.tap(body);
     await tester.pumpAndSettle();
     expect(find.byType(InteractiveViewer), findsOneWidget);
     await tester.tap(find.byType(InteractiveViewer));
