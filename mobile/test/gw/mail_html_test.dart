@@ -39,4 +39,25 @@ void main() {
     expect(mailHtmlDocument('<p>a</p>'), isNot(contains('zoom:')));
     expect(mailHtmlDocument('<p>a</p>', zoom: 1.3), contains('html{zoom:1.30}'));
   });
+
+  test('mailInlineImages — 회사 호스트·상대 경로 그림만 data:로, 외부·cid는 그대로', () async {
+    final asked = <Uri>[];
+    final out = await mailInlineImages(
+      '<p><img src="https://gw.innogrid.com/mail/mail002A30?path=a"><img src="/gw/x.png"><img src="https://www.innogrid.com/api/v1/file/download/s">'
+      '<img src="https://track.evil.test/p.gif"><img src="cid:inline1"><img src="https://gw.innogrid.com/fail"></p>',
+      Uri.parse('https://gw.innogrid.com'),
+      (u) async {
+        asked.add(u);
+        return u.path == '/fail' ? null : ('image/png;charset=UTF-8', [1, 2, 3]);
+      },
+    );
+    expect(asked.map((u) => u.toString()), unorderedEquals(['https://gw.innogrid.com/mail/mail002A30?path=a', 'https://gw.innogrid.com/gw/x.png', 'https://www.innogrid.com/api/v1/file/download/s', 'https://gw.innogrid.com/fail']));
+    expect('data:image/png;base64,AQID'.allMatches(out!).length, 3);
+    expect(out, contains('https://track.evil.test/p.gif'));
+    expect(out, contains('cid:inline1'));
+    expect(out, contains('https://gw.innogrid.com/fail'));
+    final doc = mailHtmlDocument(out);
+    expect(doc, contains('<img src="data:image/png;base64,AQID">'));
+    expect(await mailInlineImages('<img src="https://x.test/a.png">', Uri.parse('https://gw.innogrid.com'), (_) async => ('image/png', [1])), isNull);
+  });
 }
