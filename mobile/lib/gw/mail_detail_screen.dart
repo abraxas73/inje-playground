@@ -108,7 +108,10 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
                 // 접혀 있어도 제목은 보인다(상단 바에는 제목을 두지 않는다 — 2026-10-26)
                 if (!open) SelectionArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 4), child: Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)))),
                 _HeaderToggle(open: open, summary: _summary(m), onTap: () => setState(() => _headerOpen = !open)),
-                Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: MailHtmlView(html: m.html))),
+                Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: MailHtmlView(html: m.html, fetchImage: (u) async {
+                  final r = await widget.api.client.httpClient.get(u).timeout(const Duration(seconds: 15));
+                  return r.statusCode == 200 ? (r.headers['content-type'] ?? '', r.bodyBytes) : null;
+                }, base: Uri.parse(widget.api.client.baseUrl)))),
               ]);
             }
             return SelectionArea(child: ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 32), children: [
@@ -236,8 +239,11 @@ class _RecipientsState extends State<_Recipients> {
 /// 메일 본문 HTML 웹뷰 — JavaScript 끔, 처음 그리는 빈 문서 밖으로는 이동하지 않고 링크는 시스템 브라우저로.
 /// 우상단 −/+로 글자 크기(CSS zoom, 문서를 다시 그림 — 스크립트가 꺼져 있어서). 배율은 앱을 끌 때까지 다음 메일에도 이어진다. 터치 기기는 핀치도 된다.
 class MailHtmlView extends StatefulWidget {
-  const MailHtmlView({super.key, required this.html});
+  const MailHtmlView({super.key, required this.html, this.fetchImage, this.base});
   final String html;
+  /// 회사 호스트 그림 받기(mailInlineImages) — 없으면 그림 없이.
+  final Future<(String, List<int>)?> Function(Uri)? fetchImage;
+  final Uri? base;
   @override
   State<MailHtmlView> createState() => _MailHtmlViewState();
 }
@@ -245,6 +251,7 @@ class MailHtmlView extends StatefulWidget {
 class _MailHtmlViewState extends State<MailHtmlView> {
   static double zoom = 1;
   final _c = AppWebController(javaScript: false);
+  late String _html = widget.html;
 
   @override
   void initState() {
@@ -257,7 +264,14 @@ class _MailHtmlViewState extends State<MailHtmlView> {
         if (u != null) unawaited(launchUrl(u, mode: LaunchMode.externalApplication));
         return NavigationDecision.prevent;
       }));
-      await _c.loadHtmlString(mailHtmlDocument(widget.html, zoom: zoom));
+      await _c.loadHtmlString(mailHtmlDocument(_html, zoom: zoom));
+      // 글은 먼저 보이고, 회사 그림을 받으면 그림까지 넣어 다시 그린다
+      final f = widget.fetchImage;
+      if (f == null) return;
+      final withImages = await mailInlineImages(widget.html, widget.base ?? Uri.parse('https://gw.innogrid.com'), f);
+      if (withImages == null || !mounted) return;
+      _html = withImages;
+      await _c.loadHtmlString(mailHtmlDocument(_html, zoom: zoom));
     }());
   }
 
@@ -265,7 +279,7 @@ class _MailHtmlViewState extends State<MailHtmlView> {
     to = (to.clamp(0.5, 2.0) * 10).roundToDouble() / 10;
     if (to == zoom) return;
     setState(() => zoom = to);
-    unawaited(_c.loadHtmlString(mailHtmlDocument(widget.html, zoom: zoom)));
+    unawaited(_c.loadHtmlString(mailHtmlDocument(_html, zoom: zoom)));
   }
 
   @override
