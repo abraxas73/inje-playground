@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { logAudit } from "@/lib/audit";
 import { requireUser } from "@/lib/rfp/require-user";
 import { graphTokenForRoute } from "@/lib/ms/route-token";
-import { MESSAGE_ID_RE, REACTION_MAX, setChatReaction } from "@/lib/teams/chat";
+import { CUSTOM_REACTION_RE, MESSAGE_ID_RE, REACTION_MAX, setChatReaction } from "@/lib/teams/chat";
 import { graphErrorResponse, parseChatId } from "@/lib/teams/chat-route";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   const chatId = parseChatId(b.chat);
   const messageId = typeof b.message === "string" && MESSAGE_ID_RE.test(b.message) ? b.message : null;
   const reaction = typeof b.reaction === "string" ? b.reaction.trim() : "";
-  if (!chatId || !messageId || !reaction || reaction === "custom" || reaction.length > REACTION_MAX || typeof b.on !== "boolean") return NextResponse.json({ error: "chat·message·reaction·on이 필요합니다." }, { status: 400 });
+  if (!chatId || !messageId || !reaction || reaction === "custom" || (reaction.length > REACTION_MAX && !CUSTOM_REACTION_RE.test(reaction)) || typeof b.on !== "boolean") return NextResponse.json({ error: "chat·message·reaction·on이 필요합니다." }, { status: 400 });
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
   const tok = await graphTokenForRoute(auth.admin, auth.userId);

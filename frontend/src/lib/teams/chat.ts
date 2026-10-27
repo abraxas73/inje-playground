@@ -28,23 +28,27 @@ export interface ChatMessage {
 
 /** image — 조직 사용자 정의(custom) 반응 그림의 중계 주소(`hostedImagePath`), 그 밖은 없음 */
 export interface ChatReaction { type: string; emoji: string; image?: string; users: Array<{ id: string; name: string }> }
-/** 우리 화면에서 고르는 반응 — Teams 기본 6개 + 자주 쓰는 6개(조직 사용자 정의 스티커는 Graph가 붙이기를 받지 않아 뺀다) */
+/** 우리 화면에서 고르는 반응 — Teams 기본 6개 + 자주 쓰는 6개(조직 사용자 정의 반응은 대화에 보인 것을 화면이 덧붙인다) */
 export const REACTION_CHOICES = ["👍", "❤️", "😆", "😮", "😢", "😡", "👀", "👏", "🙌", "🔥", "🎉", "🙏"] as const;
 /** 옛 이름 반응 → 그림 문자(Graph는 like 등 옛 값과 유니코드를 섞어 준다) */
 const LEGACY_REACTION: Record<string, string> = { like: "👍", heart: "❤️", laugh: "😆", surprised: "😮", sad: "😢", angry: "😡" };
 export const REACTION_MAX = 16;
+/** 조직 사용자 정의 반응 ID(beta reactionId, 예: daebak;0-skr-d3-…) — 붙이기·떼기는 beta에 {reactionType:"custom", reactionId}로 */
+export const CUSTOM_REACTION_RE = /^[^;\s/?#\\]{1,64};[0-9A-Za-z-]{1,128}$/u; // 이름은 한글일 수도 — 값은 JSON 본문에만 들어간다
+const GRAPH_BETA = GRAPH_BASE.replace(/\/v1\.0$/, "/beta");
 
-/** 메시지의 reactions → 종류별 묶음(처음 붙은 순). custom(조직 사용자 정의, 예: 넵)은 이름별로 따로 묶고, 그림(reactionContentUrl)은 본문 그림과 같은 중계 주소로 — 모르는 주소 형식이면 이름(:nepp:)으로 대신하고 형식만 남긴다. 우리 화면에서는 붙이거나 떼지 않는다(Graph setReaction은 유니코드만 받음) */
+/** 메시지의 reactions → 종류별 묶음(처음 붙은 순). custom(조직 사용자 정의, 예: 넵)은 이름별로 따로 묶고, 그림(reactionContentUrl)은 본문 그림과 같은 중계 주소로 — 모르는 주소 형식이면 이름(:nepp:)으로 대신하고 형식만 남긴다. type은 reactionId(beta 목록에만 있음)라 붙이기·떼기에 그대로 쓰고, ID가 없으면 "custom"(보기만) */
 export function normalizeReactions(list: unknown): ChatReaction[] {
   if (!Array.isArray(list)) return [];
   const byType = new Map<string, ChatReaction>();
   for (const r of list as Array<Record<string, unknown>>) {
     if (!r || typeof r.reactionType !== "string" || !r.reactionType) continue;
-    const type = r.reactionType;
-    const emoji = LEGACY_REACTION[type.toLowerCase()] ?? (type === "custom" ? `:${typeof r.displayName === "string" && r.displayName ? r.displayName : "반응"}:` : type);
+    const type = r.reactionType === "custom" && typeof r.reactionId === "string" && CUSTOM_REACTION_RE.test(r.reactionId) ? r.reactionId : r.reactionType;
+    const custom = r.reactionType === "custom";
+    const emoji = LEGACY_REACTION[type.toLowerCase()] ?? (custom ? `:${typeof r.displayName === "string" && r.displayName ? r.displayName : "반응"}:` : type);
     const u = ((r.user as { user?: { id?: unknown; displayName?: unknown } } | undefined)?.user) ?? {};
-    const key = type === "custom" ? `custom|${emoji}` : type;
-    const g = byType.get(key) ?? { type, emoji, users: [], ...(type === "custom" ? customImage(r.reactionContentUrl) : {}) };
+    const key = custom ? `custom|${emoji}` : type;
+    const g = byType.get(key) ?? { type, emoji, users: [], ...(custom ? customImage(r.reactionContentUrl) : {}) };
     g.users.push({ id: String(u.id ?? ""), name: String(u.displayName ?? "") });
     byType.set(key, g);
   }
@@ -360,7 +364,8 @@ export function normalizeChatMessages(json: unknown): ChatMessage[] {
 }
 
 export function chatMessagesUrl(chatId: string, since?: string): string {
-  const base = `${GRAPH_BASE}/chats/${encodeURIComponent(chatId)}/messages?$top=50`;
+  // ponytail: beta — 사용자 정의 반응의 reactionId가 beta에만 있다. v1.0에 생기면 되돌린다
+  const base = `${GRAPH_BETA}/chats/${encodeURIComponent(chatId)}/messages?$top=50`;
   return since ? `${base}&$filter=${encodeURIComponent(`lastModifiedDateTime gt ${since}`)}` : base;
 }
 
@@ -467,8 +472,10 @@ export async function searchChatMessages(token: string, query: string, fetchImpl
 
 export const MESSAGE_ID_RE = /^[0-9A-Za-z_-]{1,64}$/;
 
-/** 반응 붙이기·떼기(본인 이름, Chat.ReadWrite). 성공하면 204. 떼기는 붙어 있던 Graph 값 그대로(옛 like 등도) */
+/** 반응 붙이기·떼기(본인 이름, Chat.ReadWrite). 성공하면 204. 떼기는 붙어 있던 Graph 값 그대로(옛 like 등도). 사용자 정의 반응 ID는 beta만 받는다(문서에 없음, 2026-10-27 실측) */
 export async function setChatReaction(token: string, chatId: string, messageId: string, reactionType: string, on: boolean, fetchImpl: FetchLike = fetch): Promise<void> {
   const action = on ? "setReaction" : "unsetReaction";
-  await graph(token, `${GRAPH_BASE}/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/${action}`, { method: "POST", body: JSON.stringify({ reactionType }) }, fetchImpl);
+  const custom = CUSTOM_REACTION_RE.test(reactionType);
+  const body = custom ? { reactionType: "custom", reactionId: reactionType } : { reactionType };
+  await graph(token, `${custom ? GRAPH_BETA : GRAPH_BASE}/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/${action}`, { method: "POST", body: JSON.stringify(body) }, fetchImpl);
 }

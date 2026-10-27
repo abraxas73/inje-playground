@@ -128,9 +128,13 @@ it("반응 — 사용자 정의(넵 등)는 그림을 본문 그림과 같은 �
   expect(normalizeReactions([
     { reactionType: "custom", displayName: "nepp", reactionContentUrl: url, user: { user: { id: "u4", displayName: "김민준" } } },
     { reactionType: "custom", displayName: "nepp", reactionContentUrl: url, user: { user: { id: "u5", displayName: "박서연" } } },
+    { reactionType: "custom", displayName: "daebak", reactionId: "daebak;0-skr-d3-216f8053e7c875499eca198aa1085d92", reactionContentUrl: url, user: { user: { id: "u7" } } },
+    { reactionType: "custom", displayName: "bad", reactionId: "bad id/../x", user: { user: { id: "u8" } } },
     { reactionType: "custom", displayName: "thankyou", reactionContentUrl: "https://example.com/emoji/thankyou-1234567890abcdef.png", user: { user: { id: "u6" } } },
   ])).toEqual([
     { type: "custom", emoji: ":nepp:", image: `/api/teams/chat/image?chat=${encodeURIComponent(CHAT)}&message=1729758683767&content=aWQ9MC1jdXMtZDE0LWQ3OGYwYTE5`, users: [{ id: "u4", name: "김민준" }, { id: "u5", name: "박서연" }] },
+    { type: "daebak;0-skr-d3-216f8053e7c875499eca198aa1085d92", emoji: ":daebak:", image: `/api/teams/chat/image?chat=${encodeURIComponent(CHAT)}&message=1729758683767&content=aWQ9MC1jdXMtZDE0LWQ3OGYwYTE5`, users: [{ id: "u7", name: "" }] },
+    { type: "custom", emoji: ":bad:", users: [{ id: "u8", name: "" }] },
     { type: "custom", emoji: ":thankyou:", users: [{ id: "u6", name: "" }] },
   ]);
   expect(warn).toHaveBeenCalledWith(expect.stringContaining("https://example.com/emoji/…"));
@@ -148,7 +152,12 @@ it("POST /api/teams/chat/reaction — 입력 검증, 붙이기는 setReaction·�
   expect((await post({ chat: CHAT, message: "1700000000000", reaction: "like", on: false })).status).toBe(200);
   expect(m.fetch.mock.calls[1][0]).toMatch(/unsetReaction$/);
   expect(JSON.parse(m.fetch.mock.calls[1][1].body)).toEqual({ reactionType: "like" });
-  expect(m.audit.mock.calls.map((c) => [c[2].action, c[2].detail])).toEqual([["Teams 반응 붙임", {}], ["Teams 반응 뗌", {}]]);
+  // 사용자 정의 반응 ID — beta에 {reactionType:"custom", reactionId}
+  expect((await post({ chat: CHAT, message: "1700000000000", reaction: "daebak;0-skr-d3-216f8053e7c875499eca198aa1085d92", on: true })).status).toBe(200);
+  expect(m.fetch.mock.calls[2][0]).toBe(`https://graph.microsoft.com/beta/chats/${encodeURIComponent(CHAT)}/messages/1700000000000/setReaction`);
+  expect(JSON.parse(m.fetch.mock.calls[2][1].body)).toEqual({ reactionType: "custom", reactionId: "daebak;0-skr-d3-216f8053e7c875499eca198aa1085d92" });
+  expect((await post({ chat: CHAT, message: "1", reaction: "daebak;0-skr/../x-aaaaaaaaaaaa", on: true })).status).toBe(400);
+  expect(m.audit.mock.calls.map((c) => [c[2].action, c[2].detail])).toEqual([["Teams 반응 붙임", {}], ["Teams 반응 뗌", {}], ["Teams 반응 붙임", {}]]);
   m.fetch.mockResolvedValue(json(403, { error: { code: "Forbidden", message: "x" } }));
   expect((await post({ chat: CHAT, message: "1", reaction: "👍", on: true })).status).toBe(409);
 });

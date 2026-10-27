@@ -40,12 +40,12 @@ interface Msg { id: string; createdAt: string; modifiedAt: string; from: { id: s
 const REACTIONS = ["👍", "❤️", "😆", "😮", "😢", "😡", "👀", "👏", "🙌", "🔥", "🎉", "🙏"]; // 서버 REACTION_CHOICES와 같다
 
 /** 내 반응 하나를 붙이거나 뗀 결과(서버 응답 전에 먼저 보여 주고, 다음 폴링이 실제 상태로 맞춘다) */
-function toggleReaction(list: Reaction[], type: string, emoji: string, me: string, on: boolean): Reaction[] {
+function toggleReaction(list: Reaction[], type: string, emoji: string, me: string, on: boolean, image?: string): Reaction[] {
   const rest = list.map((r) => (r.type === type ? { ...r, users: r.users.filter((u) => u.id !== me) } : r));
   if (on) {
     const hit = rest.find((r) => r.type === type);
     if (hit) hit.users = [...hit.users, { id: me, name: "나" }];
-    else rest.push({ type, emoji, users: [{ id: me, name: "나" }] });
+    else rest.push({ type, emoji, ...(image ? { image } : {}), users: [{ id: me, name: "나" }] });
   }
   return rest.filter((r) => r.users.length > 0);
 }
@@ -84,6 +84,8 @@ export default function TeamsChatPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
+  // 고르기 창에 덧붙일 사용자 정의 반응 — 이 대화에 보인 것 중 ID·그림이 있는 것(조직 목록을 주는 Graph API가 없다)
+  const customSeen = [...new Map(messages.flatMap((m) => m.reactions ?? []).filter((r) => r.type.includes(";") && r.image?.startsWith("/api/teams/chat/image?")).map((r) => [r.type, r] as const)).values()].slice(0, 12);
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -208,13 +210,13 @@ export default function TeamsChatPage() {
     }
   };
 
-  const react = async (m: Msg, type: string, emoji: string, on: boolean) => {
+  const react = async (m: Msg, type: string, emoji: string, on: boolean, image?: string) => {
     const me = info?.meId;
     if (!chatId || !me) return;
     setPickerFor(null);
     const before = messages.find((x) => x.id === m.id)?.reactions ?? []; // 실패하면 요청 전 상태로(뒤집기 대신 — 그사이 바뀐 상태를 틀지 않게)
     const restore = () => setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, reactions: before } : x)));
-    setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, reactions: toggleReaction(x.reactions ?? [], type, emoji, me, on) } : x)));
+    setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, reactions: toggleReaction(x.reactions ?? [], type, emoji, me, on, image) } : x)));
     try {
       const r = await fetch("/api/teams/chat/reaction", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat: chatId, message: m.id, reaction: type, on }) });
       if (!r.ok) { const j = await readJson(r); restore(); setError(typeof j.error === "string" ? j.error : `반응을 ${on ? "붙이지" : "떼지"} 못했습니다 (${r.status})`); }
@@ -401,6 +403,15 @@ export default function TeamsChatPage() {
                             const on = !!minePick;
                             return <button key={e} type="button" onClick={() => void react(m, (minePick ?? same[0])?.type ?? e, e, !on)} className={cn("flex h-7 w-7 items-center justify-center rounded text-base leading-none hover:bg-muted", on && "bg-primary/10")} aria-label={`${e} ${on ? "떼기" : "붙이기"}`}>{e}</button>;
                           })}
+                          {customSeen.map((c) => {
+                            const on = (m.reactions ?? []).some((r) => r.type === c.type && r.users.some((u) => u.id === info.meId));
+                            return (
+                              <button key={c.type} type="button" onClick={() => void react(m, c.type, c.emoji, !on, c.image)} className={cn("flex h-7 w-7 items-center justify-center rounded hover:bg-muted", on && "bg-primary/10")} title={c.emoji} aria-label={`${c.emoji} ${on ? "떼기" : "붙이기"}`}>
+                                {/* eslint-disable-next-line @next/next/no-img-element -- 본인 Teams 권한으로 중계하는 사용자 정의 반응 그림 */}
+                                <img src={c.image} alt={c.emoji} className="h-5 w-5 object-contain" />
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                       <div className={cn("w-full break-words [overflow-wrap:anywhere] rounded-2xl px-3 py-2 text-sm", mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted")}>
@@ -422,7 +433,7 @@ export default function TeamsChatPage() {
                             const minePick = r.users.some((u) => u.id === info.meId);
                             const names = r.users.map((u) => (u.id === info.meId ? "나" : u.name)).filter(Boolean).join(", ");
                             return (
-                              <button key={`${r.type}|${r.emoji}`} type="button" disabled={r.type === "custom"} onClick={() => void react(m, r.type, r.emoji, !minePick)} title={[r.type === "custom" ? r.emoji : "", names].filter(Boolean).join(" · ") || undefined} aria-label={`${r.emoji} ${r.users.length}명${r.type === "custom" ? "" : minePick ? ", 내 반응 떼기" : ", 같이 붙이기"}`}
+                              <button key={`${r.type}|${r.emoji}`} type="button" disabled={r.type === "custom"} onClick={() => void react(m, r.type, r.emoji, !minePick, r.image)} title={[r.emoji.startsWith(":") ? r.emoji : "", names].filter(Boolean).join(" · ") || undefined} aria-label={`${r.emoji} ${r.users.length}명${r.type === "custom" ? "" : minePick ? ", 내 반응 떼기" : ", 같이 붙이기"}`}
                                 className={cn("flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs hover:bg-muted disabled:cursor-default disabled:hover:bg-transparent", minePick && "border-primary/50 bg-primary/10")}>
                                 {r.image?.startsWith("/api/teams/chat/image?")
                                   // eslint-disable-next-line @next/next/no-img-element -- 본인 Teams 권한으로 중계하는 사용자 정의 반응 그림

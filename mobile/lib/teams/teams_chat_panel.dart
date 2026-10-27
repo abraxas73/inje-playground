@@ -47,21 +47,21 @@ class TeamsReaction {
   final String? image;
 }
 
-/// 고르는 반응 — 웹·서버와 같은 12개(Teams 기본 6 + 자주 쓰는 6, 조직 스티커는 Graph가 붙이기를 받지 않음)
+/// 고르는 반응 — 웹·서버와 같은 12개(Teams 기본 6 + 자주 쓰는 6). 조직 사용자 정의 반응은 대화에 보인 것을 덧붙인다(type이 reactionId — `이름;…`)
 const teamsReactionChoices = ['👍', '❤️', '😆', '😮', '😢', '😡', '👀', '👏', '🙌', '🔥', '🎉', '🙏'];
 
 /// 내 반응 하나를 붙이거나 뗀 결과(응답 전에 먼저 보여 주고 5초 폴링이 실제 상태로 맞춘다)
-List<TeamsReaction> toggleTeamsReaction(List<TeamsReaction> list, String type, String emoji, String me, bool on) {
+List<TeamsReaction> toggleTeamsReaction(List<TeamsReaction> list, String type, String emoji, String me, bool on, {String? image}) {
   final out = [
     for (final r in list)
-      if (r.type == type) TeamsReaction(r.type, r.emoji, [for (final u in r.userIds) if (u != me) u], [for (var i = 0; i < r.userIds.length; i++) if (r.userIds[i] != me) r.names[i]]) else r,
+      if (r.type == type) TeamsReaction(r.type, r.emoji, [for (final u in r.userIds) if (u != me) u], [for (var i = 0; i < r.userIds.length; i++) if (r.userIds[i] != me) r.names[i]], image: r.image) else r,
   ];
   if (on) {
     final i = out.indexWhere((r) => r.type == type);
     if (i >= 0) {
-      out[i] = TeamsReaction(type, out[i].emoji, [...out[i].userIds, me], [...out[i].names, '나']);
+      out[i] = TeamsReaction(type, out[i].emoji, [...out[i].userIds, me], [...out[i].names, '나'], image: out[i].image);
     } else {
-      out.add(TeamsReaction(type, emoji, [me], const ['나']));
+      out.add(TeamsReaction(type, emoji, [me], const ['나'], image: image));
     }
   }
   return [for (final r in out) if (r.userIds.isNotEmpty) r];
@@ -279,13 +279,13 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
   }
 
   /// 반응 붙이기·떼기 — 먼저 화면에 반영하고, 실패하면 되돌린다
-  Future<void> _react(TeamsMsg m, String type, String emoji, bool on) async {
+  Future<void> _react(TeamsMsg m, String type, String emoji, bool on, {String? image}) async {
     // 실패하면 요청 전 상태로(뒤집기 대신 — 그사이 폴링으로 바뀐 상태를 틀지 않게)
     final before = (_msgs ?? const <TeamsMsg>[]).where((x) => x.id == m.id).firstOrNull?.reactions ?? const <TeamsReaction>[];
     void set(List<TeamsReaction> Function(TeamsMsg x) f) => setState(() {
           _msgs = [for (final x in _msgs ?? const <TeamsMsg>[]) x.id == m.id ? x.withReactions(f(x)) : x];
         });
-    set((x) => toggleTeamsReaction(x.reactions, type, emoji, widget.meId, on));
+    set((x) => toggleTeamsReaction(x.reactions, type, emoji, widget.meId, on, image: image));
     try {
       await _api.postJson('/api/teams/chat/reaction', {'chat': widget.chat.id, 'message': m.id, 'reaction': type, 'on': on});
     } catch (e) {
@@ -300,7 +300,10 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
     final box = anchor.findRenderObject() as RenderBox?;
     final screen = MediaQuery.sizeOf(context);
     final at = box == null ? Offset.zero : box.localToGlobal(Offset.zero);
-    const cell = 28.0, w = cell * 6 + 8, h = cell * 2 + 8;
+    // 이 대화에 보인 사용자 정의 반응(ID·그림 있는 것, 최대 12) — 조직 목록을 주는 Graph API가 없다
+    final custom = {for (final x in _msgs ?? const <TeamsMsg>[]) for (final r in x.reactions) if (r.type.contains(';') && r.image != null) r.type: r}.values.take(12).toList();
+    const cell = 28.0, w = cell * 6 + 8;
+    final h = cell * (2 + (custom.length / 6).ceil()) + 8;
     final left = (at.dx + (box?.size.width ?? 0) / 2 - w / 2).clamp(4.0, screen.width - w - 4);
     final top = at.dy - h - 2 < 4 ? at.dy + (box?.size.height ?? 0) + 2 : at.dy - h - 2; // 위에 붙이고, 자리가 없으면 아래
     final picked = await showDialog<String>(
@@ -325,6 +328,12 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
                       onTap: () => Navigator.of(ctx).pop(e),
                       child: SizedBox(width: cell, height: cell, child: Center(child: Text(e, style: const TextStyle(fontSize: 17)))),
                     ),
+                  for (final r in custom)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: () => Navigator.of(ctx).pop(r.type),
+                      child: Tooltip(message: r.emoji, child: SizedBox(width: cell, height: cell, child: Center(child: TeamsImage(path: r.image!, fallback: TextStyle(fontSize: 11, color: Brand.navy), square: 20, label: r.emoji)))),
+                    ),
                 ]),
               ),
             ),
@@ -333,6 +342,8 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
       ]),
     );
     if (picked == null || !mounted) return;
+    final c = custom.where((r) => r.type == picked).firstOrNull;
+    if (c != null) return _react(m, c.type, c.emoji, !m.reactions.any((r) => r.type == c.type && r.userIds.contains(widget.meId)), image: c.image);
     // 같은 그림이 옛 이름(like)·유니코드 두 묶음일 수 있다 — 떼기는 내가 붙인 묶음의 값으로
     final same = [for (final r in m.reactions) if (r.emoji == picked && r.type != 'custom') r];
     final mine = same.where((r) => r.userIds.contains(widget.meId)).firstOrNull;
@@ -474,7 +485,7 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
     final names = [for (var i = 0; i < r.userIds.length; i++) r.userIds[i] == widget.meId ? '나' : r.names[i]].where((n) => n.isNotEmpty).join(', ');
     final chip = InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: r.type == 'custom' ? null : () => _react(m, r.type, r.emoji, !minePick), // 남의 반응을 누르면 같이 붙이고, 내 것이면 뗀다(Teams와 같다). 조직 사용자 정의 반응은 보기만
+      onTap: r.type == 'custom' ? null : () => _react(m, r.type, r.emoji, !minePick, image: r.image), // 남의 반응을 누르면 같이 붙이고, 내 것이면 뗀다(Teams와 같다). ID 없는 사용자 정의 반응(custom)은 보기만
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
@@ -491,7 +502,7 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
               ]),
       ),
     );
-    final tip = [if (r.type == 'custom') r.emoji, if (names.isNotEmpty) names].join(' · ');
+    final tip = [if (r.emoji.startsWith(':')) r.emoji, if (names.isNotEmpty) names].join(' · ');
     return Semantics(button: r.type != 'custom', label: '${r.emoji} ${r.userIds.length}명', child: tip.isEmpty ? chip : Tooltip(message: tip, child: chip));
   }
 

@@ -255,4 +255,35 @@ void main() {
     expect(find.byType(InteractiveViewer), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('사용자 정의 반응(ID 있는 것) — 칩을 누르면 같이 붙이고(그림 유지), 고르기 창에도 이 대화에 보인 것이 붙는다', (tester) async {
+    final api = FakeApi();
+    const id = 'daebak;0-skr-d3-216f', img = '/api/teams/chat/image?chat=c1&message=1&content=ZGI%3D';
+    api.msgs = [
+      {'id': '1', 'createdAt': '2026-10-22T01:00:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '좋네요', 'attachments': [], 'reactions': [{'type': id, 'emoji': ':daebak:', 'image': img, 'users': [{'id': 'u3', 'name': '박팀장'}]}]},
+      {'id': '2', 'createdAt': '2026-10-22T01:01:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '하나 더', 'attachments': []},
+    ];
+    await tester.pumpWidget(ProviderScope(overrides: [apiClientProvider.overrideWithValue(api)], child: const MaterialApp(home: Scaffold(body: TeamsChatPanel()))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('플랫폼팀'));
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip(':daebak: · 박팀장'), findsOneWidget);
+    await tester.tap(find.byTooltip(':daebak: · 박팀장'));
+    await tester.pump();
+    expect(api.reactions.last, {'chat': 'c1', 'message': '1', 'reaction': id, 'on': true});
+    expect(find.byTooltip(':daebak: · 박팀장, 나'), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is TeamsImage && w.square == 16), findsOneWidget); // 붙인 뒤에도 그림
+
+    await tester.tap(find.byIcon(Icons.add_reaction_outlined).first); // 두 번째 메시지(최신이 아래 — reverse 목록이라 먼저 만들어진다)
+    await tester.pumpAndSettle();
+    final cell = find.byWidgetPredicate((w) => w is TeamsImage && w.square == 20);
+    expect(cell, findsOneWidget);
+    await tester.tap(cell);
+    await tester.pumpAndSettle();
+    expect(api.reactions.last, {'chat': 'c1', 'message': '2', 'reaction': id, 'on': true});
+    expect(find.byTooltip(':daebak: · 나'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
 }
