@@ -11,6 +11,7 @@ import '../dooray/calendar_session.dart' show doorayCalendarTransportProvider;
 import 'gw_api.dart';
 import 'gw_gate.dart';
 import 'gw_models.dart';
+import '../app/copy_selection_area.dart';
 
 /// 일정 — 아마란스 일정(+ 이 기기에 Dooray가 연결돼 있으면 Dooray 일정도)을 일간·주간·월간 캘린더로(기본 일간).
 /// 회의실 예약은 일간 보기에서 그날 것만. "추가"는 이노봇을 불러 아마란스 일정 등록을 맡긴다(비서가 꺼져 있으면 버튼 없음).
@@ -95,7 +96,7 @@ class _BodyState extends ConsumerState<_Body> {
     return Scaffold(
       appBar: BrandHeader(title: '일정', showBack: true, favoritePath: '/gw/today', onRefresh: _load),
       // 화면 자체 SelectionArea — 앱 전체 SelectAllText만으로는 데스크톱 실기기에서 끌어 선택이 바로 풀린다(메신저·메일·게시판과 같은 처리, 2026-10-26)
-      body: SelectionArea(child: RefreshIndicator(
+      body: CopySelectionArea(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 24), children: [
           CalendarView(

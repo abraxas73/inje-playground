@@ -1,6 +1,7 @@
 // 데스크톱 홈 위젯 "Always On" — 위젯 ⋮ 메뉴에서 켜면 X를 누를 때까지 모든 화면 위에 떠 있는 창으로 보인다(머리줄 끌어 옮기기·오른쪽 아래 모서리로 크기).
 // 창 내용은 홈 화면이 만든 위젯 정의(DashboardWidgetDef)를 그대로 그린다 — 홈 탭은 탭 상태 유지(StatefulShellRoute)로 다른 화면에서도 살아 있어
 // 데이터 갱신·눌러서 이동이 홈에서와 같게 동작한다. 켠 위젯·위치·크기는 기기에 기억(SharedPreferences).
+import '../../app/copy_selection_area.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -232,7 +233,7 @@ class _PinnedContent extends ConsumerWidget {
     if (def == null) return const SizedBox.shrink();
     return Material(
       color: Brand.ground,
-      child: SelectionArea(
+      child: CopySelectionArea(
         child: (def.fill || def.child is DashboardPlaceholder)
             ? def.child
             : SingleChildScrollView(padding: const EdgeInsets.only(bottom: 16), child: def.child),

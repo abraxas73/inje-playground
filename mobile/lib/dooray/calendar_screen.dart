@@ -9,6 +9,7 @@ import '../gw/gw_models.dart' show kstNow;
 import 'calendar_session.dart';
 import 'calendar_webview.dart';
 import '../favorites/favorites.dart';
+import '../app/copy_selection_area.dart';
 
 /// (시작일 'YYYY-MM-DD', 날 수 1~42) 범위의 Dooray 일정. 연결이 없으면 null.
 final doorayRangeProvider = FutureProvider.autoDispose
@@ -79,7 +80,7 @@ class _DoorayCalendarScreenState extends ConsumerState<DoorayCalendarScreen> {
           ),
         ],
       ),
-      body: SelectionArea(child: ListView( // 화면 자체 선택 영역(일정 화면과 같은 이유)
+      body: CopySelectionArea(child: ListView( // 화면 자체 선택 영역(일정 화면과 같은 이유)
         padding: const EdgeInsets.all(16),
         children: [
           const Text(

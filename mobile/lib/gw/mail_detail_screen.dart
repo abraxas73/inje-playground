@@ -16,6 +16,7 @@ import 'mail_compose.dart' show MailKind;
 import 'mail_compose_screen.dart';
 import 'mail_html.dart';
 import 'mail_indexer.dart';
+import '../app/copy_selection_area.dart';
 
 /// 받은 첨부 저장 — 저장 위치를 고르게 하고 고른 위치(취소면 null). 테스트에서 override.
 final mailFileSaverProvider = Provider<Future<Object?> Function(String name, Uint8List bytes)>((_) => saveFileRememberingDir);
@@ -100,21 +101,21 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
                 if (open)
                   ConstrainedBox(
                     constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.4),
-                    child: SingleChildScrollView(
+                    child: CopySelectionArea(child: SingleChildScrollView( // 선택 영역 안에서 스크롤 — 스크롤하면 복사 아이콘이 닫힌다
                       padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                      child: SelectionArea(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: _header(m))),
-                    ),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: _header(m)),
+                    )),
                   ),
                 // 접혀 있어도 제목은 보인다(상단 바에는 제목을 두지 않는다 — 2026-10-26)
-                if (!open) SelectionArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 4), child: Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)))),
+                if (!open) CopySelectionArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 4), child: Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)))),
                 _HeaderToggle(open: open, summary: _summary(m), onTap: () => setState(() => _headerOpen = !open)),
                 Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: MailHtmlView(html: m.html))),
               ]);
             }
-            return SelectionArea(child: ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 32), children: [
+            return CopySelectionArea(child: ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 32), children: [
               ..._header(m),
               const Divider(height: 28),
-              SelectableText(m.body.isEmpty ? '(본문 없음)' : m.body, style: const TextStyle(fontSize: 15, height: 1.5)),
+              Text(m.body.isEmpty ? '(본문 없음)' : m.body, style: const TextStyle(fontSize: 15, height: 1.5)),
             ]));
           },
         ),
@@ -171,7 +172,7 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
 
   Widget _row(String k, String v) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 68, child: Text(k, style: TextStyle(fontSize: 12, color: Brand.muted))), Expanded(child: SelectableText(v, style: const TextStyle(fontSize: 13)))]),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 68, child: Text(k, style: TextStyle(fontSize: 12, color: Brand.muted))), Expanded(child: Text(v, style: const TextStyle(fontSize: 13)))]),
       );
 
   static String _size(int n) => n >= 1024 * 1024 ? '${(n / 1024 / 1024).toStringAsFixed(1)}MB' : '${(n / 1024).ceil().clamp(1, 1 << 30)}KB';
@@ -220,7 +221,7 @@ class _RecipientsState extends State<_Recipients> {
         SizedBox(width: 68, child: Text(widget.label, style: TextStyle(fontSize: 12, color: Brand.muted))),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            SelectableText(list.isEmpty ? widget.value : list.join('\n'), style: const TextStyle(fontSize: 13)),
+            Text(list.isEmpty ? widget.value : list.join('\n'), style: const TextStyle(fontSize: 13)),
             if (more > 0)
               InkWell(
                 onTap: () => setState(() => _open = !_open),

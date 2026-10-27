@@ -14,6 +14,7 @@ import 'messenger_new_chat_screen.dart';
 import 'messenger_provider.dart';
 import 'messenger_search_screen.dart';
 import 'messenger_ui.dart';
+import '../app/copy_selection_area.dart';
 
 /// 아마란스 메신저 대화방 목록 — 저장된 아마란스 로그인으로 P076 세션을 만들어 조회한다.
 /// 자격증명이 없거나 만료면 아마란스 연결로 안내. 토큰·비밀번호는 화면에 노출하지 않는다.
@@ -349,7 +350,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
       body: Column(children: [
         // 대화 글자 끌어 선택·복사 — 홈 위젯 안에서 앱 전체 선택(SelectAllText)으로는 끌어 선택이 안 됐다(데스크톱 실측), Teams 채팅처럼 직접 둔다
         Expanded(
-          child: SelectionArea(child: FutureBuilder<List<MsgChat>>(
+          child: CopySelectionArea(child: FutureBuilder<List<MsgChat>>(
             future: _future,
             builder: (context, snap) {
               if (snap.connectionState == ConnectionState.waiting && !snap.hasData) return const Center(child: CircularProgressIndicator());

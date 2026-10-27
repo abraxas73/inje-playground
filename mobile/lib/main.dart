@@ -23,6 +23,7 @@ import 'dooray/calendar_webview.dart';
 import 'features/home/pinned_widgets.dart';
 import 'notifications/app_badge.dart';
 import 'telemetry/app_events.dart';
+import 'app/copy_selection_area.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -159,7 +160,7 @@ class SelectAllText extends StatefulWidget {
 }
 
 class _SelectAllTextState extends State<SelectAllText> {
-  late final OverlayEntry _entry = OverlayEntry(builder: (_) => SelectionArea(child: widget.child));
+  late final OverlayEntry _entry = OverlayEntry(builder: (_) => CopySelectionArea(child: widget.child));
 
   @override
   void didUpdateWidget(SelectAllText old) {
