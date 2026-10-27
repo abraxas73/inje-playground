@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 interface ChatSummary { id: string; type: "group" | "oneOnOne"; topic: string; members: string[]; webUrl: string | null; lastUpdated: string | null }
 interface Info { connected: boolean; hasChatScope: boolean; meId?: string; chats?: ChatSummary[] }
 interface Hit { id: string; chatId: string; createdAt: string; from: string; snippet: string }
-interface Reaction { type: string; emoji: string; users: Array<{ id: string; name: string }> }
+interface Reaction { type: string; emoji: string; image?: string; users: Array<{ id: string; name: string }> }
 // 원문 서식(문단·굵게·목록·링크) — 서버가 이스케이프한 마크다운만 그린다(HTML 그대로 그리지 않음). 링크는 새 탭.
 // 그림은 본문 그림 중계 주소(/api/teams/chat/image)만 그린다(누르면 새 탭에서 원본) — 그 밖의 주소는 불러오지 않는다
 const MD: Components = {
@@ -422,9 +422,13 @@ export default function TeamsChatPage() {
                             const minePick = r.users.some((u) => u.id === info.meId);
                             const names = r.users.map((u) => (u.id === info.meId ? "나" : u.name)).filter(Boolean).join(", ");
                             return (
-                              <button key={`${r.type}|${r.emoji}`} type="button" disabled={r.type === "custom"} onClick={() => void react(m, r.type, r.emoji, !minePick)} title={names || undefined} aria-label={`${r.emoji} ${r.users.length}명${minePick ? ", 내 반응 떼기" : ", 같이 붙이기"}`}
+                              <button key={`${r.type}|${r.emoji}`} type="button" disabled={r.type === "custom"} onClick={() => void react(m, r.type, r.emoji, !minePick)} title={[r.type === "custom" ? r.emoji : "", names].filter(Boolean).join(" · ") || undefined} aria-label={`${r.emoji} ${r.users.length}명${r.type === "custom" ? "" : minePick ? ", 내 반응 떼기" : ", 같이 붙이기"}`}
                                 className={cn("flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs hover:bg-muted disabled:cursor-default disabled:hover:bg-transparent", minePick && "border-primary/50 bg-primary/10")}>
-                                <span className="text-sm leading-none">{r.emoji}</span>{r.users.length}
+                                {r.image?.startsWith("/api/teams/chat/image?")
+                                  // eslint-disable-next-line @next/next/no-img-element -- 본인 Teams 권한으로 중계하는 사용자 정의 반응 그림
+                                  ? <img src={r.image} alt={r.emoji} loading="lazy" className="h-4 w-4 object-contain" />
+                                  : <span className="text-sm leading-none">{r.emoji}</span>}
+                                {r.users.length}
                               </button>
                             );
                           })}

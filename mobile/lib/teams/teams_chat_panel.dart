@@ -38,11 +38,13 @@ class TeamsHit {
   final DateTime? at;
 }
 
-/// 메시지 반응(종류별 묶음) — type은 Graph 원래 값(떼기에 그대로), emoji는 표시용. 서버 lib/teams/chat.ts normalizeReactions와 같은 모양
+/// 메시지 반응(종류별 묶음) — type은 Graph 원래 값(떼기에 그대로), emoji는 표시용, image는 사용자 정의 반응(넵 등) 그림 중계 주소.
+/// 서버 lib/teams/chat.ts normalizeReactions와 같은 모양
 class TeamsReaction {
-  const TeamsReaction(this.type, this.emoji, this.userIds, this.names);
+  const TeamsReaction(this.type, this.emoji, this.userIds, this.names, {this.image});
   final String type, emoji;
   final List<String> userIds, names;
+  final String? image;
 }
 
 /// 고르는 반응 — 웹·서버와 같은 12개(Teams 기본 6 + 자주 쓰는 6, 조직 스티커는 Graph가 붙이기를 받지 않음)
@@ -87,7 +89,8 @@ class TeamsMsg {
       [
         for (final r in j['reactions'] is List ? j['reactions'] as List : const [])
           if (r is Map && r['type'] is String)
-            TeamsReaction('${r['type']}', '${r['emoji'] ?? r['type']}', [for (final u in r['users'] is List ? r['users'] as List : const []) if (u is Map) '${u['id'] ?? ''}'], [for (final u in r['users'] is List ? r['users'] as List : const []) if (u is Map) '${u['name'] ?? ''}']),
+            TeamsReaction('${r['type']}', '${r['emoji'] ?? r['type']}', [for (final u in r['users'] is List ? r['users'] as List : const []) if (u is Map) '${u['id'] ?? ''}'], [for (final u in r['users'] is List ? r['users'] as List : const []) if (u is Map) '${u['name'] ?? ''}'],
+                image: r['image'] is String && (r['image'] as String).startsWith('/api/teams/chat/image?') ? r['image'] as String : null),
       ],
       j['markdown'] is String ? (j['markdown'] as String).trim() : '',
     );
@@ -479,10 +482,17 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
           border: Border.all(color: minePick ? Brand.blue : Brand.line),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Text('${r.emoji} ${r.userIds.length}', style: TextStyle(fontSize: 12, color: Brand.navy)),
+        child: r.image == null
+            ? Text('${r.emoji} ${r.userIds.length}', style: TextStyle(fontSize: 12, color: Brand.navy))
+            : Row(mainAxisSize: MainAxisSize.min, children: [
+                TeamsImage(path: r.image!, fallback: TextStyle(fontSize: 12, color: Brand.navy), square: 16, label: r.emoji),
+                const SizedBox(width: 4),
+                Text('${r.userIds.length}', style: TextStyle(fontSize: 12, color: Brand.navy)),
+              ]),
       ),
     );
-    return Semantics(button: r.type != 'custom', label: '${r.emoji} ${r.userIds.length}명', child: names.isEmpty ? chip : Tooltip(message: names, child: chip));
+    final tip = [if (r.type == 'custom') r.emoji, if (names.isNotEmpty) names].join(' · ');
+    return Semantics(button: r.type != 'custom', label: '${r.emoji} ${r.userIds.length}명', child: tip.isEmpty ? chip : Tooltip(message: tip, child: chip));
   }
 
   Widget _composer() => SafeArea(
@@ -643,9 +653,15 @@ class _TeamsSearchScreenState extends ConsumerState<TeamsSearchScreen> {
 /// 받은 그림(바이트·원래 크기)은 바이트 합계 상한 안에서 최근 것만 메모리에 둔다 — 5초 폴링이나 새 메시지로 말풍선이
 /// 다시 그려져도 다시 받거나 스피너로 돌아가지 않는다.
 class TeamsImage extends ConsumerStatefulWidget {
-  const TeamsImage({super.key, required this.path, required this.fallback});
+  const TeamsImage({super.key, required this.path, required this.fallback, this.square, this.label = '[이미지]'});
   final String path;
   final TextStyle fallback;
+
+  /// 정한 크기 정사각형 안에 작게(반응 칩) — 누르기·로딩 상자 없음
+  final double? square;
+
+  /// 못 그리면 대신 보일 글
+  final String label;
   static const _maxCacheBytes = 40 * 1024 * 1024;
   static final _done = <String, (Uint8List, Size)>{}; // 받은 것(최근에 쓴 것이 뒤)
   static final _pending = <String, Future<(Uint8List, Size)>>{};
@@ -713,8 +729,16 @@ class _TeamsImageState extends ConsumerState<TeamsImage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_error != null) return Text('[이미지]', style: widget.fallback);
+    if (_error != null) return Text(widget.label, style: widget.fallback);
     final img = _img;
+    final sq = widget.square;
+    if (sq != null) {
+      final dpr = MediaQuery.devicePixelRatioOf(context);
+      return SizedBox.square(
+        dimension: sq,
+        child: img == null ? null : Image.memory(img.$1, fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: (sq * dpr).round().clamp(1, img.$2.width.round()), errorBuilder: (_, _, _) => Text(widget.label, style: widget.fallback)),
+      );
+    }
     if (img == null) {
       return Container(
         width: 160,
@@ -740,7 +764,7 @@ class _TeamsImageState extends ConsumerState<TeamsImage> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 // 말풍선에는 줄인 크기로만 풀어 둔다(크게 보기는 원본)
-                child: Image.memory(b, fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: (320 * dpr).round().clamp(1, size.width.round()), errorBuilder: (_, _, _) => Text('[이미지]', style: widget.fallback)),
+                child: Image.memory(b, fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: (320 * dpr).round().clamp(1, size.width.round()), errorBuilder: (_, _, _) => Text(widget.label, style: widget.fallback)),
               ),
             ),
           ),
