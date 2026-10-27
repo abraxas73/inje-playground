@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { REQUEST_STATUS, type AppRequest } from "@/lib/mobile/app-requests";
 import { ANDROID_PLAY_URL } from "@/lib/mobile/release";
+import { useIosApp } from "@/lib/mobile/app-ua";
 import { Button } from "@/components/ui/button";
 
 type Platform = { version: string; build: number; releasedAt: string | null; url: string | null } | null;
@@ -29,6 +30,7 @@ async function fetchRequests(): Promise<AppRequest[]> {
 }
 
 export function AppsPageView() {
+  const iosApp = useIosApp();
   const [rel, setRel] = useState<Release | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,7 +83,7 @@ export function AppsPageView() {
         </CardContent>
       </Card>
       <h2 className="text-xl font-semibold">모바일 앱</h2>
-      <p className="text-sm text-muted-foreground">Android는 Google Play에서 바로 설치합니다. iPhone은 먼저 설정에서 앱 사용을 신청하고 초대를 수락해 주세요.</p>
+      {!iosApp && <p className="text-sm text-muted-foreground">Android는 Google Play에서 바로 설치합니다. iPhone은 먼저 설정에서 앱 사용을 신청하고 초대를 수락해 주세요.</p>}
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error} <Button variant="link" size="sm" onClick={load}>다시 시도</Button>
@@ -102,7 +104,7 @@ export function AppsPageView() {
             {iosAction()}
           </CardContent>
         </Card>
-        <Card>
+        {!iosApp && <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Smartphone className="h-5 w-5" /> Android</CardTitle>
             <CardDescription>Google Play에서 설치하고 업데이트합니다. 신청은 필요 없습니다.</CardDescription>
@@ -114,7 +116,7 @@ export function AppsPageView() {
             </ol>
             <Button asChild><a href={rel?.android?.url ?? ANDROID_PLAY_URL} target="_blank" rel="noreferrer"><Download className="h-4 w-4" />Google Play에서 설치{rel?.android ? ` · ${label(rel.android)}` : ""}</a></Button>
           </CardContent>
-        </Card>
+        </Card>}
       </div>
       <Card>
         <CardHeader><CardTitle className="text-base">현재 버전</CardTitle></CardHeader>
@@ -124,7 +126,7 @@ export function AppsPageView() {
           ) : (
             <>
               <p>iPhone {label(rel?.ios ?? null)}{rel?.ios?.releasedAt ? ` · ${fmtDate(rel.ios.releasedAt)}` : ""}</p>
-              <p>Android {label(rel?.android ?? null)}{rel?.android?.releasedAt ? ` · ${fmtDate(rel.android.releasedAt)}` : ""}</p>
+              {!iosApp && <p>Android {label(rel?.android ?? null)}{rel?.android?.releasedAt ? ` · ${fmtDate(rel.android.releasedAt)}` : ""}</p>}
               {rel?.notes && <p className="whitespace-pre-line text-muted-foreground">{rel.notes}</p>}
             </>
           )}

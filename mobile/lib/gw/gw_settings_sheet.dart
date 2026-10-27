@@ -77,7 +77,7 @@ class _GwSettingsSheetState extends ConsumerState<GwSettingsSheet> {
           const Divider(height: 32),
           Text('자동 로그인', style: theme.textTheme.titleMedium),
           const SizedBox(height: 4),
-          Text('저장해 두면 연결할 때 아이디·비밀번호를 대신 넣습니다. 비밀번호는 이 기기의 보안 저장소(iOS Keychain · Android Keystore)에만 저장되고 서버로 가지 않습니다.', style: theme.textTheme.bodySmall),
+          Text('저장해 두면 연결할 때 아이디·비밀번호를 대신 넣습니다. 비밀번호는 이 기기의 보안 저장소에만 저장되고 서버로 가지 않습니다.', style: theme.textTheme.bodySmall),
           const SizedBox(height: 12),
           TextField(key: const Key('gw-login-id'), controller: _id, decoration: const InputDecoration(labelText: '아이디', hintText: '예: hong.gildong'), autocorrect: false, enableSuggestions: false),
           const SizedBox(height: 10),

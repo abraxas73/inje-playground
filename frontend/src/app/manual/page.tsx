@@ -6,7 +6,8 @@ import Link from "next/link";
 import { Search, ArrowUp, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { manualSections, searchManual } from "@/lib/manual/sections";
+import { manualSections, searchManual, withoutAndroid } from "@/lib/manual/sections";
+import { useIosApp } from "@/lib/mobile/app-ua";
 
 function renderStep(step: string, emphasis?: string) {
   if (!emphasis) return step;
@@ -21,7 +22,8 @@ function renderStep(step: string, emphasis?: string) {
 
 export default function ManualPage() {
   const [query, setQuery] = useState("");
-  const sections = searchManual(query);
+  const iosApp = useIosApp();
+  const sections = iosApp ? withoutAndroid(searchManual(query)) : searchManual(query);
   const categories = [...new Set(sections.map((s) => s.category))];
   return (
     <div id="manual-top" className="mx-auto max-w-6xl py-8 md:py-12">

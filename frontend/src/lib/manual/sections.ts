@@ -521,6 +521,11 @@ export const manualSections: ManualSection[] = [
   },
 ];
 
+/** iOS 앱 안에서는 Android·Google Play 안내가 든 절을 뺀다(App Store 심사 2.3.10). */
+export function withoutAndroid(sections: ManualSection[]) {
+  return sections.filter((s) => !/Android|Google Play|APK|안드로이드/.test(JSON.stringify(s)));
+}
+
 export function searchManual(query: string) {
   const terms = query.trim().toLocaleLowerCase("ko-KR").split(/\s+/).filter(Boolean);
   return manualSections.filter((s) => {

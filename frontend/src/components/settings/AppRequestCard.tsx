@@ -1,4 +1,5 @@
 "use client";
+import { useIosApp } from '@/lib/mobile/app-ua';
 import { useCallback, useEffect, useState } from 'react';
 import { Apple, Smartphone, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { REQUEST_STATUS, type AppPlatform, type AppRequest } from '@/lib/mobile/app-requests';
 import { ANDROID_PLAY_URL } from '@/lib/mobile/release';
 export default function AppRequestCard() {
+  const iosApp = useIosApp();
   const [items, setItems] = useState<AppRequest[] | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,7 +35,7 @@ export default function AppRequestCard() {
         const item = items.find(x => x.platform === platform);
         return <PlatformForm key={`${platform}-${item?.revision ?? 0}`} platform={platform} item={item} onSaved={next => setItems(prev => [...(prev ?? []).filter(x => x.platform !== next.platform), next])} />;
       })}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><span className="flex items-center gap-2"><Smartphone className="h-4 w-4" />Android는 신청 없이 Google Play에서 설치합니다.</span><Button variant="outline" size="sm" asChild><a href={ANDROID_PLAY_URL} target="_blank" rel="noreferrer">Google Play에서 설치</a></Button></div>
+      {!iosApp && <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><span className="flex items-center gap-2"><Smartphone className="h-4 w-4" />Android는 신청 없이 Google Play에서 설치합니다.</span><Button variant="outline" size="sm" asChild><a href={ANDROID_PLAY_URL} target="_blank" rel="noreferrer">Google Play에서 설치</a></Button></div>}
       <p className="text-xs text-muted-foreground">스토어 계정 이메일은 테스터 등록과 신청 처리에 사용하며 본인과 관리자만 확인합니다. 비밀번호는 입력하지 마세요.</p>
     </CardContent>
   </Card>;

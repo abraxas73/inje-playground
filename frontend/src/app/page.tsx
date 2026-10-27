@@ -94,7 +94,7 @@ const FEATURES = [
   {
     href: "/apps",
     title: "모바일 앱",
-    description: "이노그리드 앱을 휴대폰에 설치하세요. iPhone은 TestFlight, Android는 APK로 받습니다.",
+    description: "이노그리드 앱 설치 방법과 최신 버전을 확인하세요.",
     icon: Smartphone,
     gradient: "from-slate-600 to-slate-800",
     bgAccent: "bg-slate-50",
