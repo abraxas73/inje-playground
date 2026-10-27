@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -386,7 +387,7 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
         : ListView.builder(reverse: true, padding: const EdgeInsets.all(12), itemCount: msgs.length, itemBuilder: (_, i) => item(i));
   }
 
-  /// 원문 서식 — 글 선택은 바깥 SelectionArea가 맡는다. 이미지는 불러오지 않고, 링크는 http(s)·mailto만 바깥 앱으로
+  /// 원문 서식 — 글 선택은 바깥 SelectionArea가 맡는다. 그림은 본문 그림 중계 주소(/api/teams/chat/image)만 불러오고(그 밖은 [이미지] 글), 링크는 http(s)·mailto만 바깥 앱으로
   Widget _markdown(String data, Color fg) {
     final base = TextStyle(color: fg, height: 1.4, fontSize: 14);
     return MarkdownBody(
@@ -400,7 +401,9 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
         a: base.copyWith(decoration: TextDecoration.underline),
         blockSpacing: 6,
       ),
-      imageBuilder: (_, _, alt) => Text('[이미지${alt == null || alt.isEmpty ? '' : ': $alt'}]', style: base),
+      imageBuilder: (uri, _, alt) => uri.path == '/api/teams/chat/image' && !uri.hasScheme
+          ? TeamsImage(path: uri.toString(), fallback: base)
+          : Text('[이미지]', style: base),
       onTapLink: (_, href, _) {
         final u = href == null ? null : Uri.tryParse(href);
         if (u != null && (u.scheme == 'https' || u.scheme == 'http' || u.scheme == 'mailto')) launchUrl(u, mode: LaunchMode.externalApplication);
@@ -634,4 +637,115 @@ class _TeamsSearchScreenState extends ConsumerState<TeamsSearchScreen> {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
         child: Text(t, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Brand.muted)),
       );
+}
+
+/// Teams 본문 그림 — 우리 서버가 본인 Microsoft 권한으로 중계한 바이트를 그린다. 누르면 크게(확대·이동).
+/// 받은 그림(바이트·원래 크기)은 바이트 합계 상한 안에서 최근 것만 메모리에 둔다 — 5초 폴링이나 새 메시지로 말풍선이
+/// 다시 그려져도 다시 받거나 스피너로 돌아가지 않는다.
+class TeamsImage extends ConsumerStatefulWidget {
+  const TeamsImage({super.key, required this.path, required this.fallback});
+  final String path;
+  final TextStyle fallback;
+  static const _maxCacheBytes = 40 * 1024 * 1024;
+  static final _done = <String, (Uint8List, Size)>{}; // 받은 것(최근에 쓴 것이 뒤)
+  static final _pending = <String, Future<(Uint8List, Size)>>{};
+
+  static Future<(Uint8List, Size)> _fetch(ApiClient api, String path) => _pending[path] ??= () async {
+        try {
+          final b = await api.getBytes(path);
+          final i = await decodeImageFromList(b); // 크기만 — 서식 글(WidgetSpan) 안에서 자리를 미리 잡으려고
+          final r = (b, Size(i.width.toDouble(), i.height.toDouble()));
+          i.dispose();
+          _done[path] = r;
+          var total = _done.values.fold<int>(0, (n, e) => n + e.$1.length);
+          while (total > _maxCacheBytes && _done.length > 1) {
+            total -= _done.remove(_done.keys.first)!.$1.length;
+          }
+          return r;
+        } finally {
+          unawaited(_pending.remove(path)); // 실패는 두지 않는다 — 다음에 다시 받는다
+        }
+      }();
+
+  @override
+  ConsumerState<TeamsImage> createState() => _TeamsImageState();
+}
+
+class _TeamsImageState extends ConsumerState<TeamsImage> {
+  (Uint8List, Size)? _img;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(TeamsImage old) {
+    super.didUpdateWidget(old);
+    if (old.path != widget.path) _load();
+  }
+
+  void _load() {
+    final path = widget.path;
+    _error = null;
+    _img = TeamsImage._done.remove(path);
+    if (_img != null) {
+      TeamsImage._done[path] = _img!; // 최근에 쓴 것을 뒤로
+      return;
+    }
+    TeamsImage._fetch(ref.read(apiClientProvider), path).then((r) {
+      if (mounted && widget.path == path) setState(() => _img = r);
+    }, onError: (Object e) {
+      if (mounted && widget.path == path) setState(() => _error = e);
+    });
+  }
+
+  void _open(Uint8List b) => showDialog<void>(
+        context: context,
+        barrierColor: Colors.black87,
+        builder: (ctx) => GestureDetector(
+          onTap: () => Navigator.of(ctx).pop(),
+          child: InteractiveViewer(maxScale: 5, child: Center(child: Image.memory(b, gaplessPlayback: true))),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) return Text('[이미지]', style: widget.fallback);
+    final img = _img;
+    if (img == null) {
+      return Container(
+        width: 160,
+        height: 100,
+        margin: const EdgeInsets.symmetric(vertical: 2),
+        decoration: BoxDecoration(color: widget.fallback.color?.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
+        child: const Center(child: SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))),
+      );
+    }
+    final (b, size) = img;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.zoomIn,
+        child: GestureDetector(
+          onTap: () => _open(b),
+          // 최대 320×240·말풍선 폭 안에서 원래 비율(작은 그림은 키우지 않는다) — 폭이 줄어도 높이가 따라 줄어 빈 띠가 없다
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: size.width < 320 ? size.width : 320, maxHeight: size.height < 240 ? size.height : 240),
+            child: AspectRatio(
+              aspectRatio: size.width / size.height,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                // 말풍선에는 줄인 크기로만 풀어 둔다(크게 보기는 원본)
+                child: Image.memory(b, fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: (320 * dpr).round().clamp(1, size.width.round()), errorBuilder: (_, _, _) => Text('[이미지]', style: widget.fallback)),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

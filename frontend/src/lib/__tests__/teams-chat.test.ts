@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
-import { chatMessagesUrl, getChatInfo, listChatMessages, listMyChats, normalizeChatMessages, sendChatMessage, teamsHtmlToMarkdown, teamsHtmlToText } from "@/lib/teams/chat";
+import { chatMessagesUrl, getChatInfo, hostedImagePath, listChatMessages, listMyChats, normalizeChatMessages, sendChatMessage, teamsHtmlToMarkdown, teamsHtmlToText } from "@/lib/teams/chat";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "request-id": "rid-1" } });
 
@@ -15,6 +15,17 @@ describe("teamsHtmlToText", () => {
 });
 
 describe("teamsHtmlToMarkdown", () => {
+  it("본문 그림(hostedContents)은 중계 주소 그림으로, 외부 주소 그림은 [이미지] 글로", () => {
+    const src = "https://graph.microsoft.com/v1.0/chats/19:abc@thread.v2/messages/1615971548136/hostedContents/aWQ9eF8w+LXd1cy/1kMS0=/$value";
+    const path = "/api/teams/chat/image?chat=19%3Aabc%40thread.v2&message=1615971548136&content=aWQ9eF8w%2BLXd1cy%2F1kMS0%3D";
+    expect(teamsHtmlToMarkdown(`<p>흐름이 맞을까요?</p><p><img src="${src}" width="600" alt="image"></p><p>그림은 수정해도 됩니다.</p>`))
+      .toBe(`흐름이 맞을까요?  \n![이미지](${path})  \n그림은 수정해도 됩니다.`);
+    expect(hostedImagePath(src)).toBe(path);
+    expect(hostedImagePath("https://evil.example/chats/19:a@thread.v2/messages/1/hostedContents/x/$value")).toBeNull();
+    expect(hostedImagePath("https://graph.microsoft.com/v1.0/chats/19:a@thread.v2/messages/../hostedContents/x/$value")).toBeNull();
+    expect(teamsHtmlToMarkdown('<p><img src="https://media.giphy.com/a.gif"></p>')).toBe("\\[이미지\\]");
+  });
+
   it("줄·빈 줄·굵게·중첩 목록(start)·멘션·링크·그림 문자를 살리고 글자색은 버린다", () => {
     const html = '<p><at id="0">강승억</at><at id="1">정선미</at> 메일입니다.</p><p>&nbsp;</p><p>안녕하세요</p><p>황윤재입니다.<br>둘째 줄</p><p>&nbsp;</p>'
       + '<p><strong>※ 방향</strong></p><ol><li><strong>유지</strong></li><li>구축<ul><li>harbor</li><li><span style="color:red">gitlab</span></li></ul></li></ol>'
