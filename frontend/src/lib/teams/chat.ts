@@ -247,7 +247,9 @@ export function teamsHtmlToMarkdown(html: string): string {
       case "img": case "emoji": {
         if (close) break;
         const alt = attr(tok, "alt");
+        const hosted = name === "img" ? hostedImagePath(attr(tok, "src")) : null;
         if (name === "emoji" || /emoji/i.test(attr(tok, "itemtype"))) { if (alt) text(alt); }
+        else if (hosted) { flush(); if (!lineStart && !brk && out && !out.endsWith(" ")) out += " "; write(`![이미지](${hosted})`); }
         else text("[이미지]");
         break;
       }
@@ -255,6 +257,59 @@ export function teamsHtmlToMarkdown(html: string): string {
   }
   flush();
   return out.trim();
+}
+
+/** Teams 본문 그림 ID(hostedContents) — base64 계열 */
+export const HOSTED_CONTENT_ID_RE = /^[A-Za-z0-9+/=_-]{1,4096}$/;
+
+/**
+ * 본문 그림 src(Graph hostedContents, 로그인 토큰이 있어야 열림) → 우리 중계 주소 `/api/teams/chat/image?…`.
+ * 다른 주소(외부 그림·스티커)는 null — 불러오지 않고 [이미지]로 둔다.
+ */
+export function hostedImagePath(src: string): string | null {
+  const m = /^https:\/\/graph\.microsoft\.com\/(?:v1\.0|beta)\/chats\/([^/?#]+)\/messages\/([^/?#]+)\/hostedContents\/(.+?)\/\$value$/i.exec(src.trim());
+  if (!m) return null;
+  let chat: string, message: string, content: string;
+  try {
+    [chat, message, content] = [decodeURIComponent(m[1]), decodeURIComponent(m[2]), decodeURIComponent(m[3])];
+  } catch {
+    return null;
+  }
+  if (!CHAT_ID_RE.test(chat) || !MESSAGE_ID_RE.test(message) || !HOSTED_CONTENT_ID_RE.test(content)) return null;
+  return `/api/teams/chat/image?${new URLSearchParams({ chat, message, content }).toString()}`;
+}
+
+/** 본문 그림 상한 — Vercel 함수 응답 한계(약 4.5MB) 안 */
+export const HOSTED_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+
+/**
+ * 본문 그림 원본(바이트) — 본인 위임 토큰으로. 그림 형식만(아니면 "type"), 상한을 넘으면 본문을 다 읽지 않고 "size".
+ */
+export async function fetchHostedImage(token: string, chatId: string, messageId: string, contentId: string, fetchImpl: FetchLike = fetch): Promise<{ body: Uint8Array<ArrayBuffer>; type: string } | { error: "type" | "size" }> {
+  const url = `${GRAPH_BASE}/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/hostedContents/${encodeURIComponent(contentId)}/$value`;
+  const res = await fetchWithRetry(fetchImpl, url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new GraphError(res.status, `http_${res.status}`, (await res.text()).slice(0, 300), res.headers.get("request-id"));
+  const type = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  const declared = Number(res.headers.get("content-length") ?? "0");
+  if (!/^image\/(png|jpe?g|gif|webp|bmp)$/.test(type) || declared > HOSTED_IMAGE_MAX_BYTES) {
+    await res.body?.cancel();
+    return { error: declared > HOSTED_IMAGE_MAX_BYTES ? "size" : "type" };
+  }
+  // 길이 머리글이 없거나 틀려도 상한에서 끊는다
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const reader = res.body?.getReader();
+  for (;;) {
+    const r = reader ? await reader.read() : { done: true as const, value: undefined };
+    if (r.done) break;
+    total += r.value.byteLength;
+    if (total > HOSTED_IMAGE_MAX_BYTES) { await reader?.cancel(); return { error: "size" }; }
+    chunks.push(r.value);
+  }
+  const body = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) { body.set(c, at); at += c.byteLength; }
+  return { body, type };
 }
 
 /** 답글 인용(messageReference)은 본문이 이미 대화에 있으니 첨부로 세지 않는다. contentUrl은 http(s)만(파일 첨부는 data: 가능). */

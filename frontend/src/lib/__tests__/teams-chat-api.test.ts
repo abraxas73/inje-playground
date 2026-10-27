@@ -13,6 +13,7 @@ import { GET as chatGET } from "@/app/api/teams/chat/route";
 import { GET as msgGET, POST as msgPOST } from "@/app/api/teams/chat/messages/route";
 import { GET as searchGET } from "@/app/api/teams/chat/search/route";
 import { POST as reactPOST } from "@/app/api/teams/chat/reaction/route";
+import { GET as imageGET } from "@/app/api/teams/chat/image/route";
 import { normalizeReactions } from "@/lib/teams/chat";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -136,4 +137,34 @@ it("POST /api/teams/chat/reaction — 입력 검증, 붙이기는 setReaction·�
   expect(m.audit.mock.calls.map((c) => [c[2].action, c[2].detail])).toEqual([["Teams 반응 붙임", {}], ["Teams 반응 뗌", {}]]);
   m.fetch.mockResolvedValue(json(403, { error: { code: "Forbidden", message: "x" } }));
   expect((await post({ chat: CHAT, message: "1", reaction: "👍", on: true })).status).toBe(409);
+});
+
+it("GET /api/teams/chat/image — 본문 그림을 본인 토큰으로 중계(그림 형식만, 개인 캐시), 잘못된 값 400·그림 아님 415·권한 409", async () => {
+  const HC = "aWQ9eF8wLXd1cy1kMS0xMjM0LHR5cGU9MQ==";
+  const q = (o: Record<string, string>) => req(`/api/teams/chat/image?${new URLSearchParams(o)}`);
+  expect((await imageGET(q({ chat: CHAT, message: "1" }))).status).toBe(400);
+  expect((await imageGET(q({ chat: CHAT, message: "../x", content: HC }))).status).toBe(400);
+  expect(m.fetch).not.toHaveBeenCalled();
+
+  m.fetch.mockResolvedValue(new Response(new Uint8Array([137, 80, 78, 71]), { status: 200, headers: { "content-type": "image/png" } }));
+  const res = await imageGET(q({ chat: CHAT, message: "1615971548136", content: HC }));
+  expect(res.status).toBe(200);
+  expect(res.headers.get("content-type")).toBe("image/png");
+  expect(res.headers.get("cache-control")).toBe("private, max-age=86400");
+  expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array([137, 80, 78, 71]));
+  const [url, init] = m.fetch.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe(`https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(CHAT)}/messages/1615971548136/hostedContents/${encodeURIComponent(HC)}/$value`);
+  expect((init.headers as Record<string, string>).Authorization).toBe("Bearer AT");
+  expect(m.audit).not.toHaveBeenCalled();
+
+  m.fetch.mockResolvedValue(new Response("<html>", { status: 200, headers: { "content-type": "text/html" } }));
+  expect((await imageGET(q({ chat: CHAT, message: "1", content: HC }))).status).toBe(415);
+  m.fetch.mockResolvedValue(json(403, { error: { code: "Forbidden", message: "x" } }));
+  expect((await imageGET(q({ chat: CHAT, message: "1", content: HC }))).status).toBe(409);
+  // 4MB 넘으면 413 — 길이 머리글로 미리, 머리글이 없어도 읽다가 끊는다
+  m.fetch.mockResolvedValue(new Response(new Uint8Array(10), { status: 200, headers: { "content-type": "image/png", "content-length": String(5 * 1024 * 1024) } }));
+  expect((await imageGET(q({ chat: CHAT, message: "1", content: HC }))).status).toBe(413);
+  const big = new ReadableStream<Uint8Array>({ start(c) { for (let i = 0; i < 5; i++) c.enqueue(new Uint8Array(1024 * 1024)); c.close(); } });
+  m.fetch.mockResolvedValue(new Response(big, { status: 200, headers: { "content-type": "image/jpeg" } }));
+  expect((await imageGET(q({ chat: CHAT, message: "1", content: HC }))).status).toBe(413);
 });

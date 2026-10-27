@@ -23,10 +23,18 @@ interface ChatSummary { id: string; type: "group" | "oneOnOne"; topic: string; m
 interface Info { connected: boolean; hasChatScope: boolean; meId?: string; chats?: ChatSummary[] }
 interface Hit { id: string; chatId: string; createdAt: string; from: string; snippet: string }
 interface Reaction { type: string; emoji: string; users: Array<{ id: string; name: string }> }
-// 원문 서식(문단·굵게·목록·링크) — 서버가 이스케이프한 마크다운만 그린다(HTML 그대로 그리지 않음). 링크는 새 탭, 이미지는 불러오지 않는다
+// 원문 서식(문단·굵게·목록·링크) — 서버가 이스케이프한 마크다운만 그린다(HTML 그대로 그리지 않음). 링크는 새 탭.
+// 그림은 본문 그림 중계 주소(/api/teams/chat/image)만 그린다(누르면 새 탭에서 원본) — 그 밖의 주소는 불러오지 않는다
 const MD: Components = {
   a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{children}</a>,
-  img: ({ alt }) => <span>[이미지{alt ? `: ${alt}` : ""}]</span>,
+  img: ({ src, alt }) => typeof src === "string" && src.startsWith("/api/teams/chat/image?")
+    ? (
+      <a href={src} target="_blank" rel="noopener noreferrer" className="my-1 block w-fit no-underline">
+        {/* eslint-disable-next-line @next/next/no-img-element -- 본인 Teams 권한으로 중계하는 그림이라 next/image 최적화 대상이 아니다 */}
+        <img src={src} alt={alt || "이미지"} loading="lazy" className="!my-0 max-h-72 max-w-full rounded-lg border border-black/10 bg-white object-contain" />
+      </a>
+    )
+    : <span>[이미지{alt ? `: ${alt}` : ""}]</span>,
 };
 interface Msg { id: string; createdAt: string; modifiedAt: string; from: { id: string; name: string } | null; text: string; markdown?: string; attachments: Array<{ id: string; name: string; url: string | null }>; reactions?: Reaction[] }
 const REACTIONS = ["👍", "❤️", "😆", "😮", "😢", "😡", "👀", "👏", "🙌", "🔥", "🎉", "🙏"]; // 서버 REACTION_CHOICES와 같다

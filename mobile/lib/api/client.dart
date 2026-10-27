@@ -100,6 +100,21 @@ class ApiClient {
     return res.bodyBytes.isEmpty ? null : jsonDecode(utf8.decode(res.bodyBytes));
   }
 
+  /// 바이트 GET(본문 그림 등, [path]에 쿼리 포함 가능) — Bearer·401 갱신 1회 재시도·오류 문구는 JSON 호출과 같다.
+  Future<Uint8List> getBytes(String path) async {
+    Future<http.Response> go(String? token) => httpClient.get(Uri.parse('$baseUrl$path'), headers: {'User-Agent': userAgent, if (token != null) 'Authorization': 'Bearer $token'});
+    var res = await go(await tokens.accessToken());
+    if (res.statusCode == 401) {
+      res = await go(await tokens.refreshToken());
+      if (res.statusCode == 401) {
+        await tokens.onUnauthorized();
+        throw _apiError(res);
+      }
+    }
+    if (res.statusCode < 200 || res.statusCode >= 300) throw _apiError(res);
+    return res.bodyBytes;
+  }
+
   Future<dynamic> putJson(String path, Object body) =>
       _send('PUT', path, body: body);
   Future<dynamic> patchJson(String path, Object body) =>

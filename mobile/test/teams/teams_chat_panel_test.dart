@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +30,13 @@ class FakeApi extends Fake implements ApiClient {
     }
     gets.add(query);
     return {'messages': query?['since'] == null ? msgs : msgs.where((m) => (m['createdAt'] as String).compareTo(query!['since']!) > 0).toList()};
+  }
+
+  final images = <String>[];
+  @override
+  Future<Uint8List> getBytes(String path) async { // 40×40 PNG
+    images.add(path);
+    return base64Decode('iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAIAAAADnC86AAAAMElEQVR4nO3NQQkAAAgEsOtkJzvZ1hKCn8H+S/W8iFgsFovFYrFYLBaLxWKxWHxnAdLIeOpVA63UAAAAAElFTkSuQmCC');
   }
 
   @override
@@ -202,6 +211,37 @@ void main() {
     expect(bold.any((t) => t.toPlainText() == '방향' && t.style?.fontWeight == FontWeight.w700), isTrue);
     expect(find.text('유지', findRichText: true), findsOneWidget);
     expect(find.text('옛 서버 *그대로*'), findsOneWidget); // markdown 없으면 평문 그대로
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('본문 그림 — 중계 주소 그림은 받아 그리고(다시 그려도 한 번만 받음) 누르면 크게, 외부 주소는 [이미지] 글', (tester) async {
+    final api = FakeApi();
+    const path = '/api/teams/chat/image?chat=c1&message=1&content=aGM%3D';
+    api.msgs = [
+      {'id': '1', 'createdAt': '2026-10-22T01:00:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '흐름 [이미지]', 'markdown': '흐름이 맞을까요?  \n![이미지]($path)', 'attachments': []},
+      {'id': '2', 'createdAt': '2026-10-22T01:01:00Z', 'from': {'id': 'u2', 'name': '김동료'}, 'text': '[이미지]', 'markdown': '![이미지](https://evil.example/a.png)', 'attachments': []},
+    ];
+    await tester.pumpWidget(ProviderScope(overrides: [apiClientProvider.overrideWithValue(api)], child: const MaterialApp(home: Scaffold(body: TeamsChatPanel()))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('플랫폼팀'));
+    await tester.pump();
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200))); // 그림 크기 읽기(실제 비동기)
+    await tester.pumpAndSettle();
+    expect(find.byType(TeamsImage), findsOneWidget);
+    expect(find.descendant(of: find.byType(TeamsImage), matching: find.byType(Image)), findsOneWidget);
+    expect(tester.getSize(find.byType(TeamsImage)), const Size(40, 44)); // 원래 크기(위아래 여백 2)
+    expect(find.text('[이미지]', findRichText: true), findsOneWidget); // 외부 주소는 불러오지 않는다
+    await tester.pump(const Duration(seconds: 5)); // 폴링으로 다시 그려도
+    await tester.pumpAndSettle();
+    expect(api.images, [path]);
+
+    await tester.tap(find.byType(TeamsImage));
+    await tester.pumpAndSettle();
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+    await tester.tap(find.byType(InteractiveViewer));
+    await tester.pumpAndSettle();
+    expect(find.byType(InteractiveViewer), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 }
