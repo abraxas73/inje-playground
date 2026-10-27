@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { logAudit } from "@/lib/audit";
 import { requireUser } from "@/lib/rfp/require-user";
 import { graphTokenForRoute } from "@/lib/ms/route-token";
 import { CHAT_MESSAGE_MAX, listChatMessages, sendChatMessage } from "@/lib/teams/chat";
 import { graphErrorResponse, parseChatId } from "@/lib/teams/chat-route";
+import { registerCustomReactions } from "@/lib/teams/custom-reactions";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,7 @@ async function prepare() {
   return { ok: true as const, admin: auth.admin, userId: auth.userId, token: tok.token };
 }
 
-/** GET /api/teams/chat/messages?chat=<id>&since=<ISO> — 최근 50건(오래된 것부터). since가 있으면 그 뒤 수정·생성분만(폴링). 참여 여부는 Graph가 검사한다(미참여 403 → 409). */
+/** GET /api/teams/chat/messages?chat=<id>&since=<ISO> — 최근 50건(오래된 것부터). since가 있으면 그 뒤 수정·생성분만(폴링). 참여 여부는 Graph가 검사한다(미참여 403 → 409). 응답 뒤 처음 본 사용자 정의 반응을 등록한다. */
 export async function GET(request: NextRequest) {
   const chatId = parseChatId(request.nextUrl.searchParams.get("chat"));
   if (!chatId) return badChat();
@@ -26,7 +27,9 @@ export async function GET(request: NextRequest) {
   const p = await prepare();
   if (!p.ok) return p.response;
   try {
-    return NextResponse.json({ messages: await listChatMessages(p.token, chatId, since) }, { headers: { "Cache-Control": "no-store" } });
+    const messages = await listChatMessages(p.token, chatId, since);
+    after(() => registerCustomReactions(p.admin, p.token, chatId, messages).catch(() => 0)); // 처음 본 사용자 정의 반응을 등록부에(고르기 창용, 응답을 늦추지 않게)
+    return NextResponse.json({ messages }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     return graphErrorResponse(e);
   }

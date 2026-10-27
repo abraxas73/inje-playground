@@ -2,8 +2,9 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 const m = vi.hoisted(() => ({
-  user: true as boolean, token: { ok: true, token: "AT" } as unknown, status: { connected: true, scopes: ["User.Read", "Chat.ReadWrite"] } as unknown, audit: vi.fn(), fetch: vi.fn(),
+  user: true as boolean, token: { ok: true, token: "AT" } as unknown, status: { connected: true, scopes: ["User.Read", "Chat.ReadWrite"] } as unknown, audit: vi.fn(), fetch: vi.fn(), after: vi.fn(),
 }));
+vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: m.after })); // 응답 뒤 작업(사용자 정의 반응 등록)은 따로 검사
 vi.mock("@/lib/rfp/require-user", () => ({ requireUser: async () => m.user ? { ok: true, userId: "u1", role: "user", admin: {} } : { ok: false, response: NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 }) } }));
 vi.mock("@/lib/ms/route-token", () => ({ graphTokenForRoute: async () => m.token }));
 vi.mock("@/lib/ms/connections", () => ({ getConnectionStatus: async () => m.status }));
@@ -21,7 +22,7 @@ const rawMsg = (id: string) => ({ id, messageType: "message", createdDateTime: `
 const CHAT = "19:abc@thread.v2";
 const req = (url: string, init?: ConstructorParameters<typeof NextRequest>[1]) => new NextRequest(`https://app.test${url}`, init);
 beforeEach(() => {
-  m.user = true; m.token = { ok: true, token: "AT" }; m.status = { connected: true, scopes: ["User.Read", "Chat.ReadWrite"] }; m.audit.mockReset(); m.fetch.mockReset();
+  m.user = true; m.token = { ok: true, token: "AT" }; m.status = { connected: true, scopes: ["User.Read", "Chat.ReadWrite"] }; m.audit.mockReset(); m.fetch.mockReset(); m.after.mockReset();
 });
 
 it("GET /api/teams/chat — 연결 안 됐거나 Chat.ReadWrite 스코프가 없으면 그 사실만(Graph 호출 없음)", async () => {
@@ -190,4 +191,9 @@ it("GET /api/teams/chat/image — 본문 그림을 본인 토큰으로 중계(�
   const big = new ReadableStream<Uint8Array>({ start(c) { for (let i = 0; i < 5; i++) c.enqueue(new Uint8Array(1024 * 1024)); c.close(); } });
   m.fetch.mockResolvedValue(new Response(big, { status: 200, headers: { "content-type": "image/jpeg" } }));
   expect((await imageGET(q({ chat: CHAT, message: "1", content: HC }))).status).toBe(413);
+});
+it("GET /api/teams/chat/messages — 응답 뒤 사용자 정의 반응 등록을 맡긴다(응답을 기다리게 하지 않음)", async () => {
+  m.fetch.mockResolvedValue(json(200, { value: [rawMsg("1")] }));
+  expect((await msgGET(req(`/api/teams/chat/messages?chat=${encodeURIComponent(CHAT)}`))).status).toBe(200);
+  expect(m.after).toHaveBeenCalledTimes(1);
 });
