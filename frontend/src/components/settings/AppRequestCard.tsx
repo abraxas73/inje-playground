@@ -1,5 +1,5 @@
 "use client";
-import { useIosApp } from '@/lib/mobile/app-ua';
+import { useIosApp } from '@/lib/mobile/use-ios-app';
 import { useCallback, useEffect, useState } from 'react';
 import { Apple, Smartphone, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

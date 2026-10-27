@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { REQUEST_STATUS, type AppRequest } from "@/lib/mobile/app-requests";
 import { ANDROID_PLAY_URL } from "@/lib/mobile/release";
-import { useIosApp } from "@/lib/mobile/app-ua";
+import { useIosApp } from "@/lib/mobile/use-ios-app";
 import { Button } from "@/components/ui/button";
 
 type Platform = { version: string; build: number; releasedAt: string | null; url: string | null } | null;

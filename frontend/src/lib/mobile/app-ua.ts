@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from "react";
 import type { MemberSourceProvider } from "@/lib/providers";
 
 /** 모바일 앱 WebView는 User-Agent 끝에 `InnogridApp/<버전> (<platform>)`을 붙인다(mobile/lib/web/web_screen.dart). */
@@ -9,12 +8,6 @@ export function isInnogridAppUA(ua: string): boolean {
 /** iOS 앱 WebView — App Store 심사(2.3.10)가 iOS 앱 안의 Android·Google Play 안내를 막아 그 부분을 숨길 때 쓴다. */
 export function isIosAppUA(ua: string): boolean {
   return /\bInnogridApp\/\S+ \(ios\)/i.test(ua);
-}
-
-const noSubscribe = () => () => {};
-/** 하이드레이션 안전(서버 false) 버전. */
-export function useIosApp(): boolean {
-  return useSyncExternalStore(noSubscribe, () => isIosAppUA(navigator.userAgent), () => false);
 }
 
 export function isInnogridApp(): boolean {

@@ -7,7 +7,7 @@ import { Search, ArrowUp, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { manualSections, searchManual, withoutAndroid } from "@/lib/manual/sections";
-import { useIosApp } from "@/lib/mobile/app-ua";
+import { useIosApp } from "@/lib/mobile/use-ios-app";
 
 function renderStep(step: string, emphasis?: string) {
   if (!emphasis) return step;
