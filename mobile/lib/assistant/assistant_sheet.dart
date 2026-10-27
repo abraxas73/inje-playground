@@ -808,8 +808,7 @@ class _Bubble extends StatelessWidget {
       constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.8),
       decoration: BoxDecoration(color: Brand.surface, borderRadius: BorderRadius.circular(16)),
       child: MarkdownBody(
-        data: t,
-        selectable: true,
+        data: t, // 글자 선택은 바깥 CopySelectionArea가 맡는다(selectable을 켜면 따로 놀고 기본 메뉴가 뜬다)
         softLineBreak: true, // 한 줄 바꿈도 줄을 바꾼다(앱의 기존 말풍선과 같게)
         styleSheet: MarkdownStyleSheet(
           p: base,
@@ -845,7 +844,7 @@ class _Bubble extends StatelessWidget {
       color: bg,
       borderRadius: BorderRadius.circular(16),
     ),
-    child: SelectableText(
+    child: Text(
       t,
       style: TextStyle(color: fg, fontSize: 15, height: 1.5),
     ),

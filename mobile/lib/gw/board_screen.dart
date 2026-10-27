@@ -148,7 +148,7 @@ class _DetailPage extends StatelessWidget {
             const SizedBox(height: 6),
             Text([d.writer, if (d.dept.isNotEmpty) d.dept, d.writeDate, '조회 ${d.readCnt}', if (d.fileCnt > 0) '첨부 ${d.fileCnt}'].where((s) => s.isNotEmpty).join(' · '), style: theme.textTheme.bodySmall),
             const Divider(height: 24),
-            if (d.contentMd.isNotEmpty) _body(d.contentMd) else SelectableText(d.content.isEmpty ? '(본문 없음)' : d.content, style: TextStyle(fontSize: 15, height: 1.65, color: Brand.navy)),
+            if (d.contentMd.isNotEmpty) _body(d.contentMd) else Text(d.content.isEmpty ? '(본문 없음)' : d.content, style: TextStyle(fontSize: 15, height: 1.65, color: Brand.navy)),
             if (d.fileCnt > 0) Padding(padding: const EdgeInsets.only(top: 16), child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Brand.blueTint, borderRadius: BorderRadius.circular(12)), child: Text('첨부 ${d.fileCnt}건은 아마란스에서 내려받으세요.', style: theme.textTheme.bodySmall?.copyWith(color: Brand.navy)))),
             if (d.comments.isNotEmpty) ...[
               const SizedBox(height: 20),

@@ -1,6 +1,7 @@
 // 데스크톱(macOS·Windows) 이노봇 창 — 앱 위에 떠 있는 창. 머리글을 끌어 원하는 곳에 두고, 오른쪽 아래 모서리를 끌어 크기를 바꾼다(위치·크기는 기기에 기억). 뒤 화면도 그대로 쓴다.
 // 라우터 내비게이터 위 전용 Overlay(main.dart assistantWindowOverlay)에 띄워 화면을 이동해도 가려지지 않는다.
 // 창 안의 대화 기록 등 팝업은 창 안 Navigator에서 열린다.
+import '../app/copy_selection_area.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -142,7 +143,7 @@ class _AssistantWindowState extends State<AssistantWindow> {
                   ),
                 ),
                 // 창 안 팝업(대화 기록·확인 대화상자)이 창 안에서 열리도록 작은 Navigator를 둔다. 창은 앱 글자 선택 영역 밖이라 따로 씌운다.
-                Expanded(child: SelectionArea(child: Navigator(onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => widget.body ?? AssistantSheet(seed: widget.seed))))),
+                Expanded(child: CopySelectionArea(child: Navigator(onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => widget.body ?? AssistantSheet(seed: widget.seed))))),
               ]),
             ),
           ),

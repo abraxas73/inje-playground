@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api/client.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
+import '../app/copy_selection_area.dart';
 
 /// 홈 대시보드 'Teams 채팅' 위젯 — 아마란스 메신저(대화) 위젯처럼 목록 → 대화방까지 위젯 안에서.
 /// 서버 /api/teams/chat·/messages(본인 Microsoft 위임 토큰, 웹 /teams/chat과 같은 API)만 쓴다.
@@ -362,7 +363,7 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
                   ? const Center(child: CircularProgressIndicator())
                   : msgs.isEmpty
                       ? Center(child: Text('대화가 없습니다', style: TextStyle(color: Brand.muted)))
-                      : SelectionArea(child: _list(msgs)),
+                      : CopySelectionArea(child: _list(msgs)),
         ),
         _composer(),
       ]),
