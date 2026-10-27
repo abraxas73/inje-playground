@@ -83,8 +83,8 @@ describe("normalizeChatMessages", () => {
 
 describe("Graph 호출", () => {
   it("메시지 목록 URL — since가 있으면 lastModifiedDateTime 필터, 채팅 ID는 인코딩", () => {
-    expect(chatMessagesUrl("19:abc@thread.v2")).toBe("https://graph.microsoft.com/v1.0/chats/19%3Aabc%40thread.v2/messages?$top=50");
-    expect(chatMessagesUrl("19:abc@thread.v2", "2026-10-03T12:00:00Z")).toBe("https://graph.microsoft.com/v1.0/chats/19%3Aabc%40thread.v2/messages?$top=50&$filter=lastModifiedDateTime%20gt%202026-10-03T12%3A00%3A00Z");
+    expect(chatMessagesUrl("19:abc@thread.v2")).toBe("https://graph.microsoft.com/beta/chats/19%3Aabc%40thread.v2/messages?$top=50");
+    expect(chatMessagesUrl("19:abc@thread.v2", "2026-10-03T12:00:00Z")).toBe("https://graph.microsoft.com/beta/chats/19%3Aabc%40thread.v2/messages?$top=50&$filter=lastModifiedDateTime%20gt%202026-10-03T12%3A00%3A00Z");
   });
   it("listChatMessages — Bearer로 호출해 정규화하고, 403은 GraphError(403)", async () => {
     const fetchImpl = vi.fn(async () => json(200, { value: [raw({})] }));
