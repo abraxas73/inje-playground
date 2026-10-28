@@ -83,6 +83,34 @@ void main() {
     await tester.tap(find.byTooltip('다음 주'));
     expect(days, [DateTime.utc(2026, 10, 21)]);
   });
+  testWidgets('주간 넓은 폭: 월 | 화 | … | 일 7칸 열, 일정을 누르면 아래로 펼침', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(_Host(mode: CalMode.week, day: DateTime.utc(2026, 10, 14), events: events, width: 1000));
+    for (var i = 0; i < 7; i++) {
+      expect(find.byKey(ValueKey('cal-week-col-$i')), findsOneWidget);
+    }
+    final mon = tester.getCenter(find.text('12일 (월)')), sun = tester.getCenter(find.text('18일 (일)'));
+    expect(mon.dy, sun.dy); // 한 줄에 나란히
+    expect(mon.dx < sun.dx, isTrue);
+    expect(find.descendant(of: find.byKey(const ValueKey('cal-week-col-0')), matching: find.text('월요 회의')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('cal-week-col-2')), matching: find.text('수요 점검')), findsOneWidget);
+    await tester.tap(find.text('수요 점검'));
+    await tester.pumpAndSettle();
+    expect(find.text('일시'), findsOneWidget); // 아래로 펼침(창 아님)
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.descendant(of: find.byKey(const ValueKey('cal-week-col-2')), matching: find.text('일시')), findsOneWidget);
+    await tester.tap(find.text('수요 점검'));
+    await tester.pumpAndSettle();
+    expect(find.text('일시'), findsNothing);
+  });
+  testWidgets('오늘 버튼은 날짜 바로 옆(다음 버튼보다 왼쪽)', (tester) async {
+    await tester.pumpWidget(_Host(mode: CalMode.day, day: DateTime.utc(2026, 10, 14)));
+    final label = tester.getRect(find.text('10월 14일 (수)')), todayBtn = tester.getRect(find.widgetWithText(TextButton, '오늘')), next = tester.getRect(find.byTooltip('다음 날'));
+    expect(todayBtn.left >= label.right, isTrue);
+    expect(todayBtn.right <= next.left, isTrue);
+  });
   testWidgets('월간: 6주 격자(앞뒤 달 포함), 날짜를 누르면 onPickDay, 폰 폭은 점·넓은 폭은 제목', (tester) async {
     final picked = <DateTime>[];
     await tester.pumpWidget(_Host(mode: CalMode.month, day: DateTime.utc(2026, 10, 11), events: events, onPickDay: picked.add));
