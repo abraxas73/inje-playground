@@ -1,10 +1,15 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
 import 'gw_api.dart';
+import 'gw_client.dart' show asInt;
 import 'gw_gate.dart';
+import 'gw_mcp_api.dart';
+import 'mail_detail_screen.dart' show mailFileSaverProvider;
 import 'gw_models.dart';
 
 /// 게시판: 전 게시판 공지·새 글 집계 목록(검색·더 보기) → 본문·댓글. 읽기 전용.
@@ -149,7 +154,7 @@ class _DetailPage extends StatelessWidget {
             Text([d.writer, if (d.dept.isNotEmpty) d.dept, d.writeDate, '조회 ${d.readCnt}', if (d.fileCnt > 0) '첨부 ${d.fileCnt}'].where((s) => s.isNotEmpty).join(' · '), style: theme.textTheme.bodySmall),
             const Divider(height: 24),
             if (d.contentMd.isNotEmpty) _body(d.contentMd) else Text(d.content.isEmpty ? '(본문 없음)' : d.content, style: TextStyle(fontSize: 15, height: 1.65, color: Brand.navy)),
-            if (d.fileCnt > 0) Padding(padding: const EdgeInsets.only(top: 16), child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Brand.blueTint, borderRadius: BorderRadius.circular(12)), child: Text('첨부 ${d.fileCnt}건은 아마란스에서 내려받으세요.', style: theme.textTheme.bodySmall?.copyWith(color: Brand.navy)))),
+            if (d.fileCnt > 0) Padding(padding: const EdgeInsets.only(top: 16), child: d.uid.isEmpty ? _noticeBox(context, '첨부 ${d.fileCnt}건은 아마란스에서 내려받으세요.') : _NoticeFiles(api, artSeqNo: d.artSeqNo.isEmpty ? artSeqNo : d.artSeqNo, uid: d.uid)),
             if (d.comments.isNotEmpty) ...[
               const SizedBox(height: 20),
               CountTitle('댓글', d.comments.length),
@@ -166,4 +171,63 @@ class _DetailPage extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _noticeBox(BuildContext context, String text) => Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Brand.blueTint, borderRadius: BorderRadius.circular(12)),
+      child: Text(text, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Brand.navy)),
+    );
+
+/// 게시글 첨부 — 목록(ecm001A04)을 칩으로, 누르면 받아(ecm001A03) 저장 위치를 고르게 한다(메일 첨부·이노봇 download_notice_attachment와 같은 API).
+class _NoticeFiles extends ConsumerStatefulWidget {
+  const _NoticeFiles(this.api, {required this.artSeqNo, required this.uid});
+  final GwApi api;
+  final String artSeqNo, uid;
+  @override
+  ConsumerState<_NoticeFiles> createState() => _NoticeFilesState();
+}
+
+class _NoticeFilesState extends ConsumerState<_NoticeFiles> {
+  late final Future<List<Map>> _files = widget.api.noticeAttachmentsRaw(widget.artSeqNo, widget.uid);
+  final _downloading = <int>{};
+
+  Future<void> _download(int sn, String name) async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _downloading.add(sn));
+    try {
+      final (bytes, _) = await widget.api.noticeAttachFile(widget.artSeqNo, widget.uid, sn);
+      final saved = await ref.read(mailFileSaverProvider)(name, Uint8List.fromList(bytes));
+      if (saved != null) messenger.showSnackBar(SnackBar(content: Text('저장했습니다: $name')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('받지 못했습니다: $e')));
+    } finally {
+      if (mounted) setState(() => _downloading.remove(sn));
+    }
+  }
+
+  static String _size(int b) => b >= 1 << 20 ? '${(b / (1 << 20)).toStringAsFixed(1)}MB' : '${(b / 1024).ceil()}KB';
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder(
+        future: _files,
+        builder: (context, snap) {
+          if (snap.hasError) return _noticeBox(context, '첨부 목록을 불러오지 못했습니다. 아마란스에서 내려받으세요.');
+          final files = snap.data;
+          if (files == null) return const Align(alignment: Alignment.centerLeft, child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)));
+          return Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final (i, f) in files.indexed)
+              Builder(builder: (_) {
+                final name = mailAttachName(f), size = asInt(f['fileSize']);
+                return ActionChip(
+                  avatar: _downloading.contains(i) ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.download, size: 16),
+                  label: Text(size > 0 ? '$name · ${_size(size)}' : name),
+                  tooltip: '내려받기',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _downloading.contains(i) ? null : () => _download(i, name),
+                );
+              }),
+          ]);
+        },
+      );
 }
