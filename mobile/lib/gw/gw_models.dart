@@ -423,9 +423,10 @@ List<GwEvent> myEvents(List<GwEvent> all, List<GwCalendar> cals, String empSeq) 
 }
 
 class GwResource {
-  const GwResource({required this.resSeq, required this.resName, required this.attrSeq, required this.attrName});
-  final String resSeq, resName, attrSeq, attrName;
-  factory GwResource.fromRow(Map r) => GwResource(resSeq: asStr(r['resSeq']), resName: asStr(r['resName']), attrSeq: asStr(r['attrSeq']), attrName: asStr(r['attrName']));
+  const GwResource({required this.resSeq, required this.resName, required this.attrSeq, required this.attrName, this.color = ''});
+  /// [attrSeq]·[attrName] = 자원 종류(아마란스 자원 HOME의 묶음), [color] = 아마란스가 그 자원에 정한 막대 색(#rrggbb, 없으면 빈 값).
+  final String resSeq, resName, attrSeq, attrName, color;
+  factory GwResource.fromRow(Map r) => GwResource(resSeq: asStr(r['resSeq']), resName: asStr(r['resName']), attrSeq: asStr(r['attrSeq']), attrName: asStr(r['attrName']), color: asStr(r['color']));
 }
 
 /// 회의실 예약(rs121A05 resultList[]). 원본 74필드 중 표시에 쓰는 것만.

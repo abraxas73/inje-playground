@@ -1,5 +1,5 @@
 // 회의실 일간 타임라인 — 아마란스 자원 HOME 일간 보기처럼 왼쪽 자원 리스트(자원 종류별 묶음) + 오른쪽 24시간 격자(가로 스크롤).
-// 처음 위치는 오늘이면 지금 1시간 전, 다른 날은 첫 예약(없으면 9시). 예약 막대를 누르면 아래에 상세가 펼쳐진다.
+// 자원 종류(attrSeq)별로 묶고 머리글을 누르면 접힌다(처음엔 모두 펼침). 막대 색은 아마란스가 자원에 정한 색. 처음 위치는 오늘이면 지금 1시간 전, 다른 날은 첫 예약(없으면 9시). 예약 막대를 누르면 아래에 상세가 펼쳐진다.
 import 'package:flutter/material.dart';
 import '../app/theme.dart';
 import 'gw_models.dart';
@@ -35,6 +35,7 @@ int roomMinute(String s, DateTime day) {
 class _RoomTimelineState extends State<RoomTimeline> {
   late final ScrollController _h;
   GwReservation? _sel;
+  final _folded = <String>{}; // 접은 자원 종류(attrSeq)
 
   bool get _isToday {
     final n = widget.now ?? kstNow();
@@ -64,21 +65,33 @@ class _RoomTimelineState extends State<RoomTimeline> {
       for (final r in widget.reservations)
         if (!known.contains(r.resSeq)) r.resSeq: GwResource(resSeq: r.resSeq, resName: r.resName, attrSeq: '', attrName: '기타'),
     };
-    final lines = <({String group, GwResource? room})>[];
+    // 아마란스 rs121A01은 표시 순서(orderNum)라 종류가 섞여 온다 — 종류(attrSeq 숫자 순)별로 모으고, 종류 안에서는 받은 순서
+    final groups = <String, List<GwResource>>{};
     for (final r in [...widget.rooms, ...extra.values]) {
-      final g = r.attrName.isEmpty ? '회의실' : r.attrName;
-      if (lines.isEmpty || lines.last.group != g) lines.add((group: g, room: null));
-      lines.add((group: g, room: r));
+      (groups[r.attrSeq] ??= []).add(r);
+    }
+    final order = groups.keys.toList()..sort((a, b) => (int.tryParse(a) ?? 1 << 30).compareTo(int.tryParse(b) ?? 1 << 30));
+    final lines = <({String group, String key, GwResource? room})>[];
+    for (final k in order) {
+      final first = groups[k]!.first;
+      lines.add((group: first.attrName.isEmpty ? '회의실' : first.attrName, key: k, room: null));
+      if (!_folded.contains(k)) {
+        for (final r in groups[k]!) {
+          lines.add((group: '', key: k, room: r));
+        }
+      }
     }
     final byRoom = <String, List<GwReservation>>{};
     for (final r in widget.reservations) {
       (byRoom[r.resSeq] ??= []).add(r);
     }
-    double h(({String group, GwResource? room}) l) => l.room == null ? RoomTimeline.groupHeight : RoomTimeline.rowHeight;
+    double h(({String group, String key, GwResource? room}) l) => l.room == null ? RoomTimeline.groupHeight : RoomTimeline.rowHeight;
     const gridW = 24 * RoomTimeline.hourWidth;
     final n = widget.now ?? kstNow();
     var roomIdx = -1;
-    final colors = <String, Color>{for (final l in lines) if (l.room != null) l.room!.resSeq: RoomTimeline.palette[++roomIdx % RoomTimeline.palette.length]};
+    final colors = <String, Color>{
+      for (final r in groups.values.expand((g) => g)) r.resSeq: _hex(r.color) ?? RoomTimeline.palette[++roomIdx % RoomTimeline.palette.length],
+    };
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -88,12 +101,20 @@ class _RoomTimelineState extends State<RoomTimeline> {
           child: Column(children: [
             Container(height: RoomTimeline.headHeight, alignment: Alignment.center, decoration: BoxDecoration(color: Brand.blueTint, border: Border(bottom: BorderSide(color: Brand.hairline))), child: Text('자원 리스트', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Brand.navy))),
             for (final l in lines)
-              Container(
-                height: h(l),
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                alignment: Alignment.centerLeft,
-                decoration: BoxDecoration(color: l.room == null ? Brand.blueTint.withValues(alpha: 0.6) : null, border: Border(bottom: BorderSide(color: Brand.hairline), right: BorderSide(color: Brand.hairline))),
-                child: Text(l.room?.resName ?? l.group, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: l.room == null ? FontWeight.w700 : FontWeight.w500, color: Brand.navy)),
+              InkWell(
+                key: l.room == null ? ValueKey('room-group-${l.key}') : null,
+                onTap: l.room != null ? null : () => setState(() => _folded.contains(l.key) ? _folded.remove(l.key) : _folded.add(l.key)),
+                child: Container(
+                  height: h(l),
+                  padding: EdgeInsets.only(left: l.room == null ? 4 : 10, right: 6),
+                  alignment: Alignment.centerLeft,
+                  decoration: BoxDecoration(color: l.room == null ? Brand.blueTint.withValues(alpha: 0.6) : null, border: Border(bottom: BorderSide(color: Brand.hairline), right: BorderSide(color: Brand.hairline))),
+                  child: Row(children: [
+                    if (l.room == null) Icon(_folded.contains(l.key) ? Icons.expand_more : Icons.expand_less, size: 18, color: Brand.muted),
+                    if (l.room == null) const SizedBox(width: 4),
+                    Expanded(child: Text(l.room?.resName ?? l.group, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: l.room == null ? FontWeight.w700 : FontWeight.w500, color: Brand.navy))),
+                  ]),
+                ),
               ),
           ]),
         ),
@@ -145,6 +166,11 @@ class _RoomTimelineState extends State<RoomTimeline> {
       ]),
       if (_sel != null) _details(_sel!),
     ]);
+  }
+
+  static Color? _hex(String s) {
+    final v = int.tryParse(s.replaceFirst('#', ''), radix: 16);
+    return v == null || s.replaceFirst('#', '').length != 6 ? null : Color(0xFF000000 | v);
   }
 
   Widget _bar(GwReservation r, Color c) {
