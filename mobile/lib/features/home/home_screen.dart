@@ -510,19 +510,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     );
   }
 
-  Widget _quick(BuildContext context, IconData icon, String label, String desc, VoidCallback onTap, Color tint) => Card(
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              TintIcon(icon, size: 40, background: tint, color: Brand.navy),
-              const Spacer(),
-              Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 2),
-              Text(desc, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-            ]),
-          ),
-        ),
-      );
+  Widget _quick(BuildContext context, IconData icon, String label, String desc, VoidCallback onTap, Color tint) =>
+      ServiceCard(icon: icon, tint: tint, label: label, desc: desc, onTap: onTap);
 }
