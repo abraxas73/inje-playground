@@ -1,7 +1,6 @@
 import '../app/service_card_grid.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../app/brand.dart';
 import '../app/theme.dart';
 import '../auth/session.dart';
 import 'catalog.dart';
@@ -55,20 +54,6 @@ class ServiceGrid extends StatelessWidget {
 
   Widget _card(BuildContext context, PageEntry p) {
     final (icon, desc) = serviceMeta[p.key] ?? (Icons.open_in_new, '웹에서 열기');
-    return Card(
-      child: InkWell(
-        onTap: () => context.push(p.key == 'dooray' ? '/dooray/calendar' : '/web?path=${Uri.encodeComponent(p.href)}'),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            TintIcon(icon, size: 36, background: Brand.tintFor(p.key), color: Brand.navy),
-            const Spacer(),
-            Text(p.label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 2),
-            Text(desc, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-          ]),
-        ),
-      ),
-    );
+    return ServiceCard(icon: icon, tint: Brand.tintFor(p.key), label: p.label, desc: desc, onTap: () => context.push(p.key == 'dooray' ? '/dooray/calendar' : '/web?path=${Uri.encodeComponent(p.href)}'));
   }
 }
