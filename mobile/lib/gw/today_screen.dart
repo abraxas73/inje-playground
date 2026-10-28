@@ -11,6 +11,7 @@ import '../dooray/calendar_session.dart' show doorayCalendarTransportProvider;
 import 'gw_api.dart';
 import 'gw_gate.dart';
 import 'gw_models.dart';
+import 'room_timeline.dart';
 import '../app/copy_selection_area.dart';
 
 /// 일정 — 아마란스 일정(+ 이 기기에 Dooray가 연결돼 있으면 Dooray 일정도)을 일간·주간·월간 캘린더로(기본 일간).
@@ -31,10 +32,11 @@ class _Body extends ConsumerStatefulWidget {
 class _BodyState extends ConsumerState<_Body> {
   CalMode _mode = CalMode.day;
   DateTime _day = kstNow();
-  bool _allEvents = false, _allRooms = false;
+  bool _allEvents = false, _allRooms = true; // 회의실은 전체가 기본(아마란스 자원 HOME처럼, 2026-10-28)
   List<GwEvent>? _events;
   List<GwCalendar>? _cals;
   List<GwReservation>? _rooms;
+  List<GwResource> _resources = const [];
   String? _eventsError, _roomsError;
   int _loadSeq = 0; // 보기·날짜를 바꾸면 먼저 보낸 요청의 늦은 응답은 버린다
 
@@ -67,15 +69,14 @@ class _BodyState extends ConsumerState<_Body> {
       if (_mode == CalMode.day) () async {
         try {
           final rs = await widget.api.reservations(day);
-          if (mounted && seq == _loadSeq) setState(() { _rooms = rs; _roomsError = null; });
+          final res = await widget.api.resources(); // reservations가 이미 받아 둔 캐시
+          if (mounted && seq == _loadSeq) setState(() { _rooms = rs; _resources = res; _roomsError = null; });
         } catch (e) {
           if (mounted && seq == _loadSeq) setState(() => _roomsError = '$e');
         }
       }(),
     ]);
   }
-
-  String _range(String s, String e, bool allDay) => allDay ? '종일' : '${hm(s)}–${hm(e)}';
 
   void _add() => showAssistantSheet(context, seed: '${calLabel(CalMode.day, _day)}에 아마란스 일정 등록해줘. 제목·시간·장소를 물어봐 줘.');
 
@@ -117,9 +118,16 @@ class _BodyState extends ConsumerState<_Body> {
             const SizedBox(height: 16),
             _Section(
               title: '회의실', count: rooms?.length, all: _allRooms, onToggle: (v) => setState(() => _allRooms = v), error: _roomsError, loading: _rooms == null, empty: '예약이 없습니다',
+              // 아마란스 자원 HOME 일간처럼 회의실 × 24시간 타임라인(2026-10-28). 내 것은 내 예약이 있는 회의실만, 전체는 모든 회의실
               items: [
-                for (final r in rooms ?? const <GwReservation>[])
-                  _Row(time: _range(r.start, r.end, r.allDay), title: r.title.isEmpty ? r.display : r.title, sub: '${r.resName}${r.owner.isEmpty ? '' : ' · ${r.owner}'}', mine: r.ownerEmpSeq == me),
+                if (rooms != null && (_allRooms ? (_resources.isNotEmpty || rooms.isNotEmpty) : rooms.isNotEmpty))
+                  RoomTimeline(
+                    key: ValueKey('rooms-${ymd(_day)}-$_allRooms'),
+                    day: _day,
+                    rooms: _allRooms ? _resources : [for (final r in _resources) if (rooms.any((x) => x.resSeq == r.resSeq)) r],
+                    reservations: rooms,
+                    me: me,
+                  ),
               ],
             ),
           ],
@@ -145,7 +153,7 @@ class _Section extends StatelessWidget {
           SegmentedButton<bool>(
             showSelectedIcon: false,
             style: const ButtonStyle(visualDensity: VisualDensity.compact),
-            segments: const [ButtonSegment(value: false, label: Text('내 것')), ButtonSegment(value: true, label: Text('전체'))],
+            segments: const [ButtonSegment(value: true, label: Text('전체')), ButtonSegment(value: false, label: Text('내 것'))],
             selected: {all},
             onSelectionChanged: (s) => onToggle(s.first),
           ),
@@ -161,17 +169,4 @@ class _Section extends StatelessWidget {
                       : Column(children: [for (final (i, w) in items.indexed) ...[if (i > 0) const Divider(height: 1), w]]),
         ),
       ]);
-}
-
-class _Row extends StatelessWidget {
-  const _Row({required this.time, required this.title, required this.sub, required this.mine});
-  final String time, title, sub;
-  final bool mine;
-  @override
-  Widget build(BuildContext context) => ListTile(
-        dense: true,
-        leading: SizedBox(width: 92, child: Text(time, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: mine ? Brand.blue : Brand.muted))),
-        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: sub.isEmpty ? null : Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis),
-      );
 }
