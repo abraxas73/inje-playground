@@ -177,15 +177,15 @@ void main() {
     expect(find.text('내 회의'), findsOneWidget);
     expect(find.text('10:00–11:00'), findsOneWidget);
     expect(find.text('남의 회의'), findsNothing);
-    expect(find.text('내 예약'), findsOneWidget);
-    expect(find.text('남의 예약'), findsNothing);
+    expect(find.text('[홍길동] 내 예약'), findsOneWidget);
+    expect(find.text('[김] 남의 예약'), findsNothing);
     await tester.tap(find.text('전체').first); // 일정 구역
     await tester.pumpAndSettle();
     expect(find.text('남의 회의'), findsOneWidget);
-    expect(find.text('남의 예약'), findsNothing); // 구역별 토글
+    expect(find.text('[김] 남의 예약'), findsNothing); // 구역별 토글
     await tester.tap(find.text('전체').at(1)); // 회의실 구역
     await tester.pumpAndSettle();
-    expect(find.text('남의 예약'), findsOneWidget);
+    expect(find.text('[김] 남의 예약'), findsOneWidget);
   });
   testWidgets('메일 검색: 목록을 열면 색인이 동기화되고(읽은 메일 본문만), 검색식으로 찾아 본문을 연다', (tester) async {
     final r = Routes({'/mail/mail000A03': [[{'unreadCount': 1, 'toMeCount': 0, 'totalCount': 2}]], '/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]}],
