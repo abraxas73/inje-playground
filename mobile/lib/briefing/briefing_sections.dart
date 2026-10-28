@@ -44,7 +44,7 @@ class BriefingCard extends StatelessWidget {
   const BriefingCard({super.key, required this.summary, this.busy = false, this.onClockIn, this.onRefresh, this.jira, this.onJiraMore, this.onJiraIssue, this.dooray, this.onDoorayMore, this.onDoorayRetry, this.onGwConnect, this.gwRelogin = false});
   final SummaryText? summary;
   /// 아마란스가 연결돼 있지 않을 때만 넘긴다 — 브리핑에 일정·결재·메일이 빠졌다는 안내와 연결 버튼.
-  /// 보여 줄 브리핑이 없으면 카드째 숨는다(그때는 홈 아래 GwConnectCard가 안내).
+  /// 보여 줄 브리핑이 없으면 카드째 숨는다(그때는 홈 아래 카드 자리마다 연결 안내).
   final VoidCallback? onGwConnect;
   final bool gwRelogin;
   final JiraBriefing? jira;
@@ -135,25 +135,6 @@ class RetryLine extends StatelessWidget {
           const Spacer(),
           TextButton(onPressed: onTap, child: const Text('다시 시도')),
         ]),
-      );
-}
-
-/// 아마란스 미연결·만료 안내(옛 GwTodayCard의 것).
-class GwConnectCard extends StatelessWidget {
-  const GwConnectCard({super.key, required this.relogin, required this.onConnect});
-  final bool relogin;
-  final VoidCallback? onConnect;
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 14),
-        child: Card(
-          child: ListTile(
-            leading: const TintIcon(Icons.apartment_outlined, size: 40),
-            title: Text(relogin ? '아마란스 로그인이 만료되었습니다' : '아마란스를 연결하세요'),
-            subtitle: Text(relogin ? '다시 연결하면 이어서 봅니다' : '일정·결재·메일·공지를 브리핑으로 봅니다', style: Theme.of(context).textTheme.bodySmall),
-            trailing: FilledButton(onPressed: onConnect, child: Text(relogin ? '다시 연결' : '연결하기')),
-          ),
-        ),
       );
 }
 

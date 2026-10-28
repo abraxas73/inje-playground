@@ -88,12 +88,11 @@ void main() {
     await tester.tap(find.text('확인 부탁'));
     expect(openedChat, 'c1');
   });
-  testWidgets('RetryLine과 GwConnectCard', (tester) async {
+  testWidgets('RetryLine', (tester) async {
     var hits = 0;
-    await tester.pumpWidget(wrap(Column(children: [RetryLine(label: '메일', onTap: () => hits++), const GwConnectCard(relogin: true, onConnect: null)])));
+    await tester.pumpWidget(wrap(RetryLine(label: '메일', onTap: () => hits++)));
     await tester.tap(find.text('다시 시도'));
     expect(hits, 1);
-    expect(find.text('아마란스 로그인이 만료되었습니다'), findsOneWidget);
   });
   testWidgets('BriefingCard — 아마란스 미연결·만료면 브리핑에 빠졌다고 알리고 연결 버튼', (tester) async {
     var hits = 0;

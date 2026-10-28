@@ -462,9 +462,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 onMore: () => open('/web?path=${Uri.encodeComponent('/sharepoint')}'),
               ),
             if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(top: 14), child: LinearProgressIndicator(minHeight: 2)),
-            if (gw != null && gw.status != GwStatus.connected)
-              GwConnectCard(relogin: gw.status == GwStatus.needsRelogin, onConnect: () => context.push('/gw/connect'))
-            else if (data != null) ...[
+            // 미연결이어도 데스크톱 대시보드처럼 카드 자리를 두고 그 안에 연결 안내(카드마다 연결 버튼)
+            if (gw != null && gw.status != GwStatus.connected) ...[
+              for (final t in const ['지금 필요한 것', '오늘 일정', '팀원 부재', '미결 결재', '메일', '메신저 멘션'])
+                Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: ConstrainedBox(constraints: const BoxConstraints(minHeight: 150), child: IntrinsicHeight(child: DashboardPlaceholder(
+                    title: t,
+                    message: gw.status == GwStatus.needsRelogin ? '아마란스 로그인이 만료되었습니다' : '아마란스에 연결하면 표시됩니다',
+                    onConnect: () => context.push('/gw/connect'),
+                    connectLabel: gw.status == GwStatus.needsRelogin ? '다시 연결' : '연결하기',
+                  ))),
+                ),
+            ] else if (data != null) ...[
               FocusSection(items: focusItems(data, approvals: ref.watch(approvalsLiveProvider), mentions: ref.watch(teamsMentionsLiveProvider)), onOpen: open),
               if (data.errors.containsKey('today')) RetryLine(label: '일정', onTap: _refresh) else MeetingsSection(meetings: myMeetings(data), tomorrowCount: myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).length, onMore: () => open('/gw/today')),
               AbsenceSection(
