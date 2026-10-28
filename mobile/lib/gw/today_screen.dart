@@ -32,7 +32,7 @@ class _Body extends ConsumerStatefulWidget {
 class _BodyState extends ConsumerState<_Body> {
   CalMode _mode = CalMode.day;
   DateTime _day = kstNow();
-  bool _allEvents = false, _allRooms = false;
+  bool _allEvents = false, _allRooms = true; // 회의실은 전체가 기본(아마란스 자원 HOME처럼, 2026-10-28)
   List<GwEvent>? _events;
   List<GwCalendar>? _cals;
   List<GwReservation>? _rooms;
@@ -153,7 +153,7 @@ class _Section extends StatelessWidget {
           SegmentedButton<bool>(
             showSelectedIcon: false,
             style: const ButtonStyle(visualDensity: VisualDensity.compact),
-            segments: const [ButtonSegment(value: false, label: Text('내 것')), ButtonSegment(value: true, label: Text('전체'))],
+            segments: const [ButtonSegment(value: true, label: Text('전체')), ButtonSegment(value: false, label: Text('내 것'))],
             selected: {all},
             onSelectionChanged: (s) => onToggle(s.first),
           ),

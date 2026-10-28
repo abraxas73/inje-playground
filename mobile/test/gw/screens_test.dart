@@ -163,7 +163,7 @@ void main() {
     expect(find.text('09:02'), findsWidgets);
     expect(find.textContaining('기록됨'), findsWidgets); // 버튼 라벨 + 안내 문구
   });
-  testWidgets('일정(기본 일간): 오늘 내 일정·내 예약, "전체" 토글로 남의 것도', (tester) async {
+  testWidgets('일정(기본 일간): 오늘 내 일정·회의실은 전체, 구역별 토글', (tester) async {
     final d = ymdOf(DateTime.now().toUtc().add(const Duration(hours: 9))); // 일간 보기는 그날 것만 보여 주므로 픽스처는 오늘
     final r = Routes({'/gw/gw050A02': [session],
       '/schres/sc111A02': [{'resultList': [{'mcalSeq': '1', 'calType': 'E', 'empSeq': '7'}, {'mcalSeq': '2', 'calType': 'M', 'empSeq': '9'}]}],
@@ -178,14 +178,15 @@ void main() {
     expect(find.text('10:00–11:00'), findsOneWidget);
     expect(find.text('남의 회의'), findsNothing);
     expect(find.text('[홍길동] 내 예약'), findsOneWidget);
-    expect(find.text('[김] 남의 예약'), findsNothing);
+    expect(find.text('[김] 남의 예약'), findsOneWidget); // 회의실은 전체가 기본
     await tester.tap(find.text('전체').first); // 일정 구역
     await tester.pumpAndSettle();
     expect(find.text('남의 회의'), findsOneWidget);
-    expect(find.text('[김] 남의 예약'), findsNothing); // 구역별 토글
-    await tester.tap(find.text('전체').at(1)); // 회의실 구역
+    expect(find.text('[김] 남의 예약'), findsOneWidget); // 구역별 토글
+    await tester.tap(find.text('내 것').at(1)); // 회의실 구역
     await tester.pumpAndSettle();
-    expect(find.text('[김] 남의 예약'), findsOneWidget);
+    expect(find.text('[김] 남의 예약'), findsNothing);
+    expect(find.text('[홍길동] 내 예약'), findsOneWidget);
   });
   testWidgets('메일 검색: 목록을 열면 색인이 동기화되고(읽은 메일 본문만), 검색식으로 찾아 본문을 연다', (tester) async {
     final r = Routes({'/mail/mail000A03': [[{'unreadCount': 1, 'toMeCount': 0, 'totalCount': 2}]], '/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]}],
