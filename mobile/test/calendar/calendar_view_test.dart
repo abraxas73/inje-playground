@@ -83,7 +83,7 @@ void main() {
     await tester.tap(find.byTooltip('다음 주'));
     expect(days, [DateTime.utc(2026, 10, 21)]);
   });
-  testWidgets('주간 넓은 폭: 월 | 화 | … | 일 7칸 열, 일정을 누르면 상세 창', (tester) async {
+  testWidgets('주간 넓은 폭: 월 | 화 | … | 일 7칸 열, 일정을 누르면 아래로 펼침', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -98,8 +98,12 @@ void main() {
     expect(find.descendant(of: find.byKey(const ValueKey('cal-week-col-2')), matching: find.text('수요 점검')), findsOneWidget);
     await tester.tap(find.text('수요 점검'));
     await tester.pumpAndSettle();
-    expect(find.byType(AlertDialog), findsOneWidget);
-    expect(find.text('일시'), findsOneWidget);
+    expect(find.text('일시'), findsOneWidget); // 아래로 펼침(창 아님)
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.descendant(of: find.byKey(const ValueKey('cal-week-col-2')), matching: find.text('일시')), findsOneWidget);
+    await tester.tap(find.text('수요 점검'));
+    await tester.pumpAndSettle();
+    expect(find.text('일시'), findsNothing);
   });
   testWidgets('오늘 버튼은 날짜 바로 옆(다음 버튼보다 왼쪽)', (tester) async {
     await tester.pumpWidget(_Host(mode: CalMode.day, day: DateTime.utc(2026, 10, 14)));

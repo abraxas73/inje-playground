@@ -89,7 +89,7 @@ class _DayList extends StatelessWidget {
       : Column(children: [for (final (i, e) in items.indexed) ...[if (i > 0) const Divider(height: 1), _EventRow(e)]]);
 }
 
-/// 주간 — 넓은 폭(칸당 110 이상)은 월 | 화 | … | 일 7칸 열, 폰은 날짜별 목록. 열의 일정을 누르면 상세 창.
+/// 주간 — 넓은 폭(칸당 110 이상)은 월 | 화 | … | 일 7칸 열, 폰은 날짜별 목록. 열의 일정을 누르면 아래로 상세가 펼쳐진다.
 class _WeekList extends StatelessWidget {
   const _WeekList({required this.days, required this.events, required this.today});
   final List<DateTime> days;
@@ -133,33 +133,37 @@ class _WeekList extends StatelessWidget {
       });
 }
 
-/// 주간 열의 일정 한 칸 — 시간·제목(두 줄), 누르면 상세 창.
-class _WeekChip extends StatelessWidget {
+/// 주간 열의 일정 한 칸 — 시간·제목(두 줄), 누르면 일간처럼 아래로 상세가 펼쳐지고 다시 누르면 접힌다.
+class _WeekChip extends StatefulWidget {
   const _WeekChip(this.e);
   final CalEvent e;
   @override
+  State<_WeekChip> createState() => _WeekChipState();
+}
+
+class _WeekChipState extends State<_WeekChip> {
+  bool _open = false;
+  @override
   Widget build(BuildContext context) {
-    final c = CalendarView.colorOf(e);
+    final e = widget.e, c = CalendarView.colorOf(e);
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(6),
-        onTap: () => showDialog<void>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(e.title),
-            content: SizedBox(width: 420, child: _EventDetails(e)),
-            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('닫기'))],
+      child: Container(
+        decoration: BoxDecoration(color: c.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6), border: Border(left: BorderSide(color: c, width: 3))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          InkWell(
+            onTap: () => setState(() => _open = !_open),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(6, 4, 4, 4),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(e.timeLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c)),
+                Text(e.title, maxLines: _open ? null : 2, overflow: _open ? null : TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Brand.navy, height: 1.3)),
+              ]),
+            ),
           ),
-        ),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(6, 4, 4, 4),
-          decoration: BoxDecoration(color: c.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6), border: Border(left: BorderSide(color: c, width: 3))),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(e.timeLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c)),
-            Text(e.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Brand.navy, height: 1.3)),
-          ]),
-        ),
+          // 열 높이를 IntrinsicHeight로 맞추므로 AnimatedSize는 쓰지 않는다(애니메이션 중 높이 계산이 어긋남)
+          if (_open) Padding(padding: const EdgeInsets.fromLTRB(4, 0, 4, 4), child: _EventDetails(e, compact: true)),
+        ]),
       ),
     );
   }
@@ -257,20 +261,22 @@ class _EventRow extends StatelessWidget {
 
 /// 일정 상세 — 일시·캘린더·장소·등록자·참석자·내용.
 class _EventDetails extends StatelessWidget {
-  const _EventDetails(this.e);
+  const _EventDetails(this.e, {this.compact = false});
   final CalEvent e;
+  /// 주간 열처럼 좁은 자리 — 여백·글자를 줄인다.
+  final bool compact;
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Brand.blueTint, borderRadius: BorderRadius.circular(10)),
+        padding: EdgeInsets.all(compact ? 8 : 12),
+        decoration: BoxDecoration(color: compact ? Colors.white : Brand.blueTint, borderRadius: BorderRadius.circular(compact ? 6 : 10)),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           for (final (i, (k, v)) in [('일시', e.whenLabel), ...e.details].indexed)
             Padding(
               padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                SizedBox(width: 52, child: Text(k, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Brand.muted))),
-                Expanded(child: Text(v, style: TextStyle(fontSize: 13, color: Brand.navy, height: 1.4))),
+                SizedBox(width: compact ? 40 : 52, child: Text(k, style: TextStyle(fontSize: compact ? 11 : 12, fontWeight: FontWeight.w700, color: Brand.muted))),
+                Expanded(child: Text(v, style: TextStyle(fontSize: compact ? 12 : 13, color: Brand.navy, height: 1.4))),
               ]),
             ),
         ]),
