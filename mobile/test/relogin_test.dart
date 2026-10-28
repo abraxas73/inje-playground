@@ -19,7 +19,7 @@ void main() {
       sessionFetcherProvider.overrideWithValue((_, {required record}) async => user),
     ], child: MaterialApp.router(routerConfig: router)));
     await tester.pumpAndSettle();
-    expect(find.text('뭐 먹지'), findsWidgets);
+    expect(find.text('더보기'), findsWidgets); // 탭 셸(홈 카드는 길이에 따라 화면 밖일 수 있다)
 
     session.value = const AsyncValue.data(null); // 로그아웃
     await tester.pumpAndSettle();
@@ -30,7 +30,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     session.value = AsyncValue.data(user); // 조회 완료
     await tester.pumpAndSettle();
-    expect(find.text('뭐 먹지'), findsWidgets);
+    expect(find.text('더보기'), findsWidgets); // 탭 셸(홈 카드는 길이에 따라 화면 밖일 수 있다)
     expect(tester.takeException(), isNull);
   });
 }

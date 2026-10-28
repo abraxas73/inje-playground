@@ -265,10 +265,14 @@ void main() {
     expect(find.text('지금 필요한 것'), findsOneWidget);
     expect((app.bodies['/api/mobile/briefing'] as Map)['name'], '강승욱');
   });
-  testWidgets('아마란스 미연결: 연결 카드 + Teams 섹션만, Claude는 부르지 않고 격언을 유지한다', (tester) async {
+  testWidgets('아마란스 미연결: 카드 자리마다 연결 안내 + Teams 섹션, Claude는 부르지 않고 격언을 유지한다', (tester) async {
     final app = await pumpHome(tester, creds: null);
-    expect(find.text('아마란스를 연결하세요'), findsOneWidget);
-    expect(find.text('지금 필요한 것'), findsNothing);
+    for (final t in ['지금 필요한 것', '오늘 일정', '팀원 부재', '미결 결재', '메일', '메신저 멘션']) {
+      expect(find.text(t), findsOneWidget, reason: '$t 자리');
+    }
+    expect(find.text('아마란스에 연결하면 표시됩니다'), findsNWidgets(6));
+    await tester.scrollUntilVisible(find.text('연결하기').first, 200);
+    expect(find.text('연결하기'), findsWidgets);
     expect(find.text('Teams 답장 대기 1'), findsOneWidget);
     expect(app.calls['/api/mobile/briefing'], isNull, reason: '빈 데이터로 문장을 만들지 않는다');
     expect(find.text('오늘의 한 줄'), findsOneWidget);
