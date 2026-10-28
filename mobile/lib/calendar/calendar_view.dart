@@ -1,4 +1,4 @@
-// 일정 캘린더 위젯 — 머리글(이전·다음·오늘, 일간/주간/월간 전환, 부모가 주는 동작 버튼) + 본문(일간 목록 / 주간 날짜별 목록 / 월간 6주 격자).
+// 일정 캘린더 위젯 — 머리글(이전 · 날짜 오늘 · 다음, 일간/주간/월간 전환, 부모가 주는 동작 버튼) + 본문(일간 목록 / 주간 날짜별 목록 / 월간 6주 격자).
 // 데이터는 부모가 CalEvent로 넘긴다(아마란스·Dooray 섞어서). 날짜는 calendar_model.dart와 같이 "KST 벽시계 + UTC 플래그".
 import 'package:flutter/material.dart';
 import '../app/brand.dart';
@@ -38,9 +38,14 @@ class CalendarView extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         IconButton(icon: const Icon(Icons.chevron_left), tooltip: prevTip, onPressed: () => onDay(calStep(mode, day, -1))),
-        Expanded(child: Center(child: Text(calLabel(mode, day), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Brand.navy)))),
+        // '오늘'은 날짜 바로 옆(2026-10-28 사용자 요청)
+        Expanded(
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Flexible(child: Text(calLabel(mode, day), overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Brand.navy))),
+            if (!hasToday) TextButton(onPressed: () => onDay(t0), child: const Text('오늘')),
+          ]),
+        ),
         IconButton(icon: const Icon(Icons.chevron_right), tooltip: nextTip, onPressed: () => onDay(calStep(mode, day, 1))),
-        if (!hasToday) TextButton(onPressed: () => onDay(t0), child: const Text('오늘')),
       ]),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -84,23 +89,80 @@ class _DayList extends StatelessWidget {
       : Column(children: [for (final (i, e) in items.indexed) ...[if (i > 0) const Divider(height: 1), _EventRow(e)]]);
 }
 
+/// 주간 — 넓은 폭(칸당 110 이상)은 월 | 화 | … | 일 7칸 열, 폰은 날짜별 목록. 열의 일정을 누르면 상세 창.
 class _WeekList extends StatelessWidget {
   const _WeekList({required this.days, required this.events, required this.today});
   final List<DateTime> days;
   final List<CalEvent> events;
   final DateTime today;
+  Color _dayColor(DateTime d) => d == today ? Brand.blue : d.weekday == 7 ? Brand.danger : d.weekday == 6 ? Brand.blue : Brand.navy;
   @override
-  Widget build(BuildContext context) => Column(children: [
-        for (final (i, d) in days.indexed) ...[
-          if (i > 0) const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
-            child: Align(alignment: Alignment.centerLeft, child: Text('${d.day}일 (${calWeekdays[d.weekday - 1]})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: d == today ? Brand.blue : d.weekday == 7 ? Brand.danger : Brand.navy))),
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) {
+        if (box.maxWidth / 7 < 110) {
+          return Column(children: [
+            for (final (i, d) in days.indexed) ...[
+              if (i > 0) const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+                child: Align(alignment: Alignment.centerLeft, child: Text('${d.day}일 (${calWeekdays[d.weekday - 1]})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: d == today ? Brand.blue : d.weekday == 7 ? Brand.danger : Brand.navy))),
+              ),
+              for (final e in calOn(events, d)) _EventRow(e),
+              if (calOn(events, d).isEmpty) Padding(padding: EdgeInsets.fromLTRB(16, 0, 16, 10), child: Align(alignment: Alignment.centerLeft, child: Text('일정 없음', style: TextStyle(fontSize: 12, color: Brand.faint)))),
+            ],
+          ]);
+        }
+        return IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            for (final (i, d) in days.indexed)
+              Expanded(
+                child: Container(
+                  key: ValueKey('cal-week-col-$i'),
+                  constraints: const BoxConstraints(minHeight: 160),
+                  decoration: BoxDecoration(color: d == today ? Brand.blueTint : null, border: Border(left: BorderSide(color: i == 0 ? Colors.transparent : Brand.hairline))),
+                  padding: const EdgeInsets.fromLTRB(6, 8, 6, 8),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    Text('${d.day}일 (${calWeekdays[d.weekday - 1]})', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _dayColor(d))),
+                    const SizedBox(height: 6),
+                    for (final e in calOn(events, d)) _WeekChip(e),
+                    if (calOn(events, d).isEmpty) Text('일정 없음', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Brand.faint)),
+                  ]),
+                ),
+              ),
+          ]),
+        );
+      });
+}
+
+/// 주간 열의 일정 한 칸 — 시간·제목(두 줄), 누르면 상세 창.
+class _WeekChip extends StatelessWidget {
+  const _WeekChip(this.e);
+  final CalEvent e;
+  @override
+  Widget build(BuildContext context) {
+    final c = CalendarView.colorOf(e);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(e.title),
+            content: SizedBox(width: 420, child: _EventDetails(e)),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('닫기'))],
           ),
-          for (final e in calOn(events, d)) _EventRow(e),
-          if (calOn(events, d).isEmpty) Padding(padding: EdgeInsets.fromLTRB(16, 0, 16, 10), child: Align(alignment: Alignment.centerLeft, child: Text('일정 없음', style: TextStyle(fontSize: 12, color: Brand.faint)))),
-        ],
-      ]);
+        ),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(6, 4, 4, 4),
+          decoration: BoxDecoration(color: c.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6), border: Border(left: BorderSide(color: c, width: 3))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(e.timeLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c)),
+            Text(e.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Brand.navy, height: 1.3)),
+          ]),
+        ),
+      ),
+    );
+  }
 }
 
 class _MonthGrid extends StatelessWidget {
@@ -189,22 +251,28 @@ class _EventRow extends StatelessWidget {
             ),
         ]),
         subtitle: e.sub.isEmpty ? null : Text(e.sub, maxLines: 1, overflow: TextOverflow.ellipsis),
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Brand.blueTint, borderRadius: BorderRadius.circular(10)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              for (final (i, (k, v)) in [('일시', e.whenLabel), ...e.details].indexed)
-                Padding(
-                  padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    SizedBox(width: 52, child: Text(k, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Brand.muted))),
-                    Expanded(child: Text(v, style: TextStyle(fontSize: 13, color: Brand.navy, height: 1.4))),
-                  ]),
-                ),
-            ]),
-          ),
-        ],
+        children: [_EventDetails(e)],
+      );
+}
+
+/// 일정 상세 — 일시·캘린더·장소·등록자·참석자·내용.
+class _EventDetails extends StatelessWidget {
+  const _EventDetails(this.e);
+  final CalEvent e;
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Brand.blueTint, borderRadius: BorderRadius.circular(10)),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (final (i, (k, v)) in [('일시', e.whenLabel), ...e.details].indexed)
+            Padding(
+              padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                SizedBox(width: 52, child: Text(k, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Brand.muted))),
+                Expanded(child: Text(v, style: TextStyle(fontSize: 13, color: Brand.navy, height: 1.4))),
+              ]),
+            ),
+        ]),
       );
 }
