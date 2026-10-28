@@ -511,8 +511,10 @@ class GwComment {
 
 /// 게시글 상세(ViewPost). ⚠️ 호출하면 조회수가 오른다(실제 열람). 게시판명은 art가 아니라 board.cat_title.
 class GwNoticeDetail {
-  const GwNoticeDetail({required this.artSeqNo, required this.title, required this.board, required this.writer, required this.dept, required this.writeDate, required this.readCnt, required this.fileCnt, required this.content, required this.comments, this.contentMd = ''});
+  const GwNoticeDetail({required this.artSeqNo, required this.title, required this.board, required this.writer, required this.dept, required this.writeDate, required this.readCnt, required this.fileCnt, required this.content, required this.comments, this.contentMd = '', this.uid = ''});
   final String artSeqNo, title, board, writer, dept, writeDate, content;
+  /// 첨부 권한 키의 fileIds(ecm001A04·ecm001A03)
+  final String uid;
   /// 화면 표시용 원문 서식(htmlToMarkdown). content 평문은 이노봇 도구·검색용
   final String contentMd;
   final int readCnt, fileCnt;
@@ -524,7 +526,7 @@ class GwNoticeDetail {
     String firstOf(Map r, List<String> keys) => keys.map((k) => asStr(r[k])).firstWhere((v) => v.isNotEmpty, orElse: () => '');
     return GwNoticeDetail(
       artSeqNo: asStr(art['art_seq_no']), title: asStr(art['art_title']), board: asStr(board['cat_title']), writer: asStr(art['mbr_nick']), dept: asStr(art['dept_name']),
-      writeDate: niceDate(asStr(art['write_date'])), readCnt: asInt(art['read_cnt']), fileCnt: asInt(art['file_cnt']), content: htmlToText(asStr(art['art_content'])), contentMd: htmlToMarkdown(asStr(art['art_content'])),
+      writeDate: niceDate(asStr(art['write_date'])), readCnt: asInt(art['read_cnt']), fileCnt: asInt(art['file_cnt']), content: htmlToText(asStr(art['art_content'])), contentMd: htmlToMarkdown(asStr(art['art_content'])), uid: asStr(art['uid']),
       comments: [for (final r in remarks) if (r is Map) GwComment(writer: asStr(r['mbr_nick']), writeDate: niceDate(asStr(r['write_date'])), content: htmlToText(firstOf(r, ['remark_desc', 'remark_content', 'content', 'art_content'])))],
     );
   }

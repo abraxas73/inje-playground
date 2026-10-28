@@ -382,12 +382,20 @@ void main() {
     expect(sent, contains('${DateTime.now().toUtc().add(const Duration(hours: 9)).day}일'));
     expect(find.text('어떤 일정인가요? 제목과 시간을 알려 주세요.'), findsOneWidget);
   });
-  testWidgets('게시판: 목록 → 항목 → 본문·댓글(ViewPost 1회)', (tester) async {
+  testWidgets('게시판: 목록 → 항목 → 본문·댓글(ViewPost 1회), 첨부는 목록(ecm001A04) 칩 → 누르면 받아(ecm001A03) 저장', (tester) async {
     final r = Routes({'/board/APIHandler/ViewBoardNewAndNoticeArtList': [{'totalCnt': 2, 'articleList': [
       {'art_seq_no': '1', 'art_title': '10월 전사 공지', 'cat_title': '공지사항', 'mbr_nick': '홍길동', 'dept_name': '경영지원', 'write_date': '2026-10-04 07:10:00', 'read_cnt': '5', 'file_cnt': '1', 'art_read_yn': 'N', 'art_content': '미리보기입니다'},
       {'art_seq_no': '2', 'art_title': '동호회 모집', 'cat_title': '자유게시판', 'mbr_nick': '김민준', 'write_date': '2026-10-03 10:00:00', 'file_cnt': '0', 'art_read_yn': 'Y'}]}],
-      '/board/APIHandler/ViewPost': [{'art': {'art_seq_no': '1', 'art_title': '10월 전사 공지', 'mbr_nick': '홍길동', 'write_date': '2026-10-04 07:10:00', 'art_content': '<p>전 직원 필독</p>', 'file_cnt': '1'}, 'board': {'cat_title': '공지사항'}, 'remarkList': [{'mbr_nick': '이서연', 'remark_desc': '확인'}]}]});
-    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const BoardScreen()));
+      '/board/APIHandler/ViewPost': [{'art': {'art_seq_no': '1', 'art_title': '10월 전사 공지', 'mbr_nick': '홍길동', 'write_date': '2026-10-04 07:10:00', 'art_content': '<p>전 직원 필독</p>', 'file_cnt': '1', 'uid': 'U9'}, 'board': {'cat_title': '공지사항'}, 'remarkList': [{'mbr_nick': '이서연', 'remark_desc': '확인'}]}],
+      '/ecm/ecm001A04': [{'list': [{'originalFileName': '관리방안', 'fileExtsn': 'pdf', 'fileSize': '2048', 'fileId': 'F9'}]}]});
+    final saved = <(String, List<int>)>[];
+    final ecm = <String>[];
+    final client = MockClient((q) async {
+      if (q.url.path != '/ecm/ecm001A03') return r.client.send(http.Request(q.method, q.url)..headers.addAll(q.headers)..bodyBytes = q.bodyBytes).then(http.Response.fromStream);
+      ecm.add(Uri.decodeQueryComponent(q.body));
+      return http.Response.bytes([4, 5], 200, headers: {'content-type': 'application/octet-stream'});
+    });
+    await tester.pumpWidget(gwScope(creds: testCreds, http: client, overrides: [mailFileSaverProvider.overrideWithValue((n, b) async { saved.add((n, b)); return '/x/$n'; })], child: const BoardScreen()));
     await tester.pumpAndSettle();
     expect(find.text('10월 전사 공지'), findsOneWidget);
     expect(find.text('동호회 모집'), findsOneWidget);
@@ -395,7 +403,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('전 직원 필독'), findsOneWidget);
     expect(find.textContaining('이서연'), findsOneWidget);
-    expect(find.textContaining('첨부 1'), findsWidgets); // 메타 줄 + 안내 상자
+    expect(find.textContaining('첨부 1'), findsOneWidget); // 메타 줄(안내 상자 대신 첨부 칩)
     expect(r.hits['/board/APIHandler/ViewPost'], 1);
+    expect(r.hits['/ecm/ecm001A04'], 1);
+    await tester.tap(find.text('관리방안.pdf · 2KB'));
+    await tester.pumpAndSettle();
+    expect(ecm.single, allOf(contains('moduleGbn=BOARD'), contains('fileSn=0'), contains('"art_seq_no":"1"'), contains('"fileIds":"U9"')));
+    expect(saved.single.$1, '관리방안.pdf'); // 확장자 붙인 원래 이름으로 저장 위치 고르기
+    expect(saved.single.$2, [4, 5]);
+    expect(find.text('저장했습니다: 관리방안.pdf'), findsOneWidget);
   });
 }
