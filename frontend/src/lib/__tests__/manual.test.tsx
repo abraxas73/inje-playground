@@ -44,12 +44,13 @@ it("Windows 브라우저 다운로드 경고 해제 방법을 강조색과 굵�
 it("앱 기능 절은 목차와 제목에 (모바일·데스크톱 앱) 표시가 붙고 앱 이름으로도 검색된다", () => {
   const tagged = manualSections.filter((s) => s.app);
   expect(tagged.map((s) => s.id)).toEqual(expect.arrayContaining(["app-approvals", "app-attendance", "app-today", "app-mail", "app-board", "desktop-mentions", "desktop-connector", "desktop-install"]));
-  for (const s of tagged) expect(s.category).toBe(["desktop-install", "macos-update"].includes(s.id) ? "시작하기" : "모바일·데스크톱 앱");
+  for (const s of tagged) expect(s.category).toBe(["desktop-install", "macos-update", "windows-smart-app-control"].includes(s.id) ? "시작하기" : "모바일·데스크톱 앱");
   render(<ManualPage />);
   expect(screen.getAllByText("(모바일·데스크톱 앱)").length).toBeGreaterThanOrEqual(5);
   expect(screen.getAllByText("(데스크톱 앱)").length).toBeGreaterThanOrEqual(2);
   expect(screen.getAllByText("모바일·데스크톱 앱 · 데스크톱 앱").length).toBe(5); // 멘션 알림·Claude 커넥터·버튼 숨기기·위젯 대시보드·Always On
   expect(searchManual("데스크톱 앱").map((s) => s.id)).toContain("desktop-mentions");
+  expect(searchManual("스마트 앱 컨트롤").map((s) => s.id)).toContain("windows-smart-app-control");
   expect(searchManual("안 읽음으로 되돌리기").map((s) => s.id)).toEqual(expect.arrayContaining(["gw-mail"]));
 });
 it("앱 전용 기능 절(대시보드·Always On·알림 센터·메신저·테마·잠금 화면·즐겨찾기·버튼 숨기기)이 검색된다", () => {

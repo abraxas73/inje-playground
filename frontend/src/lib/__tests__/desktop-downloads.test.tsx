@@ -12,6 +12,8 @@ it("Windows 카드는 실행 전 다운로드 경고(유지 → 그래도 유지
   await screen.findByText(/설치 파일 다운로드/);
   expect(container.textContent).toMatch(/다운로드[^]*일반적으로 다운로드되지 않는[^]*유지 → 그래도 유지[^]*Chrome[^]*Windows의 PC 보호[^]*추가 정보 → 실행/);
   expect(container.querySelector('a[href="/manual#desktop-install"]')).not.toBeNull();
+  expect(container.querySelector('a[href="/manual#windows-smart-app-control"]')?.textContent).toContain("실행 오류 화면 안내 보기");
+  expect(container.textContent).toMatch(/잘못된 이미지[^]*스마트 앱 컨트롤[^]*끄기/);
   expect(container.textContent).toContain("Apple 서명·공증 완료"); // macOS 카드는 경고 안내 없음
 });
 

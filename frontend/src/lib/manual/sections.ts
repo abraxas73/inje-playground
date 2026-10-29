@@ -276,7 +276,26 @@ export const manualSections: ManualSection[] = [
       { src: "/manual/windows-smartscreen-1.png", alt: "Windows의 PC 보호 창. 추가 정보 링크가 표시돼 있다", caption: "① ‘Windows의 PC 보호’ 창이 뜨면 ‘추가 정보’를 누릅니다.", width: 558, height: 320 },
       { src: "/manual/windows-smartscreen-2.png", alt: "앱 이름 INNOGRID-Windows-1.6.1-Setup.exe와 게시자 알 수 없는 게시자가 표시된 창. 실행 버튼이 강조돼 있다", caption: "② 앱 이름이 INNOGRID 설치 파일인지 확인하고 ‘실행’을 누릅니다.", width: 558, height: 360 },
     ],
-    links: [{ href: "/apps#desktop", label: "데스크톱 앱 다운로드" }, { href: "/manual#macos-update", label: "Mac 앱 업데이트·예기치 않은 종료 안내" }, { href: "/apps#mcp", label: "Claude 커넥터 연결 방법" }],
+    links: [{ href: "/manual#windows-smart-app-control", label: "Windows 실행 오류(스마트 앱 컨트롤) 해결" }, { href: "/apps#desktop", label: "데스크톱 앱 다운로드" }, { href: "/manual#macos-update", label: "Mac 앱 업데이트·예기치 않은 종료 안내" }, { href: "/apps#mcp", label: "Claude 커넥터 연결 방법" }],
+  },
+  {
+    id: "windows-smart-app-control", title: "Windows 실행 오류 — ‘잘못된 이미지’·스마트 앱 컨트롤 차단", category: "시작하기", app: "데스크톱",
+    description: "설치는 끝났는데 앱을 열면 ‘app_links_plugin.dll … Windows에서 실행되도록 설계되지 않았거나 오류를 포함합니다’ 창이 뜨는 경우의 해결 방법입니다.",
+    steps: [
+      "증상: 설치(또는 업데이트) 뒤 INNOGRID를 열면 ‘잘못된 이미지’ 오류 창이 뜨고 앱이 실행되지 않습니다. 같은 때 화면 오른쪽 아래에 ‘스마트 앱 컨트롤이 이 앱의 일부를 차단했습니다’ 알림이 보입니다(아래 ①·② 화면).",
+      "원인: Windows 11의 스마트 앱 컨트롤이 켜진 PC는 코드 서명이 없는 프로그램 파일을 막습니다. 이노크루 Windows 앱은 아직 코드 서명 전이라 차단됩니다. 파일이 손상된 것이 아니므로 다시 설치해도 같은 오류가 납니다.",
+      "해결: 시작 메뉴에서 ‘스마트 앱 컨트롤’을 검색해 엽니다. 또는 설정 → 개인 정보 및 보안 → Windows 보안 → 앱 및 브라우저 컨트롤 → 스마트 앱 컨트롤 설정으로 들어갑니다.",
+      "‘끄기’를 고르고 확인 창에서 끕니다(아래 ③ 화면). 이후 시작 메뉴에서 INNOGRID를 다시 엽니다. 다시 설치할 필요는 없습니다.",
+      "회사가 관리하는 PC여서 설정이 잠겨 있으면 IT 담당자에게 문의해 주세요.",
+    ],
+    emphasis: [{ step: 3, text: "‘끄기’를 고르고 확인 창에서 끕니다" }],
+    note: "스마트 앱 컨트롤을 꺼도 Microsoft Defender 바이러스 백신 등 다른 보호 기능은 그대로 동작합니다. Windows 버전에 따라 한 번 끄면 Windows를 초기화하기 전까지 다시 켤 수 없을 수 있습니다. 코드 서명 배포로 바뀌면 이 조치 없이 실행됩니다. 아래 화면은 창을 재현한 예시라 실제 문구·모양과 조금 다를 수 있습니다.",
+    images: [
+      { src: "/manual/windows-sac-1.png", alt: "INNOGRID.exe 잘못된 이미지 오류 창. app_links_plugin.dll이 Windows에서 실행되도록 설계되지 않았거나 오류를 포함한다는 문구", caption: "① 앱을 열면 ‘잘못된 이미지’ 오류 창이 뜹니다.", width: 562, height: 242 },
+      { src: "/manual/windows-sac-2.png", alt: "Windows 보안 알림. 스마트 앱 컨트롤이 이 앱의 일부를 차단했습니다", caption: "② 같은 때 ‘스마트 앱 컨트롤’ 차단 알림이 보이면 이 절의 방법으로 해결합니다.", width: 452, height: 129 },
+      { src: "/manual/windows-sac-3.png", alt: "Windows 보안의 스마트 앱 컨트롤 설정. 켜기·평가·끄기 중 끄기가 강조돼 있다", caption: "③ 스마트 앱 컨트롤 설정에서 ‘끄기’를 고른 뒤 INNOGRID를 다시 엽니다.", width: 662, height: 388 },
+    ],
+    links: [{ href: "/apps#desktop", label: "데스크톱 앱 다운로드" }, { href: "/manual#desktop-install", label: "데스크톱 앱 설치·다운로드" }],
   },
   {
     id: "macos-update", title: "Mac 앱 업데이트·예기치 않은 종료", category: "시작하기", app: "데스크톱",
