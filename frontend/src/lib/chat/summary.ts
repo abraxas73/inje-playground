@@ -7,12 +7,13 @@ export const TOOL_LABEL: Record<string, string> = {
   my_reservations: "내 회의실 예약", list_resources: "회의실", list_rooms: "회의실", find_free_rooms: "빈 회의실",
   teams_chats: "Teams 채팅 목록", teams_mentions: "Teams 답장 대기", teams_send: "Teams 보내기",
   confluence_search: "Confluence 검색", confluence_read: "Confluence 문서", confluence_feed: "Confluence 소식", confluence_spaces: "Confluence 공간", confluence_create_page: "Confluence 페이지 만들기",
+  list_messenger_rooms: "메신저 대화방", messenger_rooms: "메신저 대화방", read_messenger_room: "메신저 대화", messenger_read: "메신저 대화", search_messenger: "메신저 검색", messenger_search: "메신저 검색", messenger_send: "메신저 보내기",
   sharepoint_search: "SharePoint 검색", sharepoint_recent: "SharePoint 문서", sharepoint_read: "SharePoint 문서 읽기",
   jira_issues: "Jira 내 업무", jira_issue: "Jira 이슈", people_news: "인사·부고", food_search: "식당 찾기", ppt_decks: "내 PPT", ppt_create: "PPT 만들기",
 };
 export const toolLabel = (name: string) => TOOL_LABEL[name] ?? name;
 
-const LIST_KEYS = ["items", "chats", "hits", "spaces", "events", "Records", "records", "results", "list", "people", "rooms"];
+const LIST_KEYS = ["items", "chats", "hits", "spaces", "events", "Records", "records", "results", "list", "people", "rooms", "messages"];
 const TITLE_KEYS = ["subject", "title", "name", "topic", "docTitle", "artTitle"];
 function findList(v: unknown, anyArray = false): unknown[] | null {
   if (Array.isArray(v)) return v;

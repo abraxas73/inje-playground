@@ -27,16 +27,17 @@ it("answers ping, accepts notifications and rejects unknown methods", () => {
   expect(handleStateless(req("resources/list"))).toEqual({ kind: "error", body: { jsonrpc: "2.0", id: 1, error: { code: -32601, message: expect.any(String) } } });
 });
 
-it("lists the 56 implemented tools in order (download_body_image withheld)", () => {
-  expect(listTools()).toHaveLength(56);
+it("lists the 60 implemented tools in order (download_body_image withheld)", () => {
+  expect(listTools()).toHaveLength(60);
   expect(listTools()[0].name).toBe("approval_counts");
   const names = listTools().map((t) => t.name);
   expect(names).toContain("submit_approval");
   expect(names).toContain("cancel_approval");
   expect(names).toContain("delete_temp_approval");
+  expect(names).toContain("send_messenger_message");
   expect(names).not.toContain("download_body_image");
   const r = handleStateless(req("tools/list"));
-  expect(r.kind === "respond" && (r.body as { result: { tools: unknown[] } }).result.tools).toHaveLength(56);
+  expect(r.kind === "respond" && (r.body as { result: { tools: unknown[] } }).result.tools).toHaveLength(60);
   expect(JSON.stringify(listTools())).not.toContain("~/.config/inno-creed");
 });
 

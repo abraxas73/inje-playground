@@ -6,7 +6,7 @@ import type { Location } from "./events";
 import { featurePage } from "@/lib/assistant/feature-tools";
 
 /** 웹에서 데스크톱 앱 중계로 여는 아마란스 도구 — 읽기만(설계서 §0 "웹의 아마란스"). 이름·스키마는 Claude 커넥터(tools.json)와 같다. */
-export const RELAY_READ_TOOLS = ["find_person", "org_chart", "list_mail_inbox", "read_mail", "search_mail_index", "mailbox_counts", "pending_approvals", "approval_counts", "list_approvals", "read_approval", "list_notices", "read_notice", "search", "list_calendars", "list_events", "get_attendance_today", "my_reservations", "list_resources", "find_free_rooms"] as const;
+export const RELAY_READ_TOOLS = ["find_person", "org_chart", "list_mail_inbox", "read_mail", "search_mail_index", "mailbox_counts", "pending_approvals", "approval_counts", "list_approvals", "read_approval", "list_notices", "read_notice", "search", "list_calendars", "list_events", "get_attendance_today", "my_reservations", "list_resources", "find_free_rooms", "list_messenger_rooms", "read_messenger_room", "search_messenger"] as const;
 /** 결과의 전화번호를 가리지 않는 사내 조직도 도구(설계서 §2-4 예외) */
 export const ORG_TOOLS = new Set(["find_person", "my_team", "org_chart"]);
 
@@ -58,7 +58,7 @@ export function clientPromptLines(client: "web" | "app", desktopOnline: boolean)
     "지금은 웹 채팅이다. 답에 마크다운(목록·표·굵게)을 써도 된다. 쓰기 도구는 웹 화면이 확인 카드를 띄운다.",
     "웹에서 아마란스는 조회만 된다. 회의실 예약·일정 등록·출퇴근·메일 저장·발송·결재 같은 아마란스 쓰기는 모바일·데스크톱 앱의 이노봇에서 하라고 안내한다.",
     desktopOnline
-      ? "아마란스 도구 이름은 list_mail_inbox·read_mail·search_mail_index·pending_approvals 등이다. 메일을 찾을 때는 search_mail_index를 먼저 쓰고, 메일 본문은 사용자가 그 메일을 요청했을 때만 read_mail로 읽는다(읽음 처리된다)."
+      ? "아마란스 도구 이름은 list_mail_inbox·read_mail·search_mail_index·pending_approvals·list_messenger_rooms·read_messenger_room·search_messenger 등이다. 메일을 찾을 때는 search_mail_index를 먼저 쓰고, 메일 본문은 사용자가 그 메일을 요청했을 때만 read_mail로 읽는다(읽음 처리된다)."
       : "데스크톱 앱이 꺼져 있어 아마란스 도구가 없다. 메일·결재·일정 같은 아마란스 요청이면 INNOGRID 데스크톱 앱을 켜면 처리할 수 있다고 안내한다.",
   ];
 }

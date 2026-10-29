@@ -724,6 +724,27 @@
   }
  },
  {
+  "name": "list_messenger_rooms",
+  "description": "[아마란스 메신저] 내 대화방 목록(최근 대화 순) — room_id·제목(상대 이름)·안 읽은 수·마지막 대화·시각. unread_only면 안 읽은 방만, query면 방 이름·참여자 이름으로 검색. 대화를 읽거나 보낼 때 이 room_id를 쓴다.",
+  "inputSchema": {
+   "properties": {
+    "unread_only": {
+     "type": "boolean",
+     "description": "안 읽은 대화가 있는 방만"
+    },
+    "query": {
+     "type": "string",
+     "description": "방 이름 검색어(선택)"
+    },
+    "limit": {
+     "type": "integer",
+     "description": "최대 50, 기본 20"
+    }
+   },
+   "type": "object"
+  }
+ },
+ {
   "name": "list_notice_attachments",
   "description": "게시글 첨부파일 목록을 조회한다. 응답 `{files[]}`의 각 항목에 **다운로드에 그대로 쓸 `fileSn`(0-base 인덱스)** 이 들어 있다. art_seq_no+uid(=목록의 attachmentUid) 필요.",
   "inputSchema": {
@@ -1047,6 +1068,26 @@
   }
  },
  {
+  "name": "read_messenger_room",
+  "description": "[아마란스 메신저] 대화방의 최근 대화(오래된 것→최신) — 보낸 사람·시각·내용·첨부 이름. 읽음 처리하지 않는다. 비밀대화 내용은 돌려주지 않는다.",
+  "inputSchema": {
+   "properties": {
+    "room_id": {
+     "type": "string",
+     "description": "list_messenger_rooms·search_messenger 결과의 room_id"
+    },
+    "limit": {
+     "type": "integer",
+     "description": "최대 100, 기본 30"
+    }
+   },
+   "required": [
+    "room_id"
+   ],
+   "type": "object"
+  }
+ },
+ {
   "name": "read_notice",
   "description": "게시글 1건의 본문(평문)·댓글을 조회한다. 본문 삽입 이미지는 평문에 `[이미지]`로 자리가 남고 경로는 `images[]`로 나온다(순서 일치) — `download_body_image`로 받아볼 수 있다. **이미지는 정식 첨부가 아니라 `fileCnt`에 안 잡히므로**, fileCnt=0이어도 본문에 이미지가 있을 수 있다. ⚠️ 호출 시 조회수 증가(실제 열람 처리).",
   "inputSchema": {
@@ -1322,6 +1363,26 @@
   }
  },
  {
+  "name": "search_messenger",
+  "description": "[아마란스 메신저] 대화방 이름과 대화 내용을 검색한다. room_id를 주면 그 방 안 대화만. 결과의 대화마다 room_id가 붙는다.",
+  "inputSchema": {
+   "properties": {
+    "query": {
+     "type": "string",
+     "description": "검색어"
+    },
+    "room_id": {
+     "type": "string",
+     "description": "이 방 안에서만(선택)"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "type": "object"
+  }
+ },
+ {
   "name": "send_mail",
   "description": "메일을 **새로 조립해 발송한다**(2단계: 작성폼 초기화→발송). 받는사람 미지정 시 본인에게. **여러 명에게 보내려면 to에 콤마로 잇는다**(`\"홍길동 <hong@innogrid.com>,kim@innogrid.com\"` — 표시형과 순수 주소를 섞어도 된다). 참조는 cc, 숨은참조는 bcc에 같은 형식으로. attachments에 로컬 파일 경로를 주면 첨부 발송. ⚠️ 발송은 되돌릴 수 없다(수신자에게 나가면 회수 불가) — 곧바로 보내지 말고, 먼저 save_mail_draft로 보낼 형상을 임시보관함에 만들고 list_mail_drafts로 사용자에게 확인을 요청한 뒤, 확인받고 나서는 **이 도구가 아니라 send_mail_from_draft(draft_muid)로 그 초안을 그대로 발송한다**(확인받은 형상과 실제 발송물이 어긋날 여지가 없고, 원본 초안 정리도 그 도구가 한다). 이 도구는 **초안을 거치지 않는 직접 발송용**이다 — 사용자가 즉시 발송을 명시적으로 지시했거나, 본인 앞 메모·자동화처럼 사람 확인이 필요 없는 발송에 쓴다. 아마란스에 등록해 둔 **서명이 기본으로 본문 끝에 붙는다**(웹에서 보낸 것과 같은 형상) — 붙지 않아야 하면 `signature:false`. 응답의 `signature_attached`가 실제로 붙었는지를 알려준다(서명 미등록 계정은 켜 두어도 false). (이 커넥터: attachments가 있으면 거절 — save_mail_draft로 초안을 만든 뒤 send_mail_from_draft로 발송)",
   "inputSchema": {
@@ -1404,6 +1465,33 @@
    },
    "required": [
     "draft_muid"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "name": "send_messenger_message",
+  "description": "[아마란스 메신저] 내 이름으로 글을 보낸다(되돌릴 수 없음 — 보내기 전에 사용자에게 받는 방과 내용을 확인받을 것). room_id(기존 방) 또는 emp_seqs(find_person 결과의 empSeq — 1명이면 1:1 방을 열거나 기존 방, 여러 명이면 새 그룹 방) 중 하나.",
+  "inputSchema": {
+   "properties": {
+    "room_id": {
+     "type": "string",
+     "description": "보낼 대화방 room_id"
+    },
+    "emp_seqs": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "room_id가 없을 때 대화 상대 empSeq 목록"
+    },
+    "text": {
+     "type": "string",
+     "description": "보낼 내용(평문)"
+    }
+   },
+   "required": [
+    "text"
    ],
    "type": "object"
   }

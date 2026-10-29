@@ -3,7 +3,7 @@ import { ASSISTANT_TOOLS, TOOL_TIERS, SERVER_TOOLS, assistantSystemPrompt, assis
 import contract from "@/lib/assistant/tool-contract.json";
 
 // 계약 파일(tool-contract.json)이 원본 — 앱 테스트도 같은 파일과 대조한다. 아래 고정 목록은 계약 파일이 실수로 비거나 줄지 않았는지 보는 안전망.
-const NAMES = ["approval_counts","approval_read","approvals_pending","attendance_today","cancel_reservation","clock_in","clock_out","confluence_create_page","confluence_feed","confluence_read","confluence_search","confluence_spaces","create_event","delete_event","find_free_rooms","find_person","list_calendars","list_events","list_rooms","mail_list","mail_read","mail_save_draft","mail_search","mail_send","my_reservations","my_team","notice_read","notices_list","offer_choices","reserve_room","search","sharepoint_read","sharepoint_recent","sharepoint_search","teams_chats","teams_mentions","teams_send","undo_last"];
+const NAMES = ["approval_counts","approval_read","approvals_pending","attendance_today","cancel_reservation","clock_in","clock_out","confluence_create_page","confluence_feed","confluence_read","confluence_search","confluence_spaces","create_event","delete_event","find_free_rooms","find_person","list_calendars","list_events","list_rooms","mail_list","mail_read","mail_save_draft","mail_search","mail_send","messenger_read","messenger_rooms","messenger_search","messenger_send","my_reservations","my_team","notice_read","notices_list","offer_choices","reserve_room","search","sharepoint_read","sharepoint_recent","sharepoint_search","teams_chats","teams_mentions","teams_send","undo_last"];
 
 // 앱 기능 도구(lib/assistant/feature-tools.ts)는 서버 전용 — 앱 목록에 없고, 쓰기 확인 카드 문구도 서버가 보낸다.
 const FEATURE_NAMES = ["food_search", "jira_issue", "jira_issues", "people_news", "ppt_create", "ppt_decks"];

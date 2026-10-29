@@ -11,6 +11,7 @@ import '../gw/gw_mcp_api.dart';
 import '../gw/gw_models.dart' as m;
 import '../gw/mail_compose.dart' show mailSignatureHtml, mailSizeLabel;
 import '../gw/mail_indexer.dart';
+import '../messenger/messenger_tools.dart';
 import 'approval_schemas.dart';
 import 'mcp_args.dart' as a;
 import 'mcp_worker.dart' show McpToolError;
@@ -199,13 +200,15 @@ String _approkey() {
 }
 
 class McpTools {
-  McpTools({required this.gw, required String Function() appSupportDir, ApprovalSchemas? schemas, String Function()? downloadsDir, this.mailIndex})
+  McpTools({required this.gw, required String Function() appSupportDir, ApprovalSchemas? schemas, String Function()? downloadsDir, this.mailIndex, this.messenger})
       : groups = PersonGroups(appSupportDir),
         schemas = schemas ?? ApprovalSchemas(),
         _downloadsDir = downloadsDir ?? mcpDownloadsDir;
   final GwApi? gw;
   /// 기기 안 메일 검색 색인(웹 /gw/mail 검색이 중계로 쓴다). null이면 search_mail_index 거절.
   final MailIndexNotifier? mailIndex;
+  /// 아마란스 메신저(*_messenger_*). null이면 그 도구 거절.
+  final MessengerTools? messenger;
   final PersonGroups groups;
   final ApprovalSchemas schemas;
   final String Function() _downloadsDir;
@@ -234,6 +237,25 @@ class McpTools {
       throw McpToolError('입력 형식이 올바르지 않습니다.'); // 원문(입력값이 섞일 수 있음)은 싣지 않는다
     } catch (e) {
       throw McpToolError('도구 실행 중 오류가 발생했습니다 (${e.runtimeType})');
+    }
+  }
+
+  Future<Object?> _messenger(String tool, Map<String, dynamic> x) async {
+    final m = messenger ?? (throw McpToolError(_noGw));
+    final lim = int.tryParse(a.str(x, 'limit')) ?? 0;
+    try {
+      return switch (tool) {
+        'list_messenger_rooms' => await m.rooms(unreadOnly: x['unread_only'] == true, query: a.str(x, 'query'), limit: lim > 0 ? lim : 20),
+        'read_messenger_room' => await m.read(_req(x, 'room_id'), limit: lim > 0 ? lim : 30),
+        'search_messenger' => await m.search(_req(x, 'query'), roomId: a.str(x, 'room_id')),
+        _ => await m.send(roomId: a.str(x, 'room_id'), empSeqs: strList(x['emp_seqs']), text: _req(x, 'text')),
+      };
+    } on McpToolError {
+      rethrow;
+    } catch (e) {
+      throw McpToolError(tool == 'send_messenger_message' && messengerOutcomeUnknown(e)
+          ? '전송 결과를 확인할 수 없습니다 — 이미 보내졌을 수 있습니다. 다시 보내기 전에 read_messenger_room으로 확인하세요.'
+          : messengerError(e));
     }
   }
 
@@ -296,6 +318,7 @@ class McpTools {
         'list_notice_attachments' => _noticeAttachments(x),
         'download_notice_attachment' => _downloadNoticeAttachment(x),
         'search' => _search(x),
+        'list_messenger_rooms' || 'read_messenger_room' || 'search_messenger' || 'send_messenger_message' => _messenger(tool, x),
         _ => throw McpToolError('모르는 도구입니다: $tool'),
       };
 
