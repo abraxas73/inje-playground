@@ -112,7 +112,7 @@ class DesktopUpdater extends ChangeNotifier {
         _set(
           DesktopUpdateState(
             DesktopUpdatePhase.current,
-            message: '최신 버전을 사용하고 있습니다.',
+            message: '최신 버전($currentVersion)을 사용하고 있습니다.',
             visible: manual,
           ),
         );

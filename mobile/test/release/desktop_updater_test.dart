@@ -118,6 +118,7 @@ void main() {
       await done.future;
       expect(updater.state.phase, DesktopUpdatePhase.current);
       expect(updater.state.visible, isTrue);
+      expect(updater.state.message, '최신 버전(1.7.7)을 사용하고 있습니다.');
     },
   );
   test(
