@@ -65,6 +65,35 @@ void main() {
     expect(tester.getSize(win), const Size(340, 420));
   });
 
+  test('resizeWindow — 끌린 변만 움직이고, 최소 크기·화면 여백에서 멈춘다', () {
+    const screen = Size(1200, 800), r = Rect.fromLTWH(300, 100, 440, 600);
+    expect(resizeWindow(r, const Offset(-100, 0), screen, left: true), const Rect.fromLTRB(200, 100, 740, 700));
+    expect(resizeWindow(r, const Offset(0, -50), screen, top: true), const Rect.fromLTRB(300, 50, 740, 700));
+    expect(resizeWindow(r, const Offset(-1000, -1000), screen, left: true, top: true), const Rect.fromLTRB(16, 16, 740, 700)); // 화면 여백
+    expect(resizeWindow(r, const Offset(500, 500), screen, left: true, top: true), const Rect.fromLTRB(400, 280, 740, 700)); // 최소 340×420
+    expect(resizeWindow(r, const Offset(5000, 5000), screen, right: true, bottom: true), const Rect.fromLTRB(300, 100, 1184, 784));
+    expect(resizeWindow(r, const Offset(30, 0), screen, right: true, top: true), const Rect.fromLTRB(300, 100, 770, 700));
+  });
+
+  testWidgets('왼쪽 위 모서리·왼쪽 변을 끌면 반대편은 그대로 두고 크기가 바뀐다', (tester) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    SharedPreferences.setMockInitialValues({'innobot.window.pos': ['300', '200']});
+    await tester.pumpWidget(_host(AssistantWindow(onClose: () {}, body: const SizedBox())));
+    await tester.pumpAndSettle();
+    final win = find.byKey(const ValueKey('innobot-window'));
+    await tester.drag(find.byKey(const ValueKey('innobot-window-resize-top-left')), const Offset(-100, -50));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(win), const Rect.fromLTRB(200, 150, 740, 880));
+    await tester.drag(find.byKey(const ValueKey('innobot-window-resize-left')), const Offset(50, 0));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(win), const Rect.fromLTRB(250, 150, 740, 880));
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getStringList('innobot.window.pos'), ['250', '150']);
+    expect(prefs.getStringList('innobot.window.size'), ['490', '730']);
+  });
+
   testWidgets('기억한 크기로 다시 열린다', (tester) async {
     tester.view.physicalSize = const Size(1200, 1000);
     tester.view.devicePixelRatio = 1;
