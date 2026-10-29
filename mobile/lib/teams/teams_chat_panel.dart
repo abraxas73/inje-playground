@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../api/client.dart';
 import '../assistant/chat_api.dart' show PickedFile;
@@ -11,6 +12,7 @@ import '../app/brand.dart';
 import '../app/theme.dart';
 import '../app/copy_selection_area.dart';
 import 'teams_attach.dart';
+import '../briefing/briefing_model.dart' show teamsRoute;
 
 /// 홈 대시보드 'Teams 채팅' 위젯 — 아마란스 메신저(대화) 위젯처럼 목록 → 대화방까지 위젯 안에서.
 /// 서버 /api/teams/chat·/messages(본인 Microsoft 위임 토큰, 웹 /teams/chat과 같은 API)만 쓴다.
@@ -187,6 +189,8 @@ class _TeamsChatListState extends ConsumerState<TeamsChatList> {
               if (mounted) await _refresh();
             },
           ),
+          // 전체 화면 Teams 채팅(웹 /teams/chat)으로 — 공지·Confluence 위젯의 '더 보기'와 같은 자리
+          TextButton(onPressed: () => context.push(teamsRoute), child: const Text('더 보기')),
         ]),
         body: FutureBuilder(
           future: _future,
