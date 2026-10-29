@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
@@ -111,6 +112,8 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
             tooltip: '검색',
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MessengerSearchScreen())),
           ),
+          // 위젯 안에서는 전체 메신저 화면으로 가는 '더 보기'(공지 위젯과 같은 자리)
+          if (widget.embedded) TextButton(onPressed: () => context.push('/gw/messenger'), child: const Text('더 보기')),
         ],
       ),
       body: FutureBuilder<List<MsgRoom>>(
