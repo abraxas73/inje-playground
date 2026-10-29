@@ -6,12 +6,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:playground/api/client.dart';
 import 'package:playground/teams/teams_chat_panel.dart';
+import 'package:playground/teams/teams_attach.dart';
+import 'package:playground/assistant/chat_api.dart' show PickedFile;
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 class FakeApi extends Fake implements ApiClient {
   final sent = <Object?>[];
   final gets = <Map<String, String>?>[];
   final searches = <String?>[];
   final reactions = <Object?>[];
+  final uploads = <Object?>[];
   var listLoads = 0;
   var registered = <Map<String, Object?>>[];
   var topic = '플랫폼팀';
@@ -47,6 +52,10 @@ class FakeApi extends Fake implements ApiClient {
       reactions.add(body);
       return {'ok': true};
     }
+    if (path == '/api/teams/chat/upload') {
+      uploads.add(body);
+      return {'uploadUrl': 'https://innogrid-my.sharepoint.com/up/1'};
+    }
     sent.add(body);
     msgs = [...msgs, {'id': '3', 'createdAt': '2026-10-22T01:02:00Z', 'from': {'id': 'me', 'name': '나'}, 'text': (body as Map)['text'], 'attachments': []}];
     return {'message': {}};
@@ -54,6 +63,48 @@ class FakeApi extends Fake implements ApiClient {
 }
 
 void main() {
+  testWidgets('📎로 고른 그림은 본문 그림(base64), 문서는 업로드 세션에 조각으로 올려 id로 보내고, 칩으로 뺄 수 있다', (tester) async {
+    final api = FakeApi();
+    final puts = <String>[];
+    final upload = MockClient((q) async {
+      puts.add('${q.url}|${q.headers['Content-Range']}|${q.headers['Authorization']}');
+      return http.Response(jsonEncode({'id': 'ITEM1'}), 201);
+    });
+    Future<List<int>> bytes(int n) async => List.filled(n, 7);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        apiClientProvider.overrideWithValue(api),
+        teamsUploadHttpProvider.overrideWithValue(upload),
+        teamsAttachPickerProvider.overrideWithValue(() async => [(name: '화면.png', size: 3, read: () => bytes(3)), (name: '계획.xlsx', size: 5, read: () => bytes(5)), (name: '뺄것.txt', size: 1, read: () => bytes(1))]),
+      ],
+      child: const MaterialApp(home: Scaffold(body: TeamsChatPanel())),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('플랫폼팀'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('그림·파일 첨부'));
+    await tester.pumpAndSettle();
+    expect(find.text('화면.png'), findsOneWidget);
+    await tester.tap(find.descendant(of: find.widgetWithText(InputChip, '뺄것.txt'), matching: find.byTooltip('빼기')));
+    await tester.pumpAndSettle();
+    expect(find.text('뺄것.txt'), findsNothing);
+    await tester.tap(find.byIcon(Icons.send)); // 글 없이 첨부만
+    await tester.pumpAndSettle();
+    expect(api.uploads, [{'name': '계획.xlsx', 'size': 5}]);
+    expect(puts, ['https://innogrid-my.sharepoint.com/up/1|bytes 0-4/5|null']); // 세션 주소엔 토큰을 붙이지 않는다
+    expect(api.sent, [{'chat': 'c1', 'text': '', 'images': [{'type': 'image/png', 'data': base64Encode([7, 7, 7])}], 'files': ['ITEM1']}]);
+    expect(find.byType(InputChip), findsNothing); // 보낸 뒤 비움
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  test('splitTeamsAttachments — 형식 맞는 그림은 합계 3MB·4장까지 본문, 나머지는 파일', () {
+    PickedFile f(String n, int size) => (name: n, size: size, read: () async => <int>[]);
+    const mb = 1024 * 1024;
+    final r = splitTeamsAttachments([f('a.PNG', mb), f('b.jpg', (2.5 * mb).round()), f('c.svg', 1), f('d.gif', mb), f('e.webp', 1), f('g.jpeg', 1), f('h.png', 1)]);
+    expect(r.images.map((x) => x.name), ['a.PNG', 'd.gif', 'e.webp', 'g.jpeg']);
+    expect(r.files.map((x) => x.name), ['b.jpg', 'c.svg', 'h.png']);
+  });
+
   testWidgets('목록 → 대화방, 말풍선·첨부, 엔터로 보내고 포커스 유지, 5초 폴링은 since로', (tester) async {
     final api = FakeApi();
     await tester.pumpWidget(ProviderScope(
