@@ -7,6 +7,8 @@ import '../gw/gw_api.dart';
 import '../gw/gw_creds.dart';
 import '../gw/gw_models.dart';
 import '../gw/mail_indexer.dart';
+import '../messenger/messenger_provider.dart';
+import '../messenger/messenger_tools.dart';
 import 'assistant_journal.dart';
 import 'assistant_tools.dart';
 import 'chat_api.dart';
@@ -231,6 +233,7 @@ class AssistantSession extends Notifier<AssistantState> {
       isActive: () => _active(run),
       now: ref.read(assistantClockProvider),
       mailIndex: ref.read(mailIndexProvider.notifier),
+      messenger: MessengerTools(ref.read(messengerApiProvider)),
     );
   }
 

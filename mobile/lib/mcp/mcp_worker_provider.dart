@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth/session.dart';
 import '../gw/gw_api.dart';
 import '../gw/mail_indexer.dart';
+import '../messenger/messenger_provider.dart';
+import '../messenger/messenger_tools.dart';
 import 'approval_schemas.dart';
 import 'mcp_tools.dart';
 import 'mcp_worker.dart';
@@ -66,7 +68,7 @@ final mcpWorkerProvider = Provider<McpWorker?>((ref) {
   final w = McpWorker(
     poll: const Duration(seconds: 2),
     // 아마란스 연결은 호출 때마다 읽는다(연결·만료가 바뀌어도 워커를 다시 만들지 않게).
-    execute: (tool, args) => McpTools(gw: ref.read(gwApiProvider), appSupportDir: mcpAppSupportDir, schemas: schemas, mailIndex: ref.read(mailIndexProvider.notifier)).execute(tool, args),
+    execute: (tool, args) => McpTools(gw: ref.read(gwApiProvider), appSupportDir: mcpAppSupportDir, schemas: schemas, mailIndex: ref.read(mailIndexProvider.notifier), messenger: MessengerTools(ref.read(messengerApiProvider))).execute(tool, args),
     fetchPending: () async => [for (final r in await table.select('id, tool, args').eq('status', 'pending').order('created_at')) ?McpCall.fromRow(r)],
     claim: (id) async {
       final r = await table.update({'status': 'running', 'worker': await workerId, 'claimed_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id).eq('status', 'pending').select('id, tool, args').maybeSingle();

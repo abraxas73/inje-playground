@@ -7,6 +7,7 @@ import '../gw/gw_api.dart';
 import '../gw/gw_client.dart';
 import '../gw/gw_models.dart';
 import '../gw/mail_indexer.dart';
+import '../messenger/messenger_tools.dart';
 import 'assistant_journal.dart';
 import 'gw_assistant_api.dart';
 
@@ -52,6 +53,10 @@ const assistantToolTiers = <String, ToolTier>{
   'sharepoint_search': ToolTier.read,
   'sharepoint_recent': ToolTier.read,
   'sharepoint_read': ToolTier.read,
+  'messenger_rooms': ToolTier.read,
+  'messenger_read': ToolTier.read,
+  'messenger_search': ToolTier.read,
+  'messenger_send': ToolTier.write,
   'undo_last': ToolTier.meta,
   'offer_choices': ToolTier.choice,
 };
@@ -103,6 +108,9 @@ const _progress = {
   'sharepoint_search': 'SharePoint 문서 찾는 중…',
   'sharepoint_recent': 'SharePoint 문서 보는 중…',
   'sharepoint_read': 'SharePoint 문서 읽는 중…',
+  'messenger_rooms': '메신저 대화방 보는 중…',
+  'messenger_read': '메신저 대화 읽는 중…',
+  'messenger_search': '메신저 찾는 중…',
 };
 String progressText(String name) => _progress[name] ?? '처리하는 중…';
 
@@ -159,6 +167,8 @@ String cardLine(ToolCall c, [Map<String, dynamic>? resolved]) {
     case 'mail_send':
       final cc = _strList(i['cc']);
       return "메일 발송(되돌릴 수 없음) · 받는 사람 ${_strList(i['to']).join(', ')}${cc.isEmpty ? '' : ' · 참조 ${cc.join(', ')}'} · 제목 '${_s(i['subject'])}'\n${_s(i['body'])}";
+    case 'messenger_send':
+      return '메신저 보내기 · ${_s(r['room_name'] ?? i['room_name'])} · "${_s(i['text'])}"';
     case 'teams_send':
       return 'Teams 보내기 · ${_s(r['chat_name'] ?? i['chat_name'])} · "${_s(i['text'])}"';
     case 'confluence_create_page':
@@ -278,7 +288,10 @@ class AssistantToolRunner {
     DateTime Function()? now,
     this.isActive,
     this.mailIndex,
+    this.messenger,
   }) : _now = now ?? kstNow;
+  /// 아마란스 메신저(messenger_*). null이면 그 도구는 안내만.
+  final MessengerTools? messenger;
   final bool Function()? isActive;
   /// 기기 안 메일 검색 색인(mail_search). null이면 그 도구는 안내만.
   final MailIndexNotifier? mailIndex;
@@ -329,6 +342,29 @@ class AssistantToolRunner {
               : c.name == 'confluence_create_page'
               ? '결과를 확인할 수 없습니다. Confluence에서 페이지가 만들어졌는지 확인하세요'
               : '처리하지 못했습니다: ${e.runtimeType}',
+        };
+      }
+    }
+    if (c.name.startsWith('messenger_')) {
+      final m = messenger;
+      if (m == null) return {'ok': false, 'error': _gwMissing};
+      try {
+        final i = c.input;
+        int lim(int d) => _seqNum(i['limit']) > 0 ? _seqNum(i['limit']) : d;
+        final r = switch (c.name) {
+          'messenger_rooms' => await m.rooms(unreadOnly: i['unread_only'] == true, query: _s(i['query']), limit: lim(20)),
+          'messenger_read' => await m.read(_s(i['room_id']), limit: lim(30)),
+          'messenger_search' => await m.search(_s(i['query']), roomId: _s(i['room_id'])),
+          _ => await m.send(roomId: _s(i['room_id']), empSeqs: strList(i['emp_seqs']), text: _s(i['text'])),
+        };
+        if (c.name == 'messenger_send') await _log(c.name, cardLine(c), null);
+        return {'ok': true, ...r};
+      } catch (e) {
+        return {
+          'ok': false,
+          'error': c.name == 'messenger_send' && messengerOutcomeUnknown(e)
+              ? '전송 결과를 확인할 수 없습니다. 메신저에서 확인한 뒤 다시 보내세요'
+              : messengerError(e),
         };
       }
     }
@@ -442,6 +478,13 @@ class AssistantToolRunner {
         );
       case 'delete_event':
         return _needGw().eventFacts(_s(i['sch_seq']), ymd(_day(i['date'])));
+      case 'messenger_send':
+        final m = messenger ?? (throw const _BadInput(_gwMissing));
+        try {
+          return {'room_name': await m.target(roomId: _s(i['room_id']), empSeqs: strList(i['emp_seqs']))};
+        } catch (e) {
+          throw _BadInput(messengerError(e));
+        }
       case 'teams_send':
         final r = await api.postJson('/api/assistant/execute', {
           'tool': 'teams_chats',
