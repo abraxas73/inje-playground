@@ -369,7 +369,7 @@ export function chatMessagesUrl(chatId: string, since?: string): string {
   return since ? `${base}&$filter=${encodeURIComponent(`lastModifiedDateTime gt ${since}`)}` : base;
 }
 
-async function graph(token: string, url: string, init: RequestInit, fetchImpl: FetchLike): Promise<unknown> {
+export async function graph(token: string, url: string, init: RequestInit, fetchImpl: FetchLike): Promise<unknown> {
   const headers: Record<string, string> = { Authorization: `Bearer ${token}`, Accept: "application/json", ...(init.body ? { "Content-Type": "application/json" } : {}) };
   const res = await fetchWithRetry(fetchImpl, url, { ...init, headers });
   if (!res.ok) {

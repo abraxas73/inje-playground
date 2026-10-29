@@ -1,13 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../api/client.dart';
+import '../assistant/chat_api.dart' show PickedFile;
 import '../app/brand.dart';
 import '../app/theme.dart';
 import '../app/copy_selection_area.dart';
+import 'teams_attach.dart';
 
 /// 홈 대시보드 'Teams 채팅' 위젯 — 아마란스 메신저(대화) 위젯처럼 목록 → 대화방까지 위젯 안에서.
 /// 서버 /api/teams/chat·/messages(본인 Microsoft 위임 토큰, 웹 /teams/chat과 같은 API)만 쓴다.
@@ -229,6 +232,8 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
   List<TeamsMsg>? _msgs; // 오래된 것부터
   Object? _error;
   bool _sending = false;
+  final _pending = <PickedFile>[]; // 보낼 그림·파일
+  final _uploaded = Expando<String>(); // 이미 올린 파일 → driveItem id(보내기가 실패해 다시 보낼 때 또 올리지 않게)
   Timer? _poll;
   final _focusKey = GlobalKey();
   bool _focused = false;
@@ -386,13 +391,37 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
     await _react(m, (mine ?? same.firstOrNull)?.type ?? picked, picked, mine == null);
   }
 
+  Future<void> _attach() async {
+    final picked = await ref.read(teamsAttachPickerProvider)();
+    if (picked.isNotEmpty && mounted) setState(() => _pending.addAll(picked.take(14 - _pending.length)));
+  }
+
   Future<void> _send() async {
     final text = _input.text.trim();
-    if (text.isEmpty || _sending) return;
+    if ((text.isEmpty && _pending.isEmpty) || _sending) return;
     setState(() => _sending = true);
     try {
-      await _api.postJson('/api/teams/chat/messages', {'chat': widget.chat.id, 'text': text});
+      // 그림(합계 3MB·4장)은 본문 그림, 나머지는 내 OneDrive에 직접 올려 첨부(웹 /teams/chat과 같은 규칙)
+      final split = splitTeamsAttachments(_pending);
+      final images = [for (final f in split.images) {'type': teamsInlineImageType(f.name), 'data': base64Encode(await f.read())}];
+      final files = <String>[];
+      for (final f in split.files) {
+        final done = _uploaded[f.read];
+        if (done != null) {
+          files.add(done);
+          continue;
+        }
+        final u = await _api.postJson('/api/teams/chat/upload', {'name': f.name, 'size': f.size}) as Map;
+        final id = await uploadTeamsFile(ref.read(teamsUploadHttpProvider), u['uploadUrl'] as String, await f.read());
+        _uploaded[f.read] = id;
+        files.add(id);
+      }
+      final r = await _api.postJson('/api/teams/chat/messages', {'chat': widget.chat.id, 'text': text, if (images.isNotEmpty) 'images': images, if (files.isNotEmpty) 'files': files});
+      if (!mounted) return;
       _input.clear();
+      setState(_pending.clear);
+      final warning = r is Map ? r['warning'] : null;
+      if (warning is String) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(warning)));
       await _load();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('보내지 못했습니다: ${_err(e)}')));
@@ -546,21 +575,41 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-          child: Row(children: [
-            Expanded(
-              child: TextField(
-                controller: _input,
-                focusNode: _inputFocus,
-                minLines: 1,
-                maxLines: 4,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _send(),
-                onEditingComplete: () {}, // 보낸 뒤에도 입력창 포커스 유지
-                decoration: InputDecoration(hintText: '메시지', border: OutlineInputBorder(borderRadius: BorderRadius.circular(22)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (_pending.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(spacing: 6, runSpacing: 6, children: [
+                    for (final (i, f) in _pending.indexed)
+                      InputChip(
+                        avatar: Icon(teamsInlineImageType(f.name) != null ? Icons.image_outlined : Icons.insert_drive_file_outlined, size: 16),
+                        label: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 200), child: Text(f.name, overflow: TextOverflow.ellipsis)),
+                        visualDensity: VisualDensity.compact,
+                        deleteButtonTooltipMessage: '빼기',
+                        onDeleted: _sending ? null : () => setState(() => _pending.removeAt(i)),
+                      ),
+                  ]),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filled(onPressed: _sending ? null : _send, icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send, size: 20)),
+            Row(children: [
+              IconButton(tooltip: '그림·파일 첨부', onPressed: _sending ? null : _attach, icon: const Icon(Icons.attach_file, size: 20)),
+              Expanded(
+                child: TextField(
+                  controller: _input,
+                  focusNode: _inputFocus,
+                  minLines: 1,
+                  maxLines: 4,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _send(),
+                  onEditingComplete: () {}, // 보낸 뒤에도 입력창 포커스 유지
+                  decoration: InputDecoration(hintText: '메시지', border: OutlineInputBorder(borderRadius: BorderRadius.circular(22)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filled(onPressed: _sending ? null : _send, icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send, size: 20)),
+            ]),
           ]),
         ),
       );

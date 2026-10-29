@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowLeft, ArrowRight, ExternalLink, Loader2, MessageCircle, Paperclip, RefreshCw, Search, SendHorizontal, SmilePlus, User as UserIcon, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, ExternalLink, FileText, Image as ImageIcon, Loader2, MessageCircle, Paperclip, RefreshCw, Search, SendHorizontal, SmilePlus, User as UserIcon, Users, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { useEnterToSend } from "@/hooks/useEnterToSend";
 import { useMsCallbackQuery } from "@/hooks/useMsCallbackQuery";
 import { initialChatId } from "@/lib/home";
 import { byNewest } from "@/lib/teams/sort";
+import { splitAttachments, toBase64, uploadToSession } from "@/lib/teams/chat-attach-client";
 import { cn } from "@/lib/utils";
 
 /**
@@ -93,6 +94,9 @@ export default function TeamsChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [pending, setPending] = useState<File[]>([]); // 보낼 그림·파일
+  const fileRef = useRef<HTMLInputElement>(null);
+  const uploaded = useRef(new WeakMap<File, string>()); // 이미 올린 파일 → driveItem id(보내기가 실패해 다시 보낼 때 또 올리지 않게)
   const [loaded, setLoaded] = useState(false);
   // 검색(앱 메신저 검색과 같은 구성): 돋보기로 검색 화면 → 대화방(이름·구성원) + 대화 내용(Microsoft 검색) 두 묶음
   const [searchOpen, setSearchOpen] = useState(false);
@@ -195,19 +199,36 @@ export default function TeamsChatPage() {
     else if (!focusId) bottomRef.current?.scrollIntoView({ block: "end" });
   }, [count, chatId, focusId]);
 
+  const addFiles = (list: Iterable<File>) => setPending((prev) => [...prev, ...list].slice(0, 14));
   const send = async (raw: string = text) => {
     const body = raw.trim();
-    if (!body || sending || !chatId) return;
+    if ((!body && !pending.length) || sending || !chatId) return;
     setSending(true);
     try {
-      const r = await fetch("/api/teams/chat/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat: chatId, text: body }) });
+      // 그림(합계 3MB·4장)은 본문에, 나머지는 내 OneDrive에 직접 올려 첨부로(바이트는 서버를 거치지 않는다)
+      const split = splitAttachments(pending);
+      const images = await Promise.all(split.images.map(async (f) => ({ type: f.type, data: await toBase64(f) })));
+      const files: string[] = [];
+      for (const f of split.files) {
+        const done = uploaded.current.get(f);
+        if (done) { files.push(done); continue; }
+        const u = await fetch("/api/teams/chat/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: f.name, size: f.size }) });
+        const uj = await readJson(u);
+        if (!u.ok || typeof uj.uploadUrl !== "string") { setError(typeof uj.error === "string" ? uj.error : `${f.name}을(를) 올리지 못했습니다 (${u.status})`); return; }
+        const id = await uploadToSession(f, uj.uploadUrl);
+        uploaded.current.set(f, id);
+        files.push(id);
+      }
+      const r = await fetch("/api/teams/chat/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat: chatId, text: body, ...(images.length ? { images } : {}), ...(files.length ? { files } : {}) }) });
       const j = await readJson(r);
       if (!r.ok || !j.message) { setError(typeof j.error === "string" ? j.error : `보내지 못했습니다 (${r.status})`); return; }
       merge([j.message as Msg]);
       setText("");
-      setError(null);
-    } catch {
-      setError("보내지 못했습니다. 네트워크 연결을 확인해 주세요.");
+      setPending([]);
+      setError(typeof j.warning === "string" ? j.warning : null);
+    } catch (e) {
+      // 업로드 단계의 안내(파일을 올리지 못했습니다 등)는 그대로, fetch 자체 실패(TypeError)는 네트워크 안내
+      setError(e instanceof Error && !(e instanceof TypeError) ? e.message : "보내지 못했습니다. 네트워크 연결을 확인해 주세요.");
     } finally {
       setSending(false);
       inputRef.current?.focus(); // 보낸 뒤에도 입력창에 — 이어서 대화
@@ -457,18 +478,34 @@ export default function TeamsChatPage() {
               <div ref={bottomRef} />
             </div>
             {error && <p className="border-t px-4 py-2 text-xs text-destructive">{error}</p>}
+            {pending.length > 0 && (
+              <ul className="flex flex-wrap gap-1.5 border-t px-3 pt-2" aria-label="보낼 첨부">
+                {pending.map((f, i) => (
+                  <li key={`${i}-${f.name}`} className="flex max-w-60 items-center gap-1 rounded-full border bg-muted/40 py-0.5 pl-2 pr-1 text-xs">
+                    {f.type.startsWith("image/") ? <ImageIcon className="h-3.5 w-3.5 shrink-0" aria-hidden /> : <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+                    <span className="truncate">{f.name}</span>
+                    <button type="button" className="rounded-full p-0.5 hover:bg-muted disabled:opacity-50" disabled={sending} onClick={() => setPending((prev) => prev.filter((_, j) => j !== i))} aria-label={`${f.name} 빼기`}><X className="h-3 w-3" /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
             <form className="flex items-end gap-2 border-t p-3" onSubmit={(e) => { e.preventDefault(); void send(); }}>
+              <input ref={fileRef} type="file" multiple hidden onChange={(e) => { addFiles(e.target.files ?? []); e.target.value = ""; }} />
+              <Button type="button" size="icon" variant="ghost" disabled={sending} onClick={() => fileRef.current?.click()} aria-label="그림·파일 첨부" title="그림·파일 첨부">
+                <Paperclip className="h-4 w-4" />
+              </Button>
               <Textarea
                 ref={inputRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 {...enterKeys}
+                onPaste={(e) => { const imgs = [...e.clipboardData.files]; if (imgs.length) { e.preventDefault(); addFiles(imgs); } }}
                 placeholder="메시지 입력"
                 rows={1}
                 className="min-h-10 max-h-40 resize-none"
                 aria-label="메시지"
               />
-              <Button type="submit" size="icon" disabled={sending || !text.trim()} aria-label="보내기">
+              <Button type="submit" size="icon" disabled={sending || (!text.trim() && !pending.length)} aria-label="보내기">
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizontal className="h-4 w-4" />}
               </Button>
             </form>

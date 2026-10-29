@@ -15,6 +15,7 @@ import { GET as msgGET, POST as msgPOST } from "@/app/api/teams/chat/messages/ro
 import { GET as searchGET } from "@/app/api/teams/chat/search/route";
 import { POST as reactPOST } from "@/app/api/teams/chat/reaction/route";
 import { GET as imageGET } from "@/app/api/teams/chat/image/route";
+import { POST as uploadPOST } from "@/app/api/teams/chat/upload/route";
 import { normalizeReactions } from "@/lib/teams/chat";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -86,6 +87,61 @@ it("POST /api/teams/chat/messages — chat·text 검증(400), 정상이면 Graph
   expect(m.audit).toHaveBeenCalledTimes(1);
   expect(m.audit.mock.calls[0][2]).toMatchObject({ userId: "u1", category: "teams" });
   expect(JSON.stringify(m.audit.mock.calls[0][2])).not.toContain("안녕하세요");
+});
+it("POST /api/teams/chat/messages — 그림은 본문 그림(hostedContents), 파일은 구성원(나 빼고)에게 읽기 권한을 준 뒤 참조 첨부, 감사엔 수만", async () => {
+  const post = (body: unknown) => msgPOST(req("/api/teams/chat/messages", { method: "POST", body: JSON.stringify(body) }));
+  expect((await post({ chat: CHAT, images: [{ type: "image/svg+xml", data: "AAAA" }] })).status).toBe(400); // 그림 형식
+  expect((await post({ chat: CHAT, images: [{ type: "image/png", data: "A".repeat(4.2 * 1024 * 1024) }] })).status).toBe(400); // 합계 3MB 초과
+  expect((await post({ chat: CHAT, files: ["../x"] })).status).toBe(400);
+  expect(m.fetch).not.toHaveBeenCalled();
+  const calls: Array<[string, RequestInit]> = [];
+  m.fetch.mockImplementation(async (url: string, init: RequestInit = {}) => {
+    calls.push([url, init]);
+    if (url.includes("/me?")) return json(200, { id: "aad-1" });
+    if (url.endsWith("/members")) return json(200, { value: [{ userId: "aad-1", email: "me@innogrid.com" }, { userId: "u2", email: "kim@innogrid.com" }] });
+    if (url.endsWith("/invite")) return json(200, { value: [] });
+    if (url.includes("/me/drive/items/")) return json(200, { id: "ITEM1", name: "계획.xlsx", eTag: "\"{8F2F6A5C-1B2C-4D3E-9F00-ABCDEF012345},2\"", webDavUrl: "https://innogrid-my.sharepoint.com/personal/me/Documents/Microsoft%20Teams%20Chat%20Files/%EA%B3%84%ED%9A%8D.xlsx" });
+    return json(201, rawMsg("8"));
+  });
+  const res = await post({ chat: CHAT, text: "자료 <공유>", images: [{ type: "image/png", data: "iVBORw0KGgo=" }], files: ["ITEM1"] });
+  expect(res.status).toBe(200);
+  const invite = calls.find(([u]) => u.endsWith("/invite"))!;
+  expect(JSON.parse(invite[1].body as string)).toEqual({ recipients: [{ email: "kim@innogrid.com" }], roles: ["read"], requireSignIn: true, sendInvitation: false });
+  const sent = JSON.parse(calls.at(-1)![1].body as string);
+  expect(sent.body).toEqual({ contentType: "html", content: '<p>자료 &lt;공유&gt;</p><p><img src="../hostedContents/1/$value" alt="이미지"></p><attachment id="8f2f6a5c-1b2c-4d3e-9f00-abcdef012345"></attachment>' });
+  expect(sent.hostedContents).toEqual([{ "@microsoft.graph.temporaryId": "1", contentBytes: "iVBORw0KGgo=", contentType: "image/png" }]);
+  expect(sent.attachments).toEqual([{ id: "8f2f6a5c-1b2c-4d3e-9f00-abcdef012345", contentType: "reference", contentUrl: expect.stringContaining("Microsoft%20Teams%20Chat%20Files"), name: "계획.xlsx" }]);
+  expect(m.audit.mock.calls[0][2].detail).toEqual({ chars: 7, images: 1, files: 1 });
+});
+it("POST /api/teams/chat/messages — 권한 주기가 막혀도 보내고 warning으로 알림, eTag 없는 항목은 400(재연결 안내 아님)", async () => {
+  const post = (body: unknown) => msgPOST(req("/api/teams/chat/messages", { method: "POST", body: JSON.stringify(body) }));
+  let etag: string | undefined = "\"{8F2F6A5C-1B2C-4D3E-9F00-ABCDEF012345},2\"";
+  m.fetch.mockImplementation(async (url: string) => {
+    if (url.includes("/me?")) return json(200, { id: "aad-1" });
+    if (url.endsWith("/members")) return json(200, { value: [{ userId: "u2", email: "kim@innogrid.com" }] });
+    if (url.endsWith("/invite")) return json(403, { error: { code: "accessDenied", message: "sharing disabled" } });
+    if (url.includes("/me/drive/items/")) return json(200, { id: "ITEM1", name: "a.pdf", eTag: etag, webDavUrl: "https://x/a.pdf" });
+    return json(201, rawMsg("8"));
+  });
+  const ok = await post({ chat: CHAT, files: ["ITEM1"] });
+  expect(ok.status).toBe(200);
+  expect((await ok.json()).warning).toContain("권한을 주지 못했습니다");
+  etag = undefined;
+  const bad = await post({ chat: CHAT, files: ["ITEM1"] });
+  expect(bad.status).toBe(400);
+  expect((await bad.json()).error).toContain("첨부 파일을 확인하지 못했습니다");
+});
+it("POST /api/teams/chat/upload — 이름·크기 검사(빈 파일·250MB 초과 400), 내 OneDrive 'Microsoft Teams Chat Files'에 업로드 세션(같은 이름이면 바꿈)", async () => {
+  const post = (body: unknown) => uploadPOST(req("/api/teams/chat/upload", { method: "POST", body: JSON.stringify(body) }));
+  expect((await post({ name: "a.txt", size: 0 })).status).toBe(400);
+  expect((await post({ name: "a.txt", size: 251 * 1024 * 1024 })).status).toBe(400);
+  expect((await post({ size: 10 })).status).toBe(400);
+  m.fetch.mockResolvedValue(json(200, { uploadUrl: "https://innogrid-my.sharepoint.com/upload?x=1" }));
+  const res = await post({ name: "보고/서:1.pdf", size: 10 });
+  expect(await res.json()).toEqual({ uploadUrl: "https://innogrid-my.sharepoint.com/upload?x=1" });
+  const [url, init] = m.fetch.mock.calls[0] as unknown as [string, RequestInit];
+  expect(decodeURIComponent(url)).toBe("https://graph.microsoft.com/v1.0/me/drive/root:/Microsoft Teams Chat Files/보고_서_1.pdf:/createUploadSession");
+  expect(JSON.parse(init.body as string)).toEqual({ item: { "@microsoft.graph.conflictBehavior": "rename" } });
 });
 
 it("GET /api/teams/chat/search — 검색어 2~100자, Microsoft Search로 채팅 메시지만(채널 제외)·요약 강조 태그 제거, 403은 409", async () => {
