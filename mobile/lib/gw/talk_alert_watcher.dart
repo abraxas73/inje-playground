@@ -1,12 +1,12 @@
 import 'dart:async';
-import 'talk_alerts.dart';
+import 'talk_alerts.dart' show TimedAlert;
 
-/// 데스크탑 전용: 앱이 떠 있는 동안 주기적으로 메신저 멘션 알림을 확인해 **새 것만** OS 알림으로 보낸다(순수 로직 — 타이머·저장·알림은 주입).
+/// 데스크탑 전용: 앱이 떠 있는 동안 주기적으로 아마란스 알림을 확인해 **새 것만** OS 알림으로 보낸다(순수 로직 — 타이머·저장·알림은 주입).
 /// 처음 실행(저장된 기준 없음)에는 지난 알림을 쏟아 내지 않고 가장 최근 시각을 기준으로 삼는다. 실패는 조용히 다음 주기로.
-class TalkAlertWatcher {
+class TalkAlertWatcher<T extends TimedAlert> {
   TalkAlertWatcher({required this.fetch, required this.notify, required this.loadSeen, required this.saveSeen, this.interval = const Duration(seconds: 60)});
-  final Future<List<GwTalkAlert>> Function() fetch;
-  final Future<void> Function(GwTalkAlert alert) notify;
+  final Future<List<T>> Function() fetch;
+  final Future<void> Function(T alert) notify;
   final Future<int> Function() loadSeen;
   final Future<void> Function(int createTime) saveSeen;
   final Duration interval;
@@ -32,8 +32,8 @@ class TalkAlertWatcher {
       final list = await fetch();
       final newest = list.fold(0, (m, a) => a.createTime > m ? a.createTime : m);
       if (_seen == 0) {
-        // 첫 기준: 지금까지 것은 이미 본 것으로
-        if (newest > 0) await _mark(newest);
+        // 첫 기준: 지금까지 것은 이미 본 것으로(안 읽은 게 하나도 없으면 지금 시각 — 다음에 오는 첫 알림을 놓치지 않게)
+        await _mark(newest > 0 ? newest : DateTime.now().millisecondsSinceEpoch);
         return;
       }
       final fresh = list.where((a) => a.createTime > _seen).toList()..sort((a, b) => a.createTime.compareTo(b.createTime));

@@ -4,11 +4,20 @@ import 'gw_client.dart' show asInt, asStr;
 /// 아마란스 알림센터(/event/event02A01)의 메신저 알림(eventType TALK) — 순수 모델·파싱.
 /// 그룹웨어 알림에는 메신저 **알파멘션만** 올라오고 일반 채팅은 안 올라온다(2026-10-10 실측: 한 달 780건 중 TALK은 멘션 1건, mentionYn=N 조회 0건).
 /// 본문의 멘션 표식 `|>@empseq="3060",name="강승억"@<|`은 `@강승억`으로 바꾼다. 토큰·세션 값은 담지 않는다.
-class GwTalkAlert {
+/// 생성 시각(epoch ms)이 있는 알림 — 데스크탑 OS 알림 감시자가 새 것만 고를 때 쓴다.
+abstract interface class TimedAlert {
+  String get alertId;
+  int get createTime;
+}
+
+class GwTalkAlert implements TimedAlert {
   const GwTalkAlert({required this.alertId, required this.room, required this.sender, required this.text, required this.createTime, required this.read, this.roomId = '', this.chatId = ''});
-  final String alertId, room, sender, text, roomId, chatId;
+  @override
+  final String alertId;
+  final String room, sender, text, roomId, chatId;
 
   /// epoch ms(서버 createTime)
+  @override
   final int createTime;
   final bool read;
 

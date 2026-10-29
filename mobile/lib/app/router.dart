@@ -12,7 +12,11 @@ import '../features/ladder/history_screen.dart';
 import '../features/ladder/ladder_screen.dart';
 import '../features/team/history_screen.dart';
 import '../features/team/team_screen.dart';
+import '../gw/approval_detail_screen.dart';
 import '../gw/approvals_screen.dart';
+import '../gw/gw_gate.dart';
+import '../gw/gw_models.dart' show MailItem;
+import '../gw/mail_detail_screen.dart';
 import '../gw/attendance_screen.dart';
 import '../gw/board_screen.dart';
 import '../messenger/messenger_chat_screen.dart';
@@ -67,6 +71,12 @@ GoRouter buildRouter({
     GoRoute(path: '/gw/attendance', builder: (c, s) => const AttendanceScreen()),
     GoRoute(path: '/gw/today', builder: (c, s) => const TodayScreen()),
     GoRoute(path: '/gw/mail', builder: (c, s) => const MailScreen()),
+    // 아마란스 알림에서 바로 여는 상세(알림센터 → 결재 문서·메일 본문)
+    GoRoute(path: '/gw/approval', builder: (c, s) => GwGate(title: '결재', builder: (_, api) => ApprovalDetailScreen(api: api, docId: s.uri.queryParameters['doc'] ?? '', formId: s.uri.queryParameters['form'] ?? '', title: s.uri.queryParameters['title'] ?? ''))),
+    GoRoute(path: '/gw/mail/view', builder: (c, s) {
+      final q = s.uri.queryParameters;
+      return GwGate(title: '메일', builder: (_, api) => MailDetailScreen(api: api, item: MailItem(muid: q['muid'] ?? '', subject: q['subject'] ?? '', fromName: q['from'] ?? '', fromEmail: q['email'] ?? '', date: '', tooltip: '', seen: false, attach: false)));
+    }),
     GoRoute(path: '/gw/board', builder: (c, s) => BoardScreen(initialArt: s.uri.queryParameters['art'])),
     GoRoute(path: '/gw/messenger', builder: (c, s) => const MessengerChatScreen()),
     GoRoute(path: '/gw/room', builder: (c, s) => MessengerRoomScreen(room: MsgRoom.minimal(s.uri.queryParameters['id'] ?? '', title: s.uri.queryParameters['title'] ?? '대화'))),

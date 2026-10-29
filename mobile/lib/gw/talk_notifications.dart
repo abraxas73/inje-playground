@@ -2,25 +2,29 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'gw_alerts.dart';
 import 'gw_api.dart';
+import '../notifications/notifications.dart' show notifHiddenKindsProvider, notifKindOf;
 import 'talk_alert_watcher.dart';
-import 'talk_alerts.dart';
 import '../app/platform.dart';
 
-const _seenKey = 'talk_alert_seen';
+const _seenKey = 'gw_alert_seen'; // 알림센터 전체로 바꾸며 새 키(예전 멘션 기준 시각이면 업그레이드 직후 지난 알림이 쏟아진다)
 
 /// OS 알림(멘션·새 대화)을 탭하면 열 앱 안 경로. main.dart가 지켜보고 라우팅한다(원본 앱 대신 우리 메신저).
 final messengerNotifyTap = ValueNotifier<String?>(null);
 
-/// macOS·Windows에서만: 아마란스가 연결돼 있으면 60초마다 멘션 알림을 확인해 새 것을 OS 알림으로(누르면 메신저 열기).
+/// macOS·Windows에서만: 아마란스가 연결돼 있으면 60초마다 알림센터를 확인해 새 알림을 OS 알림으로(누르면 그 화면).
+/// 알림 필터로 숨긴 종류는 OS 알림도 띄우지 않는다.
 /// 모바일은 아마란스10 앱이 이미 푸시를 보내므로 만들지 않는다. 연결이 끊기면(gwApi null) 감시도 멈춘다.
-final talkAlertWatcherProvider = Provider<TalkAlertWatcher?>((ref) {
+final talkAlertWatcherProvider = Provider<TalkAlertWatcher<GwAlert>?>((ref) {
   if (!isDesktopPlatform) return null;
   final api = ref.watch(gwApiProvider);
   if (api == null) return null;
-  final w = TalkAlertWatcher(
-    fetch: () => api.talkAlerts(pageSize: 10),
-    notify: showTalkNotification,
+  final w = TalkAlertWatcher<GwAlert>(
+    fetch: () => api.alerts(pageSize: 20),
+    notify: (a) async {
+      if (!ref.read(notifHiddenKindsProvider).contains(notifKindOf(a.kind))) await showGwAlertNotification(a);
+    },
     loadSeen: () async => (await SharedPreferences.getInstance()).getInt(_seenKey) ?? 0,
     saveSeen: (t) async => (await SharedPreferences.getInstance()).setInt(_seenKey, t),
   );
@@ -45,18 +49,16 @@ Future<FlutterLocalNotificationsPlugin> _notifications() async {
   return plugin;
 }
 
-String _roomPath(String roomId, String title) =>
-    roomId.isEmpty ? '/gw/messenger' : '/gw/room?id=${Uri.encodeComponent(roomId)}&title=${Uri.encodeComponent(title)}';
-
-/// "[메신저] 일반미팅룸 · 김명진님이 멘션" + 본문 한 줄. 탭하면 그 대화방(roomId 있으면)으로.
-Future<void> showTalkNotification(GwTalkAlert a) async {
+/// 알림센터 한 건 → OS 알림. 탭하면 앱 안 화면(결재 문서·메일·대화방), 그런 화면이 없는 종류(일정·게시판 등)는 그룹웨어 웹.
+/// 아마란스 읽음은 앱 안에서 눌렀을 때만(OS 알림을 띄웠다고 읽음 처리하지 않는다).
+Future<void> showGwAlertNotification(GwAlert a) async {
   final plugin = await _notifications();
   await plugin.show(
     id: a.alertId.hashCode & 0x7fffffff,
-    title: '[메신저] ${a.room.isNotEmpty ? '${a.room} · ' : ''}${a.sender}님이 멘션',
-    body: a.text.length > 140 ? '${a.text.substring(0, 140)}…' : a.text,
+    title: a.title,
+    body: a.content.length > 140 ? '${a.content.substring(0, 140)}…' : a.content,
     notificationDetails: const NotificationDetails(macOS: DarwinNotificationDetails(), windows: WindowsNotificationDetails()),
-    payload: _roomPath(a.roomId, a.sender.isEmpty ? a.room : a.sender),
+    payload: a.path.isEmpty ? a.webUrl : a.path,
   );
 }
 

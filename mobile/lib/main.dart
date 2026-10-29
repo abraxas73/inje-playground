@@ -9,6 +9,7 @@ import 'assistant/assistant_window.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/router.dart';
 import 'briefing/live_background.dart';
@@ -92,6 +93,11 @@ class _AppState extends ConsumerState<App> {
     if (path == null || path.isEmpty) return;
     messengerNotifyTap.value = null;
     if (Supabase.instance.client.auth.currentUser == null) return;
+    // 앱 화면이 없는 아마란스 알림(일정·게시판 등)은 그룹웨어 웹 주소로 온다
+    if (path.startsWith('https://')) {
+      launchUrl(Uri.parse(path), mode: LaunchMode.externalApplication);
+      return;
+    }
     _router.push(path);
   }
 

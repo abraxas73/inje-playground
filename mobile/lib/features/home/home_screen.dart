@@ -19,7 +19,6 @@ import '../../gw/gw_api.dart' show gwApiProvider;
 import '../../gw/gw_models.dart' show MailItem, myEvents;
 import '../../gw/mail_detail_screen.dart';
 import '../../gw/gw_notices_card.dart';
-import '../../gw/messenger_open.dart';
 import '../../messenger/messenger_chat_screen.dart' show MessengerDashboardCard, MessengerPanel;
 import '../../more/catalog.dart';
 import '../../more/service_grid.dart';
@@ -30,6 +29,7 @@ import 'quotes.dart';
 import 'home_card_layout.dart';
 import 'home_dashboard.dart';
 import 'dashboard_view.dart';
+import '../../notifications/gw_alerts_card.dart';
 import 'dashboard_templates.dart';
 import 'pinned_widgets.dart';
 import 'dashboard_style.dart';
@@ -284,11 +284,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       } else {
         addPh('mails', '메일', gwNo ? '아마란스에 연결하면 표시됩니다' : '안 읽은 메일이 없습니다', onConnect: gwNo ? gwConnect : null, onMore: gwNo ? null : () => open('/gw/mail'), moreLabel: '메일');
       }
-      // 메신저 멘션
-      if (!gwNo && !data.errors.containsKey('talks') && (data.talks ?? const []).isNotEmpty) {
-        add('talks', '메신저 멘션', TalkMentionSection(talks: data.talks, onOpen: openMessenger), w: 6, h: 2);
+      // 아마란스 알림(알림센터 전체 — 예전 '메신저 멘션' 자리, 위젯 id는 저장된 배치 호환으로 talks 그대로)
+      if (!gwNo) {
+        add('talks', '아마란스 알림', GwAlertsCard(onOpenPath: open, fill: true), w: 6, h: 4, fill: true);
       } else {
-        addPh('talks', '메신저 멘션', gwNo ? '아마란스에 연결하면 표시됩니다' : '새 메신저 멘션이 없습니다', onConnect: gwNo ? gwConnect : null, w: 6, h: 2);
+        addPh('talks', '아마란스 알림', '아마란스에 연결하면 표시됩니다', onConnect: gwConnect, w: 6, h: 4);
       }
       // Teams 답장 대기
       final mentions = ref.watch(teamsMentionsLiveProvider) ?? data?.mentions; // 2분마다 따로 갱신된 값 우선
@@ -466,7 +466,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(top: 14), child: LinearProgressIndicator(minHeight: 2)),
             // 미연결이어도 데스크톱 대시보드처럼 카드 자리를 두고 그 안에 연결 안내(카드마다 연결 버튼)
             if (gw != null && gw.status != GwStatus.connected) ...[
-              for (final t in const ['지금 필요한 것', '오늘 일정', '팀원 부재', '미결 결재', '메일', '메신저 멘션'])
+              for (final t in const ['지금 필요한 것', '오늘 일정', '팀원 부재', '미결 결재', '메일', '아마란스 알림'])
                 Padding(
                   padding: const EdgeInsets.only(top: 14),
                   child: ConstrainedBox(constraints: const BoxConstraints(minHeight: 150), child: IntrinsicHeight(child: DashboardPlaceholder(
@@ -490,7 +490,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               ),
               if (data.errors.containsKey('approvals')) RetryLine(label: '미결 결재', onTap: _refresh) else ApprovalsSection(total: (ref.watch(approvalsLiveProvider) ?? data.approvals)?.$1 ?? 0, items: (ref.watch(approvalsLiveProvider) ?? data.approvals)?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals')),
               if (data.errors.containsKey('inbox')) RetryLine(label: '메일', onTap: _refresh) else MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail'), onOpen: openMail),
-              if (!data.errors.containsKey('talks')) TalkMentionSection(talks: data.talks, onOpen: openMessenger),
+              GwAlertsCard(onOpenPath: open),
             ],
             if (data != null) ...[
               if (data.errors.containsKey('teams')) RetryLine(label: 'Teams', onTap: _refresh) else TeamsSection(mentions: ref.watch(teamsMentionsLiveProvider) ?? data.mentions, onOpen: () => open(teamsRoute), onOpenChat: (id) => open(id.isEmpty ? teamsRoute : '/web?path=${Uri.encodeComponent('/teams/chat?chat=$id')}')),

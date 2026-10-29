@@ -5,6 +5,7 @@ import 'package:playground/briefing/briefing_provider.dart';
 import 'package:playground/gw/gw_org_absences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:playground/notifications/notifications.dart' show NotifCenter, NotifItem, notifCenterProvider;
 import 'package:playground/api/client.dart';
 import 'package:playground/auth/session.dart';
 import 'package:playground/briefing/summary_provider.dart';
@@ -40,6 +41,8 @@ Future<AppApi> pumpHome(WidgetTester tester, {required GwCreds? creds, DateTime 
     gwHttpClientProvider.overrideWithValue(gwRoutes(gwAll)),
     // 메신저 카드가 실기기 보안저장소를 건드리지 않게: 자격증명 없음으로 빠르게 안내 상태
     messengerClientProvider.overrideWithValue(MessengerClient(httpClient: gwRoutes(gwAll), loadCreds: () async => null)),
+    // 아마란스 알림 카드가 알림센터 수집(Teams 멘션 호출 포함)을 따로 돌리지 않게 — 알림센터는 notifications_test가 본다
+    notifCenterProvider.overrideWith(_NoNotifs.new),
   ], child: MaterialApp(home: HomeScreen(now: DateTime(2026, 10, 5, 8, 40), autoRefreshEvery: autoRefresh))));
   await tester.pumpAndSettle();
   return app;
@@ -177,19 +180,19 @@ void main() {
       return const GwOrgAbsences(scopeName:'회사 전체',isCenter:false,members:[GwOrgMemberStatus('other','다른팀원','외근')]);
     });
     expect(calls, 0);
-    await tester.ensureVisible(find.byType(FilterChip));
+    await tester.ensureVisible(find.widgetWithText(FilterChip, '전체'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(FilterChip)); await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilterChip, '전체')); await tester.pumpAndSettle();
     expect(calls, 1);
     expect(find.text('회사 전체 부재'), findsOneWidget);
     expect(find.text('다른팀원 · 외근'), findsOneWidget);
-    expect(tester.widget<FilterChip>(find.byType(FilterChip)).selected, true);
-    await tester.tap(find.byType(FilterChip)); await tester.pumpAndSettle();
+    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, '전체')).selected, true);
+    await tester.tap(find.widgetWithText(FilterChip, '전체')); await tester.pumpAndSettle();
     expect(find.text('팀원 부재'), findsOneWidget);
     expect(find.text('다른팀원 · 외근'), findsNothing);
-    expect(tester.widget<FilterChip>(find.byType(FilterChip)).selected, false);
+    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, '전체')).selected, false);
     expect(app.calls['/api/mobile/briefing'], 1, reason:'전체 목록 전환은 소속 기준 브리핑을 바꾸지 않는다');
-    await tester.tap(find.byType(FilterChip)); await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilterChip, '전체')); await tester.pumpAndSettle();
     expect(calls, 2, reason:'다시 켜면 최신 상태를 조회한다');
   });
 
@@ -201,14 +204,14 @@ void main() {
       if (++calls == 1) throw StateError('offline');
       return const GwOrgAbsences(scopeName:'회사 전체',isCenter:false,members:[]);
     });
-    await tester.ensureVisible(find.byType(FilterChip));
+    await tester.ensureVisible(find.widgetWithText(FilterChip, '전체'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(FilterChip)); await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilterChip, '전체')); await tester.pumpAndSettle();
     expect(find.text('조직도 상태를 불러오지 못했습니다 · 다시 시도'), findsOneWidget);
     await tester.tap(find.text('조직도 상태를 불러오지 못했습니다 · 다시 시도')); await tester.pumpAndSettle();
     expect(calls, 2);
     expect(find.text('현재 부재자가 없습니다.'), findsOneWidget);
-    await tester.tap(find.byType(FilterChip)); await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilterChip, '전체')); await tester.pumpAndSettle();
     expect(find.text('팀원 부재'), findsOneWidget);
   });
 
@@ -267,7 +270,7 @@ void main() {
   });
   testWidgets('아마란스 미연결: 카드 자리마다 연결 안내 + Teams 섹션, Claude는 부르지 않고 격언을 유지한다', (tester) async {
     final app = await pumpHome(tester, creds: null);
-    for (final t in ['지금 필요한 것', '오늘 일정', '팀원 부재', '미결 결재', '메일', '메신저 멘션']) {
+    for (final t in ['지금 필요한 것', '오늘 일정', '팀원 부재', '미결 결재', '메일', '아마란스 알림']) {
       expect(find.text(t), findsOneWidget, reason: '$t 자리');
     }
     expect(find.text('아마란스에 연결하면 표시됩니다'), findsNWidgets(6));
@@ -280,3 +283,8 @@ void main() {
   });
 }
 
+
+class _NoNotifs extends NotifCenter {
+  @override
+  Future<List<NotifItem>> build() async => const [];
+}

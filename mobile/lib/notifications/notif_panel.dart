@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
 import 'notifications.dart';
@@ -11,9 +12,9 @@ class NotificationPanel extends ConsumerWidget {
   final double maxHeight;
 
   void _go(WidgetRef ref, NotifItem n) {
-    ref.read(notifSeenProvider.notifier).mark([n.key]); // 읽음 처리(배지·목록에서 빠짐)
+    markNotifsRead(ref, [n]); // 읽음 처리(배지·목록에서 빠짐, 아마란스 알림은 서버에도)
     notifOpen.value = false;
-    onOpenPath(n.path);
+    openNotif(n, onOpenPath);
   }
 
   @override
@@ -41,10 +42,11 @@ class NotificationPanel extends ConsumerWidget {
                 Text('알림', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Brand.navy)),
                 const Spacer(),
                 if (visible.isNotEmpty)
-                  TextButton(onPressed: () => ref.read(notifSeenProvider.notifier).mark(visible.map((n) => n.key)), child: const Text('모두 읽음', style: TextStyle(fontSize: 12))),
+                  TextButton(onPressed: () => markNotifsRead(ref, visible, all: true), child: const Text('모두 읽음', style: TextStyle(fontSize: 12))),
                 IconButton(icon: const Icon(Icons.refresh, size: 18), tooltip: '새로고침', onPressed: () => ref.read(notifCenterProvider.notifier).refresh()),
               ]),
             ),
+            const NotifFilterChips(),
             ...body,
             const Divider(height: 1),
             // 인사·부고는 앱 데이터 소스가 없어 링크로(웹 화면 열기)
@@ -72,6 +74,38 @@ class NotificationPanel extends ConsumerWidget {
         trailing: n.at == null ? null : Text(_hm(n.at!), style: TextStyle(fontSize: 11, color: Brand.faint)),
         onTap: () => _go(ref, n),
       );
+}
+
+/// 알림 열기 — 앱 안 경로가 있으면 그 화면, 없으면(일정·게시판 등) 그룹웨어 웹을 브라우저로.
+void openNotif(NotifItem n, void Function(String path) onOpenPath) {
+  if (n.path.isNotEmpty) {
+    onOpenPath(n.path);
+  } else if (n.webUrl.isNotEmpty) {
+    launchUrl(Uri.parse(n.webUrl), mode: LaunchMode.externalApplication);
+  }
+}
+
+/// 종류 필터(누르면 그 종류 숨김/보임, 기기에 기억). 패널·홈 위젯 공용.
+class NotifFilterChips extends ConsumerWidget {
+  const NotifFilterChips({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = ref.watch(notifHiddenKindsProvider);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      child: Wrap(spacing: 6, runSpacing: 4, children: [
+        for (final e in notifFilterKinds.entries)
+          FilterChip(
+            label: Text(e.value, style: const TextStyle(fontSize: 11)),
+            selected: !hidden.contains(e.key),
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            showCheckmark: false,
+            onSelected: (_) => ref.read(notifHiddenKindsProvider.notifier).toggle(e.key),
+          ),
+      ]),
+    );
+  }
 }
 
 String _hm(DateTime t) {
