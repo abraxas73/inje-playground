@@ -1,4 +1,4 @@
-// 데스크톱(macOS·Windows) 이노봇 창 — 앱 위에 떠 있는 창. 머리글을 끌어 원하는 곳에 두고, 오른쪽 아래 모서리를 끌어 크기를 바꾼다(위치·크기는 기기에 기억). 뒤 화면도 그대로 쓴다.
+// 데스크톱(macOS·Windows) 이노봇 창 — 앱 위에 떠 있는 창. 머리글을 끌어 원하는 곳에 두고, 네 변·네 모서리를 끌어 크기를 바꾼다(위치·크기는 기기에 기억). 뒤 화면도 그대로 쓴다.
 // 라우터 내비게이터 위 전용 Overlay(main.dart assistantWindowOverlay)에 띄워 화면을 이동해도 가려지지 않는다.
 // 창 안의 대화 기록 등 팝업은 창 안 Navigator에서 열린다.
 import '../app/copy_selection_area.dart';
@@ -59,6 +59,17 @@ Offset clampWindow(Offset? want, Size screen, Size window) {
 Size clampWindowSize(Size? want, Size screen) {
   final w = want ?? assistantWindowSize, maxW = screen.width - _margin * 2, maxH = screen.height - _margin * 2;
   return Size(math.min(math.max(w.width, assistantWindowMinSize.width), maxW), math.min(math.max(w.height, assistantWindowMinSize.height), maxH));
+}
+
+/// 변·모서리 끌기 한 번 — [r]의 끌린 변(left/top/right/bottom)만 [d]만큼 옮긴다. 최소 크기에서 멈추고 화면 여백 밖으로는 안 나간다.
+Rect resizeWindow(Rect r, Offset d, Size screen, {bool left = false, bool top = false, bool right = false, bool bottom = false}) {
+  final min = assistantWindowMinSize;
+  var l = r.left, t = r.top, rr = r.right, b = r.bottom;
+  if (left) l = (l + d.dx).clamp(_margin, math.max(_margin, rr - min.width));
+  if (right) rr = (rr + d.dx).clamp(math.min(l + min.width, screen.width - _margin), screen.width - _margin);
+  if (top) t = (t + d.dy).clamp(_margin, math.max(_margin, b - min.height));
+  if (bottom) b = (b + d.dy).clamp(math.min(t + min.height, screen.height - _margin), screen.height - _margin);
+  return Rect.fromLTRB(l, t, rr, b);
 }
 
 class AssistantWindow extends StatefulWidget {
@@ -147,24 +158,44 @@ class _AssistantWindowState extends State<AssistantWindow> {
               ]),
             ),
           ),
-          // 오른쪽 아래 모서리를 끌어 크기 조절 — 왼쪽 위는 그대로, 화면 오른쪽·아래 끝까지만
-          Positioned(
-            left: pos.dx + size.width - 18, top: pos.dy + size.height - 18, width: 18, height: 18,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.resizeUpLeftDownRight,
-              child: GestureDetector(
-                key: const ValueKey('innobot-window-resize'),
-                behavior: HitTestBehavior.opaque,
-                onPanStart: (_) => setState(() { _pos = pos; _size = size; }),
-                onPanUpdate: (d) => setState(() {
-                  final want = (_size ?? size) + d.delta;
-                  _size = clampWindowSize(Size(math.min(want.width, screen.width - _margin - pos.dx), math.min(want.height, screen.height - _margin - pos.dy)), screen);
-                }),
-                onPanEnd: (_) => _save(),
-                child: Align(alignment: Alignment.bottomRight, child: Icon(Icons.south_east, size: 12, color: Brand.muted)),
-              ),
-            ),
-          ),
+          // 네 변(6px)·네 모서리(16px)를 끌어 크기 조절 — 끌린 변만 움직이고 반대편은 그대로
+          for (final (key, l, t, r, b, cursor) in const [
+            ('top', false, true, false, false, SystemMouseCursors.resizeUpDown),
+            ('bottom', false, false, false, true, SystemMouseCursors.resizeUpDown),
+            ('left', true, false, false, false, SystemMouseCursors.resizeLeftRight),
+            ('right', false, false, true, false, SystemMouseCursors.resizeLeftRight),
+            ('top-left', true, true, false, false, SystemMouseCursors.resizeUpLeftDownRight),
+            ('bottom-right', false, false, true, true, SystemMouseCursors.resizeUpLeftDownRight),
+            ('top-right', false, true, true, false, SystemMouseCursors.resizeUpRightDownLeft),
+            ('bottom-left', true, false, false, true, SystemMouseCursors.resizeUpRightDownLeft),
+          ])
+            _handle(Rect.fromLTWH(pos.dx, pos.dy, size.width, size.height), screen, key, l, t, r, b, cursor),
         ]);
       });
+
+  Widget _handle(Rect win, Size screen, String key, bool l, bool t, bool r, bool b, MouseCursor cursor) {
+    const edge = 6.0, corner = 16.0;
+    final isCorner = (l || r) && (t || b);
+    final w = isCorner ? corner : (l || r ? edge : win.width - corner * 2), h = isCorner ? corner : (t || b ? edge : win.height - corner * 2);
+    final x = l ? win.left - (isCorner ? 0 : edge / 2) : r ? win.right - (isCorner ? corner : edge / 2) : win.left + corner;
+    final y = t ? win.top - (isCorner ? 0 : edge / 2) : b ? win.bottom - (isCorner ? corner : edge / 2) : win.top + corner;
+    return Positioned(
+      left: x, top: y, width: w, height: h,
+      child: MouseRegion(
+        cursor: cursor,
+        child: GestureDetector(
+          key: ValueKey(key == 'bottom-right' ? 'innobot-window-resize' : 'innobot-window-resize-$key'),
+          behavior: HitTestBehavior.opaque,
+          onPanStart: (_) => setState(() { _pos = win.topLeft; _size = win.size; }),
+          onPanUpdate: (d) => setState(() {
+            final next = resizeWindow(Rect.fromLTWH(_pos!.dx, _pos!.dy, _size!.width, _size!.height), d.delta, screen, left: l, top: t, right: r, bottom: b);
+            _pos = next.topLeft;
+            _size = next.size;
+          }),
+          onPanEnd: (_) => _save(),
+          child: key == 'bottom-right' ? Align(alignment: Alignment.bottomRight, child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.south_east, size: 14, color: Brand.muted))) : null,
+        ),
+      ),
+    );
+  }
 }
