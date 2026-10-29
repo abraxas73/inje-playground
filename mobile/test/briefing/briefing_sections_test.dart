@@ -43,6 +43,26 @@ void main() {
     await tester.pumpWidget(wrap(FocusSection(items: const [], onOpen: (_) {})));
     expect(find.text('지금 당장 처리할 것은 없습니다'), findsOneWidget);
   });
+  testWidgets('결재·메일·Teams 답장 대기 — 모바일은 3개, 데스크톱 대시보드(maxShown: null)는 전부', (tester) async {
+    final now = DateTime(2026, 10, 5);
+    final ap = [for (var i = 0; i < 5; i++) PendingApproval(docId: 'd$i', formId: 'f', title: '문서 $i', form: 'f', drafter: '이서연', dept: '', arrivedDt: '20261002', status: '', unread: false, fileCount: 0)];
+    final ml = [for (var i = 0; i < 5; i++) MailItem(muid: '$i', subject: '편지 $i', fromName: '박지훈', fromEmail: '', date: '', tooltip: '', seen: false, attach: false)];
+    final tm = TeamsMentions(connected: true, items: [for (var i = 0; i < 5; i++) TeamsMention(chatId: 'c$i', topic: '센터', from: '김민준', text: '말씀 $i', at: '2026-10-05T00:00:00Z')]);
+    Widget all(int? max) => Column(children: [
+      ApprovalsSection(total: 5, items: ap, now: now, onMore: () {}, maxShown: max),
+      MailsSection(items: ml, unreadTotal: 5, onMore: () {}, maxShown: max),
+      TeamsSection(mentions: tm, onOpen: () {}, onOpenChat: (_) {}, maxShown: max),
+    ]);
+    await tester.pumpWidget(wrap(all(3)));
+    for (final w in ['문서 ', '편지 ', '말씀 ']) {
+      expect(find.textContaining(w), findsNWidgets(3), reason: w);
+    }
+    await tester.pumpWidget(wrap(all(null)));
+    for (final w in ['문서 ', '편지 ', '말씀 ']) {
+      expect(find.textContaining(w), findsNWidgets(5), reason: w);
+    }
+  });
+
   testWidgets('MeetingsSection — 최대 6 + n개 더 + 내일 N건; 비면 안 그린다', (tester) async {
     final ev = [for (var i = 0; i < 8; i++) GwEvent(schSeq: '$i', title: '회의 $i', start: '2026100510${i}0', end: '202610051800', allDay: false, calendar: '', mcalSeq: '1', mine: true, createName: '', place: '')];
     await tester.pumpWidget(wrap(MeetingsSection(meetings: ev, tomorrowCount: 3, onMore: () {})));
