@@ -49,6 +49,11 @@ void main() {
     expect(find.textContaining('회의 '), findsNWidgets(6));
     expect(find.text('2개 더'), findsOneWidget);
     expect(find.text('내일 3건'), findsOneWidget);
+    // 데스크톱 대시보드(maxShown: null)는 전부 — 칸을 채우고 넘치면 타일 안 스크롤, 'n개 더' 없음
+    await tester.pumpWidget(wrap(MeetingsSection(meetings: ev, tomorrowCount: 3, onMore: () {}, maxShown: null)));
+    expect(find.textContaining('회의 '), findsNWidgets(8));
+    expect(find.textContaining('개 더'), findsNothing);
+    expect(find.text('내일 3건'), findsOneWidget);
     await tester.pumpWidget(wrap(MeetingsSection(meetings: const [], tomorrowCount: 0, onMore: () {})));
     expect(find.text('오늘 일정'), findsNothing);
   });

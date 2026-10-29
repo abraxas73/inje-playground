@@ -156,14 +156,16 @@ class FocusSection extends StatelessWidget {
 }
 
 class MeetingsSection extends StatelessWidget {
-  const MeetingsSection({super.key, required this.meetings, required this.tomorrowCount, required this.onMore});
+  const MeetingsSection({super.key, required this.meetings, required this.tomorrowCount, required this.onMore, this.maxShown = 6});
   final List<GwEvent> meetings;
   final int tomorrowCount;
   final VoidCallback onMore;
+  /// 보일 개수 상한(모바일 홈 6). null이면 전부 — 데스크톱 대시보드 타일은 칸을 채우고 넘치면 타일 안에서 스크롤한다
+  final int? maxShown;
   @override
   Widget build(BuildContext context) {
     if (meetings.isEmpty && tomorrowCount == 0) return const SizedBox.shrink();
-    final shown = meetings.take(6).toList();
+    final shown = maxShown == null ? meetings : meetings.take(maxShown!).toList();
     final rest = meetings.length - shown.length;
     return _Section(
       title: '오늘 일정',

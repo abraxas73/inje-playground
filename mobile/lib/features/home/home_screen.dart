@@ -252,7 +252,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       }
       // 일정
       if (!gwNo && !data.errors.containsKey('today') && (myMeetings(data).isNotEmpty || myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).isNotEmpty)) {
-        add('meetings', '일정', MeetingsSection(meetings: myMeetings(data), tomorrowCount: myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).length, onMore: () => open('/gw/today')), w: 6, h: 3);
+        add('meetings', '일정', MeetingsSection(meetings: myMeetings(data), tomorrowCount: myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).length, onMore: () => open('/gw/today'), maxShown: null), w: 6, h: 3);
       } else {
         addPh('meetings', '일정', gwNo ? '아마란스에 연결하면 표시됩니다' : '오늘·내일 일정이 없습니다', onConnect: gwNo ? gwConnect : null);
       }
