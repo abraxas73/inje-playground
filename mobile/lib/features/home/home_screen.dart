@@ -234,13 +234,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
 
       // Confluence
       if (data != null && !data.errors.containsKey('confluence') && canConfluence && (data.confluence?.items.isNotEmpty ?? false)) {
-        add('confluence', 'Confluence', ConfluenceSection(data: data.confluence, onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication), onMore: () => open('/web?path=${Uri.encodeComponent('/confluence')}')), w: 6, h: 3);
+        add('confluence', 'Confluence', ConfluenceSection(data: data.confluence, onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication), onMore: () => open('/web?path=${Uri.encodeComponent('/confluence')}'), maxShown: null), w: 6, h: 3);
       } else {
         addPh('confluence', 'Confluence', !canConfluence ? '접근 권한이 없습니다' : gwNo ? 'Confluence 연결이 필요합니다' : '최근 Confluence 활동이 없습니다', onConnect: !canConfluence ? null : settingsConnect, label: '연결 설정');
       }
       // SharePoint
       if (data != null && !data.errors.containsKey('sharepoint') && canSharepoint && (data.sharepoint?.items.isNotEmpty ?? false)) {
-        add('sharepoint', 'SharePoint', SharepointSection(data: data.sharepoint, onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication), onMore: () => open('/web?path=${Uri.encodeComponent('/sharepoint')}')), w: 6, h: 3);
+        add('sharepoint', 'SharePoint', SharepointSection(data: data.sharepoint, onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication), onMore: () => open('/web?path=${Uri.encodeComponent('/sharepoint')}'), maxShown: null), w: 6, h: 3);
       } else {
         addPh('sharepoint', 'SharePoint', !canSharepoint ? '접근 권한이 없습니다' : gwNo ? 'SharePoint 연결이 필요합니다' : '최근 SharePoint 문서가 없습니다', onConnect: !canSharepoint ? null : settingsConnect, label: '연결 설정');
       }
@@ -252,7 +252,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       }
       // 일정
       if (!gwNo && !data.errors.containsKey('today') && (myMeetings(data).isNotEmpty || myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).isNotEmpty)) {
-        add('meetings', '일정', MeetingsSection(meetings: myMeetings(data), tomorrowCount: myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).length, onMore: () => open('/gw/today')), w: 6, h: 3);
+        add('meetings', '일정', MeetingsSection(meetings: myMeetings(data), tomorrowCount: myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).length, onMore: () => open('/gw/today'), maxShown: null), w: 6, h: 3);
       } else {
         addPh('meetings', '일정', gwNo ? '아마란스에 연결하면 표시됩니다' : '오늘·내일 일정이 없습니다', onConnect: gwNo ? gwConnect : null);
       }
@@ -273,14 +273,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       // 미결 결재
       final approvals = ref.watch(approvalsLiveProvider) ?? data?.approvals; // 2분마다 따로 갱신된 값 우선
       if (!gwNo && !data.errors.containsKey('approvals') && (approvals?.$2 ?? const []).isNotEmpty) {
-        add('approvals', '미결 결재', ApprovalsSection(total: approvals?.$1 ?? 0, items: approvals?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals')), w: 6, h: 3);
+        add('approvals', '미결 결재', ApprovalsSection(total: approvals?.$1 ?? 0, items: approvals?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals'), maxShown: null), w: 6, h: 3);
       } else {
         addPh('approvals', '미결 결재', gwNo ? '아마란스에 연결하면 표시됩니다' : '미결 결재가 없습니다', onConnect: gwNo ? gwConnect : null);
       }
       // 메일
       final unreadMail = (data?.inbox?.$2 ?? const []).where((m) => !m.seen).toList();
       if (!gwNo && !data.errors.containsKey('inbox') && unreadMail.isNotEmpty) {
-        add('mails', '메일', MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail'), onOpen: openMail), w: 6, h: 3);
+        add('mails', '메일', MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail'), onOpen: openMail, maxShown: null), w: 6, h: 3);
       } else {
         addPh('mails', '메일', gwNo ? '아마란스에 연결하면 표시됩니다' : '안 읽은 메일이 없습니다', onConnect: gwNo ? gwConnect : null, onMore: gwNo ? null : () => open('/gw/mail'), moreLabel: '메일');
       }
@@ -294,7 +294,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       final mentions = ref.watch(teamsMentionsLiveProvider) ?? data?.mentions; // 2분마다 따로 갱신된 값 우선
       final tmConnected = mentions?.connected == true;
       if (!gwNo && !data.errors.containsKey('teams') && tmConnected && (mentions?.items.isNotEmpty ?? false)) {
-        add('teams', 'Teams 답장 대기', TeamsSection(mentions: mentions, onOpen: () => open(teamsRoute), onOpenChat: (id) => open(id.isEmpty ? teamsRoute : '/web?path=${Uri.encodeComponent('/teams/chat?chat=$id')}')), w: 6, h: 3);
+        add('teams', 'Teams 답장 대기', TeamsSection(mentions: mentions, onOpen: () => open(teamsRoute), onOpenChat: (id) => open(id.isEmpty ? teamsRoute : '/web?path=${Uri.encodeComponent('/teams/chat?chat=$id')}'), maxShown: null), w: 6, h: 3);
       } else {
         addPh('teams', 'Teams 답장 대기', !tmConnected ? 'Teams 연결이 필요합니다' : '답장 대기가 없습니다', onConnect: !tmConnected ? settingsConnect : null, label: '연결 설정');
       }
@@ -307,7 +307,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       } else {
         addPh('teams_chat', 'Teams 채팅', '접근 권한이 없습니다', w: 6, h: 7);
       }
-      add('notices', '공지', const GwNoticesCard(), w: 6, h: 3);
+      add('notices', '공지', const GwNoticesCard(pageSize: 10), w: 6, h: 3);
       add('quick', '바로 가기', ServiceCardGrid(children: [
         if (session != null && canUsePage(session, teamsChatEntry)) _quick(context, Icons.forum_outlined, 'Teams 채팅', '내가 속한 채팅 읽기·보내기', () => context.push(teamsRoute), Brand.tints[3]),
         _quick(context, Icons.restaurant, '뭐 먹지', '주변 식당·카페', () => context.go('/food'), Brand.tints[2]),

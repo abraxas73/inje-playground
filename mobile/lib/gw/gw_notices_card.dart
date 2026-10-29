@@ -10,7 +10,9 @@ import 'gw_models.dart';
 
 /// 홈 공지사항 카드 — 아마란스 전 게시판 공지·새 글 최신 3건. 연결돼 있을 때만 그린다.
 class GwNoticesCard extends ConsumerStatefulWidget {
-  const GwNoticesCard({super.key});
+  const GwNoticesCard({super.key, this.pageSize = 3});
+  /// 가져와 보일 개수 — 모바일 홈 3, 데스크톱 대시보드 10(칸이 넘치면 타일 안 스크롤)
+  final int pageSize;
   @override
   ConsumerState<GwNoticesCard> createState() => _GwNoticesCardState();
 }
@@ -23,7 +25,7 @@ class _GwNoticesCardState extends ConsumerState<GwNoticesCard> {
   Future<void> _load(GwApi api) async {
     _loadedWith = api;
     try {
-      final (_, list) = await api.notices(pageSize: 3);
+      final (_, list) = await api.notices(pageSize: widget.pageSize);
       if (mounted) setState(() { _items = list; _error = null; });
     } catch (e) {
       if (mounted) setState(() => _error = '$e');

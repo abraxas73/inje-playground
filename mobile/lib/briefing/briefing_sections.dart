@@ -117,6 +117,9 @@ class _Section extends StatelessWidget {
       );
 }
 
+/// 상한이 있으면 앞에서 그만큼, null이면 전부
+Iterable<T> _cap<T>(Iterable<T> list, int? max) => max == null ? list : list.take(max);
+
 Widget _more(String label, VoidCallback onTap) => TextButton(onPressed: onTap, child: Text(label));
 
 /// 소스 실패 한 줄 — 누르면 전체 재수집.
@@ -156,14 +159,16 @@ class FocusSection extends StatelessWidget {
 }
 
 class MeetingsSection extends StatelessWidget {
-  const MeetingsSection({super.key, required this.meetings, required this.tomorrowCount, required this.onMore});
+  const MeetingsSection({super.key, required this.meetings, required this.tomorrowCount, required this.onMore, this.maxShown = 6});
   final List<GwEvent> meetings;
   final int tomorrowCount;
   final VoidCallback onMore;
+  /// 보일 개수 상한(모바일 홈 6). null이면 전부 — 데스크톱 대시보드 타일은 칸을 채우고 넘치면 타일 안에서 스크롤한다
+  final int? maxShown;
   @override
   Widget build(BuildContext context) {
     if (meetings.isEmpty && tomorrowCount == 0) return const SizedBox.shrink();
-    final shown = meetings.take(6).toList();
+    final shown = maxShown == null ? meetings : meetings.take(maxShown!).toList();
     final rest = meetings.length - shown.length;
     return _Section(
       title: '오늘 일정',
@@ -208,7 +213,9 @@ class AbsenceSection extends StatelessWidget {
 }
 
 class ApprovalsSection extends StatelessWidget {
-  const ApprovalsSection({super.key, required this.total, required this.items, required this.now, required this.onMore});
+  const ApprovalsSection({super.key, required this.total, required this.items, required this.now, required this.onMore, this.maxShown = 3});
+  /// 보일 개수 상한(모바일 홈 3). null이면 전부 — 데스크톱 대시보드 타일은 칸을 채우고 넘치면 타일 안에서 스크롤한다
+  final int? maxShown;
   final int total;
   final List<PendingApproval> items;
   final DateTime now;
@@ -220,14 +227,16 @@ class ApprovalsSection extends StatelessWidget {
           title: '미결 결재 $total',
           trailing: _more('더 보기', onMore),
           child: Column(children: [
-            for (final a in items.take(3))
+            for (final a in _cap(items, maxShown))
               ListTile(dense: true, leading: InitialBadge(a.drafter, size: 32, circle: true), title: Text(a.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: a.unread ? FontWeight.w700 : FontWeight.w500)), subtitle: Text('${a.drafter} · ${a.form}', style: const TextStyle(fontSize: 12)), trailing: Text(a.waitingDays(now) == null ? '' : '${a.waitingDays(now)}일째', style: TextStyle(fontSize: 12, color: Brand.muted))),
           ]),
         );
 }
 
 class MailsSection extends StatelessWidget {
-  const MailsSection({super.key, required this.items, required this.unreadTotal, required this.onMore, this.onOpen});
+  const MailsSection({super.key, required this.items, required this.unreadTotal, required this.onMore, this.onOpen, this.maxShown = 3});
+  /// 보일 개수 상한(모바일 홈 3). null이면 전부 — 데스크톱 대시보드 타일은 칸을 채우고 넘치면 타일 안에서 스크롤한다
+  final int? maxShown;
   final List<MailItem> items;
   final int unreadTotal;
   final VoidCallback onMore;
@@ -235,7 +244,7 @@ class MailsSection extends StatelessWidget {
   final ValueChanged<MailItem>? onOpen;
   @override
   Widget build(BuildContext context) {
-    final unread = items.where((m) => !m.seen).take(3).toList();
+    final unread = _cap(items.where((m) => !m.seen), maxShown).toList();
     if (unread.isEmpty) return const SizedBox.shrink();
     return _Section(
       title: '안 읽은 메일 $unreadTotal',
@@ -248,7 +257,9 @@ class MailsSection extends StatelessWidget {
 }
 
 class TeamsSection extends StatelessWidget {
-  const TeamsSection({super.key, required this.mentions, required this.onOpen, required this.onOpenChat});
+  const TeamsSection({super.key, required this.mentions, required this.onOpen, required this.onOpenChat, this.maxShown = 3});
+  /// 보일 개수 상한(모바일 홈 3). null이면 전부 — 데스크톱 대시보드 타일은 칸을 채우고 넘치면 타일 안에서 스크롤한다
+  final int? maxShown;
   final TeamsMentions? mentions;
   final VoidCallback onOpen; // 머리글 'Teams 열기' — 채팅 목록
   final void Function(String chatId) onOpenChat; // 행 클릭 — 그 사람의 채팅으로
@@ -260,7 +271,7 @@ class TeamsSection extends StatelessWidget {
       title: 'Teams 답장 대기 ${m.items.length}',
       trailing: _more('Teams 열기', onOpen),
       child: Column(children: [
-        for (final x in m.items.take(3)) ListTile(dense: true, leading: InitialBadge(x.from, size: 32, circle: true), title: Text(x.text, maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('${x.topic} · ${x.from}', style: const TextStyle(fontSize: 12)), onTap: () => onOpenChat(x.chatId)),
+        for (final x in _cap(m.items, maxShown)) ListTile(dense: true, leading: InitialBadge(x.from, size: 32, circle: true), title: Text(x.text, maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('${x.topic} · ${x.from}', style: const TextStyle(fontSize: 12)), onTap: () => onOpenChat(x.chatId)),
       ]),
     );
   }
@@ -309,9 +320,11 @@ class JiraSection extends StatelessWidget {
   }
 }
 
-/// Confluence에서 나를 멘션한 문서(최대 3) — 누르면 원문, '더 보기'는 웹 내 Confluence.
+/// Confluence에서 나를 멘션한 문서(모바일 최대 3, 데스크톱 대시보드는 전부) — 누르면 원문, '더 보기'는 웹 내 Confluence.
 class ConfluenceSection extends StatelessWidget {
-  const ConfluenceSection({super.key, required this.data, required this.onOpenUrl, required this.onMore});
+  const ConfluenceSection({super.key, required this.data, required this.onOpenUrl, required this.onMore, this.maxShown = 3});
+  /// 보일 개수 상한(모바일 홈 3). null이면 전부 — 데스크톱 대시보드 타일은 칸을 채우고 넘치면 타일 안에서 스크롤한다
+  final int? maxShown;
   final ConfluenceBriefing? data;
   final ValueChanged<String> onOpenUrl;
   final VoidCallback onMore;
@@ -323,7 +336,7 @@ class ConfluenceSection extends StatelessWidget {
       title: 'Confluence 멘션 ${d.items.length}',
       trailing: _more('더 보기', onMore),
       child: Column(children: [
-        for (final x in d.items.take(3))
+        for (final x in _cap(d.items, maxShown))
           ListTile(
             dense: true,
             leading: Icon(Icons.alternate_email, color: Brand.muted),
@@ -343,9 +356,11 @@ const _spIcons = <String, IconData>{
   'pdf': Icons.picture_as_pdf_outlined,
 };
 
-/// 홈 — 자주 쓰는 SharePoint 문서(최대 3, 누르면 SharePoint에서 연다). 미연결·없음이면 숨긴다.
+/// 홈 — 자주 쓰는 SharePoint 문서(모바일 최대 3·데스크톱 대시보드는 전부, 누르면 SharePoint에서 연다). 미연결·없음이면 숨긴다.
 class SharepointSection extends StatelessWidget {
-  const SharepointSection({super.key, required this.data, required this.onOpenUrl, required this.onMore});
+  const SharepointSection({super.key, required this.data, required this.onOpenUrl, required this.onMore, this.maxShown = 3});
+  /// 보일 개수 상한(모바일 홈 3). null이면 전부 — 데스크톱 대시보드 타일은 칸을 채우고 넘치면 타일 안에서 스크롤한다
+  final int? maxShown;
   final SharepointBriefing? data;
   final ValueChanged<String> onOpenUrl;
   final VoidCallback onMore;
@@ -357,7 +372,7 @@ class SharepointSection extends StatelessWidget {
       title: d.source == 'recent' ? '최근 연 SharePoint 문서' : '자주 쓰는 SharePoint 문서',
       trailing: _more('더 보기', onMore),
       child: Column(children: [
-        for (final x in d.items.take(3))
+        for (final x in _cap(d.items, maxShown))
           ListTile(
             dense: true,
             leading: Icon(_spIcons[x.ext] ?? Icons.insert_drive_file_outlined, color: Brand.muted),
