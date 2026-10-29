@@ -292,14 +292,15 @@ class _DashboardViewState extends State<DashboardView> {
 }
 
 /// 편집 모드에서 화면에 떠 있는 위젯 툴바 — 배치 안 된(삭제했거나 아직 안 넣은) 위젯을 칩으로 보여 주고 누르면 추가,
-/// 자동 배열·편집 완료. 머리줄을 끌면 툴바 위치를 옮긴다(onDrag).
+/// 템플릿(고르기·공유)·자동 배열·편집 완료. 머리줄을 끌면 툴바 위치를 옮긴다(onDrag).
 class DashboardPalette extends StatelessWidget {
-  const DashboardPalette({super.key, required this.widgets, required this.layout, required this.onAdd, required this.onDone, this.onArrange, this.onDrag});
+  const DashboardPalette({super.key, required this.widgets, required this.layout, required this.onAdd, required this.onDone, this.onArrange, this.onTemplates, this.onDrag});
   final Map<String, DashboardWidgetDef> widgets;
   final List<DashboardTile> layout;
   final void Function(String id) onAdd;
   final VoidCallback onDone;
   final VoidCallback? onArrange;
+  final VoidCallback? onTemplates;
   final void Function(Offset delta)? onDrag;
 
   @override
@@ -326,6 +327,7 @@ class DashboardPalette extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(hidden.isEmpty ? '모두 배치됨' : '${hidden.length}개', style: TextStyle(fontSize: 12, color: Brand.faint)),
                 const Spacer(),
+                if (onTemplates != null) TextButton.icon(onPressed: onTemplates, icon: const Icon(Icons.style_outlined, size: 18), label: const Text('템플릿')),
                 if (onArrange != null) TextButton.icon(onPressed: onArrange, icon: const Icon(Icons.auto_awesome_mosaic_outlined, size: 18), label: const Text('자동 배열')),
                 TextButton.icon(onPressed: onDone, icon: const Icon(Icons.check, size: 18), label: const Text('편집 완료')),
               ]),

@@ -125,3 +125,29 @@ class HomeDashboard extends AsyncNotifier<List<DashboardTile>> {
     }
   }
 }
+
+/// 공유 템플릿(`/api/users/home-dashboard/templates`) — 기본 템플릿 하나 + 사용자들이 공유한 배치.
+class DashboardTemplate {
+  const DashboardTemplate({required this.id, required this.name, required this.owner, required this.mine, required this.isDefault, required this.tiles});
+  final String id, name, owner;
+  final bool mine, isDefault;
+  final List<DashboardTile> tiles;
+
+  static DashboardTemplate? fromJson(Object? j) {
+    if (j is! Map || j['id'] is! String || j['name'] is! String) return null;
+    return DashboardTemplate(id: j['id'], name: j['name'], owner: '${j['owner'] ?? ''}', mine: j['mine'] == true, isDefault: j['isDefault'] == true, tiles: _parse(j));
+  }
+}
+
+const _templatesPath = '/api/users/home-dashboard/templates';
+
+Future<List<DashboardTemplate>> fetchDashboardTemplates(ApiClient api) async {
+  final j = await api.getJson(_templatesPath);
+  final list = j is Map && j['templates'] is List ? j['templates'] as List : const [];
+  return list.map(DashboardTemplate.fromJson).whereType<DashboardTemplate>().toList();
+}
+
+Future<void> shareDashboardTemplate(ApiClient api, String name, List<DashboardTile> tiles) =>
+    api.postJson(_templatesPath, {'name': name, 'tiles': tiles.map((t) => t.toJson()).toList()});
+
+Future<void> deleteDashboardTemplate(ApiClient api, String id) => api.deleteJson('$_templatesPath/$id');

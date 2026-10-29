@@ -30,6 +30,7 @@ import 'quotes.dart';
 import 'home_card_layout.dart';
 import 'home_dashboard.dart';
 import 'dashboard_view.dart';
+import 'dashboard_templates.dart';
 import 'pinned_widgets.dart';
 import 'dashboard_style.dart';
 import '../../app/platform.dart';
@@ -364,7 +365,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 ]),
                 const SizedBox(height: 12),
                 if (briefing.isLoading && data == null) const Padding(padding: EdgeInsets.only(bottom: 12), child: LinearProgressIndicator(minHeight: 2)),
-                if (_editing) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text('위젯 위쪽 손잡이를 끌어 옮기면 놓을 자리가 점선으로 보이고, 놓으면 그 자리에 배치돼요. 오른쪽 아래 모서리로 크기를 바꾸세요. ✕로 삭제, 떠 있는 툴바에서 추가·자동 배열(툴바 머리줄을 끌면 옮겨져요).', style: TextStyle(fontSize: 12, color: Brand.muted))),
+                if (_editing) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text('위젯 위쪽 손잡이를 끌어 옮기면 놓을 자리가 점선으로 보이고, 놓으면 그 자리에 배치돼요. 오른쪽 아래 모서리로 크기를 바꾸세요. ✕로 삭제, 떠 있는 툴바에서 추가·템플릿·자동 배열(툴바 머리줄을 끌면 옮겨져요).', style: TextStyle(fontSize: 12, color: Brand.muted))),
                 DashboardView(
                   layout: layout,
                   widgets: sections,
@@ -384,6 +385,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 left: 16 + tb.dx, right: 16 - tb.dx, bottom: 16 - tb.dy,
                 child: Center(child: DashboardPalette(
                     widgets: sections, layout: layout, onAdd: addWidget,
+                    onTemplates: () => showDashboardTemplates(context),
                     onArrange: () {
                       final next = autoArrange(layout, visible: sections.keys.toSet());
                       final moved = next.where((t) => layout.any((o) => o.id == t.id && o.y != t.y)).length;
