@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Star } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { ConfluenceItem } from "@/lib/confluence/core";
@@ -32,9 +32,9 @@ const when = (iso: string) => {
   const d = new Date(t + 9 * 3600_000);
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
 };
-export function ItemRow({ item }: { item: ConfluenceItem }) {
-  return <li>
-    <a href={item.url} target="_blank" rel="noopener noreferrer" className="block rounded-lg px-2 py-3 hover:bg-muted focus-visible:outline-2 focus-visible:outline-primary">
+export function ItemRow({ item, starred, onStar }: { item: ConfluenceItem; starred?: boolean; onStar?: (item: ConfluenceItem, starred: boolean) => void }) {
+  return <li className="flex items-start gap-1">
+    <a href={item.url} target="_blank" rel="noopener noreferrer" className="block min-w-0 flex-1 rounded-lg px-2 py-3 hover:bg-muted focus-visible:outline-2 focus-visible:outline-primary">
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         {item.spaceName && <span className="font-medium text-primary">{item.spaceName}</span>}
         {item.type === "comment" && <span>댓글</span>}
@@ -45,5 +45,8 @@ export function ItemRow({ item }: { item: ConfluenceItem }) {
       <p className="mt-1 break-words text-sm font-medium">{item.title}</p>
       {item.excerpt && <p className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground">{item.excerpt}</p>}
     </a>
+    {onStar && <Button size="icon" variant="ghost" className="mt-2 h-8 w-8 shrink-0" aria-label={starred ? "즐겨찾기에서 빼기" : "즐겨찾기에 넣기"} aria-pressed={!!starred} onClick={() => onStar(item, !!starred)}>
+      <Star className={starred ? "h-4 w-4 fill-amber-400 text-amber-500" : "h-4 w-4 text-muted-foreground"} />
+    </Button>}
   </li>;
 }

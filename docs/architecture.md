@@ -262,7 +262,7 @@ sequenceDiagram
 | 저장소 | 범위 | 예 |
 |---|---|---|
 | `settings(key, value)` | 전역 관리자 설정. `/api/settings`(쓰기는 admin, 관리자 전용 키는 비admin 응답에서 뺀다) | provider 선택, 웹훅, `ppt_llm_rules`, `mobile_release`, `desktop_app_release`, `assistant_*`, `kakao_rest_api_key`, `usd_krw_rate` |
-| `user_settings(user_id, key, value)` | 개인 설정. `/api/users/settings`(`?key=`로 한 키만 조회 가능, 키별 값 검사) | `teams_notify_webhook_url`, `rfp_sharepoint_folder`, `sharepoint_favorites`, `innobot_button` |
+| `user_settings(user_id, key, value)` | 개인 설정. `/api/users/settings`(`?key=`로 한 키만 조회 가능, 키별 값 검사) | `teams_notify_webhook_url`, `rfp_sharepoint_folder`, `sharepoint_favorites`, `confluence_favorites`, `innobot_button` |
 | Vercel env | 비밀 | Graph 시크릿, Admin API 키, 암호화 키 등. settings에는 넣지 않는다 |
 
 ### 3.7 기능 모듈
