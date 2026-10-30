@@ -90,8 +90,21 @@ MailPrefill mailPrefill(MailKind kind, Map init, {required String myEmail}) {
 }
 
 /// 본문 HTML = 내가 쓴 글 + 서명 + 원본 인용(웹 setMailContents 순서).
-String mailBodyHtml(String text, {String signature = '', String quote = ''}) =>
-    '${textToHtml(text)}${signature.isEmpty ? '' : '<br/><br/>$signature'}$quote';
+/// [images]: 글 속 `[그림 N]` 자리에 넣을 붙여넣은 그림. data URI 그대로 보내면 메일 서버가 발송 때 인라인 그림(MIME 파트)으로
+/// 바꿔 넣는다(웹 편집기도 같은 HTML을 보낸다 — 2026-10-30 실측). 글에서 지운 표시의 그림은 보내지 않는다.
+String mailBodyHtml(String text, {String signature = '', String quote = '', Map<int, MailInlineImage> images = const {}}) {
+  final body = textToHtml(text).replaceAllMapped(RegExp(r'\[그림 (\d+)\]'), (m) {
+    final img = images[int.parse(m[1]!)];
+    return img == null ? m[0]! : '<img src="data:${img.mime};base64,${base64Encode(img.bytes)}" style="max-width:100%;">';
+  });
+  return '$body${signature.isEmpty ? '' : '<br/><br/>$signature'}$quote';
+}
+
+/// 본문에 넣을 그림(붙여넣기).
+typedef MailInlineImage = ({String mime, List<int> bytes});
+
+/// 본문 그림 표시 — 글에 들어가는 자리표시.
+String mailImageToken(int n) => '[그림 $n]';
 
 extension GwMailCompose on GwApi {
   /// 작성 폼. 새 메일은 plain, 답장·전달은 원본 muid로(원본을 읽음 처리하지 않는 viewFlag noRead).
