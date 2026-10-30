@@ -16,10 +16,14 @@ class DesktopReleaseInfo {
     required this.version,
     required this.url,
     this.update,
+    this.bytes,
   });
   final String version;
   final String url;
   final DesktopUpdateMetadata? update;
+
+  /// 설치 파일 크기(바이트). Linux 설치기가 내려받은 파일을 검증할 때 쓴다.
+  final int? bytes;
 }
 
 class DesktopUpdateMetadata {
@@ -97,7 +101,13 @@ DesktopReleaseInfo? parseDesktopRelease(dynamic json) {
     );
     if (candidate.isValid) update = candidate;
   }
-  return DesktopReleaseInfo(version: version, url: url, update: update);
+  final b = json['bytes'];
+  return DesktopReleaseInfo(
+    version: version,
+    url: url,
+    update: update,
+    bytes: b is int && b > 0 ? b : null,
+  );
 }
 
 /// 개발 빌드나 정식 `x.y.z`가 아닌 앱은 안내하지 않는다.
