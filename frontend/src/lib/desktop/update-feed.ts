@@ -1,4 +1,4 @@
-import { DESKTOP_VERSION, MAX_UPDATE_BYTES, validDesktopUpdate, type DesktopArtifact, type DesktopPlatform } from "./release";
+import { DESKTOP_VERSION, MAX_UPDATE_BYTES, validDesktopUpdate, type DesktopArtifact, desktopFilename, type DesktopPlatform } from "./release";
 
 export const UPDATE_ORIGIN = "https://innocrew.innogrid.com";
 export const UPDATE_HEADERS = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
@@ -6,9 +6,8 @@ export const UPDATE_HEADERS = { "Cache-Control": "private, no-store", "X-Content
 export function canAutoUpdate(platform: DesktopPlatform, a: DesktopArtifact): boolean {
   return DESKTOP_VERSION.test(a.version) && validDesktopUpdate(a.update) &&
     Number.isSafeInteger(a.bytes) && a.bytes > 0 && a.bytes <= MAX_UPDATE_BYTES &&
-    a.filename.endsWith(platform === "macos" ? ".dmg" : ".exe") &&
+    a.filename === desktopFilename(platform, a.version) &&
     a.path === `${platform}/${a.version}/${a.filename}` &&
-    /^INNOGRID-[A-Za-z0-9.+-]+\.(dmg|exe)$/.test(a.filename) &&
     /^[0-9a-f]{64}$/.test(a.sha256) && Number.isFinite(Date.parse(a.releasedAt));
 }
 

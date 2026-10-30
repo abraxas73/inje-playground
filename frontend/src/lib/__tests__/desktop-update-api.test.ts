@@ -9,15 +9,15 @@ vi.mock("@/lib/rfp/require-user", () => ({ requireUser: async () => m.status ===
   from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { value: m.value }, error: m.dbError ? {} : null }) }) }) }),
   storage: { from: () => ({ createSignedUrl: m.signed }) },
 } } : { ok: false, response: NextResponse.json({}, { status: m.status }) } }));
-import { createUpdateAppcast } from "@/lib/desktop/update-feed";
-import { parseDesktopRelease } from "@/lib/desktop/release";
+import { canAutoUpdate, createUpdateAppcast } from "@/lib/desktop/update-feed";
+import { desktopFilename, parseDesktopRelease } from "@/lib/desktop/release";
 import { GET as feed, POST as feedPost } from "@/app/api/desktop/update/appcast/route";
 import { GET as discover } from "@/app/api/desktop/release/route";
 import { GET as artifact, POST as artifactPost } from "@/app/api/desktop/update/artifact/[platform]/[version]/route";
 
 const bytes = new TextEncoder().encode("signed installer fixture");
-const release = (platform = "macos") => ({ version: "1.7.8", filename: `INNOGRID-${platform}-1.7.8.${platform === "macos" ? "dmg" : "exe"}`,
-  path: `${platform}/1.7.8/INNOGRID-${platform}-1.7.8.${platform === "macos" ? "dmg" : "exe"}`,
+const release = (platform: "macos" | "windows" = "macos") => ({ version: "1.7.8", filename: desktopFilename(platform, "1.7.8"),
+  path: `${platform}/1.7.8/${desktopFilename(platform, "1.7.8")}`,
   sha256: createHash("sha256").update(bytes).digest("hex"), bytes: bytes.length, releasedAt: "2026-10-19T09:00:00Z",
   update: { build: 59, edSignature: Buffer.alloc(64, 1).toString("base64"), minimumOS: "12.0" },
 });
@@ -53,7 +53,7 @@ it.each([401, 403])("requires approved authentication (%s) for both routes", asy
   expect(m.signed).not.toHaveBeenCalled(); expect(m.fetch).not.toHaveBeenCalled();
 });
 it("rejects unknown platforms, malformed versions and stale release snapshots", async () => {
-  expect((await feed(req("platform=linux&version=1.7.8"))).status).toBe(400);
+  expect((await feed(req("platform=freebsd&version=1.7.8"))).status).toBe(400);
   expect((await feed(req("platform=macos"))).status).toBe(400);
   expect((await download("../private")).status).toBe(400);
   expect((await download("macos", "../1.7.8")).status).toBe(400);
@@ -106,4 +106,17 @@ it("automatic discovery returns only official URLs without issuing a Storage cap
   expect(await response.json()).toMatchObject({ version: "1.7.8", update: release().update,
     url: "https://innocrew.innogrid.com/api/desktop/update/artifact/macos/1.7.8" });
   expect(m.signed).not.toHaveBeenCalled();
+});
+
+const debRelease = () => ({ ...release("windows"), version: "1.8.0", filename: "INNOGRID-Linux-1.8.0_amd64.deb", path: "linux/1.8.0/INNOGRID-Linux-1.8.0_amd64.deb", update: { ...release().update, minimumOS: "22.04" } });
+it("linux: .deb만 파싱·자동 업데이트 대상이고 artifact는 허용, appcast는 거절", async () => {
+  const deb = debRelease();
+  expect(parseDesktopRelease(JSON.stringify({ linux: deb })).linux?.filename).toBe(deb.filename);
+  expect(parseDesktopRelease(JSON.stringify({ macos: { ...deb, path: "macos/1.8.0/" + deb.filename } })).macos).toBeUndefined();
+  expect(parseDesktopRelease(JSON.stringify({ linux: { ...deb, filename: "INNOGRID-Windows-1.8.0-Setup.exe", path: "linux/1.8.0/INNOGRID-Windows-1.8.0-Setup.exe" } })).linux).toBeUndefined();
+  expect(canAutoUpdate("linux", deb)).toBe(true);
+  expect(canAutoUpdate("macos", { ...deb, path: "macos/1.8.0/" + deb.filename })).toBe(false);
+  m.value = JSON.stringify({ linux: deb });
+  expect((await download("linux", "1.8.0")).status).toBe(200);
+  expect((await feed(req("platform=linux&version=1.8.0"))).status).toBe(400);
 });

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logAudit } from "@/lib/audit";
 import { requireUser } from "@/lib/rfp/require-user";
+import { LINUX_FAILURE_REASONS } from "@/lib/desktop/release";
 
 export const runtime = "nodejs";
 
 /** Windows 설치 단계 이름(mobile/windows/runner/desktop_updater.cpp PostFailure, 앱 nativeFailureReasons와 같게) */
 const REASONS = new Set(["file", "arguments", "name", "version", "session", "launch"]);
+const LINUX_REASONS = new Set<string>(LINUX_FAILURE_REASONS);
 const VERSION = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
 const int = (v: unknown, min: number, max: number) => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
 
@@ -17,8 +19,11 @@ export async function POST(request: NextRequest) {
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-  if (!b || (b.platform !== "windows" && b.platform !== "macos") || typeof b.version !== "string" || !VERSION.test(b.version) ||
-      typeof b.reason !== "string" || !REASONS.has(b.reason) || !int(b.winError, 0, 0xffffffff) || !int(b.attempts, 1, 10)) {
+  const linux = b?.platform === "linux";
+  // Linux는 winError 자리에 종료 코드(0~255)를 받는다
+  if (!b || (b.platform !== "windows" && b.platform !== "macos" && !linux) || typeof b.version !== "string" || !VERSION.test(b.version) ||
+      typeof b.reason !== "string" || !(linux ? LINUX_REASONS : REASONS).has(b.reason) ||
+      !int(b.winError, 0, linux ? 255 : 0xffffffff) || !int(b.attempts, 1, 10)) {
     return NextResponse.json({ error: "잘못된 업데이트 실패 보고입니다." }, { status: 400 });
   }
   await logAudit(auth.admin, request, {

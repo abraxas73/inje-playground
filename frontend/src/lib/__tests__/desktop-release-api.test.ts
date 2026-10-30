@@ -26,3 +26,10 @@ it("미배포 플랫폼과 임의 경로는 다운로드할 수 없다", async (
   expect((await request()).status).toBe(404); expect(m.signed).not.toHaveBeenCalled();
 });
 it("서명 오류는 실패 응답으로 표시한다", async () => { m.signed.mockResolvedValue({ error: {} }); expect((await request()).status).toBe(503); });
+it("linux는 서명 링크로 이동시킨다", async () => {
+  m.value = JSON.stringify({ linux: { version: "1.8.0", filename: "INNOGRID-Linux-1.8.0_amd64.deb", path: "linux/1.8.0/INNOGRID-Linux-1.8.0_amd64.deb", sha256: "a".repeat(64), bytes: 100, releasedAt: "2026-10-30" } });
+  const r = await request("linux");
+  expect(r.status).toBe(307);
+  expect(r.headers.get("location")).toBe("https://example.test/signed");
+  expect(m.signed).toHaveBeenCalledWith("linux/1.8.0/INNOGRID-Linux-1.8.0_amd64.deb", 300, { download: "INNOGRID-Linux-1.8.0_amd64.deb" });
+});

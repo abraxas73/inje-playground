@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/rfp/require-user";
-import { DESKTOP_BUCKET, DESKTOP_RELEASE_KEY, DesktopPlatform, parseDesktopRelease } from "@/lib/desktop/release";
+import { DESKTOP_BUCKET, DESKTOP_RELEASE_KEY, isDesktopPlatform, parseDesktopRelease } from "@/lib/desktop/release";
 import { canAutoUpdate, UPDATE_HEADERS, UPDATE_ORIGIN } from "@/lib/desktop/update-feed";
 
 export async function GET(request: NextRequest) {
@@ -13,11 +13,11 @@ export async function GET(request: NextRequest) {
   if (!requestedPlatform) {
     return NextResponse.json(release, { headers: { "Cache-Control": "no-store" } });
   }
-  if (requestedPlatform !== "macos" && requestedPlatform !== "windows") {
+  if (!isDesktopPlatform(requestedPlatform)) {
     return NextResponse.json({ error: "지원하지 않는 플랫폼입니다." }, { status: 400 });
   }
 
-  const platform: DesktopPlatform = requestedPlatform;
+  const platform = requestedPlatform;
   const artifact = release[platform];
   if (!artifact) {
     return NextResponse.json({ error: "설치 파일을 준비 중입니다." }, { status: 404 });

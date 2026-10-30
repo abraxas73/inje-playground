@@ -34,7 +34,17 @@ it("플랫폼이 없으면 /apps용 전체 릴리스 정보를 유지하고 링�
 });
 
 it("지원하지 않는 플랫폼과 아직 배포되지 않은 플랫폼은 설치 링크를 만들지 않는다", async () => {
-  expect((await request("?platform=linux")).status).toBe(400);
+  expect((await request("?platform=freebsd")).status).toBe(400);
   expect((await request("?platform=macos")).status).toBe(404);
+  expect(m.signed).not.toHaveBeenCalled();
+});
+
+const deb = { version: "1.8.0", filename: "INNOGRID-Linux-1.8.0_amd64.deb", path: "linux/1.8.0/INNOGRID-Linux-1.8.0_amd64.deb", sha256: "b".repeat(64), bytes: 456, releasedAt: "2026-10-30T00:00:00Z",
+  update: { build: 80, edSignature: Buffer.alloc(64, 2).toString("base64"), minimumOS: "22.04" } };
+
+it("linux 자동 업데이트 요청은 같은 출처 artifact 주소·update·bytes를 준다", async () => {
+  m.value = JSON.stringify({ linux: deb });
+  const body = await (await request("?platform=linux&mode=automatic")).json();
+  expect(body).toMatchObject({ url: "https://innocrew.innogrid.com/api/desktop/update/artifact/linux/1.8.0", bytes: 456, update: deb.update });
   expect(m.signed).not.toHaveBeenCalled();
 });
