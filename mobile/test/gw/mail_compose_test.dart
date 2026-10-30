@@ -55,6 +55,8 @@ void main() {
   test('본문 = 내 글(줄바꿈) + 서명 + 인용, 서명은 html·head 껍데기 제거', () {
     expect(mailSignatureHtml(_init), '<b>서명</b>');
     expect(mailBodyHtml('안녕\n하세요', signature: '<b>서명</b>', quote: '<Q>'), '안녕<br>하세요<br/><br/><b>서명</b><Q>');
+    // 붙여넣은 그림은 [그림 N] 자리에 data URI로(메일 서버가 인라인 그림으로 바꾼다), 짝 없는 표시는 글 그대로
+    expect(mailBodyHtml('위\n[그림 1]\n[그림 2]', images: {1: (mime: 'image/png', bytes: [1, 2, 3])}), '위<br><img src="data:image/png;base64,AQID" style="max-width:100%;"><br>[그림 2]');
   });
 
   test('전달 보내기 — mail_kind fw·원본 muid·mimeHeader·원본 첨부(A08)+새 파일(A06)을 uidAuthList로', () async {

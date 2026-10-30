@@ -58,13 +58,15 @@ void main() {
     expect(find.text('열기'), findsOneWidget); // 보내고 닫힘
   });
 
-  testWidgets('붙여넣기: 복사한 그림·파일은 첨부 칩으로 붙고 함께 올린다, 글자는 평소대로', (tester) async {
+  testWidgets('붙여넣기: 그림은 본문 [그림 N] 자리에 data URI로, 파일은 첨부, 글자는 평소대로', (tester) async {
     final paths = <String>[];
+    var sent = '';
     final client = MockClient((r) async {
       paths.add(r.url.path);
+      if (r.url.path == '/mail/mail014A04') sent = utf8.decode(r.bodyBytes, allowMalformed: true);
       return switch (r.url.path) {
         '/mail/mail014A01' => _ok({'email': 'me@innogrid.com'}),
-        '/mail/mail014A06' => _ok({'list': [{'fileId': 'F1', 'originalFileName': '20261030_16_10_00.png', 'fileExtsn': 'png', 'fileSize': 3, 'filePath': '/x'}]}),
+        '/mail/mail014A06' => _ok({'list': [{'fileId': 'F1', 'originalFileName': '보고서.pdf', 'fileExtsn': 'pdf', 'fileSize': 3, 'filePath': '/x'}]}),
         '/mail/mail014A04' => _ok({'result': true}),
         _ => _ok({'sessionInfo': {'ucUserInfo': {'empName': '나', 'emailAdd': 'me', 'emailDomain': 'innogrid.com'}}}),
       };
@@ -84,19 +86,48 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
     }
-    await tester.tap(find.widgetWithText(TextField, '내용'));
+    final body = find.widgetWithText(TextField, '내용');
+    await tester.enterText(body, '아래 화면 참고\n');
     await paste();
-    expect(find.widgetWithText(InputChip, '20261030_16_10_00.png'), findsOneWidget);
+    expect(tester.widget<TextField>(body).controller!.text, '아래 화면 참고\n[그림 1]');
+    expect(find.widgetWithText(InputChip, '본문 그림 1'), findsOneWidget);
 
-    clip = null; // 글자만 있으면 첨부가 늘지 않는다
+    clip = [(name: '보고서.pdf', bytes: Uint8List.fromList([4, 5, 6]))];
     await paste();
-    expect(find.byType(InputChip), findsOneWidget);
+    expect(find.widgetWithText(InputChip, '보고서.pdf'), findsOneWidget);
+
+    clip = null; // 글자만 있으면 그림·첨부가 늘지 않는다
+    await paste();
+    expect(find.byType(InputChip), findsNWidgets(2));
 
     await tester.tap(find.text('보내기'));
     await tester.pumpAndSettle();
+    expect(find.textContaining('본문 그림 1개'), findsOneWidget);
     expect(find.textContaining('첨부 1개'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, '보내기').last);
     await tester.pumpAndSettle();
     expect(paths, containsAllInOrder(['/mail/mail014A06', '/mail/mail014A04']));
+    expect(sent, contains('아래 화면 참고<br><img src="data:image/png;base64,AQID"'));
+  });
+
+  testWidgets('본문 그림 칩을 지우면 글의 [그림 N]도 지워진다', (tester) async {
+    final client = MockClient((r) async => r.url.path == '/mail/mail014A01' ? _ok({'email': 'me@innogrid.com'}) : _ok({'sessionInfo': {'ucUserInfo': {'empName': '나', 'emailAdd': 'me', 'emailDomain': 'innogrid.com'}}}));
+    final api = GwApi(GwClient(httpClient: client, creds: () => testCreds));
+    await tester.pumpWidget(ProviderScope(
+      overrides: [mailContactsProvider.overrideWith((_) async => const []), msgClipboardProvider.overrideWithValue(() async => [(name: 'a.png', bytes: Uint8List.fromList([1]))])],
+      child: MaterialApp(home: MailComposeScreen(api: api)),
+    ));
+    await tester.pumpAndSettle();
+    final body = find.widgetWithText(TextField, '내용');
+    await tester.tap(body);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(body).controller!.text, '[그림 1]');
+    await tester.tap(find.descendant(of: find.widgetWithText(InputChip, '본문 그림 1'), matching: find.byIcon(Icons.clear)));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(body).controller!.text, isEmpty);
+    expect(find.text('본문 그림 1'), findsNothing);
   });
 }
