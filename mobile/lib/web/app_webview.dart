@@ -11,6 +11,7 @@ import 'package:flutter_inappwebview_platform_interface/flutter_inappwebview_pla
     as ia;
 import 'package:flutter_inappwebview_windows/flutter_inappwebview_windows.dart'
     as win;
+import '../app/backspace_back.dart' show KeepBackspace;
 import 'linux_webview_guard.dart';
 import 'windows_webview_settings.dart';
 
@@ -229,7 +230,8 @@ class AppWebController {
         ),
       );
     }
-    return _windows ??= win.WindowsInAppWebViewWidget(
+    // WebView2는 클릭하면 Flutter 포커스를 가져가 키가 앱으로도 온다 — 웹 입력창의 Backspace가 뒤로 가기가 되지 않게
+    return _windows ??= KeepBackspace(child: win.WindowsInAppWebViewWidget(
       win.WindowsInAppWebViewWidgetCreationParams(
         webViewEnvironment: _environment,
         initialSettings: ia.InAppWebViewSettings(
@@ -264,7 +266,7 @@ class AppWebController {
               ),
             ),
       ),
-    ).build(context);
+    ).build(context));
   }
 
   static Future<void> clearCookies() async {

@@ -25,6 +25,9 @@ import 'features/home/pinned_widgets.dart';
 import 'notifications/app_badge.dart';
 import 'telemetry/app_events.dart';
 import 'app/copy_selection_area.dart';
+import 'app/backspace_back.dart';
+import 'app/platform.dart' show isDesktopPlatform;
+import 'package:flutter/services.dart' show HardwareKeyboard, KeyEvent;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -78,6 +81,7 @@ class _AppState extends ConsumerState<App> {
     _router.routerDelegate.addListener(_auditPage);
     WidgetsBinding.instance.addPostFrameCallback((_) => _auditPage());
     messengerNotifyTap.addListener(_onNotifyTap); // OS 알림 탭 → 우리 앱 화면으로
+    if (isDesktopPlatform) HardwareKeyboard.instance.addHandler(_onKey); // Backspace = 뒤로 가기
     // 장애 신호 보고(/api/app/events) — 개발 빌드는 보내지 않고, 로그인 전이면 버린다
     if (Config.appVersion != 'dev') {
       appEvents.sender = (events) async {
@@ -124,8 +128,11 @@ class _AppState extends ConsumerState<App> {
     }
   }
 
+  bool _onKey(KeyEvent e) => handleBackspaceBack(e, _router.routerDelegate);
+
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
     _router.routerDelegate.removeListener(_auditPage);
     messengerNotifyTap.removeListener(_onNotifyTap);
     _router.dispose();
