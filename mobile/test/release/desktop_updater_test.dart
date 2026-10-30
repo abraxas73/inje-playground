@@ -1,10 +1,44 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:playground/release/desktop_updater.dart';
+import 'package:playground/release/linux_update_installer.dart';
 import 'package:playground/release/release_check.dart';
 
 const updateChannel = MethodChannel('com.innogrid.playground/updater');
+class FakeLinuxInstaller extends LinuxUpdateInstaller {
+  FakeLinuxInstaller(this.result)
+    : super(
+        client: http.Client(),
+        run: (_, _) async => throw UnimplementedError(),
+        publicKeyRaw: 'k',
+      );
+  LinuxUpdateResult result;
+  final installs = <Map<String, Object?>>[];
+  int cancels = 0;
+  @override
+  Future<LinuxUpdateResult> install({
+    required String version,
+    required int expectedBytes,
+    required String edSignature,
+    required String accessToken,
+    required LinuxUpdateProgress onProgress,
+  }) async {
+    installs.add({
+      'version': version,
+      'bytes': expectedBytes,
+      'sig': edSignature,
+      'token': accessToken,
+    });
+    onProgress('downloading', 0.5);
+    return result;
+  }
+
+  @override
+  Future<void> cancel() async => cancels++;
+}
+
 const signedRelease = DesktopReleaseInfo(
   version: '1.7.8',
   url:
@@ -294,4 +328,102 @@ void main() {
       expect(loads, 2);
     },
   );
+
+  group('linux', () {
+    late FakeLinuxInstaller installer;
+    late List<Map<String, Object>> reports;
+    DesktopUpdater make({String key = 'key', int? bytes = 1234}) {
+      reports = [];
+      return DesktopUpdater(
+        platform: 'linux',
+        currentVersion: '1.7.7',
+        account: () => account,
+        loadRelease: () async => DesktopReleaseInfo(
+          version: '1.7.8',
+          url: signedRelease.url,
+          update: signedRelease.update,
+          bytes: bytes,
+        ),
+        refreshToken: () async => 'secret-access-token',
+        reportFailure: (f) async => reports.add(f),
+        linuxInstaller: installer,
+        linuxPublicKeyRaw: key,
+        channel: updateChannel,
+      );
+    }
+
+    setUp(() => installer = FakeLinuxInstaller(const LinuxUpdateDone()));
+
+    test('Linux는 채널 대신 설치기를 부른다', () async {
+      final u = make();
+      await u.check(manual: false);
+      await u.start();
+      expect(calls.where((c) => c.method == 'install'), isEmpty);
+      expect(installer.installs, [
+        {
+          'version': '1.7.8',
+          'bytes': 1234,
+          'sig': signedRelease.update!.edSignature,
+          'token': 'secret-access-token',
+        },
+      ]);
+      expect(u.state.message, '업데이트 다운로드 중…');
+      u.dispose();
+    });
+
+    test('Linux 취소 뒤 다시 업데이트 버튼이 보인다', () async {
+      installer.result = const LinuxUpdateCancelled();
+      final u = make();
+      await u.check(manual: false);
+      await u.start();
+      expect(u.state.phase, DesktopUpdatePhase.available);
+      expect(u.state.message, '업데이트를 취소했습니다.');
+      expect(u.state.visible, isTrue);
+      u.dispose();
+    });
+
+    test('Linux 실패는 update-failure로 보고', () async {
+      installer.result = const LinuxUpdateFailed('signature', 0);
+      final u = make();
+      await u.check(manual: false);
+      await u.start();
+      await pumpEventQueue();
+      expect(u.state.phase, DesktopUpdatePhase.error);
+      expect(u.state.message, contains('(오류 코드 signature-0)'));
+      expect(reports, [
+        {
+          'platform': 'linux',
+          'version': '1.7.8',
+          'reason': 'signature',
+          'winError': 0,
+          'attempts': 1,
+        },
+      ]);
+      u.dispose();
+    });
+
+    test('Linux 키가 없으면 available 대신 error', () async {
+      final u = make(key: '');
+      await u.check(manual: true);
+      expect(u.state.phase, DesktopUpdatePhase.error);
+      expect(u.state.message, contains('서명 키가 없습니다'));
+      u.dispose();
+    });
+
+    test('Linux는 bytes가 없으면 설치를 시작하지 않는다', () async {
+      final u = make(bytes: null);
+      await u.check(manual: false);
+      await u.start();
+      expect(installer.installs, isEmpty);
+      expect(u.state.phase, DesktopUpdatePhase.error);
+      u.dispose();
+    });
+
+    test('Linux 로그아웃은 설치기를 취소한다', () async {
+      final u = make();
+      await u.cancelForSignOut();
+      expect(installer.cancels, 1);
+      u.dispose();
+    });
+  });
 }

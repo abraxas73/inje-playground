@@ -97,6 +97,7 @@ void main() {
   for (final (platform, platformName) in [
     (TargetPlatform.macOS, 'macos'),
     (TargetPlatform.windows, 'windows'),
+    (TargetPlatform.linux, 'linux'),
   ]) {
     test('$platform requests its published desktop installer', () async {
       debugDefaultTargetPlatformOverride = platform;
@@ -129,12 +130,11 @@ void main() {
   }
 
   test(
-    'mobile and unsupported desktop platforms do not request desktop release',
+    'mobile platforms do not request desktop release',
     () async {
       for (final platform in [
         TargetPlatform.android,
         TargetPlatform.iOS,
-        TargetPlatform.linux,
       ]) {
         debugDefaultTargetPlatformOverride = platform;
         var calls = 0;
