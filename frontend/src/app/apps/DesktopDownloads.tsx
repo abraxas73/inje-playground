@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Apple, BookOpen, Monitor, Download } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { DesktopRelease } from "@/lib/desktop/release";
+import { DESKTOP_PLATFORMS, type DesktopRelease } from "@/lib/desktop/release";
 
 const releaseDateTime = new Intl.DateTimeFormat("ko-KR", {
   timeZone: "Asia/Seoul",
@@ -26,16 +26,19 @@ export function DesktopDownloads() {
   return <section id="desktop" aria-labelledby="desktop-title" className="space-y-4 scroll-mt-24">
     <h2 id="desktop-title" className="text-xl font-semibold">데스크톱 앱</h2>
     {error && <p role="alert" className="text-sm text-destructive">설치 파일 정보를 불러오지 못했습니다. 페이지를 새로고침해 주세요.</p>}
-    <div className="grid gap-4 md:grid-cols-2">
-      {(["macos", "windows"] as const).map(platform => {
-        const mac = platform === "macos", artifact = release?.[platform];
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {DESKTOP_PLATFORMS.map(platform => {
+        const mac = platform === "macos", linux = platform === "linux", artifact = release?.[platform];
         return <Card key={platform}><CardHeader>
-          <CardTitle className="flex items-center gap-2">{mac ? <Apple className="h-5 w-5" /> : <Monitor className="h-5 w-5" />}{mac ? "macOS" : "Windows"}</CardTitle>
-          <CardDescription>{mac ? "macOS 12 이상 · Apple Silicon / Intel" : "Windows 10 1809 이상 / 11 · x64 · 내부 테스트용"}</CardDescription>
+          <CardTitle className="flex items-center gap-2">{mac ? <Apple className="h-5 w-5" /> : <Monitor className="h-5 w-5" />}{mac ? "macOS" : linux ? "Linux" : "Windows"}</CardTitle>
+          <CardDescription>{mac ? "macOS 12 이상 · Apple Silicon / Intel" : linux ? "Ubuntu 24.04 이상 · x86_64" : "Windows 10 1809 이상 / 11 · x64 · 내부 테스트용"}</CardDescription>
         </CardHeader><CardContent className="space-y-3 text-sm">
           <ol className="list-decimal space-y-1 pl-5">{mac ? <>
             <li>DMG를 열고 INNOGRID를 Applications 폴더로 옮깁니다.</li>
             <li>응용 프로그램에서 실행하고 Microsoft 계정으로 로그인합니다.</li>
+          </> : linux ? <>
+            <li>터미널에서 <code className="break-all">{artifact ? `sudo apt install ./${artifact.filename}` : "sudo apt install ./INNOGRID-Linux-<버전>_amd64.deb"}</code> 를 실행합니다.</li>
+            <li>앱 목록에서 INNOGRID를 열고 Microsoft 계정으로 로그인합니다.</li>
           </> : <>
             <li>설치 프로그램을 실행하고 시작 메뉴에서 INNOGRID를 엽니다.</li>
             <li>웹 화면 실행에 Microsoft Edge WebView2 Runtime이 필요합니다.</li>
@@ -43,13 +46,13 @@ export function DesktopDownloads() {
           </>}</ol>
           {artifact ? <>
             <div className="flex flex-wrap items-center gap-2">
-              <Button asChild><a href={`/api/desktop/download/${platform}`}><Download className="h-4 w-4" />{mac ? "DMG 다운로드" : "설치 파일 다운로드"} · {artifact.version}</a></Button>
+              <Button asChild><a href={`/api/desktop/download/${platform}`}><Download className="h-4 w-4" />{mac ? "DMG 다운로드" : linux ? "DEB 다운로드" : "설치 파일 다운로드"} · {artifact.version}</a></Button>
               <time dateTime={artifact.releasedAt} className="text-xs text-muted-foreground">
                 업데이트 게시: {releaseDateTime.format(new Date(artifact.releasedAt))} (KST)
               </time>
             </div>
-            <p className="text-xs text-muted-foreground">{(artifact.bytes / 1024 / 1024).toFixed(1)} MB · {mac ? "Apple 서명·공증 완료" : <>코드 서명 전 테스트 빌드라 경고가 두 번 뜹니다. ① 다운로드할 때 ‘일반적으로 다운로드되지 않는 파일’ 경고 — Edge는 다운로드 목록의 ‘…’ → <strong>유지 → 그래도 유지</strong>, Chrome은 <strong>유지</strong>. ② 실행할 때 ‘Windows의 PC 보호’ 창 — <strong>추가 정보 → 실행</strong>.</>}</p>
-            {!mac && <div role="note" className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+            <p className="text-xs text-muted-foreground">{(artifact.bytes / 1024 / 1024).toFixed(1)} MB · {mac ? "Apple 서명·공증 완료" : linux ? "내부 테스트용 .deb 패키지입니다. 설치할 때 관리자 비밀번호가 필요합니다." : <>코드 서명 전 테스트 빌드라 경고가 두 번 뜹니다. ① 다운로드할 때 ‘일반적으로 다운로드되지 않는 파일’ 경고 — Edge는 다운로드 목록의 ‘…’ → <strong>유지 → 그래도 유지</strong>, Chrome은 <strong>유지</strong>. ② 실행할 때 ‘Windows의 PC 보호’ 창 — <strong>추가 정보 → 실행</strong>.</>}</p>
+            {!mac && !linux && <div role="note" className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
               <p><strong>설치 후 앱을 열 때 ‘app_links_plugin.dll … 잘못된 이미지’ 오류가 나면</strong> Windows 11의 스마트 앱 컨트롤이 서명 전 파일을 막은 것입니다. 시작 메뉴에서 <strong>스마트 앱 컨트롤</strong>을 검색해 <strong>끄기</strong>로 바꾼 뒤 앱을 다시 여세요(재설치 불필요).</p>
               <div className="flex flex-wrap gap-2">
                 <Button asChild size="sm"><a href="/manual#windows-smart-app-control"><BookOpen className="h-4 w-4" />실행 오류 화면 안내 보기</a></Button>
