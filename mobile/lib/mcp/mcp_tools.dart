@@ -17,10 +17,14 @@ import 'mcp_args.dart' as a;
 import 'mcp_worker.dart' show McpToolError;
 import 'person_groups.dart';
 
-/// macOS `~/Library/Application Support/INNOGRID`, Windows `%APPDATA%\INNOGRID`(없으면 만든다). 사람 그룹 파일 위치.
+/// macOS `~/Library/Application Support/INNOGRID`, Windows `%APPDATA%\INNOGRID`, Linux `$XDG_DATA_HOME/INNOGRID`(기본 `~/.local/share`)(없으면 만든다). 사람 그룹 파일 위치.
 String mcpAppSupportDir() {
   final e = Platform.environment;
-  final d = Platform.isWindows ? '${e['APPDATA'] ?? ''}\\INNOGRID' : '${e['HOME'] ?? ''}/Library/Application Support/INNOGRID';
+  final d = Platform.isWindows
+      ? '${e['APPDATA'] ?? ''}\\INNOGRID'
+      : Platform.isLinux
+      ? '${e['XDG_DATA_HOME'] ?? '${e['HOME'] ?? ''}/.local/share'}/INNOGRID'
+      : '${e['HOME'] ?? ''}/Library/Application Support/INNOGRID';
   Directory(d).createSync(recursive: true);
   return d;
 }

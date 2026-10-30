@@ -456,7 +456,7 @@ class _WebScreenState extends ConsumerState<WebScreen>
           body: Stack(
             fit: StackFit.expand,
             children: [
-              Offstage(offstage: _error != null, child: _c.build(context)),
+              Offstage(offstage: _error != null, child: _c.build(context, avoidFabs: true)),
               if (_error != null)
                 Center(
                   child: Padding(

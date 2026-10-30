@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=INNOCREW
+Comment=INNOCREW 이노그리드 사내 포털
+Exec=@EXEC@ %u
+Icon=com.innogrid.playground
+Terminal=false
+Categories=Network;Office;
+MimeType=x-scheme-handler/innogrid;
+StartupWMClass=com.innogrid.playground

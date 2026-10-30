@@ -333,7 +333,8 @@ Map<String, Object>? nativeFailure(Map args) {
 }
 
 final desktopUpdaterProvider = Provider<DesktopUpdater?>((ref) {
-  if (!isDesktopPlatform) {
+  // Sparkle·WinSparkle 기반이라 macOS·Windows만 — Linux는 자동 업데이트가 없다
+  if (!isDesktopPlatform || defaultTargetPlatform == TargetPlatform.linux) {
     return null;
   }
   final platform = defaultTargetPlatform == TargetPlatform.macOS

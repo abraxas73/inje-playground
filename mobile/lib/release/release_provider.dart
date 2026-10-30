@@ -20,7 +20,8 @@ final releaseProvider = FutureProvider<ReleaseInfo?>((ref) async {
 
 /// 서버에 게시된 자기 플랫폼의 macOS/Windows 설치본. 실패는 업데이트 띠를 숨긴다.
 final desktopReleaseProvider = FutureProvider<DesktopReleaseInfo?>((ref) async {
-  if (!isDesktopPlatform) {
+  // Linux 설치본은 서버가 아직 게시하지 않는다(platform 값은 macos·windows만)
+  if (!isDesktopPlatform || defaultTargetPlatform == TargetPlatform.linux) {
     return null;
   }
   try {

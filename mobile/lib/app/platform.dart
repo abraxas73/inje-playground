@@ -3,8 +3,11 @@
 // 테스트 호스트(macOS)를 보므로 실제 OS API(Process 실행·파일 경로·네이티브 채널·WebView 구현 선택)에만 쓴다.
 import 'package:flutter/foundation.dart';
 
-/// 데스크톱 앱(macOS·Windows).
-bool get isDesktopPlatform => !kIsWeb && (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows);
+/// 데스크톱 앱(macOS·Windows·Linux).
+bool get isDesktopPlatform => !kIsWeb && (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux);
+
+/// Claude 데스크톱 앱이 있는 데스크톱(macOS·Windows) — Linux용은 없어 Claude 열기 버튼을 두지 않는다.
+bool get hasClaudeDesktopApp => !kIsWeb && (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows);
 
 /// 휴대폰 앱(iOS·Android).
 bool get isMobilePlatform => !kIsWeb && (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android);
