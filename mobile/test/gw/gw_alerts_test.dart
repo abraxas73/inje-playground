@@ -25,14 +25,15 @@ final schedule = row('a3', 'SCHEDULE', 'SC001', title: '[일정등록] 현근주
 final talk = row('a4', 'TALK', 'TA001', title: '[일반미팅룸] 김명진님의 알파멘션', data: {'senderName': '김명진', 'roomId': 'R1', 'content': {'kr': '|>@empseq="7",name="홍길동"@<| 메일 확인'}});
 
 void main() {
-  test('종류별 파싱: 결재는 문서로, 메일은 내 muid로, 일정은 웹 주소, 멘션은 대화방', () {
+  test('종류별 파싱: 결재는 문서로, 메일은 내 muid로, 일정은 그날 일정 화면, 멘션은 대화방', () {
     final list = GwAlert.parseList({'alertList': [mail, approval, schedule, talk, row('x', 'MAIL', 'MA001', readDate: '20261029')]}, myEmpSeq: '7');
     expect(list.map((a) => a.kind), [GwAlertKind.mail, GwAlertKind.approval, GwAlertKind.schedule, GwAlertKind.talk, GwAlertKind.mail]);
     expect(list.last.read, isTrue);
     expect(list[0].path, startsWith('/gw/mail/view?muid=222&subject=FW%3A%20%EC%A0%90%EA%B2%80%20FAQ'));
     expect(list[0].webUrl, 'https://gw.innogrid.com/#/'); // 자리표시자 남은 주소는 쓰지 않는다
     expect(list[1].path, startsWith('/gw/approval?doc=155488&form=22'));
-    expect(list[2].path, isEmpty);
+    expect(list[2].path, '/gw/today?date=2026-11-05');
+    expect(GwAlert.fromRow({...schedule, 'message': {'alertTitle': '[일정]', 'alertContent': '날짜 없음'}}, myEmpSeq: '7')!.path, '/gw/today');
     expect(list[2].webUrl, 'https://gw.innogrid.com/#/popup?MicroModuleCode=schres&callComp=UEAP011&schSeq=99457');
     expect(list[3].title, '김명진 · 일반미팅룸님의 멘션');
     expect(list[3].content, '@홍길동 메일 확인');
