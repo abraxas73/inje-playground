@@ -35,9 +35,13 @@ class _FavoritesPanelState extends ConsumerState<FavoritesPanel>
     _c = AnimationController(vsync: this);
     // 목록은 내비게이터 밖 레이어라 포커스를 못 받을 수 있다 — Esc는 키보드 전체에서 받는다
     HardwareKeyboard.instance.addHandler(_onKey);
-    // 열 때마다 서버 목록을 새로(다른 PC에서 바꾼 것·SharePoint 즐겨찾기 반영)
-    ref.invalidate(appFavoritesProvider);
-    ref.invalidate(sharepointFavoritesProvider);
+    // 열 때마다 서버 목록을 새로(다른 PC에서 바꾼 것·SharePoint 즐겨찾기 반영).
+    // 빌드가 끝난 뒤에 무효화한다 — 같은 목록을 보는 제목 옆 ☆가 빌드 중에 다시 그려지면 오류가 난다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.invalidate(appFavoritesProvider);
+      ref.invalidate(sharepointFavoritesProvider);
+    });
   }
 
   bool _onKey(KeyEvent e) {
