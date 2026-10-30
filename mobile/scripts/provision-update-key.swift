@@ -4,7 +4,7 @@ import CryptoKit
 import Security
 
 let platform = CommandLine.arguments.dropFirst().first ?? ""
-guard ["macos", "windows"].contains(platform) else { fatalError("Expected release platform") }
+guard ["macos", "windows", "linux"].contains(platform) else { fatalError("Expected release platform") }
 let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
   kSecAttrService as String: "com.innogrid.innocrew.desktop-update.ed25519",
   kSecAttrAccount as String: platform]

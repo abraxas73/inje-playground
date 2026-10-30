@@ -268,7 +268,7 @@ export const manualSections: ManualSection[] = [
   },
   {
     id: "desktop-install", title: "데스크톱 앱 설치·다운로드", category: "시작하기", app: "데스크톱",
-    description: "Mac과 Windows에서 이노크루 앱을 설치하고 사용합니다.",
+    description: "Mac·Windows·Linux에서 이노크루 앱을 설치하고 사용합니다.",
     steps: ["아래 앱 설치·다운로드 메뉴에서 운영체제에 맞는 설치 파일과 현재 버전을 확인합니다.", "macOS는 DMG를 열어 INNOGRID를 Applications 폴더로 옮긴 뒤 실행합니다. macOS 12 이상이며 Apple Silicon과 Intel을 지원합니다.", "Windows는 설치 파일을 내려받을 때 브라우저가 ‘일반적으로 다운로드되지 않는 파일’이라고 경고할 수 있습니다. Edge는 다운로드 목록의 ‘…’ 메뉴 → 유지 → 그래도 유지, Chrome은 ‘유지’를 누릅니다. 파일이 맞는지 의심되면 다운로드 페이지의 ‘파일 검증 SHA-256’ 값과 비교합니다.", "Windows에서 설치 파일을 처음 실행하면 파란 ‘Windows의 PC 보호’ 창(Microsoft Defender SmartScreen)이 뜹니다. 설치 파일이 아직 코드 서명 전이라 나오는 안내입니다. 창의 ‘추가 정보’를 누르고, 앱 이름이 INNOGRID-Windows-<버전>-Setup.exe인지 확인한 뒤 ‘실행’을 누르면 설치가 이어집니다(아래 화면). 사용자 계정 컨트롤(UAC) 창은 뜨지 않습니다.", "설치가 끝나면 시작 메뉴에서 INNOGRID를 엽니다. Windows 10 1809 이상 또는 11, x64 환경과 Microsoft Edge WebView2 Runtime이 필요합니다.", "Microsoft 계정으로 로그인하고 브라우저의 앱 열기를 허용합니다. 아마란스는 앱에서 별도로 연결합니다.", "자동 업데이트 기능이 없는 기존 버전(1.7.7 이하)은 이 페이지에서 기능이 포함된 최신 버전을 한 번 수동 설치해야 합니다.", "자동 업데이트 지원 버전은 앱 시작 시 확인하며, 앱 시스템 메뉴의 About 이노크루 아래 ‘업데이트 확인…’에서도 확인할 수 있습니다. Windows는 제목 표시줄을 오른쪽 클릭해 시스템 메뉴를 엽니다.", "새 버전이 있으면 맨 위 띠가 나타납니다. 작성 중인 내용을 먼저 저장하고 업데이트를 한 번 누르면 앱 안에서 내려받아 검증한 뒤 자동으로 설치하고 재시작합니다. 다운로드 폴더에서 설치 파일을 따로 실행하거나 두 번째 적용 버튼을 누를 필요가 없습니다. 운영체제의 보안·권한 확인이 나오면 내용을 확인해 주세요."],
     emphasis: [{ step: 2, text: "Edge는 다운로드 목록의 ‘…’ 메뉴 → 유지 → 그래도 유지, Chrome은 ‘유지’를 누릅니다." }],
     note: "Windows 설치 파일은 코드 서명 전 내부 테스트 빌드라 위 보안 경고가 표시됩니다. 서명 배포로 바뀌면 경고는 사라집니다. 아래 화면은 Windows 11 한국어 환경의 창을 그대로 재현한 예시이며, ‘실행 안 함’을 누르면 설치가 취소될 뿐 PC에는 아무 변화가 없습니다.",
@@ -277,6 +277,13 @@ export const manualSections: ManualSection[] = [
       { src: "/manual/windows-smartscreen-2.png", alt: "앱 이름 INNOGRID-Windows-1.6.1-Setup.exe와 게시자 알 수 없는 게시자가 표시된 창. 실행 버튼이 강조돼 있다", caption: "② 앱 이름이 INNOGRID 설치 파일인지 확인하고 ‘실행’을 누릅니다.", width: 558, height: 360 },
     ],
     links: [{ href: "/manual#windows-smart-app-control", label: "Windows 실행 오류(스마트 앱 컨트롤) 해결" }, { href: "/apps#desktop", label: "데스크톱 앱 다운로드" }, { href: "/manual#macos-update", label: "Mac 앱 업데이트·예기치 않은 종료 안내" }, { href: "/apps#mcp", label: "Claude 커넥터 연결 방법" }],
+  },
+  {
+    id: "linux-install", title: "Linux(Ubuntu) 앱 설치", category: "시작하기", app: "데스크톱",
+    description: "Ubuntu 24.04 이상(x86_64)에서 이노크루 앱을 .deb 패키지로 설치합니다.",
+    steps: ["앱 설치·다운로드 메뉴의 Linux 카드에서 .deb 파일을 내려받습니다.", "파일을 두 번 눌러 앱 센터로 설치하거나, 터미널에서 내려받은 폴더로 이동해 sudo apt install ./INNOGRID-Linux-<버전>_amd64.deb 를 실행합니다. 관리자 비밀번호를 입력합니다.", "앱 목록에서 INNOGRID를 열고 Microsoft 계정으로 로그인합니다. 브라우저의 앱 열기를 허용합니다.", "새 버전이 있으면 앱 맨 위 띠가 나타납니다. 작업을 저장하고 업데이트를 누르면 내려받아 검증한 뒤 설치합니다. 설치할 때 관리자 비밀번호 입력 창이 한 번 뜹니다. 설치가 끝나면 앱이 스스로 다시 시작합니다."],
+    note: "Ubuntu 24.04 이상과 x86_64만 지원합니다. 다른 배포판과 ARM은 지원하지 않습니다.",
+    links: [{ href: "/apps#desktop", label: "데스크톱 앱 다운로드" }],
   },
   {
     id: "windows-smart-app-control", title: "Windows 실행 오류 — ‘잘못된 이미지’·스마트 앱 컨트롤 차단", category: "시작하기", app: "데스크톱",

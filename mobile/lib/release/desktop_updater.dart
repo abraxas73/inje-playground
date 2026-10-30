@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import '../api/client.dart';
 import '../auth/session.dart';
 import '../config.dart';
+import 'linux_update_installer.dart';
+import 'linux_update_key.dart';
 import 'release_check.dart';
 import '../app/platform.dart';
 
@@ -42,6 +46,8 @@ class DesktopUpdater extends ChangeNotifier {
     required this.loadRelease,
     required this.refreshToken,
     this.reportFailure,
+    this.linuxInstaller,
+    this.linuxPublicKeyRaw = linuxUpdatePublicKey,
     this._channel = const MethodChannel('com.innogrid.playground/updater'),
   }) {
     _channel.setMethodCallHandler(_onNativeCall);
@@ -52,6 +58,9 @@ class DesktopUpdater extends ChangeNotifier {
   final Future<String?> Function() refreshToken;
   /// 네이티브가 알려 준 설치 실패 단계·OS 오류 코드를 서버 감사 로그로(실패해도 무시). 토큰·경로는 넣지 않는다.
   final Future<void> Function(Map<String, Object> failure)? reportFailure;
+  /// platform == 'linux'일 때 채널 대신 쓰는 Dart 설치기.
+  final LinuxUpdateInstaller? linuxInstaller;
+  final String linuxPublicKeyRaw;
   final MethodChannel _channel;
   final String _instance = DateTime.now().microsecondsSinceEpoch.toString();
   DesktopUpdateState _state = const DesktopUpdateState(DesktopUpdatePhase.idle);
@@ -124,6 +133,14 @@ class DesktopUpdater extends ChangeNotifier {
             visible: manual,
           ),
         );
+      } else if (platform == 'linux' && linuxPublicKeyRaw.isEmpty) {
+        _set(
+          DesktopUpdateState(
+            DesktopUpdatePhase.error,
+            message: '자동 업데이트용 서명 키가 없습니다. 최신 설치 파일을 내려받아 설치해 주세요.',
+            visible: manual,
+          ),
+        );
       } else {
         _set(
           DesktopUpdateState(
@@ -177,7 +194,7 @@ class DesktopUpdater extends ChangeNotifier {
           !hasDesktopUpdate(release, currentVersion)) {
         throw StateError('Unavailable update');
       }
-      if (platform != 'macos' && platform != 'windows') {
+      if (platform != 'macos' && platform != 'windows' && platform != 'linux') {
         throw StateError('Unsupported platform');
       }
       _activeSession = '$_instance-$epoch';
@@ -190,6 +207,10 @@ class DesktopUpdater extends ChangeNotifier {
           visible: true,
         ),
       );
+      if (platform == 'linux') {
+        await _startLinux(epoch, id, token, release);
+        return;
+      }
       // Build this from a fixed origin, never from a server-supplied download URL.
       final feed = Uri.https(
         'innocrew.innogrid.com',
@@ -222,10 +243,98 @@ class DesktopUpdater extends ChangeNotifier {
     }
   }
 
+  Future<void> _startLinux(
+    int epoch,
+    String id,
+    String token,
+    DesktopReleaseInfo release,
+  ) async {
+    final installer = linuxInstaller;
+    final bytes = release.bytes;
+    // 크기·설치기가 없으면 길이 검증을 못 하므로 시작하지 않는다.
+    if (installer == null || bytes == null) {
+      throw StateError('Missing linux update metadata');
+    }
+    final result = await installer.install(
+      version: release.version,
+      expectedBytes: bytes,
+      edSignature: release.update!.edSignature,
+      accessToken: token,
+      onProgress: (phase, progress) {
+        if (!_current(epoch, id)) return;
+        final value = progress != null && progress.isFinite
+            ? progress.clamp(0.0, 1.0)
+            : null;
+        _set(
+          DesktopUpdateState(
+            DesktopUpdatePhase.installing,
+            release: release,
+            progress: value,
+            message: phase == 'installing'
+                ? '설치 후 자동으로 다시 시작합니다…'
+                : phase == 'verifying'
+                ? '설치 파일 검증 중…'
+                : '업데이트 다운로드 중…',
+            visible: true,
+          ),
+        );
+      },
+    );
+    _activeSession = null;
+    _activeAccount = null;
+    if (!_current(epoch, id)) return;
+    switch (result) {
+      case LinuxUpdateDone():
+        // 앱이 곧 종료되고 새 버전으로 다시 시작된다.
+        return;
+      case LinuxUpdateCancelled():
+        _set(
+          DesktopUpdateState(
+            DesktopUpdatePhase.available,
+            release: release,
+            message: '업데이트를 취소했습니다.',
+            visible: true,
+          ),
+        );
+      case LinuxUpdateFailed(:final reason, :final code):
+        if (reportFailure != null) {
+          unawaited(
+            reportFailure!({
+              'platform': 'linux',
+              'version': release.version,
+              'reason': reason,
+              'winError': code,
+              'attempts': 1,
+            }).catchError((_) {}),
+          );
+        }
+        _set(
+          DesktopUpdateState(
+            DesktopUpdatePhase.error,
+            message: '업데이트에 실패했습니다. 다시 확인해 주세요. (오류 코드 $reason-$code)',
+            visible: true,
+          ),
+        );
+    }
+  }
+
   Future<void> _cancelNative() {
     final active = _activeSession;
     _activeSession = null;
     _activeAccount = null;
+    if (platform == 'linux') {
+      final installer = linuxInstaller;
+      if (installer != null) {
+        _pendingCancel = _pendingCancel.then((_) async {
+          try {
+            await installer.cancel();
+          } catch (_) {
+            _cancelFailed = true;
+          }
+        });
+      }
+      return _pendingCancel;
+    }
     if (active == null) return _pendingCancel;
     _pendingCancel = _pendingCancel.then((_) async {
       try {
@@ -333,13 +442,12 @@ Map<String, Object>? nativeFailure(Map args) {
 }
 
 final desktopUpdaterProvider = Provider<DesktopUpdater?>((ref) {
-  // Sparkle·WinSparkle 기반이라 macOS·Windows만 — Linux는 자동 업데이트가 없다
-  if (!isDesktopPlatform || defaultTargetPlatform == TargetPlatform.linux) {
-    return null;
-  }
-  final platform = defaultTargetPlatform == TargetPlatform.macOS
-      ? 'macos'
-      : 'windows';
+  if (!isDesktopPlatform) return null;
+  final platform = switch (defaultTargetPlatform) {
+    TargetPlatform.macOS => 'macos',
+    TargetPlatform.linux => 'linux',
+    _ => 'windows',
+  };
   String? account() {
     final session = ref.read(sessionProvider).asData?.value;
     if (session == null || session.isGuest) return null;
@@ -360,6 +468,14 @@ final desktopUpdaterProvider = Provider<DesktopUpdater?>((ref) {
     ),
     refreshToken: () => ref.read(apiClientProvider).tokens.refreshToken(),
     reportFailure: (f) async => ref.read(apiClientProvider).postJson('/api/desktop/update-failure', f),
+    linuxInstaller: platform == 'linux'
+        ? LinuxUpdateInstaller(
+            client: http.Client(),
+            run: Process.run,
+            publicKeyRaw: linuxUpdatePublicKey,
+            exitApp: () => exit(0),
+          )
+        : null,
   );
   ref.listen(sessionProvider, (_, _) {
     unawaited(updater.sessionChanged());

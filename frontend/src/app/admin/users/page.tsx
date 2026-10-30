@@ -28,7 +28,7 @@ const ROLE_CONFIG: Record<UserRole, { label: string; icon: typeof Shield; color:
   guest: { label: "게스트", icon: UserX, color: "bg-gray-100 text-gray-600 border-gray-200" },
 };
 const PLATFORMS: { key: AppPlatform; label: string }[] = [
-  { key: "ios", label: "iOS" }, { key: "android", label: "Android" }, { key: "windows", label: "Windows" }, { key: "macos", label: "Mac" },
+  { key: "ios", label: "iOS" }, { key: "android", label: "Android" }, { key: "windows", label: "Windows" }, { key: "macos", label: "Mac" }, { key: "linux", label: "Linux" },
 ];
 type SortKey = "name" | "created_at" | "last_login_at";
 

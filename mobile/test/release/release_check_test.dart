@@ -91,4 +91,17 @@ void main() {
       isNull,
     );
   });
+
+  test('데스크톱 릴리스의 bytes는 양의 정수일 때만 읽는다', () {
+    Map<String, Object?> json(Object? bytes) => {
+      'version': '1.7.3',
+      'url': 'https://storage.test/app.deb',
+      'bytes': bytes,
+    };
+    expect(parseDesktopRelease(json(11013142))?.bytes, 11013142);
+    expect(parseDesktopRelease(json(-1))?.bytes, isNull);
+    expect(parseDesktopRelease(json(0))?.bytes, isNull);
+    expect(parseDesktopRelease(json('11013142'))?.bytes, isNull);
+    expect(parseDesktopRelease(json(null))?.version, '1.7.3');
+  });
 }

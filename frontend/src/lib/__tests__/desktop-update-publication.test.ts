@@ -36,6 +36,19 @@ it('requires platform-specific immutable artifact names and valid metadata', () 
   expect(() => preparePublication('windows', '01.7.8', artifact.filename, body, update, keys.publicKey)).toThrow();
   expect(() => signUpdate({ ...options, build: 0 })).toThrow();
 });
+it('accepts linux .deb artifacts with minimumOS 24.04 only', () => {
+  const update = signUpdate({ ...options, minimumOS: '24.04' });
+  const name = 'INNOGRID-Linux-1.8.0_amd64.deb';
+  const artifact = preparePublication('linux', '1.8.0', name, body, update, keys.publicKey);
+  expect(artifact.path).toBe('linux/1.8.0/' + name);
+  expect(artifact.update.minimumOS).toBe('24.04');
+  expect(() => preparePublication('linux', '1.8.0', 'INNOGRID-Linux-1.8.0.deb', body, update, keys.publicKey)).toThrow();
+  const old = signUpdate({ ...options, minimumOS: '22.04' });
+  expect(() => preparePublication('linux', '1.8.0', name, body, old, keys.publicKey)).toThrow();
+  const sql = publicationSQL('linux', artifact, 'none');
+  expect(sql).toContain("'{linux}'");
+  expect(sql).not.toContain('windows');
+});
 it('does not accept an existing version object with different bytes', () => {
   const artifact = preparePublication('windows', '1.7.8', 'INNOGRID-Windows-1.7.8-Setup.exe', body, signUpdate(options), keys.publicKey);
   expect(verifyStoredArtifact(body, artifact)).toBe(true);

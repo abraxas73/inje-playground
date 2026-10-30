@@ -31,3 +31,16 @@ it("최초 수동 설치 이후 앱 안에서 자동 설치·재시작됨을 안
   expect(container.textContent).toContain("최초 한 번");
   expect(container.textContent).toContain("자동 설치·재시작");
 });
+
+it("Linux 릴리스가 있으면 Linux 카드에 지원 환경·apt 설치 명령·다운로드 링크를 보인다", async () => {
+  const linux = { ...artifact("macos", "INNOGRID-Linux-1.8.0_amd64.deb"), version: "1.8.0", path: "linux/1.8.0/INNOGRID-Linux-1.8.0_amd64.deb" };
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ ...release, linux }) })));
+  const { container } = render(<DesktopDownloads />);
+  await screen.findByText(/DEB 다운로드/);
+  expect(container.textContent).toContain("Linux");
+  expect(container.textContent).toContain("Ubuntu 24.04 이상 · x86_64");
+  expect(container.textContent).toContain("sudo apt install ./INNOGRID-Linux-1.8.0_amd64.deb");
+  expect(container.textContent).toContain("앱 센터가 설치 창을 띄웁니다");
+  expect(container.textContent).toContain("업데이트도 설치할 때 관리자 비밀번호 창이 한 번 뜹니다");
+  expect(container.querySelector('a[href="/api/desktop/download/linux"]')).not.toBeNull();
+});

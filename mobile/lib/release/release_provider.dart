@@ -18,16 +18,15 @@ final releaseProvider = FutureProvider<ReleaseInfo?>((ref) async {
   }
 });
 
-/// 서버에 게시된 자기 플랫폼의 macOS/Windows 설치본. 실패는 업데이트 띠를 숨긴다.
+/// 서버에 게시된 자기 플랫폼의 macOS/Windows/Linux 설치본. 실패는 업데이트 띠를 숨긴다.
 final desktopReleaseProvider = FutureProvider<DesktopReleaseInfo?>((ref) async {
-  // Linux 설치본은 서버가 아직 게시하지 않는다(platform 값은 macos·windows만)
-  if (!isDesktopPlatform || defaultTargetPlatform == TargetPlatform.linux) {
-    return null;
-  }
+  if (!isDesktopPlatform) return null;
   try {
-    final platform = defaultTargetPlatform == TargetPlatform.macOS
-        ? 'macos'
-        : 'windows';
+    final platform = switch (defaultTargetPlatform) {
+      TargetPlatform.macOS => 'macos',
+      TargetPlatform.linux => 'linux',
+      _ => 'windows',
+    };
     final json = await ref
         .read(apiClientProvider)
         .getJson('/api/desktop/release', query: {'platform': platform});

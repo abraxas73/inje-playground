@@ -3,8 +3,9 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { signUpdate } from './desktop-update-signing.mjs';
 
+const minimumOSByPlatform = { macos: '12.0', windows: '10.0.17763', linux: '24.04' };
 export function readPrivateKey(platform) {
-  if (!['macos', 'windows'].includes(platform)) throw new Error('Invalid update platform');
+  if (!['macos', 'windows', 'linux'].includes(platform)) throw new Error('Invalid update platform');
   if (process.env.INNOCREW_UPDATE_PRIVATE_KEY) return process.env.INNOCREW_UPDATE_PRIVATE_KEY;
   if (process.platform !== 'darwin') throw new Error('Update signing key is missing');
   const result = spawnSync('/usr/bin/security', ['find-generic-password', '-s', 'com.innogrid.innocrew.desktop-update.ed25519', '-a', platform, '-w'], { encoding: 'utf8', maxBuffer: 4096 });
@@ -14,10 +15,10 @@ export function readPrivateKey(platform) {
 
 async function main() {
   const [platform, artifact, buildText] = process.argv.slice(2);
-  if (!['macos', 'windows'].includes(platform) || !artifact) throw new Error('Expected platform artifact build (or --check-key)');
+  if (!['macos', 'windows', 'linux'].includes(platform) || !artifact) throw new Error('Expected platform artifact build (or --check-key)');
   const keys = JSON.parse(await readFile(new URL('../desktop-update-public-keys.json', import.meta.url), 'utf8'));
   const privateKey = readPrivateKey(platform);
-  const minimumOS = platform === 'macos' ? '12.0' : '10.0.17763';
+  const minimumOS = minimumOSByPlatform[platform];
   if (artifact === '--check-key') {
     signUpdate({ body: Buffer.from('InnoCrew signing key check'), build: 1, minimumOS, privateKey, publicKey: keys[platform] });
     console.log(`Verified ${platform} signing key matches embedded public key`); return;

@@ -50,3 +50,19 @@ Metadata was not changed by upload; publication requires the Supabase MCP
 platform-specific conditional update and its returned row.
 
 The first updater-capable binary requires one manual installation. No older binary is claimed to support automatic installation retroactively.
+
+## Linux (.deb)
+
+설계 `docs/superpowers/specs/2026-10-30-linux-desktop-distribution-design.md`, 런북 `docs/mobile-app.md` §Linux.
+
+CI(`.github/workflows/linux-app.yml`, `ubuntu-24.04`)가 확인하는 것:
+- `flutter test`·`flutter analyze`. 설치기 단위 테스트가 서명 불일치·길이 불일치·리다이렉트 거부·pkexec 취소·성공 시 재실행 호출을 가짜 실행기로 확인한다.
+- `.deb` 빌드와 `Depends`(`openssl`, `pkexec` 포함).
+- `sign-desktop-update.mjs linux`가 내장 공개 키와 맞는 서명을 만든다.
+- `test-linux-deb-upgrade.sh`: `ubuntu:24.04` 컨테이너에서 이전 버전 사본 설치 → 실제 `.deb`로 `apt-get install` → 버전·`/opt/innocrew/playground` 확인 → 앱과 같은 `openssl pkeyutl` 명령으로 서명 통과, 1바이트 바꾼 사본 거부.
+
+CI가 확인하지 못하는 것(실기 항목):
+- `pkexec` 관리자 인증 창(CI에는 화면과 polkit 에이전트가 없어 설치 명령을 root로 직접 실행한다).
+- 앱 종료 뒤 새 앱 재실행(단일 인스턴스, 새 프로세스 한 개).
+- 실제 서버·게시본 사이의 업그레이드. 스테이징이 없고 서버 주소가 고정이라 첫 게시(X) 다음 정상 릴리스(X+1)에서 런북 체크리스트로 확인한다.
+- 서명 확인과 root 설치 사이의 임시 파일 바꿔치기는 막지 않는다(알려진 제약, 런북 참고).

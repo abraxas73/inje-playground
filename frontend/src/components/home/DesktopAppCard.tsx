@@ -7,6 +7,8 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { browserPlatform, dismissed, DISMISS_KEY, type Presence } from "@/lib/desktop/presence";
 import type { DesktopPlatform } from "@/lib/desktop/release";
 
+const PLATFORM_NAME: Record<DesktopPlatform, string> = { macos: "Mac", windows: "Windows", linux: "Linux" };
+
 /** 데스크톱 브라우저에서, 이 계정으로 현재 OS의 앱에 로그인한 기록이 없을 때만 홈 맨 위에 설치를 권한다. */
 export default function DesktopAppCard() {
   const { userId, canAccessPage } = useUserRole();
@@ -33,7 +35,7 @@ function Prompt() {
     return () => { active = false; clearTimeout(timer); controller.abort(); };
   }, []);
   if (!platform) return null;
-  const mac = platform === "macos";
+  const name = PLATFORM_NAME[platform];
   const close = () => {
     try { localStorage.setItem(DISMISS_KEY, new Date().toISOString()); } catch { /* 저장 못 해도 이번엔 닫는다 */ }
     setPlatform(null);
@@ -43,16 +45,17 @@ function Prompt() {
       <h2 id="desktop-app-title" className="flex items-center gap-2 font-semibold"><Monitor aria-hidden="true" className="h-5 w-5 text-primary" />INNOGRID 데스크톱 앱을 설치하세요</h2>
       <Button variant="ghost" size="icon" aria-label="다음에" title="30일 동안 보지 않기" onClick={close}><X className="h-4 w-4" /></Button>
     </div>
-    <p className="mt-1 text-sm text-muted-foreground">{mac ? "Mac" : "Windows"}에서 이 계정으로 앱에 로그인한 기록이 없습니다. 설치하면 이런 점이 좋습니다.</p>
+    <p className="mt-1 text-sm text-muted-foreground">{name}에서 이 계정으로 앱에 로그인한 기록이 없습니다. 설치하면 이런 점이 좋습니다.</p>
     <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
       <li>아마란스 메신저에서 나를 언급한 메시지를 PC 알림으로 바로 받습니다.</li>
       <li>claude.ai의 ‘INNOGRID 아마란스’ 커넥터로 메일·일정·회의실·결재를 처리할 수 있습니다. 이 앱이 켜져 있어야 요청이 실행됩니다.</li>
       <li>홈 브리핑과 비서 이노봇을 큰 화면에서 씁니다.</li>
     </ul>
     <div className="mt-4 flex flex-wrap items-center gap-3">
-      <Button asChild><Link href="/apps">{mac ? "Mac" : "Windows"} 설치 파일 받기</Link></Button>
-      <Link href="/manual#desktop-install" className="text-sm font-medium text-primary hover:underline">설치 안내 보기</Link>
-      {!mac && <span className="text-xs text-muted-foreground">‘Windows의 PC 보호’ 창이 뜨면 추가 정보 → 실행</span>}
+      <Button asChild><Link href="/apps">{name} 설치 파일 받기</Link></Button>
+      <Link href={platform === "linux" ? "/manual#linux-install" : "/manual#desktop-install"} className="text-sm font-medium text-primary hover:underline">설치 안내 보기</Link>
+      {platform === "windows" && <span className="text-xs text-muted-foreground">‘Windows의 PC 보호’ 창이 뜨면 추가 정보 → 실행</span>}
+      {platform === "linux" && <span className="text-xs text-muted-foreground">받은 파일을 열면 앱 센터가 설치합니다(관리자 비밀번호 입력)</span>}
     </div>
   </section>;
 }

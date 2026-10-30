@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import DesktopAppCard from "@/components/home/DesktopAppCard";
-import { appPlatform, browserPlatform, dismissed, DISMISS_KEY, presenceFromRows } from "@/lib/desktop/presence";
+import { appPlatform, parseAppUa, browserPlatform, dismissed, DISMISS_KEY, presenceFromRows } from "@/lib/desktop/presence";
 
 const user = vi.hoisted(() => ({ id: "self", allowed: true }));
 vi.mock("@/hooks/useUserRole", () => ({ useUserRole: () => ({ userId: user.id, canAccessPage: () => user.allowed }) }));
@@ -21,6 +21,8 @@ describe("presence 도우미", () => {
     expect(appPlatform("InnogridApp/1.6.1 (macOS) InnogridBuild/37")).toBe("macos"); // 실제 기록은 Flutter 플랫폼 이름 그대로 macOS
     expect(appPlatform("InnogridApp/dev (macos) InnogridBuild/0")).toBe("macos");
     expect(appPlatform("InnogridApp/1.4.6 (windows) InnogridBuild/31")).toBe("windows");
+    expect(appPlatform("InnogridApp/1.8.0 (linux) InnogridBuild/130")).toBe("linux");
+    expect(parseAppUa("InnogridApp/1.8.0 (linux) InnogridBuild/130")).toEqual({ platform: "linux", version: "1.8.0", build: 130 });
     expect(appPlatform("InnogridApp/1.6.1 (android) InnogridBuild/37")).toBeNull();
     expect(appPlatform("InnogridApp/dev (iOS) InnogridBuild/0")).toBeNull();
     expect(appPlatform(MAC_UA)).toBeNull();
@@ -32,6 +34,9 @@ describe("presence 도우미", () => {
     expect(browserPlatform("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148")).toBeNull();
     expect(browserPlatform("Mozilla/5.0 (Linux; Android 14) Mobile Safari/537.36")).toBeNull();
     expect(browserPlatform(MAC_UA, 5)).toBeNull(); // iPadOS Safari는 Macintosh로 위장
+    expect(browserPlatform("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36")).toBe("linux");
+    expect(browserPlatform("Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0")).toBe("linux");
+    expect(browserPlatform("Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 Chrome/130.0 Safari/537.36")).toBeNull();
   });
   it("로그인 이력에서 플랫폼별 가장 최근 시각만 남긴다", () => {
     expect(presenceFromRows([
@@ -39,7 +44,8 @@ describe("presence 도우미", () => {
       { user_agent: "InnogridApp/1.6.0 (windows) InnogridBuild/36", logged_in_at: "2026-10-01T01:00:00Z" },
       { user_agent: "InnogridApp/1.6.1 (iOS) InnogridBuild/37", logged_in_at: "2026-10-09T01:00:00Z" },
       { user_agent: "InnogridApp/1.6.1 (macOS) InnogridBuild/37", logged_in_at: "2026-10-08T01:00:00Z" },
-    ])).toEqual({ macos: "2026-10-08T01:00:00Z", windows: "2026-10-10T01:00:00Z" });
+      { user_agent: "InnogridApp/1.8.0 (linux) InnogridBuild/130", logged_in_at: "2026-10-07T01:00:00Z" },
+    ])).toEqual({ macos: "2026-10-08T01:00:00Z", windows: "2026-10-10T01:00:00Z", linux: "2026-10-07T01:00:00Z" });
   });
   it("닫은 지 30일 안이면 숨기고, 그 뒤나 값이 없으면 다시 보인다", () => {
     const now = Date.parse("2026-10-10T00:00:00Z");
@@ -53,7 +59,7 @@ describe("presence 도우미", () => {
 describe("홈 설치 카드", () => {
   it("Windows 브라우저에서 앱 로그인 기록이 없으면 설치 카드와 안내 링크를 보여 준다", async () => {
     setBrowser(WIN_UA);
-    const fetch = vi.fn().mockResolvedValue(Response.json({ macos: "2026-10-10T01:00:00Z", windows: null }));
+    const fetch = vi.fn().mockResolvedValue(Response.json({ macos: "2026-10-10T01:00:00Z", windows: null, linux: null }));
     vi.stubGlobal("fetch", fetch);
     render(<DesktopAppCard />);
     expect(await screen.findByRole("heading", { name: /데스크톱 앱을 설치하세요/ })).toBeInTheDocument();
@@ -62,9 +68,15 @@ describe("홈 설치 카드", () => {
     expect(screen.getByRole("link", { name: "설치 안내 보기" })).toHaveAttribute("href", "/manual#desktop-install");
     expect(screen.getByText(/추가 정보 → 실행/)).toBeInTheDocument();
   });
+  it("Linux 브라우저의 설치 안내 링크는 linux-install 절로 간다", async () => {
+    setBrowser("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ macos: null, windows: null, linux: null })));
+    render(<DesktopAppCard />);
+    expect(await screen.findByRole("link", { name: "설치 안내 보기" })).toHaveAttribute("href", "/manual#linux-install");
+  });
   it("현재 OS의 앱에 로그인한 기록이 있으면 카드를 숨긴다", async () => {
     setBrowser(MAC_UA);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ macos: "2026-10-10T01:00:00Z", windows: null })));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ macos: "2026-10-10T01:00:00Z", windows: null, linux: null })));
     const view = render(<DesktopAppCard />);
     await act(async () => {});
     expect(view.container).toBeEmptyDOMElement();
@@ -83,7 +95,7 @@ describe("홈 설치 카드", () => {
   });
   it("‘다음에’를 누르면 카드가 닫히고 30일 동안 다시 묻지 않는다", async () => {
     setBrowser(MAC_UA);
-    const fetch = vi.fn().mockResolvedValue(Response.json({ macos: null, windows: null }));
+    const fetch = vi.fn().mockResolvedValue(Response.json({ macos: null, windows: null, linux: null }));
     vi.stubGlobal("fetch", fetch);
     const view = render(<DesktopAppCard />);
     await screen.findByRole("heading", { name: /데스크톱 앱을 설치하세요/ });

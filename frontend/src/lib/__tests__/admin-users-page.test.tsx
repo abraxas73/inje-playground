@@ -10,7 +10,7 @@ const base = { role: 'user', avatar_url: null, updated_at: '2026-10-01T00:00:00Z
 const users = [
   { ...base, id: 'p1', user_id: 'u1', email: 'kim@example.com', display_name: '김철수', created_at: '2026-10-01T03:00:00Z', last_login_at: '2026-10-20T00:30:00Z',
     directory: { division: null, headquarters: 'AX본부', team: '플랫폼팀', duty: '팀장', position: null },
-    installs: { ios: { version: '1.7.16', build: 67, at: '2026-10-20T00:18:46Z' }, windows: { version: '1.7.15', build: 66, at: '2026-10-19T00:00:00Z' } } },
+    installs: { ios: { version: '1.7.16', build: 67, at: '2026-10-20T00:18:46Z' }, windows: { version: '1.7.15', build: 66, at: '2026-10-19T00:00:00Z' }, linux: { version: '1.8.0', build: 130, at: '2026-10-29T00:00:00Z' } } },
   { ...base, id: 'p2', user_id: 'u2', email: 'park@example.com', display_name: '박영희', role: 'guest', created_at: '2026-09-15T03:00:00Z', last_login_at: null },
 ];
 
@@ -45,6 +45,7 @@ it('표에 가입일·최근 로그인·설치 버전이 보이고 검색어로 
   expect(kim).toHaveTextContent('iOS 1.7.16');
   expect(kim).toHaveTextContent('Windows 1.7.15');
   expect(kim).toHaveTextContent('Android –');
+  expect(kim).toHaveTextContent('Linux 1.8.0');
   const park = screen.getByRole('row', { name: '박영희 상세 보기' });
   expect(park).toHaveTextContent('기록 없음');
   // 기본 정렬은 가입일 내림차순 — 김철수(10-01)가 박영희(09-15)보다 위

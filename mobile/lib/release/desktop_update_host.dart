@@ -50,7 +50,10 @@ class DesktopUpdateStrip extends StatelessWidget {
                   children: [
                     Text(
                       available
-                          ? '${state.release!.version} 버전으로 업데이트가 필요합니다.'
+                          // 취소 안내처럼 메시지가 있으면 그것을 먼저 보인다
+                          ? (state.message.isNotEmpty
+                                ? state.message
+                                : '${state.release!.version} 버전으로 업데이트가 필요합니다.')
                           : '${state.message}${state.progress == null ? '' : ' ${(state.progress! * 100).round()}%'}',
                       style: TextStyle(
                         fontSize: 13,

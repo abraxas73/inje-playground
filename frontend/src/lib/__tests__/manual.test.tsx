@@ -44,7 +44,7 @@ it("Windows 브라우저 다운로드 경고 해제 방법을 강조색과 굵�
 it("앱 기능 절은 목차와 제목에 (모바일·데스크톱 앱) 표시가 붙고 앱 이름으로도 검색된다", () => {
   const tagged = manualSections.filter((s) => s.app);
   expect(tagged.map((s) => s.id)).toEqual(expect.arrayContaining(["app-approvals", "app-attendance", "app-today", "app-mail", "app-board", "desktop-mentions", "desktop-connector", "desktop-install"]));
-  for (const s of tagged) expect(s.category).toBe(["desktop-install", "macos-update", "windows-smart-app-control"].includes(s.id) ? "시작하기" : "모바일·데스크톱 앱");
+  for (const s of tagged) expect(s.category).toBe(["desktop-install", "macos-update", "windows-smart-app-control", "linux-install"].includes(s.id) ? "시작하기" : "모바일·데스크톱 앱");
   render(<ManualPage />);
   expect(screen.getAllByText("(모바일·데스크톱 앱)").length).toBeGreaterThanOrEqual(5);
   expect(screen.getAllByText("(데스크톱 앱)").length).toBeGreaterThanOrEqual(2);
@@ -64,4 +64,11 @@ it("앱 전용 기능 절(대시보드·Always On·알림 센터·메신저·테
   expect(ids("☆")).toContain("app-favorites");
   expect(ids("버튼 숨기기")).toContain("app-fabs-hide");
   expect(manualSections.find((s) => s.id === "mobile-home")!.steps.join(" ")).toContain("위젯 대시보드");
+});
+
+it("Linux 설치 절(linux-install)이 있고 apt 설치 명령으로 검색된다", () => {
+  const s = manualSections.find((x) => x.id === "linux-install");
+  expect(s?.category).toBe("시작하기");
+  expect(s?.steps.join(" ")).toContain("sudo apt install");
+  expect(searchManual("Ubuntu").map((x) => x.id)).toContain("linux-install");
 });

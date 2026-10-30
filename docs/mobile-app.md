@@ -170,10 +170,44 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk   # 또는 APK 파일
 3. Personal Team 서명은 7일마다 만료 — 재실행하면 갱신. 구성원 배포는 §배포(TestFlight)로 한다.
 ### iOS 시뮬레이터
 `open -a Simulator` → `flutter devices`로 UDID 확인 → `flutter run -d <UDID>`. 첫 빌드는 pod install 포함 1분 안팎(2026-10-03 실측 36초). 2026-10-03 iPhone 17 Pro 시뮬레이터에서 로그인 화면까지 확인. 시뮬레이터는 기본 위치가 없어 '현재 위치'가 10초 뒤 시간 초과로 끝난다 — Simulator 메뉴 **Features → Location → Custom Location…**(예: 37.4021, 127.1077 판교) 또는 Apple을 고르거나, 앱에서 '주소 변경'으로 지정.
-### Linux(Ubuntu) 데스크톱 (2026-10-30 — 자동 업데이트 없음)
-Ubuntu 26.04에서 확인. 설치본 게시(`/apps` 내려받기·릴리스 API `platform=linux`)는 후속 작업이라 지금은 `.deb`를 직접 전달한다.
+### Linux(Ubuntu) 데스크톱 (2026-10-30 — .deb 게시·앱 업데이트)
+Ubuntu 24.04 이상(x86_64). 설계 `docs/superpowers/specs/2026-10-30-linux-desktop-distribution-design.md`.
 
-**.deb 패키지**: `mobile/scripts/build-linux-deb.sh` → `mobile/build/linux/deb/innocrew_<버전>_amd64.deb`(릴리스 빌드, 버전은 pubspec). 설치 `sudo apt install ./innocrew_<버전>_amd64.deb`(의존 패키지 자동 설치), 실행은 앱 목록의 INNOCREW 또는 `innocrew`. 설치 위치 `/opt/innocrew`, `.desktop`이 `innogrid://`를 앱에 연결한다. 의존 목록은 `dpkg-shlibdeps`로 빌드한 PC 기준이라 `t64` 패키지 이름을 쓰는 Ubuntu 24.04 이상에서만 설치된다. 삭제 `sudo apt remove innocrew`.
+**.deb 패키지**: `mobile/scripts/build-linux-deb.sh` → `mobile/build/linux/deb/INNOGRID-Linux-<버전>_amd64.deb`(릴리스 빌드, 버전은 pubspec). 패키지 이름 `innocrew`, 설치 위치 `/opt/innocrew`, 실행 `/usr/bin/innocrew`, `.desktop`이 `innogrid://`를 앱에 연결한다. 의존 목록은 `dpkg-shlibdeps` 결과에 `openssl, pkexec`(앱의 서명 확인·관리자 인증 설치용)를 덧붙인 것이다. `t64` 패키지 이름을 쓰므로 24.04 이상에서만 설치된다. 빌드는 `desktop-update-public-keys.json`의 `linux` 값을 `--dart-define=INNOCREW_LINUX_UPDATE_KEY`로 앱에 넣는다(값이 없으면 빈 값 — 그 앱은 업데이트 서명을 통과시키지 않는다).
+
+**처음 설치**: 웹 `/apps` Linux 카드에서 내려받는다(로그인 필요, macOS·Windows와 같은 `/api/desktop/download/linux`). 받은 파일을 열면 앱 센터가 설치 창을 띄운다(비밀번호 입력). 터미널은 `sudo apt install ./INNOGRID-Linux-<버전>_amd64.deb`. 삭제 `sudo apt remove innocrew`.
+
+**업데이트 흐름**(`lib/release/linux_update_installer.dart`):
+1. 앱 시작·로그인 사용자 변경 때, 더보기 > 앱 버전 "업데이트 확인"으로 `GET /api/desktop/release?platform=linux&mode=automatic`를 본다. 새 버전이면 화면 위 띠에 "새 버전 X.Y.Z"와 업데이트 버튼이 뜬다.
+2. 버튼을 누르면 로그인 토큰으로 고정 주소 `/api/desktop/update/artifact/linux/<버전>`에서 `.deb`를 `~/.cache/INNOGRID/update`(0700)에 받는다. 리다이렉트는 따라가지 않고, 길이를 릴리스 정보의 `bytes`와 대조한다.
+3. 앱에 내장한 공개 키로 Ed25519 서명을 확인한다(`openssl pkeyutl -verify -pubin -inkey key.pem -rawin -in <deb> -sigfile <deb>.sig`). 틀리면 설치하지 않는다.
+4. `pkexec /usr/bin/apt-get install -y <받은 파일>`을 실행한다. Ubuntu 관리자 인증 창이 **한 번** 뜬다. 창을 닫으면(pkexec 종료 코드 126) "업데이트를 취소했습니다". 인증 실패·권한 없음·polkit 에이전트 없음(종료 코드 127)은 취소가 아니라 `auth` 실패로 기록된다. 설치가 성공하면 받은 파일(`.deb`·`.sig`·`key.pem`)은 재실행 전에 지운다. 받는 중 60초 동안 바이트가 없으면 `download` 실패로 끝낸다.
+5. 앱을 끝내고 새 앱을 띄운다(앱이 단일 인스턴스라 현재 앱이 먼저 끝나야 한다). 실패 단계는 `POST /api/desktop/update-failure`로 기록된다(감사 category `desktop`).
+
+**알려진 제약**:
+- 업데이트 설치 때 Ubuntu 관리자 인증 창이 한 번 뜬다. 문구는 polkit 기본 문구(`/usr/bin/apt-get` 실행)다. 비밀번호 없이 설치하는 polkit 예외 규칙은 만들지 않았다.
+- 서명 확인과 root 설치 사이에 같은 사용자 권한의 악성 프로그램이 임시 파일을 바꾸면 막지 못한다(2026-10-30 사용자 결정). 이미 사용자 권한을 뺏긴 PC라는 전제다.
+- 첫 Linux 게시(X) 이후 실제 업그레이드는 다음 정상 릴리스(X+1) 때 확인한다. 운영에 시험용 버전을 게시하지 않는다.
+- 업데이트 중 로그아웃·계정 전환: 비밀번호 창이 열려 있는 동안 로그아웃하면 앱이 받은 파일을 지우므로 apt가 실패하고 아무것도 설치되지 않는다. apt가 이미 실행 중이면 설치는 끝까지 진행되고 새 앱이 뜬다.
+- apt 저장소·앱 센터 등록은 없다. `.deb` 파일만 배포한다.
+
+**릴리스(Owner 절차)**:
+1. 처음 한 번: Owner Mac에서 `mobile/scripts/provision-update-key.swift`로 계정 `linux` 키 쌍을 만든다(키체인 `com.innogrid.innocrew.desktop-update.ed25519`). 공개 키를 `mobile/desktop-update-public-keys.json`의 `linux`에 넣어 커밋하고, `mobile/scripts/provision-ci-update-key.mjs`로 비밀 키를 GitHub 비밀값 `INNOCREW_LINUX_UPDATE_PRIVATE_KEY`에 올린다. **첫 Linux 게시본은 반드시 `desktop-update-public-keys.json`에 `linux` 공개 키가 들어간 상태로 빌드한다.** 키 없이 빌드해 게시하면 설치된 앱이 다음 업데이트 서명을 확인하지 못해 전원이 수동으로 재설치해야 한다. 원본 키를 잃어도 설치된 Linux 앱이 다음 업데이트를 확인하지 못해 전원이 재설치해야 한다.
+2. 서버 변경을 먼저 배포하고(앱이 `platform=linux`를 묻기 전에), 감사 보존 SQL `docs/sql/2026-10-30-audit-retention-linux.sql`을 적용한다.
+3. GitHub Actions `Linux app`을 실행한다(`.github/workflows/linux-app.yml` — 테스트·분석 → 빌드 → 서명 → 컨테이너 업그레이드·서명 확인). 산출물 `INNOGRID-Linux`(`.deb`와 `.update.json`)를 내려받는다.
+4. `cd frontend && node --env-file=.env.local scripts/publish-desktop.mjs linux <버전> <deb 경로> <기존 linux sha256>`을 실행하고 출력된 SQL을 Supabase에서 적용한다. 마지막 인자는 첫 게시만 `none`(linux 항목 없음)이고, 이후 릴리스는 Supabase에서 읽은 현재 게시본 linux `sha256`이다. `none`을 반복하면 SQL이 0행을 돌려주고 게시가 멈춘다. 반환 행이 정확히 1개인지 확인한다. `/apps` Linux 카드에서 내려받기를 확인한다.
+5. 이후 릴리스는 3~4만 반복한다(4의 마지막 인자는 위 설명대로 현재 sha256).
+
+**업그레이드 검증**: `mobile/scripts/test-linux-deb-upgrade.sh <deb>`는 `ubuntu:24.04` 컨테이너에서 Version만 낮춘 같은 `.deb`를 먼저 설치하고 실제 `.deb`로 `apt-get install`을 실행해 버전·`/opt/innocrew/playground`를 확인한다. 이어 `<deb>.update.json`의 서명을 앱과 같은 `openssl` 명령으로 확인하고 1바이트 바꾼 사본이 거부되는지 본다. 서명 키가 없는 PC는 `SKIP_SIGNATURE=1`로 업그레이드 부분만 돌린다.
+
+**실기 체크리스트(X → X+1, Ubuntu 24.04 이상 PC 한 대)**:
+- [ ] X를 `/apps`에서 받아 설치, 로그인 후 `login_history`에 `InnogridApp/X (linux)` 1건
+- [ ] X+1 게시 뒤 앱 시작 → 화면 위 띠 "새 버전 X+1"
+- [ ] 업데이트 버튼 → 받기 → 서명 확인 → 관리자 인증 창 표시
+- [ ] apt는 받은 `.deb`를 `_apt` 사용자로 읽는데 0700 캐시 폴더라 "Download is performed unsandboxed as root…" 경고가 나올 수 있다. 경고가 떠도 설치가 성공하는지 확인한다.
+- [ ] 창에서 취소 → "업데이트를 취소했습니다", 앱은 X 그대로
+- [ ] 다시 시도해 비밀번호 입력 → 앱이 끝나고 새 앱이 한 개만 뜬다, 더보기의 버전이 X+1
+- [ ] `~/.cache/INNOGRID/update`에 받은 파일이 남지 않는다
 
 **개발 빌드**:
 1. 빌드 도구: `sudo apt install -y clang cmake ninja-build libgtk-3-dev libsecret-1-dev libwebkit2gtk-4.1-dev liblzma-dev`
@@ -184,7 +218,7 @@ Ubuntu 26.04에서 확인. 설치본 게시(`/apps` 내려받기·릴리스 API 
 Linux만의 동작:
 - WebView는 WebKitGTK(`webview_all_linux`, `lib/web/app_webview.dart`의 Linux 분기). `webview_flutter`에 Linux 구현이 없고, WPE 기반 `webview_flutter_linux`는 Ubuntu 저장소에 WPE WebKit이 없어 쓰지 않았다.
 - 이 WebView는 Flutter 화면 **위에** 얹힌 GTK 네이티브 위젯이라 그 영역의 Flutter 위젯을 가린다. `lib/web/linux_webview_guard.dart`가 (1) 팝업·하단 그룹 메뉴·알림·즐겨찾기 패널이 열렸거나 (2) 그 화면이 맨 위가 아니면 WebView를 트리에서 빼고(페이지 상태는 유지), (3) 전체 화면 웹 화면은 오른쪽 80px를 떠 있는 버튼 자리로 비운다. 알려진 제약: 웹 화면 영역에 뜨는 SnackBar·툴팁은 가려질 수 있고, 메뉴를 여는 동안 웹 화면이 잠깐 빈다.
-- Claude 열기 버튼 없음(`hasClaudeDesktopApp`), 자동 업데이트·설치본 안내 없음, 메신저 열기는 그룹웨어 웹으로.
+- Claude 열기 버튼 없음(`hasClaudeDesktopApp`), 메신저 열기는 그룹웨어 웹으로.
 - 위치는 GNOME 설정 > 개인정보 보호 > 위치 서비스가 켜져 있어야 한다(꺼져 있으면 뭐 먹지가 "위치 서비스가 꺼져 있습니다"를 띄운다).
 - 앱 데이터 폴더는 `$XDG_DATA_HOME/INNOGRID`(기본 `~/.local/share/INNOGRID`).
 - `flutter create`·`flutter build`가 `analysis_options.yaml`·`.metadata`를 고쳐 쓰니 커밋 전에 되돌린다.

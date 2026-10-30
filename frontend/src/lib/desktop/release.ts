@@ -1,6 +1,15 @@
 export const DESKTOP_RELEASE_KEY = "desktop_app_release";
 export const DESKTOP_BUCKET = "desktop-releases";
-export type DesktopPlatform = "macos" | "windows";
+export const DESKTOP_PLATFORMS = ["macos", "windows", "linux"] as const;
+export type DesktopPlatform = (typeof DESKTOP_PLATFORMS)[number];
+export const isDesktopPlatform = (x: unknown): x is DesktopPlatform => DESKTOP_PLATFORMS.includes(x as DesktopPlatform);
+/** Linux 업데이트 실패 단계(앱 업데이트 코드와 같게) */
+export const LINUX_FAILURE_REASONS = ["download", "length", "signature", "auth", "install", "launch"] as const;
+export function desktopFilename(platform: DesktopPlatform, version: string): string {
+  if (platform === "macos") return `INNOGRID-macOS-${version}.dmg`;
+  if (platform === "windows") return `INNOGRID-Windows-${version}-Setup.exe`;
+  return `INNOGRID-Linux-${version}_amd64.deb`;
+}
 export type DesktopUpdate = { build: number; edSignature: string; minimumOS: string };
 export type DesktopArtifact = { version: string; filename: string; path: string; sha256: string; bytes: number; releasedAt: string; update?: DesktopUpdate };
 export const DESKTOP_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
@@ -18,10 +27,10 @@ export function parseDesktopRelease(raw: string | null | undefined): DesktopRele
   try {
     const data = JSON.parse(raw ?? "{}");
     const result: DesktopRelease = {};
-    for (const p of ["macos", "windows"] as const) {
+    for (const p of DESKTOP_PLATFORMS) {
       const a = data?.[p];
       if (a && typeof a.version === "string" && typeof a.filename === "string" &&
-          /^INNOGRID-[A-Za-z0-9.+-]+\.(dmg|exe)$/.test(a.filename) &&
+          DESKTOP_VERSION.test(a.version) && a.filename === desktopFilename(p, a.version) &&
           a.path === `${p}/${a.version}/${a.filename}` && /^[0-9a-f]{64}$/.test(a.sha256) &&
           Number.isSafeInteger(a.bytes) && a.bytes > 0 && typeof a.releasedAt === "string") {
         const { update, ...manual } = a;

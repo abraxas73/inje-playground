@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:playground/release/desktop_update_host.dart';
 import 'package:playground/release/desktop_updater.dart';
 import 'package:playground/release/release_check.dart';
-import 'desktop_updater_test.dart' show signedRelease, updateChannel;
+import 'package:playground/release/linux_update_installer.dart';
+import 'desktop_updater_test.dart'
+    show FakeLinuxInstaller, signedRelease, updateChannel;
 
 void main() {
   testWidgets(
@@ -80,4 +82,44 @@ void main() {
           .setMockMethodCallHandler(updateChannel, null);
     },
   );
+
+  for (final cancelled in [true, false]) {
+    testWidgets(
+      'available strip ${cancelled ? 'shows the cancel notice' : 'keeps the default text'} and the 업데이트 button',
+      (tester) async {
+        final installer = FakeLinuxInstaller(
+          cancelled ? const LinuxUpdateCancelled() : const LinuxUpdateDone(),
+        );
+        final updater = DesktopUpdater(
+          platform: 'linux',
+          currentVersion: '1.7.7',
+          account: () => 'a',
+          loadRelease: () async => DesktopReleaseInfo(
+            version: '1.7.8',
+            url: signedRelease.url,
+            update: signedRelease.update,
+            bytes: 10,
+          ),
+          refreshToken: () async => 'token',
+          linuxInstaller: installer,
+          linuxPublicKeyRaw: 'k',
+        );
+        await updater.check(manual: false);
+        if (cancelled) await updater.start();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(body: DesktopUpdateStrip(updater: updater)),
+          ),
+        );
+        if (cancelled) {
+          expect(find.text('업데이트를 취소했습니다.'), findsOneWidget);
+        } else {
+          expect(find.textContaining('1.7.8 버전으로 업데이트가 필요합니다.'), findsOneWidget);
+        }
+        expect(find.text('업데이트'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox.shrink());
+        updater.dispose();
+      },
+    );
+  }
 }
