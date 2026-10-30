@@ -61,7 +61,7 @@ class _FoodScreenState extends ConsumerState<FoodScreen> {
     } on LocationDenied catch (e) {
       _error = e.message;
       if (e.canOpenSettings && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), action: SnackBarAction(label: '설정', onPressed: () => Geolocator.openLocationSettings())));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), persist: false, action: SnackBarAction(label: '설정', onPressed: () => Geolocator.openLocationSettings())));
       }
     } on ApiException catch (e) {
       _error = e.message;
