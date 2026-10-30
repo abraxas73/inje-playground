@@ -210,40 +210,6 @@ class MsgNote {
   }
 }
 
-/// 오늘 근태 한 건(P1181). messengerYn='Y'이고 atNm 있는 건만 표시 대상.
-class MsgAttend {
-  const MsgAttend({required this.empSeq, required this.empName, required this.atName, required this.startTm, required this.endTm, required this.startTs, required this.endTs});
-  final String empSeq, empName, atName, startTm, endTm;
-  final int startTs, endTs;
-
-  /// 지금 이 근태가 유효한 시간대인가(start ≤ now ≤ end).
-  bool activeAt(DateTime now) {
-    final t = now.millisecondsSinceEpoch;
-    return (startTs == 0 || t >= startTs) && (endTs == 0 || t <= endTs);
-  }
-
-  static MsgAttend? fromRow(Map r) {
-    if (_asStr(r['messengerYn']) != 'Y') return null;
-    final nm = _asStr(r['atNm']);
-    if (nm.isEmpty) return null;
-    return MsgAttend(
-      empSeq: _asStr(r['empSeq']),
-      empName: _asStr(r['empNm']),
-      atName: nm,
-      startTm: _asStr(r['startTm']),
-      endTm: _asStr(r['endTm']),
-      startTs: _asInt(r['startTimestamp']),
-      endTs: _asInt(r['endTimestamp']),
-    );
-  }
-
-  /// resultData(attendList 또는 list/배열) → 목록.
-  static List<MsgAttend> parseList(dynamic d) {
-    final list = d is List ? d : (d is Map && (d['attendList'] ?? d['list']) is List ? (d['attendList'] ?? d['list']) as List : const []);
-    return [for (final r in list) if (r is Map) ?fromRow(r)];
-  }
-}
-
 /// 동료 접속 상태(P322). code: -1 오프라인 · 0 온라인 · 1 부재 · 2 바쁨 · 3 회의 · 4 통화 · 5 외근 · 6 휴가 · 7 재택.
 /// (출처: 메신저 dzSymbols KEY_CLIENT_INFO_STATE_*, connect!='Y'면 오프라인.)
 class MsgClientState {

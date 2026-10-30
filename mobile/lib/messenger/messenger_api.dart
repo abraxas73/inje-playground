@@ -165,14 +165,6 @@ class MessengerApi {
     return MsgClientState.parseList(d);
   }
 
-  // ── 7) 팀 근태 ───────────────────────────────────────────────────
-  /// 오늘 전사 근태(P1181). messengerYn='Y'·atNm 있는 건만.
-  Future<List<MsgAttend>> todayAttend() async {
-    final sess = await client.ensureSession();
-    final d = await client.call('P1181', {'groupSeq': sess.groupSeq, 'clientType': 'MESSENGER'});
-    return MsgAttend.parseList(d);
-  }
-
   // ── 8) 대화방 공지·파일함 ────────────────────────────────────────
   Future<List<MsgRoomNotice>> roomNotices(String roomId, {String timeStamp = '0', int pageSize = 30}) async {
     final d = await client.call('P595', {'roomId': roomId, 'timeStamp': timeStamp, 'pageSize': '$pageSize'});

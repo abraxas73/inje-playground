@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:playground/briefing/briefing_model.dart';
 import 'package:playground/briefing/briefing_sections.dart';
 import 'package:playground/features/home/quotes.dart';
+import 'package:playground/gw/gw_attend_range.dart';
+import 'package:playground/gw/attend_screen.dart';
 import 'package:playground/gw/gw_models.dart';
 
 Widget wrap(Widget w) => MaterialApp(home: Scaffold(body: SingleChildScrollView(child: w)));
@@ -130,5 +132,37 @@ void main() {
     expect(find.text('데일리 브리핑'), findsNothing, reason: '보여 줄 브리핑이 없으면 아래 연결 카드가 안내한다');
     await tester.pumpWidget(wrap(const BriefingCard(summary: SummaryText(text: 'x', at: '08:40'))));
     expect(find.textContaining('아마란스'), findsNothing);
+  });
+
+  testWidgets('부재 위젯 이번주 — 칩을 누르면 알리고, 켜지면 날짜별 근태와 전체 안내', (t) async {
+    bool? week;
+    const range = AttendRange(entries: [
+      AttendEntry(date: '20261027', empCd: '1', name: '김민규', dept: '팀', kind: '연차'),
+      AttendEntry(date: '20261029', empCd: '2', name: '홍길동', dept: '팀', kind: '출장'),
+    ], futureSkipped: true);
+    await t.pumpWidget(wrap(AbsenceSection(absences: const [], onToggle: (_) {}, onWeek: (v) => week = v)));
+    await t.tap(find.text('이번주'));
+    expect(week, isTrue);
+    await t.pumpWidget(wrap(AbsenceSection(absences: const [], onToggle: (_) {}, onWeek: (_) {}, weekMode: true, week: range)));
+    expect(find.text('10.27 (화)'), findsOneWidget);
+    expect(find.text('10.29 (목)'), findsOneWidget);
+    expect(find.text('김민규 · 연차'), findsOneWidget);
+    expect(find.text('홍길동 · 출장'), findsOneWidget);
+    expect(find.textContaining('전체를 끄면'), findsOneWidget);
+    expect(find.text('현재 부재자가 없습니다.'), findsNothing);
+  });
+
+  testWidgets('근태 목록 — 기간이면 날짜 머리글로 묶고 검색어로 거른다', (t) async {
+    const range = AttendRange(entries: [
+      AttendEntry(date: '20261029', empCd: '2', name: '홍길동', dept: '다른팀', kind: '출장'),
+      AttendEntry(date: '20261027', empCd: '1', name: '김민규', dept: '네이티브 플랫폼팀', kind: '연차'),
+    ], futureSkipped: false);
+    await t.pumpWidget(const MaterialApp(home: Scaffold(body: AttendList(range: range))));
+    expect(find.text('10.27 (화)'), findsOneWidget);
+    expect(find.text('10.29 (목)'), findsOneWidget);
+    expect(t.getTopLeft(find.text('김민규')).dy, lessThan(t.getTopLeft(find.text('홍길동')).dy));
+    await t.pumpWidget(const MaterialApp(home: Scaffold(body: AttendList(range: range, query: '네이티브'))));
+    expect(find.text('홍길동'), findsNothing);
+    expect(find.text('김민규'), findsOneWidget);
   });
 }

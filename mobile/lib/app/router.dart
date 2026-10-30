@@ -18,11 +18,11 @@ import '../gw/gw_gate.dart';
 import '../gw/gw_models.dart' show MailItem;
 import '../gw/mail_detail_screen.dart';
 import '../gw/attendance_screen.dart';
+import '../gw/attend_screen.dart';
 import '../gw/board_screen.dart';
 import '../messenger/messenger_chat_screen.dart';
 import '../messenger/messenger_models.dart';
 import '../messenger/messenger_notes_screen.dart';
-import '../messenger/messenger_attend_screen.dart';
 import '../gw/gw_connect_screen.dart';
 import '../gw/mail_screen.dart';
 import '../gw/today_screen.dart';
@@ -81,7 +81,7 @@ GoRouter buildRouter({
     GoRoute(path: '/gw/messenger', builder: (c, s) => const MessengerChatScreen()),
     GoRoute(path: '/gw/room', builder: (c, s) => MessengerRoomScreen(room: MsgRoom.minimal(s.uri.queryParameters['id'] ?? '', title: s.uri.queryParameters['title'] ?? '대화'))),
     GoRoute(path: '/gw/notes', builder: (c, s) => const MessengerNotesScreen()),
-    GoRoute(path: '/gw/attend', builder: (c, s) => const MessengerAttendScreen()),
+    GoRoute(path: '/gw/attend', builder: (c, s) => GwGate(title: '근태', builder: (_, _) => const AttendScreen())),
     StatefulShellRoute.indexedStack(
       builder: (c, s, shell) => TabShell.attach(shell),
       branches: [
