@@ -53,7 +53,7 @@ function Prompt() {
     </ul>
     <div className="mt-4 flex flex-wrap items-center gap-3">
       <Button asChild><Link href="/apps">{name} 설치 파일 받기</Link></Button>
-      <Link href="/manual#desktop-install" className="text-sm font-medium text-primary hover:underline">설치 안내 보기</Link>
+      <Link href={platform === "linux" ? "/manual#linux-install" : "/manual#desktop-install"} className="text-sm font-medium text-primary hover:underline">설치 안내 보기</Link>
       {platform === "windows" && <span className="text-xs text-muted-foreground">‘Windows의 PC 보호’ 창이 뜨면 추가 정보 → 실행</span>}
       {platform === "linux" && <span className="text-xs text-muted-foreground">받은 파일을 열면 앱 센터가 설치합니다(관리자 비밀번호 입력)</span>}
     </div>

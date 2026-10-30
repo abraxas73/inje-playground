@@ -28,7 +28,7 @@ class LinuxUpdateFailed extends LinuxUpdateResult {
   /// download | length | signature | auth | install | launch
   final String reason;
 
-  /// 종료 코드 또는 HTTP 상태(0~255로 줄이지 않은 원값, 없으면 0).
+  /// 종료 코드 또는 HTTP 상태(줄이지 않은 원값, 없으면 0).
   final int code;
 }
 
@@ -54,6 +54,7 @@ class LinuxUpdateInstaller {
     required this.publicKeyRaw,
     this.exitApp,
     Future<void> Function(String exe, List<String> args)? startDetached,
+    this.idleTimeout = const Duration(seconds: 60),
   }) : workDir = workDir ?? (() async => Directory(defaultLinuxUpdateDir())),
        _startDetached = startDetached ?? _defaultStartDetached;
 
@@ -62,6 +63,9 @@ class LinuxUpdateInstaller {
   final Future<Directory> Function() workDir;
   final String publicKeyRaw;
   final void Function()? exitApp;
+
+  /// 이 시간 동안 내려받기에 바이트가 없으면 download로 실패시킨다.
+  final Duration idleTimeout;
   final Future<void> Function(String exe, List<String> args) _startDetached;
 
   bool _cancelled = false;
@@ -123,8 +127,7 @@ class LinuxUpdateInstaller {
     final deb = File(
       '${dir.absolute.path}/INNOGRID-Linux-${version}_amd64.deb',
     );
-    var succeeded = false;
-    try {
+      try {
       final failure = await _download(
         version,
         deb,
@@ -173,11 +176,13 @@ class LinuxUpdateInstaller {
       } on Object {
         return const LinuxUpdateFailed('install', 0);
       }
-      if (apt.exitCode == 126 || apt.exitCode == 127) {
-        return const LinuxUpdateCancelled();
-      }
+      // 126은 비밀번호 창을 닫은 경우, 127은 인증 실패·권한 없음·polkit 에이전트 없음.
+      if (apt.exitCode == 126) return const LinuxUpdateCancelled();
+      if (apt.exitCode == 127) return const LinuxUpdateFailed('auth', 127);
       if (apt.exitCode != 0) return LinuxUpdateFailed('install', apt.exitCode);
 
+      // 설치가 끝났으니 내려받은 파일은 재실행 전에 지운다.
+      _clear(dir);
       try {
         await _startDetached('/bin/sh', [
           '-c',
@@ -186,11 +191,10 @@ class LinuxUpdateInstaller {
       } on Object {
         return const LinuxUpdateFailed('launch', 0);
       }
-      succeeded = true;
       exitApp?.call();
       return const LinuxUpdateDone();
     } finally {
-      if (!succeeded) _clear(dir);
+      _clear(dir);
     }
   }
 
@@ -244,13 +248,13 @@ class LinuxUpdateInstaller {
     onProgress('downloading', 0);
     IOSink? sink;
     try {
-      final response = await client.send(request);
+      final response = await client.send(request).timeout(idleTimeout);
       if (response.statusCode != 200) {
         return LinuxUpdateFailed('download', response.statusCode);
       }
       sink = target.openWrite();
       var received = 0;
-      await for (final chunk in response.stream) {
+      await for (final chunk in response.stream.timeout(idleTimeout)) {
         if (_cancelled) return null;
         received += chunk.length;
         if (received > expectedBytes) {

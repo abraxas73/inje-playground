@@ -281,7 +281,7 @@ export const manualSections: ManualSection[] = [
   {
     id: "linux-install", title: "Linux(Ubuntu) 앱 설치", category: "시작하기", app: "데스크톱",
     description: "Ubuntu 24.04 이상(x86_64)에서 이노크루 앱을 .deb 패키지로 설치합니다.",
-    steps: ["앱 설치·다운로드 메뉴의 Linux 카드에서 .deb 파일을 내려받습니다.", "파일을 두 번 눌러 앱 센터로 설치하거나, 터미널에서 내려받은 폴더로 이동해 sudo apt install ./INNOGRID-Linux-<버전>_amd64.deb 를 실행합니다. 관리자 비밀번호를 입력합니다.", "앱 목록에서 INNOGRID를 열고 Microsoft 계정으로 로그인합니다. 브라우저의 앱 열기를 허용합니다.", "새 버전이 있으면 앱 맨 위 띠가 나타납니다. 작업을 저장하고 업데이트를 누르면 내려받아 검증한 뒤 설치합니다. 설치할 때 관리자 비밀번호 입력 창이 한 번 뜹니다."],
+    steps: ["앱 설치·다운로드 메뉴의 Linux 카드에서 .deb 파일을 내려받습니다.", "파일을 두 번 눌러 앱 센터로 설치하거나, 터미널에서 내려받은 폴더로 이동해 sudo apt install ./INNOGRID-Linux-<버전>_amd64.deb 를 실행합니다. 관리자 비밀번호를 입력합니다.", "앱 목록에서 INNOGRID를 열고 Microsoft 계정으로 로그인합니다. 브라우저의 앱 열기를 허용합니다.", "새 버전이 있으면 앱 맨 위 띠가 나타납니다. 작업을 저장하고 업데이트를 누르면 내려받아 검증한 뒤 설치합니다. 설치할 때 관리자 비밀번호 입력 창이 한 번 뜹니다. 설치가 끝나면 앱이 스스로 다시 시작합니다."],
     note: "Ubuntu 24.04 이상과 x86_64만 지원합니다. 다른 배포판과 ARM은 지원하지 않습니다.",
     links: [{ href: "/apps#desktop", label: "데스크톱 앱 다운로드" }],
   },

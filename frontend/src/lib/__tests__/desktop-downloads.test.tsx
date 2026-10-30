@@ -40,5 +40,7 @@ it("Linux 릴리스가 있으면 Linux 카드에 지원 환경·apt 설치 명�
   expect(container.textContent).toContain("Linux");
   expect(container.textContent).toContain("Ubuntu 24.04 이상 · x86_64");
   expect(container.textContent).toContain("sudo apt install ./INNOGRID-Linux-1.8.0_amd64.deb");
+  expect(container.textContent).toContain("앱 센터가 설치 창을 띄웁니다");
+  expect(container.textContent).toContain("업데이트도 설치할 때 관리자 비밀번호 창이 한 번 뜹니다");
   expect(container.querySelector('a[href="/api/desktop/download/linux"]')).not.toBeNull();
 });

@@ -40,6 +40,15 @@ class _GatedClient extends _FakeClient {
   }
 }
 
+class _StalledClient extends _FakeClient {
+  _StalledClient(this.stream) : super(200, const []);
+  final Stream<List<int>> stream;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async =>
+      http.StreamedResponse(stream, 200, contentLength: 3);
+}
+
 class _Runs {
   final calls = <List<String>>[];
   final inPaths = <String>[];
@@ -146,13 +155,17 @@ void main() {
     expect(runs.inPaths.single, endsWith('INNOGRID-Linux-1.8.0_amd64.deb'));
   });
 
-  test('pkexec 취소는 cancelled로 끝난다', () async {
-    for (final code in [126, 127]) {
-      runs = _Runs()..pkexec = code;
-      final result = await go(make(_FakeClient(200, [1, 2, 3])));
-      expect(result, isA<LinuxUpdateCancelled>());
-      expect(dir.listSync(), isEmpty);
-    }
+  test('pkexec 126(창 닫음)은 cancelled, 127은 auth 실패', () async {
+    runs = _Runs()..pkexec = 126;
+    final cancelled = await go(make(_FakeClient(200, [1, 2, 3])));
+    expect(cancelled, isA<LinuxUpdateCancelled>());
+    expect(dir.listSync(), isEmpty);
+
+    runs = _Runs()..pkexec = 127;
+    final failed = await go(make(_FakeClient(200, [1, 2, 3])));
+    expect((failed as LinuxUpdateFailed).reason, 'auth');
+    expect(failed.code, 127);
+    expect(dir.listSync(), isEmpty);
   });
 
   test('pkexec 그 밖의 실패는 install', () async {
@@ -169,6 +182,25 @@ void main() {
     expect(result, isA<LinuxUpdateDone>());
     expect(started, ['/bin/sh -c sleep 1; exec /usr/bin/innocrew']);
     expect(exits, 1);
+    expect(dir.listSync(), isEmpty);
+  });
+
+  test('받는 도중 바이트가 끊기면 download 실패, 파일 정리', () async {
+    final stalled = StreamController<List<int>>()..add([1]);
+    final client = _StalledClient(stalled.stream);
+    final installer = LinuxUpdateInstaller(
+      client: client,
+      run: runs.run,
+      workDir: () async => dir,
+      publicKeyRaw: _rawKey,
+      idleTimeout: const Duration(milliseconds: 100),
+    );
+    final r = await go(installer);
+    final f = r as LinuxUpdateFailed;
+    expect(f.reason, 'download');
+    expect(f.code, 0);
+    expect(dir.listSync(), isEmpty);
+    await stalled.close();
   });
 
   test('재실행이 실패하면 launch', () async {

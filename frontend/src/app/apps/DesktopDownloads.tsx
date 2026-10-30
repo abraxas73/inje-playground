@@ -37,7 +37,8 @@ export function DesktopDownloads() {
             <li>DMG를 열고 INNOGRID를 Applications 폴더로 옮깁니다.</li>
             <li>응용 프로그램에서 실행하고 Microsoft 계정으로 로그인합니다.</li>
           </> : linux ? <>
-            <li>터미널에서 <code className="break-all">{artifact ? `sudo apt install ./${artifact.filename}` : "sudo apt install ./INNOGRID-Linux-<버전>_amd64.deb"}</code> 를 실행합니다.</li>
+            <li>받은 파일을 열면 앱 센터가 설치 창을 띄웁니다(관리자 비밀번호 입력).</li>
+            <li>또는 터미널에서 <code className="break-all">{artifact ? `sudo apt install ./${artifact.filename}` : "sudo apt install ./INNOGRID-Linux-<버전>_amd64.deb"}</code> 를 실행합니다.</li>
             <li>앱 목록에서 INNOGRID를 열고 Microsoft 계정으로 로그인합니다.</li>
           </> : <>
             <li>설치 프로그램을 실행하고 시작 메뉴에서 INNOGRID를 엽니다.</li>
@@ -51,7 +52,7 @@ export function DesktopDownloads() {
                 업데이트 게시: {releaseDateTime.format(new Date(artifact.releasedAt))} (KST)
               </time>
             </div>
-            <p className="text-xs text-muted-foreground">{(artifact.bytes / 1024 / 1024).toFixed(1)} MB · {mac ? "Apple 서명·공증 완료" : linux ? "내부 테스트용 .deb 패키지입니다. 설치할 때 관리자 비밀번호가 필요합니다." : <>코드 서명 전 테스트 빌드라 경고가 두 번 뜹니다. ① 다운로드할 때 ‘일반적으로 다운로드되지 않는 파일’ 경고 — Edge는 다운로드 목록의 ‘…’ → <strong>유지 → 그래도 유지</strong>, Chrome은 <strong>유지</strong>. ② 실행할 때 ‘Windows의 PC 보호’ 창 — <strong>추가 정보 → 실행</strong>.</>}</p>
+            <p className="text-xs text-muted-foreground">{(artifact.bytes / 1024 / 1024).toFixed(1)} MB · {mac ? "Apple 서명·공증 완료" : linux ? "내부 테스트용 .deb 패키지입니다. 설치할 때 관리자 비밀번호가 필요합니다. 앱 안 업데이트도 설치할 때 관리자 비밀번호 창이 한 번 뜹니다." : <>코드 서명 전 테스트 빌드라 경고가 두 번 뜹니다. ① 다운로드할 때 ‘일반적으로 다운로드되지 않는 파일’ 경고 — Edge는 다운로드 목록의 ‘…’ → <strong>유지 → 그래도 유지</strong>, Chrome은 <strong>유지</strong>. ② 실행할 때 ‘Windows의 PC 보호’ 창 — <strong>추가 정보 → 실행</strong>.</>}</p>
             {!mac && !linux && <div role="note" className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
               <p><strong>설치 후 앱을 열 때 ‘app_links_plugin.dll … 잘못된 이미지’ 오류가 나면</strong> Windows 11의 스마트 앱 컨트롤이 서명 전 파일을 막은 것입니다. 시작 메뉴에서 <strong>스마트 앱 컨트롤</strong>을 검색해 <strong>끄기</strong>로 바꾼 뒤 앱을 다시 여세요(재설치 불필요).</p>
               <div className="flex flex-wrap gap-2">

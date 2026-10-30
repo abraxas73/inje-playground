@@ -20,10 +20,10 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response;
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const linux = b?.platform === "linux";
-  // Linux는 winError 자리에 종료 코드(0~255)를 받는다
+  // Linux는 winError 자리에 종료 코드 또는 HTTP 상태(0~999)를 받는다
   if (!b || (b.platform !== "windows" && b.platform !== "macos" && !linux) || typeof b.version !== "string" || !VERSION.test(b.version) ||
       typeof b.reason !== "string" || !(linux ? LINUX_REASONS : REASONS).has(b.reason) ||
-      !int(b.winError, 0, linux ? 255 : 0xffffffff) || !int(b.attempts, 1, 10)) {
+      !int(b.winError, 0, linux ? 999 : 0xffffffff) || !int(b.attempts, 1, 10)) {
     return NextResponse.json({ error: "잘못된 업데이트 실패 보고입니다." }, { status: 400 });
   }
   await logAudit(auth.admin, request, {

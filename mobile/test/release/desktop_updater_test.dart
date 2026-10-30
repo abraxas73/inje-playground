@@ -402,6 +402,16 @@ void main() {
       u.dispose();
     });
 
+    test('Linux 실패 코드(HTTP 상태)는 줄이지 않고 보고', () async {
+      installer.result = const LinuxUpdateFailed('download', 404);
+      final u = make();
+      await u.check(manual: false);
+      await u.start();
+      await pumpEventQueue();
+      expect(reports.single['winError'], 404);
+      u.dispose();
+    });
+
     test('Linux 키가 없으면 available 대신 error', () async {
       final u = make(key: '');
       await u.check(manual: true);

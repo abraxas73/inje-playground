@@ -181,17 +181,18 @@ Ubuntu 24.04 이상(x86_64). 설계 `docs/superpowers/specs/2026-10-30-linux-des
 1. 앱 시작·로그인 사용자 변경 때, 더보기 > 앱 버전 "업데이트 확인"으로 `GET /api/desktop/release?platform=linux&mode=automatic`를 본다. 새 버전이면 화면 위 띠에 "새 버전 X.Y.Z"와 업데이트 버튼이 뜬다.
 2. 버튼을 누르면 로그인 토큰으로 고정 주소 `/api/desktop/update/artifact/linux/<버전>`에서 `.deb`를 `~/.cache/INNOGRID/update`(0700)에 받는다. 리다이렉트는 따라가지 않고, 길이를 릴리스 정보의 `bytes`와 대조한다.
 3. 앱에 내장한 공개 키로 Ed25519 서명을 확인한다(`openssl pkeyutl -verify -pubin -inkey key.pem -rawin -in <deb> -sigfile <deb>.sig`). 틀리면 설치하지 않는다.
-4. `pkexec /usr/bin/apt-get install -y <받은 파일>`을 실행한다. Ubuntu 관리자 인증 창이 **한 번** 뜬다. 창에서 취소하면 "업데이트를 취소했습니다".
+4. `pkexec /usr/bin/apt-get install -y <받은 파일>`을 실행한다. Ubuntu 관리자 인증 창이 **한 번** 뜬다. 창을 닫으면(pkexec 종료 코드 126) "업데이트를 취소했습니다". 인증 실패·권한 없음·polkit 에이전트 없음(종료 코드 127)은 취소가 아니라 `auth` 실패로 기록된다. 설치가 성공하면 받은 파일(`.deb`·`.sig`·`key.pem`)은 재실행 전에 지운다. 받는 중 60초 동안 바이트가 없으면 `download` 실패로 끝낸다.
 5. 앱을 끝내고 새 앱을 띄운다(앱이 단일 인스턴스라 현재 앱이 먼저 끝나야 한다). 실패 단계는 `POST /api/desktop/update-failure`로 기록된다(감사 category `desktop`).
 
 **알려진 제약**:
 - 업데이트 설치 때 Ubuntu 관리자 인증 창이 한 번 뜬다. 문구는 polkit 기본 문구(`/usr/bin/apt-get` 실행)다. 비밀번호 없이 설치하는 polkit 예외 규칙은 만들지 않았다.
 - 서명 확인과 root 설치 사이에 같은 사용자 권한의 악성 프로그램이 임시 파일을 바꾸면 막지 못한다(2026-10-30 사용자 결정). 이미 사용자 권한을 뺏긴 PC라는 전제다.
 - 첫 Linux 게시(X) 이후 실제 업그레이드는 다음 정상 릴리스(X+1) 때 확인한다. 운영에 시험용 버전을 게시하지 않는다.
+- 업데이트 중 로그아웃·계정 전환: 비밀번호 창이 열려 있는 동안 로그아웃하면 앱이 받은 파일을 지우므로 apt가 실패하고 아무것도 설치되지 않는다. apt가 이미 실행 중이면 설치는 끝까지 진행되고 새 앱이 뜬다.
 - apt 저장소·앱 센터 등록은 없다. `.deb` 파일만 배포한다.
 
 **릴리스(Owner 절차)**:
-1. 처음 한 번: Owner Mac에서 `mobile/scripts/provision-update-key.swift`로 계정 `linux` 키 쌍을 만든다(키체인 `com.innogrid.innocrew.desktop-update.ed25519`). 공개 키를 `mobile/desktop-update-public-keys.json`의 `linux`에 넣어 커밋하고, `mobile/scripts/provision-ci-update-key.mjs`로 비밀 키를 GitHub 비밀값 `INNOCREW_LINUX_UPDATE_PRIVATE_KEY`에 올린다. 원본 키를 잃으면 설치된 Linux 앱이 다음 업데이트를 확인하지 못해 전원이 재설치해야 한다.
+1. 처음 한 번: Owner Mac에서 `mobile/scripts/provision-update-key.swift`로 계정 `linux` 키 쌍을 만든다(키체인 `com.innogrid.innocrew.desktop-update.ed25519`). 공개 키를 `mobile/desktop-update-public-keys.json`의 `linux`에 넣어 커밋하고, `mobile/scripts/provision-ci-update-key.mjs`로 비밀 키를 GitHub 비밀값 `INNOCREW_LINUX_UPDATE_PRIVATE_KEY`에 올린다. **첫 Linux 게시본은 반드시 `desktop-update-public-keys.json`에 `linux` 공개 키가 들어간 상태로 빌드한다.** 키 없이 빌드해 게시하면 설치된 앱이 다음 업데이트 서명을 확인하지 못해 전원이 수동으로 재설치해야 한다. 원본 키를 잃어도 설치된 Linux 앱이 다음 업데이트를 확인하지 못해 전원이 재설치해야 한다.
 2. 서버 변경을 먼저 배포하고(앱이 `platform=linux`를 묻기 전에), 감사 보존 SQL `docs/sql/2026-10-30-audit-retention-linux.sql`을 적용한다.
 3. GitHub Actions `Linux app`을 실행한다(`.github/workflows/linux-app.yml` — 테스트·분석 → 빌드 → 서명 → 컨테이너 업그레이드·서명 확인). 산출물 `INNOGRID-Linux`(`.deb`와 `.update.json`)를 내려받는다.
 4. `cd frontend && node --env-file=.env.local scripts/publish-desktop.mjs linux <버전> <deb 경로> <기존 linux sha256>`을 실행하고 출력된 SQL을 Supabase에서 적용한다. 마지막 인자는 첫 게시만 `none`(linux 항목 없음)이고, 이후 릴리스는 Supabase에서 읽은 현재 게시본 linux `sha256`이다. `none`을 반복하면 SQL이 0행을 돌려주고 게시가 멈춘다. 반환 행이 정확히 1개인지 확인한다. `/apps` Linux 카드에서 내려받기를 확인한다.
@@ -203,6 +204,7 @@ Ubuntu 24.04 이상(x86_64). 설계 `docs/superpowers/specs/2026-10-30-linux-des
 - [ ] X를 `/apps`에서 받아 설치, 로그인 후 `login_history`에 `InnogridApp/X (linux)` 1건
 - [ ] X+1 게시 뒤 앱 시작 → 화면 위 띠 "새 버전 X+1"
 - [ ] 업데이트 버튼 → 받기 → 서명 확인 → 관리자 인증 창 표시
+- [ ] apt는 받은 `.deb`를 `_apt` 사용자로 읽는데 0700 캐시 폴더라 "Download is performed unsandboxed as root…" 경고가 나올 수 있다. 경고가 떠도 설치가 성공하는지 확인한다.
 - [ ] 창에서 취소 → "업데이트를 취소했습니다", 앱은 X 그대로
 - [ ] 다시 시도해 비밀번호 입력 → 앱이 끝나고 새 앱이 한 개만 뜬다, 더보기의 버전이 X+1
 - [ ] `~/.cache/INNOGRID/update`에 받은 파일이 남지 않는다

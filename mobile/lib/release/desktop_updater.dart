@@ -303,7 +303,7 @@ class DesktopUpdater extends ChangeNotifier {
               'platform': 'linux',
               'version': release.version,
               'reason': reason,
-              'winError': code.clamp(0, 255),
+              'winError': code,
               'attempts': 1,
             }).catchError((_) {}),
           );

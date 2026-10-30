@@ -68,6 +68,12 @@ describe("홈 설치 카드", () => {
     expect(screen.getByRole("link", { name: "설치 안내 보기" })).toHaveAttribute("href", "/manual#desktop-install");
     expect(screen.getByText(/추가 정보 → 실행/)).toBeInTheDocument();
   });
+  it("Linux 브라우저의 설치 안내 링크는 linux-install 절로 간다", async () => {
+    setBrowser("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ macos: null, windows: null, linux: null })));
+    render(<DesktopAppCard />);
+    expect(await screen.findByRole("link", { name: "설치 안내 보기" })).toHaveAttribute("href", "/manual#linux-install");
+  });
   it("현재 OS의 앱에 로그인한 기록이 있으면 카드를 숨긴다", async () => {
     setBrowser(MAC_UA);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ macos: "2026-10-10T01:00:00Z", windows: null, linux: null })));
