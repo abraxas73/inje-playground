@@ -151,7 +151,7 @@ class _DoorayCalendarLoginState extends State<DoorayCalendarLogin> {
             _error ?? 'Dooray 계정으로 로그인한 뒤 연결 확인을 누르세요. 이노크루 계정과 달라도 됩니다.',
           ),
         ),
-        Expanded(child: _web.build(context)),
+        Expanded(child: _web.build(context, avoidFabs: true)),
       ],
     ),
   );

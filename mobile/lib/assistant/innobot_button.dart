@@ -21,7 +21,7 @@ import '../app/platform.dart';
 /// bottomInset은 하단 바·안전 영역만큼 올리는 값, sheetContext는 시트를 띄울 내비게이터 아래 context(앱 전체 레이어에서 쓸 때).
 class InnobotButton extends ConsumerStatefulWidget {
   const InnobotButton({super.key, this.showClaude, this.bottomInset = 0, this.sheetContext, this.onOpenPath, this.onContextMenu});
-  static bool get showsClaude => isDesktopPlatform;
+  static bool get showsClaude => hasClaudeDesktopApp;
   final bool? showClaude;
   final double bottomInset;
   final BuildContext? Function()? sheetContext;

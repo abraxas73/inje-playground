@@ -170,6 +170,25 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk   # 또는 APK 파일
 3. Personal Team 서명은 7일마다 만료 — 재실행하면 갱신. 구성원 배포는 §배포(TestFlight)로 한다.
 ### iOS 시뮬레이터
 `open -a Simulator` → `flutter devices`로 UDID 확인 → `flutter run -d <UDID>`. 첫 빌드는 pod install 포함 1분 안팎(2026-10-03 실측 36초). 2026-10-03 iPhone 17 Pro 시뮬레이터에서 로그인 화면까지 확인. 시뮬레이터는 기본 위치가 없어 '현재 위치'가 10초 뒤 시간 초과로 끝난다 — Simulator 메뉴 **Features → Location → Custom Location…**(예: 37.4021, 127.1077 판교) 또는 Apple을 고르거나, 앱에서 '주소 변경'으로 지정.
+### Linux(Ubuntu) 데스크톱 (2026-10-30 — 자동 업데이트 없음)
+Ubuntu 26.04에서 확인. 설치본 게시(`/apps` 내려받기·릴리스 API `platform=linux`)는 후속 작업이라 지금은 `.deb`를 직접 전달한다.
+
+**.deb 패키지**: `mobile/scripts/build-linux-deb.sh` → `mobile/build/linux/deb/innocrew_<버전>_amd64.deb`(릴리스 빌드, 버전은 pubspec). 설치 `sudo apt install ./innocrew_<버전>_amd64.deb`(의존 패키지 자동 설치), 실행은 앱 목록의 INNOCREW 또는 `innocrew`. 설치 위치 `/opt/innocrew`, `.desktop`이 `innogrid://`를 앱에 연결한다. 의존 목록은 `dpkg-shlibdeps`로 빌드한 PC 기준이라 `t64` 패키지 이름을 쓰는 Ubuntu 24.04 이상에서만 설치된다. 삭제 `sudo apt remove innocrew`.
+
+**개발 빌드**:
+1. 빌드 도구: `sudo apt install -y clang cmake ninja-build libgtk-3-dev libsecret-1-dev libwebkit2gtk-4.1-dev liblzma-dev`
+2. 빌드: `cd mobile && flutter build linux --debug`(결과 `build/linux/x64/debug/bundle/playground`)
+3. 로그인 복귀 주소 등록(처음 한 번, 빌드 경로가 바뀌면 다시): `mobile/scripts/linux-register-dev.sh debug` — `~/.local/share/applications/com.innogrid.playground.desktop`을 만들어 `innogrid://`를 이 빌드에 연결한다. 안 하면 Microsoft 로그인 뒤 브라우저가 "사용할 수 있는 앱 없음"을 띄운다.
+4. 앱은 단일 인스턴스다(`linux/runner/my_application.cc` `G_APPLICATION_HANDLES_COMMAND_LINE`). 브라우저가 넘긴 `innogrid://` 주소는 실행 중인 앱으로 가고(app_links), 새 창을 만들지 않는다.
+
+Linux만의 동작:
+- WebView는 WebKitGTK(`webview_all_linux`, `lib/web/app_webview.dart`의 Linux 분기). `webview_flutter`에 Linux 구현이 없고, WPE 기반 `webview_flutter_linux`는 Ubuntu 저장소에 WPE WebKit이 없어 쓰지 않았다.
+- 이 WebView는 Flutter 화면 **위에** 얹힌 GTK 네이티브 위젯이라 그 영역의 Flutter 위젯을 가린다. `lib/web/linux_webview_guard.dart`가 (1) 팝업·하단 그룹 메뉴·알림·즐겨찾기 패널이 열렸거나 (2) 그 화면이 맨 위가 아니면 WebView를 트리에서 빼고(페이지 상태는 유지), (3) 전체 화면 웹 화면은 오른쪽 80px를 떠 있는 버튼 자리로 비운다. 알려진 제약: 웹 화면 영역에 뜨는 SnackBar·툴팁은 가려질 수 있고, 메뉴를 여는 동안 웹 화면이 잠깐 빈다.
+- Claude 열기 버튼 없음(`hasClaudeDesktopApp`), 자동 업데이트·설치본 안내 없음, 메신저 열기는 그룹웨어 웹으로.
+- 위치는 GNOME 설정 > 개인정보 보호 > 위치 서비스가 켜져 있어야 한다(꺼져 있으면 뭐 먹지가 "위치 서비스가 꺼져 있습니다"를 띄운다).
+- 앱 데이터 폴더는 `$XDG_DATA_HOME/INNOGRID`(기본 `~/.local/share/INNOGRID`).
+- `flutter create`·`flutter build`가 `analysis_options.yaml`·`.metadata`를 고쳐 쓰니 커밋 전에 되돌린다.
+
 ### 서버 주소 바꾸기
 `flutter run --dart-define=API_BASE=http://<Mac IP>:3003`(로컬 프론트, 같은 Wi-Fi). Supabase 리디렉션은 운영과 같아 로그인은 그대로 된다.
 

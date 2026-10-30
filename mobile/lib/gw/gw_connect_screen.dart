@@ -233,7 +233,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
         ),
         Expanded(
           child: Stack(fit: StackFit.expand, children: [
-            widget.webView?.call() ?? _c!.build(context),
+            widget.webView?.call() ?? _c!.build(context, avoidFabs: true),
             if (_auto || _busy)
               ColoredBox(
                 color: Brand.ground,

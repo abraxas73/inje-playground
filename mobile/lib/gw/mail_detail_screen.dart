@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -269,25 +270,29 @@ class _MailHtmlViewState extends State<MailHtmlView> {
     unawaited(_c.loadHtmlString(mailHtmlDocument(widget.html, zoom: zoom)));
   }
 
-  @override
-  Widget build(BuildContext context) => Stack(children: [
-        Positioned.fill(child: _c.build(context)),
-        Positioned(
-          top: 4,
-          right: 4,
-          child: Material(
-            color: Colors.white.withValues(alpha: 0.92),
-            elevation: 2,
-            shape: const StadiumBorder(),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(tooltip: '축소', visualDensity: VisualDensity.compact, iconSize: 18, onPressed: zoom > 0.5 ? () => _zoom(zoom - 0.1) : null, icon: const Icon(Icons.remove)),
-              InkWell(
-                onTap: () => _zoom(1),
-                child: Tooltip(message: '원래 크기', child: Text('${(zoom * 100).round()}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
-              ),
-              IconButton(tooltip: '확대', visualDensity: VisualDensity.compact, iconSize: 18, onPressed: zoom < 2 ? () => _zoom(zoom + 0.1) : null, icon: const Icon(Icons.add)),
-            ]),
+  Widget _zoomBar() => Material(
+        color: Colors.white.withValues(alpha: 0.92),
+        elevation: 2,
+        shape: const StadiumBorder(),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          IconButton(tooltip: '축소', visualDensity: VisualDensity.compact, iconSize: 18, onPressed: zoom > 0.5 ? () => _zoom(zoom - 0.1) : null, icon: const Icon(Icons.remove)),
+          InkWell(
+            onTap: () => _zoom(1),
+            child: Tooltip(message: '원래 크기', child: Text('${(zoom * 100).round()}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
           ),
-        ),
-      ]);
+          IconButton(tooltip: '확대', visualDensity: VisualDensity.compact, iconSize: 18, onPressed: zoom < 2 ? () => _zoom(zoom + 0.1) : null, icon: const Icon(Icons.add)),
+        ]),
+      );
+
+  @override
+  Widget build(BuildContext context) => Platform.isLinux
+      // Linux WebView는 Flutter 위젯을 가리므로 막대를 WebView 위쪽 줄에 둔다
+      ? Column(children: [
+          Align(alignment: Alignment.centerRight, child: Padding(padding: const EdgeInsets.all(4), child: _zoomBar())),
+          Expanded(child: _c.build(context)),
+        ])
+      : Stack(children: [
+          Positioned.fill(child: _c.build(context)),
+          Positioned(top: 4, right: 4, child: _zoomBar()),
+        ]);
 }

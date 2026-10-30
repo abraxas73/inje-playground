@@ -1210,6 +1210,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.3"
+  webview_all_linux:
+    dependency: "direct main"
+    description:
+      name: webview_all_linux
+      sha256: e85f0b52d34ff0439acdf1f07602b44f58987046d4241aeb217059a68176d95a
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.7"
   webview_flutter:
     dependency: "direct main"
     description:
@@ -1242,6 +1250,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.26.2"
+  webview_platform_interface:
+    dependency: "direct main"
+    description:
+      name: webview_platform_interface
+      sha256: aa452be6b70044d95597b7e92830fbac7c18c301e3c5eae391496415d0256fd9
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.7"
   win32:
     dependency: transitive
     description:

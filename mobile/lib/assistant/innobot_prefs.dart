@@ -70,7 +70,7 @@ bool innobotOverlayVisible({required bool signedIn, required String path, requir
     signedIn && available && enabled && popups == 0 && !fanOpen && !_hiddenPaths.contains(path);
 
 /// Claude 열기 버튼은 데스크톱 홈에서만.
-bool showsClaudeAt(String path, {bool? desktop}) => (desktop ?? isDesktopPlatform) && path == '/home';
+bool showsClaudeAt(String path, {bool? desktop}) => (desktop ?? hasClaudeDesktopApp) && path == '/home';
 
 /// 탭 첫 화면 경로인가(즐겨찾기를 열 때 push 대신 그 탭으로 간다).
 bool isBranchRoot(String path) => const {'/home', '/food', '/ladder', '/team', '/more'}.contains(path);
