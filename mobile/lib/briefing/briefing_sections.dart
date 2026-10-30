@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
 import '../features/home/quotes.dart';
+import '../gw/gw_attend_range.dart';
 import '../gw/gw_models.dart';
 import 'briefing_model.dart';
 
@@ -187,29 +188,61 @@ class MeetingsSection extends StatelessWidget {
 }
 
 class AbsenceSection extends StatelessWidget {
-  const AbsenceSection({super.key, required this.absences, this.title = '팀원 부재', this.allCompany = false, this.loading = false, this.failed = false, this.onToggle, this.onRetry});
+  const AbsenceSection({super.key, required this.absences, this.title = '팀원 부재', this.allCompany = false, this.loading = false, this.failed = false, this.onToggle, this.onRetry, this.weekMode = false, this.week, this.onWeek});
   final List<Absence> absences;
   final String title;
   final bool allCompany, loading, failed;
   final ValueChanged<bool>? onToggle;
   final VoidCallback? onRetry;
+  /// '이번주' 칩이 켜졌는가 — 켜지면 loading·failed·[week]가 이번주(월~금) 근태 기준. 칩은 [onWeek]가 있을 때만.
+  final bool weekMode;
+  final AttendRange? week;
+  final ValueChanged<bool>? onWeek;
   @override
   Widget build(BuildContext context) => onToggle == null && absences.isEmpty
       ? const SizedBox.shrink()
       : _Section(
           title: title,
-          trailing: onToggle == null ? null : FilterChip(label: const Text('전체'), selected: allCompany, onSelected: onToggle),
+          trailing: onToggle == null ? null : Wrap(spacing: 6, children: [
+            if (onWeek != null) FilterChip(label: const Text('이번주'), selected: weekMode, onSelected: onWeek),
+            FilterChip(label: const Text('전체'), selected: allCompany, onSelected: onToggle),
+          ]),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
             child: loading
                 ? const LinearProgressIndicator(minHeight: 2)
                 : failed
-                    ? TextButton(onPressed: onRetry, child: const Text('조직도 상태를 불러오지 못했습니다 · 다시 시도'))
-                    : absences.isEmpty
-                        ? Text('현재 부재자가 없습니다.', style: TextStyle(color: Brand.muted))
-                        : Wrap(spacing: 8, runSpacing: 8, children: [for (final a in absences) Chip(avatar: InitialBadge(a.who, size: 22, circle: true), label: Text('${a.who} · ${a.what}'))]),
+                    ? TextButton(onPressed: onRetry, child: Text(weekMode ? '근태를 불러오지 못했습니다 · 다시 시도' : '조직도 상태를 불러오지 못했습니다 · 다시 시도'))
+                    : weekMode && week != null
+                        ? _WeekAbsences(week!)
+                        : absences.isEmpty
+                            ? Text('현재 부재자가 없습니다.', style: TextStyle(color: Brand.muted))
+                            : Wrap(spacing: 8, runSpacing: 8, children: [for (final a in absences) Chip(avatar: InitialBadge(a.who, size: 22, circle: true), label: Text('${a.who} · ${a.what}'))]),
           ),
         );
+}
+
+/// 이번주 근태를 날짜별로 — 날짜 한 줄 + 이름·근태 칩.
+class _WeekAbsences extends StatelessWidget {
+  const _WeekAbsences(this.range);
+  final AttendRange range;
+  @override
+  Widget build(BuildContext context) {
+    final byDay = <String, List<AttendEntry>>{};
+    for (final e in [...range.entries]..sort((a, b) => a.name.compareTo(b.name))) {
+      (byDay[e.date] ??= []).add(e);
+    }
+    final days = byDay.keys.toList()..sort();
+    final note = range.futureSkipped ? Text('내일 이후 근태는 전체를 끄면 보입니다.', style: TextStyle(fontSize: 12, color: Brand.muted)) : null;
+    if (days.isEmpty) return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('이번주 등록된 근태가 없습니다.', style: TextStyle(color: Brand.muted)), ?note]);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      for (final d in days) ...[
+        Padding(padding: const EdgeInsets.only(top: 6, bottom: 4), child: Text(attendDayLabel(d), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+        Wrap(spacing: 8, runSpacing: 8, children: [for (final a in byDay[d]!) Chip(avatar: InitialBadge(a.name, size: 22, circle: true), label: Text('${a.name} · ${a.kind}'))]),
+      ],
+      if (note != null) Padding(padding: const EdgeInsets.only(top: 8), child: note),
+    ]);
+  }
 }
 
 class ApprovalsSection extends StatelessWidget {

@@ -16,6 +16,8 @@ import '../../briefing/summary_provider.dart';
 import '../../teams/teams_chat_panel.dart';
 import '../../gw/gw_creds.dart';
 import '../../gw/gw_api.dart' show gwApiProvider;
+import '../../gw/gw_attend_range.dart' show AttendPreset, AttendScope, attendRangeProvider, attendScopeDeptsProvider;
+import '../../gw/gw_org_absences.dart' show GwOrgAbsences;
 import '../../gw/gw_models.dart' show MailItem, myEvents;
 import '../../gw/mail_detail_screen.dart';
 import '../../gw/gw_notices_card.dart';
@@ -51,6 +53,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   bool get _summaryBusy => _summaryRequests > 0;
   bool _manualBusy = false;
   bool _allAbsences = false;
+  bool _weekAbsences = false; // 부재 위젯 '이번주'(월~금 근태)
   bool _editing = false; // 데스크톱 대시보드 편집 모드
   Offset _toolbarOffset = Offset.zero; // 떠 있는 위젯 툴바를 끌어 옮긴 만큼(기본 위치=하단 가운데 기준)
   Timer? _dailyTimer;
@@ -166,6 +169,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     }
   }
 
+  /// 팀원 부재 위젯 — 지금 부재(조직도 태그) 또는 '이번주' 근태. 범위는 전체 칩·내 직책(센터장이면 센터)을 따른다.
+  Widget _absenceSection(BriefingData data, AsyncValue<GwOrgAbsences>? company) {
+    // 센터장이어도 조직도에서 센터를 못 찾으면 팀으로(전체로 넓히지 않는다)
+    final center = data.orgAbsences?.isCenter == true && (ref.watch(attendScopeDeptsProvider).value?.containsKey(AttendScope.center) ?? true);
+    final scope = _allAbsences ? AttendScope.all : center ? AttendScope.center : AttendScope.team;
+    final week = _weekAbsences ? ref.watch(attendRangeProvider((AttendPreset.thisWeek, scope))) : null;
+    final who = _allAbsences ? '회사 전체' : data.orgAbsences?.isCenter == true ? '센터원' : '팀원';
+    return AbsenceSection(
+      absences: _allAbsences ? orgAbsencesList(company?.asData?.value) : teamAbsences(data),
+      title: _weekAbsences ? '$who 이번주 근태' : '$who 부재',
+      allCompany: _allAbsences,
+      weekMode: _weekAbsences,
+      week: week?.value,
+      loading: week != null ? week.isLoading && !week.hasValue : _allAbsences && company?.isLoading == true,
+      failed: week != null ? week.hasError && !week.hasValue : _allAbsences ? company?.hasError == true : data.errors.containsKey('absences'),
+      onToggle: (value) => setState(() => _allAbsences = value),
+      onWeek: (value) => setState(() => _weekAbsences = value),
+      onRetry: week != null ? () => ref.invalidate(attendRangeProvider((AttendPreset.thisWeek, scope))) : _allAbsences ? () => ref.invalidate(companyAbsencesProvider) : _refresh,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider).asData?.value;
@@ -258,15 +282,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       }
       // 팀원 부재(AbsenceSection은 토글과 빈 상태를 스스로 보여 준다)
       if (!gwNo) {
-        add('absence', '팀원 부재', AbsenceSection(
-          absences: _allAbsences ? orgAbsencesList(company?.asData?.value) : teamAbsences(data),
-          title: _allAbsences ? '회사 전체 부재' : data.orgAbsences?.isCenter == true ? '센터원 부재' : '팀원 부재',
-          allCompany: _allAbsences,
-          loading: _allAbsences && company?.isLoading == true,
-          failed: _allAbsences ? company?.hasError == true : data.errors.containsKey('absences'),
-          onToggle: (value) => setState(() => _allAbsences = value),
-          onRetry: _allAbsences ? () => ref.invalidate(companyAbsencesProvider) : _refresh,
-        ), w: 6, h: 3);
+        add('absence', '팀원 부재', _absenceSection(data, company), w: 6, h: 3);
       } else {
         addPh('absence', '팀원 부재', '아마란스에 연결하면 표시됩니다', onConnect: gwConnect);
       }
@@ -479,15 +495,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             ] else if (data != null) ...[
               FocusSection(items: focusItems(data, approvals: ref.watch(approvalsLiveProvider), mentions: ref.watch(teamsMentionsLiveProvider)), onOpen: open),
               if (data.errors.containsKey('today')) RetryLine(label: '일정', onTap: _refresh) else MeetingsSection(meetings: myMeetings(data), tomorrowCount: myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).length, onMore: () => open('/gw/today')),
-              AbsenceSection(
-                absences: _allAbsences ? orgAbsencesList(company?.asData?.value) : teamAbsences(data),
-                title: _allAbsences ? '회사 전체 부재' : data.orgAbsences?.isCenter == true ? '센터원 부재' : '팀원 부재',
-                allCompany: _allAbsences,
-                loading: _allAbsences && company?.isLoading == true,
-                failed: _allAbsences ? company?.hasError == true : data.errors.containsKey('absences'),
-                onToggle: (value) => setState(() => _allAbsences = value),
-                onRetry: _allAbsences ? () => ref.invalidate(companyAbsencesProvider) : _refresh,
-              ),
+              _absenceSection(data, company),
               if (data.errors.containsKey('approvals')) RetryLine(label: '미결 결재', onTap: _refresh) else ApprovalsSection(total: (ref.watch(approvalsLiveProvider) ?? data.approvals)?.$1 ?? 0, items: (ref.watch(approvalsLiveProvider) ?? data.approvals)?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals')),
               if (data.errors.containsKey('inbox')) RetryLine(label: '메일', onTap: _refresh) else MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail'), onOpen: openMail),
               GwAlertsCard(onOpenPath: open),

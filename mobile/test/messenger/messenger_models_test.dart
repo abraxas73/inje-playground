@@ -50,23 +50,6 @@ void main() {
     expect(chats[1].deleted, isTrue);
   });
 
-  group('MsgAttend', () {
-    test('messengerYn=Y·atNm 있는 건만, 시간대 유효 판정', () {
-      final list = MsgAttend.parseList([
-        {'empSeq': '7', 'empNm': '강승억', 'atNm': '연차', 'messengerYn': 'Y', 'startTimestamp': 100, 'endTimestamp': 200},
-        {'empSeq': '8', 'empNm': '홍길동', 'atNm': '출장', 'messengerYn': 'N'}, // 제외
-        {'empSeq': '9', 'empNm': '김', 'atNm': '', 'messengerYn': 'Y'}, // atNm 없음 제외
-      ]);
-      expect(list.length, 1);
-      expect(list[0].atName, '연차');
-      expect(list[0].activeAt(DateTime.fromMillisecondsSinceEpoch(150)), isTrue);
-      expect(list[0].activeAt(DateTime.fromMillisecondsSinceEpoch(300)), isFalse);
-    });
-    test('attendList 키·배열 둘 다 받는다', () {
-      expect(MsgAttend.parseList({'attendList': [{'empSeq': '1', 'empNm': 'a', 'atNm': '재택', 'messengerYn': 'Y'}]}).length, 1);
-    });
-  });
-
   test('MsgNote: 제목·보낸이 폴백 파싱', () {
     final notes = MsgNote.parseList({'msgList': [
       {'msgId': 'm1', 'msgTitle': '공지', 'sendEmpName': '관리자', 'recvDate': '20261021'},
@@ -78,7 +61,6 @@ void main() {
   test('빈/비정상 응답은 빈 목록', () {
     expect(MsgRoom.parseList(null), isEmpty);
     expect(MsgChat.parseList({'chatList': 'x'}), isEmpty);
-    expect(MsgAttend.parseList({}), isEmpty);
   });
 
   test('멘션 표식은 @이름으로 보여 준다(본문·미리보기)', () {

@@ -38,7 +38,7 @@ export const PAGES = [
   { key: "gw_board", href: "/gw/board", label: "게시판 (앱)", group: "gw", minRole: "user", hidden: true },
   { key: "gw_messenger", href: "/gw/messenger", label: "메신저 (앱)", group: "gw", minRole: "user", hidden: true },
   { key: "gw_notes", href: "/gw/notes", label: "쪽지 (앱)", group: "gw", minRole: "user", hidden: true },
-  { key: "gw_attend", href: "/gw/attend", label: "오늘 근태 (앱)", group: "gw", minRole: "user", hidden: true },
+  { key: "gw_attend", href: "/gw/attend", label: "근태 (앱)", group: "gw", minRole: "user", hidden: true },
   // 가이드 Q&A는 2026-10-23 코드 삭제. 키는 저장된 권한 JSON(isPagePermissions)과 DB 함수 키 목록 때문에 남긴다 — 빼면 'guide'가 저장된 사용자가 503
   { key: "guide", href: "/guide", label: "가이드 (운영 중지)", group: "work", minRole: "user", hidden: true },
   { key: "mcp", href: "/apps#mcp", label: "Claude 커넥터 (메뉴 숨김)", group: "work", minRole: "user", hidden: true },
