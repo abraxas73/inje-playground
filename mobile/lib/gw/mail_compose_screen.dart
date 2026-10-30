@@ -1,14 +1,19 @@
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
 import '../directory/org_directory.dart';
+import '../messenger/messenger_api.dart' show fileExt;
+import '../messenger/messenger_files.dart' show msgClipboardProvider, MsgPasteAction;
+import '../messenger/messenger_models.dart' show msgImageExts;
 import 'gw_api.dart';
 import 'mail_compose.dart';
 
 /// 메일 쓰기·답장·전체답장·전달 화면. 보내기는 확인을 받은 뒤에만(되돌릴 수 없음).
 /// 받는 사람 칸은 쉼표로 여럿, 이름을 치면 사내 명부에서 고를 수 있다.
+/// 복사한 그림·파일(⌘V·Ctrl+V)은 첨부로 붙는다(그림은 미리보기 칩). 글자만 있으면 평소 붙여넣기.
 
 typedef MailContact = ({String name, String email, String dept});
 
@@ -77,6 +82,23 @@ class _MailComposeScreenState extends ConsumerState<MailComposeScreen> {
     }
   }
 
+  /// 붙여넣기 — 클립보드의 파일·그림이면 첨부로(true), 글자면 평소 붙여넣기(false).
+  Future<bool> _paste() async {
+    final files = await ref.read(msgClipboardProvider)();
+    if (files == null || files.isEmpty || !mounted) return false;
+    setState(() => _newFiles.addAll(files));
+    return true;
+  }
+
+  Widget _fileChip(({String name, List<int> bytes}) f) {
+    final img = msgImageExts.contains(fileExt(f.name));
+    return InputChip(
+      avatar: img ? ClipRRect(borderRadius: BorderRadius.circular(3), child: Image.memory(Uint8List.fromList(f.bytes), width: 24, height: 24, fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(Icons.image, size: 16))) : const Icon(Icons.upload_file, size: 16),
+      label: Text(f.name),
+      onDeleted: () => setState(() => _newFiles.remove(f)),
+    );
+  }
+
   Future<void> _send() async {
     if (_sending) return;
     final to = _to.text.trim();
@@ -133,7 +155,6 @@ class _MailComposeScreenState extends ConsumerState<MailComposeScreen> {
           title: _title,
           showBack: true,
           actions: [
-            IconButton(tooltip: '파일 첨부', onPressed: _sending ? null : _attach, icon: const Icon(Icons.attach_file)),
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: FilledButton.icon(
@@ -149,32 +170,32 @@ class _MailComposeScreenState extends ConsumerState<MailComposeScreen> {
           builder: (context, snap) {
             if (snap.hasError) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('작성 화면을 열지 못했습니다: ${snap.error}', textAlign: TextAlign.center)));
             if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-            return ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [
+            return Actions(actions: {PasteTextIntent: MsgPasteAction(_paste)}, child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [
               _AddressField(label: '받는 사람', controller: _to, trailing: _showBcc ? null : TextButton(onPressed: () => setState(() => _showBcc = true), child: const Text('숨은 참조'))),
               _AddressField(label: '참조', controller: _cc),
               if (_showBcc) _AddressField(label: '숨은 참조', controller: _bcc),
               TextField(controller: _subject, decoration: const InputDecoration(labelText: '제목')),
-              if (_original.isNotEmpty || _newFiles.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: Wrap(spacing: 6, runSpacing: 6, children: [
-                    for (final f in _original) InputChip(avatar: const Icon(Icons.attach_file, size: 16), label: Text(f.name), onDeleted: () => setState(() => _original = [..._original]..remove(f))),
-                    for (final f in _newFiles) InputChip(avatar: const Icon(Icons.upload_file, size: 16), label: Text(f.name), onDeleted: () => setState(() => _newFiles.remove(f))),
-                  ]),
-                ),
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                  ActionChip(avatar: const Icon(Icons.attach_file, size: 16), label: const Text('파일 첨부'), onPressed: _sending ? null : _attach),
+                  for (final f in _original) InputChip(avatar: const Icon(Icons.attach_file, size: 16), label: Text(f.name), onDeleted: () => setState(() => _original = [..._original]..remove(f))),
+                  for (final f in _newFiles) _fileChip(f),
+                ]),
+              ),
               const SizedBox(height: 12),
               TextField(
                 controller: _body,
                 minLines: 10,
                 maxLines: null,
                 keyboardType: TextInputType.multiline,
-                decoration: const InputDecoration(hintText: '내용', border: OutlineInputBorder()),
+                decoration: const InputDecoration(hintText: '내용', helperText: '복사한 그림·파일은 붙여넣기(⌘V·Ctrl+V)로 첨부됩니다', border: OutlineInputBorder()),
               ),
               if (mailSignatureHtml(_form).trim().isNotEmpty)
                 CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading, value: _signature, onChanged: (v) => setState(() => _signature = v ?? true), title: const Text('서명 넣기')),
               if (_quote.isNotEmpty)
                 Padding(padding: const EdgeInsets.only(top: 4), child: Text('원본 메일이 본문 아래에 붙습니다.', style: TextStyle(fontSize: 12, color: Brand.muted))),
-            ]);
+            ]));
           },
         ),
       );
