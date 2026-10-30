@@ -1,0 +1,50 @@
+name: Linux app
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    # 24.04에서 빌드해야 t64 의존 패키지 이름이 24.04·26.04 모두에 맞는다.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build libgtk-3-dev libsecret-1-dev libwebkit2gtk-4.1-dev liblzma-dev dpkg-dev
+      - name: Test and analyze
+        working-directory: mobile
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter test
+          flutter analyze
+      - name: Build .deb
+        working-directory: mobile
+        run: ./scripts/build-linux-deb.sh
+      - name: Sign update artifact
+        env:
+          INNOCREW_UPDATE_PRIVATE_KEY: ${{ secrets.INNOCREW_LINUX_UPDATE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          deb="$(ls mobile/build/linux/deb/INNOGRID-Linux-*_amd64.deb)"
+          build="$(sed -n 's/^version: .*+//p' mobile/pubspec.yaml)"
+          node mobile/scripts/sign-desktop-update.mjs linux "$deb" "$build"
+      - name: Verify upgrade and signature in container
+        run: |
+          deb="$(ls mobile/build/linux/deb/INNOGRID-Linux-*_amd64.deb)"
+          ./mobile/scripts/test-linux-deb-upgrade.sh "$deb"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: INNOGRID-Linux
+          path: |
+            mobile/build/linux/deb/INNOGRID-Linux-*_amd64.deb
+            mobile/build/linux/deb/INNOGRID-Linux-*_amd64.deb.update.json
+          if-no-files-found: error
+          retention-days: 30
