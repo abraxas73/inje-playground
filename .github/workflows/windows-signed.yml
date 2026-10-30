@@ -15,7 +15,7 @@ jobs:
     env:
       WINDOWS_SIGNING_SUBJECT: ${{ vars.WINDOWS_SIGNING_SUBJECT }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Check signing configuration
         shell: pwsh
         env:
@@ -29,7 +29,7 @@ jobs:
           foreach ($key in @('AZURE_CLIENT_ID','AZURE_TENANT_ID','AZURE_SUBSCRIPTION_ID','SIGNING_ENDPOINT','SIGNING_ACCOUNT','SIGNING_PROFILE','WINDOWS_SIGNING_SUBJECT')) {
             if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($key))) { throw "Missing configuration: $key" }
           }
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           flutter-version: '3.47.7'
           channel: stable
@@ -97,7 +97,7 @@ jobs:
         env:
           INNOCREW_UPDATE_PRIVATE_KEY: ${{ secrets.INNOCREW_WINDOWS_UPDATE_PRIVATE_KEY }}
         run: ./mobile/scripts/build-windows.ps1 -Phase Sign
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: INNOGRID-Windows-Signed
           path: mobile/build/windows/distribution/*
