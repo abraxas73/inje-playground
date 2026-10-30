@@ -69,7 +69,7 @@ GoRouter buildRouter({
     GoRoute(path: '/dooray/calendar', builder: (c, s) => const DoorayCalendarScreen()),
     GoRoute(path: '/gw/approvals', builder: (c, s) => const ApprovalsScreen()),
     GoRoute(path: '/gw/attendance', builder: (c, s) => const AttendanceScreen()),
-    GoRoute(path: '/gw/today', builder: (c, s) => const TodayScreen()),
+    GoRoute(path: '/gw/today', builder: (c, s) => TodayScreen(day: DateTime.tryParse('${s.uri.queryParameters['date']}T00:00:00Z'))),
     GoRoute(path: '/gw/mail', builder: (c, s) => const MailScreen()),
     // 아마란스 알림에서 바로 여는 상세(알림센터 → 결재 문서·메일 본문)
     GoRoute(path: '/gw/approval', builder: (c, s) => GwGate(title: '결재', builder: (_, api) => ApprovalDetailScreen(api: api, docId: s.uri.queryParameters['doc'] ?? '', formId: s.uri.queryParameters['form'] ?? '', title: s.uri.queryParameters['title'] ?? ''))),

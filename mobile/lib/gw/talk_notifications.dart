@@ -49,7 +49,7 @@ Future<FlutterLocalNotificationsPlugin> _notifications() async {
   return plugin;
 }
 
-/// 알림센터 한 건 → OS 알림. 탭하면 앱 안 화면(결재 문서·메일·대화방), 그런 화면이 없는 종류(일정·게시판 등)는 그룹웨어 웹.
+/// 알림센터 한 건 → OS 알림. 탭하면 앱 안 화면(결재 문서·메일·대화방), 그런 화면이 없는 종류(게시판 등)는 그룹웨어 웹.
 /// 아마란스 읽음은 앱 안에서 눌렀을 때만(OS 알림을 띄웠다고 읽음 처리하지 않는다).
 Future<void> showGwAlertNotification(GwAlert a) async {
   final plugin = await _notifications();

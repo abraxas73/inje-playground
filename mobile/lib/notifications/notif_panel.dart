@@ -76,7 +76,7 @@ class NotificationPanel extends ConsumerWidget {
       );
 }
 
-/// 알림 열기 — 앱 안 경로가 있으면 그 화면, 없으면(일정·게시판 등) 그룹웨어 웹을 브라우저로.
+/// 알림 열기 — 앱 안 경로가 있으면 그 화면, 없으면(게시판 등) 그룹웨어 웹을 브라우저로.
 void openNotif(NotifItem n, void Function(String path) onOpenPath) {
   if (n.path.isNotEmpty) {
     onOpenPath(n.path);

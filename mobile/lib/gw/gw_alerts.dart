@@ -36,7 +36,7 @@ class GwAlert implements TimedAlert {
   final int createTime; // epoch ms
   final bool read;
 
-  /// 앱 안 경로(결재 문서·메일 본문·대화방). 비면 [webUrl](그룹웨어 웹)로 연다.
+  /// 앱 안 경로(결재 문서·메일 본문·일정·대화방). 비면 [webUrl](그룹웨어 웹)로 연다.
   final String path;
   final String webUrl;
 
@@ -78,6 +78,10 @@ class GwAlert implements TimedAlert {
         title = '$sender${room.isEmpty ? '' : ' · $room'}님의 멘션';
         final roomId = asStr(data['roomId']);
         path = roomId.isEmpty ? '/gw/messenger' : '/gw/room?id=${Uri.encodeComponent(roomId)}&title=${Uri.encodeComponent(sender.isEmpty ? room : sender)}';
+      case GwAlertKind.schedule:
+        // 본문 끝 "(2026-11-05 15:00)"의 날짜로 앱 일정 화면 그날을 연다(날짜가 없으면 오늘)
+        final date = RegExp(r'\((\d{4}-\d{2}-\d{2})').firstMatch(content)?.group(1);
+        path = date == null ? '/gw/today' : '/gw/today?date=$date';
       default:
         break;
     }

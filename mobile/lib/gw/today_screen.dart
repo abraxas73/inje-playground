@@ -17,21 +17,23 @@ import '../app/copy_selection_area.dart';
 /// 일정 — 아마란스 일정(+ 이 기기에 Dooray가 연결돼 있으면 Dooray 일정도)을 일간·주간·월간 캘린더로(기본 일간).
 /// 회의실 예약은 일간 보기에서 그날 것만. "추가"는 이노봇을 불러 아마란스 일정 등록을 맡긴다(비서가 꺼져 있으면 버튼 없음).
 class TodayScreen extends StatelessWidget {
-  const TodayScreen({super.key});
+  const TodayScreen({super.key, this.day});
+  final DateTime? day; // 처음 보일 날(알림에서 열 때), 없으면 오늘
   @override
-  Widget build(BuildContext context) => GwGate(title: '일정', builder: (_, api) => _Body(api));
+  Widget build(BuildContext context) => GwGate(title: '일정', builder: (_, api) => _Body(api, day));
 }
 
 class _Body extends ConsumerStatefulWidget {
-  const _Body(this.api);
+  const _Body(this.api, this.day);
   final GwApi api;
+  final DateTime? day;
   @override
   ConsumerState<_Body> createState() => _BodyState();
 }
 
 class _BodyState extends ConsumerState<_Body> {
   CalMode _mode = CalMode.day;
-  DateTime _day = kstNow();
+  late DateTime _day = widget.day ?? kstNow();
   bool _allEvents = false, _allRooms = true; // 회의실은 전체가 기본(아마란스 자원 HOME처럼, 2026-10-28)
   List<GwEvent>? _events;
   List<GwCalendar>? _cals;
