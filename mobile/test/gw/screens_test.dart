@@ -317,7 +317,7 @@ void main() {
     final r = Routes({'/gw/gw050A02': [session], '/schres/sc111A02': [{'resultList': []}], '/schres/sc111A03': [{'resultList': []}, {'resultList': []}, {'resultList': []}], '/schres/rs121A01': [{'resultList': []}], '/schres/rs121A05': [{'resultList': []}, {'resultList': []}, {'resultList': []}]});
     await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: const TodayScreen()));
     await tester.pumpAndSettle();
-    final today = DateTime.now();
+    final today = DateTime.now().toUtc().add(const Duration(hours: 9)); // 화면은 KST 기준 — 기기 시간대(CI는 UTC)로 정하면 KST 00~09시에 하루 어긋난다
     final tomorrow = today.add(const Duration(days: 1));
     String ymd(DateTime d) => '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
     expect(r.bodies['/schres/sc111A03']?['startDate'], ymd(today));
