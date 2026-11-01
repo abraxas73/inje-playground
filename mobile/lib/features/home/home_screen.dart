@@ -24,6 +24,8 @@ import '../../gw/gw_notices_card.dart';
 import '../../messenger/messenger_chat_screen.dart' show MessengerDashboardCard, MessengerPanel;
 import '../../more/catalog.dart';
 import '../../more/service_grid.dart';
+import '../../todo/todo_migration.dart';
+import '../../todo/todo_screens.dart';
 import '../../release/desktop_updater.dart' show desktopUpdaterProvider;
 import '../../release/release_provider.dart';
 import 'greeting.dart';
@@ -134,7 +136,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     _scheduleAuto();
     // 첫 수집에 인사말 이름을 실어 보낸다 — 진행 중인 build()와 합쳐져 추가 수집은 없다(BriefingNotifier.refresh).
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _refresh();
+      if (!mounted) return;
+      _refresh();
+      // 어제 '오늘'에 남은 할 일 — KST 하루 한 번 이월·연기·취소를 묻는다(JARVIS 홈과 같음)
+      final s = ref.read(sessionProvider).asData?.value;
+      if (s != null && canUsePage(s, todoEntry)) maybeShowTodoMigration(context, ref);
     });
   }
 
@@ -317,6 +323,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       // 아마란스 메신저 — 간략(대화방 목록 카드)·상세(목록→대화방까지 위젯 안에서) 2종. 카드가 스스로 세션·로딩·빈 상태를 처리.
       add('messenger', '아마란스 메신저(간략)', MessengerDashboardCard(onMore: () => open('/gw/messenger')), w: 6, h: 4);
       add('messenger_full', '아마란스 메신저(대화)', const MessengerPanel(), w: 6, h: 7, fill: true);
+      if (session != null && canUsePage(session, todoEntry)) add('todo', '할 일', const TodoDashboardCard(), w: 6, h: 6, fill: true);
       // Teams 채팅(상세) — 목록→대화방까지 위젯 안에서(아마란스 메신저(대화)와 같은 방식)
       if (session != null && canUsePage(session, teamsChatEntry)) {
         add('teams_chat', 'Teams 채팅', const TeamsChatPanel(), w: 6, h: 7, fill: true);
