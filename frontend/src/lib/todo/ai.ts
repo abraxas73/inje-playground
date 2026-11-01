@@ -86,11 +86,6 @@ export function kstToday(now = new Date()): string {
   return new Date(now.getTime() + 9 * 3600_000).toISOString().slice(0, 10);
 }
 
-/** KST 오늘 0시(UTC ISO). */
-export function kstDayStartIso(now = new Date()): string {
-  return new Date(Date.parse(`${kstToday(now)}T00:00:00+09:00`)).toISOString();
-}
-
 /** 응답 글에서 JSON 객체 부분(코드펜스·앞뒤 말 무시). */
 export function extractJson(text: string): unknown {
   const s = text.indexOf("{"), e = text.lastIndexOf("}");

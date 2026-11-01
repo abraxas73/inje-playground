@@ -113,3 +113,22 @@ create table if not exists public.todo_review_runs (
 alter table public.todo_review_runs enable row level security;
 drop policy if exists todo_review_runs_own on public.todo_review_runs;
 create policy todo_review_runs_own on public.todo_review_runs for select to authenticated using (auth.uid() = user_id and public.has_page_access('todo'));
+
+-- AI 분석 하루 상한 — 모델을 부르기 전에 한 칸을 원자적으로 잡는다(동시 요청·실패한 시도도 센다). service role(/api/todo/analyze)만.
+create table if not exists public.todo_ai_usage (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  day     date not null,
+  uses    int  not null default 0,
+  primary key (user_id, day)
+);
+alter table public.todo_ai_usage enable row level security; -- 정책 없음: service role만
+
+-- 한 번 쓰기를 예약하고 예약 뒤 횟수를 돌려준다. 이미 상한이면 늘리지 않고 null(행 잠금으로 동시 요청도 하나씩 — 라우트가 429).
+create or replace function public.todo_ai_reserve(p_user uuid, p_day date, p_limit int) returns int
+language sql security definer set search_path='' as $$
+  insert into public.todo_ai_usage as u (user_id, day, uses) values (p_user, p_day, 1)
+  on conflict (user_id, day) do update set uses = u.uses + 1 where u.uses < p_limit
+  returning uses;
+$$;
+revoke all on function public.todo_ai_reserve(uuid, date, int) from public, anon, authenticated;
+grant execute on function public.todo_ai_reserve(uuid, date, int) to service_role;

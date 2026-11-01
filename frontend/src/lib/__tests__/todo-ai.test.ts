@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeTodo, buildReviewStats, extractJson, kstDayStartIso, kstToday, normalizeAnalysis } from "@/lib/todo/ai";
+import { analyzeTodo, buildReviewStats, extractJson, kstToday, normalizeAnalysis } from "@/lib/todo/ai";
 import { canUsePage, pagesForPath } from "@/lib/page-access";
 import { auditCategoryFor } from "@/lib/audit-proxy";
 import { DASHBOARD_WIDGET_IDS } from "@/lib/home-dashboard";
@@ -22,7 +22,6 @@ describe("할 일 AI", () => {
 
   it("오늘 날짜는 KST — UTC 16시는 한국 다음 날", () => {
     expect(kstToday(new Date("2026-11-01T16:00:00Z"))).toBe("2026-11-02");
-    expect(kstDayStartIso(new Date("2026-11-01T16:00:00Z"))).toBe("2026-11-01T15:00:00.000Z"); // 하루 상한은 KST 0시부터 센다
   });
 
   it("analyzeTodo는 오늘 날짜를 넣어 한 번 부르고 생각을 끈다", async () => {
