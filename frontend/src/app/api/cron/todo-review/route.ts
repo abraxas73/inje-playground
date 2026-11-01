@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   let ok = 0, failed = 0;
   for (const userId of targets) {
     try {
-      const { data, error } = await admin.from("todos").select("state, priority, context_tags, migration_count, title, completed_at").eq("user_id", userId).gte("updated_at", since).limit(1000);
+      const { data, error } = await admin.from("todos").select("state, priority, context_tags, migration_count, title, completed_at").eq("user_id", userId).or(`updated_at.gte.${since},state.eq.in_progress`).limit(1000); // 오래 묵은 진행 중·자주 미룬 것도 open·migrated에 세도록
       if (error) throw new Error(error.message);
       const stats = buildReviewStats((data ?? []) as ReviewRow[], since);
       const summary = await writeReview(stats);

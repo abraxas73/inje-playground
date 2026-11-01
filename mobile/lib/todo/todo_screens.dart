@@ -6,12 +6,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
+import '../auth/session.dart';
 import '../gw/gw_models.dart' show kstOf;
+import '../more/catalog.dart';
 import 'todo_migration.dart';
 import 'todo_model.dart';
 import 'todo_sheets.dart';
 import 'todo_store.dart';
 import 'todo_widgets.dart';
+
+/// 페이지 권한(todo)이 없으면 화면 대신 안내 — 즐겨찾기·주소로 들어와도. 데이터는 RLS가 같은 권한으로 막는다.
+class TodoGate extends ConsumerWidget {
+  const TodoGate({super.key, required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(sessionProvider).asData?.value;
+    if (s != null && canUsePage(s, todoEntry)) return child;
+    return Scaffold(
+      appBar: const BrandHeader(title: '할 일', showBack: true),
+      body: Center(child: Text(s == null ? '로그인이 필요합니다' : '할 일을 쓸 권한이 없습니다. 관리자에게 문의하세요.', style: TextStyle(color: Brand.muted))),
+    );
+  }
+}
 
 /// 두 매트릭스가 함께 쓰는 필터(상태·태그).
 class TodoFilterNotifier extends Notifier<TodoFilter> {

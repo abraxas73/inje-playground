@@ -46,7 +46,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 기능별 상세(페이지·API·테이블·패턴)는 `.claude/rules/` 아래 규칙 파일에 있고, 해당 경로의 파일을 다룰 때 자동으로 로드된다: `rfp.md`(RFP 분석·솔루션 카탈로그·SharePoint·Microsoft 연결), `claude-usage-cost.md`(Claude 사용량·비용·성과 지표), `marketing.md`(마케팅 Master DB), `media-news.md`(관리 매체·부고 알림·인사·부고 메일), `ppt-maker.md`(PPT 만들기), `mobile.md`(모바일 앱). 그 기능을 작업할 때는 먼저 해당 파일을 읽는다.
 
 ### App Router Pages (`frontend/src/app/`)
-- `/admin/page-permissions` — 사용자별 페이지 접근 권한. `lib/page-access.ts` 공용 카탈로그로 사용자 메뉴 2단계 그룹·홈 카드·페이지/API 검사를 통합. 기존 역할 기본값 유지, admin 전체 허용, RLS와 버전 검사 RPC. 런북 `docs/page-access.md`. **PAGES에 키를 추가하면 DB 함수 `valid_page_permissions`·`has_page_access`의 키 목록도 갱신**(최신 `docs/sql/2026-10-23-gw-app-page-keys.sql`, 빠지면 관리자 저장이 `Invalid permissions`로 실패 — `gw-mail.test.tsx`가 SQL과 대조).
+- `/admin/page-permissions` — 사용자별 페이지 접근 권한. `lib/page-access.ts` 공용 카탈로그로 사용자 메뉴 2단계 그룹·홈 카드·페이지/API 검사를 통합. 기존 역할 기본값 유지, admin 전체 허용, RLS와 버전 검사 RPC. 런북 `docs/page-access.md`. **PAGES에 키를 추가하면 DB 함수 `valid_page_permissions`·`has_page_access`의 키 목록도 갱신**(최신 `docs/sql/2026-11-02-todos.sql`, 빠지면 관리자 저장이 `Invalid permissions`로 실패 — `gw-mail.test.tsx`가 SQL과 대조).
 - `/` — Home with feature cards linking to sub-pages. 데스크톱 브라우저(macOS·Windows·Linux)에서 이 계정으로 그 OS의 데스크톱 앱에 로그인한 기록(`login_history` User-Agent `InnogridApp/… (macOS|windows|linux)`, 대소문자 무시)이 없으면 맨 위에 설치 안내 카드(`components/home/DesktopAppCard`, `GET /api/desktop/presence`; ‘다음에’는 localStorage 30일)
 - `/ladder` — Ladder game: participants + results matched via animated canvas ladder
 - `/team` — Team divider: random team assignment with card holder distribution and min/max constraints
@@ -114,6 +114,9 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 
 ### Supabase Tables (mcp)
 - `mcp_calls`(MCP 도구 호출 중계 행: status·result jsonb·worker, RLS, 앱은 2초 폴링(Realtime 발행 제외 — 2026-10-21 슬로우 쿼리), 응답 후 삭제·10분 크론 정리) — SQL `docs/sql/2026-10-10-mcp-calls.sql`
+
+### Supabase Tables (todo)
+- `todos`(state in_progress|done|cancelled · urgency today|inbox|scheduled|someday · priority p1~p4 · migration_count, 트리거 `todos_guard`가 updated_at·completed_at·프로젝트 소유 확인)·`todo_projects`·`todo_review_runs`(크론 `/api/cron/todo-review` 일요일 18시 KST부터, 사용자당 1행) + RPC `migrate_todo` — RLS 본인만, 앱(`mobile/lib/todo/`)이 직접 읽고 쓴다. AI 제안은 `POST /api/todo/analyze`(페이지 키 `todo`, 앱 전용 — 웹 화면 없음). SQL `docs/sql/2026-11-02-todos.sql`
 
 ### Supabase Tables (chat)
 - `chat_conversations`·`chat_messages`·`chat_tool_calls`(결과 원문 없이 요약만)·`chat_attachments`(버킷 `chat`)·`assistant_usage`(사용자×KST 날짜, RPC `chat_usage_add`) — RLS 본인만, SQL `docs/sql/2026-10-15-chat-portal.sql`, 쓰기 확인 중복 실행 방지는 `docs/sql/2026-10-15-chat-tool-calls-once.sql`(승인은 status `running`으로 먼저 claim)

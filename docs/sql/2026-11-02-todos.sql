@@ -1,7 +1,30 @@
 -- 2026-11-02: 할 일(TODO) — 시급도 매트릭스(오늘·받은함·예정·언젠가)·중요도 매트릭스(p1~p4)·프로젝트·주간 리뷰.
 -- JARVIS(todos·todo_projects·todo_review_runs·migrate_todo·suggest_stale_cleanup)를 옮겼다. JARVIS의 옛 status 한 칸은 처음부터 state(진행)·urgency(분류) 두 칸으로만 둔다.
 -- 앱이 본인 행만 직접 읽고 쓴다(RLS, mcp_calls와 같은 방식). 주간 리뷰는 크론 /api/cron/todo-review(service role)가 쓴다.
--- 권한 함수는 2026-10-23-org-chart.sql 정의 그대로에 todo만 더했다 — 드리프트 테스트는 이제 이 파일을 읽는다.
+-- 권한 함수는 2026-10-23-org-chart.sql 정의 그대로에 todo만 더했다(정책이 쓰므로 맨 앞) — 드리프트 테스트는 이제 이 파일을 읽는다.
+-- RLS는 본인 행 + todo 페이지 권한 — 관리자 스위치를 끄면 앱이 직접 읽고 쓰는 것도 막힌다.
+
+begin;
+create or replace function public.valid_page_permissions(p jsonb) returns boolean
+language sql immutable set search_path='' as $$
+ select case when jsonb_typeof(p)<>'object' then false else not exists
+ (select 1 from jsonb_each(p) e where e.key not in ('food','ladder','team','survey','apps','usage_code','usage_chat','usage_perf','teams_chat','jira','confluence','sharepoint','rfp','ppt','people_news','marketing','guide','mcp','gw_mail','gw_approvals','gw_attendance','gw_today','gw_board','gw_messenger','gw_notes','gw_attend','dooray','assistant','proposal','org_chart','todo') or jsonb_typeof(e.value)<>'boolean') end;
+$$;
+create or replace function public.has_page_access(p_page text) returns boolean
+language sql stable security definer set search_path='' as $$
+  select coalesce((select case
+      when p_page = 'marketing' then
+        public.marketing_access_account(p.user_id)
+        or (p.role in ('user', 'admin') and coalesce((a.permissions->>'marketing')::boolean, false))
+      else p.role = 'admin' or (
+        p_page in ('food','ladder','team','survey','apps','usage_code','usage_chat','usage_perf','teams_chat','jira','confluence','sharepoint','rfp','ppt','people_news','guide','mcp','gw_mail','gw_approvals','gw_attendance','gw_today','gw_board','gw_messenger','gw_notes','gw_attend','dooray','assistant','proposal','org_chart','todo')
+        and (p.role = 'user' or (p.role = 'guest' and p_page in ('food','ladder','team','survey')))
+        and coalesce((a.permissions->>p_page)::boolean, true))
+    end
+    from public.user_profiles p left join public.user_page_access a on a.user_id = p.user_id
+    where p.user_id = auth.uid()), false);
+$$;
+commit;
 
 create table if not exists public.todo_projects (
   id          uuid primary key default gen_random_uuid(),
@@ -55,9 +78,10 @@ create trigger todos_guard before insert or update on public.todos for each row 
 alter table public.todos enable row level security;
 alter table public.todo_projects enable row level security;
 drop policy if exists todos_own on public.todos;
-create policy todos_own on public.todos for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+-- 관리자가 todo 페이지 권한을 끄면(또는 guest) 데이터도 막는다 — has_page_access는 아래에서 todo 키를 더한 정의
+create policy todos_own on public.todos for all to authenticated using (auth.uid() = user_id and public.has_page_access('todo')) with check (auth.uid() = user_id and public.has_page_access('todo'));
 drop policy if exists todo_projects_own on public.todo_projects;
-create policy todo_projects_own on public.todo_projects for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy todo_projects_own on public.todo_projects for all to authenticated using (auth.uid() = user_id and public.has_page_access('todo')) with check (auth.uid() = user_id and public.has_page_access('todo'));
 
 -- 명시적 이월(어제 '오늘'에 남은 할 일): 분류를 바꾸거나 취소하고 이월 횟수 +1. 3회 이상이면 앱이 정리를 권한다.
 create or replace function public.migrate_todo(p_id uuid, p_to text) returns public.todos
@@ -88,26 +112,4 @@ create table if not exists public.todo_review_runs (
 );
 alter table public.todo_review_runs enable row level security;
 drop policy if exists todo_review_runs_own on public.todo_review_runs;
-create policy todo_review_runs_own on public.todo_review_runs for select to authenticated using (auth.uid() = user_id);
-
-begin;
-create or replace function public.valid_page_permissions(p jsonb) returns boolean
-language sql immutable set search_path='' as $$
- select case when jsonb_typeof(p)<>'object' then false else not exists
- (select 1 from jsonb_each(p) e where e.key not in ('food','ladder','team','survey','apps','usage_code','usage_chat','usage_perf','teams_chat','jira','confluence','sharepoint','rfp','ppt','people_news','marketing','guide','mcp','gw_mail','gw_approvals','gw_attendance','gw_today','gw_board','gw_messenger','gw_notes','gw_attend','dooray','assistant','proposal','org_chart','todo') or jsonb_typeof(e.value)<>'boolean') end;
-$$;
-create or replace function public.has_page_access(p_page text) returns boolean
-language sql stable security definer set search_path='' as $$
-  select coalesce((select case
-      when p_page = 'marketing' then
-        public.marketing_access_account(p.user_id)
-        or (p.role in ('user', 'admin') and coalesce((a.permissions->>'marketing')::boolean, false))
-      else p.role = 'admin' or (
-        p_page in ('food','ladder','team','survey','apps','usage_code','usage_chat','usage_perf','teams_chat','jira','confluence','sharepoint','rfp','ppt','people_news','guide','mcp','gw_mail','gw_approvals','gw_attendance','gw_today','gw_board','gw_messenger','gw_notes','gw_attend','dooray','assistant','proposal','org_chart','todo')
-        and (p.role = 'user' or (p.role = 'guest' and p_page in ('food','ladder','team','survey')))
-        and coalesce((a.permissions->>p_page)::boolean, true))
-    end
-    from public.user_profiles p left join public.user_page_access a on a.user_id = p.user_id
-    where p.user_id = auth.uid()), false);
-$$;
-commit;
+create policy todo_review_runs_own on public.todo_review_runs for select to authenticated using (auth.uid() = user_id and public.has_page_access('todo'));

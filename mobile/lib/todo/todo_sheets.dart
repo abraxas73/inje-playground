@@ -25,8 +25,6 @@ Widget _label(String s, {Widget? trailing}) => Padding(
       child: Row(children: [Text(s, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Brand.muted)), if (trailing != null) ...[const SizedBox(width: 4), trailing]]),
     );
 
-Widget _handle() => Center(child: Container(width: 36, height: 4, margin: const EdgeInsets.only(bottom: 12), decoration: BoxDecoration(color: Brand.line, borderRadius: BorderRadius.circular(2))));
-
 // ───────────────────────── 공용 입력 조각 ─────────────────────────
 
 class UrgencyPicker extends StatelessWidget {
@@ -129,11 +127,13 @@ class TagSelector extends ConsumerWidget {
 Future<DateTime?> pickSchedule(BuildContext context, DateTime? currentUtc) async {
   final now = kstOf(DateTime.now());
   final cur = currentUtc == null ? null : kstOf(currentUtc);
+  final initial = cur == null ? DateTime(now.year, now.month, now.day) : DateTime(cur.year, cur.month, cur.day);
+  final first = DateTime(now.year - 1), last = DateTime(now.year + 5);
   final d = await showDatePicker(
     context: context,
-    initialDate: cur == null ? DateTime(now.year, now.month, now.day) : DateTime(cur.year, cur.month, cur.day),
-    firstDate: DateTime(now.year - 1),
-    lastDate: DateTime(now.year + 5),
+    initialDate: initial,
+    firstDate: initial.isBefore(first) ? initial : first, // 오래된 예정 시각을 고칠 때 initialDate < firstDate 단언에 걸리지 않게
+    lastDate: initial.isAfter(last) ? initial : last,
   );
   if (d == null || !context.mounted) return null;
   final t = await showTimePicker(context: context, initialTime: cur == null ? const TimeOfDay(hour: 9, minute: 0) : TimeOfDay(hour: cur.hour, minute: cur.minute));
@@ -268,7 +268,6 @@ class _CaptureSheetState extends ConsumerState<_CaptureSheet> {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-        _handle(),
         Text('새 할 일', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Brand.navy)),
         const SizedBox(height: 10),
         TextField(
@@ -435,7 +434,6 @@ class _EditSheetState extends ConsumerState<_EditSheet> {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-        _handle(),
         Row(children: [
           Expanded(child: Text('할 일 편집', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Brand.navy))),
           if (t.migrationCount > 0) Chip(visualDensity: VisualDensity.compact, label: Text('${t.migrationCount}회 이월'), backgroundColor: t.isStale ? const Color(0xFFFFF3C4) : null),
@@ -518,7 +516,6 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-        _handle(),
         Text('필터', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Brand.navy)),
         Text('상태와 태그로 좁혀서 볼 수 있어요', style: TextStyle(fontSize: 12.5, color: Brand.muted)),
         _label('상태'),

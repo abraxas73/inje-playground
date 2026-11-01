@@ -83,12 +83,12 @@ GoRouter buildRouter({
     GoRoute(path: '/gw/room', builder: (c, s) => MessengerRoomScreen(room: MsgRoom.minimal(s.uri.queryParameters['id'] ?? '', title: s.uri.queryParameters['title'] ?? '대화'))),
     GoRoute(path: '/gw/notes', builder: (c, s) => const MessengerNotesScreen()),
     GoRoute(path: '/gw/attend', builder: (c, s) => GwGate(title: '근태', builder: (_, _) => const AttendScreen())),
-    GoRoute(path: '/todo', builder: (c, s) => const TodoScreen()),
-    GoRoute(path: '/todo/matrix', builder: (c, s) => const PriorityMatrixScreen()),
-    GoRoute(path: '/todo/projects', builder: (c, s) => const TodoProjectsScreen()),
-    GoRoute(path: '/todo/projects/new', builder: (c, s) => const TodoProjectEditScreen()),
-    GoRoute(path: '/todo/projects/:id', builder: (c, s) => TodoProjectEditScreen(projectId: s.pathParameters['id'])),
-    GoRoute(path: '/todo/review', builder: (c, s) => const TodoReviewScreen()),
+    GoRoute(path: '/todo', builder: (c, s) => const TodoGate(child: TodoScreen())),
+    GoRoute(path: '/todo/matrix', builder: (c, s) => const TodoGate(child: PriorityMatrixScreen())),
+    GoRoute(path: '/todo/projects', builder: (c, s) => const TodoGate(child: TodoProjectsScreen())),
+    GoRoute(path: '/todo/projects/new', builder: (c, s) => const TodoGate(child: TodoProjectEditScreen())),
+    GoRoute(path: '/todo/projects/:id', builder: (c, s) => TodoGate(child: TodoProjectEditScreen(projectId: s.pathParameters['id']))),
+    GoRoute(path: '/todo/review', builder: (c, s) => const TodoGate(child: TodoReviewScreen())),
     StatefulShellRoute.indexedStack(
       builder: (c, s, shell) => TabShell.attach(shell),
       branches: [

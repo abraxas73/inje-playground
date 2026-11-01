@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:playground/auth/session.dart';
 import 'package:playground/todo/todo_migration.dart';
 import 'package:playground/todo/todo_model.dart';
 import 'package:playground/todo/todo_screens.dart';
@@ -243,6 +244,21 @@ void main() {
     });
   });
 
+  testWidgets('권한(todo)이 꺼진 사람은 주소로 들어와도 화면 대신 안내만', (tester) async {
+    Future<void> pump(Map<String, bool> p) => tester.pumpWidget(ProviderScope(
+          key: UniqueKey(),
+          overrides: [sessionProvider.overrideWith(() => _FixedSession(AppSession(email: 'x@innogrid.com', role: 'user', permissions: p)))],
+          child: const MaterialApp(home: TodoGate(child: Text('매트릭스'))),
+        ));
+    await pump({'todo': false});
+    await tester.pumpAndSettle();
+    expect(find.text('매트릭스'), findsNothing);
+    expect(find.textContaining('권한이 없습니다'), findsOneWidget);
+    await pump({});
+    await tester.pumpAndSettle();
+    expect(find.text('매트릭스'), findsOneWidget);
+  });
+
   group('이월', () {
     testWidgets('어제 오늘 칸에 남은 것을 하루 한 번 묻고, 고른 것만 RPC로 — 유지는 건드리지 않는다', (tester) async {
       final store = FakeStore([
@@ -269,4 +285,11 @@ void main() {
       expect(find.text('어제의 할 일을 정리하세요'), findsNothing);
     });
   });
+}
+
+class _FixedSession extends SessionNotifier {
+  _FixedSession(this.s);
+  final AppSession s;
+  @override
+  Future<AppSession?> build() async => s;
 }

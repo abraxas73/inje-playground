@@ -5,6 +5,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 export const TODO_TEXT_MAX = 400;
+/** 사람당 하루(KST) AI 분석 횟수 상한 — 비용 상한. */
+export const TODO_AI_DAILY_LIMIT = 50;
 const PRIORITIES = ["p1", "p2", "p3", "p4"] as const;
 export type TodoPriority = (typeof PRIORITIES)[number];
 export type TodoAnalysis = { title: string; scheduled_for: string | null; estimated_minutes: number | null; priority: TodoPriority; context_tags: string[] };
@@ -82,6 +84,11 @@ export const REVIEW_PROMPT = `너는 사용자의 지난 7일 TODO 통계를 받
 /** KST 오늘 YYYY-MM-DD. */
 export function kstToday(now = new Date()): string {
   return new Date(now.getTime() + 9 * 3600_000).toISOString().slice(0, 10);
+}
+
+/** KST 오늘 0시(UTC ISO). */
+export function kstDayStartIso(now = new Date()): string {
+  return new Date(Date.parse(`${kstToday(now)}T00:00:00+09:00`)).toISOString();
 }
 
 /** 응답 글에서 JSON 객체 부분(코드펜스·앞뒤 말 무시). */
