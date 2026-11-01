@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import ManualPage from "@/app/manual/page";
@@ -48,7 +50,7 @@ it("앱 기능 절은 목차와 제목에 (모바일·데스크톱 앱) 표시�
   render(<ManualPage />);
   expect(screen.getAllByText("(모바일·데스크톱 앱)").length).toBeGreaterThanOrEqual(5);
   expect(screen.getAllByText("(데스크톱 앱)").length).toBeGreaterThanOrEqual(2);
-  expect(screen.getAllByText("모바일·데스크톱 앱 · 데스크톱 앱").length).toBe(5); // 멘션 알림·Claude 커넥터·버튼 숨기기·위젯 대시보드·Always On
+  expect(screen.getAllByText("모바일·데스크톱 앱 · 데스크톱 앱").length).toBe(6); // 멘션 알림·Claude 커넥터·Claude Desktop 연결·버튼 숨기기·위젯 대시보드·Always On
   expect(searchManual("데스크톱 앱").map((s) => s.id)).toContain("desktop-mentions");
   expect(searchManual("스마트 앱 컨트롤").map((s) => s.id)).toContain("windows-smart-app-control");
   expect(searchManual("안 읽음으로 되돌리기").map((s) => s.id)).toEqual(expect.arrayContaining(["gw-mail"]));
@@ -71,4 +73,12 @@ it("Linux 설치 절(linux-install)이 있고 apt 설치 명령으로 검색된�
   expect(s?.category).toBe("시작하기");
   expect(s?.steps.join(" ")).toContain("sudo apt install");
   expect(searchManual("Ubuntu").map((x) => x.id)).toContain("linux-install");
+});
+
+it("Claude Desktop 커넥터 절은 캡처 3장과 파일이 함께 있다", () => {
+  const s = manualSections.find((x) => x.id === "claude-desktop-connector")!;
+  expect(s.images).toHaveLength(3);
+  for (const img of s.images!) expect(existsSync(join(process.cwd(), "public", img.src))).toBe(true);
+  for (const e of s.emphasis ?? []) expect(s.steps[e.step]).toContain(e.text);
+  expect(searchManual("Claude Desktop").map((x) => x.id)).toContain("claude-desktop-connector");
 });
