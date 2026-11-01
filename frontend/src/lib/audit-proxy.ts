@@ -42,7 +42,7 @@ const CATEGORY_BY_SEGMENT: Record<string, string> = {
   rfp: "rfp", users: "users", members: "users", settings: "settings", auth: "auth", ms: "auth",
   "ladder-sessions": "ladder", ladder: "ladder", food: "food", team: "team", "team-sessions": "team", "team-attendance": "team", "team-comments": "team", "team-notify": "team",
   chat: "assistant", assistant: "assistant", gw: "gw", ppt: "ppt", proposal: "proposal", teams: "teams", sharepoint: "sharepoint", confluence: "confluence", jira: "jira",
-  marketing: "marketing", "people-news": "personnel", "media-directory": "personnel", dooray: "dooray", usage: "usage", mobile: "mobile", desktop: "desktop", surveys: "survey", mcp: "mcp",
+  marketing: "marketing", "people-news": "personnel", "media-directory": "personnel", dooray: "dooray", usage: "usage", mobile: "mobile", desktop: "desktop", surveys: "survey", mcp: "mcp", todo: "todo",
 };
 
 /** 자동 기록의 카테고리 — 화면 필터·기능별 사용 통계에서 기능 단위로 나눠 보기 위해 경로에서 뽑는다 */

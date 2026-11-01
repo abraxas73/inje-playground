@@ -30,6 +30,8 @@ export const PAGES = [
   { key: "people_news", href: "/people-news", label: "인사·부고", group: "work", minRole: "user" },
   { key: "org_chart", href: "/org", label: "조직도", group: "work", minRole: "user" },
   { key: "marketing", href: "/marketing", label: "마케팅 Master DB", group: "work", minRole: "user" },
+  // 할 일(TODO 매트릭스)은 앱 전용 화면(데스크톱·모바일) — 웹 메뉴엔 숨기고 관리자 스위치·AI API(/api/todo) 권한에만 쓴다. DB 함수 키 목록은 docs/sql/2026-11-02-todos.sql
+  { key: "todo", href: "/todo", label: "할 일 (앱)", group: "work", minRole: "user", hidden: true },
   // 아마란스 앱 기능(앱 catalog.dart appPages와 같은 키). 메일만 웹 화면이 있고 나머지는 앱 전용 — 관리자 스위치로 앱 기능을 끄고 켜려고 둔다. DB 함수 키 목록은 docs/sql/2026-10-23-gw-app-page-keys.sql
   { key: "gw_mail", href: "/gw/mail", label: "메일 (웹은 메뉴 숨김)", group: "gw", minRole: "user", hidden: true },
   { key: "gw_approvals", href: "/gw/approvals", label: "미결 결재 (웹은 메뉴 숨김)", group: "gw", minRole: "user", hidden: true },
@@ -73,7 +75,7 @@ export function pagesForPath(path: string): PageKey[] {
     ["/api/team-comments", ["team"]], ["/api/team-notify", ["team"]],
     ["/api/surveys", ["survey"]], ["/api/teams/chat", ["teams_chat"]], ["/api/teams/mentions", ["teams_chat"]],
     ["/api/rfp", ["rfp"]], ["/api/ppt", ["ppt"]], ["/api/proposal", ["proposal"]], ["/api/people-news", ["people_news"]],
-    ["/api/marketing", ["marketing"]], ["/api/dooray/overview", ["dooray"]], ["/api/dooray/messenger", ["dooray"]], ["/api/jira", ["jira"]], ["/api/confluence", ["confluence"]], ["/api/sharepoint", ["sharepoint"]], ["/api/mcp", ["mcp"]], ["/api/gw/mail", ["gw_mail"]], ["/api/gw/approvals", ["gw_approvals"]], ["/api/gw/schedule", ["gw_today"]], ["/api/chat", ["assistant"]], ["/api/directory", ["org_chart"]],
+    ["/api/marketing", ["marketing"]], ["/api/dooray/overview", ["dooray"]], ["/api/dooray/messenger", ["dooray"]], ["/api/jira", ["jira"]], ["/api/confluence", ["confluence"]], ["/api/sharepoint", ["sharepoint"]], ["/api/mcp", ["mcp"]], ["/api/gw/mail", ["gw_mail"]], ["/api/gw/approvals", ["gw_approvals"]], ["/api/gw/schedule", ["gw_today"]], ["/api/chat", ["assistant"]], ["/api/directory", ["org_chart"]], ["/api/todo", ["todo"]],
     ["/media-directory", ["people_news"]], ["/api/media-directory", ["people_news"]],
     ["/api/usage/code", ["usage_code"]], ["/api/usage/tools", ["usage_code"]],
     ["/api/usage/hourly", ["usage_code"]], ["/api/usage/chat", ["usage_chat"]],

@@ -26,6 +26,10 @@
     {
       "path": "/api/cron/chat-purge",
       "schedule": "40 18 * * *"
+    },
+    {
+      "path": "/api/cron/todo-review",
+      "schedule": "0 9-14 * * 0"
     }
   ]
 }
