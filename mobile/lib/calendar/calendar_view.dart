@@ -1,4 +1,4 @@
-// 일정 캘린더 위젯 — 머리글(이전 · 날짜 오늘 · 다음, 일간/주간/월간 전환, 부모가 주는 동작 버튼) + 본문(일간 목록 / 주간 날짜별 목록 / 월간 6주 격자).
+// 일정 캘린더 위젯 — 머리글(이전 · 날짜 · 다음 오늘, 일간/주간/월간 전환, 부모가 주는 동작 버튼) + 본문(일간 목록 / 주간 날짜별 목록 / 월간 6주 격자).
 // 데이터는 부모가 CalEvent로 넘긴다(아마란스·Dooray 섞어서). 날짜는 calendar_model.dart와 같이 "KST 벽시계 + UTC 플래그".
 import 'package:flutter/material.dart';
 import '../app/brand.dart';
@@ -36,16 +36,12 @@ class CalendarView extends StatelessWidget {
     final count = events.where((ev) => days.any(ev.on)).length;
     final (prevTip, nextTip) = switch (mode) { CalMode.day => ('이전 날', '다음 날'), CalMode.week => ('이전 주', '다음 주'), CalMode.month => ('이전 달', '다음 달') };
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
+      // ‹ 날짜 › 를 붙여 가운데, '오늘'은 그 옆(2026-10-28·11-02 사용자 요청 — 양 끝 화살표는 넓은 창에서 멀었다)
+      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         IconButton(icon: const Icon(Icons.chevron_left), tooltip: prevTip, onPressed: () => onDay(calStep(mode, day, -1))),
-        // '오늘'은 날짜 바로 옆(2026-10-28 사용자 요청)
-        Expanded(
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Flexible(child: Text(calLabel(mode, day), overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Brand.navy))),
-            if (!hasToday) TextButton(onPressed: () => onDay(t0), child: const Text('오늘')),
-          ]),
-        ),
+        Flexible(child: Text(calLabel(mode, day), overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Brand.navy))),
         IconButton(icon: const Icon(Icons.chevron_right), tooltip: nextTip, onPressed: () => onDay(calStep(mode, day, 1))),
+        if (!hasToday) TextButton(onPressed: () => onDay(t0), child: const Text('오늘')),
       ]),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),

@@ -105,11 +105,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('일시'), findsNothing);
   });
-  testWidgets('오늘 버튼은 날짜 바로 옆(다음 버튼보다 왼쪽)', (tester) async {
+  testWidgets('‹ 날짜 › 는 붙어서 가운데, 오늘 버튼은 › 바로 옆 — 넓은 창에서도 화살표가 양 끝으로 벌어지지 않는다', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(_Host(mode: CalMode.day, day: DateTime.utc(2026, 10, 14)));
-    final label = tester.getRect(find.text('10월 14일 (수)')), todayBtn = tester.getRect(find.widgetWithText(TextButton, '오늘')), next = tester.getRect(find.byTooltip('다음 날'));
-    expect(todayBtn.left >= label.right, isTrue);
-    expect(todayBtn.right <= next.left, isTrue);
+    final label = tester.getRect(find.text('10월 14일 (수)')), todayBtn = tester.getRect(find.widgetWithText(TextButton, '오늘'));
+    final prev = tester.getRect(find.byTooltip('이전 날')), next = tester.getRect(find.byTooltip('다음 날'));
+    expect(label.left - prev.right, lessThan(16));
+    expect(next.left - label.right, lessThan(16));
+    expect(todayBtn.left >= next.right && todayBtn.left - next.right < 16, isTrue);
+    expect(prev.left, greaterThan(300), reason: '화살표가 왼쪽 끝에 붙지 않는다');
   });
   testWidgets('월간: 6주 격자(앞뒤 달 포함), 날짜를 누르면 onPickDay, 폰 폭은 점·넓은 폭은 제목', (tester) async {
     final picked = <DateTime>[];
