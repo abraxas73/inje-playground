@@ -93,9 +93,15 @@ void main() {
     expect(htmlToMarkdown(h), [
       '안녕하십니까  ', '인사총무팀입니다.', '', '**1\\. 동의서 징구 결과**  ', '동의 결과', '',
       '- 찬성 175명 (51.9%)', '- 운용 **추가**', '- \\*별\\*', '',
-      '**(ex.)** 안내  ', '둘째', '', 'a \\| b', '', '링크 : [\\[공지\\] 안내](https://gw.x/b?id=1) 위험 \\[이미지\\]',
+      '**(ex.)** 안내  ', '둘째', '', '| a | b |', '| --- | --- |', '', '링크 : [\\[공지\\] 안내](https://gw.x/b?id=1) 위험 \\[이미지\\]',
     ].join('\n'));
     expect(htmlToMarkdown(''), '');
+    expect(
+      htmlToMarkdown('<table><tr><th>구분</th><th>마감일</th><th>비고</th></tr><tr><td rowspan="2">세금<p>계산서</p></td><td colspan="2">매월 2일 | 까지</td></tr><tr><td>11월 3일</td><td>즉시</td></tr></table>뒤'),
+      '| 구분 | 마감일 | 비고 |\n| --- | --- | --- |\n| 세금 계산서 | 매월 2일 \\| 까지 |  |\n|  | 11월 3일 | 즉시 |\n\n뒤',
+      reason: '자료 표는 마크다운 표 — 병합 칸은 빈 칸으로 펼치고, 칸 안 블록은 한 칸 띄움, 표 뒤 글은 빈 줄로 떼어 표 행이 되지 않게',
+    );
+    expect(htmlToMarkdown('<table><tr><td>안내 한 칸</td></tr></table>'), '안내 한 칸', reason: '칸 하나짜리 레이아웃 표는 글 그대로');
     expect(htmlToMarkdown('<ul><li>가<br><br>나</li><li>다</li></ul>'), '- 가\n\n    나\n- 다', reason: 'li 안 빈 줄은 들여써서 목록 유지');
     expect(htmlToMarkdown('<ul><li></li></ul>뒤'), '-\n\n뒤', reason: '빈 항목 뒤 글은 따로');
   });

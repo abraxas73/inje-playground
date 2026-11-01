@@ -107,7 +107,7 @@ void _walk(dom.Node n, _Out out) {
 
 /// HTML → 마크다운(게시글 본문 표시용 — 평문 htmlToText는 미리보기·이노봇 도구용으로 그대로).
 /// 살리는 것: 줄(블록 끝 = 줄바꿈, 빈 블록·br 두 번 = 빈 줄), 굵게(b·strong·제목·font-weight)·기울임·취소선, 번호·글머리 목록(중첩·start),
-/// 링크(http(s)만), 표는 htmlToText와 같은 "칸 | 칸" 줄, 그림은 [이미지](불러오지 않음). 글자색·크기는 버린다.
+/// 링크(http(s)만), 자료 표는 마크다운 표(레이아웃 표는 htmlToText의 "칸 | 칸" 줄), 그림은 [이미지](불러오지 않음). 글자색·크기는 버린다.
 /// 원문 HTML은 그리지 않는다 — 글은 모두 이스케이프해 마크다운 문법으로만 해석된다(웹 Teams 채팅 teamsHtmlToMarkdown과 같은 규칙).
 String htmlToMarkdown(String html) {
   if (html.isEmpty) return '';
@@ -234,7 +234,17 @@ void _mdWalk(dom.Node n, _Md md, String key) {
       md.write('[${md._esc(label.isEmpty ? href : label, false)}](${href.replaceAllMapped(RegExp(r'[\s()<>]'), (m) => Uri.encodeComponent(m[0]!))})');
       return;
     case 'table':
-      // 표는 htmlToText의 행 규칙("칸 | 칸")을 그대로 — 마크다운 표는 좁은 화면에서 넘친다
+      final grid = _tableGrid(n);
+      if (grid != null) {
+        // 자료 표는 마크다운 표로(병합 칸은 첫 칸에만 글, 나머지 빈 칸) — 화면은 FlexColumnWidth라 폭에 맞춰 줄바꿈한다
+        md.lineBreak(2);
+        md.flush();
+        String row(List<String> r) => '| ${r.map((c) => md._esc(c, false)).join(' | ')} |';
+        md.write([row(grid.first), '|${List.filled(grid.first.length, ' --- ').join('|')}|', for (final r in grid.skip(1)) row(r)].join('\n'));
+        md.lineBreak(2); // 뒤 글이 표 행으로 붙지 않게 빈 줄
+        return;
+      }
+      // 레이아웃 표(칸 하나짜리·중첩 표)는 htmlToText의 행 규칙 그대로
       md.lineBreak(2);
       for (final line in htmlToText(n.outerHtml).split('\n')) {
         if (line.isEmpty) {
@@ -280,6 +290,42 @@ void _mdWalk(dom.Node n, _Md md, String key) {
     _mdWalk(c, md, k);
   }
   if (block) md.lineBreak(n.text.trim().isEmpty && n.querySelector('img') == null && md.lists.isEmpty ? 2 : 1); // 빈 문단 = 빈 줄
+}
+
+/// 자료 표 → 칸 글 격자(rowspan·colspan을 펼친 자리는 빈 글). 중첩 표가 있거나 2칸 이상인 행이 없으면 null(레이아웃 표).
+List<List<String>>? _tableGrid(dom.Element table) {
+  if (table.querySelector('table') != null) return null;
+  final rows = table.querySelectorAll('tr');
+  final grid = <List<String?>>[];
+  for (var r = 0; r < rows.length; r++) {
+    while (grid.length <= r) {
+      grid.add([]);
+    }
+    var c = 0;
+    for (final cell in rows[r].children.where((e) => e.localName == 'td' || e.localName == 'th')) {
+      while (c < grid[r].length && grid[r][c] != null) {
+        c++;
+      }
+      final rs = (int.tryParse(cell.attributes['rowspan'] ?? '') ?? 1).clamp(1, rows.length - r), cs = (int.tryParse(cell.attributes['colspan'] ?? '') ?? 1).clamp(1, 50);
+      final text = htmlToText(cell.innerHtml).replaceAll(RegExp(r'\s+'), ' ').trim();
+      for (var i = 0; i < rs; i++) {
+        while (grid.length <= r + i) {
+          grid.add([]);
+        }
+        final g = grid[r + i];
+        for (var j = 0; j < cs; j++) {
+          while (g.length <= c + j) {
+            g.add(null);
+          }
+          g[c + j] = i == 0 && j == 0 ? text : '';
+        }
+      }
+      c += cs;
+    }
+  }
+  final width = grid.fold(0, (m, g) => g.length > m ? g.length : m);
+  if (width < 2 || grid.every((g) => g.where((t) => t != null && t.isNotEmpty).length < 2)) return null;
+  return [for (final g in grid) if (g.any((t) => t != null && t.isNotEmpty)) [for (var j = 0; j < width; j++) j < g.length ? g[j] ?? '' : '']];
 }
 
 /// HTML 엔티티 → 글자. 파서가 이름·숫자 참조를 모두 푼다(&middot;·&hellip;·&#39;…). 날 `<`는 태그로 읽히지 않게 먼저 가리고,
