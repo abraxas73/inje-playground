@@ -31,6 +31,10 @@ String mailHtmlDocument(String html, {double zoom = 1}) {
       '$style</head><body>$body</body></html>';
 }
 
+/// 글자 서식·표·그림이 있는 HTML인가 — 문단(p·div·br)만이면 false(그때는 웹뷰 없이 글로 그린다).
+bool richHtml(String html) =>
+    RegExp(r'<(?!/?(?:p|div|br)\b)[a-z]', caseSensitive: false).hasMatch(html) || RegExp(r'\sstyle\s*=', caseSensitive: false).hasMatch(html);
+
 /// 웹뷰가 문서 안에서 가도 되는 주소 — 처음 그리는 빈 문서만. 링크는 시스템 브라우저로 연다(mailHtmlExternal).
 bool mailHtmlInitial(String url) => url == 'about:blank' || url.startsWith('data:') || url.isEmpty;
 Uri? mailHtmlExternal(String url) {

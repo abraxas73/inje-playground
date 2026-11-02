@@ -60,4 +60,13 @@ void main() {
     expect(doc, contains('<img src="data:image/png;base64,AQID">'));
     expect(await mailInlineImages('<img src="https://x.test/a.png">', Uri.parse('https://gw.innogrid.com'), (_) async => ('image/png', [1])), isNull);
   });
+  test('richHtml: 문단만이면 글로, 서식·표·그림·style이면 웹뷰', () {
+    expect(richHtml('<p>전 직원 필독</p><div>둘째</div><br>'), isFalse);
+    expect(richHtml('그냥 글'), isFalse);
+    expect(richHtml('<p><b>굵게</b></p>'), isTrue);
+    expect(richHtml('<table><tr><td>1</td></tr></table>'), isTrue);
+    expect(richHtml('<p style="color:red">빨강</p>'), isTrue);
+    expect(richHtml('<img src="a.png">'), isTrue);
+    expect(richHtml('<pre>코드</pre>'), isTrue);
+  });
 }

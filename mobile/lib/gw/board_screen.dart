@@ -9,7 +9,8 @@ import 'gw_api.dart';
 import 'gw_client.dart' show asInt;
 import 'gw_gate.dart';
 import 'gw_mcp_api.dart';
-import 'mail_detail_screen.dart' show mailFileSaverProvider;
+import 'mail_detail_screen.dart' show MailHtmlView, mailFileSaverProvider;
+import 'mail_html.dart' show richHtml;
 import 'gw_models.dart';
 
 /// 게시판: 전 게시판 공지·새 글 집계 목록(검색·더 보기) → 본문·댓글. 읽기 전용.
@@ -151,31 +152,73 @@ class _DetailPage extends StatelessWidget {
           if (snap.hasError) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('불러오지 못했습니다: ${snap.error}', style: const TextStyle(color: Brand.dangerText))));
           final d = snap.data;
           if (d == null) return const Center(child: CircularProgressIndicator());
-          return ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 32), children: [
+          final head = [
             if (d.board.isNotEmpty) Text(d.board, style: theme.textTheme.bodySmall?.copyWith(color: Brand.blue, fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
             Text(d.title.isEmpty ? fallbackTitle : d.title, style: theme.textTheme.headlineSmall),
             const SizedBox(height: 6),
             Text([d.writer, if (d.dept.isNotEmpty) d.dept, d.writeDate, '조회 ${d.readCnt}', if (d.fileCnt > 0) '첨부 ${d.fileCnt}'].where((s) => s.isNotEmpty).join(' · '), style: theme.textTheme.bodySmall),
+          ];
+          final files = d.fileCnt > 0 ? Padding(padding: const EdgeInsets.only(top: 16), child: d.uid.isEmpty ? _noticeBox(context, '첨부 ${d.fileCnt}건은 아마란스에서 내려받으세요.') : _NoticeFiles(api, artSeqNo: d.artSeqNo.isEmpty ? artSeqNo : d.artSeqNo, uid: d.uid)) : null;
+          final comments = d.comments.isEmpty ? null : Card(child: Column(children: [
+            for (final (i, c) in d.comments.indexed) ...[
+              if (i > 0) const Divider(height: 1),
+              ListTile(dense: true, leading: InitialBadge(c.writer, size: 32, circle: true), title: Text(c.content), subtitle: Text('${c.writer}${c.writeDate.isEmpty ? '' : ' · ${c.writeDate}'}')),
+            ],
+          ]));
+          if (richHtml(d.html)) {
+            // 서식 있는 본문(표·글자색·그림) — 메일 상세처럼 웹뷰로 원문 그대로. 머리·첨부는 위, 댓글은 아래 접이식
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.35),
+                child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [...head, ?files])),
+              ),
+              const Divider(height: 20),
+              Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: MailHtmlView(html: d.html, fetchImage: (u) async {
+                final r = await api.client.httpClient.get(u).timeout(const Duration(seconds: 15));
+                return r.statusCode == 200 ? (r.headers['content-type'] ?? '', r.bodyBytes) : null;
+              }, base: Uri.parse(api.client.baseUrl)))),
+              if (comments != null) _CommentsBar(count: d.comments.length, child: comments),
+            ]);
+          }
+          return ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 32), children: [
+            ...head,
             const Divider(height: 24),
             if (d.contentMd.isNotEmpty) _body(d.contentMd) else Text(d.content.isEmpty ? '(본문 없음)' : d.content, style: TextStyle(fontSize: 15, height: 1.65, color: Brand.navy)),
-            if (d.fileCnt > 0) Padding(padding: const EdgeInsets.only(top: 16), child: d.uid.isEmpty ? _noticeBox(context, '첨부 ${d.fileCnt}건은 아마란스에서 내려받으세요.') : _NoticeFiles(api, artSeqNo: d.artSeqNo.isEmpty ? artSeqNo : d.artSeqNo, uid: d.uid)),
-            if (d.comments.isNotEmpty) ...[
+            ?files,
+            if (comments != null) ...[
               const SizedBox(height: 20),
               CountTitle('댓글', d.comments.length),
               const SizedBox(height: 8),
-              Card(child: Column(children: [
-                for (final (i, c) in d.comments.indexed) ...[
-                  if (i > 0) const Divider(height: 1),
-                  ListTile(dense: true, leading: InitialBadge(c.writer, size: 32, circle: true), title: Text(c.content), subtitle: Text('${c.writer}${c.writeDate.isEmpty ? '' : ' · ${c.writeDate}'}')),
-                ],
-              ])),
+              comments,
             ],
           ]);
         },
       ),
     );
   }
+}
+
+/// 웹뷰 본문 아래 댓글 — 누르면 펼쳐진다(본문 높이를 뺏지 않게 처음엔 접힘).
+class _CommentsBar extends StatefulWidget {
+  const _CommentsBar({required this.count, required this.child});
+  final int count;
+  final Widget child;
+  @override
+  State<_CommentsBar> createState() => _CommentsBarState();
+}
+
+class _CommentsBarState extends State<_CommentsBar> {
+  bool _open = false;
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Divider(height: 1),
+        InkWell(
+          onTap: () => setState(() => _open = !_open),
+          child: Padding(padding: const EdgeInsets.fromLTRB(20, 10, 16, 10), child: Row(children: [CountTitle('댓글', widget.count), const Spacer(), Icon(_open ? Icons.expand_more : Icons.expand_less, color: Brand.muted)])),
+        ),
+        if (_open) ConstrainedBox(constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.35), child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(16, 0, 16, 12), child: widget.child)),
+      ]);
 }
 
 Widget _noticeBox(BuildContext context, String text) => Container(
