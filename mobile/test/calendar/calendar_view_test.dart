@@ -105,17 +105,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('일시'), findsNothing);
   });
-  testWidgets('‹ 날짜 › 는 붙어서 가운데, 오늘 버튼은 › 바로 옆 — 넓은 창에서도 화살표가 양 끝으로 벌어지지 않는다', (tester) async {
+  testWidgets('‹ 날짜 › 는 늘 가운데 같은 자리, 오늘 버튼은 오른쪽 끝 — › 연타 중 오늘이 눌리지 않는다', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(_Host(mode: CalMode.day, day: DateTime.utc(2026, 10, 14)));
-    final label = tester.getRect(find.text('10월 14일 (수)')), todayBtn = tester.getRect(find.widgetWithText(TextButton, '오늘'));
+    await tester.pumpWidget(_Host(mode: CalMode.day, day: DateTime.utc(2026, 10, 14), width: 1100));
     final prev = tester.getRect(find.byTooltip('이전 날')), next = tester.getRect(find.byTooltip('다음 날'));
-    expect(label.left - prev.right, lessThan(16));
-    expect(next.left - label.right, lessThan(16));
-    expect(todayBtn.left >= next.right && todayBtn.left - next.right < 16, isTrue);
-    expect(prev.left, greaterThan(300), reason: '화살표가 왼쪽 끝에 붙지 않는다');
+    final todayBtn = tester.getRect(find.widgetWithText(TextButton, '오늘'));
+    expect((prev.left + next.right) / 2, closeTo(600, 2), reason: '가운데');
+    expect(next.right - prev.left, lessThan(300), reason: '화살표가 양 끝으로 벌어지지 않는다');
+    expect(todayBtn.right, greaterThan(1140), reason: '오늘은 오른쪽 끝(창 1100 → 50~1150)');
+    // 날짜 글자 길이가 달라도, 오늘 버튼이 없어져도 ›는 제자리
+    await tester.pumpWidget(_Host(mode: CalMode.day, day: DateTime.utc(2026, 10, 1), width: 1100));
+    expect(tester.getRect(find.byTooltip('다음 날')), next);
+    await tester.pumpWidget(_Host(mode: CalMode.day, day: DateTime.utc(2026, 10, 11), width: 1100)); // 테스트의 오늘
+    expect(find.widgetWithText(TextButton, '오늘'), findsNothing);
+    expect(tester.getRect(find.byTooltip('다음 날')), next);
+  });
+  testWidgets('폰 폭(360)에서도 날짜·화살표와 오늘 버튼이 겹치지 않는다', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(_Host(mode: CalMode.week, day: DateTime.utc(2026, 11, 30), width: 360));
+    final next = tester.getRect(find.byTooltip('다음 주')), todayBtn = tester.getRect(find.widgetWithText(TextButton, '오늘'));
+    expect(next.right <= todayBtn.left, isTrue);
+    expect(tester.takeException(), isNull);
   });
   testWidgets('월간: 6주 격자(앞뒤 달 포함), 날짜를 누르면 onPickDay, 폰 폭은 점·넓은 폭은 제목', (tester) async {
     final picked = <DateTime>[];
