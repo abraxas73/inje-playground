@@ -30,6 +30,7 @@ import '../../release/desktop_updater.dart' show desktopUpdaterProvider;
 import '../../release/release_provider.dart';
 import 'greeting.dart';
 import 'quotes.dart';
+import 'tips.dart';
 import 'home_card_layout.dart';
 import 'home_dashboard.dart';
 import 'dashboard_view.dart';
@@ -365,7 +366,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               child: ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 24), children: [
                 Row(children: [
                   const BrandLogo(width: 86, opacity: 0.8),
-                  const Spacer(),
+                  const SizedBox(width: 16),
+                  const Expanded(child: TipLine()),
+                  const SizedBox(width: 8),
                   // 데스크톱 업데이트 확인(더보기 '앱 버전' 줄과 같은 동작 — 결과·설치는 상단 업데이트 띠). 모바일은 스토어가 맡아 없음
                   if (ref.watch(desktopUpdaterProvider) case final updater?) ...[
                     TextButton.icon(onPressed: () => updater.check(manual: true), icon: const Icon(Icons.system_update_alt, size: 18), label: const Text('업데이트 확인')),

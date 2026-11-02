@@ -34,6 +34,8 @@ export const SETTING_KEYS = [
   "assistant_daily_turns",
   "assistant_models",
   "assistant_retention_days",
+  // 앱 홈 상단 Tip — JSON [{text, weight}] (빈 값 = 기본 목록, lib/app-tips.ts)
+  "app_tips",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
