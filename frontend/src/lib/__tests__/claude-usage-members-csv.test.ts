@@ -60,6 +60,7 @@ describe("parseMembersCsv", () => {
     const r = parseMembersCsv(`Email,Seat Tier,Chats,Code sessions,Cowork Sessions,Messages in Chat and Cowork unified (beta)\ndev@example.com,Premium,1,0,0,"1,234"\n`);
     expect(r.unknownHeaders).toEqual([]);
     expect(r.rows[0].unified_messages).toBe(1234);
+    expect(parseMembersCsv(`Email,Seat Tier,Chats,Code sessions,Cowork Sessions,Messages in Chat and Cowork unified\ndev@example.com,Premium,1,0,0,7\n`)).toMatchObject({ unknownHeaders: [], rows: [{ unified_messages: 7 }] });
     expect(parseMembersCsv(`Email,Seat Tier,Chats,Code sessions,Cowork Sessions\ndev@example.com,Premium,1,0,0\n`).rows[0].unified_messages).toBe(0);
   });
 

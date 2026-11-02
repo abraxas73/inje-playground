@@ -58,6 +58,7 @@ export const MEMBERS_CSV_COLUMNS: Record<string, keyof MemberActivityRow> = {
   "cowork sessions": "cowork_sessions",
   "cowork messages": "cowork_messages",
   "messages in chat and cowork unified (beta)": "unified_messages",
+  "messages in chat and cowork unified": "unified_messages", // 2026-11 "(beta)" 떨어짐
   "artifacts created": "artifacts_created",
   "claude code artifacts": "claude_code_artifacts",
   "cowork artifacts": "cowork_artifacts",
