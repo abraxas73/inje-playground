@@ -164,8 +164,9 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
           children: [
             const UpdateBanner(),
             Expanded(
-              // 띠가 상단 안전 영역을 차지했으면 아래 화면은 그만큼 다시 비우지 않는다
-              child: MediaQuery.removePadding(
+              // 띠가 상단 안전 영역을 차지했으면 아래 화면은 그만큼 다시 비우지 않는다.
+              // Builder의 context(Scaffold 본문 안)로 읽어야 Scaffold가 지운 키보드 높이가 되살아나지 않는다.
+              child: Builder(builder: (context) => MediaQuery.removePadding(
                 context: context,
                 removeTop: hasUpdate(ref.watch(releaseProvider).value, Config.appBuild),
                 child: Stack(
@@ -184,7 +185,7 @@ class _TabShellState extends ConsumerState<TabShell> with SingleTickerProviderSt
                     ),
                 ],
               ),
-              ),
+              )),
             ),
           ],
         ),

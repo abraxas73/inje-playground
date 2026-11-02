@@ -190,5 +190,21 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(restore, findsNothing);
   });
+
+  testWidgets('키보드가 열려도 하단 바 안 화면에는 키보드 높이가 다시 전달되지 않는다(웹 화면이 두 번 줄어 가려지던 문제)', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.625;
+    addTearDown(tester.view.reset);
+    await pumpShell(tester, user);
+    await tester.tap(tab('아마란스'));
+    await tester.pumpAndSettle();
+    await tester.tap(fanItem('메일'));
+    await tester.pumpAndSettle();
+    tester.view.viewInsets = FakeViewPadding(bottom: 300 * tester.view.devicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pump();
+    expect(MediaQuery.viewInsetsOf(tester.element(find.byType(MailScreen))).bottom, 0,
+        reason: '하단 바 Scaffold가 이미 키보드만큼 줄였으므로 안쪽 Scaffold가 한 번 더 줄이면 안 된다');
+  });
 }
 
