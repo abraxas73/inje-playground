@@ -4,8 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../auth/session.dart';
+import '../todo/todo_quick_add.dart';
 
-/// 글자 선택 영역 — 고르면(끌기·두 번 클릭·길게 누르기) 클립보드 아이콘 하나를 띄우고, 누르면 복사한다.
+/// 글자 선택 영역 — 고르면(끌기·두 번 클릭·길게 누르기) 클립보드 아이콘(누르면 복사)과, 할 일 권한이 있으면 그 옆에 할 일 등록 아이콘을 띄운다.
 /// 모바일·오른쪽 클릭은 SelectableRegion이 메뉴를 띄울 때 [contextMenuBuilder]로 이 아이콘을 그리고,
 /// 데스크톱은 끌기·두 번 클릭 뒤 메뉴를 띄우지 않아 선택이 끝날 때(finalized) 같은 아이콘을 직접 띄운다.
 class CopySelectionArea extends StatefulWidget {
@@ -94,15 +97,15 @@ class _CopySelectionAreaState extends State<CopySelectionArea> {
 Widget _copyToolbar(SelectableRegionState region, String text, {required VoidCallback onDone, bool inOverlay = false}) {
   final at = _selectionEnd(region);
   if (text.isEmpty || at == null) return const SizedBox.shrink();
-  return _CopyChip(end: at.end, lineHeight: at.lineHeight, inOverlay: inOverlay, onCopy: () => Clipboard.setData(ClipboardData(text: text)), onDone: onDone);
+  return _CopyChip(end: at.end, lineHeight: at.lineHeight, inOverlay: inOverlay, text: text, onDone: onDone);
 }
 
 class _CopyChip extends StatefulWidget {
-  const _CopyChip({required this.end, required this.lineHeight, required this.inOverlay, required this.onCopy, required this.onDone});
+  const _CopyChip({required this.end, required this.lineHeight, required this.inOverlay, required this.text, required this.onDone});
   final Offset end; // 선택 맨 뒤 글자의 아래 끝(전역)
   final double lineHeight;
   final bool inOverlay;
-  final VoidCallback onCopy;
+  final String text;
   final VoidCallback onDone;
   static const size = 26.0;
   @override
@@ -110,19 +113,52 @@ class _CopyChip extends StatefulWidget {
 }
 
 class _CopyChipState extends State<_CopyChip> {
-  bool _done = false;
+  bool _done = false; // 복사함
+  bool? _todo; // 할 일 등록: null 아직·진행 중, true 성공, false 실패
+  bool _adding = false;
+  late final String _text; // 띄울 때(initState)의 선택 글 — 누르는 순간 선택이 풀려 widget.text가 비어도 이 글로
+  bool _todoOk = false; // 할 일 권한 — 세션을 지켜본다(ProviderScope가 없는 곳이면 복사만)
+  ProviderSubscription<AsyncValue<AppSession?>>? _session;
   Timer? _close;
+
+  @override
+  void initState() {
+    super.initState();
+    _text = widget.text;
+    try {
+      _session = ProviderScope.containerOf(context, listen: false).listen(sessionProvider, (_, n) {
+        final ok = todoAllowed(n.asData?.value);
+        if (mounted && ok != _todoOk) setState(() => _todoOk = ok);
+      });
+      _todoOk = todoAllowed(_session!.read().asData?.value);
+    } catch (_) {}
+  }
 
   void _tap() {
     if (_done) return;
-    widget.onCopy();
+    Clipboard.setData(ClipboardData(text: _text));
     setState(() => _done = true);
     _close = Timer(const Duration(milliseconds: 600), widget.onDone);
+  }
+
+  Future<void> _addTodo() async {
+    if (_adding || _todo == true) return;
+    setState(() => _adding = true);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final r = await addTodoFromText(context, _text);
+    if (!mounted) return;
+    setState(() {
+      _adding = false;
+      _todo = r.ok;
+    });
+    messenger?.showSnackBar(SnackBar(content: Text(r.message, maxLines: 2, overflow: TextOverflow.ellipsis)));
+    if (r.ok) _close = Timer(const Duration(milliseconds: 800), widget.onDone);
   }
 
   @override
   void dispose() {
     _close?.cancel();
+    _session?.close();
     super.dispose();
   }
 
@@ -133,10 +169,12 @@ class _CopyChipState extends State<_CopyChip> {
     final end = overlay?.globalToLocal(widget.end) ?? widget.end;
     final screen = overlay?.size ?? MediaQuery.sizeOf(context);
     final desktop = _CopySelectionAreaState._desktop;
+    final todo = _todoOk;
+    final w = todo ? s * 2 + 4 : s;
     final lineTop = end.dy - widget.lineHeight;
-    var left = desktop ? end.dx + 4 : end.dx - s / 2;
+    var left = desktop ? end.dx + 4 : end.dx - w / 2;
     var top = desktop ? lineTop + (widget.lineHeight - s) / 2 : lineTop - s - 6;
-    left = left.clamp(4.0, (screen.width - s - 4).clamp(4.0, double.infinity));
+    left = left.clamp(4.0, (screen.width - w - 4).clamp(4.0, double.infinity));
     if (top < 4) top = end.dy + 6; // 화면 위에 붙으면 줄 아래로
     final scheme = Theme.of(context).colorScheme;
     return Stack(children: [
@@ -148,29 +186,38 @@ class _CopyChipState extends State<_CopyChip> {
           duration: const Duration(milliseconds: 140),
           curve: Curves.easeOutBack,
           builder: (_, v, child) => Transform.scale(scale: v, child: Opacity(opacity: v.clamp(0.0, 1.0), child: child)),
-          child: Tooltip(
-            message: _done ? '복사했습니다' : '복사',
-            child: Material(
-              color: _done ? scheme.primary : scheme.surface,
-              elevation: 3,
-              shadowColor: Colors.black38,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7), side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6))),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: _tap,
-                mouseCursor: SystemMouseCursors.click,
-                child: SizedBox.square(
-                  dimension: s,
-                  child: Icon(_done ? Icons.check_rounded : Icons.content_paste_rounded, size: 15, color: _done ? scheme.onPrimary : scheme.onSurfaceVariant),
-                ),
-              ),
-            ),
-          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            _button(scheme, tip: _done ? '복사했습니다' : '복사', on: _done, icon: _done ? Icons.check_rounded : Icons.content_paste_rounded, onTap: _tap),
+            if (todo) ...[
+              const SizedBox(width: 4),
+              _button(scheme,
+                  tip: _todo == true ? '할 일에 추가했습니다' : _todo == false ? '추가하지 못했습니다 · 다시 시도' : '할 일 등록',
+                  on: _todo == true,
+                  icon: _adding ? Icons.hourglass_top_rounded : _todo == true ? Icons.check_rounded : _todo == false ? Icons.error_outline_rounded : Icons.add_task_rounded,
+                  onTap: _addTodo),
+            ],
+          ]),
         ),
       ),
     ]);
   }
 }
+
+Widget _button(ColorScheme scheme, {required String tip, required bool on, required IconData icon, required VoidCallback onTap}) => Tooltip(
+      message: tip,
+      child: Material(
+        color: on ? scheme.primary : scheme.surface,
+        elevation: 3,
+        shadowColor: Colors.black38,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7), side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6))),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          mouseCursor: SystemMouseCursors.click,
+          child: SizedBox.square(dimension: _CopyChip.size, child: Icon(icon, size: 15, color: on ? scheme.onPrimary : scheme.onSurfaceVariant)),
+        ),
+      ),
+    );
 
 /// SelectableRegion 안쪽에서 선택 상태(바뀌는 중·끝남)를 듣는다.
 class _StatusListener extends StatefulWidget {

@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:playground/auth/session.dart';
+import 'package:playground/app/copy_selection_area.dart';
 import 'package:playground/todo/todo_migration.dart';
+import 'package:playground/todo/todo_quick_add.dart';
 import 'package:playground/todo/todo_model.dart';
 import 'package:playground/todo/todo_screens.dart';
 import 'package:playground/todo/todo_sheets.dart';
@@ -98,6 +100,7 @@ Future<void> dragTo(WidgetTester tester, Finder from, Finder to, {bool longPress
 }
 
 void main() {
+  _quickAddTests();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   group('순수 로직', () {
@@ -284,6 +287,60 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('어제의 할 일을 정리하세요'), findsNothing);
     });
+  });
+}
+
+void _quickAddTests() {
+  test('todoFromText: 첫 줄이 제목(공백 접기·200자), 여러 줄·잘림이면 전문을 메모로', () {
+    expect(todoFromText('   '), isNull);
+    final one = todoFromText('  주간  보고 쓰기 ')!;
+    expect((one.title, one.notes), ('주간 보고 쓰기', null));
+    final multi = todoFromText('\n결산 자료 정리\n- 3분기\n- 4분기')!;
+    expect(multi.title, '결산 자료 정리');
+    expect(multi.notes, contains('4분기'));
+    final long = todoFromText('가' * 300)!;
+    expect(long.title.length, 200);
+    expect(long.notes!.length, 300);
+  });
+
+  Widget scope(FakeStore store, Map<String, bool> perms, Widget child) => ProviderScope(
+        key: UniqueKey(), // 다시 그릴 때 새 세션·저장소로
+        overrides: [
+          todoStoreProvider.overrideWithValue(store),
+          sessionProvider.overrideWith(() => _FixedSession(AppSession(email: 'x@innogrid.com', role: 'user', permissions: perms))),
+        ],
+        child: MaterialApp(home: Scaffold(body: child)),
+      );
+
+  testWidgets('TodoAddButton: 누르면 그 글이 받은 일로 등록되고, 권한이 없으면 단추가 없다', (tester) async {
+    final store = FakeStore([]);
+    await tester.pumpWidget(scope(store, const {}, const TodoAddButton(text: '[결재] 출장비 정산')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('할 일 등록'));
+    await tester.pumpAndSettle();
+    expect(store.calls, ['insert [결재] 출장비 정산 in_progress inbox']);
+    expect(find.textContaining('할 일에 추가했습니다'), findsOneWidget);
+    expect(find.byTooltip('할 일에 추가했습니다'), findsOneWidget);
+
+    await tester.pumpWidget(scope(FakeStore([]), const {'todo': false}, const TodoAddButton(text: 'x')));
+    await tester.pumpAndSettle();
+    expect(find.byType(IconButton), findsNothing);
+  });
+
+  testWidgets('글자 선택 메뉴: 복사 옆 할 일 등록 단추로 선택한 글을 등록', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final store = FakeStore([]);
+    await tester.pumpWidget(scope(store, const {}, const CopySelectionArea(child: Center(child: Text('회의록정리')))));
+    await tester.pumpAndSettle();
+    final at = tester.getCenter(find.text('회의록정리'));
+    await tester.longPressAt(at);
+    await tester.pumpAndSettle();
+    // 길게 눌러 고른 단어 — 단추가 보이면 누른다
+    expect(find.byTooltip('복사'), findsOneWidget);
+    await tester.tap(find.byTooltip('할 일 등록'));
+    await tester.pumpAndSettle();
+    expect(store.calls.single, startsWith('insert 회의록정리 '));
+    debugDefaultTargetPlatformOverride = null;
   });
 }
 

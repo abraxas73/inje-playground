@@ -15,6 +15,7 @@ import 'gw_mcp_api.dart';
 import 'gw_models.dart';
 import 'mail_compose.dart' show MailKind;
 import 'mail_compose_screen.dart';
+import '../todo/todo_quick_add.dart' show TodoAddButton;
 import 'mail_html.dart';
 import 'mail_indexer.dart';
 import '../app/copy_selection_area.dart';
@@ -108,7 +109,10 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
                     )),
                   ),
                 // 접혀 있어도 제목은 보인다(상단 바에는 제목을 두지 않는다 — 2026-10-26)
-                if (!open) CopySelectionArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 4), child: Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)))),
+                if (!open) CopySelectionArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 12, 4), child: Row(children: [
+                  Expanded(child: Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
+                  if (m.subject.isNotEmpty) TodoAddButton(text: m.subject),
+                ]))),
                 _HeaderToggle(open: open, summary: _summary(m), onTap: () => setState(() => _headerOpen = !open)),
                 Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: MailHtmlView(html: m.html, fetchImage: (u) async {
                   final r = await widget.api.client.httpClient.get(u).timeout(const Duration(seconds: 15));
@@ -132,7 +136,10 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
   }
 
   List<Widget> _header(MailDetail m) => [
-        Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        Row(children: [
+          Expanded(child: Text(m.subject.isEmpty ? '(제목 없음)' : m.subject, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800))),
+          if (m.subject.isNotEmpty) TodoAddButton(text: m.subject), // 제목으로 할 일 등록
+        ]),
         const SizedBox(height: 8),
         _row('보낸 사람', m.from),
         _Recipients('받는 사람', m.to),
