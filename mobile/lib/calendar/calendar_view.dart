@@ -1,4 +1,4 @@
-// 일정 캘린더 위젯 — 머리글(이전 · 날짜 · 다음 오늘, 일간/주간/월간 전환, 부모가 주는 동작 버튼) + 본문(일간 목록 / 주간 날짜별 목록 / 월간 6주 격자).
+// 일정 캘린더 위젯 — 머리글(이전 · 날짜 · 다음 가운데, 오늘은 오른쪽 끝, 일간/주간/월간 전환, 부모가 주는 동작 버튼) + 본문(일간 목록 / 주간 날짜별 목록 / 월간 6주 격자).
 // 데이터는 부모가 CalEvent로 넘긴다(아마란스·Dooray 섞어서). 날짜는 calendar_model.dart와 같이 "KST 벽시계 + UTC 플래그".
 import 'package:flutter/material.dart';
 import '../app/brand.dart';
@@ -36,13 +36,23 @@ class CalendarView extends StatelessWidget {
     final count = events.where((ev) => days.any(ev.on)).length;
     final (prevTip, nextTip) = switch (mode) { CalMode.day => ('이전 날', '다음 날'), CalMode.week => ('이전 주', '다음 주'), CalMode.month => ('이전 달', '다음 달') };
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // ‹ 날짜 › 를 붙여 가운데, '오늘'은 그 옆(2026-10-28·11-02 사용자 요청 — 양 끝 화살표는 넓은 창에서 멀었다)
-      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        IconButton(icon: const Icon(Icons.chevron_left), tooltip: prevTip, onPressed: () => onDay(calStep(mode, day, -1))),
-        Flexible(child: Text(calLabel(mode, day), overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Brand.navy))),
-        IconButton(icon: const Icon(Icons.chevron_right), tooltip: nextTip, onPressed: () => onDay(calStep(mode, day, 1))),
-        if (!hasToday) TextButton(onPressed: () => onDay(t0), child: const Text('오늘')),
-      ]),
+      // ‹ 날짜 › 는 늘 가운데 고정, '오늘'은 오른쪽 끝(2026-11-02 — 옆에 붙어 있으면 › 연타 중 '오늘'이 눌렸다).
+      // 날짜 칸은 보기별 고정 폭이라 날짜가 바뀌어도 ›가 제자리에 있고(좁으면 줄임표), 양옆은 '오늘' 자리만큼 비워 겹치지 않는다.
+      SizedBox(
+        height: 48,
+        width: double.infinity, // 부모가 왼쪽 정렬 Column이라 폭을 다 써야 '오늘'이 오른쪽 끝에 간다
+        child: Stack(alignment: Alignment.center, children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 64),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              IconButton(icon: const Icon(Icons.chevron_left), tooltip: prevTip, onPressed: () => onDay(calStep(mode, day, -1))),
+              Flexible(child: SizedBox(width: switch (mode) { CalMode.day => 160, CalMode.week => 200, CalMode.month => 140 }, child: Text(calLabel(mode, day), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Brand.navy)))),
+              IconButton(icon: const Icon(Icons.chevron_right), tooltip: nextTip, onPressed: () => onDay(calStep(mode, day, 1))),
+            ]),
+          ),
+          if (!hasToday) Positioned(right: 0, child: TextButton(onPressed: () => onDay(t0), child: const Text('오늘'))),
+        ]),
+      ),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
         child: Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
