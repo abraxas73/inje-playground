@@ -5,7 +5,7 @@ import '../app/theme.dart';
 import 'gw_models.dart';
 
 class RoomTimeline extends StatefulWidget {
-  const RoomTimeline({super.key, required this.day, required this.rooms, required this.reservations, required this.me, this.now});
+  const RoomTimeline({super.key, required this.day, required this.rooms, required this.reservations, required this.me, this.now, this.onSlot});
   final DateTime day;
   /// 표시할 자원(아마란스 rs121A01 순서). 예약은 있는데 목록에 없는 회의실은 '기타'로 덧붙인다.
   final List<GwResource> rooms;
@@ -13,6 +13,8 @@ class RoomTimeline extends StatefulWidget {
   final String me;
   /// 테스트용 지금(KST 벽시계). 기본 kstNow.
   final DateTime? now;
+  /// 빈 칸을 누르면 그 회의실과 30분 단위로 내린 시각(0시부터 분) — 예약 창을 연다. null이면 예약 없음.
+  final void Function(GwResource room, int minute)? onSlot;
 
   static const hourWidth = 80.0, nameWidth = 150.0, rowHeight = 38.0, groupHeight = 32.0, headHeight = 36.0;
   // 아마란스 일간 막대와 비슷한 색 — 회의실 줄마다 돌려 쓴다
@@ -135,7 +137,15 @@ class _RoomTimelineState extends State<RoomTimeline> {
                       height: RoomTimeline.headHeight,
                       decoration: BoxDecoration(color: Brand.blueTint, border: Border(bottom: BorderSide(color: Brand.hairline))),
                       child: Row(children: [
-                        for (var i = 0; i < 24; i++) SizedBox(width: RoomTimeline.hourWidth, child: Center(child: Text('$i시', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Brand.navy)))),
+                        // 시간마다 왼쪽 구분선 — 아래 격자 정시 선과 이어져 몇 시 칸인지 바로 보인다
+                        for (var i = 0; i < 24; i++)
+                          Container(
+                            key: ValueKey('room-hour-$i'),
+                            width: RoomTimeline.hourWidth,
+                            decoration: BoxDecoration(border: Border(left: BorderSide(color: Brand.line))),
+                            alignment: Alignment.center,
+                            child: Text('$i시', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Brand.navy)),
+                          ),
                       ]),
                     ),
                     for (final l in lines)
@@ -144,8 +154,20 @@ class _RoomTimelineState extends State<RoomTimeline> {
                         child: l.room == null
                             ? DecoratedBox(decoration: BoxDecoration(color: Brand.blueTint.withValues(alpha: 0.6), border: Border(bottom: BorderSide(color: Brand.hairline))))
                             : CustomPaint(
-                                painter: _GridPainter(Brand.hairline),
+                                painter: _GridPainter(Brand.line, Brand.hairline),
                                 child: Stack(children: [
+                                  // 빈 칸 누르기 = 예약(막대가 위에 있어 막대 누르기는 그대로 상세)
+                                  if (widget.onSlot != null)
+                                    Positioned.fill(
+                                      child: MouseRegion(
+                                        cursor: SystemMouseCursors.click,
+                                        child: GestureDetector(
+                                          key: ValueKey('room-slot-${l.room!.resSeq}'),
+                                          behavior: HitTestBehavior.opaque,
+                                          onTapUp: (d) => widget.onSlot!(l.room!, ((d.localPosition.dx / RoomTimeline.hourWidth * 60) ~/ 30 * 30).clamp(0, 1410)),
+                                        ),
+                                      ),
+                                    ),
                                   for (final r in byRoom[l.room!.resSeq] ?? const <GwReservation>[]) _bar(r, colors[l.room!.resSeq]!),
                                 ]),
                               ),
@@ -164,6 +186,7 @@ class _RoomTimelineState extends State<RoomTimeline> {
           ),
         ),
       ]),
+      if (widget.onSlot != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text('빈 칸을 누르면 그 회의실·시각으로 예약합니다', style: TextStyle(fontSize: 11, color: Brand.muted))),
       if (_sel != null) _details(_sel!),
     ]);
   }
@@ -228,19 +251,19 @@ class _RoomTimelineState extends State<RoomTimeline> {
 
 /// 30분 칸 격자 — 정시는 진하게.
 class _GridPainter extends CustomPainter {
-  const _GridPainter(this.color);
-  final Color color;
+  const _GridPainter(this.hour, this.color);
+  final Color hour, color; // 정시 선(머리글 구분선과 같은 진하기)·30분 선
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = color..strokeWidth = 1;
-    final half = Paint()..color = color.withValues(alpha: 0.5)..strokeWidth = 1;
+    final p = Paint()..color = hour..strokeWidth = 1;
+    final half = Paint()..color = color..strokeWidth = 1;
     for (var i = 0; i <= 48; i++) {
       final x = i * RoomTimeline.hourWidth / 2;
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), i.isEven ? p : half);
     }
-    canvas.drawLine(Offset(0, size.height - 0.5), Offset(size.width, size.height - 0.5), p);
+    canvas.drawLine(Offset(0, size.height - 0.5), Offset(size.width, size.height - 0.5), half);
   }
 
   @override
-  bool shouldRepaint(_GridPainter old) => old.color != color;
+  bool shouldRepaint(_GridPainter old) => old.color != color || old.hour != hour;
 }

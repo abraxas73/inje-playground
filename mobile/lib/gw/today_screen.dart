@@ -11,6 +11,7 @@ import '../dooray/calendar_session.dart' show doorayCalendarTransportProvider;
 import 'gw_api.dart';
 import 'gw_gate.dart';
 import 'gw_models.dart';
+import 'room_reserve_dialog.dart';
 import 'room_timeline.dart';
 import '../app/copy_selection_area.dart';
 
@@ -80,6 +81,14 @@ class _BodyState extends ConsumerState<_Body> {
     ]);
   }
 
+  /// 빈 칸(회의실·시각)을 눌렀을 때 — 예약 창, 예약하면 목록을 다시 읽는다. 겹침 판정은 '전체' 예약 기준.
+  Future<void> _reserve(GwResource room, int minute) async {
+    final all = _rooms;
+    if (all == null) return;
+    final ok = await showRoomReserveDialog(context, api: widget.api, day: _day, rooms: _resources.isEmpty ? [room] : _resources, reservations: all, room: room, start: minute, now: kstNow());
+    if (ok && mounted) await _load();
+  }
+
   void _add() => showAssistantSheet(context, seed: '${calLabel(CalMode.day, _day)}에 아마란스 일정 등록해줘. 제목·시간·장소를 물어봐 줘.');
 
   @override
@@ -129,6 +138,7 @@ class _BodyState extends ConsumerState<_Body> {
                     rooms: _allRooms ? _resources : [for (final r in _resources) if (rooms.any((x) => x.resSeq == r.resSeq)) r],
                     reservations: rooms,
                     me: me,
+                    onSlot: (room, minute) => _reserve(room, minute),
                   ),
               ],
             ),
