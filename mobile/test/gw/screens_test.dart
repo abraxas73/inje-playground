@@ -10,6 +10,7 @@ import 'package:playground/gw/board_screen.dart';
 import 'package:playground/gw/mail_detail_screen.dart' show mailFileSaverProvider;
 import 'package:playground/gw/mail_indexer.dart';
 import 'package:playground/gw/mail_screen.dart';
+import 'package:playground/gw/room_timeline.dart';
 import 'package:playground/gw/today_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:playground/api/client.dart';
@@ -187,6 +188,40 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('[김] 남의 예약'), findsNothing);
     expect(find.text('[홍길동] 내 예약'), findsOneWidget);
+  });
+  testWidgets('일정 회의실: 빈 칸을 누르면 예약 창, 겹치면 막고, 예약하면 rs121A06으로 보내고 목록을 다시 읽는다', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final tomorrow = DateTime.now().toUtc().add(const Duration(hours: 9 + 24)); // 지난 시각 판정이 없는 내일
+    final d = ymdOf(tomorrow);
+    final r = Routes({'/gw/gw050A02': [session], '/schres/sc111A02': [{'resultList': []}], '/schres/sc111A03': [{'resultList': []}, {'resultList': []}],
+      '/schres/rs121A01': [{'resultList': [{'resSeq': '45', 'resName': 'A-1', 'attrSeq': '1', 'attrName': '회의실'}]}],
+      '/schres/rs121A05': [
+        {'resultList': [{'resSeq': '45', 'resName': 'A-1', 'resStartDate': '${d}1000', 'resEndDate': '${d}1100', 'reqText': '기존', 'empName': '김', 'empSeq': '9'}]},
+        {'resultList': [{'resSeq': '45', 'resName': 'A-1', 'resStartDate': '${d}1400', 'resEndDate': '${d}1500', 'reqText': '새 회의', 'empName': '홍길동', 'empSeq': '7'}]},
+      ],
+      '/schres/rs121A06': [{'seqNum': 77, 'resIdx': 1}], '/schres/rs121A10': [{'reqText': '새 회의', 'empSeq': '7'}]});
+    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, child: TodayScreen(day: DateTime.utc(tomorrow.year, tomorrow.month, tomorrow.day))));
+    await tester.pumpAndSettle();
+    final left = tester.getTopLeft(find.byKey(const ValueKey('room-slot-45')));
+    await tester.tapAt(left + const Offset(9.6 * RoomTimeline.hourWidth, 10)); // 9:30~10:30 — 10시 기존 예약과 겹침
+    await tester.pumpAndSettle();
+    expect(find.textContaining('이미 예약이 있습니다'), findsOneWidget);
+    await tester.tap(find.text('취소'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(left + const Offset(14.2 * RoomTimeline.hourWidth, 10)); // 14:00
+    await tester.pumpAndSettle();
+    expect(find.textContaining('회의실 예약'), findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('reserve-title')), '새 회의');
+    await tester.tap(find.widgetWithText(FilledButton, '예약'));
+    await tester.pumpAndSettle();
+    expect(r.bodies['/schres/rs121A06']?['startDate'], '${d}1400');
+    expect(r.bodies['/schres/rs121A06']?['endDate'], '${d}1500');
+    expect(r.bodies['/schres/rs121A06']?['reqText'], '새 회의');
+    expect(find.text('예약했습니다'), findsOneWidget);
+    expect(r.hits['/schres/rs121A05'], 2); // 다시 읽음
+    expect(find.text('[홍길동] 새 회의'), findsOneWidget);
   });
   testWidgets('메일 검색: 목록을 열면 색인이 동기화되고(읽은 메일 본문만), 검색식으로 찾아 본문을 연다', (tester) async {
     final r = Routes({'/mail/mail000A03': [[{'unreadCount': 1, 'toMeCount': 0, 'totalCount': 2}]], '/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]}],

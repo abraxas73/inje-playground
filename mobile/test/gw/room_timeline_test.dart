@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:playground/gw/gw_models.dart';
+import 'package:playground/gw/room_reserve_dialog.dart';
 import 'package:playground/gw/room_timeline.dart';
 
 GwReservation rv(String seq, String room, String s, String e, String title, {String owner = '김', String emp = '9'}) =>
@@ -55,5 +56,29 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('room-group-1')));
     await tester.pump();
     expect(find.text('회의실 A-1'), findsOneWidget);
+  });
+  test('roomConflict — 같은 회의실에서 겹치면 그 예약, 맞닿기만 하면 없음', () {
+    final res = [rv('1', 'A', '202610281000', '202610281100', '주간회의')];
+    expect(roomConflict(res, '1', 630, 690, day)?.title, '주간회의');
+    expect(roomConflict(res, '1', 660, 720, day), isNull); // 11시 끝 · 11시 시작
+    expect(roomConflict(res, '2', 600, 660, day), isNull);
+  });
+
+  testWidgets('빈 칸을 누르면 그 회의실·30분 단위 시각으로 onSlot, 시간 머리글에 정시 구분선', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    const rooms = [GwResource(resSeq: '1', resName: '회의실 A-1', attrSeq: '1', attrName: '회의실')];
+    (GwResource, int)? hit;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(child: RoomTimeline(day: day, rooms: rooms, reservations: const [], me: '7', now: DateTime.utc(2026, 10, 28, 10, 20), onSlot: (r, m) => hit = (r, m))))));
+    final slot = find.byKey(const ValueKey('room-slot-1'));
+    final left = tester.getTopLeft(slot);
+    // 격자 왼쪽 끝(스크롤 반영) + 10.6시간 = 10:36 → 30분 단위로 10:30
+    await tester.tapAt(left + const Offset(10.6 * RoomTimeline.hourWidth, 10));
+    expect(hit?.$1.resSeq, '1');
+    expect(hit?.$2, 630);
+    final head = tester.widget<Container>(find.byKey(const ValueKey('room-hour-10')));
+    expect(((head.decoration as BoxDecoration).border as Border).left.width, greaterThan(0));
+    expect(find.text('빈 칸을 누르면 그 회의실·시각으로 예약합니다'), findsOneWidget);
   });
 }
