@@ -55,4 +55,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('웹 화면'), findsOneWidget);
   });
+
+  group('웹 화면 머리줄 툴팁 위치', () {
+    TooltipPositionContext ctx(Offset target) => TooltipPositionContext(
+      target: target,
+      targetSize: const Size(48, 48),
+      tooltipSize: const Size(100, 30),
+      verticalOffset: 24,
+      overlaySize: const Size(1900, 1000),
+    );
+
+    test('화면 오른쪽 버튼이면 툴팁을 같은 높이의 왼쪽에 놓는다', () {
+      // 버튼 왼쪽 끝(1876) - 간격 4 - 툴팁 폭 100, 세로는 가운데(120 - 15)
+      expect(besideTargetTooltipPosition(ctx(const Offset(1900, 120))), const Offset(1772, 105));
+    });
+
+    test('화면 왼쪽 버튼이면 툴팁을 같은 높이의 오른쪽에 놓는다', () {
+      expect(besideTargetTooltipPosition(ctx(const Offset(26, 120))), const Offset(54, 105));
+    });
+
+    test('창 위쪽 끝에 붙은 버튼이어도 툴팁이 화면 밖으로 나가지 않는다', () {
+      expect(besideTargetTooltipPosition(ctx(const Offset(1900, 10))).dy, 0);
+    });
+  });
 }

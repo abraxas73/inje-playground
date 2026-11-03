@@ -1,6 +1,7 @@
 // Linux WebView(WebKitGTK)는 Flutter 화면 위에 얹힌 네이티브 위젯이라 그 영역의 Flutter 위젯을 모두 가린다.
 // 그래서 (1) 겹칠 수 있는 오버레이가 열려 있는 동안은 WebView를 트리에서 빼고(페이지 상태는 컨트롤러가 갖고 있다),
 // (2) 떠 있는 버튼 자리는 웹 화면 오른쪽에 따로 비워 둔다.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../assistant/assistant_session.dart';
@@ -15,6 +16,22 @@ bool get flutterOverlayOpen => innobotPopups.value > 0 || innobotFanOpen.value |
 
 /// 떠 있는 버튼(56px + 오른쪽 여백 14px + 테두리·그림자)이 차지하는 폭.
 const linuxFabStripWidth = 80.0;
+
+/// 웹 화면 머리줄 버튼의 툴팁 위치. Linux에서는 버튼 아래(WebView에 가려지는 곳) 대신 같은 높이 옆에 둔다.
+TooltipPositionDelegate? get webHeaderTooltipPosition =>
+    defaultTargetPlatform == TargetPlatform.linux ? besideTargetTooltipPosition : null;
+
+/// 툴팁을 버튼과 같은 높이에 둔다 — 화면 오른쪽 절반의 버튼이면 왼쪽에, 아니면 오른쪽에.
+Offset besideTargetTooltipPosition(TooltipPositionContext c) {
+  const gap = 4.0;
+  final half = c.targetSize.width / 2;
+  final x = c.target.dx > c.overlaySize.width / 2
+      ? c.target.dx - half - gap - c.tooltipSize.width
+      : c.target.dx + half + gap;
+  final maxY = c.overlaySize.height - c.tooltipSize.height;
+  final y = (c.target.dy - c.tooltipSize.height / 2).clamp(0.0, maxY < 0 ? 0.0 : maxY);
+  return Offset(x, y);
+}
 
 class LinuxWebViewGuard extends StatelessWidget {
   const LinuxWebViewGuard({super.key, required this.child, this.avoidFabs = false});

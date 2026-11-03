@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../web/app_webview.dart';
+import 'linux_webview_guard.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../api/client.dart';
@@ -413,7 +414,12 @@ class _WebScreenState extends ConsumerState<WebScreen>
         },
         child: Scaffold(
           appBar: AppBar(
-            leading: BackButton(onPressed: _goBack),
+            // 툴팁 위치를 정해야 해서 BackButton 대신 같은 아이콘·문구의 IconButton
+            leading: Tooltip(
+              message: MaterialLocalizations.of(context).backButtonTooltip,
+              positionDelegate: webHeaderTooltipPosition,
+              child: IconButton(icon: const BackButtonIcon(), onPressed: _goBack),
+            ),
             title: Row(children: [
               Flexible(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -432,18 +438,22 @@ class _WebScreenState extends ConsumerState<WebScreen>
                 FavoriteStar(
                   path: '/web?path=${Uri.encodeComponent(_pagePath)}',
                   title: pageLabelFor(_pagePath) ?? webTitleFor(title: _title, loading: false),
+                  tooltipPosition: webHeaderTooltipPosition,
                 ),
             ]),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: '새로고침',
-                onPressed: _reload,
+              Tooltip(
+                message: '새로고침',
+                positionDelegate: webHeaderTooltipPosition,
+                child: IconButton(icon: const Icon(Icons.refresh), onPressed: _reload),
               ),
-              IconButton(
-                icon: const Icon(Icons.open_in_browser),
-                tooltip: '브라우저로 열기',
-                onPressed: _openingBrowser ? null : () => _openInBrowser(),
+              Tooltip(
+                message: '브라우저로 열기',
+                positionDelegate: webHeaderTooltipPosition,
+                child: IconButton(
+                  icon: const Icon(Icons.open_in_browser),
+                  onPressed: _openingBrowser ? null : () => _openInBrowser(),
+                ),
               ),
             ],
             bottom: _loading
