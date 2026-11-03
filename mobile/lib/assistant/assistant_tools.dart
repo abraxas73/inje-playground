@@ -1,12 +1,15 @@
 // mobile/lib/assistant/assistant_tools.dart
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import '../api/client.dart';
 import '../gw/clockin_notify.dart';
+import '../gw/gw_attend_range.dart';
 import '../gw/gw_api.dart';
 import '../gw/gw_client.dart';
 import '../gw/gw_models.dart';
 import '../gw/mail_indexer.dart';
+import '../mcp/mcp_worker.dart' show McpToolError;
 import '../messenger/messenger_tools.dart';
 import 'assistant_journal.dart';
 import 'gw_assistant_api.dart';
@@ -57,6 +60,8 @@ const assistantToolTiers = <String, ToolTier>{
   'messenger_read': ToolTier.read,
   'messenger_search': ToolTier.read,
   'messenger_send': ToolTier.write,
+  'open_screen': ToolTier.read,
+  'team_absences': ToolTier.read,
   'undo_last': ToolTier.meta,
   'offer_choices': ToolTier.choice,
 };
@@ -73,7 +78,31 @@ const serverToolNames = {
   'sharepoint_recent',
   'sharepoint_read',
 };
-ToolTier? tierOf(String name) => assistantToolTiers[name];
+/// 아마란스 확장 — Claude 커넥터와 같은 이름·인자, 실행은 McpTools(데스크톱 MCP 워커와 같은 코드). 계약 파일 appMcpTools와 같아야 한다.
+const appMcpToolTiers = <String, ToolTier>{
+  'whoami': ToolTier.read, 'org_chart': ToolTier.read, 'attendance_month': ToolTier.read,
+  'person_group': ToolTier.read, 'save_person_group': ToolTier.write, 'delete_person_group': ToolTier.write,
+  'list_mailboxes': ToolTier.read, 'mailbox_counts': ToolTier.read, 'list_mail_drafts': ToolTier.read, 'download_mail_attachment': ToolTier.read,
+  'mark_mail_unread': ToolTier.write, 'delete_mail': ToolTier.write, 'send_mail_from_draft': ToolTier.irreversible,
+  'update_calendar_event': ToolTier.write, 'list_reservations': ToolTier.read, 'update_reservation': ToolTier.write,
+  'list_notice_attachments': ToolTier.read, 'download_notice_attachment': ToolTier.read,
+  'list_approvals': ToolTier.read, 'list_approval_attachments': ToolTier.read, 'download_approval_attachment': ToolTier.read,
+  'list_approval_lines': ToolTier.read, 'read_approval_line': ToolTier.read, 'list_approval_line_schemas': ToolTier.read, 'get_approval_line_schema': ToolTier.read,
+  'suggest_approval_line': ToolTier.read, 'save_approval_line': ToolTier.write, 'delete_approval_line': ToolTier.write,
+  'list_approval_submission_guides': ToolTier.read, 'get_approval_submission_guide': ToolTier.read,
+  'submit_approval': ToolTier.irreversible, 'cancel_approval': ToolTier.write, 'delete_temp_approval': ToolTier.write,
+};
+/// 확장 쓰기의 확인 카드 제목.
+const _mcpWriteLabel = {
+  'save_person_group': '사람 묶음 저장', 'delete_person_group': '사람 묶음 삭제', 'mark_mail_unread': '메일 안 읽음 표시', 'delete_mail': '메일 삭제',
+  'send_mail_from_draft': '임시보관 메일 발송(되돌릴 수 없음)', 'update_calendar_event': '일정 수정', 'update_reservation': '회의실 예약 수정',
+  'save_approval_line': '결재선 저장', 'delete_approval_line': '결재선 삭제', 'submit_approval': '결재 상신(되돌릴 수 없음 — 결재 요청이 나갑니다)',
+  'cancel_approval': '결재 회수', 'delete_temp_approval': '임시 결재 삭제',
+};
+ToolTier? tierOf(String name) => assistantToolTiers[name] ?? appMcpToolTiers[name];
+
+/// MCP 실행기 — 결과는 JSON 문자열, 실패는 McpToolError(McpTools.execute와 같은 꼴).
+typedef McpExecute = Future<String> Function(String tool, Map<String, dynamic> args);
 
 class ToolCall {
   const ToolCall(this.id, this.name, this.input);
@@ -111,6 +140,16 @@ const _progress = {
   'messenger_rooms': '메신저 대화방 보는 중…',
   'messenger_read': '메신저 대화 읽는 중…',
   'messenger_search': '메신저 찾는 중…',
+  'open_screen': '화면 여는 중…',
+  'team_absences': '팀원 부재 보는 중…',
+  'todo_list': '할 일 보는 중…',
+  'todo_add': '할 일 추가하는 중…',
+  'todo_update': '할 일 바꾸는 중…',
+  'list_approvals': '결재 목록 보는 중…',
+  'submit_approval': '결재 상신하는 중…',
+  'attendance_month': '월 근태 보는 중…',
+  'org_chart': '조직도 보는 중…',
+  'list_mail_drafts': '임시보관함 보는 중…',
 };
 String progressText(String name) => _progress[name] ?? '처리하는 중…';
 
@@ -175,7 +214,14 @@ String cardLine(ToolCall c, [Map<String, dynamic>? resolved]) {
       final md = _s(i['markdown']);
       return "Confluence 페이지 만들기 · 공간 '${_s(r['space_name'] ?? i['space_name'])}' · 제목 '${_s(i['title'])}'\n${md.length > 400 ? '${md.substring(0, 400)}…' : md}";
     default:
-      return c.name;
+      final label = _mcpWriteLabel[c.name];
+      if (label == null) return c.name;
+      // 확장 쓰기: 실행에 그대로 쓰일 인자 전부(긴 값은 앞부분만) — 모델이 붙인 설명 문장이 아니라 실제 입력
+      String show(Object? v) {
+        final t = v is String ? v : jsonEncode(v);
+        return t.length > 300 ? '${t.substring(0, 300)}…' : t;
+      }
+      return [label, for (final e in i.entries) if (e.value != null && '${e.value}'.isNotEmpty) '${e.key}: ${show(e.value)}'].join('\n');
   }
 }
 
@@ -289,7 +335,13 @@ class AssistantToolRunner {
     this.isActive,
     this.mailIndex,
     this.messenger,
+    this.mcp,
+    this.openScreen,
   }) : _now = now ?? kstNow;
+  /// 아마란스 확장(appMcpToolTiers). null이면 그 도구는 안내만.
+  final McpExecute? mcp;
+  /// 화면 열기 — 열면 null, 못 열면 이유.
+  final String? Function(String screen)? openScreen;
   /// 아마란스 메신저(messenger_*). null이면 그 도구는 안내만.
   final MessengerTools? messenger;
   final bool Function()? isActive;
@@ -343,6 +395,23 @@ class AssistantToolRunner {
               ? '결과를 확인할 수 없습니다. Confluence에서 페이지가 만들어졌는지 확인하세요'
               : '처리하지 못했습니다: ${e.runtimeType}',
         };
+      }
+    }
+    if (c.name == 'open_screen') {
+      final err = openScreen == null ? '이 기기에서는 화면을 열 수 없습니다' : openScreen!(_s(c.input['screen']).trim());
+      return err == null ? {'ok': true, 'opened': _s(c.input['screen'])} : {'ok': false, 'error': err};
+    }
+    if (appMcpToolTiers.containsKey(c.name)) {
+      final m = mcp;
+      if (m == null || gw == null) return {'ok': false, 'error': _gwMissing};
+      try {
+        final out = jsonDecode(await m(c.name, c.input));
+        if (tierOf(c.name) != ToolTier.read) await _log(c.name, cardLine(c).split('\n').first, null);
+        return out is Map ? {'ok': true, ...Map<String, dynamic>.from(out)} : {'ok': true, 'result': out};
+      } on McpToolError catch (e) {
+        return {'ok': false, 'error': e.message};
+      } catch (e) {
+        return {'ok': false, 'error': '처리하지 못했습니다: ${e.runtimeType}'};
       }
     }
     if (c.name.startsWith('messenger_')) {
@@ -893,6 +962,22 @@ class AssistantToolRunner {
           'content': n.content.length > 8000
               ? '${n.content.substring(0, 8000)}…'
               : n.content,
+        };
+      case 'team_absences':
+        final period = switch (_s(i['period'])) { 'this_week' => AttendPreset.thisWeek, 'past_week' => AttendPreset.pastWeek, 'next_week' => AttendPreset.nextWeek, _ => AttendPreset.today };
+        final scope = switch (_s(i['scope'])) { 'center' => AttendScope.center, 'hq' => AttendScope.hq, 'all' => AttendScope.all, _ => AttendScope.team };
+        final depts = scope == AttendScope.all ? null : (await g.attendScopeDepts())[scope];
+        if (scope != AttendScope.all && depts == null) throw _BadInput('조직도에서 ${scope.label}을 찾지 못했습니다');
+        final (from, to) = presetRange(period, _now());
+        final r = await g.attendRange(from, to, depts: depts);
+        final hits = filterAttend(r.entries, query: _s(i['query']).trim());
+        return {
+          'ok': true,
+          'period': '${period.label} (${from.month}/${from.day}–${to.month}/${to.day})',
+          'scope': scope.label,
+          'count': hits.length,
+          if (r.futureSkipped) 'note': '전사 범위라 내일 이후는 읽지 않았습니다 — 조직을 고르면 미래도 봅니다',
+          'items': [for (final e in hits.take(100)) {'date': e.date, 'name': e.name, 'dept': e.dept, 'kind': e.kind, if (e.startTm.isNotEmpty) 'start': e.startTm, if (e.endTm.isNotEmpty) 'end': e.endTm}],
         };
       case 'search':
         return {

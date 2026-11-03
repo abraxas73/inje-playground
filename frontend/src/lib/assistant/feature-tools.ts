@@ -1,6 +1,6 @@
 /**
- * 이노봇이 부르는 우리 앱 기능 — Jira 내 업무·인사·부고·뭐 먹지·PPT 만들기. 서버에서 실행하고(웹·앱 공통), 페이지 권한은 runServerTool이 본다.
- * 쓰기(ppt_create)는 확인 카드 문구를 서버가 만든다(featureCard) — 앱은 그 문구를 그대로 보이므로 새 쓰기 도구에 앱 업데이트가 필요 없다.
+ * 이노봇이 부르는 우리 앱 기능 — Jira 내 업무·인사·부고·뭐 먹지·PPT 만들기·할 일. 서버에서 실행하고(웹·앱 공통), 페이지 권한은 runServerTool이 본다.
+ * 쓰기(ppt_create·todo_add·todo_update)는 확인 카드 문구를 서버가 만든다(featureCard) — 앱은 그 문구를 그대로 보이므로 새 쓰기 도구에 앱 업데이트가 필요 없다.
  */
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -19,18 +19,53 @@ export const FEATURE_TOOLS: Anthropic.Tool[] = [
   tool("jira_issue", "Jira 이슈 상세(설명·댓글·가능한 상태 변경). 내 담당 이슈만.", { key: S("이슈 키(예: PAAS-123)") }, ["key"]),
   tool("people_news", "연합뉴스 인사·부고 소식(최근 순 최대 15건) — 구분·제목·요약·날짜·원문 링크.", { category: S("all(기본)|personnel(인사)|obituary(부고)"), query: S("제목 검색어(이름·회사 등, 선택)"), days: { type: "integer", description: "최근 며칠(1~30, 기본 7)" } }),
   tool("food_search", "근처 식당·카페 찾기(카카오맵, 가까운 순 10곳) 또는 PAYCO 식권 가맹점 찾기. near는 장소 이름이나 주소 — 사용자가 말하지 않았으면 어디 근처인지 먼저 묻는다.", { near: S("기준 위치(장소 이름 또는 주소)"), keyword: S("메뉴·가게 검색어(선택, 예: 국밥)"), kind: S("food(음식점, 기본)|cafe(카페)"), radius: { type: "integer", description: "반경 m(100~2000, 기본 500)" }, payco: { type: "boolean", description: "PAYCO 식권 가맹점만" } }, ["near"]),
+  tool("todo_list", "내 할 일(우리 앱 할 일 — 시급도 오늘·받은함·예정·언젠가, 중요도 p1~p4) 최근 수정 순 최대 50건 — id·제목·상태·시급도·중요도·예정일·메모 앞부분.", { state: S("in_progress(진행 중, 기본)|done(완료)|cancelled(취소)|all"), urgency: S("today|inbox|scheduled|someday(선택)"), query: S("제목 검색어(선택)"), id: S("이 할 일 하나만(선택)") }),
+  tool("todo_add", "할 일 추가(쓰기 — 사용자 확인 후).", { title: S("제목(500자 이내)"), notes: S("메모(선택)"), urgency: S("today|inbox(기본)|scheduled|someday"), priority: S("p1(긴급+중요)|p2(중요)|p3(긴급, 기본)|p4"), scheduled_for: S("예정일 YYYY-MM-DD(선택 — urgency scheduled와 함께)") }, ["title"]),
+  tool("todo_update", "할 일 바꾸기(쓰기 — 완료·취소·되살리기·분류·제목·메모). todo_list 결과의 id로.", { id: S("할 일 id"), state: S("in_progress|done|cancelled(선택)"), urgency: S("today|inbox|scheduled|someday(선택)"), priority: S("p1|p2|p3|p4(선택)"), title: S("새 제목(선택)"), notes: S("새 메모(선택)"), scheduled_for: S("예정일 YYYY-MM-DD(선택)") }, ["id"]),
   tool("ppt_decks", "내가 만든 PPT(PPT 만들기) 최근 10개 — 제목·상태(만드는 중·완성·실패)·장 수·링크. 만들기를 요청한 뒤 '다 됐어?'에 쓴다."),
   tool("ppt_create", "PPT 만들기 기능으로 이노그리드 표준 템플릿 PPT를 만든다(쓰기 — 사용자 확인 후 시작, 완성까지 몇 분). 원고는 text(마크다운 원고 — 대화에서 정리한 내용) 또는 url(웹·Confluence·SharePoint 문서 주소) 중 하나. 결과는 PPT 만들기 화면 링크.", { title: S("표지 제목(선택 — 비우면 원고에서)"), text: S("원고(마크다운, 장 구성·핵심 내용)"), url: S("원고 문서 주소(text 대신)"), prompt: S("만드는 방식 요청(선택, 예: 임원 보고용 10장 내외)") }),
 ];
-export const FEATURE_TIERS: Record<string, "read" | "write"> = { jira_issues: "read", jira_issue: "read", people_news: "read", food_search: "read", ppt_decks: "read", ppt_create: "write" };
-const PAGE: Record<string, PageKey> = { jira_issues: "jira", jira_issue: "jira", people_news: "people_news", food_search: "food", ppt_decks: "ppt", ppt_create: "ppt" };
+export const FEATURE_TIERS: Record<string, "read" | "write"> = { jira_issues: "read", jira_issue: "read", people_news: "read", food_search: "read", ppt_decks: "read", ppt_create: "write", todo_list: "read", todo_add: "write", todo_update: "write" };
+const PAGE: Record<string, PageKey> = { jira_issues: "jira", jira_issue: "jira", people_news: "people_news", food_search: "food", ppt_decks: "ppt", ppt_create: "ppt", todo_list: "todo", todo_add: "todo", todo_update: "todo" };
 export const featurePage = (name: string): PageKey | null => PAGE[name] ?? null;
 
 const str = (a: Record<string, unknown>, k: string, max = 2000) => (typeof a[k] === "string" ? (a[k] as string).trim().slice(0, max) : "");
 const PPT_NOTE = "완성까지 몇 분 걸리며 PPT 만들기 화면에서 확인합니다.";
 
-/** 쓰기 확인 카드 줄(서버가 만든다). 기능 쓰기 도구가 아니면 null. */
-export function featureCard(name: string, input: Record<string, unknown>): string[] | null {
+const TODO_STATE: Record<string, string> = { in_progress: "진행 중", done: "완료", cancelled: "취소" };
+const TODO_URGENCY: Record<string, string> = { today: "오늘", inbox: "받은함", scheduled: "예정", someday: "언젠가" };
+const TODO_PRIORITY: Record<string, string> = { p1: "P1 긴급+중요", p2: "P2 중요", p3: "P3 긴급", p4: "P4 둘 다 아님" };
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** 할 일 바꿀 값(모델 입력 → 열). 틀린 값은 오류 문장. */
+function todoPatch(a: Record<string, unknown>, adding: boolean): { patch: Record<string, unknown> } | { error: string } {
+  const patch: Record<string, unknown> = {};
+  const title = str(a, "title", 500), notes = typeof a.notes === "string" ? a.notes.trim().slice(0, 5000) : null, day = str(a, "scheduled_for", 10);
+  if (adding && !title) return { error: "제목(title)이 필요합니다." };
+  if (title) patch.title = title;
+  if (notes !== null) patch.notes = notes || null;
+  for (const [k, ok] of [["state", TODO_STATE], ["urgency", TODO_URGENCY], ["priority", TODO_PRIORITY]] as const) {
+    const v = str(a, k, 20);
+    if (!v) continue;
+    if (!(v in ok) || (adding && k === "state")) return { error: `${k} 값이 올바르지 않습니다.` };
+    patch[k] = v;
+  }
+  if (day) { if (!DAY.test(day)) return { error: "scheduled_for는 YYYY-MM-DD입니다." }; patch.scheduled_for = `${day}T00:00:00+09:00`; }
+  if (!adding && !Object.keys(patch).length) return { error: "바꿀 값이 없습니다." };
+  return { patch };
+}
+
+/** 쓰기 확인 카드 줄(서버가 만든다). 기능 쓰기 도구가 아니면 null. target은 서버가 조회한 실제 대상(todo_update의 지금 제목). */
+export function featureCard(name: string, input: Record<string, unknown>, target?: string): string[] | null {
+  if (name === "todo_add" || name === "todo_update") {
+    const p = todoPatch(input, name === "todo_add");
+    if ("error" in p) return null;
+    const v = p.patch as Record<string, string | null>;
+    const lines = name === "todo_add" ? [`할 일 추가 — ${v.title}`] : [`할 일 바꾸기 — ${target ?? "(확인 못 함)"}`, ...(v.title ? [`새 제목: ${v.title}`] : [])];
+    if (v.state) lines.push(`상태: ${TODO_STATE[v.state]}`);
+    lines.push(...[v.urgency ? `시급도: ${TODO_URGENCY[v.urgency]}` : "", v.priority ? `중요도: ${TODO_PRIORITY[v.priority]}` : "", v.scheduled_for ? `예정일: ${v.scheduled_for.slice(0, 10)}` : "", v.notes ? `메모: ${v.notes.slice(0, 120)}` : ""].filter(Boolean));
+    return lines;
+  }
   if (name !== "ppt_create") return null;
   const text = str(input, "text", 200_000), url = str(input, "url"), prompt = str(input, "prompt");
   return [
@@ -70,6 +105,31 @@ export async function runFeatureTool(admin: SupabaseClient, ctx: { userId: strin
       return done({ items: ((data ?? []) as Array<Record<string, string | null>>).map((n) => ({ category: n.category === "obituary" ? "부고" : "인사", title: n.title, summary: (n.summary ?? "").slice(0, 200), date: n.published_at, url: n.source_url })) });
     }
     if (name === "food_search") return await foodSearch(admin, args);
+    if (name === "todo_list") {
+      const state = str(args, "state") || "in_progress", urgency = str(args, "urgency"), id = str(args, "id", 40), query = str(args, "query", 50).replace(/[%_]/g, "");
+      if (state !== "all" && !(state in TODO_STATE)) return fail("state는 in_progress·done·cancelled·all 중 하나입니다.");
+      let q = admin.from("todos").select("id,title,notes,state,urgency,priority,scheduled_for,updated_at").eq("user_id", ctx.userId);
+      if (id) q = q.eq("id", id);
+      else {
+        if (state !== "all") q = q.eq("state", state);
+        if (urgency) q = q.eq("urgency", urgency);
+        if (query) q = q.ilike("title", `%${query}%`);
+      }
+      const { data, error } = await q.order("updated_at", { ascending: false }).limit(50);
+      if (error) return fail("할 일을 불러오지 못했습니다.");
+      return done({ items: ((data ?? []) as Array<Record<string, string | null>>).map((t) => ({ id: t.id, title: t.title, state: TODO_STATE[t.state ?? ""] ?? t.state, urgency: TODO_URGENCY[t.urgency ?? ""] ?? t.urgency, priority: t.priority, scheduled_for: t.scheduled_for?.slice(0, 10) ?? null, notes: t.notes ? t.notes.slice(0, 200) : undefined })) });
+    }
+    if (name === "todo_add" || name === "todo_update") {
+      const p = todoPatch(args, name === "todo_add");
+      if ("error" in p) return fail(p.error);
+      const q = name === "todo_add"
+        ? admin.from("todos").insert({ ...p.patch, user_id: ctx.userId })
+        : admin.from("todos").update(p.patch).eq("id", str(args, "id", 40)).eq("user_id", ctx.userId);
+      const { data, error } = await q.select("id,title,state,urgency,priority").maybeSingle();
+      if (error) return fail("할 일을 저장하지 못했습니다.");
+      if (!data) return fail("그 할 일을 찾지 못했습니다. todo_list로 다시 확인하세요.");
+      return done({ todo: data });
+    }
     if (name === "ppt_decks") {
       const { data: decks, error } = await admin.from("ppt_decks").select("id,title,updated_at").eq("owner_id", ctx.userId).order("updated_at", { ascending: false }).limit(10);
       if (error) return fail("PPT 목록을 불러오지 못했습니다.");

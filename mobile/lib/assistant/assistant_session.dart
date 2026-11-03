@@ -3,6 +3,11 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/client.dart';
+import '../auth/session.dart';
+import '../mcp/mcp_tools.dart' show McpTools, mcpAppSupportDir;
+import '../todo/todo_store.dart' show todosProvider;
+import 'app_screens.dart';
+import 'innobot_prefs.dart' show innobotOpenPath;
 import '../gw/gw_api.dart';
 import '../gw/gw_creds.dart';
 import '../gw/gw_models.dart';
@@ -234,6 +239,15 @@ class AssistantSession extends Notifier<AssistantState> {
       now: ref.read(assistantClockProvider),
       mailIndex: ref.read(mailIndexProvider.notifier),
       messenger: MessengerTools(ref.read(messengerApiProvider)),
+      // 아마란스 확장 — Claude 커넥터(데스크톱 MCP 워커)와 같은 McpTools
+      mcp: (tool, args) => McpTools(gw: ref.read(gwApiProvider), appSupportDir: mcpAppSupportDir, mailIndex: ref.read(mailIndexProvider.notifier), messenger: MessengerTools(ref.read(messengerApiProvider))).execute(tool, args),
+      openScreen: (key) {
+        final r = screenPath(key, ref.read(sessionProvider).asData?.value);
+        final open = innobotOpenPath;
+        if (r.error != null || open == null) return r.error ?? '지금은 화면을 열 수 없습니다';
+        open(r.path!);
+        return null;
+      },
     );
   }
 
@@ -353,6 +367,7 @@ class AssistantSession extends Notifier<AssistantState> {
                 return;
               }
               _toolStatus[id] = status; // 스트림이 뒤에 끊겨도 받은 결과는 남긴다
+              if (tool.startsWith('todo_') && tool != 'todo_list') ref.invalidate(todosProvider); // 서버가 바꾼 할 일 — 화면·위젯 다시 읽기
               _set(items: [
                 for (final i in state.items)
                   if (i.kind == ChatKind.tool && i.id == id) i.copyWith(status: status, text: summary.isEmpty ? i.text : summary) else i,

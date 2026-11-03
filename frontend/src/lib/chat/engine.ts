@@ -115,7 +115,7 @@ export async function runTurn(d: TurnDeps, inp: TurnInput, emit: (e: ChatEvent) 
       // 대상을 못 찾은 호출이 있으면 확인 카드 없이 그 응답 전체를 닫는다(못 찾은 건 오류, 쓰기는 미승인) — 모델이 다시 묻는다
       if (!unresolved.size) {
         used.push(...calls.map((c) => c.tool));
-        emit({ type: "needs_action", messageId, calls: calls.map((c) => ({ ...c, location: c.location ?? "server", ...(featureCard(c.tool, c.input) ? { card: featureCard(c.tool, c.input)! } : {}) })) as PendingCall[] });
+        emit({ type: "needs_action", messageId, calls: calls.map((c) => ({ ...c, location: c.location ?? "server", ...(featureCard(c.tool, c.input, c.target) ? { card: featureCard(c.tool, c.input, c.target)! } : {}) })) as PendingCall[] });
         return finish();
       }
     }
@@ -163,6 +163,11 @@ async function resolveTargets(d: TurnDeps, calls: Call[]): Promise<Set<string>> 
       const r = key ? await d.runServer("confluence_spaces", { key }) : null;
       const s = r?.ok ? (r.result as { spaces?: Array<{ key: string; name: string }> }).spaces?.find((x) => x.key === key) : undefined;
       if (s) c.target = `${s.name} (${s.key})`; else bad.add(c.id);
+    } else if (c.tool === "todo_update") {
+      const id = typeof c.input.id === "string" ? c.input.id.trim() : "";
+      const r = id ? await d.runServer("todo_list", { id }) : null;
+      const t = r?.ok ? (r.result as { items?: Array<{ title: string }> }).items?.[0] : undefined;
+      if (t) c.target = t.title; else bad.add(c.id);
     }
   }
   return bad;

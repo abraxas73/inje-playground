@@ -1,12 +1,15 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import mcpTools from "@/lib/mcp/tools.json";
-import { ASSISTANT_TOOLS, SERVER_TOOLS, TOOL_TIERS, type ToolTier } from "@/lib/assistant/tools";
+import { APP_MCP_TOOLS, ASSISTANT_TOOLS, SERVER_TOOLS, TOOL_TIERS, type ToolTier } from "@/lib/assistant/tools";
 import type { PageKey } from "@/lib/page-access";
 import type { Location } from "./events";
 import { featurePage } from "@/lib/assistant/feature-tools";
 
 /** 웹에서 데스크톱 앱 중계로 여는 아마란스 도구 — 읽기만(설계서 §0 "웹의 아마란스"). 이름·스키마는 Claude 커넥터(tools.json)와 같다. */
-export const RELAY_READ_TOOLS = ["find_person", "org_chart", "list_mail_inbox", "read_mail", "search_mail_index", "mailbox_counts", "pending_approvals", "approval_counts", "list_approvals", "read_approval", "list_notices", "read_notice", "search", "list_calendars", "list_events", "get_attendance_today", "my_reservations", "list_resources", "find_free_rooms", "list_messenger_rooms", "read_messenger_room", "search_messenger"] as const;
+export const RELAY_READ_TOOLS = ["find_person", "org_chart", "list_mail_inbox", "read_mail", "search_mail_index", "mailbox_counts", "pending_approvals", "approval_counts", "list_approvals", "read_approval", "list_notices", "read_notice", "search", "list_calendars", "list_events", "get_attendance_today", "my_reservations", "list_resources", "find_free_rooms", "list_messenger_rooms", "read_messenger_room", "search_messenger",
+  // 앱 이노봇의 아마란스 확장 읽기(계약 appMcpTools) — 첨부 내려받기는 데스크톱 파일 저장이라 웹에선 뺀다
+  "whoami", "attendance_month", "person_group", "list_mailboxes", "list_mail_drafts", "list_reservations", "list_notice_attachments", "list_approval_attachments",
+  "list_approval_lines", "read_approval_line", "list_approval_line_schemas", "get_approval_line_schema", "suggest_approval_line", "list_approval_submission_guides", "get_approval_submission_guide"] as const;
 /** 결과의 전화번호를 가리지 않는 사내 조직도 도구(설계서 §2-4 예외) */
 export const ORG_TOOLS = new Set(["find_person", "my_team", "org_chart"]);
 
@@ -37,6 +40,8 @@ export function buildToolset(o: { client: "web" | "app"; desktopOnline: boolean;
       tools.push(t); location[t.name] = "device";
     }
   }
+  // 앱: 아마란스 확장 도구(Claude 커넥터와 같은 McpTools)도 기기에서 실행 — 기존 아마란스 도구처럼 페이지 키로 거르지 않는다
+  if (o.client === "app") for (const t of APP_MCP_TOOLS) { tools.push(t); location[t.name] = "device"; }
   // 아마란스 중계는 Claude 커넥터와 같은 통로라 같은 페이지 키(mcp)로 묶는다.
   if (o.client === "web" && o.desktopOnline && o.allowed("mcp")) for (const t of RELAY_TOOLS) { tools.push(t); location[t.name] = "desktop-relay"; }
   return { tools, location };

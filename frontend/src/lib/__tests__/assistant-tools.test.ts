@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ASSISTANT_TOOLS, TOOL_TIERS, SERVER_TOOLS, assistantSystemPrompt, assistantEnabled, dailyTurnLimit, kstDayStartIso } from "@/lib/assistant/tools";
+import { APP_MCP_TOOLS, ASSISTANT_TOOLS, TOOL_TIERS, SERVER_TOOLS, assistantSystemPrompt, assistantEnabled, dailyTurnLimit, kstDayStartIso } from "@/lib/assistant/tools";
 import contract from "@/lib/assistant/tool-contract.json";
 
 // 계약 파일(tool-contract.json)이 원본 — 앱 테스트도 같은 파일과 대조한다. 아래 고정 목록은 계약 파일이 실수로 비거나 줄지 않았는지 보는 안전망.
-const NAMES = ["approval_counts","approval_read","approvals_pending","attendance_today","cancel_reservation","clock_in","clock_out","confluence_create_page","confluence_feed","confluence_read","confluence_search","confluence_spaces","create_event","delete_event","find_free_rooms","find_person","list_calendars","list_events","list_rooms","mail_list","mail_read","mail_save_draft","mail_search","mail_send","messenger_read","messenger_rooms","messenger_search","messenger_send","my_reservations","my_team","notice_read","notices_list","offer_choices","reserve_room","search","sharepoint_read","sharepoint_recent","sharepoint_search","teams_chats","teams_mentions","teams_send","undo_last"];
+const NAMES = ["approval_counts","approval_read","approvals_pending","attendance_today","cancel_reservation","clock_in","clock_out","confluence_create_page","confluence_feed","confluence_read","confluence_search","confluence_spaces","create_event","delete_event","find_free_rooms","find_person","list_calendars","list_events","list_rooms","mail_list","mail_read","mail_save_draft","mail_search","mail_send","messenger_read","messenger_rooms","messenger_search","messenger_send","my_reservations","my_team","notice_read","notices_list","offer_choices","open_screen","reserve_room","search","sharepoint_read","sharepoint_recent","sharepoint_search","team_absences","teams_chats","teams_mentions","teams_send","undo_last"];
 
 // 앱 기능 도구(lib/assistant/feature-tools.ts)는 서버 전용 — 앱 목록에 없고, 쓰기 확인 카드 문구도 서버가 보낸다.
-const FEATURE_NAMES = ["food_search", "jira_issue", "jira_issues", "people_news", "ppt_create", "ppt_decks"];
+const FEATURE_NAMES = ["food_search", "jira_issue", "jira_issues", "people_news", "ppt_create", "ppt_decks", "todo_add", "todo_list", "todo_update"];
 
 describe("도구 표", () => {
   it("스키마 이름 = 등급 표 키 = 계약 파일의 앱 도구 + 서버 전용 앱 기능 도구", () => {
@@ -16,7 +16,15 @@ describe("도구 표", () => {
     expect([...SERVER_TOOLS].sort()).toEqual([...contract.appServerTools, ...FEATURE_NAMES].sort());
     const all = [...NAMES, ...FEATURE_NAMES].sort();
     expect(ASSISTANT_TOOLS.map((t) => t.name).sort()).toEqual(all);
-    expect(Object.keys(TOOL_TIERS).sort()).toEqual(all);
+    expect(Object.keys(TOOL_TIERS).sort()).toEqual([...all, ...Object.keys(contract.appMcpTools)].sort());
+  });
+  it("아마란스 확장(appMcpTools) — Claude 커넥터 스키마 그대로, 이노봇 고유 이름과 겹치지 않음, 상신·임시보관 발송은 되돌릴 수 없음", () => {
+    expect(APP_MCP_TOOLS.map((t) => t.name).sort()).toEqual(Object.keys(contract.appMcpTools).sort());
+    for (const n of Object.keys(contract.appMcpTools)) expect(NAMES).not.toContain(n);
+    expect(TOOL_TIERS.submit_approval).toBe("irreversible");
+    expect(TOOL_TIERS.send_mail_from_draft).toBe("irreversible");
+    expect(TOOL_TIERS.cancel_approval).toBe("write");
+    expect(TOOL_TIERS.list_approvals).toBe("read");
   });
   it("쓰기·되돌릴 수 없음 등급", () => {
     expect(TOOL_TIERS.reserve_room).toBe("write");
@@ -30,7 +38,7 @@ describe("도구 표", () => {
     expect(TOOL_TIERS.my_team).toBe("read");
     expect(TOOL_TIERS.confluence_create_page).toBe("write");
     expect(TOOL_TIERS.confluence_search).toBe("read");
-    expect(SERVER_TOOLS).toEqual(["teams_chats", "teams_mentions", "teams_send", "confluence_search", "confluence_read", "confluence_feed", "confluence_spaces", "confluence_create_page", "sharepoint_search", "sharepoint_recent", "sharepoint_read", "jira_issues", "jira_issue", "people_news", "food_search", "ppt_decks", "ppt_create"]);
+    expect(SERVER_TOOLS).toEqual(["teams_chats", "teams_mentions", "teams_send", "confluence_search", "confluence_read", "confluence_feed", "confluence_spaces", "confluence_create_page", "sharepoint_search", "sharepoint_recent", "sharepoint_read", "jira_issues", "jira_issue", "people_news", "food_search", "ppt_decks", "ppt_create", "todo_list", "todo_add", "todo_update"]);
     expect(TOOL_TIERS.sharepoint_read).toBe("read");
     expect(TOOL_TIERS.mail_search).toBe("read");
   });

@@ -22,8 +22,8 @@ function fakeAdmin() {
     from: (table: string) => {
       const q: Record<string, unknown> = {};
       const chain = (name: string) => (...a: unknown[]) => { m.filters.push(`${table}.${name}(${a.map((x) => JSON.stringify(x)).join(",")})`); return q; };
-      for (const k of ["select", "eq", "ilike", "gte", "order", "limit", "in"]) q[k] = chain(k);
-      q.maybeSingle = async () => ({ data: table === "settings" ? { value: m.settings[String(m.filters.findLast((f) => f.startsWith("settings.eq"))?.match(/"([^"]+)"\)$/)?.[1])] } : null, error: null });
+      for (const k of ["select", "eq", "ilike", "gte", "order", "limit", "in", "insert", "update"]) q[k] = chain(k);
+      q.maybeSingle = async () => ({ data: table === "todos" ? (m.rows.todos ?? [])[0] ?? null : table === "settings" ? { value: m.settings[String(m.filters.findLast((f) => f.startsWith("settings.eq"))?.match(/"([^"]+)"\)$/)?.[1])] } : null, error: null });
       q.then = (res: (v: unknown) => void) => res({ data: m.rows[table] ?? [], error: null });
       return q;
     },
@@ -38,10 +38,10 @@ beforeEach(() => {
 });
 
 describe("기능 도구 정의", () => {
-  it("이름·등급·페이지 키 — ppt_create만 쓰기", () => {
-    expect(FEATURE_TOOLS.map((t) => t.name).sort()).toEqual(["food_search", "jira_issue", "jira_issues", "people_news", "ppt_create", "ppt_decks"]);
-    expect(FEATURE_TIERS).toEqual({ jira_issues: "read", jira_issue: "read", people_news: "read", food_search: "read", ppt_decks: "read", ppt_create: "write" });
-    expect([featurePage("jira_issue"), featurePage("people_news"), featurePage("food_search"), featurePage("ppt_create"), featurePage("teams_send")]).toEqual(["jira", "people_news", "food", "ppt", null]);
+  it("이름·등급·페이지 키 — ppt_create·todo_add·todo_update만 쓰기", () => {
+    expect(FEATURE_TOOLS.map((t) => t.name).sort()).toEqual(["food_search", "jira_issue", "jira_issues", "people_news", "ppt_create", "ppt_decks", "todo_add", "todo_list", "todo_update"]);
+    expect(FEATURE_TIERS).toEqual({ jira_issues: "read", jira_issue: "read", people_news: "read", food_search: "read", ppt_decks: "read", ppt_create: "write", todo_list: "read", todo_add: "write", todo_update: "write" });
+    expect([featurePage("jira_issue"), featurePage("people_news"), featurePage("food_search"), featurePage("ppt_create"), featurePage("todo_update"), featurePage("teams_send")]).toEqual(["jira", "people_news", "food", "ppt", "todo", null]);
   });
 });
 
@@ -129,5 +129,35 @@ describe("PPT", () => {
     expect(featureCard("ppt_create", { title: "3분기 실적", text: "가".repeat(300), prompt: "10장" })).toEqual(["PPT 만들기 — 3분기 실적", `원고: ${"가".repeat(120)}… (300자)`, "요청: 10장", "완성까지 몇 분 걸리며 PPT 만들기 화면에서 확인합니다."]);
     expect(featureCard("ppt_create", { url: "https://wiki.innogrid.com/x" })).toEqual(["PPT 만들기 — (제목은 원고에서)", "원고: https://wiki.innogrid.com/x", "완성까지 몇 분 걸리며 PPT 만들기 화면에서 확인합니다."]);
     expect(featureCard("jira_issues", {})).toBeNull();
+  });
+});
+
+describe("할 일", () => {
+  it("목록 — 본인 행만, 기본은 진행 중, 한글 상태로", async () => {
+    m.rows.todos = [{ id: "t1", title: "보고서", notes: null, state: "in_progress", urgency: "today", priority: "p1", scheduled_for: "2026-11-05T00:00:00+09:00", updated_at: "u" }];
+    const r = await runFeatureTool(fakeAdmin(), ctx, "todo_list", {});
+    expect(m.filters).toContain('todos.eq("user_id","u1")');
+    expect(m.filters).toContain('todos.eq("state","in_progress")');
+    expect(r.ok && r.result).toEqual({ items: [{ id: "t1", title: "보고서", state: "진행 중", urgency: "오늘", priority: "p1", scheduled_for: "2026-11-05", notes: undefined }] });
+    expect(await runFeatureTool(fakeAdmin(), ctx, "todo_list", { state: "x" })).toEqual({ ok: false, error: "state는 in_progress·done·cancelled·all 중 하나입니다." });
+  });
+  it("추가·바꾸기 — 값 검증, 본인 행만 바꾸고, 못 찾으면 안내", async () => {
+    expect(await runFeatureTool(fakeAdmin(), ctx, "todo_add", {})).toEqual({ ok: false, error: "제목(title)이 필요합니다." });
+    expect(await runFeatureTool(fakeAdmin(), ctx, "todo_add", { title: "a", priority: "p9" })).toEqual({ ok: false, error: "priority 값이 올바르지 않습니다." });
+    m.rows.todos = [{ id: "t1", title: "a" }];
+    const r = await runFeatureTool(fakeAdmin(), ctx, "todo_add", { title: " a ", urgency: "scheduled", scheduled_for: "2026-11-05" });
+    expect(r.ok).toBe(true);
+    expect(m.filters).toContain('todos.insert({"title":"a","urgency":"scheduled","scheduled_for":"2026-11-05T00:00:00+09:00","user_id":"u1"})');
+    m.filters = [];
+    await runFeatureTool(fakeAdmin(), ctx, "todo_update", { id: "t1", state: "done" });
+    expect(m.filters).toEqual(['todos.update({"state":"done"})', 'todos.eq("id","t1")', 'todos.eq("user_id","u1")', 'todos.select("id,title,state,urgency,priority")']);
+    expect(await runFeatureTool(fakeAdmin(), ctx, "todo_update", { id: "t1" })).toEqual({ ok: false, error: "바꿀 값이 없습니다." });
+    m.rows.todos = [];
+    expect(await runFeatureTool(fakeAdmin(), ctx, "todo_update", { id: "zz", state: "done" })).toEqual({ ok: false, error: "그 할 일을 찾지 못했습니다. todo_list로 다시 확인하세요." });
+  });
+  it("확인 카드 — 추가는 입력, 바꾸기는 서버가 조회한 지금 제목", () => {
+    expect(featureCard("todo_add", { title: "보고서", urgency: "today", priority: "p1" })).toEqual(["할 일 추가 — 보고서", "시급도: 오늘", "중요도: P1 긴급+중요"]);
+    expect(featureCard("todo_update", { id: "t1", state: "done" }, "보고서")).toEqual(["할 일 바꾸기 — 보고서", "상태: 완료"]);
+    expect(featureCard("todo_add", {})).toBeNull();
   });
 });
