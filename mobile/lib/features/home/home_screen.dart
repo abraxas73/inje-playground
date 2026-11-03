@@ -177,13 +177,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     }
   }
 
-  /// 팀원 부재 위젯 — 지금 부재(조직도 태그) 또는 '이번주' 근태. 범위는 전체 칩·내 직책(센터장이면 센터)을 따른다.
+  /// 팀원 부재 위젯 — 지금 부재(조직도 태그) 또는 '이번주' 근태. 기본 범위는 내 센터(센터를 못 찾으면 팀), 전체 칩이면 회사 전체.
   Widget _absenceSection(BriefingData data, AsyncValue<GwOrgAbsences>? company) {
-    // 센터장이어도 조직도에서 센터를 못 찾으면 팀으로(전체로 넓히지 않는다)
+    // 조직도에서 센터를 못 찾으면 팀으로(전체로 넓히지 않는다)
     final center = data.orgAbsences?.isCenter == true && (ref.watch(attendScopeDeptsProvider).value?.containsKey(AttendScope.center) ?? true);
     final scope = _allAbsences ? AttendScope.all : center ? AttendScope.center : AttendScope.team;
     final week = _weekAbsences ? ref.watch(attendRangeProvider((AttendPreset.thisWeek, scope))) : null;
-    final who = _allAbsences ? '회사 전체' : data.orgAbsences?.isCenter == true ? '센터원' : '팀원';
+    final who = switch (scope) { AttendScope.all => '회사 전체', AttendScope.center => '센터원', _ => '팀원' };
     return AbsenceSection(
       absences: _allAbsences ? orgAbsencesList(company?.asData?.value) : teamAbsences(data),
       title: _weekAbsences ? '$who 이번주 근태' : '$who 부재',

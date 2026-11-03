@@ -44,6 +44,7 @@ class AppApi {
 final gwAll = <String, Object?>{
   '/gw/gw050A02': session,
   '/gw/APIHandler/gw102A02': [{'empSeq':'7','compSeq':'10','deptSeq':'20','deptName':'개발팀','dutyName':'팀원','atNm':''}],
+  '/gw/APIHandler/gw102A01': {'treeList': []},
   '/schres/sc111A02': {'resultList': [{'mcalSeq': '1', 'calType': 'E', 'empSeq': '7'}]},
   '/schres/sc111A03': {'resultList': [{'schSeq': 'a', 'schTitle': '주간회의', 'startDate': '202610051000', 'endDate': '202610051100', 'delYn': 'Y', 'mcalSeq': '1'}, {'schSeq': 'x', 'schTitle': '김민준 연차', 'startDate': '202610050000', 'endDate': '202610052359', 'alldayYn': 'Y', 'delYn': 'N', 'mcalSeq': '9', 'createName': '김민준'}]},
   '/eap/eap105A04': {'map': {'totalCount': 1, 'list': [{'DOC_ID': 'D1', 'FORM_ID': '7', 'DOC_TITLE': '휴가 신청', 'USER_NM': '이서연', 'ARRIVED_DT': '20261001', 'READYN': 'N'}]}},
