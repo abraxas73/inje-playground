@@ -12,6 +12,7 @@ import '../gw/gw_creds.dart';
 import '../gw/gw_settings_sheet.dart';
 import '../mcp/mcp_settings_sheet.dart';
 import '../assistant/innobot_prefs.dart';
+import '../messenger/messenger_enabled.dart';
 import 'catalog.dart';
 import 'profile.dart';
 import '../app/platform.dart';
@@ -112,6 +113,8 @@ class MoreScreen extends ConsumerWidget {
                 ),
                 const Divider(),
                 const _InnobotSwitch(),
+                const Divider(),
+                const _MessengerSwitch(),
                 const Divider(),
                 if (liveActivitySupported) ...[const _LiveBriefingSwitch(), const Divider()],
                 const _ThemeModeTile(),
@@ -227,6 +230,25 @@ class _InnobotSwitch extends ConsumerWidget {
       value: on,
       onChanged: (v) async {
         final ok = await ref.read(innobotButtonPrefProvider.notifier).set(v);
+        if (!ok && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('설정을 저장하지 못했습니다. 다시 시도해 주세요.')));
+      },
+    );
+  }
+}
+
+/// 아마란스 메신저 연동 — 계정 설정(user_settings.amaranth_messenger)이라 모든 기기의 앱에 적용. 끄면 메신저 화면·위젯·알림·이노봇 메신저 도구가 멈춘다.
+class _MessengerSwitch extends ConsumerWidget {
+  const _MessengerSwitch();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(messengerEnabledProvider).value ?? true;
+    return SwitchListTile(
+      secondary: const Icon(Icons.chat_outlined),
+      title: const Text('아마란스 메신저 연동'),
+      subtitle: const Text('끄면 원래 아마란스 메신저만 씁니다(이 앱의 메신저 화면·위젯·알림 중지) · 모든 기기에 적용'),
+      value: on,
+      onChanged: (v) async {
+        final ok = await ref.read(messengerEnabledProvider.notifier).set(v);
         if (!ok && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('설정을 저장하지 못했습니다. 다시 시도해 주세요.')));
       },
     );

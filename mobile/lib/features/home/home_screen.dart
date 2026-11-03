@@ -22,6 +22,7 @@ import '../../gw/gw_models.dart' show MailItem, myEvents;
 import '../../gw/mail_detail_screen.dart';
 import '../../gw/gw_notices_card.dart';
 import '../../messenger/messenger_chat_screen.dart' show MessengerDashboardCard, MessengerPanel;
+import '../../messenger/messenger_enabled.dart';
 import '../../more/catalog.dart';
 import '../../more/service_grid.dart';
 import '../../todo/todo_migration.dart';
@@ -322,8 +323,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         addPh('teams', 'Teams 답장 대기', !tmConnected ? 'Teams 연결이 필요합니다' : '답장 대기가 없습니다', onConnect: !tmConnected ? settingsConnect : null, label: '연결 설정');
       }
       // 아마란스 메신저 — 간략(대화방 목록 카드)·상세(목록→대화방까지 위젯 안에서) 2종. 카드가 스스로 세션·로딩·빈 상태를 처리.
-      add('messenger', '아마란스 메신저(간략)', MessengerDashboardCard(onMore: () => open('/gw/messenger')), w: 6, h: 4);
-      add('messenger_full', '아마란스 메신저(대화)', const MessengerPanel(), w: 6, h: 7, fill: true);
+      // 연동을 끄면(더보기 스위치) 두 위젯 모두 안내 + 설정으로 이동
+      if (ref.watch(messengerEnabledProvider).value ?? true) {
+        add('messenger', '아마란스 메신저(간략)', MessengerDashboardCard(onMore: () => open('/gw/messenger')), w: 6, h: 4);
+        add('messenger_full', '아마란스 메신저(대화)', const MessengerPanel(), w: 6, h: 7, fill: true);
+      } else {
+        add('messenger', '아마란스 메신저(간략)', const MessengerOffNotice(), w: 6, h: 4, fill: true);
+        add('messenger_full', '아마란스 메신저(대화)', const MessengerOffNotice(), w: 6, h: 7, fill: true);
+      }
       if (session != null && canUsePage(session, todoEntry)) add('todo', '할 일', const TodoDashboardCard(), w: 6, h: 6, fill: true);
       // Teams 채팅(상세) — 목록→대화방까지 위젯 안에서(아마란스 메신저(대화)와 같은 방식)
       if (session != null && canUsePage(session, teamsChatEntry)) {

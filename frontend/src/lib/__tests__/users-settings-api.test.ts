@@ -36,3 +36,8 @@ it("innobot_button 은 on|off 만 저장", async () => {
   expect((await put({ key: "innobot_button", value: "maybe" })).status).toBe(400);
   expect(m.upserts).toHaveLength(2);
 });
+it("amaranth_messenger(앱 메신저 연동)는 on|off 만 저장", async () => {
+  expect((await put({ key: "amaranth_messenger", value: "off" })).status).toBe(200);
+  expect((await put({ key: "amaranth_messenger", value: "no" })).status).toBe(400);
+  expect(m.upserts).toHaveLength(1);
+});

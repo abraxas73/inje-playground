@@ -189,6 +189,7 @@ class MessengerMqtt {
 
 /// 앱 생존 동안 유지되는 MQTT 서비스. 세션이 있어야 접속되므로 화면이 ensureConnected로 깨운다.
 final messengerMqttProvider = Provider<MessengerMqtt>((ref) {
+  ref.watch(messengerClientProvider); // 연동을 끄면 클라이언트와 함께 다시 만들어져 접속이 끊긴다
   final mqtt = MessengerMqtt()
     ..onPush = (title, body, path) => showMessengerPush(title: title, body: body, path: path);
   ref.onDispose(mqtt.dispose);
