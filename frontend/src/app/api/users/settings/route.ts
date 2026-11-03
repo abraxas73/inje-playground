@@ -16,9 +16,10 @@ const ALLOWED_USER_SETTING_KEYS = new Set([
   "dooray_member_id",
   "dooray_member_name",
   "innobot_button", // 앱의 떠 있는 이노봇 버튼 표시(on|off, 빈 값 = on) — 계정 단위라 모든 기기의 앱에 적용
+  "amaranth_messenger", // 앱의 아마란스 메신저 연동(on|off, 빈 값 = on) — off면 앱이 메신저 로그인·화면·알림·도구를 멈춤
 ]);
 /** 값이 정해진 키 — 허용 값 밖은 400 */
-const ENUM_VALUES: Record<string, readonly string[]> = { innobot_button: ["on", "off", ""] };
+const ENUM_VALUES: Record<string, readonly string[]> = { innobot_button: ["on", "off", ""], amaranth_messenger: ["on", "off", ""] };
 
 /** GET /api/users/settings[?key=] — 현재 사용자 개인 설정 조회. key를 주면 그 키만(앱이 토큰류 설정을 함께 받지 않도록). */
 export async function GET(request?: NextRequest) {

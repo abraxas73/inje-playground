@@ -8,6 +8,7 @@ import '../gw/gw_alerts.dart';
 import '../gw/gw_api.dart';
 import '../gw/gw_creds.dart';
 import '../messenger/messenger_mqtt.dart';
+import '../messenger/messenger_enabled.dart';
 import '../messenger/messenger_provider.dart';
 
 /// 통합 알림 — 아마란스 알림센터 전체(메일·결재·일정·게시판·멘션 등, 2026-10-29) + Teams 멘션을 한곳에.
@@ -74,7 +75,7 @@ class NotifCenter extends AsyncNotifier<List<NotifItem>> {
   @override
   Future<List<NotifItem>> build() async {
     // 실시간: 새 대화 신호가 오면 잠시 묶어 다시 모은다(구독은 invalidate 때 onDispose로 정리됨)
-    final sub = ref.read(messengerMqttProvider).events.listen((e) {
+    final sub = ref.watch(messengerMqttProvider).events.listen((e) {
       if (e.isChat) {
         _debounce?.cancel();
         _debounce = Timer(const Duration(seconds: 1), () => ref.invalidateSelf());
@@ -114,7 +115,9 @@ class NotifCenter extends AsyncNotifier<List<NotifItem>> {
     if (api != null) {
       // 아마란스 알림센터(안 읽은 것 최근 50건) + 전체 안 읽은 수(배지)
       await _safe(() async {
+        final talkOff = !(await ref.read(messengerEnabledProvider.future)); // 메신저 연동을 끄면 메신저 멘션은 원래 메신저 몫
         for (final a in await api.alerts()) {
+          if (talkOff && a.kind == GwAlertKind.talk) continue;
           items.add(NotifItem(kind: notifKindOf(a.kind), key: 'g:${a.alertId}', title: a.title, subtitle: a.content, at: a.at, path: a.path, gwAlertId: a.alertId, webUrl: a.webUrl));
         }
       });

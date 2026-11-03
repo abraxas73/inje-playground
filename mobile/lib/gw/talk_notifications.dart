@@ -6,6 +6,7 @@ import 'gw_alerts.dart';
 import 'gw_api.dart';
 import '../notifications/notifications.dart' show notifHiddenKindsProvider, notifKindOf;
 import 'talk_alert_watcher.dart';
+import '../messenger/messenger_enabled.dart';
 import '../app/platform.dart';
 
 const _seenKey = 'gw_alert_seen'; // 알림센터 전체로 바꾸며 새 키(예전 멘션 기준 시각이면 업그레이드 직후 지난 알림이 쏟아진다)
@@ -23,6 +24,7 @@ final talkAlertWatcherProvider = Provider<TalkAlertWatcher<GwAlert>?>((ref) {
   final w = TalkAlertWatcher<GwAlert>(
     fetch: () => api.alerts(pageSize: 20),
     notify: (a) async {
+      if (a.kind == GwAlertKind.talk && !(ref.read(messengerEnabledProvider).value ?? true)) return; // 메신저 연동 끔 → 멘션은 원래 메신저가 알린다
       if (!ref.read(notifHiddenKindsProvider).contains(notifKindOf(a.kind))) await showGwAlertNotification(a);
     },
     loadSeen: () async => (await SharedPreferences.getInstance()).getInt(_seenKey) ?? 0,

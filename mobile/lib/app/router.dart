@@ -22,6 +22,7 @@ import '../gw/attend_screen.dart';
 import '../todo/todo_screens.dart';
 import '../gw/board_screen.dart';
 import '../messenger/messenger_chat_screen.dart';
+import '../messenger/messenger_enabled.dart';
 import '../messenger/messenger_models.dart';
 import '../messenger/messenger_notes_screen.dart';
 import '../gw/gw_connect_screen.dart';
@@ -79,9 +80,9 @@ GoRouter buildRouter({
       return GwGate(title: '메일', builder: (_, api) => MailDetailScreen(api: api, item: MailItem(muid: q['muid'] ?? '', subject: q['subject'] ?? '', fromName: q['from'] ?? '', fromEmail: q['email'] ?? '', date: '', tooltip: '', seen: false, attach: false)));
     }),
     GoRoute(path: '/gw/board', builder: (c, s) => BoardScreen(initialArt: s.uri.queryParameters['art'])),
-    GoRoute(path: '/gw/messenger', builder: (c, s) => const MessengerChatScreen()),
-    GoRoute(path: '/gw/room', builder: (c, s) => MessengerRoomScreen(room: MsgRoom.minimal(s.uri.queryParameters['id'] ?? '', title: s.uri.queryParameters['title'] ?? '대화'))),
-    GoRoute(path: '/gw/notes', builder: (c, s) => const MessengerNotesScreen()),
+    GoRoute(path: '/gw/messenger', builder: (c, s) => const MessengerGate(child: MessengerChatScreen())),
+    GoRoute(path: '/gw/room', builder: (c, s) => MessengerGate(child: MessengerRoomScreen(room: MsgRoom.minimal(s.uri.queryParameters['id'] ?? '', title: s.uri.queryParameters['title'] ?? '대화')))),
+    GoRoute(path: '/gw/notes', builder: (c, s) => const MessengerGate(title: '쪽지', child: MessengerNotesScreen())),
     GoRoute(path: '/gw/attend', builder: (c, s) => GwGate(title: '근태', builder: (_, _) => const AttendScreen())),
     GoRoute(path: '/todo', builder: (c, s) => const TodoGate(child: TodoScreen())),
     GoRoute(path: '/todo/matrix', builder: (c, s) => const TodoGate(child: PriorityMatrixScreen())),
