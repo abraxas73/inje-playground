@@ -87,34 +87,45 @@ final sharepointFavoritesProvider = FutureProvider<List<SharepointFavorite>>((
 
 /// 제목 옆 즐겨찾기 표시(☆/★) — 누를 때마다 켜고 끈다.
 class FavoriteStar extends ConsumerWidget {
-  const FavoriteStar({super.key, required this.path, required this.title});
+  const FavoriteStar({
+    super.key,
+    required this.path,
+    required this.title,
+    this.tooltipPosition,
+  });
   final String path, title;
+
+  /// 툴팁을 기본 위치(버튼 아래)가 아닌 곳에 둘 때 — Linux 웹 화면 머리줄은 WebView에 가려지지 않게 옆에 둔다.
+  final TooltipPositionDelegate? tooltipPosition;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final on =
         ref.watch(appFavoritesProvider).value?.any((f) => f.path == path) ??
         false;
-    return IconButton(
-      tooltip: on ? '즐겨찾기 해제' : '즐겨찾기 추가',
-      visualDensity: VisualDensity.compact,
-      icon: Icon(
-        on ? Icons.star_rounded : Icons.star_outline_rounded,
-        color: on ? const Color(0xFFF5B301) : null,
+    return Tooltip(
+      message: on ? '즐겨찾기 해제' : '즐겨찾기 추가',
+      positionDelegate: tooltipPosition,
+      child: IconButton(
+        visualDensity: VisualDensity.compact,
+        icon: Icon(
+          on ? Icons.star_rounded : Icons.star_outline_rounded,
+          color: on ? const Color(0xFFF5B301) : null,
+        ),
+        onPressed: title.trim().isEmpty
+            ? null
+            : () async {
+                final ok = await ref
+                    .read(appFavoritesProvider.notifier)
+                    .toggle(path, title.trim());
+                if (!ok && context.mounted) {
+                  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                    const SnackBar(
+                      content: Text('즐겨찾기를 저장하지 못했습니다. 다시 시도해 주세요.'),
+                    ),
+                  );
+                }
+              },
       ),
-      onPressed: title.trim().isEmpty
-          ? null
-          : () async {
-              final ok = await ref
-                  .read(appFavoritesProvider.notifier)
-                  .toggle(path, title.trim());
-              if (!ok && context.mounted) {
-                ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                  const SnackBar(
-                    content: Text('즐겨찾기를 저장하지 못했습니다. 다시 시도해 주세요.'),
-                  ),
-                );
-              }
-            },
     );
   }
 }
