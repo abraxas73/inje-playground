@@ -186,6 +186,7 @@ class InnobotOverlay extends ConsumerWidget {
           listenable: Listenable.merge([router.routerDelegate, innobotPopups, innobotFanOpen, favoritesOpen, notifOpen]),
           builder: (context, _) {
             // push로 연 화면(/web·/gw/*)은 uri가 바뀌지 않으므로 맨 위 경로를 본다
+            innobotOpenPath ??= (p) => isBranchRoot(p) ? router.go(p) : router.push(p);
             final cfg = router.routerDelegate.currentConfiguration;
             final path = cfg.isEmpty ? cfg.uri.path : cfg.last.matchedLocation;
             final visible = innobotOverlayVisible(

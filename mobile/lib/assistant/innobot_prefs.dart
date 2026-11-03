@@ -75,6 +75,9 @@ bool showsClaudeAt(String path, {bool? desktop}) => (desktop ?? hasClaudeDesktop
 /// 탭 첫 화면 경로인가(즐겨찾기를 열 때 push 대신 그 탭으로 간다).
 bool isBranchRoot(String path) => const {'/home', '/food', '/ladder', '/team', '/more'}.contains(path);
 
+/// 이노봇 open_screen이 화면을 여는 통로 — 앱 전체 위 이노봇 레이어(InnobotOverlay)가 라우터로 건다. 없으면(테스트·로그인 전) 못 연다.
+void Function(String path)? innobotOpenPath;
+
 /// 떠 있는 버튼 묶음(알림·즐겨찾기·Claude·이노봇)을 잠시 숨겼는지 — 버튼 오른쪽 클릭 '버튼 숨기기', 하단 바 오른쪽 작은 아이콘으로 복귀. 기기에 기억.
 final innobotFabsHiddenProvider = NotifierProvider<InnobotFabsHidden, bool>(InnobotFabsHidden.new);
 

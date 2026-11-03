@@ -4,6 +4,7 @@
  */
 import type Anthropic from "@anthropic-ai/sdk";
 import { FEATURE_TIERS, FEATURE_TOOLS } from "./feature-tools";
+import mcpTools from "@/lib/mcp/tools.json";
 import contract from "./tool-contract.json";
 
 export type ToolTier = "read" | "write" | "irreversible" | "meta" | "choice";
@@ -69,11 +70,18 @@ export const ASSISTANT_TOOLS: Anthropic.Tool[] = [
     question: S("무엇을 고르는지(짧게)"),
     options: { type: "array", minItems: 2, maxItems: 4, description: "선택지 2~4개", items: { type: "object", properties: { label: S("선택지 한 줄 요약"), calls: { type: "array", minItems: 1, maxItems: 5, description: "이 선택지를 고르면 실행할 쓰기 도구 호출(최대 5)", items: { type: "object", properties: { name: S("쓰기 도구 이름"), input: { type: "object", description: "그 도구의 입력" } }, required: ["name", "input"] } } }, required: ["label", "calls"] } },
   }, ["question", "options"]),
+  tool("open_screen", "우리 앱의 화면을 연다(앱에서만). 사용자가 '할 일 열어 줘', '메일 화면 보여 줘'처럼 화면을 원하거나, 결과를 화면에서 이어 보는 게 나을 때. 권한이 없는 화면은 앱이 거절한다.", { screen: S("home|more|todo|todo_matrix|todo_review|gw_today(일정)|gw_mail|gw_approvals|gw_attendance(출퇴근)|gw_attend(근태)|gw_board|gw_messenger|gw_notes(쪽지)|food|ladder|team(커피 타임)|survey|teams_chat|dooray|jira|confluence|sharepoint|rfp|ppt|proposal|people_news|org_chart|marketing|usage_code|usage_chat|usage_perf|settings|manual|admin_*(관리자)") }, ["screen"]),
+  tool("team_absences", "팀원 부재·휴가·외근(아마란스 근태) — 기간과 조직 범위로. 사람·부서·종류·날짜·시각.", { period: S("today(기본)|this_week(월~금)|past_week|next_week"), scope: S("team(우리팀, 기본)|center(우리센터)|hq(우리본부)|all(전사 — 미래 날짜는 빠짐)"), query: S("이름·부서 검색어(선택)") }),
   tool("undo_last", "방금 비서가 실행한 작업(예약·일정 등)을 되돌린다. 앱이 실행 기록에서 대상을 고르고 확인받는다.", { count: I("되돌릴 개수(기본 1)") }),
   ...FEATURE_TOOLS,
 ];
 
-export const TOOL_TIERS: Record<string, ToolTier> = { ...(contract.appTools as Record<string, ToolTier>), ...FEATURE_TIERS };
+/** 앱이 McpTools로 실행하는 아마란스 확장 도구 — Claude 커넥터와 같은 이름·스키마(tools.json), 이름·등급은 계약 appMcpTools. */
+export const APP_MCP_TOOLS: Anthropic.Tool[] = (mcpTools as Array<{ name: string; description: string; inputSchema: Anthropic.Tool.InputSchema }>)
+  .filter((t) => t.name in contract.appMcpTools)
+  .map((t) => ({ name: t.name, description: t.description, input_schema: t.inputSchema }));
+
+export const TOOL_TIERS: Record<string, ToolTier> = { ...(contract.appMcpTools as Record<string, ToolTier>), ...(contract.appTools as Record<string, ToolTier>), ...FEATURE_TIERS };
 
 /** 'YYYY-MM-DDTHH:mm…' → '2026-10-05(월) 14:03 KST'(요일을 모델이 계산하지 않게). 형식이 다르면 그대로 + KST. */
 function nowWithWeekday(now: string): string {
@@ -86,7 +94,7 @@ function nowWithWeekday(now: string): string {
 /** 고정 규칙 — 사람·시각이 없어 모든 사용자·턴이 같은 캐시를 읽는다(도구 정의 뒤 캐시 구간). */
 const ASSISTANT_RULES = [
     "너는 이노그리드 구성원의 업무 비서 '이노봇'이다. 사용자와 현재 시각은 이 규칙 뒤에 따로 적힌다.",
-    "도구로 아마란스(조직도·회의실·일정·출퇴근·메일·결재 조회·게시판·통합검색·메신저)와 Teams·Confluence(회사 위키)·SharePoint(회사 문서 파일), 그리고 우리 앱 기능(Jira 내 업무·인사·부고 소식·뭐 먹지(근처 식당·PAYCO 식권)·PPT 만들기)을 다룬다. 사용자가 앱 기능을 쓰라고 하면 '할 수 없다'고 하지 말고 그 도구를 쓴다.",
+    "도구로 아마란스(조직도·회의실·일정·출퇴근·메일·결재 조회·게시판·통합검색·메신저)와 Teams·Confluence(회사 위키)·SharePoint(회사 문서 파일), 그리고 우리 앱 기능(할 일·Jira 내 업무·인사·부고 소식·뭐 먹지(근처 식당·PAYCO 식권)·PPT 만들기·앱 화면 열기)을 다룬다. 앱에서는 아마란스 확장 도구(결재 상신·회수·결재선, 메일함·임시보관함·첨부 내려받기·메일 삭제, 일정·예약 수정, 월 근태, 조직도, 사람 묶음)도 쓴다. 사용자가 앱 기능을 쓰라고 하면 '할 수 없다'고 하지 말고 그 도구를 쓴다.",
     "규칙:",
     "1. 쓰기 작업(예약·일정 등록·삭제·출퇴근·메일 저장·발송·Teams·메신저 전송)은 도구 호출로만 한다. 앱이 사용자에게 확인 카드를 보여 주고 실행하므로, 문장으로 \"실행할까요?\"라고 묻지 말고 필요한 정보가 갖춰지면 바로 도구를 부른다. 서로 관련된 쓰기(예약+일정)는 같은 응답에서 함께 부른다.",
     "2. 시각·사람·회의실이 애매하면 쓰기 전에 되묻는다. 동명이인은 부서를 보여 주고 고르게 한다. 참석자는 find_person 또는 my_team 결과의 empSeq·deptSeq만 쓴다. '우리 팀 전원·팀원 모두'는 my_team 결과 전원이다. 캘린더를 지정하면(예: '이노그리드 캘린더') list_calendars에서 제목이 맞는 것의 mcalSeq를 create_event의 calendar_id로 넣고, 맞는 게 없거나 여러 개면 되묻는다.",
@@ -102,6 +110,9 @@ const ASSISTANT_RULES = [
     "12. PPT를 만들어 달라면 ppt_create를 쓴다. 원고는 사용자가 준 문서 주소(웹·Confluence·SharePoint)가 있으면 url, 아니면 대화에서 정리한 내용을 장 구성이 보이는 마크다운으로 text에 넣는다(내용이 모자라면 먼저 묻는다). 시작하면 링크를 알려 주고, 진행은 ppt_decks로 확인한다. 이미 만드는 중이면 끝난 뒤 다시 하라고 안내한다.",
     "13. 식당·카페·점심 메뉴는 food_search(어디 근처인지 모르면 먼저 묻는다), 인사·부고 소식은 people_news, 내 Jira 업무는 jira_issues·jira_issue를 쓴다. 결과의 링크를 함께 보여 준다.",
     "14. \"메신저\"는 아마란스 메신저다(Teams와 다르다). 안 읽은 대화·누가 뭐라고 했는지는 messenger_rooms(unread_only)로 방을 찾고 messenger_read로 읽어 요약한다. 특정 내용·방은 messenger_search. 누구에게 메신저를 보내라면 기존 방이 있으면 room_id로, 없으면 find_person의 empSeq를 emp_seqs로 messenger_send를 부른다.",
+    "15. 할 일은 우리 앱의 할 일(todo_list·todo_add·todo_update)이다(Jira·Dooray 업무와 다르다). '할 일에 넣어 줘'는 todo_add, '다 했어·완료해 줘'는 todo_list로 id를 찾아 todo_update(state done). 시급도는 오늘(today)·받은함(inbox, 기본)·예정(scheduled, 예정일과 함께)·언젠가(someday), 중요도는 p1~p4.",
+    "16. 화면을 보여 달라면 open_screen을 쓴다(앱에서만 — 웹이면 해당 주소를 링크로 안내). 팀원 휴가·외근·부재는 team_absences, 내 이번 달 근태는 attendance_month.",
+    "17. 결재 상신은 list_approval_submission_guides → get_approval_submission_guide(양식 안내를 그대로 따른다) → 결재선(list_approval_lines·suggest_approval_line) → submit_approval 순서다. 상신·임시보관함 발송(send_mail_from_draft)은 되돌릴 수 없으니 제목·결재선·본문을 갖춘 뒤 부른다. 일정·예약을 바꿀 때는 지우고 새로 만들지 말고 update_calendar_event·update_reservation을 쓴다.",
 ].join("\n");
 
 /** 시스템 프롬프트 = [고정 규칙(캐시 표시)] + [이번 사용자·현재 시각 + 클라이언트별 줄]. 바뀌는 값을 뒤에 두어야 앞부분 캐시가 맞는다. */

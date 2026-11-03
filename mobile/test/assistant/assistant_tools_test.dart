@@ -10,6 +10,7 @@ import 'package:playground/assistant/assistant_journal.dart';
 import 'package:playground/assistant/assistant_tools.dart';
 import 'package:playground/gw/gw_creds.dart';
 import 'package:playground/gw/mail_indexer.dart';
+import 'package:playground/mcp/mcp_worker.dart' show McpToolError;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../gw/fakes.dart' show FakeGwStore, MemoryMailIndexStore, testCreds;
 import 'gw_assistant_api_test.dart' show Gw, base;
@@ -43,6 +44,41 @@ void main() {
     expect(tierOf('confluence_create_page'), ToolTier.write);
     expect(serverToolNames, Set<String>.from(_contract['appServerTools'] as List));
     expect(tierOf('sharepoint_read'), ToolTier.read);
+    // 아마란스 확장(Claude 커넥터와 같은 McpTools) — 계약 appMcpTools와 같고 이노봇 고유 이름과 겹치지 않는다
+    expect(appMcpToolTiers.map((k, v) => MapEntry(k, v.name)), Map<String, String>.from(_contract['appMcpTools'] as Map));
+    expect(appMcpToolTiers.keys.where(assistantToolTiers.containsKey), isEmpty);
+    expect(tierOf('submit_approval'), ToolTier.irreversible);
+  });
+
+  test('확장 도구 — McpTools 결과를 그대로, 실패는 문장으로, 쓰기는 실행 기록 + 인자 전부로 카드', () async {
+    final journal = await AssistantJournal.load();
+    final calls = <String>[];
+    final gw = Gw({});
+    final runner = AssistantToolRunner(gw: gw.api(), api: app({}), journal: journal, guard: MailReadGuard(), mcp: (t, a) async {
+      calls.add('$t ${jsonEncode(a)}');
+      if (t == 'delete_mail') throw McpToolError('메일을 찾지 못했습니다.');
+      return jsonEncode({'items': [1, 2]});
+    });
+    expect(await runner.run(const ToolCall('1', 'list_approvals', {'box': 'done'})), {'ok': true, 'items': [1, 2]});
+    expect(await runner.run(const ToolCall('2', 'delete_mail', {'muid': 'M1'})), {'ok': false, 'error': '메일을 찾지 못했습니다.'});
+    expect(calls, ['list_approvals {"box":"done"}', 'delete_mail {"muid":"M1"}']);
+    await runner.run(const ToolCall('3', 'cancel_approval', {'doc_id': 'D1'}));
+    expect(journal.all.last.summary, '결재 회수');
+    expect(cardLine(const ToolCall('4', 'submit_approval', {'doc_title': '출장 신청', 'line_id': 'L1', 'empty': ''})), '결재 상신(되돌릴 수 없음 — 결재 요청이 나갑니다)\ndoc_title: 출장 신청\nline_id: L1');
+    final none = AssistantToolRunner(gw: null, api: app({}), journal: journal, guard: MailReadGuard(), mcp: (t, a) async => '{}');
+    expect((await none.run(const ToolCall('5', 'whoami', {})))['ok'], false);
+  });
+
+  test('open_screen — 열면 opened, 못 열면 그 이유', () async {
+    final opened = <String>[];
+    final runner = AssistantToolRunner(gw: null, api: app({}), journal: await AssistantJournal.load(), guard: MailReadGuard(), openScreen: (k) {
+      if (k == 'admin_users') return '사용자 관리 화면 권한이 없습니다';
+      opened.add(k);
+      return null;
+    });
+    expect(await runner.run(const ToolCall('1', 'open_screen', {'screen': 'todo'})), {'ok': true, 'opened': 'todo'});
+    expect(await runner.run(const ToolCall('2', 'open_screen', {'screen': 'admin_users'})), {'ok': false, 'error': '사용자 관리 화면 권한이 없습니다'});
+    expect(opened, ['todo']);
   });
 
   test('cardLine — 앱이 인자로 만든 문장(참석자 부서, 메일 전문·경고)', () {
