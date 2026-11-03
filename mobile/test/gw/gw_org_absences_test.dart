@@ -54,7 +54,7 @@ void main() {
   });
 
   for (final duty in ['팀원', '팀장']) {
-    test('$duty: 소속 부서만 조회하고 다른 조직·자기 자신·빈 태그를 제외한다', () async {
+    test('$duty: 센터가 없으면 소속 부서만 조회하고 다른 조직·자기 자신·빈 태그를 제외한다', () async {
       final gw = source({
         '20': [
           person('7', '20', '연차', duty: duty),
@@ -65,19 +65,20 @@ void main() {
           person('8', '20', '외근'),
         ],
       });
+      gw.routes['/gw/APIHandler/gw102A01'] = (_) => {'treeList': [node('20', '1', '개발팀')]};
       final r = await gw.api().organizationAbsences();
       expect(r.isCenter, false);
       expect(r.members.map((p) => p.empSeq), ['8']);
       expect(r.members.single.tag, '외근');
-      expect(gw.calls['/gw/APIHandler/gw102A01'], isNull);
       expect(gw.calls['/gw/APIHandler/gw102A02']!.map((b) => b['selectedId']), [
         '20',
       ]);
     });
   }
-  test('센터장: 센터 직속과 하위 팀·파트만 포함한다', () async {
+  for (final duty in ['센터장', '팀원']) {
+  test('$duty: 기본은 센터 직속과 하위 팀·파트만 포함한다', () async {
     final gw = source({
-      '20': [person('7', '20', '', duty: '센터장'), person('8', '20', '연차')],
+      '20': [person('7', '20', '', duty: duty), person('8', '20', '연차')],
       '21': [person('9', '21', '오후반차')],
       '22': [person('10', '22', '외근')],
       '23': [person('11', '23', '육아휴직')],
@@ -99,23 +100,14 @@ void main() {
       unorderedEquals(['20', '21', '22', '23']),
     );
   });
-  test('팀 소속 센터장도 가장 가까운 상위 센터만 선택한다', () {
-    expect(absenceDepartmentIds(tree, '21', '센터장'), {'20', '21', '22', '23'});
-    expect(absenceDepartmentIds(tree, '21', '팀원'), {'21'});
+  }
+  test('팀 소속도 가장 가까운 상위 센터만 선택한다', () {
+    expect(absenceDepartmentIds(tree, '21'), {'20', '21', '22', '23'});
   });
-  test('센터 확인 불가·순환 트리는 전사로 확장하지 않고 실패한다', () {
-    expect(
-      () => absenceDepartmentIds([], '20', '센터장'),
-      throwsA(isA<GwException>()),
-    );
-    expect(
-      () => absenceDepartmentIds(
-        [node('20', '21', '팀'), node('21', '20', '파트')],
-        '20',
-        '센터장',
-      ),
-      throwsA(isA<GwException>()),
-    );
+  test('센터 확인 불가·순환 트리는 전사로 확장하지 않는다(null → 소속 부서)', () {
+    expect(absenceDepartmentIds([], '20'), isNull);
+    expect(absenceDepartmentIds([node('20', '21', '팀'), node('21', '20', '파트')], '20'), isNull);
+    expect(() => absenceDepartmentIds(tree, ''), throwsA(isA<GwException>()));
   });
   test('새로고침은 캐시 없이 현재 태그를 다시 읽는다', () async {
     final rows = {
