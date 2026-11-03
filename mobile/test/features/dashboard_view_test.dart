@@ -128,12 +128,12 @@ void main() {
   testWidgets('편집 모드: 끄는 동안 놓을 자리 점선 안내, 놓으면 그 칸에 배치', (tester) async {
     List<DashboardTile>? out;
     await _pump(tester, editing: true,
-      layout: const [DashboardTile('briefing', 0, 0, 6, 3), DashboardTile('mails', 6, 0, 6, 3)],
+      layout: const [DashboardTile('briefing', 0, 0, 12, 6), DashboardTile('mails', 12, 0, 12, 6)],
       onChanged: (t) => out = t);
-    // 1200폭 → 칸 폭 = (1200+12)/12 = 101. 브리핑 손잡이를 오른쪽 6칸·아래 3줄만큼 끈다(mails 바로 아래).
+    // 1200폭 → 칸 폭 = (1200+12)/24 = 50.5. 브리핑 손잡이를 오른쪽 12칸·아래 6줄(42px)만큼 끈다(mails 바로 아래).
     final g = await tester.startGesture(tester.getCenter(find.text('브리핑')));
     await g.moveBy(const Offset(20, 0)); // 끌기 시작 판정
-    await g.moveBy(const Offset(606 - 20, 3 * 84));
+    await g.moveBy(const Offset(606 - 20, 6 * 42));
     await tester.pump();
     final guide = find.byWidgetPredicate((w) => w is CustomPaint && w.painter.runtimeType.toString() == '_DashedRectPainter');
     expect(guide, findsOneWidget);
@@ -141,9 +141,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(guide, findsNothing);
     final b = out!.firstWhere((t) => t.id == 'briefing');
-    expect((b.x, b.y), (6, 3));
+    expect((b.x, b.y), (12, 6));
     final m = out!.firstWhere((t) => t.id == 'mails');
-    expect((m.x, m.y), (6, 0)); // 안 겹친 타일은 그대로
+    expect((m.x, m.y), (12, 0)); // 안 겹친 타일은 그대로
   });
 
   testWidgets('편집해도 지금 안 보이는 타일(정의 없음)은 배치에 그대로 남는다', (tester) async {

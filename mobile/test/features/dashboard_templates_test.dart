@@ -43,7 +43,8 @@ void main() {
     await t.tap(find.widgetWithText(FilledButton, '공유'));
     await t.pumpAndSettle();
     final post = calls.firstWhere((x) => x.$1 == 'POST');
-    expect(post.$3, {'name': '영업용', 'tiles': [{'id': 'teams', 'x': 0, 'y': 0, 'w': 6, 'h': 3}]});
+    // 응답에 cols가 없으면(배포 전 서버) 옛 12칸 → 24칸으로 두 배, 보낼 땐 cols 24
+    expect(post.$3, {'name': '영업용', 'tiles': [{'id': 'teams', 'x': 0, 'y': 0, 'w': 12, 'h': 6}], 'cols': 24});
 
     // 적용: 확인 후 기본 템플릿 배치로 PUT
     await t.tap(find.widgetWithText(TextButton, '적용').first);
@@ -51,7 +52,7 @@ void main() {
     await t.tap(find.widgetWithText(FilledButton, '적용'));
     await t.pumpAndSettle();
     final put = calls.lastWhere((x) => x.$1 == 'PUT');
-    expect(put.$3, {'tiles': [{'id': 'briefing', 'x': 0, 'y': 0, 'w': 8, 'h': 4}]});
+    expect(put.$3, {'tiles': [{'id': 'briefing', 'x': 0, 'y': 0, 'w': 16, 'h': 8}], 'cols': 24});
     expect(find.text('홈 템플릿'), findsNothing); // 적용하면 닫힌다
   });
 }

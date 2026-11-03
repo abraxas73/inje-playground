@@ -238,10 +238,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     // 앱 타깃 기준(테스트는 기본 android라 모바일 경로)으로 가른다 — Platform.isMacOS는 테스트 호스트라 부정확.
     if (isDesktopPlatform) {
       final sections = <String, DashboardWidgetDef>{};
-      void add(String id, String title, Widget child, {int w = 6, int h = 3, bool fill = false}) => sections[id] = DashboardWidgetDef(title, child, defaultW: w, defaultH: h, fill: fill);
+      void add(String id, String title, Widget child, {int w = 12, int h = 6, bool fill = false}) => sections[id] = DashboardWidgetDef(title, child, defaultW: w, defaultH: h, fill: fill);
       final canConfluence = session?.isAdmin == true || session?.permissions['confluence'] != false;
       final canSharepoint = session?.isAdmin == true || session?.permissions['sharepoint'] != false;
-      add('greeting', '인사 · 오늘의 한 줄', HomeGreetingCard(title: g.title, subtitle: g.subtitle, quote: q), w: 12, h: 2);
+      add('greeting', '인사 · 오늘의 한 줄', HomeGreetingCard(title: g.title, subtitle: g.subtitle, quote: q), w: 24, h: 4);
       add('briefing', '데일리 브리핑', BriefingCard(
         summary: summary == null ? null : SummaryText(text: summary.text, at: summary.at),
         busy: _summaryBusy || _manualBusy,
@@ -255,97 +255,97 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         onJiraIssue: (key) => open('/web?path=${Uri.encodeComponent('/jira/$key')}'),
         onGwConnect: gw != null && gw.status != GwStatus.connected ? () => context.push('/gw/connect') : null,
         gwRelogin: gw?.status == GwStatus.needsRelogin,
-      ), w: 8, h: 4);
+      ), w: 16, h: 8);
       // 위젯은 "항상" 제공한다 — 내용이 있으면 실제, 없으면 영역을 유지한 채 "연결 필요"·안내 placeholder를 그 자리에 둔다
       // (건너뛰면 빈 공간이 생기고, 삭제한 위젯을 팔레트에서 다시 추가할 수 없다). 배치는 자동으로 바꾸지 않는다.
       final gwConnect = gw != null && gw.status != GwStatus.connected ? () => context.push('/gw/connect') : null;
       final gwNo = data == null; // 아마란스 미연결/로딩 실패
-      void addPh(String id, String title, String msg, {VoidCallback? onConnect, String label = '연결하기', int w = 6, int h = 3, VoidCallback? onMore, String moreLabel = ''}) =>
+      void addPh(String id, String title, String msg, {VoidCallback? onConnect, String label = '연결하기', int w = 12, int h = 6, VoidCallback? onMore, String moreLabel = ''}) =>
           sections[id] = DashboardWidgetDef(title, DashboardPlaceholder(title: title, message: msg, onConnect: onConnect, connectLabel: label, onMore: onMore, moreLabel: moreLabel), defaultW: w, defaultH: h);
       void settingsConnect() => open('/settings');
 
       // Confluence
       if (data != null && !data.errors.containsKey('confluence') && canConfluence && (data.confluence?.items.isNotEmpty ?? false)) {
-        add('confluence', 'Confluence', ConfluenceSection(data: data.confluence, onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication), onMore: () => open('/web?path=${Uri.encodeComponent('/confluence')}'), maxShown: null), w: 6, h: 3);
+        add('confluence', 'Confluence', ConfluenceSection(data: data.confluence, onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication), onMore: () => open('/web?path=${Uri.encodeComponent('/confluence')}'), maxShown: null), w: 12, h: 6);
       } else {
         addPh('confluence', 'Confluence', !canConfluence ? '접근 권한이 없습니다' : gwNo ? 'Confluence 연결이 필요합니다' : '최근 Confluence 활동이 없습니다', onConnect: !canConfluence ? null : settingsConnect, label: '연결 설정');
       }
       // SharePoint
       if (data != null && !data.errors.containsKey('sharepoint') && canSharepoint && (data.sharepoint?.items.isNotEmpty ?? false)) {
-        add('sharepoint', 'SharePoint', SharepointSection(data: data.sharepoint, onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication), onMore: () => open('/web?path=${Uri.encodeComponent('/sharepoint')}'), maxShown: null), w: 6, h: 3);
+        add('sharepoint', 'SharePoint', SharepointSection(data: data.sharepoint, onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication), onMore: () => open('/web?path=${Uri.encodeComponent('/sharepoint')}'), maxShown: null), w: 12, h: 6);
       } else {
         addPh('sharepoint', 'SharePoint', !canSharepoint ? '접근 권한이 없습니다' : gwNo ? 'SharePoint 연결이 필요합니다' : '최근 SharePoint 문서가 없습니다', onConnect: !canSharepoint ? null : settingsConnect, label: '연결 설정');
       }
       // 지금 필요한 것(FocusSection은 빈 상태를 스스로 보여 준다)
       if (!gwNo) {
-        add('focus', '지금 필요한 것', FocusSection(items: focusItems(data, approvals: ref.watch(approvalsLiveProvider), mentions: ref.watch(teamsMentionsLiveProvider)), onOpen: open), w: 4, h: 2);
+        add('focus', '지금 필요한 것', FocusSection(items: focusItems(data, approvals: ref.watch(approvalsLiveProvider), mentions: ref.watch(teamsMentionsLiveProvider)), onOpen: open), w: 8, h: 4);
       } else {
-        addPh('focus', '지금 필요한 것', '아마란스에 연결하면 표시됩니다', onConnect: gwConnect, w: 4, h: 2);
+        addPh('focus', '지금 필요한 것', '아마란스에 연결하면 표시됩니다', onConnect: gwConnect, w: 8, h: 4);
       }
       // 일정
       if (!gwNo && !data.errors.containsKey('today') && (myMeetings(data).isNotEmpty || myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).isNotEmpty)) {
-        add('meetings', '일정', MeetingsSection(meetings: myMeetings(data), tomorrowCount: myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).length, onMore: () => open('/gw/today'), maxShown: null), w: 6, h: 3);
+        add('meetings', '일정', MeetingsSection(meetings: myMeetings(data), tomorrowCount: myEvents(data.tomorrow ?? const [], data.cals ?? const [], data.empSeq).length, onMore: () => open('/gw/today'), maxShown: null), w: 12, h: 6);
       } else {
         addPh('meetings', '일정', gwNo ? '아마란스에 연결하면 표시됩니다' : '오늘·내일 일정이 없습니다', onConnect: gwNo ? gwConnect : null);
       }
       // 팀원 부재(AbsenceSection은 토글과 빈 상태를 스스로 보여 준다)
       if (!gwNo) {
-        add('absence', '팀원 부재', _absenceSection(data, company), w: 6, h: 3);
+        add('absence', '팀원 부재', _absenceSection(data, company), w: 12, h: 6);
       } else {
         addPh('absence', '팀원 부재', '아마란스에 연결하면 표시됩니다', onConnect: gwConnect);
       }
       // 미결 결재
       final approvals = ref.watch(approvalsLiveProvider) ?? data?.approvals; // 2분마다 따로 갱신된 값 우선
       if (!gwNo && !data.errors.containsKey('approvals') && (approvals?.$2 ?? const []).isNotEmpty) {
-        add('approvals', '미결 결재', ApprovalsSection(total: approvals?.$1 ?? 0, items: approvals?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals'), maxShown: null), w: 6, h: 3);
+        add('approvals', '미결 결재', ApprovalsSection(total: approvals?.$1 ?? 0, items: approvals?.$2 ?? const [], now: data.now, onMore: () => open('/gw/approvals'), maxShown: null), w: 12, h: 6);
       } else {
         addPh('approvals', '미결 결재', gwNo ? '아마란스에 연결하면 표시됩니다' : '미결 결재가 없습니다', onConnect: gwNo ? gwConnect : null);
       }
       // 메일
       final unreadMail = (data?.inbox?.$2 ?? const []).where((m) => !m.seen).toList();
       if (!gwNo && !data.errors.containsKey('inbox') && unreadMail.isNotEmpty) {
-        add('mails', '메일', MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail'), onOpen: openMail, maxShown: null), w: 6, h: 3);
+        add('mails', '메일', MailsSection(items: data.inbox?.$2 ?? const [], unreadTotal: data.inbox?.$1 ?? 0, onMore: () => open('/gw/mail'), onOpen: openMail, maxShown: null), w: 12, h: 6);
       } else {
         addPh('mails', '메일', gwNo ? '아마란스에 연결하면 표시됩니다' : '안 읽은 메일이 없습니다', onConnect: gwNo ? gwConnect : null, onMore: gwNo ? null : () => open('/gw/mail'), moreLabel: '메일');
       }
       // 아마란스 알림(알림센터 전체 — 예전 '메신저 멘션' 자리, 위젯 id는 저장된 배치 호환으로 talks 그대로)
       if (!gwNo) {
-        add('talks', '아마란스 알림', GwAlertsCard(onOpenPath: open, fill: true), w: 6, h: 4, fill: true);
+        add('talks', '아마란스 알림', GwAlertsCard(onOpenPath: open, fill: true), w: 12, h: 8, fill: true);
       } else {
-        addPh('talks', '아마란스 알림', '아마란스에 연결하면 표시됩니다', onConnect: gwConnect, w: 6, h: 4);
+        addPh('talks', '아마란스 알림', '아마란스에 연결하면 표시됩니다', onConnect: gwConnect, w: 12, h: 8);
       }
       // Teams 답장 대기
       final mentions = ref.watch(teamsMentionsLiveProvider) ?? data?.mentions; // 2분마다 따로 갱신된 값 우선
       final tmConnected = mentions?.connected == true;
       if (!gwNo && !data.errors.containsKey('teams') && tmConnected && (mentions?.items.isNotEmpty ?? false)) {
-        add('teams', 'Teams 답장 대기', TeamsSection(mentions: mentions, onOpen: () => open(teamsRoute), onOpenChat: (id) => open(id.isEmpty ? teamsRoute : '/web?path=${Uri.encodeComponent('/teams/chat?chat=$id')}'), maxShown: null), w: 6, h: 3);
+        add('teams', 'Teams 답장 대기', TeamsSection(mentions: mentions, onOpen: () => open(teamsRoute), onOpenChat: (id) => open(id.isEmpty ? teamsRoute : '/web?path=${Uri.encodeComponent('/teams/chat?chat=$id')}'), maxShown: null), w: 12, h: 6);
       } else {
         addPh('teams', 'Teams 답장 대기', !tmConnected ? 'Teams 연결이 필요합니다' : '답장 대기가 없습니다', onConnect: !tmConnected ? settingsConnect : null, label: '연결 설정');
       }
       // 아마란스 메신저 — 간략(대화방 목록 카드)·상세(목록→대화방까지 위젯 안에서) 2종. 카드가 스스로 세션·로딩·빈 상태를 처리.
       // 연동을 끄면(더보기 스위치) 두 위젯 모두 안내 + 설정으로 이동
       if (ref.watch(messengerEnabledProvider).value ?? true) {
-        add('messenger', '아마란스 메신저(간략)', MessengerDashboardCard(onMore: () => open('/gw/messenger')), w: 6, h: 4);
-        add('messenger_full', '아마란스 메신저(대화)', const MessengerPanel(), w: 6, h: 7, fill: true);
+        add('messenger', '아마란스 메신저(간략)', MessengerDashboardCard(onMore: () => open('/gw/messenger')), w: 12, h: 8);
+        add('messenger_full', '아마란스 메신저(대화)', const MessengerPanel(), w: 12, h: 14, fill: true);
       } else {
-        add('messenger', '아마란스 메신저(간략)', const MessengerOffNotice(), w: 6, h: 4, fill: true);
-        add('messenger_full', '아마란스 메신저(대화)', const MessengerOffNotice(), w: 6, h: 7, fill: true);
+        add('messenger', '아마란스 메신저(간략)', const MessengerOffNotice(), w: 12, h: 8, fill: true);
+        add('messenger_full', '아마란스 메신저(대화)', const MessengerOffNotice(), w: 12, h: 14, fill: true);
       }
-      if (session != null && canUsePage(session, todoEntry)) add('todo', '할 일', const TodoDashboardCard(), w: 6, h: 6, fill: true);
+      if (session != null && canUsePage(session, todoEntry)) add('todo', '할 일', const TodoDashboardCard(), w: 12, h: 12, fill: true);
       // Teams 채팅(상세) — 목록→대화방까지 위젯 안에서(아마란스 메신저(대화)와 같은 방식)
       if (session != null && canUsePage(session, teamsChatEntry)) {
-        add('teams_chat', 'Teams 채팅', const TeamsChatPanel(), w: 6, h: 7, fill: true);
+        add('teams_chat', 'Teams 채팅', const TeamsChatPanel(), w: 12, h: 14, fill: true);
       } else {
-        addPh('teams_chat', 'Teams 채팅', '접근 권한이 없습니다', w: 6, h: 7);
+        addPh('teams_chat', 'Teams 채팅', '접근 권한이 없습니다', w: 12, h: 14);
       }
-      add('notices', '공지', const GwNoticesCard(pageSize: 10), w: 6, h: 3);
+      add('notices', '공지', const GwNoticesCard(pageSize: 10), w: 12, h: 6);
       add('quick', '바로 가기', ServiceCardGrid(children: [
         if (session != null && canUsePage(session, teamsChatEntry)) _quick(context, Icons.forum_outlined, 'Teams 채팅', '내가 속한 채팅 읽기·보내기', () => context.push(teamsRoute), Brand.tints[3]),
         _quick(context, Icons.restaurant, '뭐 먹지', '주변 식당·카페', () => context.go('/food'), Brand.tints[2]),
         _quick(context, Icons.stairs, '사다리', '순서·당번 정하기', () => context.go('/ladder'), Brand.tints[0]),
         _quick(context, Icons.coffee, '커피 타임', '팀 나누기·법카', () => context.go('/team'), Brand.tints[1]),
-      ]), w: 12, h: 2);
-      if (session != null && webServices(session).isNotEmpty) add('services', '사내 서비스', ServiceGrid(session: session), w: 12, h: 3);
+      ]), w: 24, h: 4);
+      if (session != null && webServices(session).isNotEmpty) add('services', '사내 서비스', ServiceGrid(session: session), w: 24, h: 6);
 
       final layout = ref.watch(homeDashboardProvider).value ?? defaultDashboard;
       // Always On 떠 있는 창이 같은 위젯을 그리도록 정의를 올려 둔다(그리는 중엔 상태를 못 바꾸므로 그린 뒤)

@@ -93,10 +93,10 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1400, 2400));
     final app = await pumpHome(tester, creds: testCreds, routes: {
       // 사이에 빈 줄이 있는 배치(greeting 아래 4줄 비어 있음, focus는 더 아래)
-      '/api/users/home-dashboard': (200, {'tiles': [
-        {'id': 'greeting', 'x': 0, 'y': 0, 'w': 12, 'h': 2},
-        {'id': 'briefing', 'x': 0, 'y': 6, 'w': 6, 'h': 4},
-        {'id': 'focus', 'x': 6, 'y': 15, 'w': 6, 'h': 2},
+      '/api/users/home-dashboard': (200, {'cols': 24, 'tiles': [
+        {'id': 'greeting', 'x': 0, 'y': 0, 'w': 24, 'h': 4},
+        {'id': 'briefing', 'x': 0, 'y': 12, 'w': 12, 'h': 8},
+        {'id': 'focus', 'x': 12, 'y': 30, 'w': 12, 'h': 4},
       ]}),
     });
     await tester.tap(find.text('홈 편집'));
@@ -107,8 +107,8 @@ void main() {
     final by = <Object?, Map>{for (final t in sent) (t as Map)['id']: t};
     Map g(String id) => by[id]!;
     expect((g('greeting')['x'], g('greeting')['y']), (0, 0));
-    expect((g('briefing')['x'], g('briefing')['y'], g('briefing')['w'], g('briefing')['h']), (0, 2, 6, 4)); // 위로, 칼럼·크기 유지(기본 배치 w8과 구분)
-    expect((g('focus')['x'], g('focus')['y'], g('focus')['w']), (6, 2, 6));
+    expect((g('briefing')['x'], g('briefing')['y'], g('briefing')['w'], g('briefing')['h']), (0, 4, 12, 8)); // 위로, 칼럼·크기 유지(기본 배치 w16과 구분)
+    expect((g('focus')['x'], g('focus')['y'], g('focus')['w']), (12, 4, 12));
     expect(sent.length, 3); // 기본 배치(10개)가 아니라 서버 배치 기준 // briefing 옆 빈칸까지 올라감
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant({TargetPlatform.windows}));
