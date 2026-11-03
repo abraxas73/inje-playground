@@ -6,7 +6,7 @@ import 'home_dashboard.dart';
 
 /// 대시보드에 올릴 위젯 한 종류 — 제목(추가 팔레트용)과 실제 화면.
 class DashboardWidgetDef {
-  const DashboardWidgetDef(this.title, this.child, {this.defaultW = 6, this.defaultH = 3, this.fill = false});
+  const DashboardWidgetDef(this.title, this.child, {this.defaultW = 12, this.defaultH = 6, this.fill = false});
   final String title;
   final Widget child;
   final int defaultW, defaultH;
@@ -51,10 +51,10 @@ class DashboardPlaceholder extends StatelessWidget {
       );
 }
 
-const _rowHeight = 84.0;
+const _rowHeight = 42.0;
 const _gap = 12.0;
 
-/// 12칼럼 그리드 대시보드. 편집 모드에서 드래그로 위치 이동·오른쪽 아래 핸들로 크기 조정·삭제, 아래 팔레트로 추가.
+/// 24칼럼 그리드 대시보드(한 행 42px). 편집 모드에서 드래그로 위치 이동·오른쪽 아래 핸들로 크기 조정·삭제, 아래 팔레트로 추가.
 /// 자유 좌표 배치라 타일은 고정 높이(내용이 넘치면 타일 안에서 스크롤). 겹치면 아래로 밀어 해소(단순 세로 압축).
 class DashboardView extends StatefulWidget {
   const DashboardView({
@@ -131,7 +131,7 @@ class _DashboardViewState extends State<DashboardView> {
   DashboardTile _snap(DashboardTile t, double cellW) {
     if (_resizing) {
       final nw = (((t.w * cellW - _gap + _dx) + _gap) / cellW).round().clamp(1, dashboardCols - t.x);
-      final nh = (((t.h * _rowHeight - _gap + _dy) + _gap) / _rowHeight).round().clamp(1, 40);
+      final nh = (((t.h * _rowHeight - _gap + _dy) + _gap) / _rowHeight).round().clamp(1, 80);
       return t.copyWith(w: nw, h: nh);
     }
     final nx = ((t.x * cellW + _dx) / cellW).round().clamp(0, dashboardCols - t.w);

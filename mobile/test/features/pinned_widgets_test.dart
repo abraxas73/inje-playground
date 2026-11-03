@@ -83,7 +83,7 @@ void main() {
     String? pinned;
     Size? size;
     await tester.pumpWidget(MaterialApp(theme: appTheme(), home: Scaffold(body: SingleChildScrollView(child: DashboardView(
-      layout: const [DashboardTile('mails', 0, 0, 6, 3)],
+      layout: const [DashboardTile('mails', 0, 0, 12, 6)],
       widgets: {'mails': DashboardWidgetDef('메일', const Text('메일 내용'))},
       editing: false,
       onChanged: (_) {},
@@ -122,7 +122,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     (String, int?)? got;
     await tester.pumpWidget(MaterialApp(theme: appTheme(), home: Scaffold(body: SingleChildScrollView(child: DashboardView(
-      layout: const [DashboardTile('mails', 0, 0, 6, 3)],
+      layout: const [DashboardTile('mails', 0, 0, 12, 6)],
       widgets: {'mails': DashboardWidgetDef('메일', const Text('메일 내용'))},
       editing: false,
       onChanged: (_) {},

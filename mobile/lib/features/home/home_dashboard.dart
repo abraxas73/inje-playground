@@ -2,12 +2,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/client.dart';
 import '../../assistant/innobot_prefs.dart';
 
-/// 홈 대시보드(데스크톱 전용) — 12칼럼 그리드에 홈 위젯을 자유 배치. 계정 단위 서버 저장
+/// 홈 대시보드(데스크톱 전용) — 24칼럼 그리드에 홈 위젯을 자유 배치(2026-11-03 12칸에서 가로·세로 두 배 촘촘히). 계정 단위 서버 저장
 /// (user_settings `home_dashboard`, `GET·PUT /api/users/home-dashboard`). 모바일은 쓰지 않는다.
 
-const dashboardCols = 12;
+const dashboardCols = 24;
 
-/// 그리드 한 칸 배치. x·w는 칼럼(0..11, w 1..12, x+w<=12), y·h는 행 단위(행 높이는 뷰가 정함).
+/// 서버에 이 단위로 달라고(`?cols=24`) 보낸다. 응답에 cols가 없으면(배포 전 서버) 옛 12칸으로 보고 두 배로 읽는다.
+const _colsQuery = {'cols': '$dashboardCols'};
+
+/// 그리드 한 칸 배치. x·w는 칼럼(0..23, w 1..24, x+w<=24), y·h는 행 단위(행 높이는 뷰가 정함).
 class DashboardTile {
   const DashboardTile(this.id, this.x, this.y, this.w, this.h);
   final String id;
@@ -30,16 +33,16 @@ class DashboardTile {
 /// 서버에 아무 배치도 없을 때의 기본 배치. 데이터·연결 없는 위젯은 그 자리에 "연결 필요" 안내로 그려진다.
 /// 맨 위는 인사+오늘의 한 줄 결합 위젯(greeting) — 홈 전체가 위젯 영역.
 const defaultDashboard = <DashboardTile>[
-  DashboardTile('greeting', 0, 0, 12, 2),
-  DashboardTile('briefing', 0, 2, 8, 4),
-  DashboardTile('focus', 8, 2, 4, 2),
-  DashboardTile('teams', 8, 4, 4, 2),
-  DashboardTile('meetings', 0, 6, 6, 3),
-  DashboardTile('approvals', 6, 6, 6, 3),
-  DashboardTile('mails', 0, 9, 6, 3),
-  DashboardTile('messenger', 6, 9, 6, 3),
-  DashboardTile('absence', 0, 12, 6, 3),
-  DashboardTile('notices', 6, 12, 6, 3),
+  DashboardTile('greeting', 0, 0, 24, 4),
+  DashboardTile('briefing', 0, 4, 16, 8),
+  DashboardTile('focus', 16, 4, 8, 4),
+  DashboardTile('teams', 16, 8, 8, 4),
+  DashboardTile('meetings', 0, 12, 12, 6),
+  DashboardTile('approvals', 12, 12, 12, 6),
+  DashboardTile('mails', 0, 18, 12, 6),
+  DashboardTile('messenger', 12, 18, 12, 6),
+  DashboardTile('absence', 0, 24, 12, 6),
+  DashboardTile('notices', 12, 24, 12, 6),
 ];
 
 /// 예전 레이아웃 호환: 'quote'(인삿말 분리 전)는 'greeting'으로 옮긴다(위치 보존). 중복은 첫 것만.
@@ -88,9 +91,14 @@ List<DashboardTile> autoArrange(List<DashboardTile> tiles, {Set<String>? visible
   return [...placed, ...keep];
 }
 
-List<DashboardTile> _parse(Object? j) {
+/// 응답 {tiles, cols} → 24칸 타일. cols가 24가 아니면 옛 12칸이라 두 배. [j]가 템플릿 한 건이면 [cols]로 단위를 준다.
+List<DashboardTile> _parse(Object? j, {Object? cols}) {
   if (j is! Map || j['tiles'] is! List) return const [];
-  return (j['tiles'] as List).map(DashboardTile.fromJson).whereType<DashboardTile>().toList();
+  final k = '${cols ?? j['cols']}' == '$dashboardCols' ? 1 : 2;
+  return [
+    for (final t in (j['tiles'] as List).map(DashboardTile.fromJson).whereType<DashboardTile>())
+      k == 1 ? t : DashboardTile(t.id, t.x * k, t.y * k, t.w * k, t.h * k),
+  ];
 }
 
 /// 계정 단위 대시보드 배치. 비어 있으면 기본 배치를 돌려준다(저장 전까지는 기본).
@@ -101,7 +109,7 @@ class HomeDashboard extends AsyncNotifier<List<DashboardTile>> {
   @override
   Future<List<DashboardTile>> build() async {
     if (!ref.watch(innobotSignedInProvider)) return defaultDashboard;
-    final tiles = _parse(await ref.read(apiClientProvider).getJson('/api/users/home-dashboard'));
+    final tiles = _parse(await ref.read(apiClientProvider).getJson('/api/users/home-dashboard', query: _colsQuery));
     return tiles.isEmpty ? defaultDashboard : _migrate(tiles);
   }
 
@@ -112,7 +120,7 @@ class HomeDashboard extends AsyncNotifier<List<DashboardTile>> {
     try {
       final j = await ref.read(apiClientProvider).putJson(
             '/api/users/home-dashboard',
-            {'tiles': tiles.map((t) => t.toJson()).toList()},
+            {'tiles': tiles.map((t) => t.toJson()).toList(), 'cols': dashboardCols},
           );
       if (ref.mounted) {
         final saved = _parse(j);
@@ -133,21 +141,21 @@ class DashboardTemplate {
   final bool mine, isDefault;
   final List<DashboardTile> tiles;
 
-  static DashboardTemplate? fromJson(Object? j) {
+  static DashboardTemplate? fromJson(Object? j, {Object? cols}) {
     if (j is! Map || j['id'] is! String || j['name'] is! String) return null;
-    return DashboardTemplate(id: j['id'], name: j['name'], owner: '${j['owner'] ?? ''}', mine: j['mine'] == true, isDefault: j['isDefault'] == true, tiles: _parse(j));
+    return DashboardTemplate(id: j['id'], name: j['name'], owner: '${j['owner'] ?? ''}', mine: j['mine'] == true, isDefault: j['isDefault'] == true, tiles: _parse(j, cols: cols));
   }
 }
 
 const _templatesPath = '/api/users/home-dashboard/templates';
 
 Future<List<DashboardTemplate>> fetchDashboardTemplates(ApiClient api) async {
-  final j = await api.getJson(_templatesPath);
+  final j = await api.getJson(_templatesPath, query: _colsQuery);
   final list = j is Map && j['templates'] is List ? j['templates'] as List : const [];
-  return list.map(DashboardTemplate.fromJson).whereType<DashboardTemplate>().toList();
+  return list.map((t) => DashboardTemplate.fromJson(t, cols: (j as Map)['cols'])).whereType<DashboardTemplate>().toList();
 }
 
 Future<void> shareDashboardTemplate(ApiClient api, String name, List<DashboardTile> tiles) =>
-    api.postJson(_templatesPath, {'name': name, 'tiles': tiles.map((t) => t.toJson()).toList()});
+    api.postJson(_templatesPath, {'name': name, 'tiles': tiles.map((t) => t.toJson()).toList(), 'cols': dashboardCols});
 
 Future<void> deleteDashboardTemplate(ApiClient api, String id) => api.deleteJson('$_templatesPath/$id');
