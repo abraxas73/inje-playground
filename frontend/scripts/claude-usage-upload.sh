@@ -6,8 +6,8 @@ set -euo pipefail
 DAYS="${1:-3}"
 BASE_URL="${INJE_BASE_URL:-https://inje-playground.vercel.app}"
 ENV_FILE="$(cd "$(dirname "$0")/.." && pwd)/.env.local"
-TOKEN="${CLAUDE_OTEL_INGEST_TOKEN:-$(grep -E '^CLAUDE_OTEL_INGEST_TOKEN=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)}"
-if [ -z "$TOKEN" ]; then echo "CLAUDE_OTEL_INGEST_TOKEN이 없습니다(.env.local 또는 환경변수)." >&2; exit 1; fi
+TOKEN="${OPS_INGEST_TOKEN:-$(grep -E '^OPS_INGEST_TOKEN=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)}"
+if [ -z "$TOKEN" ]; then echo "OPS_INGEST_TOKEN이 없습니다(.env.local 또는 환경변수)." >&2; exit 1; fi
 DL="$HOME/Downloads"; DONE_DIR="$DL/claude-usage-uploaded"
 FILES=()
 while IFS= read -r f; do FILES+=("$f"); done < <(find "$DL" -maxdepth 1 -name 'members-analytics-*.csv' -mtime -"$DAYS" | sort)

@@ -30,10 +30,10 @@ export function parseEnv(text) {
 
 /** 환경변수 → 파일 순서로 토큰을 찾는다 */
 export function readToken(paths, env = process.env) {
-  if (env.CLAUDE_OTEL_INGEST_TOKEN) return env.CLAUDE_OTEL_INGEST_TOKEN.trim();
+  if (env.OPS_INGEST_TOKEN) return env.OPS_INGEST_TOKEN.trim();
   for (const p of paths) {
     try {
-      const v = parseEnv(fs.readFileSync(p, "utf8")).CLAUDE_OTEL_INGEST_TOKEN;
+      const v = parseEnv(fs.readFileSync(p, "utf8")).OPS_INGEST_TOKEN;
       if (v) return v;
     } catch { /* 다음 후보 */ }
   }

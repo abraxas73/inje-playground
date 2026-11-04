@@ -14,13 +14,13 @@ export const runtime = "nodejs";
  *   GET  ?email=&org=&status=&limit=   이력(requested_at 내림차순) + 실행기 하트비트
  *   POST { org_id, email, action, target_tier? }   요청 생성(활성 멤버·중복·티어 검증) → 201
  *   DELETE ?id=                        requested만 취소
- * 실행기(Bearer CLAUDE_OTEL_INGEST_TOKEN):
+ * 실행기(Bearer OPS_INGEST_TOKEN — 운영 자동화 토큰, 사용량 수집 토큰과 별개):
  *   GET  ?claim=1&executor=            가장 오래된 requested 1건을 running으로(RPC claude_seat_action_claim). 10분 넘은 running은 먼저 failed 처리
  *   PATCH { id, status: done|failed, before_tier?, after_tier?, error?, executor }   결과 반영. done이면 claude_org_members.seat_tier 갱신
  */
 
 const NO_STORE = { "Cache-Control": "no-store" };
-const isExecutor = (req: NextRequest) => verifyIngestToken(req.headers.get("authorization"), process.env.CLAUDE_OTEL_INGEST_TOKEN);
+const isExecutor = (req: NextRequest) => verifyIngestToken(req.headers.get("authorization"), process.env.OPS_INGEST_TOKEN);
 const STATUSES = new Set<string>(["requested", "running", "done", "failed", "cancelled"]);
 
 export async function GET(request: NextRequest) {

@@ -12,7 +12,7 @@ export const maxDuration = 60;
 /**
  * POST /api/admin/work-metrics/sync — 성과 지표 로컬 푸시(사내망 전용 시스템용 폴백).
  * Vercel에서 접근할 수 없는 GitLab(사내 IP 화이트리스트) 등의 일 집계를 로컬 스크립트가 계산해 밀어 넣는다.
- * 인증: Bearer CLAUDE_OTEL_INGEST_TOKEN(수집 토큰) 또는 관리자 세션.
+ * 인증: Bearer OPS_INGEST_TOKEN(운영 자동화 토큰 — 직원 PC에 배포되는 사용량 수집 토큰과 별개, 2026-11-04) 또는 관리자 세션.
  * body: { source: "gitlab"|"jira"|"confluence"|"gitlab_items", rows: [...], replace?: { from, to } }
  *  - 일 집계 소스는 허용 컬럼만 통과, PK upsert(교체). replace가 있으면 그 기간(day 포함)의 기존 행을 먼저 지운다.
  *  - gitlab_items는 work_items 항목(kind mr|commit). 검증·이메일 정규화는 normalizeGitlabItem, replace는 그 기간 커밋 행만 지운다(MR은 PK upsert).
@@ -29,7 +29,7 @@ type Body = { source?: string; rows?: Record<string, unknown>[]; replace?: { fro
 type Replace = { from: string; to: string };
 
 export async function POST(request: NextRequest) {
-  if (!verifyIngestToken(request.headers.get("authorization"), process.env.CLAUDE_OTEL_INGEST_TOKEN)) {
+  if (!verifyIngestToken(request.headers.get("authorization"), process.env.OPS_INGEST_TOKEN)) {
     const auth = await requireAdmin();
     if (!auth.ok) return auth.response;
   }

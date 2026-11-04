@@ -4,7 +4,7 @@
 //   node scripts/claude-seat-executor.mjs            # 15초마다 대기 요청을 claim해 claude.ai에 반영
 //   node scripts/claude-seat-executor.mjs --check    # 읽기 전용 ego 연결/소유자 권한 점검
 //   node scripts/claude-seat-executor.mjs --once     # 한 행만 처리하고 종료(점검용)
-// 환경: CLAUDE_OTEL_INGEST_TOKEN(없으면 frontend/.env.local → ~/.config/inje-playground/work-metrics.env),
+// 환경: OPS_INGEST_TOKEN(없으면 frontend/.env.local → ~/.config/inje-playground/work-metrics.env),
 //       APP_URL(기본 프로덕션), SEAT_EGO_SPACE(ego 전용 워크스페이스 이름, 기본 claude-seat-executor — 없으면 같은 이름으로 다시 만든다)
 // 서버 계약: GET ?claim=1 → {row}, PATCH {id,status,before_tier,after_tier,error,executor}, PUT heartbeat — src/app/api/admin/claude-usage/seat-actions
 // 스펙 docs/superpowers/specs/2026-09-29-claude-seat-actions-design.md §6
@@ -29,7 +29,7 @@ let loginOk = false;
 const log = (obj) => console.log(JSON.stringify({ t: new Date().toISOString(), ...obj }));
 
 const token = readToken([path.join(HERE, "..", ".env.local"), path.join(os.homedir(), ".config", "inje-playground", "work-metrics.env")]);
-if (!token) { console.error("CLAUDE_OTEL_INGEST_TOKEN이 없습니다(env 또는 frontend/.env.local)"); process.exit(1); }
+if (!token) { console.error("OPS_INGEST_TOKEN이 없습니다(env 또는 frontend/.env.local)"); process.exit(1); }
 
 async function api(method, url, body) {
   const r = await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30_000) });

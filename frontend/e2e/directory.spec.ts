@@ -1,6 +1,6 @@
 /**
  * 사내 조직도 명부(company_directory) API 게이트 — 세션 불필요.
- * CLAUDE_OTEL_INGEST_TOKEN 은 환경변수 또는 frontend/.env.local. SUPABASE_SERVICE_ROLE_KEY 가 없으면 500 "server not configured"로 분기.
+ * DIRECTORY_SYNC_TOKEN 은 환경변수 또는 frontend/.env.local. SUPABASE_SERVICE_ROLE_KEY 가 없으면 500 "server not configured"로 분기.
  */
 import { test, expect } from "@playwright/test";
 import fs from "node:fs";
@@ -15,7 +15,7 @@ function readEnvLocal(key: string): string | undefined {
     return undefined;
   }
 }
-const TOKEN = process.env.CLAUDE_OTEL_INGEST_TOKEN ?? readEnvLocal("CLAUDE_OTEL_INGEST_TOKEN");
+const TOKEN = process.env.DIRECTORY_SYNC_TOKEN ?? readEnvLocal("DIRECTORY_SYNC_TOKEN");
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? readEnvLocal("SUPABASE_SERVICE_ROLE_KEY");
 
 test.describe("조직도 명부 API 게이트 (세션 불필요)", () => {
@@ -30,7 +30,7 @@ test.describe("조직도 명부 API 게이트 (세션 불필요)", () => {
   });
 
   test("동기화 POST: 토큰 있음 + people 누락/빈 배열 → 400 (서비스 키 없으면 500)", async ({ request }) => {
-    test.skip(!TOKEN, "CLAUDE_OTEL_INGEST_TOKEN 미설정");
+    test.skip(!TOKEN, "DIRECTORY_SYNC_TOKEN 미설정");
     const noPeople = await request.post("/api/admin/directory/sync", { headers: { Authorization: `Bearer ${TOKEN}` }, data: { nope: 1 } });
     expect(noPeople.status()).toBe(SERVICE_KEY ? 400 : 500);
     const empty = await request.post("/api/admin/directory/sync", { headers: { Authorization: `Bearer ${TOKEN}` }, data: { people: [] } });

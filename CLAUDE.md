@@ -131,6 +131,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 **사내 조직도 명부**: `lib/directory/parse.ts`가 아마란스 `deptPath`(회사>회사>부문>본부>센터>팀)를 `units[]`·division/headquarters/team으로 분해. 동기화는 서버가 아니라 **로컬 스크립트**가 inno-creed MCP(stdio, 그룹웨어 로그인 필요)를 호출해 API로 밀어 넣는 푸시형. Claude 사용량 `summary`/`members` API가 이메일로 조인해 `team`/`division`을 붙인다.
 
 **Environment Variables**:
+- `OPS_INGEST_TOKEN` — 운영 자동화 Bearer: Claude 시트 실행기(`seat-actions`·`heartbeat`)·사용량 CSV 업로드(`imports`)·조직 멤버(`org-members`)·GitLab 성과 동기화(`work-metrics/sync`). 운영자 Mac `frontend/.env.local`·`~/.config/inje-playground/work-metrics.env`에만 — 사용량 수집 토큰과 별개(2026-11-04 분리, `ingest-token-scope.test.ts`가 수집 토큰을 OTLP 밖에서 못 쓰게 검사)
 - `DIRECTORY_SYNC_TOKEN` — 명부·사진 동기화(`/api/admin/directory/sync`·`/photos`) Bearer. GitHub 비밀과 같은 값, 사용량 수집 토큰과 별개(직원 PC에 배포되지 않음)
 - `CRON_SECRET` — Vercel 크론(`/api/cron/*`)·릴리스 스크립트의 SharePoint 단계 Bearer 인증
 - `JIRA_CLIENT_ID`, `JIRA_CLIENT_SECRET`, `JIRA_REDIRECT_URI` — 개인 Jira·Confluence 연결(Atlassian 3LO OAuth). `JIRA_TOKEN_ENC_KEY` — 그 토큰 암호화 키(64자 hex, 없으면 `MS_TOKEN_ENC_KEY`). `JIRA_PROJECTS`, `JIRA_STORY_POINTS_FIELD` — 성과 지표 Jira 수집 범위·스토리 포인트 필드
@@ -141,7 +142,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `MS_TOKEN_ENC_KEY` — RFP SharePoint 업로드용 Microsoft refresh 토큰 암호화 키(64자 hex, `openssl rand -hex 32`). 교체 시 모든 연결이 재연결 필요
 - `MS_ALLOWED_ORIGINS` — (선택) Microsoft OAuth 리디렉션 오리진 허용 목록(쉼표). 기본 `https://inje-playground.vercel.app,http://localhost:3003`
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service_role 키(서버 전용, 클라이언트 노출 금지). Claude 사용량 대시보드 관리자 API에서 사용
-- `CLAUDE_OTEL_INGEST_TOKEN` — Claude Code OTLP 수신 엔드포인트(`/api/otel/v1/metrics|logs`) Bearer 인증 토큰(`openssl rand -hex 32`)
+- `CLAUDE_OTEL_INGEST_TOKEN` — Claude Code OTLP 수신 엔드포인트(`/api/otel/v1/metrics|logs`) Bearer 인증 토큰(`openssl rand -hex 32`). 관리형 설정으로 **직원 PC 전부에 배포**되므로 OTLP 수신 외 API에 쓰지 않는다(운영 API는 `OPS_INGEST_TOKEN`·`DIRECTORY_SYNC_TOKEN`)
 - `CLAUDE_OFFICE_OTEL_TOKEN` — Office 추가 기능 트레이스 수신(`/api/otel/v1/traces`) 전용 토큰. claude.ai 조직 설정 Office Agents의 OTLP 헤더 `Authorization=Bearer <값>`에 넣는 값이라 Claude Code 토큰과 분리
 - `ANTHROPIC_API_KEY`, `RFP_LLM_MODEL`(기본 claude-opus-5) — RFP 비표준 문서 LLM 폴백 + 카탈로그 기능 추출 + 솔루션 매핑(선택 — 없으면 규칙 엔진만)
 - `PPT_SERVICE_URL` — ppt-service 주소(`https://innogrid-ppt-service.vercel.app`)
