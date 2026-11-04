@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/brand.dart';
 import '../app/theme.dart';
 import '../directory/org_directory.dart';
+import '../directory/person_view.dart';
 import 'messenger_chat_screen.dart';
 import 'messenger_models.dart';
 import 'messenger_provider.dart';
@@ -91,6 +92,7 @@ class _MessengerNewChatScreenState extends ConsumerState<MessengerNewChatScreen>
                     dense: true,
                     value: _picked.any((x) => x.empSeq == p.empSeq),
                     onChanged: (v) => setState(() => v == true ? _picked.add(p) : _picked.removeWhere((x) => x.empSeq == p.empSeq)),
+                    secondary: PersonAvatar(empSeq: p.empSeq, name: p.name, size: 36),
                     title: Text(p.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                     subtitle: Text([p.dept, p.duty].where((s) => s.isNotEmpty).join(' · '), style: TextStyle(fontSize: 12, color: Brand.muted)),
                   ),

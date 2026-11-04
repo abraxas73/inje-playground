@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildOrg, descendants, type PersonRow } from "@/lib/directory/org";
-import { normalizeDepartments } from "@/lib/directory/parse";
+import { buildOrg, descendants, photoUrls, type PersonRow } from "@/lib/directory/org";
+import { normalizeDepartments, normalizePerson } from "@/lib/directory/parse";
+import { sniffImage } from "@/lib/directory/photos";
 import { pagesForPath, canOpenPage } from "@/lib/page-access";
 
 const p = (email: string, name: string, units: string[], dept_id: string | null = null): PersonRow => ({
@@ -43,5 +44,23 @@ describe("조직도 데이터", () => {
     expect(canOpenPage("user", "/org")).toBe(true);
     expect(canOpenPage("guest", "/org")).toBe(false);
     expect(canOpenPage("user", "/org", { org_chart: false })).toBe(false);
+  });
+
+  it("사진 — 경로를 우리 API 주소(썸네일·원본)로, 모양이 틀리면 없음. 경로를 안 보낸 동기화는 칸을 건드리지 않는다", () => {
+    expect(photoUrls("gcmsAmaranth31433/empPic/7cdcb9b5-8ac3_jpg")).toEqual({ photo: "/api/directory/photo/7cdcb9b5-8ac3_jpg", photoLarge: "/api/directory/photo/7cdcb9b5-8ac3_jpg?size=large" });
+    expect(photoUrls("../x/empPic/a")).toEqual({ photo: null, photoLarge: null });
+    expect(photoUrls("g/empPic/..")).toEqual({ photo: null, photoLarge: null });
+    expect(photoUrls(null)).toEqual({ photo: null, photoLarge: null });
+    const person = buildOrg([], [{ ...p("a@x.com", "가", ["개발"]), photo_path: "g/empPic/id_jpg" }]).people[0];
+    expect([person.photo, person.photoPath]).toEqual(["/api/directory/photo/id_jpg", "g/empPic/id_jpg"]);
+    expect(buildOrg([], [p("b@x.com", "나", ["개발"])]).people[0].photoPath).toBeNull();
+    expect(sniffImage(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe("image/jpeg");
+    expect(sniffImage(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]))).toBe("image/png");
+    expect(sniffImage(new TextEncoder().encode("<svg onload=alert(1)>"))).toBeNull();
+    const base = { email: "a@x.com", name: "가" };
+    expect(normalizePerson({ ...base, photoPath: "g/empPic/id_jpg" })!.photo_path).toBe("g/empPic/id_jpg");
+    expect(normalizePerson({ ...base, photoPath: "" })!.photo_path).toBeNull();
+    expect(normalizePerson({ ...base, photoPath: "https://evil/x" })!.photo_path).toBeNull();
+    expect("photo_path" in normalizePerson(base)!).toBe(false);
   });
 });

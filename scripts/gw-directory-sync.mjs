@@ -3,6 +3,8 @@
 // 2) 로그인 쿠키(oAuthToken·signKey, 없으면 BIZCUBE_AT·HK)로 서명(wehago-sign)한 API 호출 — 앱 GwClient와 같은 헤더
 //    gw102A01 전사 부서 트리 → 인원 있는 부서마다 gw102A02 부서원(앱 rosterRows·find_person과 같은 본문)
 // 3) POST /api/admin/directory/sync {people, departments} (Bearer 수집 토큰). 서버가 50명·10부서 미만이면 거부한다.
+// 4) 사진 — 아마란스 사진은 로그인 쿠키가 있어야 받혀(2026-11-04 실측) 아직 우리 버킷에 없는 사진만 받아 /api/admin/directory/photos로 넣는다.
+//    사진 단계 실패는 명부 반영을 되돌리지 않고 다음 날 다시 받는다(이미 넣은 사진은 건너뜀).
 // 아이디·비밀번호·토큰·쿠키는 출력하지 않는다. 휴대폰 번호는 보내지 않는다.
 // 실행: GW_SYNC_ID=… GW_SYNC_PW=… SYNC_TOKEN=… node scripts/gw-directory-sync.mjs [--dry-run]
 import { createHmac, randomBytes } from "node:crypto";
@@ -10,6 +12,7 @@ import { chromium } from "playwright";
 
 const GW = (process.env.GW_URL ?? "https://gw.innogrid.com").replace(/\/$/, "");
 const SYNC_URL = process.env.SYNC_URL ?? "https://innocrew.innogrid.com/api/admin/directory/sync";
+const PHOTOS_URL = SYNC_URL.replace(/\/sync$/, "/photos");
 const DRY = process.argv.includes("--dry-run");
 const { GW_SYNC_ID: ID, GW_SYNC_PW: PW, SYNC_TOKEN: TOKEN } = process.env;
 if (!ID || !PW) throw new Error("GW_SYNC_ID·GW_SYNC_PW가 필요합니다");
@@ -114,8 +117,8 @@ async function main() {
         const emp = str(r.empSeq);
         if (!emp || seen.has(emp)) continue;
         seen.add(emp);
-        // find_person과 같은 항목(휴대폰 번호 제외)
-        people.push({ empSeq: emp, name: str(r.empName), loginId: str(r.loginId), email: str(r.emailAddr), deptId: str(r.deptSeq), deptName: str(r.deptName), deptPath: str(r.pathName), duty: str(r.dutyName), dutyCode: str(r.dutyCode), position: str(r.positionName) });
+        // find_person과 같은 항목(휴대폰 번호 제외) + 사진 경로(picFileId — 사진은 받지 않고 경로만)
+        people.push({ empSeq: emp, name: str(r.empName), loginId: str(r.loginId), email: str(r.emailAddr), deptId: str(r.deptSeq), deptName: str(r.deptName), deptPath: str(r.pathName), duty: str(r.dutyName), dutyCode: str(r.dutyCode), position: str(r.positionName), photoPath: str(r.picFileId) ? `${str(r.groupSeq)}/empPic/${str(r.picFileId)}` : "" });
       }
     }
   }
@@ -131,6 +134,59 @@ async function main() {
   const j = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`반영 실패 (HTTP ${res.status}): ${j.error ?? ""}`);
   console.log(`반영: ${j.total}명(비활성 ${j.deactivated}) · 부서 ${j.departments}개 · 건너뜀 ${j.skipped}`);
+  // 사진 단계 실패는 명부 반영을 되돌리지 않는다 — 경고만 남기고 다음 날 이어서(이미 넣은 사진은 건너뜀)
+  await syncPhotos(creds, people).catch((e) => console.log(`::warning::사진 동기화 실패: ${e.message}`));
+}
+
+/** 아직 버킷에 없는 사진만 아마란스에서 받아(썸네일·원본) 올린다 — 한 요청은 25장·base64 합계 3MB까지(Vercel 본문 4.5MB), 512KB 넘는 파일은 건너뜀. */
+async function syncPhotos(creds, people) {
+  const auth = { Authorization: `Bearer ${TOKEN}` };
+  const have = await fetch(PHOTOS_URL, { headers: auth, signal: AbortSignal.timeout(60_000) }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`사진 목록 HTTP ${r.status}`))));
+  const known = new Set(have.ids ?? []);
+  const todo = [...new Map(people.filter((p) => p.photoPath).map((p) => [p.photoPath.split("/").pop(), p.photoPath])).entries()].filter(([id]) => !known.has(id));
+  const cookie = `BIZCUBE_AT=${creds.authToken}; BIZCUBE_HK=${creds.signKey}; BIZCUBE_TYPE=PC;`;
+  const MAX_FILE = 512 * 1024, MAX_BODY = 3 * 1024 * 1024;
+  const get = async (path) => {
+    const r = await fetch(`${GW}/gw/contentsImgController/download/${path}`, { headers: { Cookie: cookie }, signal: AbortSignal.timeout(30_000) });
+    const type = r.headers.get("content-type") ?? "";
+    if (!r.ok || !type.startsWith("image/")) throw new Error(`HTTP ${r.status}`);
+    const b = Buffer.from(await r.arrayBuffer());
+    if (b.length > MAX_FILE) throw new Error("too large");
+    return b.toString("base64");
+  };
+  let stored = 0, failed = 0, batch = [], bytes = 0;
+  const flush = async () => {
+    if (!batch.length) return;
+    const n = batch.length;
+    try {
+      const r = await fetch(PHOTOS_URL, { method: "POST", headers: { ...auth, "Content-Type": "application/json" }, body: JSON.stringify({ photos: batch }), signal: AbortSignal.timeout(120_000) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(`HTTP ${r.status} ${j.error ?? ""}`);
+      stored += j.stored ?? 0;
+      failed += j.rejected ?? 0;
+    } catch (e) {
+      failed += n; // 이 묶음만 다음 날 다시
+      console.log(`사진 묶음 ${n}장 반영 실패: ${e.message}`);
+    }
+    batch = [];
+    bytes = 0;
+  };
+  for (const [id, path] of todo) {
+    const [group, , file] = path.split("/");
+    let item;
+    try {
+      item = { id, thumb: await get(`${group}/empPic/thum_${file}`), large: await get(path) };
+    } catch {
+      failed++;
+      continue;
+    }
+    const size = item.thumb.length + item.large.length;
+    if (batch.length >= 25 || bytes + size > MAX_BODY) await flush();
+    batch.push(item);
+    bytes += size;
+  }
+  await flush();
+  console.log(`사진: 저장돼 있음 ${known.size} · 새로 ${todo.length} 중 저장 ${stored} · 실패 ${failed}`);
 }
 
 main().catch((e) => {

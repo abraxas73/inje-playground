@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { descendants, type OrgData, type OrgDept, type OrgPerson } from "@/lib/directory/org";
@@ -101,6 +102,49 @@ interface PeopleActions {
   /** 검색 결과에서 사람을 누르면 조직도에서 그 소속 부서를 찾아 보여 준다 */
   locate?: (p: OrgPerson) => void;
   located?: string;
+  /** 사진·이름을 누르면 상세 보기 */
+  show: (p: OrgPerson) => void;
+}
+
+/** 직원 사진(없거나 못 받으면 이름 첫 글자) — 매일 동기화가 복사한 사본을 우리 API로(로그인 필요). */
+function PersonPhoto({ p, size, large = false }: { p: OrgPerson; size: number; large?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  const src = large ? p.photoLarge ?? p.photo : p.photo;
+  const style = { width: size, height: size };
+  if (!src || failed) {
+    return <span style={{ ...style, fontSize: size * 0.4 }} className="flex shrink-0 items-center justify-center rounded-full bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{p.name.slice(0, 1)}</span>;
+  }
+  // eslint-disable-next-line @next/next/no-img-element -- 로그인 쿠키가 필요한 API 그림이라 이미지 최적화 서버를 거치지 않는다
+  return <img src={src} alt="" style={style} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="shrink-0 rounded-full border bg-muted object-cover" />;
+}
+
+/** 직원 상세 — 큰 사진·직책·소속 경로·이메일, 메신저(앱 안)·메일. */
+function PersonDialog({ p, path, a, onClose }: { p: OrgPerson | null; path: string; a: PeopleActions; onClose: () => void }) {
+  return (
+    <Dialog open={!!p} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-sm">
+        {p && (
+          <>
+            <div className="flex justify-center pt-2"><PersonPhoto key={p.email} p={p} size={160} large /></div>
+            <DialogHeader className="items-center text-center sm:text-center">
+              <DialogTitle className="text-xl">{p.name}</DialogTitle>
+              <DialogDescription>{[p.duty, p.position].filter(Boolean).join(" · ") || "\u00a0"}</DialogDescription>
+            </DialogHeader>
+            <dl className="grid grid-cols-[4rem_1fr] gap-x-3 gap-y-2 text-sm">
+              <dt className="text-muted-foreground">소속</dt>
+              <dd className="break-keep">{path || p.deptName || "-"}</dd>
+              <dt className="text-muted-foreground">이메일</dt>
+              <dd className="break-all"><a href={mailtoUrl([p])} className="text-primary hover:underline">{p.email}</a></dd>
+            </dl>
+            <div className="flex justify-center gap-2 pt-1">
+              {a.inApp && p.empSeq && <Button size="sm" onClick={() => a.messenger([p])}><MessageCircle className="h-4 w-4" />메신저 대화</Button>}
+              <Button size="sm" variant={a.inApp ? "outline" : "default"} onClick={() => a.mail([p])}><Mail className="h-4 w-4" />메일 보내기</Button>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function RowActions({ p, a }: { p: OrgPerson; a: PeopleActions }) {
@@ -130,13 +174,16 @@ function PeopleTable({ people, a }: { people: OrgPerson[]; a: PeopleActions }) {
       </li>
       {people.map((p) => (
         <li key={p.email} className={cn("flex items-start gap-3 px-4 py-2 text-sm hover:bg-muted/40", a.picked.has(p.email) && "bg-primary/5", a.located === p.email && "bg-amber-50 dark:bg-amber-950/40")}>
-          <Checkbox className="mt-0.5" checked={a.picked.has(p.email)} onCheckedChange={() => a.toggle(p)} aria-label={`${p.name} 선택`} />
+          <Checkbox className="mt-2.5" checked={a.picked.has(p.email)} onCheckedChange={() => a.toggle(p)} aria-label={`${p.name} 선택`} />
+          <button type="button" onClick={() => a.show(p)} className="shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none" aria-label={`${p.name} 상세 보기`}>
+            <PersonPhoto p={p} size={36} />
+          </button>
           <div
             className={cn("min-w-0 flex-1", a.locate && p.deptId && "cursor-pointer")}
             {...(a.locate && p.deptId ? { role: "button", tabIndex: 0, title: "조직도에서 소속 보기", onClick: () => a.locate!(p), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); a.locate!(p); } } } : {})}
           >
             <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-medium">{p.name}</span>
+              <button type="button" onClick={(e) => { e.stopPropagation(); a.show(p); }} onKeyDown={(e) => e.stopPropagation()} className="font-medium hover:underline">{p.name}</button>
               <span className="text-xs text-muted-foreground">{[p.duty, p.position].filter(Boolean).join(" · ")}</span>
             </div>
             <div className="truncate text-xs text-muted-foreground" title={p.email}>{p.deptName ?? "-"} · {p.email}</div>
@@ -187,6 +234,7 @@ export default function OrgChart() {
   const [picked, setPicked] = useState<Map<string, OrgPerson>>(new Map());
   const [inApp, setInApp] = useState(false);
   const [located, setLocated] = useState("");
+  const [shown, setShown] = useState<OrgPerson | null>(null);
   useEffect(() => setInApp(document.body.dataset.app === "1"), []);
 
   const idx = useMemo(() => (data?.departments.length ? indexOrg(data) : null), [data]);
@@ -248,6 +296,7 @@ export default function OrgChart() {
     messenger: (list) => go(appActionUrl("messenger", list)),
     mail: (list) => go(inApp ? appActionUrl("mail", list) : mailtoUrl(list)),
     located,
+    show: setShown,
     // 조상을 펼치고 소속 부서를 선택한 뒤, 보이는 트리(넓은/좁은 화면 중 하나)에서 그 카드로 스크롤
     locate: searching
       ? (p) => {
@@ -392,6 +441,7 @@ export default function OrgChart() {
       </div>
 
       <PickedBar a={actions} />
+      <PersonDialog p={shown} path={shown?.deptId ? deptPath(idx, shown.deptId) : ""} a={actions} onClose={() => setShown(null)} />
 
       <p className="text-xs text-muted-foreground">그룹웨어(아마란스) 조직도를 매일 자동 동기화합니다.</p>
     </div>

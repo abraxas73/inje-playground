@@ -42,8 +42,12 @@ export function normalizePerson(raw: AmaranthPerson): DirectoryUpsertRow | null 
     team: deptName ?? (units.length ? units[units.length - 1] : null),
     duty: str(raw.duty),
     position: str(raw.position),
+    // 사진 경로를 보내지 않는 동기화(로컬 inno-creed 스크립트)는 칸을 빼서 기존 값을 지우지 않는다
+    ...("photoPath" in raw ? { photo_path: PHOTO_PATH.test(str(raw.photoPath) ?? "") ? str(raw.photoPath) : null } : {}),
   };
 }
+
+const PHOTO_PATH = /^[A-Za-z0-9_-]{1,64}\/empPic\/[A-Za-z0-9_.-]{1,80}$/;
 
 /** 명부 배열 → 행 배열(이메일 기준 중복 제거, 첫 항목 유지). skipped = 이메일 없음/형식 아님. */
 export function normalizeRoster(list: unknown): { rows: DirectoryUpsertRow[]; skipped: number } {
