@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isPromptsOwner } from "./prompts-owner";
 
 /** 세션 사용자가 admin인지 확인. 기존 /api/admin/* 라우트와 같은 401/403 메시지. */
 export async function requireAdmin(): Promise<{ ok: true; userId: string; email: string | null } | { ok: false; response: NextResponse }> {
@@ -15,6 +16,15 @@ export async function requireAdmin(): Promise<{ ok: true; userId: string; email:
     return { ok: false, response: NextResponse.json({ error: "관리자 권한이 필요합니다." }, { status: 403 }) };
   }
   return { ok: true, userId: user.id, email: user.email ?? null };
+}
+
+/** 관리자이면서 프롬프트 열람 담당자(PROMPTS_OWNER_EMAIL)인지 — 다른 관리자는 403 */
+export async function requirePromptsOwner(): ReturnType<typeof requireAdmin> {
+  const auth = await requireAdmin();
+  if (auth.ok && !isPromptsOwner(auth.email)) {
+    return { ok: false, response: NextResponse.json({ error: "프롬프트는 운영 담당자만 볼 수 있습니다." }, { status: 403 }) };
+  }
+  return auth;
 }
 
 /** service role 클라이언트 또는 500 응답 */
