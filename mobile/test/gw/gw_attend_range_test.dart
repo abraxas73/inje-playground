@@ -70,7 +70,12 @@ void main() {
             {'empCd': 'C', 'empNm': '이영희', 'atNm': '재택', 'messengerYn': 'Y'},
             {'empCd': 'B', 'empNm': '홍길동', 'atNm': '외근', 'messengerYn': 'N'}, // 메신저 표시 안 함
           ],
-      '/human/attendapplication/at00001': (b) => b['empCd'] == 'A' ? [{'empCd': 'A', 'empNm': '김민규', 'deptNm': '네이티브 플랫폼팀', 'atCdNm': '반차', 'startDt': n8, 'endDt': n8}] : [],
+      '/human/attendapplication/at00001': (b) => b['empCd'] == 'A'
+          ? [
+              {'empCd': 'A', 'empNm': '김민규', 'deptNm': '네이티브 플랫폼팀', 'atCdNm': '반차', 'startDt': n8, 'endDt': n8},
+              {'empCd': 'A', 'empNm': '김민규', 'deptNm': '네이티브 플랫폼팀', 'atCdNm': '반차', 'startDt': n8, 'endDt': n8, 'approStateNm': '승인'}, // 같은 날을 덮는 신청이 또 있어도 한 줄
+            ]
+          : [],
     });
     final api = gw.api();
     final depts = (await api.attendScopeDepts())[AttendScope.center];

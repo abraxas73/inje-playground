@@ -176,6 +176,7 @@ extension GwAttendRangeApi on GwApi {
       final s = await client.session();
       final from8 = f8.compareTo(tomorrow) > 0 ? f8 : tomorrow;
       final people = [for (final e in dir.entries) if (depts.contains(_norm(e.value.$2))) e.key];
+      final seen = <String>{};
       for (var i = 0; i < people.length; i += 8) {
         final batch = people.sublist(i, i + 8 > people.length ? people.length : i + 8);
         final lists = await Future.wait(batch.map((cd) => client.call('/human/attendapplication/at00001', {'coCd': s.coCd, 'empCd': cd, 'startDate': from8, 'endDate': e8}).catchError((Object e) {
@@ -184,7 +185,10 @@ extension GwAttendRangeApi on GwApi {
             })));
         for (final l in lists) {
           for (final r in _maps(l)) {
-            out.addAll(applicationDays(r, from8, e8));
+            // 같은 날을 덮는 신청이 여러 건(연장·변경 신청 등)이면 같은 줄이 겹친다 — 날짜·사람·종류·시각이 같으면 한 번만
+            for (final e in applicationDays(r, from8, e8)) {
+              if (seen.add('${e.date}|${e.empCd}|${e.kind}|${e.startTm}|${e.endTm}')) out.add(e);
+            }
           }
         }
       }
