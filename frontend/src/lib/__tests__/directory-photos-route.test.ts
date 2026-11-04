@@ -29,7 +29,10 @@ describe("조직도 사진 수집·조회 API", () => {
       { id: "b_jpg", thumb: Buffer.from("<svg/>").toString("base64"), large: jpeg },
     ]);
     expect(await r.json()).toEqual({ stored: 1, rejected: 2 });
-    expect(upload.mock.calls.map((c) => [c[0], c[2].contentType])).toEqual([["thumb/a_jpg", "image/jpeg"], ["large/a_jpg", "image/jpeg"]]);
+    expect(upload.mock.calls.map((c) => [c[0], c[2].contentType, c[2].upsert])).toEqual([["thumb/a_jpg", "image/jpeg", false], ["large/a_jpg", "image/jpeg", false]]);
+    // 이미 있는 사진은 덮어쓰지 않고 넘어간다
+    upload.mockResolvedValue({ error: { message: "The resource already exists" } });
+    expect((await post([{ id: "a_jpg", thumb: jpeg, large: jpeg }])).status).toBe(200);
   });
 
   it("한 번에 25장 넘게는 받지 않는다", async () => {

@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST {photos: [{id, thumb, large}]} — 동기화 스크립트(GitHub Actions, 수집 토큰)가 아마란스에서 받은 사진을 넣는다. thumb·large는 base64.
- * JPEG·PNG만, 하나 512KB까지. 같은 id는 덮어쓴다.
+ * JPEG·PNG만, 하나 512KB까지. 이미 있는 id는 덮어쓰지 않는다(id = picFileId는 사진이 바뀌면 바뀐다 — 수집 토큰으로 기존 사진을 바꿔치기 못 하게).
  */
 export async function POST(request: NextRequest) {
   const c = await authorize(request);
@@ -51,7 +51,8 @@ export async function POST(request: NextRequest) {
       continue;
     }
     for (const [k, b] of decoded) {
-      const { error } = await c.admin.storage.from(PHOTO_BUCKET).upload(`${k}/${raw.id}`, b!, { contentType: sniffImage(b!)!, upsert: true });
+      const { error } = await c.admin.storage.from(PHOTO_BUCKET).upload(`${k}/${raw.id}`, b!, { contentType: sniffImage(b!)!, upsert: false });
+      if (error && /exists|duplicate/i.test(error.message)) continue; // 이미 있음 — 그대로 둔다
       if (error) return NextResponse.json({ error: `사진 저장 실패: ${error.message}`, stored }, { status: 500 });
     }
     stored++;
