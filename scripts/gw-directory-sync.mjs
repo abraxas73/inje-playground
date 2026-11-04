@@ -138,7 +138,7 @@ async function main() {
   await syncPhotos(creds, people).catch((e) => console.log(`::warning::사진 동기화 실패: ${e.message}`));
 }
 
-/** 아직 버킷에 없는 사진만 아마란스에서 받아(썸네일·원본) 올린다 — 한 요청은 25장·base64 합계 3MB까지(Vercel 본문 4.5MB), 512KB 넘는 파일은 건너뜀. */
+/** 아직 버킷에 없는 사진만 아마란스에서 받아(썸네일·원본) 올린다 — 한 요청은 25장·base64 합계 3MB까지(Vercel 본문 4.5MB), 원본이 512KB를 넘으면 원본 자리에 썸네일. */
 async function syncPhotos(creds, people) {
   const auth = { Authorization: `Bearer ${TOKEN}` };
   const have = await fetch(PHOTOS_URL, { headers: auth, signal: AbortSignal.timeout(60_000) }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`사진 목록 HTTP ${r.status}`))));
@@ -175,7 +175,9 @@ async function syncPhotos(creds, people) {
     const [group, , file] = path.split("/");
     let item;
     try {
-      item = { id, thumb: await get(`${group}/empPic/thum_${file}`), large: await get(path) };
+      const thumb = await get(`${group}/empPic/thum_${file}`);
+      // 원본이 512KB를 넘으면(PNG 0.6~2.2MB 실측) 상세 보기도 썸네일로
+      item = { id, thumb, large: await get(path).catch((e) => (e.message === "too large" ? thumb : Promise.reject(e))) };
     } catch {
       failed++;
       continue;
