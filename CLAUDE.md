@@ -131,6 +131,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 **사내 조직도 명부**: `lib/directory/parse.ts`가 아마란스 `deptPath`(회사>회사>부문>본부>센터>팀)를 `units[]`·division/headquarters/team으로 분해. 동기화는 서버가 아니라 **로컬 스크립트**가 inno-creed MCP(stdio, 그룹웨어 로그인 필요)를 호출해 API로 밀어 넣는 푸시형. Claude 사용량 `summary`/`members` API가 이메일로 조인해 `team`/`division`을 붙인다.
 
 **Environment Variables**:
+- `DIRECTORY_SYNC_TOKEN` — 명부·사진 동기화(`/api/admin/directory/sync`·`/photos`) Bearer. GitHub 비밀과 같은 값, 사용량 수집 토큰과 별개(직원 PC에 배포되지 않음)
 - `CRON_SECRET` — Vercel 크론(`/api/cron/*`)·릴리스 스크립트의 SharePoint 단계 Bearer 인증
 - `JIRA_CLIENT_ID`, `JIRA_CLIENT_SECRET`, `JIRA_REDIRECT_URI` — 개인 Jira·Confluence 연결(Atlassian 3LO OAuth). `JIRA_TOKEN_ENC_KEY` — 그 토큰 암호화 키(64자 hex, 없으면 `MS_TOKEN_ENC_KEY`). `JIRA_PROJECTS`, `JIRA_STORY_POINTS_FIELD` — 성과 지표 Jira 수집 범위·스토리 포인트 필드
 - `DOORAY_SITE`, `DOORAY_ORGANIZATION_ID`, `DOORAY_TOKEN_ENC_KEY` — 개인 Dooray 연결(사이트·조직, 토큰 암호화 키)

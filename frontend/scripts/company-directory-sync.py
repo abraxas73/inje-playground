@@ -9,7 +9,7 @@
 
 전제(기본, stdio): ~/bin/inno-creed(또는 INNO_CREED 환경변수 경로)가 그룹웨어 로그인 크레덴셜을 스스로 취득할 수 있는 이 PC.
 전제(커넥터, INNO_MCP_URL 설정 시): HTTP JSON-RPC로 /api/mcp 호출 — 운영자 PC에서 INNOGRID 데스크탑 앱이 실행·아마란스 연결 중이어야 한다.
-토큰: CLAUDE_OTEL_INGEST_TOKEN 환경변수 또는 frontend/.env.local (Vercel과 동일 값).
+토큰: DIRECTORY_SYNC_TOKEN 환경변수 또는 frontend/.env.local (Vercel과 동일 값 — 사용량 수집 토큰과 별개, 2026-11-04).
 종료 코드: 0 성공 / 1 설정 오류 / 2 MCP 오류 / 3 서버 응답 오류
 Python 3.9+ 표준 라이브러리만 사용.
 """
@@ -33,13 +33,13 @@ DRY_RUN = "--dry-run" in sys.argv
 
 
 def read_token():
-    tok = os.environ.get("CLAUDE_OTEL_INGEST_TOKEN")
+    tok = os.environ.get("DIRECTORY_SYNC_TOKEN")
     if tok:
         return tok.strip()
     try:
         with open(ENV_LOCAL, encoding="utf-8") as f:
             for line in f:
-                if line.startswith("CLAUDE_OTEL_INGEST_TOKEN="):
+                if line.startswith("DIRECTORY_SYNC_TOKEN="):
                     return line.split("=", 1)[1].strip().strip('"')
     except OSError:
         pass
@@ -150,7 +150,7 @@ def main():
         return 1
     token = read_token()
     if not token and not DRY_RUN:
-        print("CLAUDE_OTEL_INGEST_TOKEN이 없습니다(환경변수 또는 frontend/.env.local).")
+        print("DIRECTORY_SYNC_TOKEN이 없습니다(환경변수 또는 frontend/.env.local).")
         return 1
 
     try:
