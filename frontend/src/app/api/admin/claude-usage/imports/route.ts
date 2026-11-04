@@ -23,7 +23,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   // 관리자 세션 또는 수집 토큰(스크립트 업로드용) 중 하나
   let uploadedBy: string | null = null;
-  if (!verifyIngestToken(request.headers.get("authorization"), process.env.CLAUDE_OTEL_INGEST_TOKEN)) {
+  if (!verifyIngestToken(request.headers.get("authorization"), process.env.OPS_INGEST_TOKEN)) {
     const auth = await requireAdmin();
     if (!auth.ok) return auth.response;
     uploadedBy = auth.userId;

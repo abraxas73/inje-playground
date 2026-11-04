@@ -10,7 +10,8 @@
 1. Supabase SQL Editor에서 `docs/sql/2026-08-26-claude-usage.sql` 실행.
 2. 환경변수(Vercel Production + `frontend/.env.local`):
    - `SUPABASE_SERVICE_ROLE_KEY` — Supabase > Project Settings > API > service_role (서버 전용, 절대 클라이언트 노출 금지)
-   - `CLAUDE_OTEL_INGEST_TOKEN` — 임의의 32바이트 이상 랜덤 문자열(`openssl rand -hex 32`)
+   - `CLAUDE_OTEL_INGEST_TOKEN` — 임의의 32바이트 이상 랜덤 문자열(`openssl rand -hex 32`). 관리형 설정으로 직원 PC에 배포되므로 OTLP 수신에만 쓴다
+   - `OPS_INGEST_TOKEN` — 운영 자동화(시트 실행기·CSV 업로드·조직 멤버·GitLab 동기화) 전용, 운영자 Mac `frontend/.env.local`·`~/.config/inje-playground/work-metrics.env`와 같은 값(2026-11-04 분리)
 3. 배포 후 `/admin/directory` > 조직·설정 탭에서 "수집 상태"가 토큰/서비스키 구성됨으로 표시되는지 확인.
 
 ## 1.1 멤버·초대 상태 테이블 (1회)

@@ -22,7 +22,7 @@
   python3 frontend/scripts/gitlab-metrics-sync.py --dry-run
 
 환경: GITLAB_TOKEN(read_api; 없으면 frontend/.env.local의 GITLAB_TOKEN),
-     CLAUDE_OTEL_INGEST_TOKEN(없으면 .env.local), GITLAB_URL(기본 rnd-app), APP_URL(기본 프로덕션),
+     OPS_INGEST_TOKEN(없으면 .env.local), GITLAB_URL(기본 rnd-app), APP_URL(기본 프로덕션),
      GITLAB_GROUPS(선택, 쉼표 구분 그룹 경로)
 """
 import argparse
@@ -62,11 +62,11 @@ def cfg():
     gitlab_url = (os.environ.get("GITLAB_URL") or "https://rnd-app.innogrid.com").rstrip("/")
     token = os.environ.get("GITLAB_TOKEN") or env_local("GITLAB_TOKEN")
     app_url = (os.environ.get("APP_URL") or "https://inje-playground.vercel.app").rstrip("/")
-    ingest = os.environ.get("CLAUDE_OTEL_INGEST_TOKEN") or env_local("CLAUDE_OTEL_INGEST_TOKEN")
+    ingest = os.environ.get("OPS_INGEST_TOKEN") or env_local("OPS_INGEST_TOKEN")
     if not token:
         sys.exit("GITLAB_TOKEN이 없습니다 (env 또는 frontend/.env.local)")
     if not ingest:
-        sys.exit("CLAUDE_OTEL_INGEST_TOKEN이 없습니다 (env 또는 frontend/.env.local)")
+        sys.exit("OPS_INGEST_TOKEN이 없습니다 (env 또는 frontend/.env.local)")
     return gitlab_url, token, app_url, ingest
 
 

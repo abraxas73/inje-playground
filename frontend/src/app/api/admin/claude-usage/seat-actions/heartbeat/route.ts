@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 /** PUT { logged_in, note?, host, version } — 관리자 Mac 실행기 하트비트(claude_seat_executor 행 1개, Bearer 수집 토큰) */
 export async function PUT(request: NextRequest) {
-  if (!verifyIngestToken(request.headers.get("authorization"), process.env.CLAUDE_OTEL_INGEST_TOKEN)) {
+  if (!verifyIngestToken(request.headers.get("authorization"), process.env.OPS_INGEST_TOKEN)) {
     return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
   const c = adminClientOr500();

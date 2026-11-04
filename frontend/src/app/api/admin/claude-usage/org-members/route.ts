@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!verifyIngestToken(request.headers.get("authorization"), process.env.CLAUDE_OTEL_INGEST_TOKEN)) {
+  if (!verifyIngestToken(request.headers.get("authorization"), process.env.OPS_INGEST_TOKEN)) {
     const auth = await requireAdmin();
     if (!auth.ok) return auth.response;
   }

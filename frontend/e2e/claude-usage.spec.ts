@@ -28,6 +28,8 @@ function readEnvLocal(key: string): string | undefined {
 }
 
 const TOKEN = process.env.CLAUDE_OTEL_INGEST_TOKEN ?? readEnvLocal("CLAUDE_OTEL_INGEST_TOKEN");
+/** CSV 업로드(imports) 등 운영 API는 운영 자동화 토큰 — 사용량 수집 토큰과 별개(2026-11-04) */
+const OPS_TOKEN = process.env.OPS_INGEST_TOKEN ?? readEnvLocal("OPS_INGEST_TOKEN");
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? readEnvLocal("SUPABASE_SERVICE_ROLE_KEY");
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? readEnvLocal("NEXT_PUBLIC_SUPABASE_URL");
 const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
@@ -80,8 +82,8 @@ test.describe("관리자 API 게이트 (세션 불필요)", () => {
   });
 
   test("imports POST: 토큰 인증 통과 후 파일 없음 → 400 (서비스 키 없으면 500)", async ({ request }) => {
-    test.skip(!TOKEN, "CLAUDE_OTEL_INGEST_TOKEN 미설정");
-    const r = await request.post("/api/admin/claude-usage/imports", { headers: auth(TOKEN!), multipart: { note: "no-files" } });
+    test.skip(!OPS_TOKEN, "OPS_INGEST_TOKEN 미설정");
+    const r = await request.post("/api/admin/claude-usage/imports", { headers: auth(OPS_TOKEN!), multipart: { note: "no-files" } });
     expect(r.status()).toBe(SERVICE_KEY ? 400 : 500);
   });
 });
@@ -107,7 +109,7 @@ test.describe("관리자 화면 (admin storageState 필요)", () => {
   });
 
   test.describe("합성 CSV 업로드", () => {
-    test.skip(!SERVICE_KEY || !SUPABASE_URL || !TOKEN, "SUPABASE_SERVICE_ROLE_KEY/NEXT_PUBLIC_SUPABASE_URL/CLAUDE_OTEL_INGEST_TOKEN 미설정");
+    test.skip(!SERVICE_KEY || !SUPABASE_URL || !OPS_TOKEN, "SUPABASE_SERVICE_ROLE_KEY/NEXT_PUBLIC_SUPABASE_URL/OPS_INGEST_TOKEN 미설정");
 
     test.afterAll(async () => {
       if (!SERVICE_KEY || !SUPABASE_URL) return;
@@ -128,7 +130,7 @@ test.describe("관리자 화면 (admin storageState 필요)", () => {
       );
 
       // 업로드는 스킬/스크립트와 같은 경로(수집 토큰 → imports API)
-      const up = await request.post("/api/admin/claude-usage/imports", { headers: auth(TOKEN!), multipart: { files: { name: path.basename(file), mimeType: "text/csv", buffer: fs.readFileSync(file) } } });
+      const up = await request.post("/api/admin/claude-usage/imports", { headers: auth(OPS_TOKEN!), multipart: { files: { name: path.basename(file), mimeType: "text/csv", buffer: fs.readFileSync(file) } } });
       expect(up.ok()).toBeTruthy();
       const body = (await up.json()) as { results: { ok: boolean; filename: string }[] };
       expect(body.results.every((r) => r.ok)).toBeTruthy();
