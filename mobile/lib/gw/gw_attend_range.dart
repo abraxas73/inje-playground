@@ -93,8 +93,10 @@ List<AttendEntry> applicationDays(Map r, String from8, String to8) {
   final state = asStr(r['approStateNm']);
   if (state.contains('반려') || state.contains('취소') || asStr(r['deleteReqYn']) == 'Y') return const [];
   final kind = asStr(r['atCdNm']).isNotEmpty ? asStr(r['atCdNm']) : asStr(r['atNm']);
-  final s = asStr(r['startDt']), e = asStr(r['endDt']).isEmpty ? s : asStr(r['endDt']);
   final d8 = RegExp(r'^\d{8}$');
+  // 실측(2026-11-04): 응답은 신청 하나가 근태 날짜(atDt)마다 한 줄 — 있으면 그날만, 없으면 신청 기간을 펼친다
+  final at = asStr(r['atDt']), one = d8.hasMatch(at);
+  final s = one ? at : asStr(r['startDt']), e = one ? at : (asStr(r['endDt']).isEmpty ? s : asStr(r['endDt']));
   if (kind.isEmpty || !d8.hasMatch(s) || !d8.hasMatch(e)) return const [];
   final out = <AttendEntry>[];
   for (var d = _day(s); !d.isAfter(_day(e)); d = d.add(const Duration(days: 1))) {
@@ -103,6 +105,14 @@ List<AttendEntry> applicationDays(Map r, String from8, String to8) {
     out.add(AttendEntry(date: day, empCd: asStr(r['empCd']), name: asStr(r['empNm']), dept: asStr(r['deptNm']), kind: kind, startTm: asStr(r['startTm']), endTm: asStr(r['endTm'])));
   }
   return out;
+}
+
+/// at00001 줄 → 취소 신청(cancellationApplication)과 그것이 가리키는 원래 줄(oriAppDetail = detailSq)을 뺀다.
+/// 실측: 육아휴직을 상신 취소하면 원래 줄은 그대로 오고 appDy=-1인 취소 줄이 날짜마다 따로 붙는다.
+List<Map> withoutCancelled(List<Map> rows) {
+  bool cancel(Map r) => r['cancellationApplication'] == true || asStr(r['oriAppDetail']).isNotEmpty;
+  final gone = {for (final r in rows) if (cancel(r)) asStr(r['oriAppDetail'])}..remove('');
+  return [for (final r in rows) if (!cancel(r) && !gone.contains(asStr(r['detailSq']))) r];
 }
 
 DateTime _day(String ymd8) => DateTime.utc(int.parse(ymd8.substring(0, 4)), int.parse(ymd8.substring(4, 6)), int.parse(ymd8.substring(6, 8)));
@@ -184,8 +194,8 @@ extension GwAttendRangeApi on GwApi {
               return null; // 한 사람 실패는 건너뛴다
             })));
         for (final l in lists) {
-          for (final r in _maps(l)) {
-            // 같은 날을 덮는 신청이 여러 건(연장·변경 신청 등)이면 같은 줄이 겹친다 — 날짜·사람·종류·시각이 같으면 한 번만
+          for (final r in withoutCancelled(_maps(l))) {
+            // 같은 날을 덮는 신청이 여러 건이어도 날짜·사람·종류·시각이 같으면 한 번만
             for (final e in applicationDays(r, from8, e8)) {
               if (seen.add('${e.date}|${e.empCd}|${e.kind}|${e.startTm}|${e.endTm}')) out.add(e);
             }

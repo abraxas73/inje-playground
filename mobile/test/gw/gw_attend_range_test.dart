@@ -49,6 +49,14 @@ void main() {
     expect(applicationDays({...r, 'deleteReqYn': 'Y'}, '20261101', '20261130'), isEmpty);
     expect(applicationDays({...r, 'startDt': '20261030', 'endDt': '20261102'}, '20261030', '20261106').map((e) => e.date), ['20261030', '20261102']); // 금~월이면 주말 빼고
     expect(applicationDays({...r, 'startDt': '2026-11-'}, '20261101', '20261130'), isEmpty); // 형식이 이상하면 그 건만 뺀다
+    expect(applicationDays({...r, 'startDt': '20260303', 'endDt': '20270302', 'atDt': '20261105'}, '20261104', '20261106').map((e) => e.date), ['20261105']); // 날짜별 줄이면 그날만
+    // 상신 취소 — 취소 줄과 그것이 가리키는 원래 줄은 빠지고 다른 신청은 남는다(2026-11-04 실측 모양)
+    final rows = <Map>[
+      {'detailSq': '71134', 'atCdNm': '육아휴직', 'cancellationApplication': false},
+      {'detailSq': '79635', 'atCdNm': '육아휴직', 'cancellationApplication': true, 'oriAppDetail': '71134'},
+      {'detailSq': '80599', 'atCdNm': '육아기단축근무', 'cancellationApplication': false, 'oriAppDetail': null},
+    ];
+    expect(withoutCancelled(rows).map((e) => e['detailSq']), ['80599']);
   });
 
   test('기간 조회 — 지난 날은 전사 현황, 오늘은 오늘 근태, 내일부터는 범위 안 사람만 신청 목록', () async {
