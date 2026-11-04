@@ -9,8 +9,9 @@ export const maxDuration = 120;
 /** 한 번에 받는 사진 수 — 스크립트가 base64 합계 3MB로도 끊는다(Vercel 요청 본문 상한 4.5MB). */
 const MAX_PER_REQUEST = 25;
 
+/** 명부 동기화 토큰(DIRECTORY_SYNC_TOKEN — 직원 PC에 배포되는 사용량 수집 토큰과 별개) 또는 관리자 세션. */
 async function authorize(request: NextRequest) {
-  if (!verifyIngestToken(request.headers.get("authorization"), process.env.CLAUDE_OTEL_INGEST_TOKEN)) {
+  if (!verifyIngestToken(request.headers.get("authorization"), process.env.DIRECTORY_SYNC_TOKEN)) {
     const auth = await requireAdmin();
     if (!auth.ok) return auth;
   }

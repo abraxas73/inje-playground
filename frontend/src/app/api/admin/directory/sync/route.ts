@@ -14,12 +14,13 @@ const MIN_DEPTS = 10;
  * POST /api/admin/directory/sync
  * body: { source?: "amaranth", query?: string, people: AmaranthPerson[], departments?: AmaranthDept[], force?: boolean, note?: string }
  * departments(선택, GitHub Actions 동기화가 보냄): 부서 트리 upsert → 이번에 없던 부서 active=false. 사람과 같은 시작 시각을 쓴다.
- * 인증: 수집 토큰(Bearer CLAUDE_OTEL_INGEST_TOKEN — 로컬 동기화 스크립트) 또는 관리자 세션.
+ * 인증: 명부 동기화 토큰(Bearer DIRECTORY_SYNC_TOKEN — GitHub Actions·로컬 동기화 스크립트) 또는 관리자 세션.
+ * 사용량 수집 토큰(CLAUDE_OTEL_INGEST_TOKEN)은 받지 않는다 — 관리형 설정으로 직원 PC 전부에 배포되는 값이라(2026-11-04 분리).
  * 동작: 이메일 기준 upsert(active=true, synced_at=지금) → 이번 명부에 없던 재직자 active=false → 동기화 로그 1행.
  */
 export async function POST(request: NextRequest) {
   let syncedBy = "token";
-  if (!verifyIngestToken(request.headers.get("authorization"), process.env.CLAUDE_OTEL_INGEST_TOKEN)) {
+  if (!verifyIngestToken(request.headers.get("authorization"), process.env.DIRECTORY_SYNC_TOKEN)) {
     const auth = await requireAdmin();
     if (!auth.ok) return auth.response;
     syncedBy = auth.userId;

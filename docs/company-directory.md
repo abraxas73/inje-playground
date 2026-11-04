@@ -6,12 +6,12 @@
 1. Supabase SQL Editor에서 `docs/sql/2026-08-29-company-directory.sql` 실행 → `company_directory`, `company_directory_sync` + admin 읽기 RLS.
 2. 동기화를 실행할 PC에 `~/bin/inno-creed`가 있고 그룹웨어 크레덴셜을 스스로 취득할 수 있어야 한다(실행 시 stderr에 `크레덴셜 취득 완료`). 다른 경로면 `INNO_CREED=/path/to/inno-creed`.
    - **커넥터 경로(선택)**: inno-creed 대신 앱의 MCP 끝점을 쓰려면 `INNO_MCP_URL=https://innocrew.innogrid.com/api/mcp`와 `INNO_MCP_TOKEN=<운영자 Supabase 세션 토큰>`을 함께 지정한다. 스크립트가 HTTP JSON-RPC로 `tools/call find_person {no_limit:true}`를 보내고, 실제 실행은 **운영자 PC에서 실행 중인 INNOGRID 데스크탑 앱**(더보기 > 아마란스 연결)이 맡으므로 앱이 켜져 있어야 한다. 세션 토큰은 만료되므로 무인 cron에는 기본 stdio 경로가 맞다. `INNO_MCP_URL`이 없으면 기존 stdio 경로 그대로.
-3. 토큰: `CLAUDE_OTEL_INGEST_TOKEN`(환경변수 또는 `frontend/.env.local`, Vercel과 동일 값) — 동기화 API가 관리자 세션 대신 이 토큰도 받는다.
+3. 토큰: `DIRECTORY_SYNC_TOKEN`(환경변수 또는 `frontend/.env.local`, Vercel과 동일 값) — 동기화·사진 API가 관리자 세션 대신 이 토큰도 받는다. 사용량 수집 토큰(`CLAUDE_OTEL_INGEST_TOKEN`)은 관리형 설정으로 직원 PC에 배포되므로 받지 않는다(2026-11-04 분리).
 
 ## 1.5 자동 동기화 — GitHub Actions (2026-10-23, 기본 경로)
 - 워크플로 `.github/workflows/gw-directory-sync.yml`, 매일 KST 07:40(로그인 페이지 점검 07:30 뒤). 수동 실행은 Actions → gw-directory-sync → Run workflow(`dry_run` 체크 시 반영 없이 인원·부서 수만).
 - 스크립트 `scripts/gw-directory-sync.mjs`: 연동 전용 아마란스 계정(2차 인증 없음)으로 로그인(앱 자동 로그인과 같은 입력 규칙) → 쿠키(oAuthToken·signKey)로 서명한 gw102A01(부서 트리)·gw102A02(부서원) → `POST /api/admin/directory/sync {people, departments}`. 부서원 조회가 하나라도 실패하면 반영하지 않는다(부분 명부로 비활성 처리 방지).
-- 저장소 시크릿: `GW_SYNC_ID`·`GW_SYNC_PW`(운영자 `~/Repos/inje-playground/.env.secrets`의 `AMARANTH_RELAY_ACCOUNT`·`AMARANTH_RELAY_PASSWORD`), `DIRECTORY_SYNC_TOKEN`(= Vercel `CLAUDE_OTEL_INGEST_TOKEN`).
+- 저장소 시크릿: `GW_SYNC_ID`·`GW_SYNC_PW`(운영자 `~/Repos/inje-playground/.env.secrets`의 `AMARANTH_RELAY_ACCOUNT`·`AMARANTH_RELAY_PASSWORD`), `DIRECTORY_SYNC_TOKEN`(= Vercel `DIRECTORY_SYNC_TOKEN`).
 - 부서 트리는 `company_departments`(SQL `docs/sql/2026-10-23-org-chart.sql`, service role만) — 이번 동기화에 없던 부서는 active=false. 10개 미만이면 force 없이 거부.
 - 로컬 확인: `npm i --no-save playwright` 된 폴더에서 `GW_SYNC_ID=… GW_SYNC_PW=… PW_CHANNEL=chrome node scripts/gw-directory-sync.mjs --dry-run` (2026-10-23 실측: 부서 71개·309명, 전원 이메일).
 - 조직도 화면 `/org`(페이지 키 `org_chart`, user 이상) — `GET /api/directory/org`(부서 트리 + 재직자, 휴대폰 번호 없음). 부서 테이블이 비면 사람들의 부서 경로로 트리를 만든다(`derived:true`). 앱의 메일 받는 사람·메신저 새 대화도 이 API를 쓰고, 실패할 때만 아마란스 조직도를 직접 훑는다(`mobile/lib/directory/org_directory.dart`).
@@ -53,7 +53,7 @@ BASE_URL=http://localhost:3003 ./frontend/scripts/company-directory-sync.py   # 
 |---|---|---|
 | 스크립트 `MCP 실패` / `크레덴셜` 오류 | `~/bin/inno-creed --help` 실행 시 stderr에 `크레덴셜 취득 완료`가 나오는지 | 그룹웨어 로그인 상태 복구(inno-creed 문서 참고) 후 재실행 |
 | `명부가 N명으로 너무 적습니다` (400) | `--dry-run`의 `rosterSize`와 검색 결과 수 비교 | 검색어(`DIRECTORY_QUERY`, 기본 `innogrid`)가 이메일 도메인과 맞는지 확인. 정말 소규모면 API에 `force:true` |
-| 401 | 토큰 불일치 | `frontend/.env.local`의 `CLAUDE_OTEL_INGEST_TOKEN`이 Vercel 값과 같은지 |
+| 401 | 토큰 불일치 | `frontend/.env.local`·GitHub 비밀의 `DIRECTORY_SYNC_TOKEN`이 Vercel 값과 같은지 |
 | 500 `server not configured` | Vercel `SUPABASE_SERVICE_ROLE_KEY` 없음 | 환경변수 확인 |
 | 500 `relation company_directory does not exist` | §1 SQL 미실행 | SQL 실행 |
 | 사용량 표 "소속"이 `—` | 명부에 없는 이메일(외부 계정·별칭) 또는 비활성 | `/admin/directory`에서 "비활성 포함"으로 검색. Claude 로그인 이메일과 그룹웨어 이메일이 다르면 조인 불가(현재 수동 매핑 기능 없음) |

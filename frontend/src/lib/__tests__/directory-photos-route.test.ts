@@ -5,7 +5,9 @@ import { NextRequest } from "next/server";
 const upload = vi.fn();
 const download = vi.fn();
 const storage = { from: () => ({ upload, download, list: async () => ({ data: [{ name: "a_jpg" }], error: null }) }) };
-vi.mock("@/lib/claude-usage/ingest-auth", () => ({ verifyIngestToken: (h: string | null) => h === "Bearer ok" }));
+// 실제 토큰 비교 — 명부 동기화 토큰만 받고, 직원 PC에 배포되는 사용량 수집 토큰은 거부해야 한다
+process.env.DIRECTORY_SYNC_TOKEN = "dir-sync-token-1234";
+process.env.CLAUDE_OTEL_INGEST_TOKEN = "otel-ingest-token-5678";
 vi.mock("@/lib/claude-usage/require-admin", () => ({
   requireAdmin: async () => ({ ok: false, response: new Response(null, { status: 403 }) }),
   adminClientOr500: () => ({ ok: true, admin: { storage } }),
@@ -13,7 +15,7 @@ vi.mock("@/lib/claude-usage/require-admin", () => ({
 vi.mock("@/lib/rfp/require-user", () => ({ requireUser: async () => ({ ok: true, userId: "u1", role: "user", admin: { storage } }) }));
 
 const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2]).toString("base64");
-const post = async (photos: unknown, token = "Bearer ok") => {
+const post = async (photos: unknown, token = "Bearer dir-sync-token-1234") => {
   const { POST } = await import("@/app/api/admin/directory/photos/route");
   return POST(new Request("http://x/api/admin/directory/photos", { method: "POST", headers: { authorization: token }, body: JSON.stringify({ photos }) }) as never);
 };
@@ -23,6 +25,7 @@ describe("조직도 사진 수집·조회 API", () => {
 
   it("수집 토큰 없으면 거부, 그림만·안전한 id만 thumb/·large/에 저장", async () => {
     expect((await post([], "Bearer no")).status).toBe(403);
+    expect((await post([], "Bearer otel-ingest-token-5678")).status).toBe(403);
     const r = await post([
       { id: "a_jpg", thumb: jpeg, large: jpeg },
       { id: "../x", thumb: jpeg, large: jpeg },
@@ -33,6 +36,12 @@ describe("조직도 사진 수집·조회 API", () => {
     // 이미 있는 사진은 덮어쓰지 않고 넘어간다
     upload.mockResolvedValue({ error: { message: "The resource already exists" } });
     expect((await post([{ id: "a_jpg", thumb: jpeg, large: jpeg }])).status).toBe(200);
+  });
+
+  it("명부 동기화 API도 사용량 수집 토큰은 거부한다", async () => {
+    const { POST } = await import("@/app/api/admin/directory/sync/route");
+    const r = await POST(new Request("http://x/api/admin/directory/sync", { method: "POST", headers: { authorization: "Bearer otel-ingest-token-5678" }, body: "{}" }) as never);
+    expect(r.status).toBe(403);
   });
 
   it("한 번에 25장 넘게는 받지 않는다", async () => {
