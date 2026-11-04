@@ -263,9 +263,7 @@ alter table public.claude_code_prompts enable row level security;
 CREATE INDEX claude_code_prompts_email_idx ON public.claude_code_prompts USING btree (user_email, ts DESC);
 CREATE INDEX claude_code_prompts_kind_idx ON public.claude_code_prompts USING btree (kind, ts DESC);
 CREATE INDEX claude_code_prompts_ts_idx ON public.claude_code_prompts USING btree (ts DESC);
-create policy "claude_code_prompts_admin_read" on public.claude_code_prompts as permissive for select to authenticated using ((EXISTS ( SELECT 1
-   FROM user_profiles up
-  WHERE ((up.user_id = auth.uid()) AND (up.role = 'admin'::text)))));
+create policy "claude_code_prompts_owner_read" on public.claude_code_prompts as permissive for select to authenticated using ((lower((auth.jwt() ->> 'email'::text)) = 'seunguk.kang@innogrid.com'::text));
 
 create table public.claude_code_requests (
   id bigint not null,

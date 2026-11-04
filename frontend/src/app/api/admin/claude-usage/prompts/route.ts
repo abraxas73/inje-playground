@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin, adminClientOr500, isYmd } from "@/lib/claude-usage/require-admin";
+import { requirePromptsOwner, adminClientOr500, isYmd } from "@/lib/claude-usage/require-admin";
 import { dateRangePreset } from "@/lib/claude-usage/aggregate";
 import { applyOrgFilter, resolveOrgIds } from "@/lib/claude-usage/org-filter";
 import { applyIdentityMap, loadIdentityMap } from "@/lib/claude-usage/identity-map";
@@ -11,10 +11,11 @@ export const runtime = "nodejs";
  * kind = all(기본) | human | automation — 수집 시 내용 패턴으로 붙인 분류(lib/claude-usage/prompt-kind.ts)
  * 수집된 사용자 프롬프트 내용(claude_code_prompts) — 최신순, 기본 200건.
  * q = 내용 부분검색(ilike), email = 사용자 이메일 부분검색. 사내 조직도(이름·팀) 조인.
+ * 운영 담당자 한 명만(requirePromptsOwner — 페이지 권한으로 못 바꿈).
  * 마이그레이션 전(테이블 없음)이면 notReady로 응답한다.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requirePromptsOwner();
   if (!auth.ok) return auth.response;
   const c = adminClientOr500();
   if (!c.ok) return c.response;

@@ -8,6 +8,8 @@ import TeamSummaryTab from "@/components/admin/claude-usage/TeamSummaryTab";
 import ToolUsageTab from "@/components/admin/claude-usage/ToolUsageTab";
 import HourlyPatternTab from "@/components/admin/claude-usage/HourlyPatternTab";
 import PromptsTab from "@/components/admin/claude-usage/PromptsTab";
+import { isPromptsOwner } from "@/lib/claude-usage/prompts-owner";
+import { createClient } from "@/lib/supabase";
 import type { ClaudeOrg } from "@/types/claude-usage";
 import { CurrencyProvider, CurrencyToggle } from "@/components/shared/currency-context";
 
@@ -28,6 +30,11 @@ export default function ClaudeUsagePage() {
       .catch((e) => setOrgsError(e instanceof Error ? e.message : String(e)));
   }, []);
   useEffect(() => { loadOrgs(); }, [loadOrgs]);
+  // 프롬프트 탭은 운영 담당자만(API도 같은 검사)
+  const [promptsOwner, setPromptsOwner] = useState(false);
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data }) => setPromptsOwner(isPromptsOwner(data.user?.email)));
+  }, []);
 
   return (
     <CurrencyProvider>
@@ -46,13 +53,13 @@ export default function ClaudeUsagePage() {
           <TabsTrigger value="teams">팀별 집계</TabsTrigger>
           <TabsTrigger value="tools">도구 사용</TabsTrigger>
           <TabsTrigger value="hourly">시간대 패턴</TabsTrigger>
-          <TabsTrigger value="prompts">프롬프트</TabsTrigger>
+          {promptsOwner && <TabsTrigger value="prompts">프롬프트</TabsTrigger>}
         </TabsList>
         <TabsContent value="code"><CodeUsageTab /></TabsContent>
         <TabsContent value="teams"><TeamSummaryTab orgs={orgs} /></TabsContent>
         <TabsContent value="tools"><ToolUsageTab orgs={orgs} /></TabsContent>
         <TabsContent value="hourly"><HourlyPatternTab orgs={orgs} /></TabsContent>
-        <TabsContent value="prompts"><PromptsTab orgs={orgs} /></TabsContent>
+        {promptsOwner && <TabsContent value="prompts"><PromptsTab orgs={orgs} /></TabsContent>}
       </Tabs>
     </div>
     </CurrencyProvider>
