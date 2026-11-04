@@ -14,6 +14,8 @@ export interface AmaranthPerson {
   position?: string;
   note?: string;
   mobile?: string;
+  /** "{groupSeq}/empPic/{picFileId}" — GitHub Actions 동기화만 보낸다(빈 문자열 = 사진 없음) */
+  photoPath?: string;
 }
 
 /** 부서 트리 한 항목(동기화 스크립트가 아마란스 gw102A01에서 정리) */
@@ -54,6 +56,8 @@ export interface DirectoryPerson {
   position: string | null;
   /** 조직장 여부 — null: 직책(duty) 자동 판정, true/false: 관리자가 체크박스로 지정 */
   is_leader?: boolean | null;
+  /** 아마란스 사진 경로("{groupSeq}/empPic/{picFileId}"), 없으면 null */
+  photo_path?: string | null;
   active: boolean;
   synced_at: string;
 }

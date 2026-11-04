@@ -1,3 +1,5 @@
+import { photoIdOf } from "./photos";
+
 /** 조직도(/org) 데이터 — 부서 트리 + 재직자. 순수 함수(DB·네트워크 없음). */
 
 export interface OrgDept {
@@ -17,6 +19,11 @@ export interface OrgPerson {
   deptName: string | null;
   duty: string | null;
   position: string | null;
+  /** 사진 썸네일·원본 주소(우리 API, 없으면 null) */
+  photo: string | null;
+  photoLarge: string | null;
+  /** 아마란스 사진 경로 "{group}/empPic/{id}" — 앱은 이것으로 아마란스에서 직접 받는다(아마란스 연결 쿠키) */
+  photoPath: string | null;
 }
 
 export interface OrgData {
@@ -28,9 +35,15 @@ export interface OrgData {
 }
 
 export interface DeptRow { id: string; parent_id: string | null; name: string; sort: number | null; depth: number | null }
-export interface PersonRow { email: string; emp_seq: string | null; name: string; dept_id: string | null; dept_name: string | null; units: string[] | null; duty: string | null; position: string | null }
+export interface PersonRow { email: string; emp_seq: string | null; name: string; dept_id: string | null; dept_name: string | null; units: string[] | null; duty: string | null; position: string | null; photo_path?: string | null }
 
 const ROOT = "__root__";
+
+/** 사진 주소(우리 API — 비공개 버킷 사본, 로그인 필요). 사진이 없으면 null. */
+export function photoUrls(path: string | null | undefined): { photo: string | null; photoLarge: string | null } {
+  const id = photoIdOf(path);
+  return id ? { photo: `/api/directory/photo/${id}`, photoLarge: `/api/directory/photo/${id}?size=large` } : { photo: null, photoLarge: null };
+}
 
 /**
  * 부서 행(아마란스 트리) + 사람 행 → 조직도.
@@ -72,7 +85,7 @@ export function buildOrg(deptRows: DeptRow[], personRows: PersonRow[], syncedAt:
   const people: OrgPerson[] = personRows.map((p) => {
     const viaId = p.dept_id && ids.has(p.dept_id) ? p.dept_id : null;
     const deptId = viaId ?? byPath.get((p.units ?? []).join(">")) ?? null;
-    return { email: p.email, empSeq: p.emp_seq, name: p.name, deptId, deptName: p.dept_name, duty: p.duty, position: p.position };
+    return { email: p.email, empSeq: p.emp_seq, name: p.name, deptId, deptName: p.dept_name, duty: p.duty, position: p.position, ...photoUrls(p.photo_path), photoPath: photoIdOf(p.photo_path) ? p.photo_path! : null };
   });
   people.sort((a, b) => a.name.localeCompare(b.name, "ko"));
   return { departments, people, syncedAt, derived };

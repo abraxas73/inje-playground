@@ -1,3 +1,4 @@
+import '../directory/person_view.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -150,7 +151,8 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
     final state = (r.roomType != '7' && others.length == 1) ? _states[others.first] : null;
     return ListTile(
       leading: Stack(clipBehavior: Clip.none, children: [
-        InitialBadge(title),
+        // 1:1은 상대 사진(누르면 상세), 그룹·나와의 대화는 이름 첫 글자
+        if (r.roomType != '7' && others.length == 1) PersonAvatar(empSeq: others.first, name: title) else InitialBadge(title),
         if (state != null)
           Positioned(
             right: -1,
@@ -451,9 +453,7 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
     // 첫 주소 하나는 말풍선 아래 미리보기(텍스트 대화만, 비밀대화 제외 — 메신저 앱과 같음)
     final preview = c.contentType == '0' && !c.secret ? firstPreviewUrl(text) : null;
     final stamp = Padding(padding: const EdgeInsets.only(bottom: 2), child: Text(time, style: TextStyle(fontSize: 10, color: Brand.faint)));
-    return Align(
-      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Column(
+    final column = Column(
         crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           if (!mine && name != null && name.isNotEmpty)
@@ -466,7 +466,14 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
           ),
           if (preview != null) LinkPreviewCard(url: preview, maxWidth: maxW),
         ],
-      ),
+      );
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      // 상대 말은 왼쪽에 사진(누르면 상세 보기)
+      child: mine ? column : Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(padding: const EdgeInsets.only(top: 6, right: 6), child: PersonAvatar(empSeq: c.sendEmpSeq, name: name ?? '', size: 32)),
+        Flexible(child: column),
+      ]),
     );
   }
 

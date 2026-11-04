@@ -13,7 +13,7 @@ export async function GET() {
   if (!auth.ok) return auth.response;
   const [deps, people, sync] = await Promise.all([
     auth.admin.from("company_departments").select("id, parent_id, name, sort, depth").eq("active", true),
-    auth.admin.from("company_directory").select("email, emp_seq, name, dept_id, dept_name, units, duty, position").eq("active", true).range(0, 4999),
+    auth.admin.from("company_directory").select("email, emp_seq, name, dept_id, dept_name, units, duty, position, photo_path").eq("active", true).range(0, 4999),
     auth.admin.from("company_directory_sync").select("synced_at").order("synced_at", { ascending: false }).limit(1),
   ]);
   if (people.error) return NextResponse.json({ error: `조직도 명부 조회 실패: ${people.error.message}` }, { status: 500 });
