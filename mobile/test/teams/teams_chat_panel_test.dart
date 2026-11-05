@@ -153,6 +153,9 @@ void main() {
     expect(find.text('회의 몇 시죠?'), findsOneWidget);
     expect(find.text('김동료'), findsOneWidget); // 상대만 이름
     expect(find.text('나'), findsNothing);
+    // 상대 말 왼쪽에만 Teams 사진(앞 테스트가 받아 둔 그림은 정적 캐시라 위젯으로 확인)
+    expect(find.byWidgetPredicate((w) => w is TeamsAvatar && w.userId == 'u2'), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is TeamsAvatar && w.userId == 'me'), findsNothing);
     expect(find.text('안건.docx'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), '확인했습니다');

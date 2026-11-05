@@ -29,8 +29,9 @@ class TeamsChatPanel extends StatelessWidget {
 }
 
 class TeamsChat {
-  const TeamsChat(this.id, this.topic, this.group, this.at, {this.members = const [], this.preview = ''});
+  const TeamsChat(this.id, this.topic, this.group, this.at, {this.members = const [], this.preview = '', this.peerId = ''});
   final String id, topic;
+  final String peerId; // 1:1 상대 Entra id(사진)
   final String preview; // 마지막 메시지 한 줄(서버 chatPreview)
   final bool group;
   final DateTime? at;
@@ -166,7 +167,7 @@ class _TeamsChatListState extends ConsumerState<TeamsChatList> {
     if (j is! Map || j['hasChatScope'] != true) return (meId: null, chats: <TeamsChat>[], ready: false);
     final chats = [
       for (final x in j['chats'] is List ? j['chats'] as List : const [])
-        if (x is Map) TeamsChat('${x['id']}', '${x['topic'] ?? ''}', x['type'] == 'group', DateTime.tryParse('${x['lastUpdated'] ?? ''}'), members: [for (final n in x['members'] is List ? x['members'] as List : const []) '$n'], preview: '${x['preview'] ?? ''}'),
+        if (x is Map) TeamsChat('${x['id']}', '${x['topic'] ?? ''}', x['type'] == 'group', DateTime.tryParse('${x['lastUpdated'] ?? ''}'), members: [for (final n in x['members'] is List ? x['members'] as List : const []) '$n'], preview: '${x['preview'] ?? ''}', peerId: '${x['peerId'] ?? ''}'),
     ];
     return (meId: j['meId'] as String?, chats: chats, ready: true);
   }
@@ -208,7 +209,7 @@ class _TeamsChatListState extends ConsumerState<TeamsChatList> {
                 final c = d.chats[i];
                 return ListTile(
                   dense: true, // 다른 위젯과 같은 글꼴
-                  leading: Icon(c.group ? Icons.groups_outlined : Icons.person_outline, color: Brand.faint),
+                  leading: c.peerId.isNotEmpty ? TeamsAvatar(userId: c.peerId, name: c.topic) : Icon(c.group ? Icons.groups_outlined : Icons.person_outline, color: Brand.faint),
                   title: Text(c.topic.isEmpty ? '(제목 없음)' : c.topic, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                   // 메신저 위젯과 같은 마지막 대화 한 줄
                   subtitle: c.preview.isEmpty ? null : Text(c.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Brand.muted, fontSize: 12)),
@@ -543,9 +544,7 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
       )),
       Padding(padding: const EdgeInsets.only(bottom: 2), child: Text(m.at == null ? '' : _kst(m.at!, dateIfOld: true), style: TextStyle(fontSize: 10, color: Brand.faint))),
     ]);
-    return Align(
-      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Column(crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
+    final column = Column(crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
         if (showName && m.fromName.isNotEmpty) Padding(padding: const EdgeInsets.only(left: 4, top: 6), child: Text(m.fromName, style: TextStyle(fontSize: 11, color: Brand.muted))),
         Row(
           mainAxisSize: MainAxisSize.min,
@@ -559,6 +558,13 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
               for (final r in m.reactions) _reactionChip(m, r),
             ]),
           ),
+      ]);
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      // 상대 말은 왼쪽에 Teams 사진(메신저와 같은 자리) — 같은 사람이 이어 쓴 줄은 자리만 비운다
+      child: mine ? column : Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        showName ? Padding(padding: const EdgeInsets.only(top: 6, right: 6), child: TeamsAvatar(userId: m.fromId, name: m.fromName)) : const SizedBox(width: 38),
+        Flexible(child: column),
       ]),
     );
   }
@@ -766,6 +772,55 @@ class _TeamsSearchScreenState extends ConsumerState<TeamsSearchScreen> {
 /// Teams 본문 그림 — 우리 서버가 본인 Microsoft 권한으로 중계한 바이트를 그린다. 누르면 크게(확대·이동).
 /// 받은 그림(바이트·원래 크기)은 바이트 합계 상한 안에서 최근 것만 메모리에 둔다 — 5초 폴링이나 새 메시지로 말풍선이
 /// 다시 그려져도 다시 받거나 스피너로 돌아가지 않는다.
+/// Teams 프로필 사진(서버 `/api/teams/chat/photo/{id}` — 받아 둔 사본, 하루마다 새로 받음). 없거나 실패하면 이름 머리글자.
+class TeamsAvatar extends ConsumerStatefulWidget {
+  const TeamsAvatar({super.key, required this.userId, required this.name, this.size = 32});
+  final String userId, name;
+  final double size;
+  static final _missing = <String, DateTime>{}; // 사진을 못 받은 사람 → 그때 시각. 10분 동안 다시 묻지 않는다(목록 갱신마다 404 반복 방지)
+  @override
+  ConsumerState<TeamsAvatar> createState() => _TeamsAvatarState();
+}
+
+class _TeamsAvatarState extends ConsumerState<TeamsAvatar> {
+  Uint8List? _bytes;
+
+  String get _path => '/api/teams/chat/photo/${widget.userId}';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(TeamsAvatar old) {
+    super.didUpdateWidget(old);
+    if (old.userId != widget.userId) _load();
+  }
+
+  void _load() {
+    final path = _path;
+    final hit = TeamsImage._done.remove(path);
+    if (hit != null) TeamsImage._done[path] = hit; // 최근에 쓴 것을 뒤로(캐시가 차도 보이는 사진은 남게)
+    _bytes = hit?.$1;
+    final miss = TeamsAvatar._missing[widget.userId];
+    if (_bytes != null || widget.userId.isEmpty || (miss != null && DateTime.now().difference(miss) < const Duration(minutes: 10))) return;
+    final id = widget.userId;
+    TeamsImage._fetch(ref.read(apiClientProvider), path).then((r) {
+      if (mounted && _path == path) setState(() => _bytes = r.$1);
+    }, onError: (Object _) { TeamsAvatar._missing[id] = DateTime.now(); });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final b = _bytes;
+    if (b == null) return InitialBadge(widget.name, size: widget.size, circle: true);
+    final px = (widget.size * MediaQuery.devicePixelRatioOf(context)).round();
+    return ClipOval(child: Image.memory(b, width: widget.size, height: widget.size, fit: BoxFit.cover, cacheWidth: px, gaplessPlayback: true, errorBuilder: (_, _, _) => InitialBadge(widget.name, size: widget.size, circle: true)));
+  }
+}
+
 class TeamsImage extends ConsumerStatefulWidget {
   const TeamsImage({super.key, required this.path, required this.fallback, this.square, this.label = '[이미지]'});
   final String path;
