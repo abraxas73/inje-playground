@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
-import { chatMessagesUrl, getChatInfo, hostedImagePath, listChatMessages, listMyChats, normalizeChatMessages, sendChatMessage, teamsHtmlToMarkdown, teamsHtmlToText } from "@/lib/teams/chat";
+import { chatMessagesUrl, chatPreview, getChatInfo, hostedImagePath, listChatMessages, listMyChats, normalizeChatMessages, sendChatMessage, teamsHtmlToMarkdown, teamsHtmlToText } from "@/lib/teams/chat";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "request-id": "rid-1" } });
 
@@ -106,7 +106,7 @@ describe("Graph 호출", () => {
   it("listMyChats — 내가 속한 그룹·1:1 채팅(모임 채팅 제외), 주제 없으면 나를 뺀 구성원 이름, 마지막 메시지 순(lastUpdatedDateTime은 이름·구성원 변경 시각이라 안 씀)", async () => {
     const fetchImpl = vi.fn(async () => json(200, { value: [
       { id: "19:a@thread.v2", chatType: "group", topic: null, webUrl: "https://teams/a", lastUpdatedDateTime: "2026-10-05T00:00:00Z", lastMessagePreview: { createdDateTime: "2026-10-01T00:00:00Z" }, members: [{ userId: "me", displayName: "강승욱" }, { userId: "u2", displayName: "김민준" }, { userId: "u3", displayName: "이서연" }] },
-      { id: "19:b@thread.v2", chatType: "group", topic: "개발팀 수다", webUrl: "https://teams/b", lastUpdatedDateTime: "2026-09-01T00:00:00Z", lastMessagePreview: { createdDateTime: "2026-10-03T00:00:00Z" }, members: [{ userId: "me", displayName: "강승욱" }] },
+      { id: "19:b@thread.v2", chatType: "group", topic: "개발팀 수다", webUrl: "https://teams/b", lastUpdatedDateTime: "2026-09-01T00:00:00Z", lastMessagePreview: { createdDateTime: "2026-10-03T00:00:00Z", body: { contentType: "html", content: "<p>점심&nbsp;<b>뭐</b> 먹죠?</p>" } }, members: [{ userId: "me", displayName: "강승욱" }] },
       { id: "19:me_u2@unq.gbl.spaces", chatType: "oneOnOne", topic: null, webUrl: "https://teams/c", lastUpdatedDateTime: "2026-10-02T00:00:00Z", lastMessagePreview: null, members: [{ userId: "me", displayName: "강승욱" }, { userId: "u2", displayName: "김민준" }] },
       { id: "19:meeting@thread.v2", chatType: "meeting", topic: "주간 회의", webUrl: null, lastUpdatedDateTime: "2026-10-04T00:00:00Z", members: [] },
     ] }));
@@ -115,18 +115,26 @@ describe("Graph 호출", () => {
     expect(url).toContain("/me/chats?");
     expect(url).toContain("$expand=members,lastMessagePreview&$orderby=lastMessagePreview/createdDateTime%20desc&$top=50"); // 중첩 $select는 Graph가 400으로 거절(2026-10-03 운영 재현)
     expect(out).toEqual([
-      { id: "19:b@thread.v2", type: "group", topic: "개발팀 수다", members: ["강승욱"], webUrl: "https://teams/b", lastUpdated: "2026-10-03T00:00:00Z" },
-      { id: "19:me_u2@unq.gbl.spaces", type: "oneOnOne", topic: "김민준", members: ["강승욱", "김민준"], webUrl: "https://teams/c", lastUpdated: "2026-10-02T00:00:00Z" }, // 메시지 없으면 lastUpdatedDateTime
-      { id: "19:a@thread.v2", type: "group", topic: "김민준, 이서연", members: ["강승욱", "김민준", "이서연"], webUrl: "https://teams/a", lastUpdated: "2026-10-01T00:00:00Z" },
+      { id: "19:b@thread.v2", type: "group", topic: "개발팀 수다", members: ["강승욱"], webUrl: "https://teams/b", lastUpdated: "2026-10-03T00:00:00Z", preview: "점심 뭐 먹죠?" },
+      { id: "19:me_u2@unq.gbl.spaces", type: "oneOnOne", topic: "김민준", members: ["강승욱", "김민준"], webUrl: "https://teams/c", lastUpdated: "2026-10-02T00:00:00Z", preview: "" }, // 메시지 없으면 lastUpdatedDateTime
+      { id: "19:a@thread.v2", type: "group", topic: "김민준, 이서연", members: ["강승욱", "김민준", "이서연"], webUrl: "https://teams/a", lastUpdated: "2026-10-01T00:00:00Z", preview: "" },
     ]);
   });
+  it("chatPreview — 한 줄 글, 삭제·첨부만은 메신저와 같은 문구, 평문·없음", () => {
+    expect(chatPreview({ body: { contentType: "html", content: "<p>첫 줄</p>\n<p>둘째 줄</p>" } })).toBe("첫 줄 둘째 줄");
+    expect(chatPreview({ isDeleted: true, body: { contentType: "html", content: "" } })).toBe("삭제된 메시지입니다.");
+    expect(chatPreview({ body: { contentType: "html", content: '<attachment id="x"></attachment>' } })).toBe("파일");
+    expect(chatPreview({ body: { contentType: "text", content: "안녕  하세요" } })).toBe("안녕 하세요");
+    expect(chatPreview(null)).toBe("");
+  });
+
   it("listMyChats — 조합 쿼리를 Graph가 400으로 거절하면 members만 펼친 옛 쿼리로 한 번 재시도(다른 오류는 그대로 던짐)", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(json(400, { error: { code: "BadRequest", message: "unsupported" } }))
       .mockResolvedValueOnce(json(200, { value: [{ id: "19:a@thread.v2", chatType: "group", topic: "개발팀", webUrl: null, lastUpdatedDateTime: "2026-10-01T00:00:00Z", members: [] }] }));
     const out = await listMyChats("AT", "me", fetchImpl as never);
-    expect(out).toEqual([{ id: "19:a@thread.v2", type: "group", topic: "개발팀", members: [], webUrl: null, lastUpdated: "2026-10-01T00:00:00Z" }]);
+    expect(out).toEqual([{ id: "19:a@thread.v2", type: "group", topic: "개발팀", members: [], webUrl: null, lastUpdated: "2026-10-01T00:00:00Z", preview: "" }]);
     expect((fetchImpl.mock.calls[1] as unknown as [string])[0]).toContain("$expand=members&$top=50");
     expect(warn).toHaveBeenCalledTimes(1);
     const denied = vi.fn(async () => json(403, { error: { code: "Forbidden", message: "x" } }));

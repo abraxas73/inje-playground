@@ -29,8 +29,9 @@ class TeamsChatPanel extends StatelessWidget {
 }
 
 class TeamsChat {
-  const TeamsChat(this.id, this.topic, this.group, this.at, {this.members = const []});
+  const TeamsChat(this.id, this.topic, this.group, this.at, {this.members = const [], this.preview = ''});
   final String id, topic;
+  final String preview; // 마지막 메시지 한 줄(서버 chatPreview)
   final bool group;
   final DateTime? at;
   final List<String> members; // 검색(대화방 이름·구성원)용
@@ -165,7 +166,7 @@ class _TeamsChatListState extends ConsumerState<TeamsChatList> {
     if (j is! Map || j['hasChatScope'] != true) return (meId: null, chats: <TeamsChat>[], ready: false);
     final chats = [
       for (final x in j['chats'] is List ? j['chats'] as List : const [])
-        if (x is Map) TeamsChat('${x['id']}', '${x['topic'] ?? ''}', x['type'] == 'group', DateTime.tryParse('${x['lastUpdated'] ?? ''}'), members: [for (final n in x['members'] is List ? x['members'] as List : const []) '$n']),
+        if (x is Map) TeamsChat('${x['id']}', '${x['topic'] ?? ''}', x['type'] == 'group', DateTime.tryParse('${x['lastUpdated'] ?? ''}'), members: [for (final n in x['members'] is List ? x['members'] as List : const []) '$n'], preview: '${x['preview'] ?? ''}'),
     ];
     return (meId: j['meId'] as String?, chats: chats, ready: true);
   }
@@ -209,6 +210,8 @@ class _TeamsChatListState extends ConsumerState<TeamsChatList> {
                   dense: true, // 다른 위젯과 같은 글꼴
                   leading: Icon(c.group ? Icons.groups_outlined : Icons.person_outline, color: Brand.faint),
                   title: Text(c.topic.isEmpty ? '(제목 없음)' : c.topic, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  // 메신저 위젯과 같은 마지막 대화 한 줄
+                  subtitle: c.preview.isEmpty ? null : Text(c.preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Brand.muted, fontSize: 12)),
                   trailing: c.at == null ? null : Text(_kst(c.at!, dateIfOld: true), style: TextStyle(fontSize: 12, color: Brand.muted)),
                   onTap: () async {
                     await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => TeamsChatRoom(chat: c, meId: d.meId ?? '')));

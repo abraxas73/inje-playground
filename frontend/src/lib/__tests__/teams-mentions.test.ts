@@ -4,7 +4,7 @@ import type { ChatMessage, ChatSummary } from "@/lib/teams/chat";
 
 const now = new Date("2026-10-05T00:00:00Z");
 const me = { id: "me", displayName: "SeungUk Kang", mail: "seunguk.kang@innogrid.com", givenName: "SeungUk" };
-const chat = (id: string, type: "group" | "oneOnOne", lastUpdated: string): ChatSummary => ({ id, type, topic: id === "g1" ? "센터 공지" : "김민준", members: [], webUrl: `https://teams/${id}`, lastUpdated });
+const chat = (id: string, type: "group" | "oneOnOne", lastUpdated: string): ChatSummary => ({ id, type, topic: id === "g1" ? "센터 공지" : "김민준", members: [], webUrl: `https://teams/${id}`, lastUpdated, preview: "" });
 const msg = (id: string, fromId: string, text: string, at: string): ChatMessage => ({ id, createdAt: at, modifiedAt: at, from: { id: fromId, name: fromId === "me" ? "강승욱" : "김민준" }, text, markdown: "", attachments: [], reactions: [] });
 
 describe("recentChats", () => {

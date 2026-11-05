@@ -37,7 +37,7 @@ it("GET /api/teams/chat — 준비되면 내 Graph id와 내가 속한 채팅 �
   m.fetch.mockImplementation(async (url: string) => url.includes("/me?")
     ? json(200, { id: "aad-1", displayName: "강승욱", userPrincipalName: "k@innogrid.com", mail: null })
     : json(200, { value: [{ id: CHAT, chatType: "group", topic: "개발팀", webUrl: "https://teams/x", lastUpdatedDateTime: "2026-10-01T00:00:00Z", members: [{ userId: "aad-1", displayName: "강승욱" }, { userId: "u2", displayName: "김민준" }] }] }));
-  expect(await (await chatGET()).json()).toEqual({ connected: true, hasChatScope: true, meId: "aad-1", chats: [{ id: CHAT, type: "group", topic: "개발팀", members: ["강승욱", "김민준"], webUrl: "https://teams/x", lastUpdated: "2026-10-01T00:00:00Z" }] });
+  expect(await (await chatGET()).json()).toEqual({ connected: true, hasChatScope: true, meId: "aad-1", chats: [{ id: CHAT, type: "group", topic: "개발팀", members: ["강승욱", "김민준"], webUrl: "https://teams/x", lastUpdated: "2026-10-01T00:00:00Z", preview: "" }] });
 });
 it("GET /api/teams/chat — Graph 403은 409 reconnect", async () => {
   m.fetch.mockResolvedValue(json(403, { error: { code: "Forbidden", message: "x" } }));
