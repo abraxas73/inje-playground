@@ -383,7 +383,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                   ],
                   // 조직도 바로 가기(업무 메뉴의 조직도와 같은 웹 화면) — 권한이 있을 때만
                   if (session != null && canUsePage(session, orgChartEntry)) ...[
-                    SquareIconButton(icon: Icons.account_tree_outlined, tooltip: '조직도', onPressed: () => open('/web?path=${Uri.encodeComponent(orgChartEntry.href)}')),
+                    TextButton.icon(onPressed: () => open('/web?path=${Uri.encodeComponent(orgChartEntry.href)}'), icon: const Icon(Icons.account_tree_outlined, size: 18), label: const Text('조직도')), // 아이콘만이면 못 찾아 글자를 붙임(2026-11-05)
                     const SizedBox(width: 4),
                   ],
                   TextButton.icon(
