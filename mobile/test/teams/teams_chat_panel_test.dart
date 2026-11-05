@@ -110,6 +110,26 @@ void main() {
     expect(find.text('웹 /teams/chat'), findsOneWidget);
   });
 
+  testWidgets('위젯 대화방 → 전체 화면 버튼은 그 대화를 웹 /teams/chat?chat=로 열고 위젯은 목록으로', (tester) async {
+    final router = GoRouter(routes: [
+      GoRoute(path: '/', builder: (_, _) => const Scaffold(body: TeamsChatPanel())),
+      GoRoute(path: '/web', builder: (_, s) => Text('웹 ${s.uri.queryParameters['path']}')),
+    ]);
+    await tester.pumpWidget(ProviderScope(overrides: [apiClientProvider.overrideWithValue(FakeApi())], child: MaterialApp.router(routerConfig: router)));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('전체 화면'), findsNothing); // 목록에는 없음
+    await tester.tap(find.text('플랫폼팀'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('전체 화면'));
+    await tester.pumpAndSettle();
+    expect(find.text('웹 /teams/chat?chat=c1'), findsOneWidget);
+    router.pop();
+    await tester.pumpAndSettle();
+    expect(find.text('플랫폼팀'), findsOneWidget); // 돌아오면 위젯은 목록
+    expect(find.byTooltip('전체 화면'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   test('splitTeamsAttachments — 형식 맞는 그림은 합계 3MB·4장까지 본문, 나머지는 파일', () {
     PickedFile f(String n, int size) => (name: n, size: size, read: () async => <int>[]);
     const mb = 1024 * 1024;
