@@ -29,7 +29,7 @@ class FakeApi extends Fake implements ApiClient {
   Future<dynamic> getJson(String path, {Map<String, String>? query}) async {
     if (path == '/api/teams/chat') {
       listLoads++;
-      return {'connected': true, 'hasChatScope': true, 'meId': 'me', 'chats': [{'id': 'c1', 'type': 'group', 'topic': topic, 'members': ['김동료', '나'], 'lastUpdated': '2026-10-22T01:01:00Z'}]};
+      return {'connected': true, 'hasChatScope': true, 'meId': 'me', 'chats': [{'id': 'c1', 'type': 'group', 'topic': topic, 'members': ['김동료', '나'], 'lastUpdated': '2026-10-22T01:01:00Z', 'preview': '3시요 (목록 미리보기)'}]};
     }
     if (path == '/api/teams/chat/custom-reactions') return {'reactions': registered};
     if (path == '/api/teams/chat/search') {
@@ -118,6 +118,7 @@ void main() {
     await tester.pumpWidget(ProviderScope(overrides: [apiClientProvider.overrideWithValue(FakeApi())], child: MaterialApp.router(routerConfig: router)));
     await tester.pumpAndSettle();
     expect(find.byTooltip('전체 화면'), findsNothing); // 목록에는 없음
+    expect(find.text('3시요 (목록 미리보기)'), findsOneWidget); // 메신저 위젯처럼 마지막 대화 한 줄
     await tester.tap(find.text('플랫폼팀'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('전체 화면'));

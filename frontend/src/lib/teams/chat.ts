@@ -72,6 +72,18 @@ export interface ChatSummary {
   webUrl: string | null;
   /** 마지막 메시지 시각(lastMessagePreview). 메시지가 없으면 이름·구성원 변경 시각(lastUpdatedDateTime) */
   lastUpdated: string | null;
+  /** 마지막 메시지 한 줄 미리보기(앱 홈 위젯 목록 — 메신저 위젯과 같은 자리). 없으면 "" */
+  preview: string;
+}
+
+/** lastMessagePreview → 한 줄 미리보기. 삭제는 메신저와 같은 문구, 글 없이 첨부만이면 "파일" */
+export function chatPreview(p: unknown): string {
+  if (!p || typeof p !== "object") return "";
+  const o = p as { isDeleted?: unknown; deletedDateTime?: unknown; body?: { content?: unknown; contentType?: unknown } };
+  if (o.isDeleted === true || typeof o.deletedDateTime === "string") return "삭제된 메시지입니다.";
+  const raw = typeof o.body?.content === "string" ? o.body.content : "";
+  const text = (o.body?.contentType === "html" ? teamsHtmlToText(raw) : raw).replace(/\s+/g, " ").trim();
+  return text ? text.slice(0, 200) : /<attachment\b/i.test(raw) ? "파일" : "";
 }
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
@@ -427,6 +439,7 @@ export async function listMyChats(token: string, meId: string, fetchImpl: FetchL
         members,
         webUrl: typeof c.webUrl === "string" ? c.webUrl : null,
         lastUpdated: [(c.lastMessagePreview as { createdDateTime?: unknown } | null)?.createdDateTime, c.lastUpdatedDateTime].find((v): v is string => typeof v === "string") ?? null,
+        preview: chatPreview(c.lastMessagePreview),
       };
     })
     .sort(byNewest);
