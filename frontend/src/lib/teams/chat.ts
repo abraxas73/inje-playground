@@ -74,6 +74,8 @@ export interface ChatSummary {
   lastUpdated: string | null;
   /** 마지막 메시지 한 줄 미리보기(앱 홈 위젯 목록 — 메신저 위젯과 같은 자리). 없으면 "" */
   preview: string;
+  /** 1:1이면 상대 Entra id(사진 `/api/teams/chat/photo/{id}`) */
+  peerId?: string;
 }
 
 /** lastMessagePreview → 한 줄 미리보기. 삭제는 메신저와 같은 문구, 글 없이 첨부만이면 "파일" */
@@ -431,6 +433,7 @@ export async function listMyChats(token: string, meId: string, fetchImpl: FetchL
     .map((c) => {
       const raw = (Array.isArray(c.members) ? c.members : []) as Array<{ displayName?: unknown; userId?: unknown }>;
       const members = raw.map((m) => String(m.displayName ?? "")).filter(Boolean);
+      const peerIds = raw.map((m) => String(m.userId ?? "")).filter((u) => u && u !== meId);
       const others = raw.filter((m) => String(m.userId ?? "") !== meId).map((m) => String(m.displayName ?? "")).filter(Boolean);
       return {
         id: String(c.id ?? ""),
@@ -440,6 +443,7 @@ export async function listMyChats(token: string, meId: string, fetchImpl: FetchL
         webUrl: typeof c.webUrl === "string" ? c.webUrl : null,
         lastUpdated: [(c.lastMessagePreview as { createdDateTime?: unknown } | null)?.createdDateTime, c.lastUpdatedDateTime].find((v): v is string => typeof v === "string") ?? null,
         preview: chatPreview(c.lastMessagePreview),
+        ...(c.chatType === "oneOnOne" && peerIds.length === 1 ? { peerId: peerIds[0] } : {}),
       };
     })
     .sort(byNewest);

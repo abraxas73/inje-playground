@@ -116,7 +116,7 @@ describe("Graph 호출", () => {
     expect(url).toContain("$expand=members,lastMessagePreview&$orderby=lastMessagePreview/createdDateTime%20desc&$top=50"); // 중첩 $select는 Graph가 400으로 거절(2026-10-03 운영 재현)
     expect(out).toEqual([
       { id: "19:b@thread.v2", type: "group", topic: "개발팀 수다", members: ["강승욱"], webUrl: "https://teams/b", lastUpdated: "2026-10-03T00:00:00Z", preview: "점심 뭐 먹죠?" },
-      { id: "19:me_u2@unq.gbl.spaces", type: "oneOnOne", topic: "김민준", members: ["강승욱", "김민준"], webUrl: "https://teams/c", lastUpdated: "2026-10-02T00:00:00Z", preview: "" }, // 메시지 없으면 lastUpdatedDateTime
+      { id: "19:me_u2@unq.gbl.spaces", type: "oneOnOne", topic: "김민준", members: ["강승욱", "김민준"], webUrl: "https://teams/c", lastUpdated: "2026-10-02T00:00:00Z", preview: "", peerId: "u2" }, // 메시지 없으면 lastUpdatedDateTime
       { id: "19:a@thread.v2", type: "group", topic: "김민준, 이서연", members: ["강승욱", "김민준", "이서연"], webUrl: "https://teams/a", lastUpdated: "2026-10-01T00:00:00Z", preview: "" },
     ]);
   });
