@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:playground/app/brand.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:playground/messenger/messenger_api.dart';
@@ -34,5 +35,23 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('두 번째'), findsOneWidget);
     expect(api.reads, [('r1', 'c2')]); // 시간순 마지막(c2)
+  });
+
+  testWidgets('홈 위젯 안 대화방의 전체 화면 버튼 → 같은 방을 전체 화면으로, 위젯은 목록으로', (tester) async {
+    await tester.pumpWidget(ProviderScope(overrides: [
+      messengerApiProvider.overrideWithValue(_Api()),
+      messengerMqttProvider.overrideWithValue(MessengerMqtt()),
+    ], child: MaterialApp(home: Scaffold(body: WidgetChrome(child: Navigator(onGenerateInitialRoutes: (_, _) => [
+      MaterialPageRoute(builder: (_) => const Text('목록')),
+      MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: MsgRoom.minimal('r1', title: '개발팀'))),
+    ]))))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('전체 화면'));
+    await tester.pumpAndSettle();
+    expect(find.text('두 번째'), findsOneWidget); // 전체 화면 방 하나만
+    expect(find.byTooltip('전체 화면'), findsNothing); // 전체 화면에는 버튼 없음
+    Navigator.of(tester.element(find.text('두 번째'))).pop();
+    await tester.pumpAndSettle();
+    expect(find.text('목록'), findsOneWidget);
   });
 }

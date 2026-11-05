@@ -438,7 +438,18 @@ class _TeamsChatRoomState extends ConsumerState<TeamsChatRoom> {
   Widget build(BuildContext context) {
     final msgs = _msgs;
     return Scaffold(
-      appBar: BrandHeader(compact: WidgetChrome.of(context), title: widget.chat.topic.isEmpty ? '(제목 없음)' : widget.chat.topic, showBack: true, onRefresh: _load),
+      appBar: BrandHeader(compact: WidgetChrome.of(context), title: widget.chat.topic.isEmpty ? '(제목 없음)' : widget.chat.topic, showBack: true, onRefresh: _load, actions: [
+        // 홈 위젯 안이면 이 대화를 전체 화면 Teams 채팅(웹 /teams/chat — 목록+대화)으로. 위젯은 목록으로 돌려 둔다
+        if (WidgetChrome.of(context)) IconButton(
+          tooltip: '전체 화면',
+          icon: const Icon(Icons.open_in_full, size: 20),
+          onPressed: () {
+            final router = GoRouter.of(context);
+            Navigator.of(context).pop();
+            router.push('/web?path=${Uri.encodeComponent('/teams/chat?chat=${Uri.encodeComponent(widget.chat.id)}')}');
+          },
+        ),
+      ]),
       body: Column(children: [
         Expanded(
           child: _error != null && msgs == null

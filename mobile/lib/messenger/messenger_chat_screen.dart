@@ -331,6 +331,16 @@ class _MessengerRoomScreenState extends ConsumerState<MessengerRoomScreen> {
         showBack: true,
         onRefresh: _refresh,
         actions: [
+          // 홈 위젯 안이면 같은 방을 전체 화면으로(위젯은 목록으로 돌려 둔다 — MQTT 구독은 방별 참조 수라 겹쳐도 안전)
+          if (WidgetChrome.of(context)) IconButton(
+            tooltip: '전체 화면',
+            icon: const Icon(Icons.open_in_full, size: 20),
+            onPressed: () {
+              final root = Navigator.of(context, rootNavigator: true);
+              Navigator.of(context).pop();
+              root.push(MaterialPageRoute(builder: (_) => MessengerRoomScreen(room: widget.room)));
+            },
+          ),
           Builder(builder: (context) {
             final fav = ref.watch(messengerFavoritesProvider).contains(widget.room.roomId);
             return IconButton(
