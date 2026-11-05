@@ -202,8 +202,13 @@ class AppWebController {
       );
     }
     if (native != null) {
-      return SelectionContainer.disabled(
-        child: WebViewWidget(controller: native!, gestureRecognizers: {Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new)}),
+      // macOS: 마우스 커서는 WebView에 맡긴다 — 앱 전체 SelectionArea가 마우스가 움직일 때마다 글자 커서로 바꾸고
+      // WebView가 손가락·화살표로 되돌려 커서가 떨렸다(조직도 직원 줄 위, 2026-11-05). 모바일은 커서가 없어 영향 없음
+      return MouseRegion(
+        cursor: MouseCursor.uncontrolled,
+        child: SelectionContainer.disabled(
+          child: WebViewWidget(controller: native!, gestureRecognizers: {Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new)}),
+        ),
       );
     }
     if (_unavailable) {
