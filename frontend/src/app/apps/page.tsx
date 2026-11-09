@@ -4,9 +4,7 @@ import { DesktopDownloads } from "./DesktopDownloads";
 import { useCallback, useEffect, useState } from "react";
 import { Apple, Download, Plug, Smartphone } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { REQUEST_STATUS, type AppRequest } from "@/lib/mobile/app-requests";
-import { ANDROID_PLAY_URL } from "@/lib/mobile/release";
+import { ANDROID_PLAY_URL, IOS_APP_STORE_URL } from "@/lib/mobile/release";
 import { useIosApp } from "@/lib/mobile/use-ios-app";
 import { Button } from "@/components/ui/button";
 
@@ -22,43 +20,17 @@ async function fetchRelease(): Promise<Release> {
   return j;
 }
 
-async function fetchRequests(): Promise<AppRequest[]> {
-  const res = await fetch("/api/mobile/app-requests", { cache: "no-store" });
-  const data = await res.json();
-  if (!res.ok || !Array.isArray(data.items)) throw new Error(data.error ?? "신청 상태를 불러오지 못했습니다.");
-  return data.items;
-}
-
 export function AppsPageView() {
   const iosApp = useIosApp();
   const [rel, setRel] = useState<Release | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [requests, setRequests] = useState<AppRequest[] | null>(null);
-  const [requestLoading, setRequestLoading] = useState(true);
-  const [requestError, setRequestError] = useState<string | null>(null);
-  const loadRequests = useCallback(async () => {
-    setRequestLoading(true); setRequestError(null); setRequests(null);
-    try { setRequests(await fetchRequests()); }
-    catch (e) { setRequestError(e instanceof Error ? e.message : "신청 상태를 불러오지 못했습니다."); }
-    finally { setRequestLoading(false); }
-  }, []);
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try { setRel(await fetchRelease()); } catch (e) { setError(e instanceof Error ? e.message : "버전 정보를 불러오지 못했습니다."); } finally { setLoading(false); }
   }, []);
-  useEffect(() => { void load(); void loadRequests(); }, [load, loadRequests]);
-  const iosAction = () => {
-    const item = requests?.find(x => x.platform === "ios");
-    const title = requestError ? "신청 상태 확인" : !item ? "TestFlight 신청하기"
-      : item.status === "rejected" ? "다시 신청하기" : item.status === "approved" ? "TestFlight 설치 안내" : "신청 상태 확인";
-    return <div className="space-y-3">
-      <Badge variant={item?.status === "rejected" ? "destructive" : "secondary"}>{requestLoading ? "상태 확인 중" : requestError ? "상태 확인 필요" : item ? REQUEST_STATUS[item.status] : "미신청"}</Badge>
-      {item && <p className="break-all text-xs text-muted-foreground">신청 계정: {item.store_email}</p>}
-      <div>{requestLoading ? <Button disabled>신청 상태 확인 중…</Button> : <Button asChild><a href="/settings#app-request">{title}</a></Button>}</div>
-    </div>;
-  };
+  useEffect(() => { void load(); }, [load]);
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <div>
@@ -83,25 +55,25 @@ export function AppsPageView() {
         </CardContent>
       </Card>
       <h2 className="text-xl font-semibold">모바일 앱</h2>
-      {!iosApp && <p className="text-sm text-muted-foreground">Android는 Google Play에서 바로 설치합니다. iPhone은 먼저 설정에서 앱 사용을 신청하고 초대를 수락해 주세요.</p>}
+      {!iosApp && <p className="text-sm text-muted-foreground">iPhone은 App Store, Android는 Google Play에서 신청 없이 바로 설치합니다.</p>}
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error} <Button variant="link" size="sm" onClick={load}>다시 시도</Button>
         </p>
       )}
-      {requestError && <p role="alert" className="text-sm text-destructive">{requestError} <Button variant="link" size="sm" onClick={loadRequests}>신청 상태 다시 확인</Button></p>}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Apple className="h-5 w-5" /> iPhone</CardTitle>
-            <CardDescription>TestFlight로 설치합니다. 새 버전은 자동으로 받습니다.</CardDescription>
+            <CardDescription>App Store에서 설치하고 업데이트합니다. 신청은 필요 없습니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <ol className="list-decimal space-y-1 pl-5 text-sm">
-              <li>App Store에서 <b>TestFlight</b> 앱을 설치합니다.</li>
-              <li>아래 버튼에서 iOS 앱 사용을 신청하고, 초대를 수락한 뒤 TestFlight에서 <b>설치</b>를 누릅니다.</li>
+              <li>iPhone에서 아래 버튼으로 App Store의 <b>INNOCREW</b> 앱 페이지를 엽니다. 사내 전용(비공개) 앱이라 App Store 검색에는 나오지 않습니다.</li>
+              <li><b>받기</b>를 누르고, 앱에서 회사 Microsoft 계정으로 로그인합니다.</li>
             </ol>
-            {iosAction()}
+            <Button asChild><a href={IOS_APP_STORE_URL} target="_blank" rel="noreferrer"><Download className="h-4 w-4" />App Store에서 설치</a></Button>
+            <p className="text-xs text-muted-foreground">TestFlight로 쓰던 분도 App Store에서 받으면 같은 앱으로 바뀌며 로그인은 다시 해야 할 수 있습니다.</p>
           </CardContent>
         </Card>
         {!iosApp && <Card>

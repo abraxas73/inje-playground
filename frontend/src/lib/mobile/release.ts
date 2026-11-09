@@ -1,6 +1,8 @@
 /** settings 키 `mobile_release`(문자열 JSON) ↔ GET /api/mobile/release 응답. 쓰는 쪽은 릴리스 스크립트(mobile/scripts/release-mobile.sh)뿐. */
 /** Android 정식 출시(2026-10-24 프로덕션) — 설치·업데이트 링크. 신청 없이 누구나 연다. */
 export const ANDROID_PLAY_URL = "https://play.google.com/store/apps/details?id=com.innogrid.playground";
+/** iOS App Store 비목록(unlisted) 배포(2026-11-09 출시, 대한민국) — 링크를 아는 사람만 설치. */
+export const IOS_APP_STORE_URL = "https://apps.apple.com/kr/app/innogrid/id6818983333";
 export const MOBILE_RELEASE_KEY = "mobile_release";
 export const MOBILE_BUCKET = "mobile";
 export const APK_URL_TTL_SECONDS = 600;

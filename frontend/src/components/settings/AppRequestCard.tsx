@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { REQUEST_STATUS, type AppPlatform, type AppRequest } from '@/lib/mobile/app-requests';
-import { ANDROID_PLAY_URL } from '@/lib/mobile/release';
+import { ANDROID_PLAY_URL, IOS_APP_STORE_URL } from '@/lib/mobile/release';
 export default function AppRequestCard() {
   const iosApp = useIosApp();
   const [items, setItems] = useState<AppRequest[] | null>(null);
@@ -27,9 +27,10 @@ export default function AppRequestCard() {
   return <Card id="app-request" className="scroll-mt-20">
     <CardHeader className="pb-3">
       <div className="flex items-center justify-between gap-2"><CardTitle className="flex items-center gap-2 text-base"><Smartphone className="h-4 w-4" />앱 사용 신청</CardTitle><Button size="sm" variant="ghost" onClick={load} disabled={loading} aria-label="앱 신청 상태 새로고침"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /></Button></div>
-      <p className="text-xs text-muted-foreground">iPhone(TestFlight)만 신청이 필요합니다. 관리자가 테스터로 등록하면 여기에서 결과를 확인할 수 있습니다.</p>
+      <p className="text-xs text-muted-foreground">앱은 신청 없이 스토어에서 설치합니다. 아래 TestFlight 신청은 출시 전 버전을 먼저 받아 볼 베타 테스터만 하면 됩니다.</p>
     </CardHeader>
     <CardContent className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><span className="flex items-center gap-2"><Apple className="h-4 w-4" />iPhone은 신청 없이 App Store에서 설치합니다.</span><Button variant="outline" size="sm" asChild><a href={IOS_APP_STORE_URL} target="_blank" rel="noreferrer">App Store에서 설치</a></Button></div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {items === null ? <p role="status" className="text-sm text-muted-foreground">{loading ? '신청 내역을 불러오는 중…' : '새로고침으로 다시 확인해 주세요.'}</p> : (['ios'] as const).map(platform => {
         const item = items.find(x => x.platform === platform);
@@ -42,7 +43,7 @@ export default function AppRequestCard() {
 }
 function PlatformForm({ platform, item, onSaved }: { platform: AppPlatform; item?: AppRequest; onSaved: (item: AppRequest) => void }) {
   const ios = platform === 'ios';
-  const title = ios ? 'iOS · TestFlight' : 'Android · Google Play';
+  const title = ios ? 'iOS · TestFlight 베타(선택)' : 'Android · Google Play';
   const [email, setEmail] = useState(item?.store_email ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
