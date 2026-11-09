@@ -135,6 +135,7 @@ void main() {
     final box = tester.widget<Container>(find.ancestor(of: find.text('메일 내용'), matching: find.byType(Container)).first);
     expect((box.decoration as BoxDecoration).color, widgetBgChoices[1].$2); // 민트 바탕
     expect(Theme.of(tester.element(find.text('메일 내용'))).cardTheme.color, Colors.transparent); // 안쪽 카드는 투명 → 바탕색이 보인다
+    expect(Theme.of(tester.element(find.text('메일 내용'))).scaffoldBackgroundColor, widgetBgChoices[1].$2); // 메신저·Teams 채팅처럼 안에 화면(Scaffold)이 있는 위젯도 전체가 같은 색
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: tester.getCenter(find.text('메일 내용')));
     await tester.pumpAndSettle();

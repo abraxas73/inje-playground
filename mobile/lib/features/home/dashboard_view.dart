@@ -203,8 +203,12 @@ class _DashboardViewState extends State<DashboardView> {
                           decoration: BoxDecoration(color: widgetBgColor(widget.bgOf!(t.id)), borderRadius: BorderRadius.circular(18), border: Border.all(color: Brand.line)),
                           padding: const EdgeInsets.all(4),
                           // 위젯 바깥 카드는 영역 바탕을 그대로 보이게(투명) — 아니면 고른 배경색이 가장자리에만 보인다
+                          // 메신저·Teams 채팅 위젯은 안쪽 Navigator 화면(Scaffold)이 앱 바탕을 칠해 고른 색이 테두리에만 보였다 — 고른 색이 있으면 그 바탕도 같은 색으로
                           child: Theme(
-                            data: Theme.of(context).copyWith(cardTheme: Theme.of(context).cardTheme.copyWith(color: Colors.transparent, surfaceTintColor: Colors.transparent, elevation: 0, shadowColor: Colors.transparent)),
+                            data: Theme.of(context).copyWith(
+                              cardTheme: Theme.of(context).cardTheme.copyWith(color: Colors.transparent, surfaceTintColor: Colors.transparent, elevation: 0, shadowColor: Colors.transparent),
+                              scaffoldBackgroundColor: widget.bgOf!(t.id) == null ? null : widgetBgColor(widget.bgOf!(t.id)),
+                            ),
                             child: content,
                           ),
                         ),
