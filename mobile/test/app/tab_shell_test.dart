@@ -186,6 +186,9 @@ void main() {
     final restore = find.byType(FabsRestoreButton);
     expect(restore, findsOneWidget);
     expect(tester.getRect(find.byType(NavigationBar)).right, lessThanOrEqualTo(tester.getRect(restore).left)); // '더보기'를 가리지 않는다
+    await tester.pump(const Duration(seconds: 11)); // 세 번 깜빡이면 멈춘다 — 끝없는 애니메이션은 데스크톱 웹 화면을 흔들고 입력을 늦춘다
+    expect(tester.binding.transientCallbackCount, 0);
+    expect(tester.widget<FadeTransition>(find.descendant(of: restore, matching: find.byType(FadeTransition))).opacity.value, 1.0);
     await tester.tap(restore);
     await tester.pump(const Duration(milliseconds: 300));
     expect(restore, findsNothing);

@@ -306,7 +306,9 @@ class _RoundButton extends StatelessWidget {
       );
 }
 
-/// 숨긴 버튼 묶음을 다시 보이게 하는 작은 아이콘(26px) — 옅게 숨 쉬듯 깜빡인다.
+/// 숨긴 버튼 묶음을 다시 보이게 하는 작은 아이콘(26px) — 나타날 때 세 번 옅게 숨 쉬듯 깜빡이고 멈춘다.
+/// 끝없이 깜빡이면 앱이 초당 60번 다시 그려 데스크톱에서 웹 화면(WKWebView)을 프레임마다 창에 다시 붙이고
+/// (macOS 커서·포커스 흔들림) Windows도 입력이 늦어진다(2026-11-09 실측 — 가만히 있어도 CPU 50%).
 class FabsRestoreButton extends StatefulWidget {
   const FabsRestoreButton({super.key, required this.onTap});
   final VoidCallback onTap;
@@ -315,7 +317,17 @@ class FabsRestoreButton extends StatefulWidget {
 }
 
 class _FabsRestoreButtonState extends State<FabsRestoreButton> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..repeat(reverse: true);
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600));
+    _c.repeat(reverse: true, count: 6).whenCompleteOrCancel(() {
+      if (mounted) _c.value = 0; // 진하게 멈춤
+    });
+  }
+
   @override
   void dispose() {
     _c.dispose();
@@ -326,7 +338,7 @@ class _FabsRestoreButtonState extends State<FabsRestoreButton> with SingleTicker
   Widget build(BuildContext context) => Tooltip(
         message: '이노봇·바로가기 버튼 다시 보이기',
         child: FadeTransition(
-          opacity: Tween(begin: 0.45, end: 1.0).animate(_c),
+          opacity: Tween(begin: 1.0, end: 0.45).animate(_c),
           child: Material(
             color: Brand.blue,
             shape: const CircleBorder(),
