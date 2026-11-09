@@ -261,6 +261,7 @@ class _AddressField extends ConsumerStatefulWidget {
 
 class _AddressFieldState extends ConsumerState<_AddressField> {
   final _focus = FocusNode();
+  String _typed = ''; // 추천을 고르기 직전 칸의 글 — RawAutocomplete가 onSelected 전에 칸 전체를 고른 사람으로 바꿔 버려 앞 사람들이 사라졌다
 
   @override
   void dispose() {
@@ -279,16 +280,27 @@ class _AddressFieldState extends ConsumerState<_AddressField> {
       focusNode: _focus,
       displayStringForOption: (c) => '${c.name} <${c.email}>',
       optionsBuilder: (v) {
+        _typed = v.text;
         final q = _last(v.text).toLowerCase();
         if (q.isEmpty || q.contains('>')) return const [];
         return contacts.where((c) => c.name.toLowerCase().contains(q) || c.email.toLowerCase().startsWith(q)).take(8);
       },
       onSelected: (c) {
-        final parts = controller.text.split(',')..removeLast();
-        final text = [...parts.map((s) => s.trim()).where((s) => s.isNotEmpty), '${c.name} <${c.email}>'].join(', ');
-        controller.value = TextEditingValue(text: '$text, ', selection: TextSelection.collapsed(offset: text.length + 2));
+        final parts = _typed.split(',')..removeLast();
+        final text = '${[...parts.map((s) => s.trim()).where((s) => s.isNotEmpty), '${c.name} <${c.email}>'].join(', ')}, ';
+        controller.value = TextEditingValue(text: text, selection: const TextSelection.collapsed(offset: 0));
+        // 한글은 마지막 글자('김')가 입력기 조합 중인 채로 추천을 누른다 — 입력 연결을 한 번 닫아 조합을 버려야
+        // 나중에 입력기가 조합 글자를 확정하며 고른 값을 덮어쓰지 않는다(macOS·Windows 모두 연결을 닫으면 조합 취소).
+        _focus.unfocus();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _focus.requestFocus();
+          // 커서를 끝으로 — 고르는 중(onSelected 안)의 변경은 RawAutocomplete가 무시해 추천 목록이 남아 있다가
+          // 포커스가 돌아오면 다시 뜬다. 여기서 바꾸면 ', ' 뒤 빈 검색어로 다시 계산돼 목록이 비워진다.
+          controller.selection = TextSelection.collapsed(offset: text.length);
+        });
       },
-      fieldViewBuilder: (context, c, f, onSubmit) => TextField(controller: c, focusNode: f, decoration: InputDecoration(labelText: widget.label, suffixIcon: widget.trailing)),
+      fieldViewBuilder: (context, c, f, onSubmit) => TextField(controller: c, focusNode: f, selectAllOnFocus: false, decoration: InputDecoration(labelText: widget.label, suffixIcon: widget.trailing)),
       optionsViewBuilder: (context, onSelected, options) => Align(
         alignment: Alignment.topLeft,
         child: Material(
