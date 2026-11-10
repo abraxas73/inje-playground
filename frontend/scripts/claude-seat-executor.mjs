@@ -83,8 +83,14 @@ async function process1(page, row) {
     const put = await claudeFetch(page, `/api/organizations/${org}/members/${m.uuid}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ seat_tier: target }) });
     if (put.status < 200 || put.status >= 300) return { status: "failed", before_tier: before, error: `claude.ai ${put.status}: ${put.text}` };
     putOk = true;
-    const after = await claudeFetch(page, `/api/organizations/${org}/members?limit=500`);
-    const m2 = after.status === 200 ? findMember(after.json, row.email) : null;
+    // PUT 직후 목록은 예전 티어를 돌려줄 때가 있다(2026-11-10 해제 2건, 몇 초 뒤엔 반영) — 2·4·8초 간격으로 다시 읽는다
+    let m2 = null;
+    for (const wait of [0, 2000, 4000, 8000]) {
+      if (wait) await sleep(wait);
+      const after = await claudeFetch(page, `/api/organizations/${org}/members?limit=500`);
+      m2 = after.status === 200 ? findMember(after.json, row.email) : null;
+      if (m2?.seat_tier === target) break;
+    }
     if (!m2) return { status: "failed", before_tier: before, error: `${putOk ? "claude.ai에는 이미 반영됨(PUT 2xx) — " : ""}적용 뒤 멤버를 다시 읽지 못했습니다` };
     if (m2.seat_tier !== target) return { status: "failed", before_tier: before, after_tier: m2.seat_tier, error: `${putOk ? "claude.ai에는 이미 반영됨(PUT 2xx) — " : ""}적용 후 티어가 ${m2.seat_tier}입니다` };
     return { status: "done", before_tier: before, after_tier: m2.seat_tier };
