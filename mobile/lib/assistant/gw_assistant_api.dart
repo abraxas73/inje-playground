@@ -466,6 +466,7 @@ extension GwAssistantApi on GwApi {
       for (final p in attendees)
         if (seen.add(p.empSeq)) p,
     ];
+    final audience = await calendarAudience(cal);
     final reg = await client.call('/schres/sc111A05', {
       'companyInfo': await client.companyInfo(),
       'schSeq': '',
@@ -492,7 +493,7 @@ extension GwAssistantApi on GwApi {
         part(c.empSeq, s.deptSeq, s.empName, 'M'),
         for (final g in guests) part(g.empSeq, g.deptSeq, g.name, 'W'),
       ],
-      'schUserList': [],
+      'schUserList': audience,
       'addressUserList': [],
       'resList': [],
       'reservedList': [],

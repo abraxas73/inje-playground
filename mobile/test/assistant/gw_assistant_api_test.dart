@@ -48,6 +48,7 @@ Map<String, Object? Function(Map<String, dynamic>)> base() => {
             {'resSeq': 'R2', 'resName': '회의실B', 'seqNum': 6, 'resIdx': '1', 'resStartDate': '202610051500', 'resEndDate': '202610051600', 'reqText': '내 회의', 'empSeq': '7'},
           ]},
       '/schres/sc111A02': (_) => {'resultList': [{'mcalSeq': '1', 'calType': 'E', 'empSeq': '7', 'calTitle': '내 캘린더'}, {'mcalSeq': '9', 'calType': 'M', 'empSeq': '0', 'calTitle': '부서'}]},
+      '/schres/sc111A07': (_) => {'calUserList': []},
     };
 
 void main() {

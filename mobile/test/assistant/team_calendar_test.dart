@@ -20,15 +20,31 @@ void main() {
       ...base(),
       '/schres/sc111A05': (_) => {'schSeq': '900'},
       '/schres/sc111A03': (_) => {'resultList': [{'schSeq': '900', 'schTitle': '내부회의', 'createSeq': '7'}]},
+      // 실측(2026-11-11 이노그리드 캘린더) 모양: 같은 조직이 권한별로 여러 번, 안 쓰는 항목(useYn N), 소유자(userType 90)
+      '/schres/sc111A07': (_) => {'ownerDeptSeq': '3052', 'calUserList': [
+            {'orgType': 'C', 'orgSeq': '1000', 'compSeq': '1000', 'deptSeq': '', 'userType': '10', 'useYn': 'Y'},
+            {'orgType': 'C', 'orgSeq': '1000', 'compSeq': '1000', 'deptSeq': '', 'userType': '20', 'useYn': 'Y'},
+            {'orgType': 'D', 'orgSeq': '2057', 'compSeq': '1000', 'deptSeq': '2057', 'userType': '00', 'useYn': 'Y'},
+            {'orgType': 'D', 'orgSeq': '2007', 'compSeq': '1000', 'deptSeq': '2007', 'userType': '10', 'useYn': 'N'},
+            {'orgType': 'D', 'orgSeq': '2057', 'compSeq': '1000', 'deptSeq': '2057', 'userType': '20', 'useYn': 'Y'},
+            {'orgType': 'E', 'orgSeq': '3273', 'compSeq': '1000', 'deptSeq': '', 'userType': '90', 'useYn': 'Y'},
+          ]},
     });
     final r = await gw.api().createEvent(title: '내부회의', start: '202610051500', end: '202610051600', calendarId: '9');
     expect(r['ok'], isTrue);
     final b = gw.calls['/schres/sc111A05']!.single;
     expect((b['mcalSeq'], b['calType']), ('9', 'M'));
+    expect(b['schUserList'], [
+      {'compSeq': '1000', 'deptSeq': '', 'orgType': 'C', 'orgSeq': '1000', 'userType': '20'},
+      {'compSeq': '1000', 'deptSeq': '2057', 'orgType': 'D', 'orgSeq': '2057', 'userType': '20'},
+      {'compSeq': '1000', 'deptSeq': '3052', 'orgType': 'E', 'orgSeq': '3273', 'empSeq': '3273', 'userType': '20'},
+    ], reason: '공유캘린더는 웹처럼 그 캘린더 구성원이 공개범위로 들어간다');
     await expectLater(gw.api().createEvent(title: 't', start: '202610051500', end: '202610051600', calendarId: '99'), throwsA(isA<GwException>()));
     final personal = await gw.api().createEvent(title: '내부회의', start: '202610051500', end: '202610051600');
     expect(personal['ok'], isTrue);
     expect(gw.calls['/schres/sc111A05']!.last['mcalSeq'], '1', reason: '지정 안 하면 개인 캘린더');
+    expect(gw.calls['/schres/sc111A05']!.last['schUserList'], isEmpty, reason: '개인 캘린더는 웹도 공개범위를 비운다');
+    expect(gw.calls['/schres/sc111A07'], hasLength(1), reason: '개인 캘린더는 캘린더 정보를 묻지 않는다');
   });
 
   test('비서 — 우리 팀 전원 + 캘린더 지정: my_team은 바로, 카드에 캘린더 이름, 실행하면 그 캘린더에', () async {

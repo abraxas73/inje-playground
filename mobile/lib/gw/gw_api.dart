@@ -124,6 +124,27 @@ extension GwScheduleApi on GwApi {
     return c.cals!;
   }
 
+  /// 일정 공개범위(sc111A05 schUserList, userType 20). 웹은 공유캘린더를 고르면 그 캘린더의 사용 중 구성원(sc111A07 calUserList —
+  /// 회사·관리 부서·소유자)을 중복 없이 채운다(2026-11-11 웹 등록 요청 실측). 개인 캘린더는 웹도 비운다.
+  Future<List<Map<String, String>>> calendarAudience(GwCalendar cal) async {
+    if (cal.personal || cal.calType.isEmpty) return const [];
+    final d = await client.call('/schres/sc111A07', {'companyInfo': await client.companyInfo(), 'mcalSeq': cal.mcalSeq, 'langCode': 'kr'});
+    final ownerDept = asStr(d is Map ? d['ownerDeptSeq'] : null);
+    final seen = <String>{};
+    return [
+      for (final u in ((d is Map ? d['calUserList'] : null) as List? ?? const []).whereType<Map>())
+        if (asStr(u['useYn']) == 'Y' && seen.add('${u['orgType']}|${u['orgSeq']}'))
+          {
+            'compSeq': asStr(u['compSeq']),
+            'deptSeq': asStr(u['deptSeq']).isEmpty && asStr(u['orgType']) == 'E' ? ownerDept : asStr(u['deptSeq']),
+            'orgType': asStr(u['orgType']),
+            'orgSeq': asStr(u['orgSeq']),
+            if (asStr(u['orgType']) == 'E') 'empSeq': asStr(u['orgSeq']),
+            'userType': '20',
+          },
+    ];
+  }
+
   /// 일정 원본 행(sc111A03) — [day]부터 [end](포함, 기본 같은 날)까지. createSeq(작성자) 등 모델에 없는 필드가 필요할 때(비서 삭제 소유권).
   Future<List<Map>> eventRows(DateTime day, {DateTime? end}) async {
     final cals = await calendars();

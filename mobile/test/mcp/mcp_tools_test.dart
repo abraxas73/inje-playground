@@ -306,6 +306,7 @@ void main() {
   group('일정', () {
     Map<String, Object? Function(Map<String, dynamic>)> cal() => {
           ...org(),
+          '/schres/sc111A07': (_) => {'ownerDeptSeq': '3052', 'calUserList': [{'orgType': 'C', 'orgSeq': '1000', 'compSeq': '1000', 'deptSeq': '', 'userType': '20', 'useYn': 'Y'}]},
           '/schres/sc111A02': (_) => {'resultList': [
                 {...(cap('create_calendar_event', '/schres/sc111A02')['resultList'] as List).first, 'mcalSeq': '993', 'calType': 'E', 'empSeq': '7', 'calTitle': '개인캘린더.홍길동'},
                 {'mcalSeq': '230', 'calType': 'M', 'empSeq': '0', 'calTitle': '이노그리드', 'calColor': '#fff'},
@@ -337,6 +338,7 @@ void main() {
       final b = gw.calls['/schres/sc111A05']!.single;
       expect((b['contents'], b['mcalSeq'], b['calType'], b['mailSend'], b['endDate']), ('안건', '230', 'M', 'N', '202610122330'));
       expect((b['schPartEmpList'] as List).map((p) => '${p['empSeq']}/${p['deptSeq']}/${p['partType']}'), ['7/130/M', '31/130/W', '91/211/W']);
+      expect(b['schUserList'], [{'compSeq': '1000', 'deptSeq': '', 'orgType': 'C', 'orgSeq': '1000', 'userType': '20'}], reason: '공유캘린더 공개범위(웹과 같게)');
       await expectLater(run(gw, 'create_calendar_event', {'title': 't', 'start': '202610122300', 'end': '202610122330', 'participants': ['김민준']}), throwsA(isA<McpToolError>()));
     });
 
