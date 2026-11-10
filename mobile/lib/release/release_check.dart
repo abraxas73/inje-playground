@@ -6,7 +6,7 @@ class ReleaseInfo {
   final String version;
   final int build;
 
-  /// Android: APK 서명 URL(600초) · iOS: TestFlight 링크. 없으면 웹 /apps 안내.
+  /// Android: Google Play 링크 · iOS: App Store 비목록 링크. 없으면 웹 /apps 안내.
   final String? url;
 }
 

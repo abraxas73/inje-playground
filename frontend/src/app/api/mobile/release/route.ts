@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 /**
  * GET /api/mobile/release — 최신 앱 버전(플랫폼별)과 설치 링크. 웹 /apps와 앱 시작 시 업데이트 확인이 쓴다.
- * user 이상(쿠키·Bearer). Android는 Google Play 스토어 링크, iOS는 설정된 TestFlight 링크.
+ * user 이상(쿠키·Bearer). Android는 Google Play 스토어 링크, iOS는 App Store 비목록 링크.
  */
 export async function GET() {
   const r = await requireUser();

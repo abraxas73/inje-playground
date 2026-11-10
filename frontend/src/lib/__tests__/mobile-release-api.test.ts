@@ -12,11 +12,11 @@ import { GET } from "@/app/api/mobile/release/route";
 const rel = JSON.stringify({ notes: "n", testflightUrl: "https://tf", android: { version: "1.1.0", build: 3, apkPath: "android/innogrid-1.1.0+3.apk" }, ios: { version: "1.1.0", build: 3 } });
 beforeEach(() => { m.ok = true; m.value = rel; m.signed.mockReset().mockResolvedValue({ data: { signedUrl: "https://signed/apk" }, error: null }); });
 
-it("플랫폼별 버전과 링크 — Android는 Google Play 내부 테스트, iOS는 TestFlight 링크, no-store", async () => {
+it("플랫폼별 버전과 링크 — Android는 Google Play 내부 테스트, iOS는 App Store 고정 링크, no-store", async () => {
   const res = await GET();
   expect(res.status).toBe(200);
   expect(res.headers.get("Cache-Control")).toBe("no-store");
-  expect(await res.json()).toEqual({ notes: "n", ios: { version: "1.1.0", build: 3, releasedAt: null, url: "https://tf" }, android: { version: "1.1.0", build: 3, releasedAt: null, url: "https://play.google.com/store/apps/details?id=com.innogrid.playground" } });
+  expect(await res.json()).toEqual({ notes: "n", ios: { version: "1.1.0", build: 3, releasedAt: null, url: "https://apps.apple.com/kr/app/innogrid/id6818983333" }, android: { version: "1.1.0", build: 3, releasedAt: null, url: "https://play.google.com/store/apps/details?id=com.innogrid.playground" } });
   expect(m.signed).not.toHaveBeenCalled();
 });
 it("설정이 없으면 빈 응답 200, 서명 호출 없음", async () => {

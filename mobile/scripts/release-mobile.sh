@@ -2,6 +2,7 @@
 # 모바일 앱 릴리스(운영자 Mac). 사용법:
 #   mobile/scripts/release-mobile.sh (android|ios|all) [--notes "…"] [--testflight-url URL] [--dry-run] [--allow-dirty]
 #   mobile/scripts/release-mobile.sh link --testflight-url URL      # 빌드 없이 TestFlight 공개 링크만 저장(심사 승인 뒤 링크가 생기므로 따로 둔다)
+#   mobile/scripts/release-mobile.sh store                           # App Store에 판매 중인 iOS 버전을 settings.mobile_release.ios에 반영(심사 승인·출시 뒤 — 웹 /apps·iOS 업데이트 안내 띠의 기준)
 #   mobile/scripts/release-mobile.sh sharepoint-folder <폴더 링크>   # APK 사본을 올릴 SharePoint 폴더 링크 저장(한 번)
 #   mobile/scripts/release-mobile.sh aab                             # Google Play용 AAB만 빌드(업로드·설정 변경 없음)
 #   mobile/scripts/release-mobile.sh play                            # AAB 빌드 + Google Play 내부 테스트 트랙 업로드(android/all 뒤 자동, 실패 시 재시도용)
@@ -10,7 +11,7 @@
 # 1) 작업 트리 확인 2) flutter test·analyze 3) pubspec version → APP_VERSION/APP_BUILD
 # 4) android: AAB 빌드 → Google Play 내부 테스트 트랙(play-upload.py) → Play가 만든 Google 서명 universal APK 받기
 #    → Supabase 스토리지 mobile/android/innogrid-<v>+<b>.apk 업로드 → settings.mobile_release.android 갱신 → SharePoint 사본
-# 5) ios: IPA 빌드 → App Store Connect 업로드(xcrun altool, API 키) → settings.mobile_release.ios 갱신 6) 다음 할 일 출력
+# 5) ios: IPA 빌드 → App Store Connect 업로드(xcrun altool, API 키) → 노트만 갱신(ios 블록은 App Store 출시 뒤 `store`로 — 2026-11-10 비목록 배포, 안내 띠가 App Store를 열기 때문) 6) 다음 할 일 출력
 # 환경: frontend/.env.local(NEXT_PUBLIC_SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY·CRON_SECRET — SharePoint 단계), mobile/.env.release(OPERATOR_EMAIL — SharePoint 단계의 Microsoft 연결 주인(관리자); ASC_KEY_ID·ASC_ISSUER_ID — iOS만, .p8은 ~/.private_keys/AuthKey_<ID>.p8)
 # 비밀 값은 절대 출력하지 않는다. 버전 올리기는 pubspec.yaml을 손으로 고친다. 런북 docs/mobile-app.md §배포
 set -euo pipefail
@@ -36,8 +37,8 @@ case "$TARGET" in
   ios) DO_IOS=1;;
   all) DO_ANDROID=1; DO_IOS=1;;
   link) [ -n "$TF_URL" ] || { echo "link에는 --testflight-url URL 이 필요합니다." >&2; exit 2; };;
-  sharepoint|sharepoint-folder|aab|play) ;;
-  *) echo "사용법: $0 (android|ios|all) [--notes \"…\"] [--testflight-url URL] [--dry-run] [--allow-dirty] | $0 link --testflight-url URL | $0 sharepoint-folder <링크> | $0 sharepoint | $0 aab | $0 play" >&2; exit 2;;
+  sharepoint|sharepoint-folder|aab|play|store) ;;
+  *) echo "사용법: $0 (android|ios|all) [--notes \"…\"] [--testflight-url URL] [--dry-run] [--allow-dirty] | $0 link --testflight-url URL | $0 sharepoint-folder <링크> | $0 sharepoint | $0 aab | $0 play | $0 store" >&2; exit 2;;
 esac
 say() { printf '\n▶ %s\n' "$*"; }
 
@@ -81,7 +82,7 @@ mkdir -p "$MOBILE/build"; LOG="$MOBILE/build/release-$VERSION+$BUILD.log"
 quiet() { "$@" >>"$LOG" 2>&1 || { echo "  실패 — 로그 끝($LOG):" >&2; tail -25 "$LOG" >&2; return 1; }; }
 
 # 4. 게이트(link·sharepoint·sharepoint-folder는 빌드가 없어 건너뜀)
-case "$TARGET" in link|sharepoint|sharepoint-folder) GATE=0;; *) GATE=1;; esac
+case "$TARGET" in link|sharepoint|sharepoint-folder|store) GATE=0;; *) GATE=1;; esac
 if [ "$GATE" = 1 ]; then
 say "flutter test · analyze"
 if [ "$DRY" = 1 ]; then echo "  (dry-run) flutter test && flutter analyze"; else
@@ -247,13 +248,31 @@ if [ "$DO_IOS" = 1 ]; then
     grep -i -E "uploaded|succeeded|Delivery UUID" "$LOG" | head -3 || echo "  완료"
     rm -f "$LOG"
   fi
-  write_release ios
+  # ios 블록(버전·빌드)은 App Store에 나온 버전만 — TestFlight 업로드로는 바꾸지 않는다(띠가 아직 없는 버전을 App Store에서 찾게 됨)
+  write_release notes
 fi
 
 # 6b. 공개 링크만 저장 / SharePoint 폴더 저장 / SharePoint 사본만 다시
 if [ "$TARGET" = link ]; then
   say "TestFlight 공개 링크 저장"
   write_release link
+fi
+if [ "$TARGET" = store ]; then
+  say "App Store: 판매 중인 iOS 버전 → settings.mobile_release.ios"
+  STORE_VB=$(python3 - "$ROOT" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1] + "/.claude/skills/innocrew-app-testers")
+import asc
+st, j = asc.call("GET", "/v1/apps/" + asc.APP_ID + "/appStoreVersions?filter[appStoreState]=READY_FOR_SALE&include=build&fields[builds]=version&limit=1")
+v = (j or {}).get("data") or []
+b = [x for x in (j or {}).get("included") or [] if x.get("type") == "builds"]
+if st != 200 or not v or not b: sys.exit("판매 중인 App Store 버전을 찾지 못했습니다(HTTP %s)" % st)
+print(v[0]["attributes"]["versionString"], b[0]["attributes"]["version"])
+PY
+)
+  VERSION=${STORE_VB% *}; BUILD=${STORE_VB#* }
+  echo "  App Store: $VERSION ($BUILD)"
+  write_release ios
 fi
 if [ "$TARGET" = sharepoint-folder ]; then
   say "SharePoint 폴더 링크 저장"
@@ -266,5 +285,5 @@ say "다음 할 일"
 [ "$DO_ANDROID" = 1 ] && echo "  · Android: 웹 $APP_URL/apps 에서 바로 받을 수 있습니다. 설치된 앱은 다음 실행 때 배너로 안내합니다."
 [ "$TARGET" = sharepoint-folder ] && echo "  · 다음 android 릴리스부터 APK 사본이 이 폴더에 innogrid-app-<X.Y.Z>.apk로 올라갑니다. 지금 것은: $0 sharepoint"
 [ "$TARGET" = link ] && echo "  · 웹 /apps의 'TestFlight에서 열기' 버튼과 iOS 앱 배너 링크가 이 주소를 씁니다."
-[ "$DO_IOS" = 1 ] && echo "  · iOS: App Store Connect → TestFlight에서 처리 완료 후 내부 테스트로 확인하세요. 외부 테스트 심사는 운영자의 명시적 요청이 있을 때만 제출합니다."
+[ "$DO_IOS" = 1 ] && echo "  · iOS: TestFlight 내부 테스트로 확인하세요. App Store 버전 심사 제출은 운영자 요청이 있을 때만, 출시되면 $0 store 로 웹 /apps·업데이트 안내 띠에 반영합니다."
 echo "  · 공지 예시: [이노그리드 앱 $VERSION] ${NOTES:-변경 내용} — 설치·업데이트: $APP_URL/apps"

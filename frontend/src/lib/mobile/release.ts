@@ -59,7 +59,8 @@ export function parseMobileRelease(raw: string | undefined | null): MobileReleas
 export function releaseResponse(rel: MobileRelease, apkUrl: string | null): ReleaseResponse {
   return {
     notes: rel.notes,
-    ios: rel.ios ? { ...rel.ios, url: rel.testflightUrl } : null,
+    // iOS는 App Store 비목록 링크 고정(ios 블록은 App Store에 나온 버전만 — release-mobile.sh store)
+    ios: rel.ios ? { ...rel.ios, url: IOS_APP_STORE_URL } : null,
     android: rel.android ? { version: rel.android.version, build: rel.android.build, releasedAt: rel.android.releasedAt, url: apkUrl } : null,
   };
 }
