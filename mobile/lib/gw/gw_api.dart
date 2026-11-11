@@ -125,9 +125,10 @@ extension GwScheduleApi on GwApi {
   }
 
   /// 일정 공개범위(sc111A05 schUserList, userType 20). 웹은 공유캘린더를 고르면 그 캘린더의 사용 중 구성원(sc111A07 calUserList —
-  /// 회사·관리 부서·소유자)을 중복 없이 채운다(2026-11-11 웹 등록 요청 실측). 개인 캘린더는 웹도 비운다.
+  /// 회사·관리 부서·소유자)을 중복 없이 채운다(2026-11-11 웹 등록 요청 실측). 앱은 '이노그리드' 캘린더에만 채운다(사용자 결정 2026-11-11 —
+  /// 개인·다른 캘린더는 예전처럼 비움).
   Future<List<Map<String, String>>> calendarAudience(GwCalendar cal) async {
-    if (cal.personal || cal.calType.isEmpty) return const [];
+    if (cal.personal || cal.title.trim() != '이노그리드') return const [];
     final d = await client.call('/schres/sc111A07', {'companyInfo': await client.companyInfo(), 'mcalSeq': cal.mcalSeq, 'langCode': 'kr'});
     final ownerDept = asStr(d is Map ? d['ownerDeptSeq'] : null);
     final seen = <String>{};

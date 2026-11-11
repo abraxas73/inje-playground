@@ -18,6 +18,11 @@ void main() {
   test('createEvent — 캘린더를 고르면 그 mcalSeq·calType으로, 모르는 캘린더는 오류', () async {
     final gw = Gw({
       ...base(),
+      '/schres/sc111A02': (_) => {'resultList': [
+            {'mcalSeq': '1', 'calType': 'E', 'empSeq': '7', 'calTitle': '내 캘린더'},
+            {'mcalSeq': '9', 'calType': 'M', 'empSeq': '0', 'calTitle': '이노그리드'},
+            {'mcalSeq': '8', 'calType': 'M', 'empSeq': '0', 'calTitle': '부서'},
+          ]},
       '/schres/sc111A05': (_) => {'schSeq': '900'},
       '/schres/sc111A03': (_) => {'resultList': [{'schSeq': '900', 'schTitle': '내부회의', 'createSeq': '7'}]},
       // 실측(2026-11-11 이노그리드 캘린더) 모양: 같은 조직이 권한별로 여러 번, 안 쓰는 항목(useYn N), 소유자(userType 90)
@@ -38,13 +43,15 @@ void main() {
       {'compSeq': '1000', 'deptSeq': '', 'orgType': 'C', 'orgSeq': '1000', 'userType': '20'},
       {'compSeq': '1000', 'deptSeq': '2057', 'orgType': 'D', 'orgSeq': '2057', 'userType': '20'},
       {'compSeq': '1000', 'deptSeq': '3052', 'orgType': 'E', 'orgSeq': '3273', 'empSeq': '3273', 'userType': '20'},
-    ], reason: '공유캘린더는 웹처럼 그 캘린더 구성원이 공개범위로 들어간다');
+    ], reason: '이노그리드 캘린더는 웹처럼 그 캘린더 구성원이 공개범위로 들어간다');
+    await gw.api().createEvent(title: '내부회의', start: '202610051500', end: '202610051600', calendarId: '8');
+    expect(gw.calls['/schres/sc111A05']!.last['schUserList'], isEmpty, reason: '다른 공유캘린더는 예전처럼 비운다');
     await expectLater(gw.api().createEvent(title: 't', start: '202610051500', end: '202610051600', calendarId: '99'), throwsA(isA<GwException>()));
     final personal = await gw.api().createEvent(title: '내부회의', start: '202610051500', end: '202610051600');
     expect(personal['ok'], isTrue);
     expect(gw.calls['/schres/sc111A05']!.last['mcalSeq'], '1', reason: '지정 안 하면 개인 캘린더');
     expect(gw.calls['/schres/sc111A05']!.last['schUserList'], isEmpty, reason: '개인 캘린더는 웹도 공개범위를 비운다');
-    expect(gw.calls['/schres/sc111A07'], hasLength(1), reason: '개인 캘린더는 캘린더 정보를 묻지 않는다');
+    expect(gw.calls['/schres/sc111A07'], hasLength(1), reason: '이노그리드 말고는 캘린더 정보를 묻지 않는다');
   });
 
   test('비서 — 우리 팀 전원 + 캘린더 지정: my_team은 바로, 카드에 캘린더 이름, 실행하면 그 캘린더에', () async {
