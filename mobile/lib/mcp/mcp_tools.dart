@@ -626,7 +626,7 @@ class McpTools {
     Map<String, String> part(String emp, String dept, String name, String type) =>
         {'compSeq': s.compSeq, 'deptSeq': dept, 'orgType': 'E', 'orgSeq': emp, 'empSeq': emp, 'empName': name, 'partType': type, 'mcalSeq': ''};
     final seen = <String>{c.empSeq};
-    final reg = await g.createEventRaw(title: title, mcalSeq: cal.mcalSeq, calType: cal.calType.isEmpty ? 'E' : cal.calType, start: start, end: end, contents: a.str(x, 'contents'), parts: [
+    final reg = await g.createEventRaw(title: title, mcalSeq: cal.mcalSeq, calType: cal.calType.isEmpty ? 'E' : cal.calType, start: start, end: end, contents: a.str(x, 'contents'), audience: await g.calendarAudience(cal), parts: [
       part(c.empSeq, s.deptSeq, s.empName, 'M'),
       for (final r in guests) if (seen.add(asStr(r['empSeq']))) part(asStr(r['empSeq']), asStr(r['deptSeq']), asStr(r['empName']), 'W'),
     ]);

@@ -84,13 +84,13 @@ extension GwMcpApi on GwApi {
     }));
   }
 
-  /// sc111A05 신규 등록. parts는 schPartEmpList 항목(주최 M 먼저).
-  Future<dynamic> createEventRaw({required String title, required String mcalSeq, required String calType, required String start, required String end, required String contents, required List<Map<String, String>> parts}) async {
+  /// sc111A05 신규 등록. parts는 schPartEmpList 항목(주최 M 먼저), audience는 공개범위(calendarAudience).
+  Future<dynamic> createEventRaw({required String title, required String mcalSeq, required String calType, required String start, required String end, required String contents, required List<Map<String, String>> parts, List<Map<String, String>> audience = const []}) async {
     final c = client.creds();
     return client.call('/schres/sc111A05', {
       'companyInfo': await client.companyInfo(), 'schSeq': '', 'schmSeq': '', 'schGbnCode': '10', 'schTitle': title, 'mcalSeq': mcalSeq, 'calType': calType, 'startDate': start, 'endDate': end,
       'gbnCode': 'E', 'repeatType': '10', 'repeatByDay': '', 'repeatEndDay': '', 'rangeCode': 'N', 'alarm_yn': 'Y', 'schAlarmList': [], 'contents': contents, 'myMemo': '', 'alldayYn': 'N', 'lunarYn': 'N',
-      'inviterPartType': 'M', 'schPartEmpList': parts, 'schUserList': [], 'addressUserList': [], 'resList': [], 'reservedList': [], 'uidList': '', 'placeMapData': '{}', 'otherLinkList': [],
+      'inviterPartType': 'M', 'schPartEmpList': parts, 'schUserList': audience, 'addressUserList': [], 'resList': [], 'reservedList': [], 'uidList': '', 'placeMapData': '{}', 'otherLinkList': [],
       'groupSeq': c.groupSeq, 'empSeq': c.empSeq, 'videoYn': 'N', 'videoTimeZone': 'Asia/Seoul', 'mailSend': 'N', 'langCode': 'kr',
     });
   }
