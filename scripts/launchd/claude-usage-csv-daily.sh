@@ -55,5 +55,18 @@ for m in msgs:
         print(f"  is_error={m.get('is_error')} turns={m.get('num_turns')} duration={round((m.get('duration_ms') or 0)/1000)}s cost=${m.get('total_cost_usd')}")
         for line in str(m.get("result") or "").strip().splitlines(): print("  | " + line)
 PY
+
+# 7일 미사용 시트 자동 해제 요청 — 오늘 CSV가 올라온 조직만 서버가 판정, 요청은 시트 실행기가 처리(이력은 수동 해제와 같음)
+TOKEN="${OPS_INGEST_TOKEN:-$(grep -E '^OPS_INGEST_TOKEN=' "$REPO/frontend/.env.local" 2>/dev/null | cut -d= -f2- || true)}"
+if [ -n "$TOKEN" ]; then
+  AR="$(curl -sS --max-time 120 -X POST -H "Authorization: Bearer $TOKEN" "${INJE_BASE_URL:-https://inje-playground.vercel.app}/api/admin/claude-usage/seat-actions/auto-release" 2>&1)"
+  printf '%s' "$AR" | python3 -c 'import json,sys
+try: d=json.load(sys.stdin)
+except Exception: print("  자동 해제 응답 파싱 실패"); sys.exit()
+if "error" in d: print("  자동 해제 실패: "+str(d["error"])); sys.exit()
+for o in d.get("orgs",[]): print("  자동 해제 %s: %s" % (o["org_id"][:8], o.get("skipped") or "대상 %d명·요청 %d건" % (len(o["emails"]), o["requested"])))' >> "$LOG_FILE" 2>&1
+else
+  log "OPS_INGEST_TOKEN 없음 → 자동 해제 건너뜀"
+fi
 log "종료 rc=$RC"
 exit "$RC"
