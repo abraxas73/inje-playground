@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apkFileName, isApkCopyName, parseMobileRelease, releaseResponse } from "@/lib/mobile/release";
+import { apkFileName, IOS_APP_STORE_URL, isApkCopyName, parseMobileRelease, releaseResponse } from "@/lib/mobile/release";
 
 const full = JSON.stringify({ notes: "게시판", testflightUrl: "https://testflight.apple.com/join/abc", android: { version: "1.1.0", build: 3, apkPath: "android/innogrid-1.1.0+3.apk", releasedAt: "2026-10-04T06:00:00Z" }, ios: { version: "1.1.0", build: "3", releasedAt: "2026-10-04T06:30:00Z" } });
 
@@ -24,12 +24,12 @@ describe("parseMobileRelease", () => {
 });
 
 describe("releaseResponse", () => {
-  it("ios.url은 testflightUrl, android.url은 넘겨준 서명 URL — 없으면 null", () => {
+  it("ios.url은 App Store 비목록 링크(고정), android.url은 넘겨준 서명 URL — 없으면 null", () => {
     const r = parseMobileRelease(full);
     expect(releaseResponse(r, "https://signed").android).toEqual({ version: "1.1.0", build: 3, releasedAt: "2026-10-04T06:00:00Z", url: "https://signed" });
     expect(releaseResponse(r, null).android?.url).toBeNull();
-    expect(releaseResponse(r, null).ios?.url).toBe("https://testflight.apple.com/join/abc");
-    expect(releaseResponse({ ...r, testflightUrl: null }, null).ios?.url).toBeNull();
+    expect(releaseResponse(r, null).ios?.url).toBe(IOS_APP_STORE_URL);
+    expect(releaseResponse({ ...r, testflightUrl: null }, null).ios?.url).toBe(IOS_APP_STORE_URL);
     expect(releaseResponse({ ...r, ios: null, android: null }, null)).toEqual({ notes: "게시판", ios: null, android: null });
   });
 });
