@@ -56,10 +56,11 @@ for m in msgs:
         for line in str(m.get("result") or "").strip().splitlines(): print("  | " + line)
 PY
 
-# 7일 미사용 시트 자동 해제 요청 — 오늘 CSV가 올라온 조직만 서버가 판정, 요청은 시트 실행기가 처리(이력은 수동 해제와 같음)
+# 7일 미사용 시트 자동 해제 요청 — 오늘 CSV가 올라온 조직만 서버가 판정, 요청은 시트 실행기가 처리(이력은 수동 해제와 같음).
+# operator(관리자)의 Microsoft 연결로 해제된 본인에게 Teams 1:1 안내가 간다
 TOKEN="${OPS_INGEST_TOKEN:-$(grep -E '^OPS_INGEST_TOKEN=' "$REPO/frontend/.env.local" 2>/dev/null | cut -d= -f2- || true)}"
 if [ -n "$TOKEN" ]; then
-  AR="$(curl -sS --max-time 120 -X POST -H "Authorization: Bearer $TOKEN" "${INJE_BASE_URL:-https://inje-playground.vercel.app}/api/admin/claude-usage/seat-actions/auto-release" 2>&1)"
+  AR="$(curl -sS --max-time 120 -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "{\"operator\":\"${SEAT_OPERATOR:-seunguk.kang@innogrid.com}\"}" "${INJE_BASE_URL:-https://inje-playground.vercel.app}/api/admin/claude-usage/seat-actions/auto-release" 2>&1)"
   printf '%s' "$AR" | python3 -c 'import json,sys
 try: d=json.load(sys.stdin)
 except Exception: print("  자동 해제 응답 파싱 실패"); sys.exit()

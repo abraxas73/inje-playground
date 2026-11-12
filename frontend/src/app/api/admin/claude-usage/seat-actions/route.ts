@@ -5,6 +5,9 @@ import { logAudit } from "@/lib/audit";
 import { normalizeTier } from "@/lib/claude-usage/seat-tier";
 import { canTransition, checkRequest, parseRequest } from "@/lib/claude-usage/seat-actions";
 import type { SeatAction, SeatActionStatus } from "@/types/claude-seat";
+import { AUTO_REQUESTER } from "@/lib/claude-usage/idle-seats";
+import { sendIdleReleaseNotice } from "@/lib/claude-usage/seat-notice";
+import { graphTokenForUser } from "@/lib/ms/route-token";
 
 export const runtime = "nodejs";
 
@@ -140,11 +143,27 @@ export async function PATCH(request: NextRequest) {
     const memberUpd = await admin.from("claude_org_members").update({ seat_tier: after }).eq("org_id", row.org_id).eq("email", row.email);
     if (memberUpd.error) console.warn(`[claude-usage] claude_org_members 티어 갱신 실패: ${memberUpd.error.message}`);
   }
+  // 7일 미사용 자동 해제가 끝나면 본인에게 Teams 안내(요청한 운영자 계정으로). 실패해도 PATCH는 성공 — 감사 detail에 결과만
+  let notice: string | undefined;
+  if (status === "done" && row.action === "unassign" && row.requested_by_email === AUTO_REQUESTER.email) {
+    notice = "보냄";
+    try {
+      const token = await graphTokenForUser(admin, row.requested_by);
+      if (!token.ok) notice = `실패: Microsoft 연결 없음(${token.response.status})`;
+      else {
+        const org = await admin.from("claude_orgs").select("name").eq("id", row.org_id).maybeSingle();
+        await sendIdleReleaseNotice(token.token, row.email, (org.data?.name as string | undefined) ?? row.org_id);
+      }
+    } catch (e) {
+      notice = `실패: ${e instanceof Error ? e.message.slice(0, 200) : "알 수 없음"}`;
+    }
+    if (notice !== "보냄") console.warn(`[claude-usage] 자동 해제 안내 ${notice}`);
+  }
   const what = row.action === "unassign" ? "시트 해제" : "시트 할당";
   await logAudit(admin, request, {
     userId: row.requested_by, userEmail: row.requested_by_email,
     action: status === "done" ? `${what} 완료` : `${what} 실패`, category: "usage",
-    detail: { action_id: id, org_id: row.org_id, email: row.email, action: row.action, target_tier: row.target_tier, before_tier: before, after_tier: after, error: status === "failed" ? s(b?.error, 500) : undefined },
+    detail: { action_id: id, org_id: row.org_id, email: row.email, action: row.action, target_tier: row.target_tier, before_tier: before, after_tier: after, error: status === "failed" ? s(b?.error, 500) : undefined, notice },
   });
   return NextResponse.json({ row: upd.data }, { headers: NO_STORE });
 }

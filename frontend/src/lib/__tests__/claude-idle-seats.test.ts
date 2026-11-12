@@ -32,3 +32,21 @@ describe("pickIdleSeats — 7일 미사용 자동 해제 대상", () => {
     expect(minusDays("2026-11-03", 6)).toBe("2026-10-28");
   });
 });
+
+describe("sendIdleReleaseNotice — 운영자 계정으로 1:1 채팅을 열어 안내", () => {
+  it("me → 1:1 채팅 만들기(나·대상) → 메시지", async () => {
+    const { sendIdleReleaseNotice } = await import("@/lib/claude-usage/seat-notice");
+    const calls: { url: string; body?: string }[] = [];
+    const fake = async (url: string, init?: RequestInit) => {
+      calls.push({ url, body: init?.body as string | undefined });
+      const j = url.endsWith("/me?$select=id") ? { id: "me-1" } : url.endsWith("/chats") ? { id: "19:abc" } : { id: "m1", createdDateTime: "2026-11-12T00:00:00Z", body: { content: "x" } };
+      return new Response(JSON.stringify(j), { status: 201, headers: { "Content-Type": "application/json" } });
+    };
+    await sendIdleReleaseNotice("t", "a@innogrid.com", "Innogrid_S1", fake);
+    expect(calls.map((c) => c.url.replace("https://graph.microsoft.com/v1.0", ""))).toEqual(["/me?$select=id", "/chats", "/chats/19%3Aabc/messages"]);
+    const chat = JSON.parse(calls[1].body!);
+    expect(chat.chatType).toBe("oneOnOne");
+    expect(chat.members.map((m: Record<string, string>) => m["user@odata.bind"])).toEqual(["https://graph.microsoft.com/v1.0/users('me-1')", "https://graph.microsoft.com/v1.0/users('a@innogrid.com')"]);
+    expect(JSON.parse(calls[2].body!).body.content).toContain('"Innogrid_S1"');
+  });
+});

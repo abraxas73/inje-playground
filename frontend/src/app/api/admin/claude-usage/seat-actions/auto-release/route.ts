@@ -10,6 +10,7 @@ export const runtime = "nodejs";
  * 7일 미사용 시트 자동 해제 요청 — 매일 09:05 사용량 수집 래퍼가 수집 뒤에 부른다(Bearer OPS_INGEST_TOKEN).
  * 오늘(20시간 안) CSV가 올라온 team 조직만 본다(수집 실패한 조직은 오래된 데이터로 판정하지 않음).
  * 대상은 수동 해제와 같은 claude_seat_actions 요청(요청자 "자동 해제(7일 미사용)")으로 넣고 실행기가 처리한다 — 이력·감사 동일.
+ * body {operator: 관리자 이메일} — 요청자 id로 남고, 실행기가 해제를 마치면 그 관리자의 Microsoft 연결로 본인에게 Teams 안내를 보낸다(PATCH).
  * ?dry=1 이면 넣지 않고 대상만 돌려준다.
  */
 const NO_STORE = { "Cache-Control": "no-store" };
@@ -24,6 +25,14 @@ export async function POST(request: NextRequest) {
   const admin = c.admin;
   const dry = request.nextUrl.searchParams.get("dry") === "1";
   const fail = (m: string) => NextResponse.json({ error: m }, { status: 500, headers: NO_STORE });
+  const operator = String(((await request.json().catch(() => ({}))) as { operator?: unknown }).operator ?? "").trim().toLowerCase();
+  let requestedBy = AUTO_REQUESTER.id;
+  if (operator) {
+    const p = await admin.from("user_profiles").select("user_id, role").eq("email", operator).maybeSingle();
+    if (p.error) return fail(p.error.message);
+    if (!p.data || p.data.role !== "admin") return NextResponse.json({ error: "operator는 관리자 계정이어야 합니다." }, { status: 403, headers: NO_STORE });
+    requestedBy = p.data.user_id as string;
+  }
 
   const orgs = await admin.from("claude_orgs").select("id").eq("category", "team");
   if (orgs.error) return fail(orgs.error.message);
@@ -69,14 +78,14 @@ export async function POST(request: NextRequest) {
     if (!dry) {
       for (const email of emails) {
         const ins = await admin.from("claude_seat_actions")
-          .insert({ org_id: org, email, action: "unassign", target_tier: null, requested_by: AUTO_REQUESTER.id, requested_by_email: AUTO_REQUESTER.email })
+          .insert({ org_id: org, email, action: "unassign", target_tier: null, requested_by: requestedBy, requested_by_email: AUTO_REQUESTER.email })
           .select("id").single();
         if (ins.error) {
           if (ins.error.code === "23505") continue; // 이미 대기·실행 중인 요청
           return fail(ins.error.message);
         }
         requested++;
-        await logAudit(admin, request, { userId: null, userEmail: AUTO_REQUESTER.email, action: "시트 해제 요청", category: "usage", detail: { action_id: ins.data.id, org_id: org, email, action: "unassign", reason: `최근 ${IDLE_DAYS}일 사용 0(~${pe})` } });
+        await logAudit(admin, request, { userId: requestedBy === AUTO_REQUESTER.id ? null : requestedBy, userEmail: AUTO_REQUESTER.email, action: "시트 해제 요청", category: "usage", detail: { action_id: ins.data.id, org_id: org, email, action: "unassign", reason: `최근 ${IDLE_DAYS}일 사용 0(~${pe})` } });
       }
     }
     result.push({ org_id: org, emails, requested });

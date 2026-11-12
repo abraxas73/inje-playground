@@ -8,6 +8,7 @@ import { hasSeat } from "@/lib/claude-usage/aggregate";
  */
 
 export const IDLE_DAYS = 7;
+/** 요청자 표시. id는 operator가 없을 때만 쓰는 빈 UUID(있으면 그 관리자 id가 requested_by) */
 export const AUTO_REQUESTER = { id: "00000000-0000-0000-0000-000000000000", email: "자동 해제(7일 미사용)" };
 
 const OWNER_ROLES = new Set(["owner", "primary owner"]);
