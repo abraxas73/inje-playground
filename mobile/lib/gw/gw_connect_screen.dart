@@ -46,7 +46,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
   GwLogin? _login;
   String? _error, _status;
   final _idCtl = TextEditingController(), _pwCtl = TextEditingController();
-  bool _remember = false, _retry = false;
+  bool _remember = false, _retry = false, _staleCleared = false;
 
   bool get _auto => _login != null && !_manual;
   bool get _form => _loginChecked && _login == null && !_manual && !_busy;
@@ -178,6 +178,15 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
       if (mounted) Navigator.of(context).pop(true); // 성공 즉시 닫는다 — 아마란스 메인은 볼 필요 없다
     } on GwException catch (e) {
       appEvents.report('gw_login_failed', 'verify_failed');
+      // 세션이 만료돼 다시 연결할 때 WebView에 남은 만료 쿠키를 먼저 집으면 확인이 실패한다 — 그대로 직접 로그인으로 떨어지면
+      // 저장된 아이디·비밀번호로 자동 로그인을 해 보지도 않아 매번 다시 묻는 것처럼 보였다(2026-11-13). 한 번은 쿠키를 지우고 처음부터.
+      if (mounted && !_staleCleared) {
+        _staleCleared = true;
+        setState(() => _status = null);
+        await _clearCookies();
+        if (_auto) _armAutoWatch();
+        return;
+      }
       if (mounted) setState(() { _error = '로그인을 확인하지 못했습니다: ${e.message}'; _manual = true; });
     } finally {
       if (mounted) setState(() => _busy = false);
