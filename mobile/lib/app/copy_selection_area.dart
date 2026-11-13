@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../app/theme.dart';
 import '../auth/session.dart';
 import '../todo/todo_quick_add.dart';
 
@@ -176,7 +177,6 @@ class _CopyChipState extends State<_CopyChip> {
     var top = desktop ? lineTop + (widget.lineHeight - s) / 2 : lineTop - s - 6;
     left = left.clamp(4.0, (screen.width - w - 4).clamp(4.0, double.infinity));
     if (top < 4) top = end.dy + 6; // 화면 위에 붙으면 줄 아래로
-    final scheme = Theme.of(context).colorScheme;
     return Stack(children: [
       Positioned(
         left: left,
@@ -187,10 +187,10 @@ class _CopyChipState extends State<_CopyChip> {
           curve: Curves.easeOutBack,
           builder: (_, v, child) => Transform.scale(scale: v, child: Opacity(opacity: v.clamp(0.0, 1.0), child: child)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            _button(scheme, tip: _done ? '복사했습니다' : '복사', on: _done, icon: _done ? Icons.check_rounded : Icons.content_paste_rounded, onTap: _tap),
+            _button(tip: _done ? '복사했습니다' : '복사', on: _done, icon: _done ? Icons.check_rounded : Icons.content_paste_rounded, onTap: _tap),
             if (todo) ...[
               const SizedBox(width: 4),
-              _button(scheme,
+              _button(
                   tip: _todo == true ? '할 일에 추가했습니다' : _todo == false ? '추가하지 못했습니다 · 다시 시도' : '할 일 등록',
                   on: _todo == true,
                   icon: _adding ? Icons.hourglass_top_rounded : _todo == true ? Icons.check_rounded : _todo == false ? Icons.error_outline_rounded : Icons.add_task_rounded,
@@ -203,18 +203,18 @@ class _CopyChipState extends State<_CopyChip> {
   }
 }
 
-Widget _button(ColorScheme scheme, {required String tip, required bool on, required IconData icon, required VoidCallback onTap}) => Tooltip(
+Widget _button({required String tip, required bool on, required IconData icon, required VoidCallback onTap}) => Tooltip(
       message: tip,
       child: Material(
-        color: on ? scheme.primary : scheme.surface,
+        color: on ? Brand.success : Brand.blue, // 눈에 띄게 우리 파랑, 끝나면 초록
         elevation: 3,
         shadowColor: Colors.black38,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7), side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6))),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           mouseCursor: SystemMouseCursors.click,
-          child: SizedBox.square(dimension: _CopyChip.size, child: Icon(icon, size: 15, color: on ? scheme.onPrimary : scheme.onSurfaceVariant)),
+          child: SizedBox.square(dimension: _CopyChip.size, child: Icon(icon, size: 15, color: Colors.white)),
         ),
       ),
     );
