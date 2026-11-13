@@ -12,8 +12,8 @@ const data = buildOrg(
     { id: "b", parent_id: "c", name: "경영지원", sort: 2, depth: 1 },
   ],
   [
-    { email: "kim@x.com", emp_seq: null, name: "김철수", dept_id: "a1x", dept_name: "개발팀", units: null, duty: null, position: null },
-    { email: "lee@x.com", emp_seq: null, name: "이영희", dept_id: "a", dept_name: "AI부문", units: null, duty: null, position: null },
+    { email: "kim@x.com", emp_seq: null, name: "김철수", dept_id: "a1x", dept_name: "개발팀", units: null, duty: null, position: null, mobile: "010-1234-5678" },
+    { email: "lee@x.com", emp_seq: null, name: "이영희", dept_id: "a", dept_name: "AI부문", units: null, duty: null, position: null, mobile: "01099991234" },
     { email: "park@x.com", emp_seq: null, name: "박민수", dept_id: "b", dept_name: "경영지원", units: null, duty: null, position: null },
   ],
 );
@@ -45,6 +45,13 @@ describe("org-tree", () => {
     expect(r.depts.has("b")).toBe(true);
     expect(r.people.map((p) => p.email)).toEqual(["park@x.com"]);
     expect(searchOrg(idx, data.people, "  ").people).toEqual([]);
+  });
+  it("숫자 검색은 휴대폰: 4자리는 뒷자리, 5자리 이상은 포함, 3자리 이하는 안 봄", () => {
+    expect(searchOrg(idx, data.people, "1234").people.map((p) => p.name)).toEqual(["이영희"]);
+    expect(searchOrg(idx, data.people, "1234-5").people.map((p) => p.name)).toEqual(["김철수"]);
+    expect(searchOrg(idx, data.people, "010 9999").people.map((p) => p.name)).toEqual(["이영희"]);
+    expect(searchOrg(idx, data.people, "123").people).toEqual([]);
+    expect(data.people.find((p) => p.name === "박민수")?.mobile).toBeNull();
   });
 });
 

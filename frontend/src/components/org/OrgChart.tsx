@@ -135,6 +135,7 @@ function PersonDialog({ p, path, a, onClose }: { p: OrgPerson | null; path: stri
               <dd className="break-keep">{path || p.deptName || "-"}</dd>
               <dt className="text-muted-foreground">이메일</dt>
               <dd className="break-all"><a href={mailtoUrl([p])} className="text-primary hover:underline">{p.email}</a></dd>
+              {p.mobile && <><dt className="text-muted-foreground">휴대폰</dt><dd><a href={`tel:${p.mobile.replace(/[^\d+]/g, "")}`} className="text-primary hover:underline">{p.mobile}</a></dd></>}
             </dl>
             <div className="flex justify-center gap-2 pt-1">
               {a.inApp && p.empSeq && <Button size="sm" onClick={() => a.messenger([p])}><MessageCircle className="h-4 w-4" />메신저 대화</Button>}
@@ -186,7 +187,7 @@ function PeopleTable({ people, a }: { people: OrgPerson[]; a: PeopleActions }) {
               <button type="button" onClick={(e) => { e.stopPropagation(); a.show(p); }} onKeyDown={(e) => e.stopPropagation()} className="font-medium hover:underline">{p.name}</button>
               <span className="text-xs text-muted-foreground">{[p.duty, p.position].filter(Boolean).join(" · ")}</span>
             </div>
-            <div className="truncate text-xs text-muted-foreground" title={p.email}>{p.deptName ?? "-"} · {p.email}</div>
+            <div className="truncate text-xs text-muted-foreground" title={p.email}>{p.deptName ?? "-"} · {p.email}{p.mobile ? ` · ${p.mobile}` : ""}</div>
           </div>
           <RowActions p={p} a={a} />
         </li>
@@ -328,7 +329,7 @@ export default function OrgChart() {
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <div className="relative min-w-0 flex-1 basis-full sm:w-64 sm:flex-none sm:basis-auto">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={query} onChange={(e) => onQuery(e.target.value)} placeholder="부서, 이름, 이메일 검색" className="pl-8" aria-label="조직도 검색" />
+            <Input value={query} onChange={(e) => onQuery(e.target.value)} placeholder="부서, 이름, 이메일, 전화번호(뒤 4자리) 검색" className="pl-8" aria-label="조직도 검색" />
           </div>
           <Button variant="outline" size="sm" onClick={() => setExpanded(new Set(idx.byId.keys()))}><ChevronsUpDown className="h-4 w-4" />전체 펼치기</Button>
           <Button variant="outline" size="sm" onClick={() => setExpanded(new Set([idx.root.id]))}><ChevronsDownUp className="h-4 w-4" />전체 접기</Button>

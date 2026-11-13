@@ -89,6 +89,20 @@ Future<void> showPersonSheet(BuildContext context, OrgPerson p) => showModalBott
                     },
                   ),
                 ),
+              if (p.mobile.isNotEmpty)
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.phone_iphone),
+                  title: Text(p.mobile),
+                  trailing: IconButton(
+                    tooltip: '휴대폰 번호 복사',
+                    icon: const Icon(Icons.copy, size: 18),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: p.mobile));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('휴대폰 번호를 복사했습니다.')));
+                    },
+                  ),
+                ),
               const SizedBox(height: 8),
               Wrap(spacing: 8, alignment: WrapAlignment.center, children: [
                 if (p.empSeq.isNotEmpty)

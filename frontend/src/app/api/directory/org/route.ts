@@ -6,14 +6,14 @@ export const runtime = "nodejs";
 
 /**
  * GET /api/directory/org — 조직도(부서 트리 + 재직자). 페이지 키 org_chart(proxy가 권한 확인), user 이상.
- * company_directory·company_departments는 RLS가 막혀 있어 로그인 확인 뒤 service role로 읽는다. 휴대폰 번호는 원래 저장하지 않는다.
+ * company_directory·company_departments는 RLS가 막혀 있어 로그인 확인 뒤 service role로 읽는다. 휴대폰은 조직도 검색·상세 표시용으로 내린다(2026-11-13 사용자 결정 — 로그인 사용자·org_chart 권한만).
  */
 export async function GET() {
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
   const [deps, people, sync] = await Promise.all([
     auth.admin.from("company_departments").select("id, parent_id, name, sort, depth").eq("active", true),
-    auth.admin.from("company_directory").select("email, emp_seq, name, dept_id, dept_name, units, duty, position, photo_path").eq("active", true).range(0, 4999),
+    auth.admin.from("company_directory").select("email, emp_seq, name, dept_id, dept_name, units, duty, position, photo_path, mobile").eq("active", true).range(0, 4999),
     auth.admin.from("company_directory_sync").select("synced_at").order("synced_at", { ascending: false }).limit(1),
   ]);
   if (people.error) return NextResponse.json({ error: `조직도 명부 조회 실패: ${people.error.message}` }, { status: 500 });

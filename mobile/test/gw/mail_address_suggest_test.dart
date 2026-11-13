@@ -17,7 +17,7 @@ void main() {
     final client = MockClient((r) async => http.Response.bytes(utf8.encode(jsonEncode({'resultCode': 0, 'resultData': {'sessionInfo': {'ucUserInfo': {'empName': '나', 'emailAdd': 'me', 'emailDomain': 'innogrid.com'}}}})), 200, headers: {'content-type': 'application/json; charset=utf-8'}));
     final api = GwApi(GwClient(httpClient: client, creds: () => testCreds));
     await tester.pumpWidget(ProviderScope(
-      overrides: [mailContactsProvider.overrideWith((_) async => const [(name: '김철수', email: 'kim@innogrid.com', dept: '개발팀'), (name: '이영희', email: 'lee@innogrid.com', dept: '기획팀')])],
+      overrides: [mailContactsProvider.overrideWith((_) async => const [(name: '김철수', email: 'kim@innogrid.com', dept: '개발팀', mobile: ''), (name: '이영희', email: 'lee@innogrid.com', dept: '기획팀', mobile: '')])],
       child: MaterialApp(builder: (_, child) => SelectAllText(child: child!), home: MailComposeScreen(api: api, kind: MailKind.plain)), // 앱 전체 글자 선택(SelectAllText)처럼
     ));
     await tester.pumpAndSettle();

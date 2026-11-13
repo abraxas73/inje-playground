@@ -6,7 +6,15 @@ import '../gw/gw_mcp_api.dart';
 
 /// 사내 명부(조직도) — 서버가 매일 동기화한 `GET /api/directory/org`를 쓴다(매번 아마란스 조직도를 훑지 않게).
 /// 서버가 안 되면(권한 꺼짐·명부 비어 있음·오프라인) 예전처럼 아마란스 조직도(rosterRows)에서 직접 받는다.
-typedef OrgPerson = ({String empSeq, String name, String email, String dept, String duty, String position, String photo, String photoLarge});
+typedef OrgPerson = ({String empSeq, String name, String email, String dept, String duty, String position, String photo, String photoLarge, String mobile});
+
+/// 전화번호 검색 — 검색어가 숫자(하이픈·공백 허용)뿐일 때만. 4자리 = 휴대폰 뒷 4자리, 5자리 이상 = 숫자 포함, 3자리 이하 = 안 봄(웹 org-tree.ts phoneMatch와 같다)
+bool phoneMatch(String mobile, String query) {
+  if (mobile.isEmpty || !RegExp(r'^[\d\s-]+$').hasMatch(query.trim())) return false;
+  final q = query.replaceAll(RegExp(r'\D'), '');
+  final m = mobile.replaceAll(RegExp(r'\D'), '');
+  return q.length == 4 ? m.endsWith(q) : q.length > 4 && m.contains(q);
+}
 
 /// 아마란스 사진 주소 — 로그인 쿠키(BIZCUBE_AT·HK)가 있어야 받힌다(`person_view.dart` gwPhotoHeadersProvider, 2026-11-04 실측). 없으면 빈 문자열.
 const _gwPhotoBase = 'https://gw.innogrid.com/gw/contentsImgController/download/';
@@ -28,7 +36,7 @@ List<OrgPerson> parseOrgPeople(dynamic j) {
     for (final p in list.whereType<Map>())
       if (asStr(p['name']).trim().isNotEmpty)
         for (final ph in [_photoOf(p['photoPath'])])
-          (empSeq: asStr(p['empSeq']), name: asStr(p['name']).trim(), email: asStr(p['email']), dept: asStr(p['deptName']), duty: asStr(p['duty']), position: asStr(p['position']), photo: ph.photo, photoLarge: ph.photoLarge),
+          (empSeq: asStr(p['empSeq']), name: asStr(p['name']).trim(), email: asStr(p['email']), dept: asStr(p['deptName']), duty: asStr(p['duty']), position: asStr(p['position']), photo: ph.photo, photoLarge: ph.photoLarge, mobile: asStr(p['mobile'])),
   ];
 }
 
@@ -52,6 +60,7 @@ final orgPeopleProvider = FutureProvider<List<OrgPerson>>((ref) async {
           position: asStr(r['positionName']),
           photo: ph.photo,
           photoLarge: ph.photoLarge,
+          mobile: asStr(r['mobileTelNum']),
         ),
   ];
 });

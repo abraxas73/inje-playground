@@ -79,8 +79,8 @@ void main() {
       messengerApiProvider.overrideWithValue(api),
       messengerMqttProvider.overrideWithValue(MessengerMqtt()),
       msgRosterProvider.overrideWith((_) async => [
-            (empSeq: '11', name: '박석현', dept: '플랫폼팀', duty: '책임'),
-            (empSeq: '12', name: '김철수', dept: '영업팀', duty: ''),
+            (empSeq: '11', name: '박석현', dept: '플랫폼팀', duty: '책임', mobile: ''),
+            (empSeq: '12', name: '김철수', dept: '영업팀', duty: '', mobile: ''),
           ]),
     ], child: const MaterialApp(home: MessengerNewChatScreen())));
     await tester.pumpAndSettle();

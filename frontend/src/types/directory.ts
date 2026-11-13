@@ -13,6 +13,7 @@ export interface AmaranthPerson {
   name?: string;
   position?: string;
   note?: string;
+  /** 휴대폰(아마란스 mobileTelNum) — 조직도 검색·상세 표시용으로 저장(2026-11-13 사용자 결정) */
   mobile?: string;
   /** "{groupSeq}/empPic/{picFileId}" — GitHub Actions 동기화만 보낸다(빈 문자열 = 사진 없음) */
   photoPath?: string;
@@ -58,6 +59,7 @@ export interface DirectoryPerson {
   is_leader?: boolean | null;
   /** 아마란스 사진 경로("{groupSeq}/empPic/{picFileId}"), 없으면 null */
   photo_path?: string | null;
+  mobile?: string | null;
   active: boolean;
   synced_at: string;
 }
