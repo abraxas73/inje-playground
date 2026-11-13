@@ -14,7 +14,7 @@
 - 저장소 시크릿: `GW_SYNC_ID`·`GW_SYNC_PW`(운영자 `~/Repos/inje-playground/.env.secrets`의 `AMARANTH_RELAY_ACCOUNT`·`AMARANTH_RELAY_PASSWORD`), `DIRECTORY_SYNC_TOKEN`(= Vercel `DIRECTORY_SYNC_TOKEN`).
 - 부서 트리는 `company_departments`(SQL `docs/sql/2026-10-23-org-chart.sql`, service role만) — 이번 동기화에 없던 부서는 active=false. 10개 미만이면 force 없이 거부.
 - 로컬 확인: `npm i --no-save playwright` 된 폴더에서 `GW_SYNC_ID=… GW_SYNC_PW=… PW_CHANNEL=chrome node scripts/gw-directory-sync.mjs --dry-run` (2026-10-23 실측: 부서 71개·309명, 전원 이메일).
-- 조직도 화면 `/org`(페이지 키 `org_chart`, user 이상) — `GET /api/directory/org`(부서 트리 + 재직자, 휴대폰 번호 없음). 부서 테이블이 비면 사람들의 부서 경로로 트리를 만든다(`derived:true`). 앱의 메일 받는 사람·메신저 새 대화도 이 API를 쓰고, 실패할 때만 아마란스 조직도를 직접 훑는다(`mobile/lib/directory/org_directory.dart`).
+- 조직도 화면 `/org`(페이지 키 `org_chart`, user 이상) — `GET /api/directory/org`(부서 트리 + 재직자 + 휴대폰 — 2026-11-13부터 검색·상세 표시용, 숫자 4자리 검색 = 뒷 4자리, 5자리 이상 = 포함; 웹 `org-tree.ts`·앱 `org_directory.dart` `phoneMatch`, 앱 메일 받는 사람·메신저 새 대화 검색도 같은 규칙). 부서 테이블이 비면 사람들의 부서 경로로 트리를 만든다(`derived:true`). 앱의 메일 받는 사람·메신저 새 대화도 이 API를 쓰고, 실패할 때만 아마란스 조직도를 직접 훑는다(`mobile/lib/directory/org_directory.dart`).
 
 ## 2. 동기화 (수동, 1분) — 예비 경로
 
@@ -25,7 +25,7 @@
 BASE_URL=http://localhost:3003 ./frontend/scripts/company-directory-sync.py   # 로컬 개발 서버
 ```
 - 동작: `find_person("innogrid")` → 전사 명부(이메일 도메인으로 전원 매칭, 2026-08-29 기준 324명) → `POST /api/admin/directory/sync` → 이메일 기준 upsert(`active=true`), **이번 명부에 없던 재직자는 `active=false`**(삭제하지 않음) → `company_directory_sync`에 1행.
-- 안전장치: 명부가 50명 미만이면 `force` 없이는 반영하지 않는다(그룹웨어 부분 응답으로 전원이 비활성 처리되는 사고 방지). 휴대폰 번호는 전송하지 않는다.
+- 안전장치: 명부가 50명 미만이면 `force` 없이는 반영하지 않는다(그룹웨어 부분 응답으로 전원이 비활성 처리되는 사고 방지). 휴대폰(`mobileTelNum`)은 2026-11-13부터 전송·저장한다(`company_directory.mobile`, SQL `docs/sql/2026-11-13-directory-mobile.sql`, 사용자 결정 — 조직도 검색·표시용). 로컬 inno-creed 스크립트는 여전히 보내지 않아 기존 값을 지우지 않는다.
 - 주기: 조직 개편·입퇴사 반영이 필요할 때, 또는 월 1회. 자동화하려면 이 PC의 launchd/cron에 스크립트를 걸면 된다(사내 그룹웨어의 공식 도구이므로 무인 실행에 약관 문제 없음). 예: 매주 월 09:10
   ```
   10 9 * * 1 cd ~/Repos/inje-playground && ./frontend/scripts/company-directory-sync.py >> ~/Library/Logs/company-directory-sync.log 2>&1

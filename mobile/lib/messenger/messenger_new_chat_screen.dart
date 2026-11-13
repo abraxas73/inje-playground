@@ -11,12 +11,12 @@ import 'messenger_provider.dart';
 /// 새 대화 — 사내 명부에서 사람을 골라 대화방을 연다(1:1은 기존 방 재사용, 여럿이면 그룹방 새로).
 /// 명부는 서버가 매일 동기화한 사내 명부(orgPeopleProvider) — 사번(empSeq)은 메신저와 같다.
 
-typedef MsgPerson = ({String empSeq, String name, String dept, String duty});
+typedef MsgPerson = ({String empSeq, String name, String dept, String duty, String mobile});
 
 /// 사내 명부(이름 순, 사번 있는 사람). 테스트에서 override.
 final msgRosterProvider = FutureProvider.autoDispose<List<MsgPerson>>((ref) async => [
       for (final p in await ref.watch(orgPeopleProvider.future))
-        if (p.empSeq.isNotEmpty) (empSeq: p.empSeq, name: p.name, dept: p.dept, duty: p.duty),
+        if (p.empSeq.isNotEmpty) (empSeq: p.empSeq, name: p.name, dept: p.dept, duty: p.duty, mobile: p.mobile),
     ]..sort((a, b) => a.name.compareTo(b.name)));
 
 class MessengerNewChatScreen extends ConsumerStatefulWidget {
@@ -83,7 +83,7 @@ class _MessengerNewChatScreenState extends ConsumerState<MessengerNewChatScreen>
               if (word.isEmpty) return Center(child: Text('대화할 사람을 찾아 고르세요', style: TextStyle(color: Brand.muted)));
               final hits = [
                 for (final p in all)
-                  if (p.empSeq != myEmpSeq && (p.name.toLowerCase().contains(word) || p.dept.toLowerCase().contains(word))) p,
+                  if (p.empSeq != myEmpSeq && (p.name.toLowerCase().contains(word) || p.dept.toLowerCase().contains(word) || phoneMatch(p.mobile, word))) p,
               ].take(50).toList();
               if (hits.isEmpty) return Center(child: Text('찾는 사람이 없습니다', style: TextStyle(color: Brand.muted)));
               return ListView(children: [

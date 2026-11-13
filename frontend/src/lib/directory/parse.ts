@@ -44,6 +44,8 @@ export function normalizePerson(raw: AmaranthPerson): DirectoryUpsertRow | null 
     position: str(raw.position),
     // 사진 경로를 보내지 않는 동기화(로컬 inno-creed 스크립트)는 칸을 빼서 기존 값을 지우지 않는다
     ...("photoPath" in raw ? { photo_path: PHOTO_PATH.test(str(raw.photoPath) ?? "") ? str(raw.photoPath) : null } : {}),
+    // 휴대폰도 같은 방식 — 보내지 않는 동기화는 기존 값을 지우지 않는다. 숫자·하이픈·+·공백만 받는다
+    ...("mobile" in raw ? { mobile: /^[0-9+\-\s()]{4,30}$/.test(str(raw.mobile) ?? "") ? str(raw.mobile) : null } : {}),
   };
 }
 

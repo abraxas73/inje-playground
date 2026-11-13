@@ -51,13 +51,21 @@ export function defaultExpanded(idx: OrgIndex): Set<string> {
 }
 
 /** 검색: 부서 이름 일치 + 이름·이메일이 맞는 사람이 속한 부서를 강조, 그 조상은 펼친다. */
+/** 전화번호 검색 — 검색어가 숫자(하이픈·공백 허용)뿐일 때만. 4자리 = 휴대폰 뒷 4자리, 5자리 이상 = 숫자 포함, 3자리 이하 = 안 봄 */
+export function phoneMatch(mobile: string | null, query: string): boolean {
+  if (!mobile || !/^[\d\s-]+$/.test(query.trim())) return false;
+  const q = query.replace(/\D/g, "");
+  const m = mobile.replace(/\D/g, "");
+  return q.length === 4 ? m.endsWith(q) : q.length > 4 && m.includes(q);
+}
+
 export function searchOrg(idx: OrgIndex, people: OrgPerson[], query: string) {
   const q = query.trim().toLowerCase();
   const depts = new Set<string>();
   const expand = new Set<string>();
   if (!q) return { depts, people: [] as OrgPerson[], expand };
   for (const d of idx.byId.values()) if (d.name.toLowerCase().includes(q)) depts.add(d.id);
-  const byPerson = (p: OrgPerson) => p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q);
+  const byPerson = (p: OrgPerson) => p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q) || phoneMatch(p.mobile, q);
   for (const p of people) if (p.deptId && byPerson(p)) depts.add(p.deptId);
   // 표: 이름·이메일 일치 + 이름이 맞는 부서(하위 제외)의 직속 직원
   const matched = people.filter((p) => byPerson(p) || (p.deptId !== null && depts.has(p.deptId) && idx.byId.get(p.deptId)!.name.toLowerCase().includes(q)));

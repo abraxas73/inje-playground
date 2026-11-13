@@ -117,8 +117,8 @@ async function main() {
         const emp = str(r.empSeq);
         if (!emp || seen.has(emp)) continue;
         seen.add(emp);
-        // find_person과 같은 항목(휴대폰 번호 제외) + 사진 경로(picFileId — 사진은 받지 않고 경로만)
-        people.push({ empSeq: emp, name: str(r.empName), loginId: str(r.loginId), email: str(r.emailAddr), deptId: str(r.deptSeq), deptName: str(r.deptName), deptPath: str(r.pathName), duty: str(r.dutyName), dutyCode: str(r.dutyCode), position: str(r.positionName), photoPath: str(r.picFileId) ? `${str(r.groupSeq)}/empPic/${str(r.picFileId)}` : "" });
+        // find_person과 같은 항목 + 사진 경로(picFileId — 사진은 받지 않고 경로만) + 휴대폰(조직도 검색·표시, 2026-11-13 사용자 결정)
+        people.push({ empSeq: emp, name: str(r.empName), loginId: str(r.loginId), email: str(r.emailAddr), deptId: str(r.deptSeq), deptName: str(r.deptName), deptPath: str(r.pathName), duty: str(r.dutyName), dutyCode: str(r.dutyCode), position: str(r.positionName), photoPath: str(r.picFileId) ? `${str(r.groupSeq)}/empPic/${str(r.picFileId)}` : "", mobile: str(r.mobileTelNum) });
       }
     }
   }

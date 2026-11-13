@@ -26,7 +26,7 @@ describe("normalizePerson / normalizeRoster", () => {
     duty: "센터장", dutyCode: "300", email: "Seunguk.Kang@innogrid.com", empSeq: "3060", loginId: "seunguk.kang",
     mobile: "010-0000-0000", name: "강승억", note: "", position: "상무",
   };
-  it("이메일 소문자, 단위 분해(division/headquarters/team), 휴대폰은 제외", () => {
+  it("이메일 소문자, 단위 분해(division/headquarters/team), 휴대폰은 검색·표시용으로 저장(2026-11-13)", () => {
     const r = normalizePerson(raw)!;
     expect(r).toMatchObject({
       email: "seunguk.kang@innogrid.com", emp_seq: "3060", login_id: "seunguk.kang", name: "강승억",
@@ -35,7 +35,10 @@ describe("normalizePerson / normalizeRoster", () => {
       division: "기술·운영부문", headquarters: "R&D본부", team: "클라우드 네이티브 센터",
       duty: "센터장", position: "상무",
     });
-    expect("mobile" in r).toBe(false);
+    expect(r.mobile).toBe("010-0000-0000");
+    expect(normalizePerson({ ...raw, mobile: "<b>" })!.mobile).toBeNull(); // 숫자 형식이 아니면 비움
+    const { mobile: _drop, ...noMobile } = raw;
+    expect("mobile" in normalizePerson(noMobile)!).toBe(false); // 보내지 않은 동기화는 기존 값 유지
   });
   it("이메일 없으면 null, deptName 없으면 경로 말단이 team, 이름 없으면 이메일 로컬파트", () => {
     expect(normalizePerson({ name: "익명", deptPath: "(주)이노그리드>경영지원부문" })).toBeNull();

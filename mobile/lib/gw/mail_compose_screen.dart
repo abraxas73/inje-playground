@@ -16,12 +16,12 @@ import 'mail_compose.dart';
 /// 받는 사람 칸은 쉼표로 여럿, 이름을 치면 사내 명부에서 고를 수 있다.
 /// 붙여넣기(⌘V·Ctrl+V): 복사한 그림은 본문 커서 자리에 `[그림 N]`으로 들어가 보낼 때 그 자리에 그림이 되고, 복사한 파일은 첨부. 글자는 평소대로.
 
-typedef MailContact = ({String name, String email, String dept});
+typedef MailContact = ({String name, String email, String dept, String mobile});
 
 /// 메일 주소록 = 사내 명부(주소 있는 사람). 테스트에서 override.
 final mailContactsProvider = FutureProvider.autoDispose<List<MailContact>>((ref) async => [
       for (final p in await ref.watch(orgPeopleProvider.future))
-        if (p.email.contains('@')) (name: p.name, email: p.email, dept: p.dept),
+        if (p.email.contains('@')) (name: p.name, email: p.email, dept: p.dept, mobile: p.mobile),
     ]);
 
 /// 새로 붙일 파일 고르기. 테스트에서 override.
@@ -283,7 +283,7 @@ class _AddressFieldState extends ConsumerState<_AddressField> {
         _typed = v.text;
         final q = _last(v.text).toLowerCase();
         if (q.isEmpty || q.contains('>')) return const [];
-        return contacts.where((c) => c.name.toLowerCase().contains(q) || c.email.toLowerCase().startsWith(q)).take(8);
+        return contacts.where((c) => c.name.toLowerCase().contains(q) || c.email.toLowerCase().startsWith(q) || phoneMatch(c.mobile, q)).take(8);
       },
       onSelected: (c) {
         final parts = _typed.split(',')..removeLast();
