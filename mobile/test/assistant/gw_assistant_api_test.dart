@@ -109,6 +109,24 @@ void main() {
     expect(other.calls['/schres/rs121A11'], isNull);
   });
 
+  test('updateMyReservation — 소유권 가드, 참석자·설명 유지한 rs121A12, 새 번호로 재조회, 반복 예약 거부', () async {
+    var saved = false;
+    final cur = {'seqNum': '6', 'reqText': '내 회의', 'empSeq': '7', 'resName': '회의실B', 'startDate': '202610051500', 'endDate': '202610051600', 'createDate': 'C1', 'descText': '메모', 'repeatType': '10',
+      'subscriberList': [{'groupSeq': 'g', 'compSeq': '10', 'deptSeq': '20', 'empSeq': '7'}, {'groupSeq': 'g', 'compSeq': '10', 'deptSeq': '30', 'empSeq': '8'}]};
+    final gw = Gw({...base(), '/schres/rs121A10': (b) => saved ? {...cur, 'reqText': '바뀐 회의', 'startDate': '202610051530', 'endDate': '202610051700'} : cur, '/schres/rs121A12': (_) { saved = true; return {'seqNum': 9, 'resIdx': '1'}; }});
+    expect(await gw.api().updateMyReservation('R2', 6, '1', title: '바뀐 회의', start: '202610051530', end: '202610051700'), {'ok': true});
+    final b = gw.calls['/schres/rs121A12']!.single;
+    expect((b['resSeq'], b['seqNum'], b['reqText'], b['startDate'], b['endDate'], b['descText'], b['createDatePk'], b['startDatePk']), ('R2', 6, '바뀐 회의', '202610051530', '202610051700', '메모', 'C1', '202610051500'));
+    expect([for (final r in b['resSubscriberList'] as List) (r as Map)['empSeq']], ['7', '8']);
+    expect(gw.calls['/schres/rs121A10']!.last['seqNum'], 9);
+    final other = Gw({...base(), '/schres/rs121A10': (_) => {...cur, 'empSeq': '99'}});
+    await expectLater(other.api().updateMyReservation('R2', 6, '1', title: 'x', start: '202610051500', end: '202610051600'), throwsA(isA<GwException>()));
+    final repeat = Gw({...base(), '/schres/rs121A10': (_) => {...cur, 'repeatType': '20'}});
+    await expectLater(repeat.api().updateMyReservation('R2', 6, '1', title: 'x', start: '202610051500', end: '202610051600'), throwsA(isA<GwException>().having((e) => e.message, 'message', contains('반복'))));
+    expect(other.calls['/schres/rs121A12'], isNull);
+    expect(repeat.calls['/schres/rs121A12'], isNull);
+  });
+
   test('createEvent — 개인 캘린더에 주최(M)+참석(W, 각자 부서), mailSend N, read-back 제목', () async {
     final gw = Gw({...base(), '/schres/sc111A05': (_) => {'schSeq': '900', 'schmSeq': '900'}, '/schres/sc111A03': (_) => {'resultList': [{'schSeq': '900', 'schTitle': '주간회의', 'startDate': '202610051400', 'endDate': '202610051500', 'mcalSeq': '1', 'delYn': 'Y', 'createSeq': '7'}]}});
     const kang = GwPerson(empSeq: '31', name: '강승억', deptSeq: '20', deptName: '클라우드팀', email: '', duty: '', position: '');

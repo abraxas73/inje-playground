@@ -530,13 +530,9 @@ class McpTools {
     final title = a.str(x, 'req_text').isEmpty ? asStr(cur['reqText']) : a.str(x, 'req_text');
     final start = a.str(x, 'start').isEmpty ? asStr(cur['startDate']) : _stamp(x, 'start'), end = a.str(x, 'end').isEmpty ? asStr(cur['endDate']) : _stamp(x, 'end');
     if (end.compareTo(start) <= 0) throw McpToolError('end가 start보다 늦어야 합니다.');
-    final List<Map<String, String>> subs;
+    final List<Map<String, String>>? subs;
     if (x['attendees'] == null) {
-      // 미지정 — 기존 참석자 유지
-      subs = [
-        for (final r in ((cur['subscriberList'] as List?) ?? const []).whereType<Map>())
-          {'compSeq': asStr(r['compSeq']), 'deptSeq': asStr(r['deptSeq']), 'empSeq': asStr(r['empSeq']), 'groupSeq': asStr(r['groupSeq']).isEmpty ? c.groupSeq : asStr(r['groupSeq'])},
-      ];
+      subs = null; // 미지정 — 기존 참석자 유지(updateReservationFrom)
     } else {
       final seen = <String>{c.empSeq};
       subs = [
@@ -544,12 +540,7 @@ class McpTools {
         for (final r in await _resolve(a.strList(x, 'attendees'))) if (seen.add(asStr(r['empSeq']))) {'groupSeq': c.groupSeq, 'compSeq': s.compSeq, 'deptSeq': asStr(r['deptSeq']), 'empSeq': asStr(r['empSeq'])},
       ];
     }
-    String keep(String k, String d) => asStr(cur[k]).isEmpty ? d : asStr(cur[k]);
-    final res = await g.updateReservationRaw({
-      'resSeq': resSeq, 'seqNum': seqNum, 'resIdx': resIdx, 'reqText': title, 'apprYn': keep('apprYn', 'N'), 'alldayYn': keep('alldayYn', 'N'), 'startDate': start, 'endDate': end,
-      'descText': x['desc'] == null ? asStr(cur['descText']) : a.str(x, 'desc'), 'resSubscriberList': subs, 'repeatType': keep('repeatType', '10'), 'repeatEndDay': asStr(cur['repeatEndDay']),
-      'repeatByDay': asStr(cur['repeatByDay']), 'createDatePk': asStr(cur['createDate']), 'startDatePk': asStr(cur['startDate']), 'resName': asStr(cur['resName']),
-    });
+    final res = await g.updateReservationFrom(cur, resSeq: resSeq, seqNum: seqNum, resIdx: resIdx, title: title, start: start, end: end, subs: subs, desc: x['desc'] == null ? null : a.str(x, 'desc'));
     if (res is! Map || res['successTf'] == false) throw McpToolError('예약을 수정하지 못했습니다.');
     final newSeq = asInt(res['seqNum'], seqNum), newIdx = asStr(res['resIdx']).isEmpty ? resIdx : asStr(res['resIdx']);
     // 수정은 이미 반영됐다 — 재조회만 실패하면 오류로 보고하지 않는다(재시도로 이중 수정되지 않게)
@@ -565,7 +556,7 @@ class McpTools {
     }
     final people = ((detail['subscriberList'] as List?) ?? const []).whereType<Map>().toList();
     final gotSeqs = {for (final r in people) asStr(r['empSeq'])};
-    final attendeesOk = readback && subs.every((r) => gotSeqs.contains(r['empSeq']));
+    final attendeesOk = readback && (subs == null || subs.every((r) => gotSeqs.contains(r['empSeq']))); // 기존 유지면 비교할 요청 없음
     final verified = readback && asStr(detail['reqText']) == title && asStr(detail['startDate']) == start && asStr(detail['endDate']) == end;
     final day = start.substring(0, 8), sm = minutesOn(start, day), em = minutesOn(end, day);
     return {

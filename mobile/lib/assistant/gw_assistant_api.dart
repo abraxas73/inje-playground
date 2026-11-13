@@ -2,6 +2,7 @@
 import 'dart:convert';
 import '../gw/gw_api.dart';
 import '../gw/gw_client.dart';
+import '../gw/gw_mcp_api.dart' show GwMcpApi;
 import '../gw/gw_models.dart';
 
 /// 비서용 아마란스 호출 — 사람 찾기·빈 회의실·예약/취소·일정 등록/삭제. 근거: inno-creed src/modules/{org,resource,calendar}.rs(실측).
@@ -353,7 +354,7 @@ extension GwAssistantApi on GwApi {
   Future<Map> myReservation(String resSeq, int seqNum, String resIdx) async {
     final d = await _reservationDetail(resSeq, seqNum, resIdx);
     if (d is! Map || asStr(d['empSeq']) != client.creds().empSeq) {
-      throw GwException(200, 0, '본인 예약이 아니라 취소할 수 없습니다');
+      throw GwException(200, 0, '본인 예약이 아니라 수정·취소할 수 없습니다');
     }
     return d;
   }
@@ -419,6 +420,32 @@ extension GwAssistantApi on GwApi {
       }
     }
     return {'ok': gone, 'canceled': gone};
+  }
+
+  /// 내 예약 제목·시각 수정 — 상세(소유권 확인) → rs121A12(참석자·설명 유지) → 응답의 (새) 번호로 재조회. 반복 예약은 거부.
+  Future<Map<String, dynamic>> updateMyReservation(
+    String resSeq,
+    int seqNum,
+    String resIdx, {
+    required String title,
+    required String start,
+    required String end,
+  }) async {
+    final cur = await myReservation(resSeq, seqNum, resIdx);
+    if (asStr(cur['repeatType']).isNotEmpty && asStr(cur['repeatType']) != '10') {
+      throw GwException(200, 0, '반복 예약은 아마란스에서 수정하세요');
+    }
+    final res = await updateReservationFrom(cur, resSeq: resSeq, seqNum: seqNum, resIdx: resIdx, title: title, start: start, end: end);
+    if (res is! Map || res['successTf'] == false) throw GwException(200, 0, '예약을 수정하지 못했습니다');
+    final newSeq = asInt(res['seqNum'], seqNum), newIdx = asStr(res['resIdx']).isEmpty ? resIdx : asStr(res['resIdx']);
+    try {
+      final d = await _reservationDetail(resSeq, newSeq, newIdx);
+      return {'ok': d is Map && asStr(d['reqText']) == title && asStr(d['startDate']) == start && asStr(d['endDate']) == end};
+    } on GwUnauthorized {
+      rethrow;
+    } on GwException {
+      return {'ok': false}; // 수정은 이미 반영 — 재조회 실패만으로 오류를 내지 않는다(다시 눌러 이중 수정되지 않게)
+    }
   }
 
   /// 내 개인 캘린더에 일정 등록(sc111A05 신규). 주최 M(본인) + 참석 W(각자 부서, 중복 제거), mailSend N. read-back은 그날 목록의 제목.

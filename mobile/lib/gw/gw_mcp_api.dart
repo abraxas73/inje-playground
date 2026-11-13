@@ -74,6 +74,22 @@ extension GwMcpApi on GwApi {
   /// rs121A12 예약 수정 — 서버가 예약을 다시 발급할 수 있다(응답 seqNum·resIdx가 새 값). 본문 키는 캡처 그대로.
   Future<dynamic> updateReservationRaw(Map<String, Object?> fields) async => client.call('/schres/rs121A12', {'companyInfo': await client.companyInfo(), ...fields, 'uidList': '', 'langCode': 'kr'});
 
+  /// rs121A12 — 원본 상세(cur = rs121A10)의 값은 그대로 두고 제목·시각(·참석자·설명)만 바꾼다. subs가 null이면 기존 참석자 유지.
+  Future<dynamic> updateReservationFrom(Map cur, {required String resSeq, required int seqNum, required String resIdx, required String title, required String start, required String end, List<Map<String, String>>? subs, String? desc}) {
+    final groupSeq = client.creds().groupSeq;
+    String keep(String k, String d) => asStr(cur[k]).isEmpty ? d : asStr(cur[k]);
+    return updateReservationRaw({
+      'resSeq': resSeq, 'seqNum': seqNum, 'resIdx': resIdx, 'reqText': title, 'apprYn': keep('apprYn', 'N'), 'alldayYn': keep('alldayYn', 'N'), 'startDate': start, 'endDate': end,
+      'descText': desc ?? asStr(cur['descText']),
+      'resSubscriberList': subs ?? [
+        for (final r in ((cur['subscriberList'] as List?) ?? const []).whereType<Map>())
+          {'compSeq': asStr(r['compSeq']), 'deptSeq': asStr(r['deptSeq']), 'empSeq': asStr(r['empSeq']), 'groupSeq': asStr(r['groupSeq']).isEmpty ? groupSeq : asStr(r['groupSeq'])},
+      ],
+      'repeatType': keep('repeatType', '10'), 'repeatEndDay': asStr(cur['repeatEndDay']),
+      'repeatByDay': asStr(cur['repeatByDay']), 'createDatePk': asStr(cur['createDate']), 'startDatePk': asStr(cur['startDate']), 'resName': asStr(cur['resName']),
+    });
+  }
+
   Future<dynamic> calendarsRaw() async => client.call('/schres/sc111A02', {'companyInfo': await client.companyInfo(), 'calType': '', 'langCode': 'kr'});
 
   /// sc111A03 기간 일정 원본 행(전체 캘린더).
