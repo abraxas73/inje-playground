@@ -102,7 +102,7 @@ Future<void> saveMsgFile(BuildContext context, MessengerApi api, String chatId, 
   try {
     final data = bytes ?? await api.file(chatId, f.fileSn);
     final saved = await saveFileRememberingDir(f.name, data);
-    if (saved != null) messenger.showSnackBar(SnackBar(content: Text('저장했습니다: ${f.name}')));
+    if (saved != null) showSavedFileSnack(messenger, f.name, saved);
   } catch (e) {
     messenger.showSnackBar(SnackBar(content: Text('받지 못했습니다: $e')));
   }
