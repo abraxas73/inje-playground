@@ -173,7 +173,7 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
       final info = await api.mailAttachInfo(auth, sn);
       final bytes = Uint8List.fromList(await api.mailAttachBytes(auth, asStr(info['fileId'])));
       final saved = await ref.read(mailFileSaverProvider)(name, bytes);
-      if (saved != null) messenger.showSnackBar(SnackBar(content: Text('저장했습니다: $name')));
+      if (saved != null) showSavedFileSnack(messenger, name, saved);
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('받지 못했습니다: $e')));
     } finally {

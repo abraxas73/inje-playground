@@ -9,6 +9,7 @@ import 'gw_api.dart';
 import 'gw_client.dart' show asInt;
 import 'gw_gate.dart';
 import 'gw_mcp_api.dart';
+import '../app/save_file.dart' show showSavedFileSnack;
 import 'mail_detail_screen.dart' show MailHtmlView, mailFileSaverProvider;
 import 'mail_html.dart' show richHtml;
 import 'gw_models.dart';
@@ -246,7 +247,7 @@ class _NoticeFilesState extends ConsumerState<_NoticeFiles> {
     try {
       final (bytes, _) = await widget.api.noticeAttachFile(widget.artSeqNo, widget.uid, sn);
       final saved = await ref.read(mailFileSaverProvider)(name, Uint8List.fromList(bytes));
-      if (saved != null) messenger.showSnackBar(SnackBar(content: Text('저장했습니다: $name')));
+      if (saved != null) showSavedFileSnack(messenger, name, saved);
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('받지 못했습니다: $e')));
     } finally {
