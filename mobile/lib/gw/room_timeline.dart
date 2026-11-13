@@ -5,7 +5,7 @@ import '../app/theme.dart';
 import 'gw_models.dart';
 
 class RoomTimeline extends StatefulWidget {
-  const RoomTimeline({super.key, required this.day, required this.rooms, required this.reservations, required this.me, this.now, this.onSlot});
+  const RoomTimeline({super.key, required this.day, required this.rooms, required this.reservations, required this.me, this.now, this.onSlot, this.onEdit, this.onCancel});
   final DateTime day;
   /// 표시할 자원(아마란스 rs121A01 순서). 예약은 있는데 목록에 없는 회의실은 '기타'로 덧붙인다.
   final List<GwResource> rooms;
@@ -15,6 +15,8 @@ class RoomTimeline extends StatefulWidget {
   final DateTime? now;
   /// 빈 칸을 누르면 그 회의실과 30분 단위로 내린 시각(0시부터 분) — 예약 창을 연다. null이면 예약 없음.
   final void Function(GwResource room, int minute)? onSlot;
+  /// 내 예약 상세의 [수정]·[예약 취소]. 끝나면(true) 상세를 닫는다. null이면 버튼 없음.
+  final Future<bool> Function(GwReservation r)? onEdit, onCancel;
 
   static const hourWidth = 80.0, nameWidth = 150.0, rowHeight = 38.0, groupHeight = 32.0, headHeight = 36.0;
   // 아마란스 일간 막대와 비슷한 색 — 회의실 줄마다 돌려 쓴다
@@ -51,6 +53,16 @@ class _RoomTimelineState extends State<RoomTimeline> {
     final first = widget.reservations.where((r) => !r.allDay).map((r) => roomMinute(r.start, widget.day)).fold<int?>(null, (a, b) => a == null || b < a ? b : a);
     final hour = _isToday ? n.hour - 1 : (first == null ? 9 : first ~/ 60);
     _h = ScrollController(initialScrollOffset: hour.clamp(0, 23) * RoomTimeline.hourWidth);
+  }
+
+  /// 목록을 다시 읽으면 열어 둔 상세를 새 객체로 바꾼다(없어졌으면 닫음) — 옛 객체로 수정 창을 열면 자기 예약과 겹친다고 나온다.
+  @override
+  void didUpdateWidget(RoomTimeline old) {
+    super.didUpdateWidget(old);
+    final s = _sel;
+    if (s != null && !identical(old.reservations, widget.reservations)) {
+      _sel = widget.reservations.where((r) => r.sameAs(s)).firstOrNull;
+    }
   }
 
   @override
@@ -245,8 +257,26 @@ class _RoomTimelineState extends State<RoomTimeline> {
                 Expanded(child: Text(v, style: TextStyle(fontSize: 13, color: Brand.navy, height: 1.4))),
               ]),
             ),
+          // 내 예약만 — 수정은 그날 안에서 끝나는 시간 예약만(종일·여러 날 예약은 아마란스에서)
+          if (r.ownerEmpSeq == widget.me && r.seqNum >= 0 && (widget.onEdit != null || widget.onCancel != null))
+            Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+              if (widget.onEdit != null && _sameDay(r))
+                TextButton.icon(key: const ValueKey('room-detail-edit'), onPressed: () => _act(widget.onEdit!, r), icon: const Icon(Icons.edit_outlined, size: 18), label: const Text('수정')),
+              if (widget.onCancel != null)
+                TextButton.icon(key: const ValueKey('room-detail-cancel'), style: TextButton.styleFrom(foregroundColor: Brand.dangerText), onPressed: () => _act(widget.onCancel!, r), icon: const Icon(Icons.event_busy_outlined, size: 18), label: const Text('예약 취소')),
+            ]),
         ]),
       );
+
+  bool _sameDay(GwReservation r) {
+    final d = '${widget.day.year}${widget.day.month.toString().padLeft(2, '0')}${widget.day.day.toString().padLeft(2, '0')}';
+    String day8(String s) => s.replaceAll(RegExp(r'\D'), '').padRight(8).substring(0, 8);
+    return !r.allDay && day8(r.start) == d && day8(r.end) == d;
+  }
+
+  Future<void> _act(Future<bool> Function(GwReservation) f, GwReservation r) async {
+    if (await f(r) && mounted) setState(() => _sel = null);
+  }
 }
 
 /// 30분 칸 격자 — 정시는 진하게.

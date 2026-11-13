@@ -8,7 +8,9 @@ import '../calendar/calendar_model.dart';
 import '../calendar/calendar_view.dart';
 import '../dooray/calendar_screen.dart' show doorayRangeProvider, doorayDay;
 import '../dooray/calendar_session.dart' show doorayCalendarTransportProvider;
+import '../assistant/gw_assistant_api.dart' show GwAssistantApi;
 import 'gw_api.dart';
+import 'gw_client.dart' show GwException;
 import 'gw_gate.dart';
 import 'gw_models.dart';
 import 'room_reserve_dialog.dart';
@@ -89,6 +91,42 @@ class _BodyState extends ConsumerState<_Body> {
     if (ok && mounted) await _load();
   }
 
+  /// 내 예약 수정 — 같은 예약 창을 수정 모드로(회의실 고정).
+  Future<bool> _edit(GwReservation r) async {
+    final all = _rooms;
+    if (all == null) return false;
+    final room = _resources.firstWhere((x) => x.resSeq == r.resSeq, orElse: () => GwResource(resSeq: r.resSeq, resName: r.resName, attrSeq: '', attrName: ''));
+    final ok = await showRoomReserveDialog(context, api: widget.api, day: _day, rooms: [room], reservations: all, room: room, start: 0, now: kstNow(), editing: r);
+    if (ok && mounted) await _load();
+    return ok;
+  }
+
+  /// 내 예약 취소 — 확인 후 rs121A11(gw_assistant_api.dart cancelReservation, 재조회로 확인).
+  Future<bool> _cancel(GwReservation r) async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('예약을 취소할까요?'),
+        content: Text('${hm(r.start)}–${hm(r.end)} · ${r.resName}\n${r.title.isEmpty ? r.display : r.title}'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('닫기')),
+          FilledButton(style: FilledButton.styleFrom(backgroundColor: Brand.danger), onPressed: () => Navigator.pop(c, true), child: const Text('예약 취소')),
+        ],
+      ),
+    );
+    if (yes != true || !mounted) return false;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final res = await widget.api.cancelReservation(r.resSeq, r.seqNum, r.resIdx);
+      messenger.showSnackBar(SnackBar(content: Text(res['ok'] == true ? '예약을 취소했습니다' : '${res['message'] ?? '취소됐는지 확인하지 못했습니다. 목록에서 확인하세요'}')));
+    } on GwException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      return false;
+    }
+    if (mounted) await _load();
+    return true;
+  }
+
   void _add() => showAssistantSheet(context, seed: '${calLabel(CalMode.day, _day)}에 아마란스 일정 등록해줘. 제목·시간·장소를 물어봐 줘.');
 
   @override
@@ -139,6 +177,8 @@ class _BodyState extends ConsumerState<_Body> {
                     reservations: rooms,
                     me: me,
                     onSlot: (room, minute) => _reserve(room, minute),
+                    onEdit: _edit,
+                    onCancel: _cancel,
                   ),
               ],
             ),

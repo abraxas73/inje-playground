@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:playground/gw/gw_api.dart';
+import 'package:playground/gw/gw_client.dart';
 import 'package:playground/gw/gw_models.dart';
 import 'package:playground/gw/room_reserve_dialog.dart';
 import 'package:playground/gw/room_timeline.dart';
+import 'fakes.dart';
 
-GwReservation rv(String seq, String room, String s, String e, String title, {String owner = '김', String emp = '9'}) =>
-    GwReservation(resSeq: seq, resName: room, start: s, end: e, title: title, display: '[$owner] $room', owner: owner, ownerEmpSeq: emp, attendees: '', allDay: false);
+GwReservation rv(String seq, String room, String s, String e, String title, {String owner = '김', String emp = '9', int seqNum = 1}) =>
+    GwReservation(resSeq: seq, resName: room, start: s, end: e, title: title, display: '[$owner] $room', owner: owner, ownerEmpSeq: emp, attendees: '', allDay: false, seqNum: seqNum);
 
 void main() {
   final day = DateTime.utc(2026, 10, 28);
@@ -80,5 +85,58 @@ void main() {
     final head = tester.widget<Container>(find.byKey(const ValueKey('room-hour-10')));
     expect(((head.decoration as BoxDecoration).border as Border).left.width, greaterThan(0));
     expect(find.text('빈 칸을 누르면 그 회의실·시각으로 예약합니다'), findsOneWidget);
+  });
+
+  testWidgets('내 예약 상세에만 [수정]·[예약 취소], 여러 날 예약은 취소만, 끝나면 상세가 닫힌다', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    const rooms = [GwResource(resSeq: '1', resName: '회의실 A-1', attrSeq: '1', attrName: '회의실')];
+    final mine = rv('1', '회의실 A-1', '202610281000', '202610281100', '내 회의', owner: '나', emp: '7');
+    final long = rv('1', '회의실 A-1', '202610271800', '202610280800', '긴 예약', owner: '나', emp: '7');
+    final other = rv('1', '회의실 A-1', '202610281400', '202610281500', '남의 회의');
+    final edited = <String>[], canceled = <String>[];
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(child: RoomTimeline(
+      day: day, rooms: rooms, reservations: [mine, long, other], me: '7', now: DateTime.utc(2026, 10, 28, 1), // 처음 위치 0시 — 0~8시 막대가 보이게
+      onEdit: (r) async { edited.add(r.title); return true; },
+      onCancel: (r) async { canceled.add(r.title); return false; },
+    )))));
+    await tester.tap(find.text('[김] 남의 회의'));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('room-detail-edit')), findsNothing);
+    expect(find.byKey(const ValueKey('room-detail-cancel')), findsNothing);
+    await tester.tap(find.text('[나] 긴 예약'));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('room-detail-edit')), findsNothing);
+    expect(find.byKey(const ValueKey('room-detail-cancel')), findsOneWidget);
+    await tester.tap(find.text('[나] 내 회의'));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('room-detail-cancel')));
+    await tester.pump();
+    expect(canceled, ['내 회의']);
+    expect(find.byKey(const ValueKey('room-timeline-detail')), findsOneWidget); // 취소 안 함 → 그대로
+    await tester.tap(find.byKey(const ValueKey('room-detail-edit')));
+    await tester.pump();
+    expect(edited, ['내 회의']);
+    expect(find.byKey(const ValueKey('room-timeline-detail')), findsNothing);
+  });
+
+  testWidgets('수정 창 — 기존 값이 채워지고 회의실은 고정, 자기 예약과는 겹침으로 보지 않는다, 30분 단위가 아닌 시각도 보인다', (tester) async {
+    final mine = rv('1', '회의실 A-1', '202610281015', '202610281100', '내 회의', owner: '나', emp: '7');
+    final next = rv('1', '회의실 A-1', '202610281100', '202610281200', '다음 회의');
+    const room = GwResource(resSeq: '1', resName: '회의실 A-1', attrSeq: '1', attrName: '회의실');
+    late BuildContext ctx;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (c) { ctx = c; return const SizedBox(); }))));
+    // 목록은 새로 읽은 것(같은 예약이지만 다른 객체) — 겹침으로 보면 안 된다
+    showRoomReserveDialog(ctx, api: GwApi(GwClient(httpClient: MockClient((_) async => http.Response('{}', 500)), creds: () => testCreds)), day: day, rooms: const [room], reservations: [rv('1', '회의실 A-1', '202610281015', '202610281100', '내 회의', owner: '나', emp: '7'), next], room: room, start: 0, now: DateTime.utc(2026, 10, 28, 9), editing: mine);
+    await tester.pumpAndSettle();
+    expect(find.text('회의실 예약 수정 · 10월 28일'), findsOneWidget);
+    expect(find.text('10:15'), findsOneWidget);
+    expect(find.text('11:00'), findsOneWidget);
+    expect(tester.widget<TextField>(find.byKey(const ValueKey('reserve-title'))).controller!.text, '내 회의');
+    expect(tester.widget<DropdownButtonFormField<String>>(find.byKey(const ValueKey('reserve-room'))).onChanged, isNull);
+    expect(find.textContaining('이미 예약이 있습니다'), findsNothing);
+    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, '저장')).onPressed, isNotNull);
+    expect(find.text('닫기'), findsOneWidget);
   });
 }

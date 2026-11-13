@@ -477,14 +477,19 @@ class GwResource {
 
 /// 회의실 예약(rs121A05 resultList[]). 원본 74필드 중 표시에 쓰는 것만.
 class GwReservation {
-  const GwReservation({required this.resSeq, required this.resName, required this.start, required this.end, required this.title, required this.display, required this.owner, required this.ownerEmpSeq, required this.attendees, required this.allDay});
+  const GwReservation({required this.resSeq, required this.resName, required this.start, required this.end, required this.title, required this.display, required this.owner, required this.ownerEmpSeq, required this.attendees, required this.allDay, this.seqNum = -1, this.resIdx = '1'});
   final String resSeq, resName, start, end, title, display, owner, ownerEmpSeq, attendees;
   final bool allDay;
+  /// 수정·취소(rs121A10·A11·A12)에 쓰는 예약 번호. -1이면 모름.
+  final int seqNum;
+  final String resIdx;
+  /// 같은 예약인지(목록을 다시 읽으면 객체가 바뀌므로 identical 대신).
+  bool sameAs(GwReservation o) => resSeq == o.resSeq && seqNum == o.seqNum && resIdx == o.resIdx && start == o.start;
   factory GwReservation.fromRow(Map r) {
     final owner = asStr(r['empName']), name = asStr(r['resName']);
     final disp = asStr(r['resTitleDisplay']);
     return GwReservation(resSeq: asStr(r['resSeq']), resName: name, start: asStr(r['resStartDate']), end: asStr(r['resEndDate']), title: asStr(r['reqText']), display: disp.isEmpty ? '[$owner] $name' : disp,
-        owner: owner, ownerEmpSeq: asStr(r['empSeq']), attendees: asStr(r['resUserName']), allDay: asBool(r['alldayYn']));
+        owner: owner, ownerEmpSeq: asStr(r['empSeq']), attendees: asStr(r['resUserName']), allDay: asBool(r['alldayYn']), seqNum: asInt(r['seqNum'], -1), resIdx: asStr(r['resIdx']).isEmpty ? '1' : asStr(r['resIdx']));
   }
 }
 
