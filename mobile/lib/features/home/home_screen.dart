@@ -268,13 +268,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       if (data != null && !data.errors.containsKey('confluence') && canConfluence && (data.confluence?.items.isNotEmpty ?? false)) {
         add('confluence', 'Confluence', ConfluenceSection(data: data.confluence, onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication), onMore: () => open('/web?path=${Uri.encodeComponent('/confluence')}'), maxShown: null), w: 12, h: 6);
       } else {
-        addPh('confluence', 'Confluence', !canConfluence ? '접근 권한이 없습니다' : gwNo ? 'Confluence 연결이 필요합니다' : '최근 Confluence 활동이 없습니다', onConnect: !canConfluence ? null : settingsConnect, label: '연결 설정');
+        final cfNo = data != null && !data.errors.containsKey('confluence') && data.confluence == null; // 브리핑이 받아 왔는데 값이 없음 = 미연결
+        addPh('confluence', 'Confluence', !canConfluence ? '접근 권한이 없습니다' : data == null ? '불러오는 중…' : data.errors.containsKey('confluence') ? 'Confluence를 불러오지 못했습니다' : cfNo ? 'Confluence 연결이 필요합니다' : '최근 Confluence 활동이 없습니다', onConnect: canConfluence && cfNo ? settingsConnect : null, label: '연결 설정');
       }
       // SharePoint
       if (data != null && !data.errors.containsKey('sharepoint') && canSharepoint && (data.sharepoint?.items.isNotEmpty ?? false)) {
         add('sharepoint', 'SharePoint', SharepointSection(data: data.sharepoint, onOpenUrl: (u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication), onMore: () => open('/web?path=${Uri.encodeComponent('/sharepoint')}'), maxShown: null), w: 12, h: 6);
       } else {
-        addPh('sharepoint', 'SharePoint', !canSharepoint ? '접근 권한이 없습니다' : gwNo ? 'SharePoint 연결이 필요합니다' : '최근 SharePoint 문서가 없습니다', onConnect: !canSharepoint ? null : settingsConnect, label: '연결 설정');
+        final spNo = data != null && !data.errors.containsKey('sharepoint') && data.sharepoint == null;
+        addPh('sharepoint', 'SharePoint', !canSharepoint ? '접근 권한이 없습니다' : data == null ? '불러오는 중…' : data.errors.containsKey('sharepoint') ? 'SharePoint를 불러오지 못했습니다' : spNo ? 'SharePoint 연결이 필요합니다' : '최근 SharePoint 문서가 없습니다', onConnect: canSharepoint && spNo ? settingsConnect : null, label: '연결 설정');
       }
       // 지금 필요한 것(FocusSection은 빈 상태를 스스로 보여 준다)
       if (!gwNo) {
@@ -315,12 +317,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         addPh('talks', '아마란스 알림', '아마란스에 연결하면 표시됩니다', onConnect: gwConnect, w: 12, h: 8);
       }
       // Teams 답장 대기
-      final mentions = ref.watch(teamsMentionsLiveProvider) ?? data?.mentions; // 2분마다 따로 갱신된 값 우선
+      final live = ref.watch(teamsMentionsLiveProvider);
+      final mentions = live ?? data?.mentions; // 2분마다 따로 갱신된 값 우선
       final tmConnected = mentions?.connected == true;
-      if (!gwNo && !data.errors.containsKey('teams') && tmConnected && (mentions?.items.isNotEmpty ?? false)) {
+      // 불러오는 중·일시 오류(502·네트워크)·앱 권한 문제를 "연결이 필요합니다"로 보이지 않게 — 미연결은 서버가 connected:false라고 할 때만
+      final tmFailed = live == null && (data?.errors.containsKey('teams') ?? false);
+      if (!tmFailed && tmConnected && (mentions?.items.isNotEmpty ?? false)) {
         add('teams', 'Teams 답장 대기', TeamsSection(mentions: mentions, onOpen: () => open(teamsRoute), onOpenChat: (id) => open(id.isEmpty ? teamsRoute : '/web?path=${Uri.encodeComponent('/teams/chat?chat=$id')}'), maxShown: null), w: 12, h: 6);
       } else {
-        addPh('teams', 'Teams 답장 대기', !tmConnected ? 'Teams 연결이 필요합니다' : '답장 대기가 없습니다', onConnect: !tmConnected ? settingsConnect : null, label: '연결 설정');
+        final tmNo = !tmFailed && mentions?.connected == false;
+        addPh('teams', 'Teams 답장 대기', tmFailed ? 'Teams를 불러오지 못했습니다' : mentions == null ? (data == null ? '불러오는 중…' : '표시할 수 없습니다') : tmNo ? 'Teams 연결이 필요합니다' : '답장 대기가 없습니다', onConnect: tmNo ? settingsConnect : null, label: '연결 설정');
       }
       // 아마란스 메신저 — 간략(대화방 목록 카드)·상세(목록→대화방까지 위젯 안에서) 2종. 카드가 스스로 세션·로딩·빈 상태를 처리.
       // 연동을 끄면(더보기 스위치) 두 위젯 모두 안내 + 설정으로 이동

@@ -194,14 +194,14 @@ void main() {
     expect(app.calls['/api/teams/mentions'], 2);
     expect((await c.read(briefingProvider.future)).name, '강승욱');
   });
-  test('아마란스 미연결이면 GW 소스는 비우고 Teams만 수집; Teams 403은 오류가 아니라 미연결', () async {
+  test('아마란스 미연결이면 GW 소스는 비우고 Teams만 수집; Teams 403(앱 권한)은 오류도 미연결도 아니라 표시 안 함', () async {
     final app = AppApi({'/api/teams/mentions': (403, {'error': '권한 없음'})});
     final c = scope(creds: null, gw: gwRoutes(gwAll), api: app.client);
     final d = await c.read(briefingProvider.future);
     expect(d.empSeq, '');
     expect(d.today, isNull);
     expect(d.errors, isEmpty);
-    expect(d.mentions!.connected, isFalse);
+    expect(d.mentions, isNull); // 연결 문제가 아니라 '연결이 필요합니다'를 띄우지 않는다
   });
   test('Teams 409(reconnect)·400(not_connected)도 오류가 아니라 미연결 — 재시도 줄 대신 섹션 숨김', () async {
     for (final code in [409, 400]) {

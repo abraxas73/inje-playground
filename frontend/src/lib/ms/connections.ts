@@ -107,6 +107,28 @@ export function refreshScope(stored: string | null | undefined): string {
   return [...new Set(["offline_access", ...parts])].join(" ");
 }
 
+/** 그 연결이 아직 받지 않은 MS_SCOPES(offline_access 제외, 대소문자 무시) */
+export function missingScopes(stored: string | null | undefined): string[] {
+  const have = new Set((stored ?? "").toLowerCase().split(" ").filter(Boolean));
+  return MS_SCOPES.filter((s) => s !== "offline_access" && !have.has(s.toLowerCase()));
+}
+
+/**
+ * 새 스코프가 추가된 뒤에도 기존 연결이 재연결 없이 그 권한을 받도록, 빠진 스코프가 있으면 전체 스코프로 먼저 갱신해 본다
+ * (테넌트 관리자 동의가 있으면 refresh 토큰으로 바로 받힌다). 거절되면 그 연결이 동의한 스코프로 다시 — 연결은 끊기지 않는다.
+ */
+async function refreshWithUpgrade(app: MsAppConfig, refreshToken: string, fetchImpl: FetchLike, stored: string | null) {
+  if (missingScopes(stored).length) {
+    try {
+      return await refreshAccessToken(app, refreshToken, fetchImpl, MS_SCOPES.join(" "));
+    } catch (e) {
+      // 동의 없음은 invalid_grant(AADSTS65001)로도 온다 — OAuth 거절은 모두 기존 스코프로 한 번 더(죽은 토큰이면 거기서 같은 오류)
+      if (!(e instanceof OAuthError)) throw e;
+    }
+  }
+  return refreshAccessToken(app, refreshToken, fetchImpl, refreshScope(stored));
+}
+
 async function markError(admin: SupabaseClient, userId: string, code: string): Promise<void> {
   const { error } = await admin.from(TABLE).update({ last_error: code }).eq("user_id", userId);
   if (error) console.error("[ms] ms_connections last_error 기록 실패:", error.message);
@@ -141,7 +163,7 @@ export async function getAccessTokenForUser(admin: SupabaseClient, userId: strin
 
   let tok;
   try {
-    tok = await refreshAccessToken(deps.app, refreshToken, fetchImpl, refreshScope(row.scopes));
+    tok = await refreshWithUpgrade(deps.app, refreshToken, fetchImpl, row.scopes);
   } catch (e) {
     if (e instanceof OAuthError && RECONNECT_CODES.has(e.code)) {
       await markError(admin, userId, e.code);
@@ -154,6 +176,7 @@ export async function getAccessTokenForUser(admin: SupabaseClient, userId: strin
   tokenCache.set(cacheKey, { token: tok.accessToken, exp: now() + ttl, connectedAt: row.connected_at });
 
   const patch: Record<string, unknown> = { last_used_at: new Date(now()).toISOString(), last_error: null };
+  if (missingScopes(row.scopes).length && !missingScopes(tok.scope).length) patch.scopes = tok.scope;
   if (tok.refreshToken && tok.refreshToken !== refreshToken) patch.refresh_token_enc = encryptSecret(tok.refreshToken, deps.encKey);
   const { error: upErr } = await admin.from(TABLE).update(patch).eq("user_id", userId);
   if (upErr) console.error("[ms] ms_connections 갱신 실패:", upErr.message); // 토큰은 이미 받았으니 진행

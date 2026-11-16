@@ -14,13 +14,13 @@ export async function GET(request: NextRequest) {
   if (q.length < CHAT_SEARCH_MIN || q.length > CHAT_SEARCH_MAX) return NextResponse.json({ error: `검색어는 ${CHAT_SEARCH_MIN}~${CHAT_SEARCH_MAX}자로 입력하세요.` }, { status: 400 });
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
-  // 검색 권한은 2026-10-23에 추가 — 그 전에 연결한 사람은 다시 연결해야 토큰에 들어온다
+  // 토큰 발급이 빠진 스코프를 재연결 없이 받아 저장하므로(connections.refreshWithUpgrade) 권한 확인은 발급 뒤에
+  const tok = await graphTokenForRoute(auth.admin, auth.userId);
+  if (!tok.ok) return tok.response;
   const status = await getConnectionStatus(auth.admin, auth.userId);
   if (status.connected && !status.scopes.includes(TEAMS_SEARCH_SCOPE)) {
     return NextResponse.json({ error: "메시지 검색 권한이 아직 없습니다. Microsoft 계정을 다시 연결하면 권한이 추가됩니다.", code: "reconnect_search" }, { status: 409 });
   }
-  const tok = await graphTokenForRoute(auth.admin, auth.userId);
-  if (!tok.ok) return tok.response;
   try {
     return NextResponse.json({ hits: await searchChatMessages(tok.token, q) }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {

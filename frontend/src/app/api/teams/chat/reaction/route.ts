@@ -23,6 +23,6 @@ export async function POST(request: NextRequest) {
     await logAudit(auth.admin, request, { userId: auth.userId, action: b.on ? "Teams 반응 붙임" : "Teams 반응 뗌", category: "teams", detail: {} });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return graphErrorResponse(e);
+    return graphErrorResponse(e, { chat: true });
   }
 }

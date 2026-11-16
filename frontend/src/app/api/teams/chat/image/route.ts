@@ -26,6 +26,6 @@ export async function GET(request: NextRequest) {
     // 같은 메시지의 그림은 바뀌지 않는다 — 브라우저·앱이 하루 동안 다시 받지 않게(본인 것만, 공용 캐시 금지)
     return new NextResponse(new Blob([img.body]), { headers: { "Content-Type": img.type, "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff" } });
   } catch (e) {
-    return graphErrorResponse(e);
+    return graphErrorResponse(e, { chat: true });
   }
 }

@@ -59,14 +59,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('자동 로그인 중'), findsNothing);
   });
-  testWidgets('연결 화면: 자동 로그인이 워치독(12초)으로 끝나면 gw_login_failed watchdog을 보고한다', (tester) async {
+  testWidgets('연결 화면: 자동 로그인이 워치독(30초)으로 끝나면 gw_login_failed watchdog을 보고한다', (tester) async {
     final sent = <Map<String, String>>[];
     appEvents.sender = (b) async => sent.addAll(b);
     addTearDown(() => appEvents.sender = null);
     FlutterSecureStorage.setMockInitialValues({'gw.loginId': 'me', 'gw.loginPw': 'pw'});
     await tester.pumpWidget(gwScope(http: MockClient((_) async => ok(session)), child: GwConnectScreen(webView: () => const Text('WEBVIEW'))));
     await tester.pump();
-    await tester.pump(const Duration(seconds: 13));
+    await tester.pump(const Duration(seconds: 31));
     expect(find.textContaining('자동 로그인이 지연됩니다'), findsOneWidget);
     await appEvents.flush();
     expect(sent.map((e) => '${e['kind']}:${e['code']}'), ['gw_login_failed:watchdog']);

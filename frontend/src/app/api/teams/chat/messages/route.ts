@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     after(() => registerCustomReactions(p.admin, p.token, chatId, messages).catch(() => 0)); // 처음 본 사용자 정의 반응을 등록부에(고르기 창용, 응답을 늦추지 않게)
     return NextResponse.json({ messages }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
-    return graphErrorResponse(e);
+    return graphErrorResponse(e, { chat: true });
   }
 }
 
@@ -71,6 +71,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(shareFailed ? { message, warning: "받는 사람에게 파일 보기 권한을 주지 못했습니다. 열 때 접근을 요청해야 할 수 있습니다." } : { message });
   } catch (e) {
     if (e instanceof ChatFileError) return NextResponse.json({ error: e.message }, { status: 400 });
-    return graphErrorResponse(e);
+    return graphErrorResponse(e, { chat: true });
   }
 }

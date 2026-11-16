@@ -61,7 +61,10 @@ Future<({String id, String topic})?> pickTeamsChat(BuildContext context, ApiClie
               final j = snap.data;
               final chats = j is Map && j['hasChatScope'] == true && j['chats'] is List ? [for (final x in j['chats'] as List) if (x is Map) (id: '${x['id']}', topic: '${x['topic'] ?? ''}')] : <({String id, String topic})>[];
               if (snap.hasError || chats.isEmpty) {
-                return const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Teams 채팅을 불러오지 못했습니다.\n웹 설정에서 Microsoft 계정을 연결(채팅 권한 포함)한 뒤 다시 시도하세요.', textAlign: TextAlign.center)));
+                // 연결은 됐는데 채팅이 없거나 일시 오류면 연결하라고 하지 않는다
+                final notConnected = !snap.hasError && !(j is Map && j['hasChatScope'] == true);
+                final msg = snap.hasError ? 'Teams 채팅을 불러오지 못했습니다. 잠시 뒤 다시 시도하세요.' : notConnected ? 'Teams 채팅을 불러오지 못했습니다.\n웹 설정에서 Microsoft 계정을 연결(채팅 권한 포함)한 뒤 다시 시도하세요.' : '보낼 수 있는 Teams 채팅방이 없습니다.';
+                return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(msg, textAlign: TextAlign.center)));
               }
               return ListView(children: [
                 Padding(padding: EdgeInsets.fromLTRB(20, 16, 20, 8), child: Text('출근 알림을 보낼 Teams 채팅방', style: TextStyle(fontWeight: FontWeight.w700, color: Brand.navy))),
