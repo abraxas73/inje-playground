@@ -55,7 +55,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
   void initState() {
     super.initState();
     ref.read(gwLoginStoreProvider).load().then((l) {
-      if (mounted) setState(() { _login = l; _loginChecked = true; });
+      if (mounted) setState(() { _login = l; _loginChecked = true; _remember = l != null; }); // 저장해 둔 사람은 새로 입력한 비밀번호도 저장(바꾼 비밀번호로 계속 실패하지 않게)
       if (mounted && l != null) _armAutoWatch(); // 저장값이 잘못됐거나 로그인 페이지가 바뀌면 자동 입력이 멈출 수 있다 — 지나면 직접 로그인으로
     }).catchError((_) {
       if (mounted) setState(() => _loginChecked = true);
@@ -76,10 +76,10 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
     });
   }
 
-  /// 자동 로그인 워치독 — 25초 안에 완료(쿠키 확보)나 수동 전환이 안 되면 직접 로그인으로 떨어뜨린다(무한 대기 방지).
+  /// 자동 로그인 워치독 — 30초(단계를 채울 때마다 다시) 안에 완료(쿠키 확보)나 수동 전환이 안 되면 직접 로그인으로 떨어뜨린다(무한 대기 방지).
   void _armAutoWatch() {
     _autoWatch?.cancel();
-    _autoWatch = Timer(const Duration(seconds: 12), () async {
+    _autoWatch = Timer(const Duration(seconds: 30), () async {
       await _tick(); // 그사이 로그인이 끝났을 수 있다(아마란스 응답이 느린 날) — 쿠키부터 한 번 더 본다
       if (mounted && _auto && !_busy) {
         appEvents.report('gw_login_failed', 'watchdog');
@@ -133,10 +133,12 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
       switch (decideFill(probe, _login, idDone: _idDone, pwDone: _pwDone)) {
         case FillAction.fillId:
           _idDone = true;
+          _armAutoWatch(); // 진행 중이면 시간을 다시 — Windows WebView2·느린 아마란스 응답에 정상 로그인이 끊기지 않게
           setState(() => _status = '아이디 입력 중…');
           _reportFill(await c.runJavaScriptReturningResult(fillJs(selector: '#reqLoginId', value: _login!.id, submitText: '다음')));
         case FillAction.fillPw:
           _pwDone = true;
+          _armAutoWatch();
           setState(() => _status = '비밀번호 입력 중…');
           _reportFill(await c.runJavaScriptReturningResult(fillJs(selector: '#reqLoginPw', value: _login!.pw, submitText: '로그인')));
         case FillAction.reveal:
@@ -177,7 +179,6 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
       await ref.read(gwProvider.notifier).connect(creds);
       if (mounted) Navigator.of(context).pop(true); // 성공 즉시 닫는다 — 아마란스 메인은 볼 필요 없다
     } on GwException catch (e) {
-      appEvents.report('gw_login_failed', 'verify_failed');
       // 세션이 만료돼 다시 연결할 때 WebView에 남은 만료 쿠키를 먼저 집으면 확인이 실패한다 — 그대로 직접 로그인으로 떨어지면
       // 저장된 아이디·비밀번호로 자동 로그인을 해 보지도 않아 매번 다시 묻는 것처럼 보였다(2026-11-13). 한 번은 쿠키를 지우고 처음부터.
       if (mounted && !_staleCleared) {
@@ -187,6 +188,7 @@ class _GwConnectScreenState extends ConsumerState<GwConnectScreen> {
         if (_auto) _armAutoWatch();
         return;
       }
+      appEvents.report('gw_login_failed', 'verify_failed'); // 남은 만료 쿠키로 인한 첫 실패는 세지 않는다
       if (mounted) setState(() { _error = '로그인을 확인하지 못했습니다: ${e.message}'; _manual = true; });
     } finally {
       if (mounted) setState(() => _busy = false);

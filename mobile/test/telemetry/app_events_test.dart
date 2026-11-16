@@ -41,6 +41,8 @@ void main() {
   });
   test('errorTypeName은 타입 이름만, 서버 형식에 맞춘다 / fillJs 결과 코드(iOS 따옴표 포함)', () {
     expect(errorTypeName(const FormatException('비밀')), 'FormatException');
+    // 스택이 있으면 첫 앱 파일 이름만(경로·줄 번호 없이)
+    expect(errorTypeName(const FormatException('비밀'), StackTrace.fromString('#0 f (package:flutter/src/a.dart:1:2)\n#1 g (package:playground/gw/gw_api.dart:10:3)')), 'FormatException at gw_api.dart');
     expect(errorTypeName(<String, int>{}), matches(RegExp(r'^[A-Za-z_$][\w$<>,.? ]{0,79}$')));
     expect(fillFailureCode('no-button'), 'no_button');
     expect(fillFailureCode('"no-field"'), 'no_field');

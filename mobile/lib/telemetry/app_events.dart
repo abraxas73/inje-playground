@@ -11,8 +11,10 @@ const appEventCodes = <String, Set<String>?>{
 };
 
 /// 예외 → 타입 이름만(서버 형식 `[A-Za-z_$][\w$<>,.? ]{0,79}`에 맞게 다른 글자는 _로).
-String errorTypeName(Object error) {
-  final s = error.runtimeType.toString().replaceAll(RegExp(r'[^\w$<>,.? ]'), '_');
+String errorTypeName(Object error, [StackTrace? stack]) {
+  // 어디서 났는지 알도록 스택의 첫 앱 파일 이름만 덧붙인다(경로·줄·메시지는 보내지 않음) — 예: "_TypeError at gw_api.dart"
+  final at = stack == null ? null : RegExp(r'package:playground/(?:[\w/]+/)?(\w+\.dart)').firstMatch(stack.toString())?.group(1);
+  final s = '${error.runtimeType}${at == null ? '' : ' at $at'}'.replaceAll(RegExp(r'[^\w$<>,.? ]'), '_');
   final t = RegExp(r'^[A-Za-z_$]').hasMatch(s) ? s : '_$s';
   return t.length > 80 ? t.substring(0, 80) : t;
 }

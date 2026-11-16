@@ -120,9 +120,11 @@ class BriefingNotifier extends AsyncNotifier<BriefingData> {
         try {
           d.mentions = TeamsMentions.parse(await ref.read(apiClientProvider).getJson('/api/teams/mentions', query: {'days': '2'}));
         } on ApiException catch (e) {
-          // 401·403(권한) · 400 not_connected · 409 reconnect(토큰 만료) — 모두 "Microsoft 미연결"이지 수집 오류가 아니다(재시도로 풀리지 않음)
-          if (e.status == 401 || e.status == 403 || e.status == 400 || e.status == 409) {
+          // 400 not_connected · 409 reconnect(토큰 만료)만 "Microsoft 미연결". 401·403(앱 세션·페이지 권한)은 연결 문제가 아니라 표시만 안 한다
+          if (e.status == 400 || e.status == 409) {
             d.mentions = const TeamsMentions(connected: false, items: []);
+          } else if (e.status == 401 || e.status == 403) {
+            d.mentions = null;
           } else {
             rethrow;
           }

@@ -85,10 +85,11 @@ class GwNotifier extends AsyncNotifier<GwState> {
     state = const AsyncValue.data(GwState());
   }
 
-  /// 401 — 토큰은 두고(재연결 때 덮어씀) 호출만 멈춘다.
-  void markUnauthorized() {
+  /// 401 — 토큰은 두고(재연결 때 덮어씀) 호출만 멈춘다. [stale]을 주면 그 토큰이 아직 현재일 때만 —
+  /// 재연결 직전에 출발한 요청의 401이 방금 받은 새 토큰을 만료로 되돌리지 않게.
+  void markUnauthorized([GwCreds? stale]) {
     final c = state.value?.creds;
-    if (c != null) state = AsyncValue.data(GwState(creds: c, needsRelogin: true));
+    if (c != null && (stale == null || identical(stale, c))) state = AsyncValue.data(GwState(creds: c, needsRelogin: true));
   }
 }
 

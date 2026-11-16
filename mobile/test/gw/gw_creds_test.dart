@@ -57,6 +57,28 @@ void main() {
     expect(container.read(gwProvider).value?.status, GwStatus.none);
     expect(await GwCredsStore().load(), isNull);
   });
+  test('옛 클라이언트의 401은 재연결로 받은 새 토큰을 만료로 되돌리지 않고, 한 번 만료가 확인되면 다시 확인하지 않는다', () async {
+    SharedPreferences.setMockInitialValues({});
+    var probes = 0;
+    final container = ProviderContainer(overrides: [gwHttpClientProvider.overrideWithValue(MockClient((r) async {
+      if (r.url.path.endsWith('gw050A02')) probes++;
+      return http.Response('{"resultCode":140}', 401);
+    }))]);
+    addTearDown(container.dispose);
+    await container.read(gwProvider.notifier).connect(const GwCreds(authToken: 'a|b|c', signKey: 'k'));
+    final old = container.read(gwClientProvider)!;
+    await old.call('/p', {}).catchError((_) => null);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(container.read(gwProvider).value?.status, GwStatus.needsRelogin);
+    expect(probes, 1);
+    await container.read(gwProvider.notifier).connect(const GwCreds(authToken: 'n|e|w', signKey: 'k2')); // 다시 연결
+    await old.call('/q', {}).catchError((_) => null); // 재연결 전에 잡아 둔 옛 클라이언트의 401
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(probes, 1); // 이미 만료 확인된 클라이언트는 다시 확인·보고하지 않는다
+    expect(container.read(gwProvider).value?.status, GwStatus.connected);
+    container.read(gwProvider.notifier).markUnauthorized(const GwCreds(authToken: 'a|b|c', signKey: 'k')); // 다른 토큰 객체
+    expect(container.read(gwProvider).value?.status, GwStatus.connected);
+  });
   test('[리뷰1·7] 401이 병렬로 두 번 와도 GwUnauthorized만 나오고, 만료 상태에선 클라이언트가 null', () async {
     SharedPreferences.setMockInitialValues({});
     final container = ProviderContainer(overrides: [gwHttpClientProvider.overrideWithValue(MockClient((_) async => http.Response('{"resultCode":140}', 401)))]);

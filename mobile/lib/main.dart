@@ -14,6 +14,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/router.dart';
 import 'briefing/live_background.dart';
 import 'gw/talk_notifications.dart';
+import 'gw/gw_creds.dart';
+import 'gw/gw_login_store.dart';
 import 'mcp/mcp_worker_provider.dart';
 import 'app/theme.dart';
 import 'app/theme_mode.dart';
@@ -50,13 +52,13 @@ Future<void> main() async {
 void _hookErrorReports() {
   final prevFlutter = FlutterError.onError;
   FlutterError.onError = (d) {
-    appEvents.report('app_error', errorTypeName(d.exception));
+    appEvents.report('app_error', errorTypeName(d.exception, d.stack));
     prevFlutter?.call(d);
   };
   final dispatcher = WidgetsBinding.instance.platformDispatcher;
   final prevPlatform = dispatcher.onError;
   dispatcher.onError = (e, s) {
-    appEvents.report('app_error', errorTypeName(e));
+    appEvents.report('app_error', errorTypeName(e, s));
     return prevPlatform?.call(e, s) ?? false;
   };
 }
@@ -128,6 +130,22 @@ class _AppState extends ConsumerState<App> {
     }
   }
 
+  DateTime? _autoReloginAt;
+
+  /// 아마란스 세션이 만료되면(주말·밤 사이 서버 세션 종료) 저장된 아이디·비밀번호가 있을 때 연결 화면을 자동으로 띄운다 —
+  /// 그 화면이 가린 채 자동 입력하고 성공하면 스스로 닫혀, 사용자가 '다시 연결'을 누를 필요가 없다(2026-11-16 월요일 아침 몰림).
+  /// 자동 로그인이 실패해 사람이 닫은 뒤 다시 띄우지 않게 10분에 한 번만.
+  Future<void> _autoRelogin(GwState? prev, GwState? next) async {
+    if (next?.status != GwStatus.needsRelogin || prev?.status == GwStatus.needsRelogin) return;
+    final now = DateTime.now();
+    if (_autoReloginAt != null && now.difference(_autoReloginAt!) < const Duration(minutes: 10)) return;
+    final login = await ref.read(gwLoginProvider.future).catchError((_) => null);
+    if (!mounted || login == null || login.pw.isEmpty || Supabase.instance.client.auth.currentUser == null) return;
+    if (_router.routerDelegate.currentConfiguration.uri.path == '/gw/connect') return;
+    _autoReloginAt = now;
+    _router.push('/gw/connect');
+  }
+
   bool _onKey(KeyEvent e) => handleBackspaceBack(e, _router.routerDelegate);
 
   @override
@@ -143,6 +161,7 @@ class _AppState extends ConsumerState<App> {
   Widget build(BuildContext context) {
     ref.watch(talkAlertWatcherProvider); // 데스크탑: 메신저 멘션 OS 알림(아마란스 연결 때만 돈다)
     ref.watch(mcpWorkerProvider); // 데스크탑: Claude 커넥터 요청 실행기(로그인·스위치 켬 때만)
+    ref.listen(gwProvider, (prev, next) => _autoRelogin(prev?.value, next.value));
     return MaterialApp.router(
       title: 'INNOCREW',
       theme: appTheme(),

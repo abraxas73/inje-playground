@@ -64,9 +64,13 @@ it("GET /api/teams/chat/messages — chat 필수(400), since는 Graph 필터로,
   expect(url).toContain("/chats/19%3Aabc%40thread.v2/messages");
   expect(url).toContain("$filter=lastModifiedDateTime%20gt%202026-10-03T12%3A00%3A00Z");
 });
-it("GET /api/teams/chat/messages — Graph 403(미참여·스코프 없음)은 409 reconnect, 토큰 실패는 그 응답 그대로, 비로그인 401", async () => {
+it("GET /api/teams/chat/messages — Graph 403(그 채팅 거절)은 재연결이 아니라 403 chat_forbidden, 429는 503, 토큰 실패는 그 응답 그대로, 비로그인 401", async () => {
   m.fetch.mockResolvedValue(json(403, { error: { code: "Forbidden", message: "x" } }));
-  expect((await msgGET(req(`/api/teams/chat/messages?chat=${encodeURIComponent(CHAT)}`))).status).toBe(409);
+  const forbidden = await msgGET(req(`/api/teams/chat/messages?chat=${encodeURIComponent(CHAT)}`));
+  expect(forbidden.status).toBe(403);
+  expect(await forbidden.json()).toMatchObject({ code: "chat_forbidden" });
+  m.fetch.mockResolvedValue(json(429, { error: { code: "TooManyRequests", message: "x" } }));
+  expect((await msgGET(req(`/api/teams/chat/messages?chat=${encodeURIComponent(CHAT)}`))).status).toBe(503);
   m.token = { ok: false, response: NextResponse.json({ error: "Microsoft 계정을 먼저 연결하세요.", code: "not_connected" }, { status: 400 }) };
   expect((await msgGET(req(`/api/teams/chat/messages?chat=${encodeURIComponent(CHAT)}`))).status).toBe(400);
   m.user = false;
@@ -216,10 +220,10 @@ it("POST /api/teams/chat/reaction — 입력 검증, 붙이기는 setReaction·�
   expect((await post({ chat: CHAT, message: "1", reaction: "daebak;0-skr/../x-aaaaaaaaaaaa", on: true })).status).toBe(400);
   expect(m.audit.mock.calls.map((c) => [c[2].action, c[2].detail])).toEqual([["Teams 반응 붙임", {}], ["Teams 반응 뗌", {}], ["Teams 반응 붙임", {}]]);
   m.fetch.mockResolvedValue(json(403, { error: { code: "Forbidden", message: "x" } }));
-  expect((await post({ chat: CHAT, message: "1", reaction: "👍", on: true })).status).toBe(409);
+  expect((await post({ chat: CHAT, message: "1", reaction: "👍", on: true })).status).toBe(403);
 });
 
-it("GET /api/teams/chat/image — 본문 그림을 본인 토큰으로 중계(그림 형식만, 개인 캐시), 잘못된 값 400·그림 아님 415·권한 409", async () => {
+it("GET /api/teams/chat/image — 본문 그림을 본인 토큰으로 중계(그림 형식만, 개인 캐시), 잘못된 값 400·그림 아님 415·채팅 거절 403", async () => {
   const HC = "aWQ9eF8wLXd1cy1kMS0xMjM0LHR5cGU9MQ==";
   const q = (o: Record<string, string>) => req(`/api/teams/chat/image?${new URLSearchParams(o)}`);
   expect((await imageGET(q({ chat: CHAT, message: "1" }))).status).toBe(400);
@@ -240,7 +244,7 @@ it("GET /api/teams/chat/image — 본문 그림을 본인 토큰으로 중계(�
   m.fetch.mockResolvedValue(new Response("<html>", { status: 200, headers: { "content-type": "text/html" } }));
   expect((await imageGET(q({ chat: CHAT, message: "1", content: HC }))).status).toBe(415);
   m.fetch.mockResolvedValue(json(403, { error: { code: "Forbidden", message: "x" } }));
-  expect((await imageGET(q({ chat: CHAT, message: "1", content: HC }))).status).toBe(409);
+  expect((await imageGET(q({ chat: CHAT, message: "1", content: HC }))).status).toBe(403);
   // 4MB 넘으면 413 — 길이 머리글로 미리, 머리글이 없어도 읽다가 끊는다
   m.fetch.mockResolvedValue(new Response(new Uint8Array(10), { status: 200, headers: { "content-type": "image/png", "content-length": String(5 * 1024 * 1024) } }));
   expect((await imageGET(q({ chat: CHAT, message: "1", content: HC }))).status).toBe(413);

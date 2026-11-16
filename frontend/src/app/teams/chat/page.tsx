@@ -177,7 +177,6 @@ export default function TeamsChatPage() {
     const j = await readJson(r);
     if (!r.ok) {
       setError(typeof j.error === "string" ? j.error : `메시지를 불러오지 못했습니다 (${r.status})`);
-      if (j.code === "reconnect") setInfo((i) => (i ? { ...i, hasChatScope: false } : i));
       return;
     }
     setError(null);
