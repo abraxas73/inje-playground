@@ -15,6 +15,7 @@ import SeatHistorySheet from "./SeatHistorySheet";
 import SeatExecutorChip from "./SeatExecutorChip";
 import { hasSeat, isIdleSeat } from "@/lib/claude-usage/aggregate";
 import { normalizeTier } from "@/lib/claude-usage/seat-tier";
+import { isKnownCsvHeader } from "@/lib/claude-usage/members-csv";
 import { int, fmtDateTime } from "./format";
 import { useMoney } from "@/components/shared/currency-context";
 import type { ClaudeOrg, CsvImport, MemberActivityRow } from "@/types/claude-usage";
@@ -117,7 +118,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
   /** 업로드 때 버려진 칼럼 — Anthropic이 CSV에 지표를 추가하면 여기에 뜬다(파서에 매핑 추가 필요) */
   const unknownHeaders = useMemo(() => {
     const set = new Set<string>();
-    for (const i of data?.imports ?? []) for (const h of i.unknown_headers ?? []) set.add(h);
+    for (const i of data?.imports ?? []) for (const h of i.unknown_headers ?? []) if (!isKnownCsvHeader(h)) set.add(h); // 그 뒤 파서에 추가된 칼럼은 경고하지 않음
     return [...set];
   }, [data]);
   const rows = useMemo(() => {
