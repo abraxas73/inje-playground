@@ -77,6 +77,11 @@ function normalize(h: string): string {
   return h.replace(/^﻿/, "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+/** 지금 파서가 아는 칼럼인지 — 파서를 고치기 전 업로드에 남은 unknown_headers를 경고에서 빼는 데 쓴다 */
+export function isKnownCsvHeader(h: string): boolean {
+  return normalize(h) in MEMBERS_CSV_COLUMNS;
+}
+
 function toNumber(v: string | undefined): number {
   if (!v) return 0;
   const n = Number(v.replace(/[,$\s]/g, ""));

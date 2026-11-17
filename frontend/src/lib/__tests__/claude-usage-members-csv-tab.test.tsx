@@ -27,3 +27,10 @@ it("모두 아는 칼럼이면 경고가 없다", async () => {
   expect(await screen.findByText(/수집 이력/)).toBeInTheDocument();
   expect(screen.queryByText(/모르는 칼럼/)).not.toBeInTheDocument();
 });
+
+it("파서에 이미 추가된 칼럼은 옛 업로드에 남아 있어도 경고하지 않는다", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => response(["Messages in Chat and Cowork unified"]) })));
+  render(<MembersCsvTab orgs={ORGS} />);
+  expect(await screen.findByText(/수집 이력/)).toBeInTheDocument();
+  expect(screen.queryByText(/모르는 칼럼/)).not.toBeInTheDocument();
+});
