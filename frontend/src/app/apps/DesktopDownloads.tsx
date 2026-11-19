@@ -53,6 +53,7 @@ export function DesktopDownloads() {
               </time>
             </div>
             <p className="text-xs text-muted-foreground">{(artifact.bytes / 1024 / 1024).toFixed(1)} MB · {mac ? "Apple 서명·공증 완료" : linux ? "내부 테스트용 .deb 패키지입니다. 설치할 때 관리자 비밀번호가 필요합니다. 앱 안 업데이트도 설치할 때 관리자 비밀번호 창이 한 번 뜹니다." : <>설치 파일은 <strong>(주) 이노그리드</strong>로 코드 서명되어 있습니다. 서명 인증서가 새것이라 평판이 쌓일 때까지 경고가 뜰 수 있습니다. ① 다운로드할 때 ‘일반적으로 다운로드되지 않는 파일’ 경고 — Edge는 다운로드 목록의 ‘…’ → <strong>유지 → 그래도 유지</strong>, Chrome은 <strong>유지</strong>. ② 실행할 때 ‘Windows의 PC 보호’ 창 — <strong>추가 정보 → 실행</strong>.</>}</p>
+            {!mac && !linux && <p role="note" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"><strong>1.7.97·1.7.98 설치가 ‘Error 4551: 애플리케이션 제어 정책에서 이 파일을 차단했습니다’로 멈췄다면</strong> 이 버튼으로 1.7.99 이상을 새로 받아 다시 설치하세요. 1.7.99부터 설치 파일과 앱 안쪽 파일이 모두 (주) 이노그리드로 코드 서명되어 스마트 앱 컨트롤을 끄지 않아도 됩니다.</p>}
             {!mac && !linux && <Button asChild size="sm" variant="outline" className="self-start"><a href="/manual#desktop-install"><BookOpen className="h-4 w-4" />설치 경고 화면 안내 보기</a></Button>}
             <details className="text-xs text-muted-foreground"><summary>파일 검증 SHA-256</summary><code className="mt-2 block break-all">{artifact.sha256}</code></details>
           </> : <Button disabled>{error ? "정보 불러오기 실패" : release ? "설치 파일 준비 중" : "불러오는 중…"}</Button>}
