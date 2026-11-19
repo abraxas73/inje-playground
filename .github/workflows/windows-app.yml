@@ -72,6 +72,7 @@ jobs:
         run: |
           if ('${{ github.ref }}' -ne 'refs/heads/main') { throw 'Signing runs only from main' }
           ./mobile/scripts/build-windows.ps1 -Phase Build
+          Set-Location $env:GITHUB_WORKSPACE  # build-windows.ps1이 mobile/로 이동해 둔다
           $jar = Join-Path $env:RUNNER_TEMP 'jsign-7.6.jar'
           Invoke-WebRequest https://repo1.maven.org/maven2/net/jsign/jsign/7.6/jsign-7.6.jar -OutFile $jar
           if ((Get-FileHash $jar -Algorithm SHA256).Hash -ne '6CF58AA080E7FF82656F320CFF8D4A3BFF30408DF8766806DCBA3740DD839FA5') { throw 'jsign hash mismatch' }
