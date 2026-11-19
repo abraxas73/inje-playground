@@ -76,6 +76,8 @@ class _AppState extends ConsumerState<App> {
         redirectFor(ref.read(sessionProvider), state.matchedLocation),
   );
   String? _lastAuditPath;
+  // 데스크톱: 다른 앱으로 넘어가면(첨부 [열기] 등) 창이 마우스가 나간 걸 못 받아 툴팁이 남는다 — 앱 상태가 바뀔 때마다 닫는다(2026-11-19)
+  late final _tooltipReset = AppLifecycleListener(onStateChange: (_) => Tooltip.dismissAllToolTips());
 
   @override
   void initState() {
@@ -84,6 +86,7 @@ class _AppState extends ConsumerState<App> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _auditPage());
     messengerNotifyTap.addListener(_onNotifyTap); // OS 알림 탭 → 우리 앱 화면으로
     if (isDesktopPlatform) HardwareKeyboard.instance.addHandler(_onKey); // Backspace = 뒤로 가기
+    if (isDesktopPlatform) _tooltipReset;
     // 장애 신호 보고(/api/app/events) — 개발 빌드는 보내지 않고, 로그인 전이면 버린다
     if (Config.appVersion != 'dev') {
       appEvents.sender = (events) async {
@@ -151,6 +154,7 @@ class _AppState extends ConsumerState<App> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_onKey);
+    if (isDesktopPlatform) _tooltipReset.dispose();
     _router.routerDelegate.removeListener(_auditPage);
     messengerNotifyTap.removeListener(_onNotifyTap);
     _router.dispose();
