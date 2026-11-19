@@ -103,7 +103,7 @@ jobs:
           $java = Join-Path $env:JAVA_HOME_17_X64 'bin\java.exe'
           $jar = Join-Path $env:RUNNER_TEMP 'jsign-7.6.jar'
           "@`"$java`" -jar `"$jar`" --storetype TRUSTEDSIGNING --keystore krc.codesigning.azure.net --storepass %AZ_TOKEN% --alias innogrid/innogrid-public --tsaurl http://timestamp.acs.microsoft.com --tsmode RFC3161 --alg SHA-256 %1" | Set-Content -Encoding ascii $cmd
-          $env:INNO_SIGN_CMD = "`"$cmd`" `$f"
+          $env:INNO_SIGN_CMD = "cmd.exe /c $cmd `$f"  # 따옴표 없이(PowerShell이 \"로 바꿔 경로가 깨짐) — RUNNER_TEMP에 공백 없음
           ./mobile/scripts/build-windows.ps1 -Phase Package -RequireSignedPayload
       - name: Verify installer signature and hash signed bytes
         if: ${{ !inputs.probe_only && inputs.sign }}
