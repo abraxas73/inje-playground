@@ -34,6 +34,7 @@ void showSavedFileSnack(ScaffoldMessengerState messenger, String name, Object? s
     if (!ok) messenger.showSnackBar(const SnackBar(content: Text('파일을 열지 못했습니다. 저장한 폴더에서 열어 주세요')));
   }
   messenger.showSnackBar(SnackBar(
+    persist: false, // 버튼이 있으면 Flutter 기본값이 '안 사라짐'이라 8초가 무시됐다(2026-11-19)
     duration: const Duration(seconds: 8),
     content: MouseRegion(
       cursor: SystemMouseCursors.click,

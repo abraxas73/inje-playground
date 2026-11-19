@@ -32,6 +32,18 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  testWidgets('데스크톱 저장 알림은 [열기] 버튼이 있어도 8초 뒤 저절로 사라진다', (t) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    final m = await host(t);
+    showSavedFileSnack(m, 'a.pdf', Uri.file('/tmp/a.pdf'), open: (_) async => true);
+    await t.pumpAndSettle();
+    expect(find.text('열기'), findsOneWidget);
+    await t.pump(const Duration(seconds: 9));
+    await t.pumpAndSettle();
+    expect(find.text('열기'), findsNothing);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('휴대폰이거나 파일 주소가 아니면 글자만', (t) async {
     final m = await host(t); // 테스트 기본 android
     showSavedFileSnack(m, 'a.pdf', Uri.file('/x/a.pdf'));
