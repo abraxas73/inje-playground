@@ -6,6 +6,10 @@ on:
         description: Run updater transport probe without packaging
         type: boolean
         default: false
+      sign:
+        description: Authenticode-sign payload and installer with the short-lived AZURE_SIGNING_TOKEN secret (docs/windows-signing.md)
+        type: boolean
+        default: false
   # push 트리거 제거(2026-10-23): 가리키던 abraxas73/mobile 브랜치는 2026-10-11 이후 쓰지 않고,
   # 윈도 러너 자동 빌드는 비용이 커서 릴리스 절차대로 수동 실행(workflow_dispatch)만 남긴다.
   # 정적 분석·테스트는 ci.yml이 리눅스 러너에서 맡는다.
@@ -57,9 +61,38 @@ jobs:
         shell: pwsh
         run: node mobile/scripts/test-windows-feed-credential-chain.mjs
       - name: Build installer
-        if: ${{ !inputs.probe_only }}
+        if: ${{ !inputs.probe_only && !inputs.sign }}
         shell: pwsh
         run: ./mobile/scripts/build-windows.ps1
+      # 임시 서명 경로(2026-11-19 사용자 결정 B): 운영자 Mac의 az login 접근 토큰(약 1시간)을 비밀값으로 잠깐 넣고 실행, 끝나면 비밀값 삭제.
+      # Ed25519 업데이트 서명은 반드시 Authenticode 뒤(아래 Sign final update artifact).
+      - name: Build, sign payload, package, sign installer
+        if: ${{ !inputs.probe_only && inputs.sign }}
+        shell: pwsh
+        env:
+          AZ_TOKEN: ${{ secrets.AZURE_SIGNING_TOKEN }}
+          WINDOWS_SIGNING_SUBJECT: 'CN=(주) 이노그리드, O=(주) 이노그리드, L=서울특별시 중구, S=Seoul, C=KR'
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:AZ_TOKEN)) { throw 'AZURE_SIGNING_TOKEN secret is missing' }
+          $jar = Join-Path $env:RUNNER_TEMP 'jsign-7.6.jar'
+          Invoke-WebRequest https://repo1.maven.org/maven2/net/jsign/jsign/7.6/jsign-7.6.jar -OutFile $jar
+          if ((Get-FileHash $jar -Algorithm SHA256).Hash -ne '6CF58AA080E7FF82656F320CFF8D4A3BFF30408DF8766806DCBA3740DD839FA5') { throw 'jsign hash mismatch' }
+          $java = Join-Path $env:JAVA_HOME_17_X64 'bin/java.exe'
+          function Sign([string[]]$files) {
+            & $java -jar $jar --storetype TRUSTEDSIGNING --keystore krc.codesigning.azure.net --storepass $env:AZ_TOKEN --alias innogrid/innogrid-public --tsaurl http://timestamp.acs.microsoft.com --tsmode RFC3161 --alg SHA-256 @files
+            if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed' }
+          }
+          ./mobile/scripts/build-windows.ps1 -Phase Build
+          $payload = @(Get-ChildItem mobile/build/windows/x64/runner/Release -Recurse -File | Where-Object { ($_.Extension -in @('.exe', '.dll')) -and (Get-AuthenticodeSignature -LiteralPath $_.FullName).Status -eq 'NotSigned' } | ForEach-Object FullName)
+          if (-not $payload.Count) { throw 'No unsigned payload files found' }
+          Sign $payload
+          ./mobile/scripts/build-windows.ps1 -Phase Package -RequireSignedPayload
+          $installer = @(Get-ChildItem mobile/build/windows/distribution/*.exe)
+          if ($installer.Count -ne 1) { throw 'Expected one installer' }
+          Sign @($installer[0].FullName)
+          ./mobile/scripts/verify-windows-signatures.ps1 -Path mobile/build/windows/distribution -PrimaryFile $installer[0].Name
+          $hash = (Get-FileHash $installer[0].FullName -Algorithm SHA256).Hash.ToLower()
+          "$hash  $($installer[0].Name)" | Set-Content -Encoding ascii "$($installer[0].FullName).sha256"
       - name: Sign final update artifact
         if: ${{ !inputs.probe_only }}
         shell: pwsh
