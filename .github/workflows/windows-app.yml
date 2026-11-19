@@ -66,30 +66,51 @@ jobs:
         run: ./mobile/scripts/build-windows.ps1
       # 임시 서명 경로(2026-11-19 사용자 결정 B): 운영자 Mac의 az login 접근 토큰(약 1시간)을 비밀값으로 잠깐 넣고 실행, 끝나면 비밀값 삭제.
       # Ed25519 업데이트 서명은 반드시 Authenticode 뒤(아래 Sign final update artifact).
-      - name: Build, sign payload, package, sign installer
+      - name: Build application (unsigned, no secrets)
+        if: ${{ !inputs.probe_only && inputs.sign }}
+        shell: pwsh
+        run: |
+          if ('${{ github.ref }}' -ne 'refs/heads/main') { throw 'Signing runs only from main' }
+          ./mobile/scripts/build-windows.ps1 -Phase Build
+          $jar = Join-Path $env:RUNNER_TEMP 'jsign-7.6.jar'
+          Invoke-WebRequest https://repo1.maven.org/maven2/net/jsign/jsign/7.6/jsign-7.6.jar -OutFile $jar
+          if ((Get-FileHash $jar -Algorithm SHA256).Hash -ne '6CF58AA080E7FF82656F320CFF8D4A3BFF30408DF8766806DCBA3740DD839FA5') { throw 'jsign hash mismatch' }
+          $payload = @(Get-ChildItem mobile/build/windows/x64/runner/Release -Recurse -File | Where-Object { ($_.Extension -in @('.exe', '.dll')) -and (Get-AuthenticodeSignature -LiteralPath $_.FullName).Status -eq 'NotSigned' } | ForEach-Object FullName)
+          if (-not $payload.Count) { throw 'No unsigned payload files found' }
+          $payload | Set-Content -Encoding utf8 (Join-Path $env:RUNNER_TEMP 'signing-files.txt')
+      - name: Sign payload (token only here)
         if: ${{ !inputs.probe_only && inputs.sign }}
         shell: pwsh
         env:
           AZ_TOKEN: ${{ secrets.AZURE_SIGNING_TOKEN }}
-          WINDOWS_SIGNING_SUBJECT: 'CN=(주) 이노그리드, O=(주) 이노그리드, L=서울특별시 중구, S=Seoul, C=KR'
         run: |
           if ([string]::IsNullOrWhiteSpace($env:AZ_TOKEN)) { throw 'AZURE_SIGNING_TOKEN secret is missing' }
-          $jar = Join-Path $env:RUNNER_TEMP 'jsign-7.6.jar'
-          Invoke-WebRequest https://repo1.maven.org/maven2/net/jsign/jsign/7.6/jsign-7.6.jar -OutFile $jar
-          if ((Get-FileHash $jar -Algorithm SHA256).Hash -ne '6CF58AA080E7FF82656F320CFF8D4A3BFF30408DF8766806DCBA3740DD839FA5') { throw 'jsign hash mismatch' }
-          $java = Join-Path $env:JAVA_HOME_17_X64 'bin/java.exe'
-          function Sign([string[]]$files) {
-            & $java -jar $jar --storetype TRUSTEDSIGNING --keystore krc.codesigning.azure.net --storepass $env:AZ_TOKEN --alias innogrid/innogrid-public --tsaurl http://timestamp.acs.microsoft.com --tsmode RFC3161 --alg SHA-256 @files
-            if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed' }
-          }
-          ./mobile/scripts/build-windows.ps1 -Phase Build
-          $payload = @(Get-ChildItem mobile/build/windows/x64/runner/Release -Recurse -File | Where-Object { ($_.Extension -in @('.exe', '.dll')) -and (Get-AuthenticodeSignature -LiteralPath $_.FullName).Status -eq 'NotSigned' } | ForEach-Object FullName)
-          if (-not $payload.Count) { throw 'No unsigned payload files found' }
-          Sign $payload
-          ./mobile/scripts/build-windows.ps1 -Phase Package -RequireSignedPayload
+          $files = @(Get-Content (Join-Path $env:RUNNER_TEMP 'signing-files.txt'))
+          & (Join-Path $env:JAVA_HOME_17_X64 'bin/java.exe') -jar (Join-Path $env:RUNNER_TEMP 'jsign-7.6.jar') --storetype TRUSTEDSIGNING --keystore krc.codesigning.azure.net --storepass $env:AZ_TOKEN --alias innogrid/innogrid-public --tsaurl http://timestamp.acs.microsoft.com --tsmode RFC3161 --alg SHA-256 @files
+          if ($LASTEXITCODE -ne 0) { throw 'Payload signing failed' }
+      - name: Package installer from signed payload (no secrets)
+        if: ${{ !inputs.probe_only && inputs.sign }}
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_SUBJECT: 'CN=(주) 이노그리드, O=(주) 이노그리드, L=서울특별시 중구, S=Seoul, C=KR'
+        run: ./mobile/scripts/build-windows.ps1 -Phase Package -RequireSignedPayload
+      - name: Sign installer (token only here)
+        if: ${{ !inputs.probe_only && inputs.sign }}
+        shell: pwsh
+        env:
+          AZ_TOKEN: ${{ secrets.AZURE_SIGNING_TOKEN }}
+        run: |
           $installer = @(Get-ChildItem mobile/build/windows/distribution/*.exe)
           if ($installer.Count -ne 1) { throw 'Expected one installer' }
-          Sign @($installer[0].FullName)
+          & (Join-Path $env:JAVA_HOME_17_X64 'bin/java.exe') -jar (Join-Path $env:RUNNER_TEMP 'jsign-7.6.jar') --storetype TRUSTEDSIGNING --keystore krc.codesigning.azure.net --storepass $env:AZ_TOKEN --alias innogrid/innogrid-public --tsaurl http://timestamp.acs.microsoft.com --tsmode RFC3161 --alg SHA-256 $installer[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Installer signing failed' }
+      - name: Verify installer signature and hash signed bytes
+        if: ${{ !inputs.probe_only && inputs.sign }}
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_SUBJECT: 'CN=(주) 이노그리드, O=(주) 이노그리드, L=서울특별시 중구, S=Seoul, C=KR'
+        run: |
+          $installer = @(Get-ChildItem mobile/build/windows/distribution/*.exe)
           ./mobile/scripts/verify-windows-signatures.ps1 -Path mobile/build/windows/distribution -PrimaryFile $installer[0].Name
           $hash = (Get-FileHash $installer[0].FullName -Algorithm SHA256).Hash.ToLower()
           "$hash  $($installer[0].Name)" | Set-Content -Encoding ascii "$($installer[0].FullName).sha256"
