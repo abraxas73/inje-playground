@@ -32,7 +32,9 @@ if ($RequireSignedPayload) {
 }
 $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
 if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
-& $iscc "/DAppVersion=$version" installer/windows.iss
+$isccArgs = @("/DAppVersion=$version")
+if ($env:INNO_SIGN_CMD) { $isccArgs += @('/DUseSignTool', "/Sjsign=$env:INNO_SIGN_CMD") }
+& $iscc @isccArgs installer/windows.iss
 if ($LASTEXITCODE -ne 0) { throw 'Installer creation failed' }
 Get-ChildItem build/windows/distribution/*.exe | ForEach-Object {
   $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()

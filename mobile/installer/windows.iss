@@ -31,6 +31,12 @@ WizardStyle=modern
 SetupIconFile=..\windows\runner\resources\app_icon.ico
 UninstallDisplayIcon={app}\INNOGRID.exe
 CloseApplications=yes
+#ifdef UseSignTool
+; 컴파일하면서 서명해야 임시 폴더에 풀리는 설치 엔진 사본(Setup.tmp)·제거 프로그램까지 서명된다.
+; 나중에 바깥 exe만 서명하면 Setup.tmp가 서명 없이 남아 스마트 앱 컨트롤이 막는다(Error 4551, 2026-11-19).
+SignTool=jsign
+SignedUninstaller=yes
+#endif
 [Files]
 #ifdef UpdaterTest
 Source: "{#TestPayload}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

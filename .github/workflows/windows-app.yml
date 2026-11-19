@@ -89,22 +89,22 @@ jobs:
           $files = @(Get-Content (Join-Path $env:RUNNER_TEMP 'signing-files.txt'))
           & (Join-Path $env:JAVA_HOME_17_X64 'bin/java.exe') -jar (Join-Path $env:RUNNER_TEMP 'jsign-7.6.jar') --storetype TRUSTEDSIGNING --keystore krc.codesigning.azure.net --storepass $env:AZ_TOKEN --alias innogrid/innogrid-public --tsaurl http://timestamp.acs.microsoft.com --tsmode RFC3161 --alg SHA-256 @files
           if ($LASTEXITCODE -ne 0) { throw 'Payload signing failed' }
-      - name: Package installer from signed payload (no secrets)
-        if: ${{ !inputs.probe_only && inputs.sign }}
-        shell: pwsh
-        env:
-          WINDOWS_SIGNING_SUBJECT: 'CN=(주) 이노그리드, O=(주) 이노그리드, L=서울특별시 중구, S=Seoul, C=KR'
-        run: ./mobile/scripts/build-windows.ps1 -Phase Package -RequireSignedPayload
-      - name: Sign installer (token only here)
+      # Inno Setup이 컴파일하면서 직접 서명(SignTool): 바깥 설치 파일 + 임시 폴더 설치 엔진 사본 + 제거 프로그램.
+      # 토큰은 sign.cmd가 환경 변수에서 읽어 ISCC 로그의 명령 줄에 남지 않는다.
+      - name: Package and sign installer (token only here)
         if: ${{ !inputs.probe_only && inputs.sign }}
         shell: pwsh
         env:
           AZ_TOKEN: ${{ secrets.AZURE_SIGNING_TOKEN }}
+          WINDOWS_SIGNING_SUBJECT: 'CN=(주) 이노그리드, O=(주) 이노그리드, L=서울특별시 중구, S=Seoul, C=KR'
         run: |
-          $installer = @(Get-ChildItem mobile/build/windows/distribution/*.exe)
-          if ($installer.Count -ne 1) { throw 'Expected one installer' }
-          & (Join-Path $env:JAVA_HOME_17_X64 'bin/java.exe') -jar (Join-Path $env:RUNNER_TEMP 'jsign-7.6.jar') --storetype TRUSTEDSIGNING --keystore krc.codesigning.azure.net --storepass $env:AZ_TOKEN --alias innogrid/innogrid-public --tsaurl http://timestamp.acs.microsoft.com --tsmode RFC3161 --alg SHA-256 $installer[0].FullName
-          if ($LASTEXITCODE -ne 0) { throw 'Installer signing failed' }
+          if ([string]::IsNullOrWhiteSpace($env:AZ_TOKEN)) { throw 'AZURE_SIGNING_TOKEN secret is missing' }
+          $cmd = Join-Path $env:RUNNER_TEMP 'sign.cmd'
+          $java = Join-Path $env:JAVA_HOME_17_X64 'bin\java.exe'
+          $jar = Join-Path $env:RUNNER_TEMP 'jsign-7.6.jar'
+          "@`"$java`" -jar `"$jar`" --storetype TRUSTEDSIGNING --keystore krc.codesigning.azure.net --storepass %AZ_TOKEN% --alias innogrid/innogrid-public --tsaurl http://timestamp.acs.microsoft.com --tsmode RFC3161 --alg SHA-256 %1" | Set-Content -Encoding ascii $cmd
+          $env:INNO_SIGN_CMD = "`"$cmd`" `$f"
+          ./mobile/scripts/build-windows.ps1 -Phase Package -RequireSignedPayload
       - name: Verify installer signature and hash signed bytes
         if: ${{ !inputs.probe_only && inputs.sign }}
         shell: pwsh
