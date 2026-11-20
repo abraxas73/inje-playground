@@ -38,7 +38,7 @@ cd mobile && flutter build apk --debug                      # Android 디버그 
 ### 로컬 launchd 자동화 (운영자 Mac)
 
 ```bash
-claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사용량 CSV 09:05 · Claude 시트 실행기 상시 — 일정·마지막 종료 코드·로그 (런북 docs/launchd-jobs.md)
+claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사용량 CSV 09:05 · Claude 인보이스 09:30 · Claude 시트 실행기 상시 — 일정·마지막 종료 코드·로그 (런북 docs/launchd-jobs.md)
 ```
 
 ## Architecture

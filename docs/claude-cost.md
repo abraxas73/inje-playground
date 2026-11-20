@@ -8,7 +8,12 @@
 3. `vercel.json` cron `/api/cron/claude-cost`(23:00 UTC = 08:00 KST)은 배포와 함께 등록된다. `CRON_SECRET`은 기존 값을 쓴다.
 4. (선택) 어드민 > 시스템 설정 > **환율 (USD → KRW)** 에 1달러당 원(예: 1380)을 넣으면 비용 관리 화면에서 `₩ 원` 표시를 켤 수 있다(전역 settings 키 `usd_krw_rate`). 비어 있으면 원을 골라도 달러로 보이고 화면이 안내한다.
 
-## 2. 매달 인보이스 등록 (조직 7개, 1분)
+## 2. 인보이스 등록 — 자동(2026-11-20부터)
+운영자 Mac launchd `com.innogrid.claude-invoice-sync`(매일 09:30, `frontend/scripts/claude-invoice-sync.mjs`)가 ego 작업 공간 **`claude-billing`**(ego 프로필 "Profile 2", 결제 권한 있는 claude.ai 소유자 계정 로그인)에서 claude.ai 결제 화면과 같은 목록 `GET /api/stripe/<org>/invoices`를 `Innogrid…` 조직마다 읽어 `POST /api/admin/claude-cost/invoices/sync`(Bearer `OPS_INGEST_TOKEN`)로 보낸다. 서버는 있는 번호는 건너뛰고 새 번호만 아래 링크 등록과 같은 경로로 적재하며, 조직은 이름 짐작 대신 결제 화면의 조직 id로 정한다(`claude_orgs` 팀 조직에 없는 id는 미배정). 시트 실행기 계정(기본 프로필)은 결제 화면 권한이 없어 공간을 따로 쓴다. 메일로는 못 받는다 — 구독 영수증이 운영자 메일함에 오지 않고 일부는 WBlock 스팸으로 막힌다(2026-11-20 확인).
+- 종료 코드 2 = claude.ai 로그인 필요 → `claude-billing` 공간에서 소유자 계정으로 다시 로그인. 상태는 `claude-jobs status`.
+- 즉시 실행: `launchctl kickstart gui/$(id -u)/com.innogrid.claude-invoice-sync`, 목록만 보기: `node scripts/claude-invoice-sync.mjs --dry`.
+
+### 수동 등록(자동이 막혔을 때)
 1. 결제 메일(Anthropic, PBC / Stripe)의 "View invoice" 링크 7개를 복사한다 — `https://invoice.stripe.com/i/acct_…/live_…?s=ap`. 서버는 이 링크를 `https://pay.stripe.com/invoice/…/pdf`로 바꿔 PDF를 인증 없이 받는다.
 2. 비용 관리 > 인보이스 등록 탭 textarea에 한 줄씩 붙여 넣고 "링크로 등록".
 3. 건별 결과 확인: `등록` / `이미 등록됨`(같은 번호) / `실패`(원인 문구). 실패하면 Stripe 페이지에서 "Download invoice"로 받은 PDF를 업로드한다.
