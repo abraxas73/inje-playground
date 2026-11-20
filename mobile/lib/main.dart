@@ -29,6 +29,7 @@ import 'telemetry/app_events.dart';
 import 'app/copy_selection_area.dart';
 import 'app/backspace_back.dart';
 import 'app/platform.dart' show isDesktopPlatform;
+import 'survey/login_survey_prompt.dart';
 import 'package:flutter/services.dart' show HardwareKeyboard, KeyEvent;
 
 Future<void> main() async {
@@ -87,6 +88,8 @@ class _AppState extends ConsumerState<App> {
     messengerNotifyTap.addListener(_onNotifyTap); // OS 알림 탭 → 우리 앱 화면으로
     if (isDesktopPlatform) HardwareKeyboard.instance.addHandler(_onKey); // Backspace = 뒤로 가기
     if (isDesktopPlatform) _tooltipReset;
+    // 데스크톱: 로그인(앱 시작 때 이미 로그인 포함)하면 아직 참여하지 않은 '로그인 시 팝업' 설문을 띄운다 — 모바일은 제외(2026-11-20)
+    if (isDesktopPlatform) ref.listenManual(sessionProvider, (_, next) { if (next.value != null) _surveyPrompt(); }, fireImmediately: true);
     // 장애 신호 보고(/api/app/events) — 개발 빌드는 보내지 않고, 로그인 전이면 버린다
     if (Config.appVersion != 'dev') {
       appEvents.sender = (events) async {
@@ -147,6 +150,25 @@ class _AppState extends ConsumerState<App> {
     if (_router.routerDelegate.currentConfiguration.uri.path == '/gw/connect') return;
     _autoReloginAt = now;
     _router.push('/gw/connect');
+  }
+
+  String? _surveyPromptedFor; // 앱 실행 동안 계정당 한 번
+
+  Future<void> _surveyPrompt() async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null || _surveyPromptedFor == uid) return;
+    _surveyPromptedFor = uid;
+    LoginSurvey? s;
+    try {
+      s = await fetchLoginSurvey(ref.read(apiClientProvider));
+    } catch (_) {
+      return; // 부가 기능 — 실패해도 조용히
+    }
+    if (s == null) return;
+    await Future<void>.delayed(const Duration(seconds: 1)); // 로그인 직후 홈으로 옮겨 가는 화면 전환이 끝난 뒤에
+    final ctx = _router.routerDelegate.navigatorKey.currentContext;
+    if (!mounted || ctx == null || !ctx.mounted) return;
+    if (await showLoginSurveyDialog(ctx, s)) _router.push('/web?path=${Uri.encodeComponent('/survey/${s.slug}')}');
   }
 
   bool _onKey(KeyEvent e) => handleBackspaceBack(e, _router.routerDelegate);

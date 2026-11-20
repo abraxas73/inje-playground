@@ -49,6 +49,8 @@ export interface Survey {
   status: SurveyStatus;
   access_mode: SurveyAccessMode;
   is_anonymous: boolean;
+  /** 로그인 때 아직 참여하지 않은 사람에게 팝업(웹·데스크톱 앱) */
+  prompt_on_login?: boolean;
   opens_at: string | null;
   closes_at: string | null;
   created_by: string | null;

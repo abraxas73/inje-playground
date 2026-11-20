@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Loader2, ChevronLeft, Play, Square, ExternalLink } from "lucide-react";
 import SurveyBuilder from "@/components/admin/surveys/SurveyBuilder";
 import { default_config_for } from "@/lib/survey";
@@ -144,7 +145,9 @@ export default function SurveyEditPage() {
     }
   };
 
-  const changeStatus = async (status: SurveyStatus) => {
+  const changeStatus = (status: SurveyStatus) => patchSurvey({ status });
+
+  const patchSurvey = async (patch: { status?: SurveyStatus; prompt_on_login?: boolean }) => {
     if (!survey) return;
     setBusy(true);
     setError(null);
@@ -152,11 +155,11 @@ export default function SurveyEditPage() {
       const res = await fetch(`/api/admin/surveys/${surveyId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(patch),
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "상태 변경 실패");
+        throw new Error(err.error || "변경 실패");
       }
       const updated: Survey = await res.json();
       setSurvey(updated);
@@ -242,11 +245,26 @@ export default function SurveyEditPage() {
             </div>
           </div>
         </CardHeader>
-        {survey.description && (
-          <CardContent className="pt-0">
-            <p className="text-sm text-muted-foreground">{survey.description}</p>
-          </CardContent>
-        )}
+        <CardContent className="pt-0 space-y-3">
+          {survey.description && <p className="text-sm text-muted-foreground">{survey.description}</p>}
+          <label className="flex items-start gap-3 rounded-md border px-3 py-2.5 cursor-pointer">
+            <Switch
+              className="mt-0.5"
+              checked={survey.prompt_on_login === true}
+              disabled={busy || survey.access_mode !== "authenticated"}
+              onCheckedChange={(v) => patchSurvey({ prompt_on_login: v })}
+              aria-label="로그인 시 팝업"
+            />
+            <span className="text-sm">
+              <span className="font-medium">로그인 시 팝업</span>
+              <span className="block text-xs text-muted-foreground mt-0.5">
+                {survey.access_mode !== "authenticated"
+                  ? "로그인 필수 설문에서만 쓸 수 있습니다."
+                  : "진행 중일 때, 아직 참여하지 않은 사람이 로그인하면 웹·데스크톱 앱에서 참여 요청 팝업을 띄웁니다(모바일 앱 제외). '나중에'를 눌러도 다음에 접속하면 다시 뜹니다."}
+              </span>
+            </span>
+          </label>
+        </CardContent>
       </Card>
 
       {error && <p className="text-sm text-destructive mb-3">{error}</p>}
