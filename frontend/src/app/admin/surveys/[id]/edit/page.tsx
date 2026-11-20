@@ -190,7 +190,7 @@ export default function SurveyEditPage() {
   const badge = STATUS_BADGE[survey.status];
 
   return (
-    <div className="max-w-2xl">
+    <div>
       <Link
         href="/admin/surveys"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
