@@ -13,7 +13,7 @@ Vercel Cron으로 돌릴 수 없는 작업(로컬 Chrome 세션·사내망·개�
 | `com.innogrid.claude-seat-executor` | 상시(KeepAlive) | Claude 시트 할당·해제 요청을 ego 전용 워크스페이스 `claude-seat-executor`(이름)에서 처리(15초 폴링, Chrome 실행 없음). 런북 `docs/claude-usage.md` §9 | `~/.claude/hooks/claude-seat-executor.sh` → `frontend/scripts/claude-seat-executor.mjs` | `~/Library/Logs/claude-seat-executor.log` |
 | `com.innogrid.claude-invoice-sync` | 매일 09:30 | Claude Team 인보이스 자동 등록 — ego 공간 `claude-billing`(Profile 2, 결제 권한 소유자 로그인)에서 결제 화면 목록을 읽어 새 번호만 `POST /api/admin/claude-cost/invoices/sync`. 종료 코드 2 = 로그인 필요. 런북 `docs/claude-cost.md` §2 | `~/.claude/hooks/claude-invoice-sync-daily.sh` → `frontend/scripts/claude-invoice-sync.mjs` | `~/Library/Logs/claude-invoice-sync.log` |
 
-plist는 모두 `~/Library/LaunchAgents/<라벨>.plist`. 전제: Mac이 깨어 있어야 한다(잠자기 중 놓친 일정은 깨어난 뒤 실행, 꺼져 있으면 실행 안 됨). `claude-usage-csv`는 ego-browser CLI와 **ego 브라우저의 claude.ai 7개 조직 소유자 로그인**이 필요하다. 예약 래퍼는 Chrome을 띄우지 않으며 `--no-chrome`으로 확장 연동을 끈다. ego 연결·로그인·조직 권한이 없으면 해당 조직을 보류하고 기존 데이터를 유지한다. 09:05 일정은 그대로이며 래퍼/스킬 수정은 다음 실행부터 적용된다(launchd 재등록 불필요). 전용 ego TaskSpace **`claude-usage-csv`**(이름)와 p1을 매일 재사용한다 — ego 재시작으로 사라지면 같은 이름으로 다시 만들고, 사용자 제어 중이면 보류한다. 시트 실행기도 별도 공간 `claude-seat-executor`를 이름으로 재사용한다.
+plist는 모두 `~/Library/LaunchAgents/<라벨>.plist`. 전제: Mac이 깨어 있어야 한다(잠자기 중 놓친 일정은 깨어난 뒤 실행, 꺼져 있으면 실행 안 됨). `claude-usage-csv`는 ego-browser CLI와 **ego 브라우저의 claude.ai 8개 조직 소유자 로그인**이 필요하다. 예약 래퍼는 Chrome을 띄우지 않으며 `--no-chrome`으로 확장 연동을 끈다. ego 연결·로그인·조직 권한이 없으면 해당 조직을 보류하고 기존 데이터를 유지한다. 09:05 일정은 그대로이며 래퍼/스킬 수정은 다음 실행부터 적용된다(launchd 재등록 불필요). 전용 ego TaskSpace **`claude-usage-csv`**(이름)와 p1을 매일 재사용한다 — ego 재시작으로 사라지면 같은 이름으로 다시 만들고, 사용자 제어 중이면 보류한다. 시트 실행기도 별도 공간 `claude-seat-executor`를 이름으로 재사용한다.
 
 ## 한 곳에서 보기: `claude-jobs`
 

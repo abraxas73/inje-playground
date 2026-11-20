@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 매일 09:05 KST에 /claude-usage-csv 스킬을 헤드리스 claude -p(--no-chrome) + ego-browser로 실행 (launchd: com.innogrid.claude-usage-csv)
-# - 전제: ego-browser 사용 가능 + ego 브라우저의 claude.ai에 7개 조직 소유자 계정 로그인 + Mac 깨어 있음
+# - 전제: ego-browser 사용 가능 + ego 브라우저의 claude.ai에 8개 조직 소유자 계정 로그인 + Mac 깨어 있음
 # - 스킬 위치: ~/Repos/inje-playground/.claude/skills/claude-usage-csv (main 체크아웃, cwd로 사용)
 # - 로그: ~/.claude/logs/claude-usage-csv.log, 회차별 원본 JSON ~/.claude/logs/claude-usage-csv/YYYY-MM-DD.json
 # - 완료 알림: 전역 Stop 훅(~/.claude/hooks/telegram-notify.sh)이 마지막 메시지를 Telegram으로 보냄
