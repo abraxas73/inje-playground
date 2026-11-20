@@ -3,14 +3,15 @@
 
 alter table public.surveys add column if not exists prompt_on_login boolean not null default false;
 
-create or replace function public.pending_login_survey()
-returns table(slug text, title text)
+drop function if exists public.pending_login_survey(); -- 반환 칼럼이 바뀌면 replace가 안 된다
+create function public.pending_login_survey()
+returns table(slug text, title text, is_anonymous boolean)
 language sql
 stable
 security definer
 set search_path = public, pg_temp
 as $$
-  select s.slug, s.title
+  select s.slug, s.title, s.is_anonymous
   from public.surveys s
   where auth.uid() is not null
     and s.prompt_on_login

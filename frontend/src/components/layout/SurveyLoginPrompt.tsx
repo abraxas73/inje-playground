@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-type PromptSurvey = { slug: string; title: string };
+type PromptSurvey = { slug: string; title: string; anonymous?: boolean };
 
 const SKIP = /^\/(survey|login|auth)(\/|$)/;
 const seenKey = (slug: string) => `survey_prompt_later:${slug}`;
@@ -54,7 +54,7 @@ export default function SurveyLoginPrompt() {
           <DialogDescription>
             <span className="font-medium text-foreground">{survey?.title}</span>
             <br />
-            잠시 시간을 내어 참여해 주세요. 응답은 익명으로 집계됩니다.
+            잠시 시간을 내어 참여해 주세요.{survey?.anonymous ? " 응답은 익명으로 집계됩니다." : ""}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

@@ -13,6 +13,6 @@ export async function GET() {
     console.error("[survey login-prompt]", error.message);
     return NextResponse.json({ survey: null }); // 팝업은 부가 기능 — 실패해도 화면을 막지 않는다
   }
-  const row = (data as { slug: string; title: string }[] | null)?.[0];
-  return NextResponse.json({ survey: row ? { slug: row.slug, title: row.title } : null });
+  const row = (data as { slug: string; title: string; is_anonymous: boolean }[] | null)?.[0];
+  return NextResponse.json({ survey: row ? { slug: row.slug, title: row.title, anonymous: row.is_anonymous === true } : null });
 }

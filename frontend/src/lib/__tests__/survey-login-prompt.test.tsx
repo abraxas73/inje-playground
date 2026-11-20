@@ -6,7 +6,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname, useRouter: 
 
 import SurveyLoginPrompt from "@/components/layout/SurveyLoginPrompt";
 
-const SURVEY = { slug: "ai-companion-efficiency", title: "AI 컴패니언 툴 도입 3개월 업무 효율성 점검" };
+const SURVEY = { slug: "ai-companion-efficiency", title: "AI 컴패니언 툴 도입 3개월 업무 효율성 점검", anonymous: true };
 const fetchWith = (status: number, body: unknown) => vi.fn(async () => ({ ok: status < 400, json: async () => body }));
 
 beforeEach(() => {
@@ -20,6 +20,7 @@ it("미참여 설문이 있으면 팝업 — [참여하기]는 설문으로 이�
   vi.stubGlobal("fetch", fetchWith(200, { survey: SURVEY }));
   render(<SurveyLoginPrompt />);
   expect(await screen.findByText(SURVEY.title)).toBeInTheDocument();
+  expect(screen.getByText(/익명으로 집계됩니다/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "참여하기" }));
   expect(nav.push).toHaveBeenCalledWith("/survey/ai-companion-efficiency");
 });
@@ -55,4 +56,11 @@ it("참여했거나(없음)·로그인 전(401)·설문·로그인 화면에서�
     c.unmount();
   }
   expect(f).not.toHaveBeenCalled();
+});
+
+it("기명 설문이면 '익명' 문구를 쓰지 않는다", async () => {
+  vi.stubGlobal("fetch", fetchWith(200, { survey: { ...SURVEY, anonymous: false } }));
+  render(<SurveyLoginPrompt />);
+  expect(await screen.findByText(SURVEY.title)).toBeInTheDocument();
+  expect(screen.queryByText(/익명/)).not.toBeInTheDocument();
 });

@@ -162,7 +162,8 @@ class _AppState extends ConsumerState<App> {
     try {
       s = await fetchLoginSurvey(ref.read(apiClientProvider));
     } catch (_) {
-      return; // 부가 기능 — 실패해도 조용히
+      _surveyPromptedFor = null; // 부가 기능 — 실패하면 조용히, 다음 로그인 신호 때 다시
+      return;
     }
     if (s == null) return;
     await Future<void>.delayed(const Duration(seconds: 1)); // 로그인 직후 홈으로 옮겨 가는 화면 전환이 끝난 뒤에
