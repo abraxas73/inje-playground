@@ -64,7 +64,7 @@ export async function fetchInvoicePdf(
 }
 
 export async function ingestInvoice(
-  input: { bytes: Uint8Array; source: "link" | "pdf"; sourceUrl?: string | null },
+  input: { bytes: Uint8Array; source: "link" | "pdf"; sourceUrl?: string | null; orgId?: string | null },
   deps: { admin: SupabaseClient; orgs: { id: string; name: string }[]; uploadedBy: string | null; request: { headers: Headers } | null },
 ): Promise<IngestResult> {
   const { admin } = deps;
@@ -85,7 +85,8 @@ export async function ingestInvoice(
   if (dup.error) return { ok: false, errors: [dup.error.message] };
   if (dup.data) return { ok: false, duplicate: dup.data as { id: string; org_id: string | null; issued_on: string; invoice_number: string } };
 
-  const orgId = matchOrg(inv.billTo, deps.orgs);
+  // 결제 화면에서 온 건은 조직을 알고 온다 — 등록된 팀 조직이 아니면(새 조직) 이름으로 짐작하지 않고 미배정
+  const orgId = input.orgId !== undefined ? (deps.orgs.some((o) => o.id === input.orgId) ? input.orgId : null) : matchOrg(inv.billTo, deps.orgs);
   const storagePath = `${inv.invoiceNumber}.pdf`;
   const up = await admin.storage.from(INVOICE_BUCKET).upload(storagePath, input.bytes, { contentType: "application/pdf", upsert: true });
   if (up.error) return { ok: false, errors: [`원본 저장 실패: ${up.error.message}`] };
