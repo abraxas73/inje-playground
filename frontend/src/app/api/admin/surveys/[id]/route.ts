@@ -121,6 +121,7 @@ export async function PATCH(
       updates.access_mode = body.access_mode;
     }
     if (body.is_anonymous !== undefined) updates.is_anonymous = body.is_anonymous === true;
+    if (body.prompt_on_login !== undefined) updates.prompt_on_login = body.prompt_on_login === true;
     if (body.opens_at !== undefined) updates.opens_at = body.opens_at || null;
     if (body.closes_at !== undefined) updates.closes_at = body.closes_at || null;
     if (body.sort_order !== undefined) updates.sort_order = Number(body.sort_order);
