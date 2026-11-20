@@ -57,7 +57,7 @@ export default function NewSurveyPage() {
   };
 
   return (
-    <div className="max-w-xl">
+    <div>
       <Link
         href="/admin/surveys"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
