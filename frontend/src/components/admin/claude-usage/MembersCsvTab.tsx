@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,6 @@ import { Loader2, Trash2, History } from "lucide-react";
 import SortableTable, { sumBy, type Column } from "./SortableTable";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SeatActionCell from "./SeatActionCell";
-import SeatHistorySheet from "./SeatHistorySheet";
 import SeatExecutorChip from "./SeatExecutorChip";
 import { hasSeat, isIdleSeat } from "@/lib/claude-usage/aggregate";
 import { normalizeTier } from "@/lib/claude-usage/seat-tier";
@@ -41,7 +41,6 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const [seatFilter, setSeatFilter] = useState<(typeof SEAT_FILTERS)[number][0]>("all");
   const [windows, setWindows] = useState(1); // 30일 창 개수(1·2·3 = 30·60·90일)
   const [executorLive, setExecutorLive] = useState<SeatExecutor | null | undefined>(undefined); // 30초마다 하트비트만 다시 읽는다
-  const [history, setHistory] = useState<{ open: boolean; email: string | null }>({ open: false, email: null });
   const pollUntil = useRef(0);
 
   const key = `${org}|${periodEnd}|${windows}|${tick}`;
@@ -132,7 +131,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const idleCount = useMemo(() => (data?.rows ?? []).filter(isIdleSeat).length, [data]);
 
   const columns: Column<Row>[] = [
-    { key: "user", header: "사용자 (Claude)", value: (r) => r.email, render: (r) => (<div><div className="font-medium">{r.name || r.email}</div>{r.name && <div className="text-muted-foreground">{r.email}</div>}<button type="button" className="text-[10px] text-muted-foreground underline-offset-2 hover:underline" onClick={() => setHistory({ open: true, email: r.email })}>이력</button></div>) },
+    { key: "user", header: "사용자 (Claude)", value: (r) => r.email, render: (r) => (<div><div className="font-medium">{r.name || r.email}</div>{r.name && <div className="text-muted-foreground">{r.email}</div>}<Link href={`/admin/seat-actions?q=${encodeURIComponent(r.email)}`} className="text-[10px] text-muted-foreground underline-offset-2 hover:underline">이력</Link></div>) },
     { key: "employee", header: "이름", value: (r) => r.employee_name ?? "", render: (r) => (r.employee_name ? <span title="사내 조직도(아마란스) 이름">{r.employee_name}</span> : <span className="text-muted-foreground">—</span>) },
     { key: "org", header: "Claude 조직", value: (r) => orgName.get(r.org_id) ?? r.org_id, render: (r) => <Badge variant="outline" className="text-[10px]">{orgName.get(r.org_id) ?? r.org_id.slice(0, 8)}</Badge> },
     { key: "team", header: "조직 / 팀", value: (r) => `${r.headquarters ?? r.division ?? ""} ${r.team ?? ""}`.trim(), render: (r) => (r.team
@@ -166,7 +165,7 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
         <span className="ml-2 text-xs text-muted-foreground">— 수집·업로드는 /claude-usage-csv 스킬(매일 09:05 launchd)이 처리합니다</span>
         <span className="ml-2 inline-flex items-center gap-2 align-middle">
           <SeatExecutorChip executor={executorLive === undefined ? data?.executor : executorLive} />
-          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setHistory({ open: true, email: null })}><History className="mr-1 h-3.5 w-3.5" />시트 작업 이력</Button>
+          <Button asChild size="sm" variant="ghost" className="h-6 px-2 text-xs"><Link href="/admin/seat-actions"><History className="mr-1 h-3.5 w-3.5" />시트 작업 이력</Link></Button>
         </span>
       </p>
 
@@ -226,7 +225,6 @@ export default function MembersCsvTab({ orgs }: { orgs: ClaudeOrg[] }) {
           </CardContent>
         </Card>
       )}
-      <SeatHistorySheet open={history.open} onOpenChange={(o) => setHistory((h) => ({ ...h, open: o }))} email={history.email} orgName={orgName} />
     </div>
   );
 }

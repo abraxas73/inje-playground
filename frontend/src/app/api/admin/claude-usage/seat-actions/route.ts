@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 /**
  * Claude 시트 할당·해제 요청(claude_seat_actions). 스펙 docs/superpowers/specs/2026-09-29-claude-seat-actions-design.md §5
  * 관리자 세션:
- *   GET  ?email=&org=&status=&limit=   이력(requested_at 내림차순) + 실행기 하트비트
+ *   GET  ?email=&org=&status=&limit=   이력(requested_at 내림차순) + 실행기 하트비트 + people(이메일 → 명부 이름·팀, 이력 화면 검색용)
  *   POST { org_id, email, action, target_tier? }   요청 생성(활성 멤버·중복·티어 검증) → 201
  *   DELETE ?id=                        requested만 취소
  * 실행기(Bearer OPS_INGEST_TOKEN — 운영 자동화 토큰, 사용량 수집 토큰과 별개):
@@ -53,9 +53,15 @@ export async function GET(request: NextRequest) {
   if (email) q = q.eq("email", email);
   if (org && org !== "all") q = q.eq("org_id", org);
   if (STATUSES.has(status)) q = q.eq("status", status);
-  const [rows, ex] = await Promise.all([q, admin.from("claude_seat_executor").select("*").eq("id", "default").maybeSingle()]);
+  const [rows, ex, dir] = await Promise.all([
+    q,
+    admin.from("claude_seat_executor").select("*").eq("id", "default").maybeSingle(),
+    admin.from("company_directory").select("email, name, team").eq("active", true).limit(1000),
+  ]);
   if (rows.error) return NextResponse.json({ error: rows.error.message }, { status: 500 });
-  return NextResponse.json({ rows: rows.data ?? [], executor: ex.error ? null : ex.data ?? null }, { headers: NO_STORE });
+  const wanted = new Set((rows.data ?? []).flatMap((r) => [r.email as string, String(r.requested_by_email ?? "").toLowerCase()]));
+  const people = Object.fromEntries((dir.data ?? []).filter((d) => wanted.has(d.email)).map((d) => [d.email, { name: d.name, team: d.team }]));
+  return NextResponse.json({ rows: rows.data ?? [], executor: ex.error ? null : ex.data ?? null, people }, { headers: NO_STORE });
 }
 
 export async function POST(request: NextRequest) {
