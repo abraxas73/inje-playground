@@ -29,7 +29,7 @@ export default function CodeUsageTab() {
   const { usd } = useMoney();
   const [preset, setPreset] = useState<RangePreset>("30d");
   const [range, setRange] = useState(() => dateRangePreset("30d"));
-  const [org, setOrg] = useState("all");
+  const [org, setOrg] = useState("team"); // 기본은 우리 Team 조직만 — OrgSelect "전체 조회"로 개인·계정 정보 없는 세션까지
   const [q, setQ] = useState("");
   const [unit, setUnit] = useState("all");
 

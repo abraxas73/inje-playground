@@ -4,6 +4,8 @@
 
 설계: `docs/superpowers/specs/2026-08-26-claude-usage-analytics-design.md`
 
+**기본 조직 범위(2026-11-23)**: Claude Code 사용량의 모든 탭(Claude Code·팀별 집계·도구 사용·시간대 패턴·프롬프트)은 기본으로 우리 Team 조직만(`org=team`) 보여 준다. 조직 선택 옆 "전체 조회"를 체크하면 개인 계정·계정 정보 없는 세션(SDK·headless)까지 나온다(`OrgSelect`).
+
 **화면 위치(2026-08-31 메뉴 분리)**: Claude Code 사용량(OTel — Claude Code·팀별 집계·도구 사용·시간대 패턴·프롬프트 탭)은 `/admin/claude-usage`, 채팅·Cowork(CSV — 채팅·Cowork·팀별 집계 탭)은 `/admin/claude-chat`, **멤버·초대**와 **조직·설정**(관리형 설정 JSON·수집 상태) 탭은 `/admin/directory`(조직/팀 메뉴). 아래에서 "조직·설정 탭"은 `/admin/directory`, "채팅·Cowork 탭"은 `/admin/claude-chat`을 가리킨다.
 
 ## 1. 최초 설정

@@ -24,7 +24,7 @@ export default function HourlyPatternTab({ orgs }: { orgs: ClaudeOrg[] }) {
   const { usd } = useMoney();
   const [preset, setPreset] = useState<RangePreset>("30d");
   const [range, setRange] = useState(() => dateRangePreset("30d"));
-  const [org, setOrg] = useState("all");
+  const [org, setOrg] = useState("team"); // 기본은 우리 Team 조직만 — OrgSelect "전체 조회"로 개인·계정 정보 없는 세션까지
   const [result, setResult] = useState<{ key: string; data?: Resp; error?: string } | null>(null);
   const requestKey = `${range.from}|${range.to}|${org}`;
 
