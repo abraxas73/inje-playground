@@ -68,6 +68,7 @@ void main() {
     final m = MailItem.fromRow({'muid': 14531056, 'subject': 's', 'fromAddrName': '홍', 'fromAddrEmail': 'h@x', 'rfc822date': '07:10', 'tooltipDate': '2026-10-04 07:10', 'seen': 0, 'attach': true});
     expect((m.muid, m.seen, m.attach, m.fromName, m.date), ('14531056', false, true, '홍', '07:10'));
     expect(MailItem.fromRow({'seen': '1'}).seen, true);
+    expect((MailItem.fromRow({}).box, MailItem.fromRow({'boxName': 'Sent'}).box), ('INBOX', 'Sent')); // 전체 메일함 필터 목록은 답장·전달에 실제 메일함을 넘긴다
   });
   test('[리뷰3] 오늘은 기기 시간대가 아니라 KST — UTC 16시는 한국 다음 날', () {
     expect(ymd(kstOf(DateTime.utc(2026, 10, 3, 16, 0))), '20261004');

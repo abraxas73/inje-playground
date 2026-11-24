@@ -29,7 +29,7 @@ class GwGate extends ConsumerWidget {
             const SizedBox(height: 16),
             Text(relogin ? '아마란스 로그인이 만료되었습니다' : '아마란스를 연결하면 여기서 바로 봅니다', style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
             const SizedBox(height: 6),
-            Text(relogin ? '다시 로그인하면 이어서 쓸 수 있습니다.' : '미결 결재 · 출퇴근 · 오늘 일정과 회의실 · 메일 미읽음. 토큰은 이 기기에만 저장됩니다.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Brand.muted), textAlign: TextAlign.center),
+            Text(relogin ? '다시 로그인하면 이어서 쓸 수 있습니다.' : '미결 결재 · 출퇴근 · 오늘 일정과 회의실 · 메일 읽지 않음. 토큰은 이 기기에만 저장됩니다.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Brand.muted), textAlign: TextAlign.center),
             const SizedBox(height: 20),
             FilledButton.icon(onPressed: () => context.push('/gw/connect'), icon: const Icon(Icons.login, size: 18), label: Text(relogin ? '다시 연결' : '아마란스 연결하기')),
           ]),
