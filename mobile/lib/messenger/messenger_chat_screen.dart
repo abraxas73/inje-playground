@@ -6,7 +6,6 @@ import '../app/brand.dart';
 import '../app/theme.dart';
 import 'dart:async';
 import 'messenger_api.dart';
-import 'messenger_client.dart' show MessengerAuthException;
 import 'messenger_models.dart';
 import 'messenger_favorites.dart';
 import 'messenger_files.dart';
@@ -40,6 +39,7 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
     super.initState();
     ensureMessengerRealtime(ref);
     _rtSub = ref.read(messengerMqttProvider).events.listen(_onRealtime);
+    reloadWhenGwLoginSaved(ref, () => _future, _refresh);
   }
 
   void _onRealtime(MessengerMqttEvent e) {
@@ -89,6 +89,7 @@ class _MessengerChatScreenState extends ConsumerState<MessengerChatScreen> {
   }
 
   Future<void> _refresh() async {
+    if (!mounted) return; // 연결 화면에서 돌아오거나 로그인 저장 신호가 늦게 올 때 이미 닫혔을 수 있다
     setState(() { _future = _load(); });
     await _future.catchError((_) => <MsgRoom>[]);
   }
@@ -574,6 +575,7 @@ class _MessengerDashboardCardState extends ConsumerState<MessengerDashboardCard>
     super.initState();
     ensureMessengerRealtime(ref);
     _future = _load();
+    reloadWhenGwLoginSaved(ref, () => _future, () { if (mounted) setState(() { _future = _load(); }); });
     // 새 대화 신호(MQTT)가 오면 목록을 다시 읽는다 — 상세 위젯과 같은 0.5초 묶음. 다 읽을 때까지 기존 목록 유지(스피너·선택 풀림 없음).
     _rtSub = ref.read(messengerMqttProvider).events.listen((e) {
       if (!e.isChat) return;
@@ -633,7 +635,7 @@ class _MessengerDashboardCardState extends ConsumerState<MessengerDashboardCard>
                 return const Padding(padding: EdgeInsets.all(16), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))));
               }
               if (snap.hasError) {
-                final noCreds = snap.error is MessengerAuthException && (snap.error as MessengerAuthException).noCreds;
+                final noCreds = isMessengerNoCreds(snap.error);
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(2, 10, 10, 10),
                   child: Text(noCreds ? '아마란스 연결이 필요합니다' : '메신저를 불러오지 못했습니다', style: TextStyle(fontSize: 12, color: Brand.faint)),
