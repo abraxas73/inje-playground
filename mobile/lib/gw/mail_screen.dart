@@ -30,11 +30,12 @@ class _BodyState extends ConsumerState<_Body> {
   // 본문을 보고 돌아와 다시 읽어도 불러온 범위·위치가 유지된다.
   int _count = _step;
   bool _more = false;
+  MailFilter? _filter; // null = 받은메일함
   late Future<(MailSummary, List<MailItem>)> _future = _load();
   Future<(MailSummary, List<MailItem>)> _load() async {
     // 레코드 .wait는 실패를 ParallelWaitError로 감싸 영어 클래스 이름이 화면에 나온다 → 순서대로
     final s = await widget.api.mailSummary();
-    final (_, items) = await widget.api.inbox(pageSize: _count);
+    final (_, items) = await widget.api.inbox(pageSize: _count, filter: _filter);
     unawaited(ref.read(mailIndexProvider.notifier).syncIfStale(widget.api)); // 검색 색인(10분마다, 결과를 기다리지 않음)
     return (s, items);
   }
@@ -44,6 +45,12 @@ class _BodyState extends ConsumerState<_Body> {
     _count = (_count + _step).clamp(_step, 500);
     await _refresh();
     if (mounted) setState(() => _more = false);
+  }
+
+  void _setFilter(MailFilter? f) {
+    _filter = f;
+    _count = _step;
+    _refresh();
   }
 
   Future<void> _refresh() async {
@@ -61,7 +68,7 @@ class _BodyState extends ConsumerState<_Body> {
           child: FutureBuilder(
             future: _future,
             builder: (context, snap) {
-              if (snap.hasError) return ListView(children: [Padding(padding: const EdgeInsets.all(24), child: Column(children: [Text('${snap.error}', style: const TextStyle(color: Brand.dangerText)), const SizedBox(height: 12), FilledButton(onPressed: _refresh, child: const Text('다시 시도'))]))]);
+              if (snap.hasError) return ListView(children: [Padding(padding: const EdgeInsets.all(24), child: Column(children: [Text('${snap.error}', style: const TextStyle(color: Brand.dangerText)), const SizedBox(height: 12), FilledButton(onPressed: _refresh, child: const Text('다시 시도')), if (_filter != null) TextButton(onPressed: () => _setFilter(null), child: const Text('받은메일함 보기'))]))]);
               if (!snap.hasData) return const Center(child: CircularProgressIndicator());
               final (s, items) = snap.data!;
               return ListView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 24), children: [
@@ -76,14 +83,17 @@ class _BodyState extends ConsumerState<_Body> {
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(color: Brand.hero, borderRadius: BorderRadius.circular(16)),
-                  child: Text('미읽음 ${s.unread} · 나에게 온 것 ${s.toMe} · 전체 ${s.total}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+                  child: Row(children: [
+                    for (final (f, label, n) in [(MailFilter.unread, '읽지 않음', s.unread), (MailFilter.toMe, '나에게 온 것', s.toMe), (MailFilter.all, '전체', s.total)])
+                      Expanded(child: _FilterChip(label: label, count: n, selected: _filter == f, onTap: () => _setFilter(_filter == f ? null : f))),
+                  ]),
                 ),
                 const SizedBox(height: 12),
                 Card(
                   child: items.isEmpty
-                      ? Padding(padding: EdgeInsets.all(20), child: Center(child: Text('받은 메일이 없습니다', style: TextStyle(color: Brand.muted))))
+                      ? Padding(padding: EdgeInsets.all(20), child: Center(child: Text(_filter == null ? '받은 메일이 없습니다' : '해당하는 메일이 없습니다', style: TextStyle(color: Brand.muted))))
                       : Column(children: [
                           for (final (i, m) in items.indexed) ...[
                             if (i > 0) const Divider(height: 1),
@@ -113,6 +123,33 @@ class _BodyState extends ConsumerState<_Body> {
                 Text('메일을 열면 아마란스에서도 읽음으로 바뀝니다. 본문 화면에서 안 읽음으로 되돌릴 수 있습니다.', style: TextStyle(fontSize: 12, color: Brand.muted), textAlign: TextAlign.center),
               ]);
             },
+          ),
+        ),
+      );
+}
+
+/// 상단 건수 한 칸 — 누르면 그 조건으로 목록을 거르고, 다시 누르면 받은메일함으로.
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({required this.label, required this.count, required this.selected, required this.onTap});
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        selected: selected,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+            decoration: BoxDecoration(color: selected ? Colors.white.withValues(alpha: 0.18) : null, borderRadius: BorderRadius.circular(10), border: Border.all(color: selected ? Colors.white70 : Colors.transparent)),
+            child: Column(children: [
+              Text('$count', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
+              const SizedBox(height: 2),
+              Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: selected ? FontWeight.w700 : FontWeight.w500, color: Colors.white.withValues(alpha: selected ? 1 : 0.8))),
+            ]),
           ),
         ),
       );

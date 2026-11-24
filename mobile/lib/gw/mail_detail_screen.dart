@@ -49,7 +49,7 @@ class _MailDetailScreenState extends ConsumerState<MailDetailScreen> {
   }
 
   /// 답장·전체 답장·전달 — 작성 화면이 원본(mail014A01 mailInfo)을 다시 받아 채운다.
-  void _write(MailKind kind) => Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => MailComposeScreen(api: widget.api, kind: kind, muid: widget.item.muid)));
+  void _write(MailKind kind) => Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => MailComposeScreen(api: widget.api, kind: kind, muid: widget.item.muid, mbox: widget.item.box)));
 
   /// 휴지통으로 이동 — 되돌리기는 아마란스 휴지통에서. 확인을 받은 뒤에만.
   Future<void> _delete() async {

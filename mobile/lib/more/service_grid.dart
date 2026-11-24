@@ -25,7 +25,7 @@ const serviceMeta = <String, (IconData, String)>{
   'gw_approvals': (Icons.fact_check_outlined, '미결 문서'),
   'gw_attendance': (Icons.timer_outlined, '출근·퇴근 기록'),
   'gw_today': (Icons.event_outlined, '일정·회의실'),
-  'gw_mail': (Icons.mail_outline, '받은메일 미읽음'),
+  'gw_mail': (Icons.mail_outline, '받은메일 읽지 않음'),
   'gw_board': (Icons.article_outlined, '공지·새 글'),
   'gw_messenger': (Icons.chat_outlined, '대화방·대화'),
   'gw_notes': (Icons.markunread_mailbox_outlined, '쪽지'),

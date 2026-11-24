@@ -223,6 +223,29 @@ void main() {
     expect(r.hits['/schres/rs121A05'], 2); // 다시 읽음
     expect(find.text('[홍길동] 새 회의'), findsOneWidget);
   });
+  testWidgets('메일: 상단 건수(읽지 않음·나에게 온 것·전체)를 누르면 전체 메일함에서 거르고, 다시 누르면 받은메일함', (tester) async {
+    final r = Routes({'/mail/mail000A03': [[{'unreadCount': 1, 'toMeCount': 3, 'totalCount': 9}]], '/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]}],
+      '/mail/mail003A01': [{'Records': [{'muid': 1, 'subject': '받은 메일', 'seen': 1}]}],
+      '/mail/mail003A02': [{'Records': [{'muid': 2, 'subject': '거른 메일', 'seen': 0}]}]});
+    await tester.pumpWidget(gwScope(creds: testCreds, http: r.client, overrides: [mailIndexStoreProvider.overrideWithValue(MemoryMailIndexStore())], child: const MailScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('받은 메일'), findsOneWidget);
+    await tester.tap(find.text('나에게 온 것'));
+    await tester.pumpAndSettle();
+    expect(find.text('거른 메일'), findsOneWidget);
+    expect((r.bodies['/mail/mail003A02']!['boxName'], r.bodies['/mail/mail003A02']!['toMe'], r.bodies['/mail/mail003A02']!['seen']), ('ALLBOX', 'true', false));
+    await tester.tap(find.text('읽지 않음'));
+    await tester.pumpAndSettle();
+    expect((r.bodies['/mail/mail003A02']!['seen'], r.bodies['/mail/mail003A02']!.containsKey('toMe')), ('true', false));
+    await tester.tap(find.text('전체'));
+    await tester.pumpAndSettle();
+    expect((r.bodies['/mail/mail003A02']!['seen'], r.bodies['/mail/mail003A02']!.containsKey('toMe')), (false, false));
+    final inboxLoads = r.hits['/mail/mail003A01']!;
+    await tester.tap(find.text('전체')); // 다시 누르면 해제 → 받은메일함
+    await tester.pumpAndSettle();
+    expect(r.hits['/mail/mail003A01'], inboxLoads + 1);
+    expect(find.text('받은 메일'), findsOneWidget);
+  });
   testWidgets('메일 검색: 목록을 열면 색인이 동기화되고(읽은 메일 본문만), 검색식으로 찾아 본문을 연다', (tester) async {
     final r = Routes({'/mail/mail000A03': [[{'unreadCount': 1, 'toMeCount': 0, 'totalCount': 2}]], '/mail/mail000A01': [{'list': [{'fullname': 'INBOX', 'mboxSeq': 5}]}],
       '/mail/mail003A01': [{'Records': [{'muid': 1, 'subject': '안 읽음', 'fromAddrName': '홍', 'rfc822date': '07:10', 'tooltipDate': '2026-10-11 07:10:00', 'seen': 0}, {'muid': 2, 'subject': '읽음 결산', 'fromAddrName': '김', 'rfc822date': '10-03', 'tooltipDate': '2026-10-03 09:00:00', 'seen': 1}], 'TotalUnseenCount': 1}],
@@ -262,7 +285,8 @@ void main() {
     });
     await tester.pumpWidget(gwScope(creds: testCreds, http: client, overrides: [mailFileSaverProvider.overrideWithValue((n, b) async { saved.add((n, b)); return '/x/$n'; })], child: const MailScreen()));
     await tester.pumpAndSettle();
-    expect(find.textContaining('미읽음 2'), findsOneWidget);
+    expect(find.text('읽지 않음'), findsOneWidget);
+    expect(find.text('나에게 온 것'), findsOneWidget);
     expect(find.text('안 읽음'), findsOneWidget);
     expect(tester.widget<Text>(find.text('안 읽음')).style?.fontWeight, FontWeight.w800);
     expect(tester.widget<Text>(find.text('읽음')).style?.fontWeight, isNot(FontWeight.w800));

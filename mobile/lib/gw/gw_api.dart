@@ -185,7 +185,14 @@ extension GwMailApi on GwApi {
   }
 
   /// 받은메일함 최근 N통. INBOX seq는 계정마다 달라 mail000A01에서 이름으로 찾는다(세션 동안 캐시).
-  Future<(int, List<MailItem>)> inbox({int pageSize = 20}) async {
+  /// filter가 있으면 아마란스 웹 왼쪽 빠른 필터와 같은 호출 — 전체 메일함(ALLBOX) mail003A02, 읽지 않음은 seen:"true", 나에게 온 것은 toMe:"true"(2026-11-24 실측).
+  Future<(int, List<MailItem>)> inbox({int pageSize = 20, MailFilter? filter}) async {
+    if (filter != null) {
+      final d = await client.call('/mail/mail003A02', {'boxName': 'ALLBOX', 'mainApiCode': 'mail003A02', 'page': 1, 'pageSize': pageSize, 'sort': 'rfc822date', 'sortType': 'desc', 'listType': '', 'showType': '',
+        'seen': filter == MailFilter.unread ? 'true' : false, if (filter == MailFilter.toMe) 'toMe': 'true'});
+      final recs = (d is Map ? d['Records'] : null) as List? ?? const [];
+      return (asInt(d is Map ? d['TotalUnseenCount'] : null), [for (final r in recs) if (r is Map) MailItem.fromRow(r)]);
+    }
     _cache.inboxSeq ??= findMboxSeq(await client.call('/mail/mail000A01', const <String, Object>{}), 'INBOX');
     final seq = _cache.inboxSeq;
     if (seq == null) throw GwException(200, 0, '받은메일함을 찾지 못했습니다');

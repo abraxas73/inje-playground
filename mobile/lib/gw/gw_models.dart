@@ -523,14 +523,17 @@ int? findMboxSeq(Object? node, String name) {
   return null;
 }
 
-/// mail003A01 Records[] 항목. 본문은 열지 않는다(읽음 처리 부작용).
+/// 메일 화면 상단 건수 필터(아마란스 전체 메일함 기준).
+enum MailFilter { unread, toMe, all }
+
+/// mail003A01 Records[] 항목. 본문은 열지 않는다(읽음 처리 부작용). box는 메일이 든 메일함(전체 메일함 필터 목록이면 보낸메일함 등일 수 있어 답장·전달에 넘긴다).
 class MailItem {
-  const MailItem({required this.muid, required this.subject, required this.fromName, required this.fromEmail, required this.date, required this.tooltip, required this.seen, required this.attach});
-  final String muid, subject, fromName, fromEmail, date, tooltip;
+  const MailItem({required this.muid, required this.subject, required this.fromName, required this.fromEmail, required this.date, required this.tooltip, required this.seen, required this.attach, this.box = 'INBOX'});
+  final String muid, subject, fromName, fromEmail, date, tooltip, box;
   final bool seen, attach;
   factory MailItem.fromRow(Map r) => MailItem(
         muid: asStr(r['muid']), subject: asStr(r['subject']), fromName: asStr(r['fromAddrName']), fromEmail: asStr(r['fromAddrEmail']), date: asStr(r['rfc822date']), tooltip: asStr(r['tooltipDate']),
-        seen: asBool(r['seen']), attach: asBool(r['attach']));
+        seen: asBool(r['seen']), attach: asBool(r['attach']), box: asStr(r['boxName']).isEmpty ? 'INBOX' : asStr(r['boxName']));
 }
 
 /// 서버 날짜 표기 정리: 'YYYY-MM-DD HH:MM:SS' → 초 제거, 숫자만 12~14자리면 'YYYY-MM-DD HH:MM', 그 외 원문.
