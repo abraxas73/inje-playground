@@ -43,7 +43,7 @@ class MessengerError extends StatelessWidget {
           const SizedBox(height: 20),
           if (noCreds)
             FilledButton.icon(onPressed: () async { await context.push('/gw/connect'); await onRetry(); }, // 연결하고 돌아오면 다시 읽는다
- icon: const Icon(Icons.login, size: 18), label: const Text('아마란스 연결하기'))
+                icon: const Icon(Icons.login, size: 18), label: const Text('아마란스 연결하기'))
           else
             OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh, size: 18), label: const Text('다시 시도')),
         ]),
