@@ -60,6 +60,7 @@ mobile/scripts/release-windows-signed.sh --no-publish   # 게시 없이 서명�
 - **같은 버전 재게시 불가**(버킷 불변) — 서명을 다시 해야 하면 pubspec 버전을 올린다. 모바일 릴리스가 돌고 있을 때는 끝난 뒤에 올린다(빌드가 pubspec을 읽음).
 - 로컬 검증은 macOS에 Microsoft 루트가 없어 그냥 하면 "unable to get local issuer certificate" — `-CAfile`에 Microsoft Identity Verification Root CA 2020을 준다(스크립트가 처리).
 - 새 인증서라 SmartScreen·브라우저 다운로드 경고는 평판이 쌓일 때까지 뜰 수 있다(실행은 막지 않음). 스마트 앱 컨트롤 차단과는 별개.
+- 스크립트에서 `gh run view --log | grep -q`처럼 파이프 앞쪽이 긴 출력이면 `set -o pipefail`에서 SIGPIPE로 실패한다 — 로그는 파일로 받아 검사한다(1.7.102에서 서명됐는데 "서명 로그 없음"으로 멈춤, 수동으로 검증·게시).
 - `windows-app.yml`의 기본(`sign=false`) 빌드는 서명 없는 내부 확인용 — 게시하지 않는다.
 
 ## 경로 A (정식, 관리자 설정 필요)

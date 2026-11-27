@@ -44,7 +44,9 @@ say "산출물 받기·검증"
 gh run download "$RUN" -D "$OUT"
 FILE="$OUT/INNOGRID-Windows/INNOGRID-Windows-$VERSION-Setup.exe"
 [ -f "$FILE" ] && [ -f "$FILE.update.json" ] || { echo "산출물이 없습니다: $FILE" >&2; exit 1; }
-gh run view "$RUN" --log | grep -q 'Running Sign Tool jsign' || { echo "Inno Setup SignTool 서명 로그가 없습니다(임시 설치 엔진 미서명 → Error 4551)" >&2; exit 1; }
+# 로그는 파일로 받아서 검사 — `gh … | grep -q`는 grep이 먼저 끝나 gh가 SIGPIPE로 죽고 pipefail이 실패로 본다(1.7.102에서 서명됐는데 멈춤)
+gh run view "$RUN" --log > "$OUT/run.log"
+grep -q 'Running Sign Tool jsign' "$OUT/run.log" || { echo "Inno Setup SignTool 서명 로그가 없습니다(임시 설치 엔진 미서명 → Error 4551)" >&2; exit 1; }
 SHA=$(shasum -a 256 "$FILE" | cut -c1-64); [ "$SHA" = "$(cut -c1-64 "$FILE.sha256")" ] || { echo "sha256 불일치" >&2; exit 1; }
 if command -v osslsigncode >/dev/null; then
   curl -sfL "http://www.microsoft.com/pkiops/certs/Microsoft%20Identity%20Verification%20Root%20Certificate%20Authority%202020.crt" | openssl x509 -inform DER -out "$OUT/msroot.pem"
