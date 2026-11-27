@@ -145,6 +145,7 @@ claude-jobs status   # GitLab 집계 07:45 · Teams 격언 08:00 · Claude 사�
 - `CLAUDE_OTEL_INGEST_TOKEN` — Claude Code OTLP 수신 엔드포인트(`/api/otel/v1/metrics|logs`) Bearer 인증 토큰(`openssl rand -hex 32`). 관리형 설정으로 **직원 PC 전부에 배포**되므로 OTLP 수신 외 API에 쓰지 않는다(운영 API는 `OPS_INGEST_TOKEN`·`DIRECTORY_SYNC_TOKEN`)
 - `CLAUDE_OFFICE_OTEL_TOKEN` — Office 추가 기능 트레이스 수신(`/api/otel/v1/traces`) 전용 토큰. claude.ai 조직 설정 Office Agents의 OTLP 헤더 `Authorization=Bearer <값>`에 넣는 값이라 Claude Code 토큰과 분리
 - `ANTHROPIC_API_KEY`, `RFP_LLM_MODEL`(기본 claude-opus-5) — RFP 비표준 문서 LLM 폴백 + 카탈로그 기능 추출 + 솔루션 매핑(선택 — 없으면 규칙 엔진만)
+- `LLM_WIKI_TOKEN` — 사내 LLM 위키(`https://llm-wiki.innogrid.com`) Bearer 토큰. 이노봇 `wiki_ask`·`wiki_read`(`lib/assistant/feature-tools.ts`)가 쓴다. 발급한 직원에게 묶이고 기한 최대 1년 — 만료되면 `/tokens`에서 새로 발급해 교체(`docs/innobot-architecture.md` §3-4)
 - `PPT_SERVICE_URL` — ppt-service 주소(`https://innogrid-ppt-service.vercel.app`)
 - `PPT_SERVICE_TOKEN` — 프론트·ppt-service 공통 토큰(`openssl rand -hex 32`, 두 프로젝트 같은 값)
 - `PPT_LLM_MODEL` — (선택) 폼에서 모델을 안 골랐을 때의 PPT 생성 모델, 기본 `claude-sonnet-5-5`(폼 선택지 Sonnet 5.5·Opus 5.5는 `types/ppt.ts`). `ANTHROPIC_API_KEY`가 없으면 /ppt는 안내문만 보인다

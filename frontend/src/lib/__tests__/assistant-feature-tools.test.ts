@@ -39,9 +39,9 @@ beforeEach(() => {
 
 describe("기능 도구 정의", () => {
   it("이름·등급·페이지 키 — ppt_create·todo_add·todo_update만 쓰기", () => {
-    expect(FEATURE_TOOLS.map((t) => t.name).sort()).toEqual(["food_search", "jira_issue", "jira_issues", "people_news", "ppt_create", "ppt_decks", "todo_add", "todo_list", "todo_update"]);
-    expect(FEATURE_TIERS).toEqual({ jira_issues: "read", jira_issue: "read", people_news: "read", food_search: "read", ppt_decks: "read", ppt_create: "write", todo_list: "read", todo_add: "write", todo_update: "write" });
-    expect([featurePage("jira_issue"), featurePage("people_news"), featurePage("food_search"), featurePage("ppt_create"), featurePage("todo_update"), featurePage("teams_send")]).toEqual(["jira", "people_news", "food", "ppt", "todo", null]);
+    expect(FEATURE_TOOLS.map((t) => t.name).sort()).toEqual(["food_search", "jira_issue", "jira_issues", "people_news", "ppt_create", "ppt_decks", "todo_add", "todo_list", "todo_update", "wiki_ask", "wiki_read"]);
+    expect(FEATURE_TIERS).toEqual({ jira_issues: "read", jira_issue: "read", people_news: "read", food_search: "read", ppt_decks: "read", ppt_create: "write", todo_list: "read", todo_add: "write", todo_update: "write", wiki_ask: "read", wiki_read: "read" });
+    expect([featurePage("jira_issue"), featurePage("people_news"), featurePage("food_search"), featurePage("ppt_create"), featurePage("todo_update"), featurePage("wiki_ask"), featurePage("teams_send")]).toEqual(["jira", "people_news", "food", "ppt", "todo", "assistant", null]);
   });
 });
 
@@ -159,5 +159,34 @@ describe("할 일", () => {
     expect(featureCard("todo_add", { title: "보고서", urgency: "today", priority: "p1" })).toEqual(["할 일 추가 — 보고서", "시급도: 오늘", "중요도: P1 긴급+중요"]);
     expect(featureCard("todo_update", { id: "t1", state: "done" }, "보고서")).toEqual(["할 일 바꾸기 — 보고서", "상태: 완료"]);
     expect(featureCard("todo_add", {})).toBeNull();
+  });
+});
+
+describe("사내 LLM 위키", () => {
+  beforeEach(() => { vi.stubEnv("LLM_WIKI_TOKEN", "tok"); });
+  const sse = (blocks: string[]) => new Response(blocks.join("\n\n") + "\n\n", { status: 200 });
+  it("wiki_ask — SSE 본문을 모으고 출처 경로를 뽑는다, 토큰은 Bearer", async () => {
+    fetchMock.mockResolvedValueOnce(sse(['event: tool\ndata: {"name":"Grep"}', 'event: delta\ndata: {"text":"K-water입니다.\\n- `wiki/project/충북도청/index.md`"}', 'event: delta\ndata: {"text":"\\n- `product/a.md`"}', 'event: done\ndata: {"ok":true}']));
+    const r = await runFeatureTool(fakeAdmin(), ctx, "wiki_ask", { question: "SECloudit 2.6 현장" });
+    expect(r).toEqual({ ok: true, result: { answer: "K-water입니다.\n- `wiki/project/충북도청/index.md`\n- `product/a.md`", sources: ["project/충북도청/index.md", "product/a.md"] } });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://llm-wiki.innogrid.com/api/ask");
+    expect(init.headers).toEqual({ authorization: "Bearer tok", "content-type": "application/json" });
+    expect(JSON.parse(String(init.body))).toEqual({ question: "SECloudit 2.6 현장" });
+  });
+  it("wiki_ask — error 이벤트·401·토큰 없음은 실패", async () => {
+    fetchMock.mockResolvedValueOnce(sse(['event: error\ndata: {"message":"x"}']));
+    expect((await runFeatureTool(fakeAdmin(), ctx, "wiki_ask", { question: "q" })).ok).toBe(false);
+    fetchMock.mockResolvedValueOnce(new Response("{}", { status: 401 }));
+    expect(await runFeatureTool(fakeAdmin(), ctx, "wiki_ask", { question: "q" })).toEqual({ ok: false, error: "사내 위키 토큰이 만료됐습니다(관리자 문의)." });
+    vi.stubEnv("LLM_WIKI_TOKEN", "");
+    expect(await runFeatureTool(fakeAdmin(), ctx, "wiki_ask", { question: "q" })).toEqual({ ok: false, error: "사내 위키 연동이 설정되지 않았습니다(관리자 문의)." });
+  });
+  it("wiki_read — 위키 축 아래 .md만, 경로는 조각별 인코딩", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("# 충북도청", { status: 200 }));
+    expect(await runFeatureTool(fakeAdmin(), ctx, "wiki_read", { path: "wiki/project/충북도청/index.md" })).toEqual({ ok: true, result: { path: "project/충북도청/index.md", content: "# 충북도청" } });
+    expect(fetchMock.mock.calls[0][0]).toBe(`https://llm-wiki.innogrid.com/api/wiki/doc/project/${encodeURIComponent("충북도청")}/index.md`);
+    for (const path of ["../etc/passwd.md", "product/../../x.md", "https://evil/x.md", "product/a.txt", "secret/a.md"]) expect((await runFeatureTool(fakeAdmin(), ctx, "wiki_read", { path })).ok).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

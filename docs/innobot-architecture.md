@@ -62,7 +62,7 @@
 |---|---|---|---|---|
 | 앱 고유 도구 `appTools` | 44 | 앱(device) | 계약 + 스키마 `tools.ts` `ASSISTANT_TOOLS` | 회의실 예약, 일정, 출퇴근, 메일 목록·읽기·검색·발송, 결재 조회, 게시판, 메신저, `open_screen`, `team_absences`, `offer_choices`, `undo_last` |
 | └ 그중 서버 위임 `appServerTools` | 11 | 서버(앱은 `/api/assistant/execute`, 웹은 직접) | 계약 | Teams 채팅·보내기, Confluence 검색·읽기·만들기, SharePoint 검색·읽기 |
-| 앱 기능 도구 `FEATURE_TOOLS` | 9 | 서버(웹·앱 공통) | `feature-tools.ts` | 할 일 `todo_list·todo_add·todo_update`, Jira 내 업무, 인사·부고, 뭐 먹지, PPT 만들기·내 PPT |
+| 앱 기능 도구 `FEATURE_TOOLS` | 11 | 서버(웹·앱 공통) | `feature-tools.ts` | 할 일 `todo_list·todo_add·todo_update`, Jira 내 업무, 인사·부고, 뭐 먹지, PPT 만들기·내 PPT, 사내 LLM 위키 `wiki_ask·wiki_read` |
 | 아마란스 확장 `appMcpTools` | 33 | 앱(device) — **McpTools** | 계약 + 스키마 `mcp/tools.json` | 결재 목록·상신·회수·결재선, 메일함·임시보관함·첨부 내려받기·삭제·안 읽음, 일정·예약 수정, 월 근태, 조직도, 사람 묶음, `whoami` |
 | 웹 중계 읽기 `RELAY_READ_TOOLS` | 37 | 데스크톱 앱(desktop-relay) | `toolset.ts` + `mcp/tools.json` | 웹에서 메일·결재·일정·메신저·결재선·월 근태 조회 |
 
@@ -109,6 +109,14 @@
 - **아마란스 확장 쓰기**:
   - 카드는 도구 제목(`_mcpWriteLabel`)과 실행에 그대로 쓰일 **인자 전부**다. 값이 길면 300자까지만 보인다.
   - 사람이 읽기 쉬운 대상 이름으로 다시 조회하지는 않는다. 한계는 §7 참고.
+
+### 3-4. 사내 LLM 위키(2026-11-27)
+
+`https://llm-wiki.innogrid.com`(Confluence·Teams 기술 문의를 정제한 제품·납품 현장·조직 지식, 안내 `/usage-guide`).
+- `wiki_ask` → `POST /api/ask`(SSE, 위키 서버가 검색해 출처 경로를 단 답, 10~30초) — 본문만 모아 `answer`, 출처 경로는 `sources`.
+- `wiki_read` → `GET /api/wiki/doc/<경로>`(`product|project|org|_open/…/*.md`만, 30,000자에서 자름).
+- 규칙 9: 사내 지식은 **먼저 wiki_ask**, 답 끝에 출처 경로, 위키에 없으면 지어내지 않고 필요하면 Confluence로 보완.
+- 페이지 키는 `assistant`(이노봇을 쓸 수 있으면 누구나). 토큰 `LLM_WIKI_TOKEN`(Vercel Production)은 **발급한 직원에게 묶이고 기한이 최대 1년** — 401이면 도구가 "토큰 만료" 오류를 내고 서버 로그에 `LLM 위키 401`이 남는다. `https://llm-wiki.innogrid.com/tokens`에서 새로 발급해 Vercel 값을 바꾸고 재배포한다.
 
 ## 4. 앱 쪽 구조(`mobile/lib/assistant/`)
 

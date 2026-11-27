@@ -9,7 +9,7 @@ export const TOOL_LABEL: Record<string, string> = {
   confluence_search: "Confluence 검색", confluence_read: "Confluence 문서", confluence_feed: "Confluence 소식", confluence_spaces: "Confluence 공간", confluence_create_page: "Confluence 페이지 만들기",
   list_messenger_rooms: "메신저 대화방", messenger_rooms: "메신저 대화방", read_messenger_room: "메신저 대화", messenger_read: "메신저 대화", search_messenger: "메신저 검색", messenger_search: "메신저 검색", messenger_send: "메신저 보내기",
   sharepoint_search: "SharePoint 검색", sharepoint_recent: "SharePoint 문서", sharepoint_read: "SharePoint 문서 읽기",
-  jira_issues: "Jira 내 업무", jira_issue: "Jira 이슈", people_news: "인사·부고", food_search: "식당 찾기", ppt_decks: "내 PPT", ppt_create: "PPT 만들기",
+  jira_issues: "Jira 내 업무", jira_issue: "Jira 이슈", people_news: "인사·부고", food_search: "식당 찾기", ppt_decks: "내 PPT", ppt_create: "PPT 만들기", wiki_ask: "사내 위키 묻기", wiki_read: "사내 위키 문서",
   todo_list: "할 일 목록", todo_add: "할 일 추가", todo_update: "할 일 바꾸기", open_screen: "화면 열기", team_absences: "팀원 부재",
   whoami: "내 정보", attendance_month: "월 근태", person_group: "사람 묶음", save_person_group: "사람 묶음 저장", delete_person_group: "사람 묶음 삭제",
   list_mailboxes: "메일함", list_mail_drafts: "임시보관함", download_mail_attachment: "메일 첨부 내려받기", mark_mail_unread: "안 읽음 표시", delete_mail: "메일 삭제", send_mail_from_draft: "임시보관 메일 발송",

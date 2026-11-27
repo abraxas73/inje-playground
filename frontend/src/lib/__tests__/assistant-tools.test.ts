@@ -6,7 +6,7 @@ import contract from "@/lib/assistant/tool-contract.json";
 const NAMES = ["approval_counts","approval_read","approvals_pending","attendance_today","cancel_reservation","clock_in","clock_out","confluence_create_page","confluence_feed","confluence_read","confluence_search","confluence_spaces","create_event","delete_event","find_free_rooms","find_person","list_calendars","list_events","list_rooms","mail_list","mail_read","mail_save_draft","mail_search","mail_send","messenger_read","messenger_rooms","messenger_search","messenger_send","my_reservations","my_team","notice_read","notices_list","offer_choices","open_screen","reserve_room","search","sharepoint_read","sharepoint_recent","sharepoint_search","team_absences","teams_chats","teams_mentions","teams_send","undo_last"];
 
 // 앱 기능 도구(lib/assistant/feature-tools.ts)는 서버 전용 — 앱 목록에 없고, 쓰기 확인 카드 문구도 서버가 보낸다.
-const FEATURE_NAMES = ["food_search", "jira_issue", "jira_issues", "people_news", "ppt_create", "ppt_decks", "todo_add", "todo_list", "todo_update"];
+const FEATURE_NAMES = ["food_search", "jira_issue", "jira_issues", "people_news", "ppt_create", "ppt_decks", "todo_add", "todo_list", "todo_update", "wiki_ask", "wiki_read"];
 
 describe("도구 표", () => {
   it("스키마 이름 = 등급 표 키 = 계약 파일의 앱 도구 + 서버 전용 앱 기능 도구", () => {
@@ -38,7 +38,7 @@ describe("도구 표", () => {
     expect(TOOL_TIERS.my_team).toBe("read");
     expect(TOOL_TIERS.confluence_create_page).toBe("write");
     expect(TOOL_TIERS.confluence_search).toBe("read");
-    expect(SERVER_TOOLS).toEqual(["teams_chats", "teams_mentions", "teams_send", "confluence_search", "confluence_read", "confluence_feed", "confluence_spaces", "confluence_create_page", "sharepoint_search", "sharepoint_recent", "sharepoint_read", "jira_issues", "jira_issue", "people_news", "food_search", "ppt_decks", "ppt_create", "todo_list", "todo_add", "todo_update"]);
+    expect(SERVER_TOOLS).toEqual(["teams_chats", "teams_mentions", "teams_send", "confluence_search", "confluence_read", "confluence_feed", "confluence_spaces", "confluence_create_page", "sharepoint_search", "sharepoint_recent", "sharepoint_read", "jira_issues", "jira_issue", "people_news", "food_search", "ppt_decks", "ppt_create", "todo_list", "todo_add", "todo_update", "wiki_ask", "wiki_read"]);
     expect(TOOL_TIERS.sharepoint_read).toBe("read");
     expect(TOOL_TIERS.mail_search).toBe("read");
   });

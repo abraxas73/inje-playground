@@ -1,5 +1,5 @@
 /**
- * 이노봇이 부르는 우리 앱 기능 — Jira 내 업무·인사·부고·뭐 먹지·PPT 만들기·할 일. 서버에서 실행하고(웹·앱 공통), 페이지 권한은 runServerTool이 본다.
+ * 이노봇이 부르는 우리 앱 기능 — Jira 내 업무·인사·부고·뭐 먹지·PPT 만들기·할 일·사내 LLM 위키. 서버에서 실행하고(웹·앱 공통), 페이지 권한은 runServerTool이 본다.
  * 쓰기(ppt_create·todo_add·todo_update)는 확인 카드 문구를 서버가 만든다(featureCard) — 앱은 그 문구를 그대로 보이므로 새 쓰기 도구에 앱 업데이트가 필요 없다.
  */
 import type Anthropic from "@anthropic-ai/sdk";
@@ -22,11 +22,13 @@ export const FEATURE_TOOLS: Anthropic.Tool[] = [
   tool("todo_list", "내 할 일(우리 앱 할 일 — 시급도 오늘·받은함·예정·언젠가, 중요도 p1~p4) 최근 수정 순 최대 50건 — id·제목·상태·시급도·중요도·예정일·메모 앞부분.", { state: S("in_progress(진행 중, 기본)|done(완료)|cancelled(취소)|all"), urgency: S("today|inbox|scheduled|someday(선택)"), query: S("제목 검색어(선택)"), id: S("이 할 일 하나만(선택)") }),
   tool("todo_add", "할 일 추가(쓰기 — 사용자 확인 후).", { title: S("제목(500자 이내)"), notes: S("메모(선택)"), urgency: S("today|inbox(기본)|scheduled|someday"), priority: S("p1(긴급+중요)|p2(중요)|p3(긴급, 기본)|p4"), scheduled_for: S("예정일 YYYY-MM-DD(선택 — urgency scheduled와 함께)") }, ["title"]),
   tool("todo_update", "할 일 바꾸기(쓰기 — 완료·취소·되살리기·분류·제목·메모). todo_list 결과의 id로.", { id: S("할 일 id"), state: S("in_progress|done|cancelled(선택)"), urgency: S("today|inbox|scheduled|someday(선택)"), priority: S("p1|p2|p3|p4(선택)"), title: S("새 제목(선택)"), notes: S("새 메모(선택)"), scheduled_for: S("예정일 YYYY-MM-DD(선택)") }, ["id"]),
+  tool("wiki_ask", "사내 LLM 위키(Confluence·Teams 기술 문의를 정제한 제품·납품 현장(프로젝트)·조직 환경·규칙 지식)에 묻는다. 위키 서버가 문서를 찾아 출처 경로(product/…·project/…·org/…)를 단 답을 돌려준다(10~30초). 사내 지식 질문이면 먼저 이것을 쓴다.", { question: S("물을 내용(한 문장, 맥락 포함 — 예: 'SECloudit 2.6이 나간 현장은?')") }, ["question"]),
+  tool("wiki_read", "사내 LLM 위키 문서 하나의 원문(마크다운). wiki_ask 답의 출처 경로를 더 자세히 볼 때. 각 축 목록은 product/index.md·project/index.md·org/index.md, 없다고 확인된 것은 _open/gaps.md.", { path: S("문서 경로(예: product/index.md)") }, ["path"]),
   tool("ppt_decks", "내가 만든 PPT(PPT 만들기) 최근 10개 — 제목·상태(만드는 중·완성·실패)·장 수·링크. 만들기를 요청한 뒤 '다 됐어?'에 쓴다."),
   tool("ppt_create", "PPT 만들기 기능으로 이노그리드 표준 템플릿 PPT를 만든다(쓰기 — 사용자 확인 후 시작, 완성까지 몇 분). 원고는 text(마크다운 원고 — 대화에서 정리한 내용) 또는 url(웹·Confluence·SharePoint 문서 주소) 중 하나. 결과는 PPT 만들기 화면 링크.", { title: S("표지 제목(선택 — 비우면 원고에서)"), text: S("원고(마크다운, 장 구성·핵심 내용)"), url: S("원고 문서 주소(text 대신)"), prompt: S("만드는 방식 요청(선택, 예: 임원 보고용 10장 내외)") }),
 ];
-export const FEATURE_TIERS: Record<string, "read" | "write"> = { jira_issues: "read", jira_issue: "read", people_news: "read", food_search: "read", ppt_decks: "read", ppt_create: "write", todo_list: "read", todo_add: "write", todo_update: "write" };
-const PAGE: Record<string, PageKey> = { jira_issues: "jira", jira_issue: "jira", people_news: "people_news", food_search: "food", ppt_decks: "ppt", ppt_create: "ppt", todo_list: "todo", todo_add: "todo", todo_update: "todo" };
+export const FEATURE_TIERS: Record<string, "read" | "write"> = { jira_issues: "read", jira_issue: "read", people_news: "read", food_search: "read", ppt_decks: "read", ppt_create: "write", todo_list: "read", todo_add: "write", todo_update: "write", wiki_ask: "read", wiki_read: "read" };
+const PAGE: Record<string, PageKey> = { jira_issues: "jira", jira_issue: "jira", people_news: "people_news", food_search: "food", ppt_decks: "ppt", ppt_create: "ppt", todo_list: "todo", todo_add: "todo", todo_update: "todo", wiki_ask: "assistant", wiki_read: "assistant" };
 export const featurePage = (name: string): PageKey | null => PAGE[name] ?? null;
 
 const str = (a: Record<string, unknown>, k: string, max = 2000) => (typeof a[k] === "string" ? (a[k] as string).trim().slice(0, max) : "");
@@ -105,6 +107,7 @@ export async function runFeatureTool(admin: SupabaseClient, ctx: { userId: strin
       return done({ items: ((data ?? []) as Array<Record<string, string | null>>).map((n) => ({ category: n.category === "obituary" ? "부고" : "인사", title: n.title, summary: (n.summary ?? "").slice(0, 200), date: n.published_at, url: n.source_url })) });
     }
     if (name === "food_search") return await foodSearch(admin, args);
+    if (name === "wiki_ask" || name === "wiki_read") return await wiki(name, args);
     if (name === "todo_list") {
       const state = str(args, "state") || "in_progress", urgency = str(args, "urgency"), id = str(args, "id", 40), query = str(args, "query", 50).replace(/[%_]/g, "");
       if (state !== "all" && !(state in TODO_STATE)) return fail("state는 in_progress·done·cancelled·all 중 하나입니다.");
@@ -187,4 +190,43 @@ async function foodSearch(admin: SupabaseClient, args: Record<string, unknown>):
   const params = { category_group_code: str(args, "kind") === "cafe" ? "CE7" : "FD6", x: String(spot.x), y: String(spot.y), radius: String(radius), sort: "distance", size: "15" };
   const docs = keyword ? await kakao(key, "/v2/local/search/keyword.json", { query: keyword, ...params }) : await kakao(key, "/v2/local/search/category.json", params);
   return { ok: true, result: { center, places: docs.slice(0, 10).map((d) => ({ name: d.place_name, category: String(d.category_name ?? "").split(" > ").at(-1), distance_m: Number(d.distance), address: d.road_address_name || d.address_name, phone: d.phone || undefined, url: d.place_url })) } };
+}
+
+const WIKI = "https://llm-wiki.innogrid.com";
+const WIKI_PATH = /^(product|project|org|_open)\/[^?#\\]+\.md$/;
+
+/** 사내 LLM 위키(안내 https://llm-wiki.innogrid.com/usage-guide). 토큰은 발급한 직원에게 묶이고 기한(최대 1년)이 있다 — 401이면 새로 발급해 LLM_WIKI_TOKEN 교체. */
+async function wiki(name: string, args: Record<string, unknown>): Promise<ToolRun> {
+  const token = process.env.LLM_WIKI_TOKEN;
+  if (!token) return { ok: false, error: "사내 위키 연동이 설정되지 않았습니다(관리자 문의)." };
+  const headers = { authorization: `Bearer ${token}` };
+  const authFail = (status: number): ToolRun | null => {
+    if (status !== 401) return null;
+    console.error("[assistant] LLM 위키 401 — LLM_WIKI_TOKEN 만료·폐기");
+    return { ok: false, error: "사내 위키 토큰이 만료됐습니다(관리자 문의)." };
+  };
+  if (name === "wiki_read") {
+    const path = str(args, "path", 300).replace(/^\/+/, "").replace(/^wiki\//, "");
+    if (!WIKI_PATH.test(path) || path.split("/").includes("..")) return { ok: false, error: "path는 product/…·project/…·org/…·_open/… 아래 .md 경로입니다." };
+    const res = await fetch(`${WIKI}/api/wiki/doc/${path.split("/").map(encodeURIComponent).join("/")}`, { headers, signal: AbortSignal.timeout(20_000) });
+    if (res.status === 404) return { ok: false, error: `위키에 그 문서가 없습니다: ${path}` };
+    if (!res.ok) return authFail(res.status) ?? { ok: false, error: "사내 위키 문서를 불러오지 못했습니다." };
+    const text = await res.text();
+    return { ok: true, result: { path, content: text.slice(0, 30_000), ...(text.length > 30_000 ? { truncated: true } : {}) } };
+  }
+  const question = str(args, "question", 1000);
+  if (!question) return { ok: false, error: "question이 필요합니다." };
+  const res = await fetch(`${WIKI}/api/ask`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ question }), signal: AbortSignal.timeout(90_000) });
+  if (!res.ok) return authFail(res.status) ?? { ok: false, error: "사내 위키에 묻지 못했습니다." };
+  // SSE: event: delta {text} / tool / done / error — 끝까지 받아 본문만 모은다
+  let answer = "";
+  for (const block of (await res.text()).split(/\n\n/)) {
+    const event = /^event: (.+)$/m.exec(block)?.[1], data = /^data: (.*)$/m.exec(block)?.[1];
+    if (!data) continue;
+    if (event === "error") return { ok: false, error: "사내 위키가 답하지 못했습니다." };
+    if (event === "delta") try { answer += (JSON.parse(data) as { text?: string }).text ?? ""; } catch { /* 깨진 조각은 건너뛴다 */ }
+  }
+  if (!answer.trim()) return { ok: false, error: "사내 위키가 빈 답을 돌려줬습니다." };
+  const sources = [...new Set([...answer.matchAll(/`(?:wiki\/)?((?:product|project|org|_open)\/[^`\s]+\.md)`/g)].map((m) => m[1]))];
+  return { ok: true, result: { answer, sources } };
 }
