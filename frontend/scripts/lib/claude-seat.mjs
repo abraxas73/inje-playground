@@ -39,3 +39,21 @@ export function readToken(paths, env = process.env) {
   }
   return null;
 }
+
+/** 자동 해제 요청자 표시 — src/lib/claude-usage/idle-seats.ts의 AUTO_REQUESTER.email과 같아야 한다 */
+export const AUTO_RELEASE_REQUESTER = "자동 해제(7일 미사용)";
+const ACTIVITY_COUNTS = ["chat_count", "message_count", "code_session_count", "cowork_session_count", "cowork_message_count", "pull_request_count", "file_edit_count"];
+
+/**
+ * claude.ai /analytics/activity/users 한 페이지({members:[…]})에서 그 사람이 since(YYYY-MM-DD) 이후 활동했는지.
+ * 없으면 null, 있으면 근거 문자열. 이 목록은 기간 안 활동자만 나오므로 목록에 있으면 활동으로 본다(last_active·횟수는 근거 표시용).
+ */
+export function activitySince(payload, email, since) {
+  const want = String(email ?? "").trim().toLowerCase();
+  const m = (Array.isArray(payload?.members) ? payload.members : []).find((x) => String(x?.email ?? "").trim().toLowerCase() === want);
+  if (!m) return null;
+  const last = typeof m.last_active === "string" ? m.last_active : "";
+  const used = ACTIVITY_COUNTS.some((k) => Number(m[k]) > 0);
+  if (last && last < since && !used) return null;
+  return `마지막 활동 ${last || "?"}`;
+}

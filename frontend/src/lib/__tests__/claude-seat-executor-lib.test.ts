@@ -1,9 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { TIER_TO_API } from "@/lib/claude-usage/seat-tier";
 // 실행기는 TS를 못 읽으므로 같은 규칙을 .mjs에 따로 갖는다 — 여기서 대조한다
-import { TIER_TO_API as MJS_TIER_TO_API, findMember, parseEnv } from "../../../scripts/lib/claude-seat.mjs";
+import { AUTO_REQUESTER } from "@/lib/claude-usage/idle-seats";
+import { AUTO_RELEASE_REQUESTER, TIER_TO_API as MJS_TIER_TO_API, activitySince, findMember, parseEnv } from "../../../scripts/lib/claude-seat.mjs";
 
 describe("claude-seat.mjs", () => {
+  it("자동 해제 요청자 표시가 TS와 같다", () => {
+    expect(AUTO_RELEASE_REQUESTER).toBe(AUTO_REQUESTER.email);
+  });
+  it("해제 직전 확인: 분석 목록에 최근 활동이 있으면 근거를, 없거나 오래됐으면 null", () => {
+    const page = { members: [{ email: "Kim@innogrid.com", last_active: "2026-11-27", chat_count: 3 }, { email: "old@innogrid.com", last_active: "2026-11-10", chat_count: 0 }] };
+    expect(activitySince(page, "kim@innogrid.com", "2026-11-21")).toBe("마지막 활동 2026-11-27");
+    expect(activitySince(page, "old@innogrid.com", "2026-11-21")).toBeNull();
+    expect(activitySince(page, "none@innogrid.com", "2026-11-21")).toBeNull();
+    expect(activitySince({ members: [{ email: "x@innogrid.com", last_active: null, code_session_count: 1 }] }, "x@innogrid.com", "2026-11-21")).toBe("마지막 활동 ?");
+    expect(activitySince(null, "kim@innogrid.com", "2026-11-21")).toBeNull();
+  });
   it("티어 매핑 표가 TS와 같다", () => {
     expect(MJS_TIER_TO_API).toEqual(TIER_TO_API);
   });

@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 /**
  * 7일 미사용 시트 자동 해제 요청 — 매일 09:05 사용량 수집 래퍼가 수집 뒤에 부른다(Bearer OPS_INGEST_TOKEN).
  * 오늘(20시간 안) CSV가 올라온 team 조직만 본다(수집 실패한 조직은 오래된 데이터로 판정하지 않음).
+ * 실행기는 해제 직전에 claude.ai 분석을 다시 읽어 최근 7일 사용이 있으면 해제하지 않는다(scripts/claude-seat-executor.mjs recentUseBeforeRelease).
  * 대상은 수동 해제와 같은 claude_seat_actions 요청(요청자 "자동 해제(7일 미사용)")으로 넣고 실행기가 처리한다 — 이력·감사 동일.
  * body {operator: 관리자 이메일} — 요청자 id로 남고, 실행기가 해제를 마치면 그 관리자의 Microsoft 연결로 본인에게 Teams 안내를 보낸다(PATCH).
  * ?dry=1 이면 넣지 않고 대상만 돌려준다.
@@ -56,13 +57,15 @@ export async function POST(request: NextRequest) {
     const rough = (members.data ?? []).filter((m) => lastActive.has(m.email) && (lastActive.get(m.email) ?? "") < since).map((m) => m.email as string);
     if (rough.length === 0) { result.push({ org_id: org, emails: [], requested: 0 }); continue; }
 
-    const [old, code, assigned] = await Promise.all([
+    const [old, code, office, assigned] = await Promise.all([
       admin.from("claude_member_activity").select("email").eq("org_id", org).lte("period_end", minusDays(pe, IDLE_DAYS)).gte("period_end", minusDays(pe, IDLE_DAYS * 2)).in("email", rough),
       admin.from("claude_code_daily").select("user_email, sessions, prompts, cost_usd").gte("day", since).in("user_email", rough),
+      admin.from("claude_office_trace_log").select("user_email").gte("received_at", `${since}T00:00:00Z`).in("user_email", rough).limit(1000), // Office 추가 기능 사용은 CSV·Code에 안 나온다
       admin.from("claude_seat_actions").select("email").eq("org_id", org).eq("action", "assign").eq("status", "done").gte("finished_at", new Date(Date.now() - IDLE_DAYS * 86_400_000).toISOString()).in("email", rough),
     ]);
     if (old.error) return fail(old.error.message);
     if (code.error) return fail(code.error.message);
+    if (office.error) return fail(office.error.message);
     if (assigned.error) return fail(assigned.error.message);
 
     const emails = pickIdleSeats({
@@ -70,7 +73,10 @@ export async function POST(request: NextRequest) {
       members: members.data ?? [],
       lastActive,
       tenured: new Set((old.data ?? []).map((r) => r.email as string)),
-      codeActive: new Set((code.data ?? []).filter((r) => Number(r.sessions) > 0 || Number(r.prompts) > 0 || Number(r.cost_usd) > 0).map((r) => r.user_email as string)),
+      codeActive: new Set([
+        ...(code.data ?? []).filter((r) => Number(r.sessions) > 0 || Number(r.prompts) > 0 || Number(r.cost_usd) > 0).map((r) => r.user_email as string),
+        ...(office.data ?? []).map((r) => r.user_email as string),
+      ]),
       recentlyAssigned: new Set((assigned.data ?? []).map((r) => r.email as string)),
     });
 

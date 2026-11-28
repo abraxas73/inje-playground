@@ -13,9 +13,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { TIER_TO_API, findMember, readToken } from "./lib/claude-seat.mjs";
+import { AUTO_RELEASE_REQUESTER, TIER_TO_API, activitySince, findMember, readToken } from "./lib/claude-seat.mjs";
 
-const VERSION = "2026-10-16.ego";
+const VERSION = "2026-11-28.ego";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP_URL = (process.env.APP_URL || "https://inje-playground.vercel.app").replace(/\/$/, "");
 const SPACE_ID = process.env.SEAT_EGO_SPACE || "claude-seat-executor";
@@ -68,6 +68,25 @@ async function ensureClaudePage() {
   return { page: SPACE_ID, loggedIn: loginOk };
 }
 
+/**
+ * 자동 해제는 해제 직전에 claude.ai 분석을 다시 읽어 최근 7일(오늘 UTC 기준) 활동이 있으면 해제하지 않는다.
+ * 아침 판정은 CSV 기간 끝(UTC 어제) 기준인데 claude.ai 분석은 하루~이틀 늦게 반영돼(data_as_of, 2026-11-28 김준형 건) 다시 본다.
+ * 확인이 안 되면(응답 오류) 해제하지 않는다 — 사용 중인 시트를 뺏는 쪽이 더 나쁘다.
+ */
+async function recentUseBeforeRelease(page, row) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - 7);
+  const since = d.toISOString().slice(0, 10);
+  for (let p = 1; p <= 20; p++) {
+    const r = await claudeFetch(page, `/api/organizations/${row.org_id}/analytics/activity/users?sort=chats&order=desc&start_date=${since}&page=${p}&page_size=50`);
+    if (r.status !== 200 || !Array.isArray(r.json?.members)) return `해제 직전 사용량 확인 실패(claude.ai ${r.status}) — 해제하지 않음`;
+    const hit = activitySince(r.json, row.email, since);
+    if (hit) return `해제 직전 확인: ${since} 이후 사용 있음(${hit}) — 해제하지 않음`;
+    if (!r.json.has_more) return null;
+  }
+  return "해제 직전 사용량 확인 실패(페이지 초과) — 해제하지 않음";
+}
+
 async function process1(page, row) {
   const org = row.org_id;
   const target = row.action === "unassign" ? "unassigned" : TIER_TO_API[row.target_tier];
@@ -80,6 +99,10 @@ async function process1(page, row) {
     const m = findMember(beforeRes.json, row.email);
     if (!m || !m.uuid) return { status: "failed", error: "조직에서 멤버를 찾지 못했습니다" };
     before = m.seat_tier;
+    if (row.action === "unassign" && row.requested_by_email === AUTO_RELEASE_REQUESTER) {
+      const why = await recentUseBeforeRelease(page, row);
+      if (why) return { status: "failed", before_tier: before, error: why };
+    }
     const put = await claudeFetch(page, `/api/organizations/${org}/members/${m.uuid}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ seat_tier: target }) });
     if (put.status < 200 || put.status >= 300) return { status: "failed", before_tier: before, error: `claude.ai ${put.status}: ${put.text}` };
     putOk = true;
